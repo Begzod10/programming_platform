@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 # Model va MetaData ni import qilish
-from app.db.base import Base
+from app.db.base_all import Base
 from app.models.user import Student
 from app.models.course import Course
 from app.models.project import Project

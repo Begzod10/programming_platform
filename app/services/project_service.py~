@@ -36,15 +36,10 @@ async def get_current_student(token: str = Depends(oauth2_scheme), db: AsyncSess
     )
     return await get_current_user(token, db, credentials_exception)
 
-
-async def get_current_instructor(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid authentication credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    return await get_current_user(token, db, credentials_exception)
-
-
-async def ProjectService(db: AsyncSession = Depends(get_db)):
-    return ProjectService(db)
+async get_current_instructor(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
+credentials_exception = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Invalid authentication credentials",
+    headers={"WWW-Authenticate": "Bearer"},
+)
+return await get_current_user(token, db, credentials_exception)
