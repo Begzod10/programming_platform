@@ -31,7 +31,7 @@
 #     "/",
 #     response_model=ProjectRead,
 #     status_code=status.HTTP_201_CREATED,
-#     summary="Create a new project",
+#     summary="Yangi project yaratish",
 # )
 # async def create_project(
 #     payload: ProjectCreate,

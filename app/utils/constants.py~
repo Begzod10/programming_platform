@@ -1,8 +1,7 @@
-# app/utils/constants.py
 
-ALLOWED_EXTENSIONS = {".py", ".js", ".ts", ".html", ".css"}
+ALLOWED_EXTENSIONS = {".py", ".js", ".ts", ".html", ".css", ".json", ".md", ".txt", ".zip"}
 
-MAX_FILE_SIZE = 10 * 1024 * 1024
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 UPLOAD_DIR = "./uploads"
 
