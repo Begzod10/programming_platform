@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException, status
-from app.models.project import Project
+`from app.models.project import Project
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead, ProjectReadWithStudent
 from app.schemas.user import UserRead
 from fastapi.security import OAuth2PasswordBearer
@@ -36,10 +36,15 @@ async def get_current_student(token: str = Depends(oauth2_scheme), db: AsyncSess
     )
     return await get_current_user(token, db, credentials_exception)
 
-async get_current_instructor(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
-credentials_exception = HTTPException(
-    status_code=status.HTTP_401_UNAUTHORIZED,
-    detail="Invalid authentication credentials",
-    headers={"WWW-Authenticate": "Bearer"},
-)
-return await get_current_user(token, db, credentials_exception)
+
+async def get_current_instructor(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid authentication credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    return await get_current_user(token, db, credentials_exception)
+
+
+async def ProjectService(db: AsyncSession = Depends(get_db)):
+    return ProjectService(db)

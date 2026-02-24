@@ -6,6 +6,7 @@ from app.schemas.user import UserCreate
 from app.core.security import get_password_hash, verify_password, create_access_token
 from app.db.session import get_db
 from fastapi import APIRouter, Depends, Query
+from app.db.base_class import Base
 
 
 async def register_new_student(db: AsyncSession, user_data: UserCreate):

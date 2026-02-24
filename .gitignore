@@ -12,5 +12,8 @@ venv/
 
 *.postgres
 
+__alembic__/
+alembic.ini
+
 *.log
 "@ | Set-Content .gitignore -Encoding utf8
