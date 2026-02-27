@@ -4,7 +4,6 @@ from jose import jwt
 from passlib.context import CryptContext
 from app.config import settings
 
-# bcrypt-ni alohida import qilamiz
 import bcrypt as _bcrypt
 
 ALGORITHM = "HS256"
@@ -12,10 +11,8 @@ ALGORITHM = "HS256"
 
 def get_password_hash(password: str) -> str:
     """Parolni hash qilish"""
-    # Parolni bytes formatiga o'tkazamiz va 72 baytga qisqartamiz
     password_bytes = password.encode('utf-8')[:72]
 
-    # bcrypt bilan to'g'ridan-to'g'ri hash qilamiz
     salt = _bcrypt.gensalt()
     hashed = _bcrypt.hashpw(password_bytes, salt)
 

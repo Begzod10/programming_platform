@@ -9,9 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from app.db.base_class import Base
 from app.core.security import decode_access_token
 from fastapi.security import OAuth2PasswordBearer
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
-
 
 async def register_new_student(db: AsyncSession, user_data: UserCreate):
     result = await db.execute(select(Student).where(Student.email == user_data.email))
@@ -144,10 +142,9 @@ async def get_users(db: AsyncSession = Depends(get_db)):
     users = result.scalars().all()
     return users
 
-
 async def get_current_student(
-        token: str = Depends(oauth2_scheme),
-        db: AsyncSession = Depends(get_db)
+    token: str = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db)
 ) -> Student:
     user_id = decode_access_token(token)
     if not user_id:

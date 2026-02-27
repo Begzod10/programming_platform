@@ -2,13 +2,12 @@ from pydantic_settings import BaseSettings
 from pathlib import Path
 import os
 
-BASE_DIR = Path(__file__).parent.parent  # project root
+BASE_DIR = Path(__file__).parent.parent
 
 
 class Settings(BaseSettings):
 
     DATABASE_URL: str = "postgresql+asyncpg://postgres:123@localhost:5432/Student_Platform"
-    # ...
     APP_NAME: str = "Student Programming Platform"
     DEBUG: bool = True
     SECRET_KEY: str = "your-secret-key-here"

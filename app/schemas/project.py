@@ -1,11 +1,9 @@
-from pydantic import BaseModel, ConfigDict, field_validator, HttpUrl
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional
 from datetime import datetime
 from enum import Enum
 from app.schemas.user import UserRead
 
-
-# ─── Enums
 
 class DifficultyLevel(str, Enum):
     easy = "Easy"
@@ -13,7 +11,7 @@ class DifficultyLevel(str, Enum):
     hard = "Hard"
 
 
-class ProjectStatus(str, Enum):
+class ProjectStatusEnum(str, Enum):
     draft = "Draft"
     submitted = "Submitted"
     under_review = "Under Review"
@@ -63,13 +61,11 @@ class ProjectBase(BaseModel):
         return v
 
 
-
 class ProjectCreate(ProjectBase):
     project_files: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):
-    """Faqat o'zgartirish kere bogan fieldlarni yuborish  (PATCH logikasi)."""
     title: Optional[str] = None
     description: Optional[str] = None
     github_url: Optional[str] = None
@@ -86,7 +82,6 @@ class ProjectUpdate(BaseModel):
         return v
 
 
-
 class ProjectRead(BaseModel):
     id: int
     student_id: int
@@ -97,7 +92,7 @@ class ProjectRead(BaseModel):
     project_files: Optional[str] = None
     technologies_used: Optional[list[str]] = None
     difficulty_level: DifficultyLevel
-    status: ProjectStatus
+    status: ProjectStatusEnum
     points_earned: int
     instructor_feedback: Optional[str] = None
     grade: Optional[Grade] = None
@@ -117,7 +112,6 @@ class ProjectReadWithStudent(ProjectRead):
     model_config = ConfigDict(from_attributes=True)
 
 
-
 class ProjectListResponse(BaseModel):
     projects: list[ProjectReadWithStudent]
     total: int
@@ -128,7 +122,8 @@ class ProjectListResponse(BaseModel):
 
 
 class ProjectReview(BaseModel):
-    status: ProjectStatus
+    """Instructor tomonidan loyihani baholash"""
+    status: ProjectStatusEnum
     grade: Grade
     points_earned: int
     instructor_feedback: Optional[str] = None
@@ -139,3 +134,44 @@ class ProjectReview(BaseModel):
         if v < 0 or v > 100:
             raise ValueError("Ball 0 dan 100 gacha bo'lishi kerak")
         return v
+
+
+class ProjectStatusUpdate(BaseModel):
+    """Faqat statusni yangilash"""
+    status: ProjectStatusEnum
+
+
+class ProjectDifficultyUpdate(BaseModel):
+    """Faqat qiyinlik darajasini yangilash"""
+    difficulty_level: DifficultyLevel
+
+
+class ProjectGrade(BaseModel):
+    """Faqat baho va ball berish"""
+    grade: Grade
+    points_earned: int
+
+    @field_validator("points_earned", mode="before")
+    @classmethod
+    def validate_points(cls, v: int) -> int:
+        if v < 0 or v > 100:
+            raise ValueError("Ball 0 dan 100 gacha bo'lishi kerak")
+        return v
+
+
+class ProjectComment(BaseModel):
+    """Izoh qoldirish"""
+    comment: str
+
+    @field_validator("comment", mode="before")
+    @classmethod
+    def validate_comment(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("Izoh kamida 3 ta belgidan iborat bo'lishi kerak")
+        if len(v) > 1000:
+            raise ValueError("Izoh 1000 ta belgidan oshmasligi kerak")
+        return v
+
+
+ProjectStatus = ProjectStatusEnum

@@ -1,50 +1,88 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from fastapi import HTTPException, status
-`from app.models.project import Project
-from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead, ProjectReadWithStudent
-from app.schemas.user import UserRead
+from sqlalchemy import func
+from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
-from fastapi import APIRouter, Depends
-from app.db.session import get_db
-from app.services.auth_service import get_current_user
+from app.models.project import Project
 from app.models.user import Student
-from app.services.auth_service import get_current_active_user
+from app.schemas.project import ProjectCreate, ProjectUpdate
+from app.db.session import get_db
+from app.core.security import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
-async def create_project(student_id: int, data: ProjectCreate, db: AsyncSession = Depends(get_db)):
-    new_project = Project(**data.dict(), student_id=student_id)
-    db.add(new_project)
-    await db.commit()
-    await db.refresh(new_project)
-    return new_project
+async def get_current_student(
+        token: str = Depends(oauth2_scheme),
+        db: AsyncSession = Depends(get_db)
+) -> Student:
+    user_id = decode_access_token(token)
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token noto'g'ri yoki muddati o'tgan"
+        )
+    result = await db.execute(select(Student).where(Student.id == user_id))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+    return user
 
 
-async def get_project(project_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalars().first()
-    return project
+async def get_current_instructor(
+        token: str = Depends(oauth2_scheme),
+        db: AsyncSession = Depends(get_db)
+) -> Student:
+    return await get_current_student(token, db)
 
 
-async def get_current_student(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid authentication credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    return await get_current_user(token, db, credentials_exception)
+class ProjectService:
+    def __init__(self, db: AsyncSession):
+        self.db = db
 
+    async def create_project(self, student_id: int, data: ProjectCreate):
+        new_project = Project(**data.dict(), student_id=student_id)
+        self.db.add(new_project)
+        await self.db.commit()
+        await self.db.refresh(new_project)
+        return new_project
 
-async def get_current_instructor(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid authentication credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    return await get_current_user(token, db, credentials_exception)
+    async def get_project(self, project_id: int):
+        result = await self.db.execute(
+            select(Project).where(Project.id == project_id)
+        )
+        project = result.scalars().first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+        return project
 
+    async def get_projects(self, page: int = 1, page_size: int = 10):
+        offset = (page - 1) * page_size
+        result = await self.db.execute(
+            select(Project).offset(offset).limit(page_size)
+        )
+        projects = result.scalars().all()
 
-async def ProjectService(db: AsyncSession = Depends(get_db)):
-    return ProjectService(db)
+        count_result = await self.db.execute(select(func.count(Project.id)))
+        total = count_result.scalar()
+
+        return {
+            "items": projects,
+            "total": total,
+            "page": page,
+            "page_size": page_size
+        }
+
+    async def update_project(self, project_id: int, data: ProjectUpdate):
+        project = await self.get_project(project_id)
+        for key, value in data.dict(exclude_unset=True).items():
+            setattr(project, key, value)
+        await self.db.commit()
+        await self.db.refresh(project)
+        return project
+
+    async def delete_project(self, project_id: int):
+        project = await self.get_project(project_id)
+        await self.db.delete(project)
+        await self.db.commit()
+        return {"message": "Loyiha o'chirildi"}

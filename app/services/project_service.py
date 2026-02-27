@@ -1,50 +1,213 @@
+import json
+import os
+import shutil
+from datetime import datetime
+from typing import Optional
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from fastapi import HTTPException, status
-from app.models.project import Project
-from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead, ProjectReadWithStudent
-from app.schemas.user import UserRead
+from sqlalchemy import func
+from sqlalchemy.orm import selectinload
+from fastapi import HTTPException, status, Depends, UploadFile
 from fastapi.security import OAuth2PasswordBearer
-from fastapi import APIRouter, Depends
-from app.db.session import get_db
-from app.services.auth_service import get_current_user
+
+from app.models.project import Project
 from app.models.user import Student
-from app.services.auth_service import get_current_active_user
+from app.schemas.project import (
+    ProjectCreate,
+    ProjectUpdate,
+    ProjectReview,
+    ProjectStatusUpdate,
+    ProjectDifficultyUpdate,
+    ProjectGrade,
+    ProjectComment,
+)
+from app.db.session import get_db
+from app.core.security import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-
-async def create_project(student_id: int, data: ProjectCreate, db: AsyncSession = Depends(get_db)):
-    new_project = Project(**data.dict(), student_id=student_id)
-    db.add(new_project)
-    await db.commit()
-    await db.refresh(new_project)
-    return new_project
+UPLOAD_DIR = "uploads"
 
 
-async def get_project(project_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalars().first()
-    return project
+async def get_current_student(
+        token: str = Depends(oauth2_scheme),
+        db: AsyncSession = Depends(get_db)
+) -> Student:
+    user_id = decode_access_token(token)
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token noto'g'ri yoki muddati o'tgan"
+        )
+    result = await db.execute(select(Student).where(Student.id == user_id))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+    return user
 
 
-async def get_current_student(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid authentication credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    return await get_current_user(token, db, credentials_exception)
+class ProjectService:
+    def __init__(self, db: AsyncSession):
+        self.db = db
 
+    async def create_project(self, student_id: int, data: ProjectCreate) -> Project:
+        data_dict = data.model_dump()  # ✅ .dict() emas, .model_dump()
 
-async def get_current_instructor(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid authentication credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    return await get_current_user(token, db, credentials_exception)
+        # technologies_used list → JSON string (DB da Text saqlanadi)
+        if data_dict.get("technologies_used") is not None:
+            data_dict["technologies_used"] = json.dumps(data_dict["technologies_used"])
 
+        new_project = Project(**data_dict, student_id=student_id)
+        self.db.add(new_project)
+        await self.db.commit()
+        await self.db.refresh(new_project)
+        return await self._load_with_student(new_project.id)
 
-async def ProjectService(db: AsyncSession = Depends(get_db)):
-    return ProjectService(db)
+    async def get_project(self, project_id: int) -> Project:
+        result = await self.db.execute(
+            select(Project)
+            .options(selectinload(Project.student))  # ✅ student ham yuklanadi
+            .where(Project.id == project_id)
+        )
+        project = result.scalars().first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+        return self._parse_technologies(project)
+
+    async def get_projects(self, page: int = 1, page_size: int = 10) -> dict:
+        offset = (page - 1) * page_size
+        result = await self.db.execute(
+            select(Project)
+            .options(selectinload(Project.student))  # ✅ student ham yuklanadi
+            .offset(offset)
+            .limit(page_size)
+        )
+        projects = result.scalars().all()
+        projects = [self._parse_technologies(p) for p in projects]
+
+        count_result = await self.db.execute(select(func.count(Project.id)))
+        total = count_result.scalar()
+
+        return {
+            "projects": projects,  # ✅ "items" emas "projects" (schema bilan mos)
+            "total": total,
+            "page": page,
+            "page_size": page_size
+        }
+
+    async def update_project(self, project_id: int, data: ProjectUpdate) -> Project:
+        project = await self.get_project(project_id)
+        update_data = data.model_dump(exclude_unset=True)
+
+        if "technologies_used" in update_data and update_data["technologies_used"] is not None:
+            update_data["technologies_used"] = json.dumps(update_data["technologies_used"])
+
+        for key, value in update_data.items():
+            setattr(project, key, value)
+
+        await self.db.commit()
+        await self.db.refresh(project)
+        return await self._load_with_student(project.id)
+
+    async def delete_project(self, project_id: int) -> dict:
+        project = await self.get_project(project_id)
+        await self.db.delete(project)
+        await self.db.commit()
+        return {"message": "Loyiha o'chirildi"}
+
+    async def review_project(self, project_id: int, data: ProjectReview) -> Project:
+        project = await self.get_project(project_id)
+        project.status = data.status.value
+        project.grade = data.grade.value
+        project.points_earned = data.points_earned
+        project.instructor_feedback = data.instructor_feedback
+        project.reviewed_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(project)
+        return await self._load_with_student(project.id)
+
+    async def update_project_status(self, project_id: int, data: ProjectStatusUpdate) -> Project:
+        project = await self.get_project(project_id)
+        project.status = data.status.value
+        if data.status.value == "Submitted":
+            project.submitted_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(project)
+        return await self._load_with_student(project.id)
+
+    async def update_project_difficulty(self, project_id: int, data: ProjectDifficultyUpdate) -> Project:
+        project = await self.get_project(project_id)
+        project.difficulty_level = data.difficulty_level.value
+        await self.db.commit()
+        await self.db.refresh(project)
+        return await self._load_with_student(project.id)
+
+    async def update_project_grade(self, project_id: int, data: ProjectGrade) -> Project:
+        project = await self.get_project(project_id)
+        project.grade = data.grade.value
+        project.points_earned = data.points_earned
+        await self.db.commit()
+        await self.db.refresh(project)
+        return await self._load_with_student(project.id)
+
+    async def update_project_comment(self, project_id: int, data: ProjectComment) -> Project:
+        project = await self.get_project(project_id)
+        project.instructor_feedback = data.comment
+        await self.db.commit()
+        await self.db.refresh(project)
+        return await self._load_with_student(project.id)
+
+    async def update_project_file(self, project_id: int, file: UploadFile) -> Project:
+        return await self._save_file(project_id, file, "files", "project_files")
+
+    async def update_project_image(self, project_id: int, file: UploadFile) -> Project:
+        allowed = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+        if file.content_type not in allowed:
+            raise HTTPException(status_code=400, detail="Faqat rasm fayllari qabul qilinadi")
+        return await self._save_file(project_id, file, "images", "project_files")
+
+    async def update_project_video(self, project_id: int, file: UploadFile) -> Project:
+        allowed = {"video/mp4", "video/avi", "video/mov", "video/mkv"}
+        if file.content_type not in allowed:
+            raise HTTPException(status_code=400, detail="Faqat video fayllari qabul qilinadi")
+        return await self._save_file(project_id, file, "videos", "project_files")
+
+    async def update_project_code(self, project_id: int, file: UploadFile) -> Project:
+        return await self._save_file(project_id, file, "code", "project_files")
+
+    # ─── Helper metodlar ───────────────────────────────────────────────────────
+
+    async def _save_file(self, project_id: int, file: UploadFile, folder: str, field: str) -> Project:
+        project = await self.get_project(project_id)
+
+        save_dir = os.path.join(UPLOAD_DIR, "projects", str(project_id), folder)
+        os.makedirs(save_dir, exist_ok=True)
+
+        file_path = os.path.join(save_dir, file.filename)
+        with open(file_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+        setattr(project, field, file_path)
+        await self.db.commit()
+        await self.db.refresh(project)
+        return await self._load_with_student(project.id)
+
+    async def _load_with_student(self, project_id: int) -> Project:
+        result = await self.db.execute(
+            select(Project)
+            .options(selectinload(Project.student))
+            .where(Project.id == project_id)
+        )
+        project = result.scalars().first()
+        return self._parse_technologies(project)
+
+    @staticmethod
+    def _parse_technologies(project: Project) -> Project:
+        """DB dan kelgan JSON string → list ga o'zgartiradi"""
+        if project and isinstance(project.technologies_used, str):
+            try:
+                project.technologies_used = json.loads(project.technologies_used)
+            except (json.JSONDecodeError, TypeError):
+                project.technologies_used = []
+        return project

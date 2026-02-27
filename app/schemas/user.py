@@ -20,9 +20,9 @@ class UserCreate(BaseModel):
     def validate_username(cls, v: str) -> str:
         v = v.strip() if isinstance(v, str) else v
         if len(v) < 3:
-            raise ValueError("Username kamida 3 ta belgidan iborat bo'lishi kerak")
+            raise ValueError("Username must be at least 3 characters long.")
         if len(v) > 50:
-            raise ValueError("Username 50 ta belgidan oshmasligi kerak")
+            raise ValueError("Username Must not exceed 50 characters")
         return v
 
     @field_validator("email", "full_name")
@@ -77,3 +77,7 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str
     user: UserRead
+
+
+class TokenPayload(BaseModel):
+    sub: int
