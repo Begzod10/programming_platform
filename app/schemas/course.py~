@@ -6,7 +6,6 @@ from datetime import datetime
 class CourseBase(BaseModel):
     title: str
     description: str
-    instructor_id: int  # ✅ qo'shildi
     difficulty_level: str
     duration_weeks: int
     max_points: int
