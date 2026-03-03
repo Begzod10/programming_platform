@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, status, Query, UploadFile, File
+from fastapi import APIRouter, Depends, status, Query, UploadFile, File, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from typing import List
 
 from app.db.session import get_db
 from app.services.project_service import get_current_student, ProjectService
@@ -21,15 +21,18 @@ from app.schemas.project import (
 router = APIRouter()
 
 
+# Service dependency
 def get_project_service(db: AsyncSession = Depends(get_db)) -> ProjectService:
     return ProjectService(db)
 
+
+# --- ASOSIY CRUD ENDPOINTLARI ---
 
 @router.post(
     "/",
     response_model=ProjectRead,
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new project",
+    summary="Yangi loyiha yaratish",
 )
 async def create_project(
         payload: ProjectCreate,
@@ -42,7 +45,7 @@ async def create_project(
 @router.get(
     "/",
     response_model=ProjectListResponse,
-    summary="Get all projects",
+    summary="Barcha loyihalarni olish",
 )
 async def get_projects(
         page: int = Query(1, ge=1),
@@ -56,21 +59,24 @@ async def get_projects(
 @router.get(
     "/{project_id}",
     response_model=ProjectReadWithStudent,
-    summary="Get a project by ID",
+    summary="Loyihani ID bo'yicha olish",
 )
 async def get_project(
         project_id: int,
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
-    return await service.get_project(project_id=project_id)
+    project = await service.get_project(project_id=project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    return project
 
 
 @router.put(
     "/{project_id}",
     response_model=ProjectRead,
     status_code=status.HTTP_200_OK,
-    summary="Update a project by ID",
+    summary="Loyihani tahrirlash",
 )
 async def update_project(
         project_id: int,
@@ -84,7 +90,7 @@ async def update_project(
 @router.delete(
     "/{project_id}",
     status_code=status.HTTP_200_OK,
-    summary="Delete a project by ID",
+    summary="Loyihani o'chirish",
 )
 async def delete_project(
         project_id: int,
@@ -94,12 +100,9 @@ async def delete_project(
     return await service.delete_project(project_id=project_id)
 
 
-@router.post(
-    "/{project_id}/review",
-    response_model=ProjectRead,
-    status_code=status.HTTP_200_OK,
-    summary="Review a project by ID",
-)
+# --- LOYIHANI BAHOLASH VA STATUSLAR ---
+
+@router.post("/{project_id}/review", response_model=ProjectRead)
 async def review_project(
         project_id: int,
         payload: ProjectReview,
@@ -109,13 +112,7 @@ async def review_project(
     return await service.review_project(project_id=project_id, data=payload)
 
 
-# 7. Statusni yangilash
-@router.post(
-    "/{project_id}/status",
-    response_model=ProjectRead,
-    status_code=status.HTTP_200_OK,
-    summary="Update project status by ID",
-)
+@router.post("/{project_id}/status", response_model=ProjectRead)
 async def update_project_status(
         project_id: int,
         payload: ProjectStatusUpdate,
@@ -125,13 +122,7 @@ async def update_project_status(
     return await service.update_project_status(project_id=project_id, data=payload)
 
 
-# 8. Qiyinlik darajasini yangilash
-@router.post(
-    "/{project_id}/difficulty",
-    response_model=ProjectRead,
-    status_code=status.HTTP_200_OK,
-    summary="Update project difficulty by ID",
-)
+@router.post("/{project_id}/difficulty", response_model=ProjectRead)
 async def update_project_difficulty(
         project_id: int,
         payload: ProjectDifficultyUpdate,
@@ -141,13 +132,7 @@ async def update_project_difficulty(
     return await service.update_project_difficulty(project_id=project_id, data=payload)
 
 
-# 9. Bahoni (Grade) yangilash
-@router.post(
-    "/{project_id}/grade",
-    response_model=ProjectRead,
-    status_code=status.HTTP_200_OK,
-    summary="Update project grade by ID",
-)
+@router.post("/{project_id}/grade", response_model=ProjectRead)
 async def update_project_grade(
         project_id: int,
         payload: ProjectGrade,
@@ -157,23 +142,17 @@ async def update_project_grade(
     return await service.update_project_grade(project_id=project_id, data=payload)
 
 
-# 10. Izohni (Comment) yangilash
-@router.post(
-    "/{project_id}/comment",
-    response_model=ProjectRead,
-    status_code=status.HTTP_200_OK,
-    summary="Update project comment by ID",
-)
+@router.post("/{project_id}/comment", response_model=ProjectRead)
 async def update_project_comment(
         project_id: int,
         payload: ProjectComment,
-        current_student: Student = Depends(get_current_student),  # ✅ Qo'shildi
+        current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
     return await service.update_project_comment(project_id=project_id, data=payload)
 
 
-# --- Fayl yuklash endpointlari ---
+# --- MEDIA VA FAYLLAR ---
 
 @router.post("/{project_id}/file", response_model=ProjectRead)
 async def update_project_file(

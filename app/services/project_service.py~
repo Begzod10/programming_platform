@@ -6,6 +6,7 @@ from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+<<<<<<< HEAD
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status, Depends, UploadFile
@@ -50,10 +51,37 @@ async def get_current_student(
 class ProjectService:
     def __init__(self, db: AsyncSession):
         self.db = db
+=======
+from fastapi import HTTPException, status, Depends
+from fastapi.security import OAuth2PasswordBearer
+from app.models.project import Project
+from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
+from app.db.session import get_db
+from app.models.user import Student
+from jose import JWTError, jwt
+from app.config import settings
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+
+async def get_current_student(token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)):
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        user_id: int = int(payload.get("sub"))
+    except (JWTError, TypeError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    result = await db.execute(select(Student).where(Student.id == user_id))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Foydalanuvchi topilmadi")
+    return user
+>>>>>>> 157149ac3bd4f7cda1e91430880ec5cab240cb47
 
     async def create_project(self, student_id: int, data: ProjectCreate) -> Project:
         data_dict = data.model_dump()
 
+<<<<<<< HEAD
         if data_dict.get("technologies_used") is not None:
             data_dict["technologies_used"] = json.dumps(data_dict["technologies_used"])
 
@@ -217,10 +245,68 @@ class ProjectService:
 
     @staticmethod
     def _parse_technologies(project: Project) -> Project:
-        """DB dan kelgan JSON string → list ga o'zgartiradi"""
         if project and isinstance(project.technologies_used, str):
             try:
-                project.technologies_used = json.loads(project.technologies_used)
+                project.__dict__['technologies_used'] = json.loads(project.technologies_used)
             except (json.JSONDecodeError, TypeError):
-                project.technologies_used = []
+                project.__dict__['technologies_used'] = []
+=======
+class ProjectService:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def create_project(self, student_id: int, data: ProjectCreate) -> Project:
+        new_project = Project(**data.dict(), student_id=student_id)
+        self.db.add(new_project)
+        await self.db.commit()
+        await self.db.refresh(new_project)
+        return new_project
+
+    async def get_project(self, project_id: int) -> Project:
+        result = await self.db.execute(select(Project).where(Project.id == project_id))
+        project = result.scalars().first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Proyekt topilmadi")
+        return project
+
+    async def get_all_projects(self, skip: int = 0, limit: int = 10):
+        result = await self.db.execute(select(Project).offset(skip).limit(limit))
+        return result.scalars().all()
+
+    async def update_project(self, project_id: int, student_id: int, data: ProjectUpdate) -> Project:
+        project = await self.get_project(project_id)
+        if project.student_id != student_id:
+            raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+        for key, value in data.dict(exclude_unset=True).items():
+            setattr(project, key, value)
+        await self.db.commit()
+        await self.db.refresh(project)
+        return project
+
+    async def delete_project(self, project_id: int, student_id: int):
+        project = await self.get_project(project_id)
+        if project.student_id != student_id:
+            raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+        await self.db.delete(project)
+        await self.db.commit()
+        return {"message": "Proyekt o'chirildi"}
+
+    async def get_all_projects_by_student(self, student_id: int):
+        result = await self.db.execute(
+            select(Project).where(Project.student_id == student_id)
+        )
+        return result.scalars().all()
+
+    async def submit_project(self, project_id: int, student_id: int):
+        project = await self.get_project(project_id)
+        if project.student_id != student_id:
+            raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+        if project.status != "Draft":
+            raise HTTPException(status_code=400, detail="Proyekt allaqachon yuborilgan")
+        project.status = "Submitted"
+        from datetime import datetime
+        project.submitted_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(project)
+>>>>>>> 157149ac3bd4f7cda1e91430880ec5cab240cb47
         return project
