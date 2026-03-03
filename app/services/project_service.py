@@ -52,9 +52,8 @@ class ProjectService:
         self.db = db
 
     async def create_project(self, student_id: int, data: ProjectCreate) -> Project:
-        data_dict = data.model_dump()  # ✅ .dict() emas, .model_dump()
+        data_dict = data.model_dump()
 
-        # technologies_used list → JSON string (DB da Text saqlanadi)
         if data_dict.get("technologies_used") is not None:
             data_dict["technologies_used"] = json.dumps(data_dict["technologies_used"])
 
@@ -67,7 +66,7 @@ class ProjectService:
     async def get_project(self, project_id: int) -> Project:
         result = await self.db.execute(
             select(Project)
-            .options(selectinload(Project.student))  # ✅ student ham yuklanadi
+            .options(selectinload(Project.student))
             .where(Project.id == project_id)
         )
         project = result.scalars().first()
@@ -79,7 +78,7 @@ class ProjectService:
         offset = (page - 1) * page_size
         result = await self.db.execute(
             select(Project)
-            .options(selectinload(Project.student))  # ✅ student ham yuklanadi
+            .options(selectinload(Project.student))
             .offset(offset)
             .limit(page_size)
         )
@@ -90,7 +89,7 @@ class ProjectService:
         total = count_result.scalar()
 
         return {
-            "projects": projects,  # ✅ "items" emas "projects" (schema bilan mos)
+            "projects": projects,
             "total": total,
             "page": page,
             "page_size": page_size
@@ -106,12 +105,14 @@ class ProjectService:
         for key, value in update_data.items():
             setattr(project, key, value)
 
+        self._serialize_project(project)
         await self.db.commit()
         await self.db.refresh(project)
         return await self._load_with_student(project.id)
 
     async def delete_project(self, project_id: int) -> dict:
         project = await self.get_project(project_id)
+        self._serialize_project(project)
         await self.db.delete(project)
         await self.db.commit()
         return {"message": "Loyiha o'chirildi"}
@@ -123,6 +124,7 @@ class ProjectService:
         project.points_earned = data.points_earned
         project.instructor_feedback = data.instructor_feedback
         project.reviewed_at = datetime.utcnow()
+        self._serialize_project(project)
         await self.db.commit()
         await self.db.refresh(project)
         return await self._load_with_student(project.id)
@@ -132,6 +134,7 @@ class ProjectService:
         project.status = data.status.value
         if data.status.value == "Submitted":
             project.submitted_at = datetime.utcnow()
+        self._serialize_project(project)
         await self.db.commit()
         await self.db.refresh(project)
         return await self._load_with_student(project.id)
@@ -139,6 +142,7 @@ class ProjectService:
     async def update_project_difficulty(self, project_id: int, data: ProjectDifficultyUpdate) -> Project:
         project = await self.get_project(project_id)
         project.difficulty_level = data.difficulty_level.value
+        self._serialize_project(project)
         await self.db.commit()
         await self.db.refresh(project)
         return await self._load_with_student(project.id)
@@ -147,6 +151,7 @@ class ProjectService:
         project = await self.get_project(project_id)
         project.grade = data.grade.value
         project.points_earned = data.points_earned
+        self._serialize_project(project)
         await self.db.commit()
         await self.db.refresh(project)
         return await self._load_with_student(project.id)
@@ -154,6 +159,7 @@ class ProjectService:
     async def update_project_comment(self, project_id: int, data: ProjectComment) -> Project:
         project = await self.get_project(project_id)
         project.instructor_feedback = data.comment
+        self._serialize_project(project)
         await self.db.commit()
         await self.db.refresh(project)
         return await self._load_with_student(project.id)
@@ -178,6 +184,12 @@ class ProjectService:
 
     # ─── Helper metodlar ───────────────────────────────────────────────────────
 
+    @staticmethod
+    def _serialize_project(project: Project) -> None:
+        """DB ga saqlashdan oldin list → JSON string ga o'zgartiradi"""
+        if isinstance(project.technologies_used, list):
+            project.technologies_used = json.dumps(project.technologies_used)
+
     async def _save_file(self, project_id: int, file: UploadFile, folder: str, field: str) -> Project:
         project = await self.get_project(project_id)
 
@@ -189,6 +201,7 @@ class ProjectService:
             shutil.copyfileobj(file.file, f)
 
         setattr(project, field, file_path)
+        self._serialize_project(project)
         await self.db.commit()
         await self.db.refresh(project)
         return await self._load_with_student(project.id)
@@ -204,10 +217,9 @@ class ProjectService:
 
     @staticmethod
     def _parse_technologies(project: Project) -> Project:
-        """DB dan kelgan JSON string → list ga o'zgartiradi"""
         if project and isinstance(project.technologies_used, str):
             try:
-                project.technologies_used = json.loads(project.technologies_used)
+                project.__dict__['technologies_used'] = json.loads(project.technologies_used)
             except (json.JSONDecodeError, TypeError):
-                project.technologies_used = []
+                project.__dict__['technologies_used'] = []
         return project
