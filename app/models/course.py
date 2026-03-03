@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List
 from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, Table, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.db.base import Base
+from app.db.base_class import Base
 
 # Junction table for student-course enrollment
 student_courses = Table(

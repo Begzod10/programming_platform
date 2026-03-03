@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List
 from sqlalchemy import Integer, String, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.db.base import Base
+from app.db.base_class import Base
 from typing import Optional
 
 

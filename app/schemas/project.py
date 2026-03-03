@@ -63,7 +63,6 @@ class ProjectBase(BaseModel):
         return v
 
 
-
 class ProjectCreate(ProjectBase):
     project_files: Optional[str] = None
 
@@ -84,7 +83,6 @@ class ProjectUpdate(BaseModel):
         if v is not None and not v.startswith(("http://", "https://")):
             raise ValueError("URL http:// yoki https:// bilan boshlanishi kerak")
         return v
-
 
 
 class ProjectRead(BaseModel):
@@ -115,7 +113,6 @@ class ProjectReadWithStudent(ProjectRead):
     student: UserRead
 
     model_config = ConfigDict(from_attributes=True)
-
 
 
 class ProjectListResponse(BaseModel):
