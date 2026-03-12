@@ -21,7 +21,7 @@ def register_exception_handlers(app):
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
-<<<<<<< HEAD
+
         # ✅ ctx ichidagi ValueError ni str ga o'giramiz
         clean_errors = []
         for error in exc.errors():
@@ -32,7 +32,6 @@ def register_exception_handlers(app):
             }
             clean_errors.append(clean_error)
 
-=======
         # ✅ ValueError objectini string ga aylantiramiz
         errors = []
         for error in exc.errors():
@@ -41,7 +40,7 @@ def register_exception_handlers(app):
                 "message": error.get("msg", ""),
                 "type": error.get("type", ""),
             })
->>>>>>> origin/branch-shoh
+
         return JSONResponse(
             status_code=422,
             content={
@@ -49,11 +48,11 @@ def register_exception_handlers(app):
                 "error": {
                     "code": 422,
                     "message": "Validation error",
-<<<<<<< HEAD
-                    "details": clean_errors
-=======
+
+                    "details": clean_errors,
+
                     "details": errors  # ✅ endi JSON serializable
->>>>>>> origin/branch-shoh
+
                 }
             }
         )

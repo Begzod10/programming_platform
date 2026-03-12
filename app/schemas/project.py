@@ -5,12 +5,6 @@ from enum import Enum
 from app.schemas.user import UserRead
 import json
 
-
-<<<<<<< HEAD
-=======
-# --- Enums
-
->>>>>>> origin/branch-shoh
 class DifficultyLevel(str, Enum):
     easy = "Easy"
     medium = "Medium"
@@ -157,11 +151,9 @@ class ProjectRead(BaseModel):
 
 class ProjectReadWithStudent(ProjectRead):
     student: UserRead
-<<<<<<< Updated upstream
 
-=======
     model_config = ConfigDict(from_attributes=True)
->>>>>>> Stashed changes
+
 
 # --- List Response
 
@@ -173,7 +165,7 @@ class ProjectListResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-# --- Review
+
 
 class ProjectReview(BaseModel):
     status: ProjectStatusEnum

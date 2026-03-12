@@ -1,18 +1,17 @@
 from fastapi import APIRouter, Depends, status, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-<<<<<<< HEAD
 from app.db.session import get_db
-<<<<<<< Updated upstream
+
 from app.services.project_service import get_current_student, ProjectService
-=======
-from app.dependencies import get_db, get_current_student  # ✅ bir joydan
+
+from app.dependencies import get_db, get_current_student
 from app.services.project_service import ProjectService
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
->>>>>>> origin/branch-shoh
-=======
+
 from app.services.project_service import ProjectService
->>>>>>> Stashed changes
+
+
 from app.models.user import Student
 from app.schemas.project import (
     ProjectCreate,
@@ -108,17 +107,14 @@ async def submit_project(
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
-<<<<<<< Updated upstream
-<<<<<<< HEAD
     return await service.review_project(project_id=project_id, data=payload)
-=======
+
     project = await service.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     if project.student_id != current_student.id:
         raise HTTPException(status_code=403, detail="Ruxsat yo'q")
     return await service.submit_project(project_id=project_id)
->>>>>>> Stashed changes
 
 
 @router.post("/{project_id}/like", response_model=ProjectRead, summary="Loyihani like qilish")
@@ -127,7 +123,6 @@ async def like_project(
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
-<<<<<<< Updated upstream
     return await service.update_project_status(project_id=project_id, data=payload)
 
 
@@ -160,8 +155,6 @@ async def update_project_comment(
 ):
     return await service.update_project_comment(project_id=project_id, data=payload)
 
-
-# --- MEDIA VA FAYLLAR ---
 
 @router.post("/{project_id}/file", response_model=ProjectRead)
 async def update_project_file(
@@ -201,7 +194,7 @@ async def update_project_code(
         service: ProjectService = Depends(get_project_service),
 ):
     return await service.update_project_code(project_id=project_id, file=file)
-=======
+
     return await service.submit_project(project_id=project_id, student_id=current_student.id)
 
 
@@ -261,7 +254,5 @@ async def update_file(
         service: ProjectService = Depends(get_project_service),
 ):
     return await service.update_file(project_id=project_id, file_url=file_url)
->>>>>>> origin/branch-shoh
-=======
+
     return await service.like_project(project_id=project_id)
->>>>>>> Stashed changes
