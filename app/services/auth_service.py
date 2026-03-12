@@ -2,12 +2,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException, status
 from app.models.user import Student
+<<<<<<< Updated upstream
 from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash, verify_password, create_access_token
 <<<<<<< HEAD
+=======
+from app.schemas.user import UserCreate
+from app.core.security import get_password_hash, verify_password, create_access_token, decode_access_token
+>>>>>>> Stashed changes
 from app.db.session import get_db
 from fastapi.security import OAuth2PasswordBearer
-from app.core.security import get_password_hash, verify_password, create_access_token, decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 =======
@@ -15,13 +19,28 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 async def register_new_student(db: AsyncSession, user_data: UserCreate):
+    # Email tekshirish
     result = await db.execute(select(Student).where(Student.email == user_data.email))
     if result.scalars().first():
+<<<<<<< Updated upstream
         raise HTTPException(status_code=400, detail="Bu email bilan ro'yxatdan o'tilgan.")
 
     result2 = await db.execute(select(Student).where(Student.username == user_data.username))
     if result2.scalars().first():
         raise HTTPException(status_code=400, detail="Bu username band!")
+=======
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bu email bilan ro'yxatdan o'tilgan."
+        )
+
+    result2 = await db.execute(select(Student).where(Student.username == user_data.username))
+    if result2.scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bu username band."
+        )
+>>>>>>> Stashed changes
 
     new_student = Student(
         username=user_data.username,
@@ -42,6 +61,8 @@ async def register_new_student(db: AsyncSession, user_data: UserCreate):
 
 
 async def login(db: AsyncSession, email: str, password: str):
+    # OAuth2PasswordRequestForm "username" field yuboradi
+    # shuning uchun email sifatida qabul qilamiz
     result = await db.execute(select(Student).where(Student.email == email))
     user = result.scalars().first()
 
@@ -73,18 +94,28 @@ async def delete_user(user_id: int, db: AsyncSession):
     result = await db.execute(select(Student).where(Student.id == user_id))
     user = result.scalars().first()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Foydalanuvchi topilmadi")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Foydalanuvchi topilmadi"
+        )
     await db.delete(user)
     await db.commit()
     return {"message": "Foydalanuvchi o'chirildi"}
 
 
+<<<<<<< Updated upstream
 # ✅ UserUpdate ishlatadi — faqat ruxsat etilgan maydonlarni o'zgartiradi
 async def update_user(user_id: int, user_data: UserUpdate, db: AsyncSession):
+=======
+async def update_user(user_id: int, user_data: UserCreate, db: AsyncSession):
+>>>>>>> Stashed changes
     result = await db.execute(select(Student).where(Student.id == user_id))
     user = result.scalars().first()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Foydalanuvchi topilmadi")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Foydalanuvchi topilmadi"
+        )
 
     for key, value in user_data.dict(exclude_unset=True).items():
         if value is not None:
@@ -96,7 +127,7 @@ async def update_user(user_id: int, user_data: UserUpdate, db: AsyncSession):
     return user
 
 
-async def get_users(db: AsyncSession = Depends(get_db)):
+async def get_users(db: AsyncSession):
     result = await db.execute(select(Student))
     return result.scalars().all()
 

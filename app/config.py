@@ -6,8 +6,11 @@ BASE_DIR = Path(__file__).parent.parent
 
 
 class Settings(BaseSettings):
+<<<<<<< Updated upstream
 <<<<<<< HEAD
 
+=======
+>>>>>>> Stashed changes
     DATABASE_URL: str = "postgresql+asyncpg://postgres:123@localhost:5432/Student_Platform"
 
 =======
@@ -39,3 +42,8 @@ class Settings(BaseSettings):
 
 settings = Settings()
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+
+
+
+
+

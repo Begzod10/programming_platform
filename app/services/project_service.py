@@ -9,28 +9,16 @@ from sqlalchemy.future import select
 <<<<<<< HEAD
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
-from fastapi import HTTPException, status, Depends, UploadFile
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import HTTPException, status, UploadFile
 
 from app.models.project import Project
 from app.models.user import Student
-from app.schemas.project import (
-    ProjectCreate,
-    ProjectUpdate,
-    ProjectReview,
-    ProjectStatusUpdate,
-    ProjectDifficultyUpdate,
-    ProjectGrade,
-    ProjectComment,
-)
-from app.db.session import get_db
-from app.core.security import decode_access_token
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+from app.schemas.project import ProjectCreate, ProjectUpdate
 
 UPLOAD_DIR = "uploads"
 
 
+<<<<<<< Updated upstream
 async def get_current_student(
         token: str = Depends(oauth2_scheme),
         db: AsyncSession = Depends(get_db)
@@ -54,15 +42,22 @@ from datetime import datetime
 >>>>>>> origin/branch-shoh
 
 
+=======
+>>>>>>> Stashed changes
 class ProjectService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
     # project_service.py - create_project
     async def create_project(self, student_id: int, data: ProjectCreate) -> Project:
+<<<<<<< Updated upstream
 <<<<<<< HEAD
+=======
+        """Yangi loyiha yaratish"""
+>>>>>>> Stashed changes
         data_dict = data.model_dump()
 
+        # Technologies listni JSON stringga o'zgartirish
         if data_dict.get("technologies_used") is not None:
 =======
         data_dict = data.dict()
@@ -78,29 +73,37 @@ class ProjectService:
         await self.db.refresh(new_project)
         return await self._load_with_student(new_project.id)
 
-    async def get_project(self, project_id: int) -> Project:
+    async def get_project(self, project_id: int) -> Optional[Project]:
+        """Bitta loyihani olish"""
         result = await self.db.execute(
             select(Project)
             .options(selectinload(Project.student))
             .where(Project.id == project_id)
         )
-        project = result.scalars().first()
-        if not project:
-            raise HTTPException(status_code=404, detail="Loyiha topilmadi")
-        return self._parse_technologies(project)
+        project = result.scalar_one_or_none()
+        if project:
+            project = self._parse_technologies(project)
+        return project
 
     async def get_projects(self, page: int = 1, page_size: int = 10) -> dict:
+        """Barcha loyihalarni olish"""
         offset = (page - 1) * page_size
+
         result = await self.db.execute(
             select(Project)
             .options(selectinload(Project.student))
+            .order_by(Project.created_at.desc())
             .offset(offset)
             .limit(page_size)
         )
         projects = result.scalars().all()
         projects = [self._parse_technologies(p) for p in projects]
 
+<<<<<<< Updated upstream
 <<<<<<< HEAD
+=======
+        # Jami loyihalar soni
+>>>>>>> Stashed changes
         count_result = await self.db.execute(select(func.count(Project.id)))
         total = count_result.scalar()
 
@@ -111,7 +114,36 @@ class ProjectService:
             "page_size": page_size
         }
 
+    async def get_student_projects(self, student_id: int, page: int = 1, page_size: int = 10) -> dict:
+        """Ma'lum bir studentning loyihalari"""
+        offset = (page - 1) * page_size
+
+        result = await self.db.execute(
+            select(Project)
+            .options(selectinload(Project.student))
+            .where(Project.student_id == student_id)
+            .order_by(Project.created_at.desc())
+            .offset(offset)
+            .limit(page_size)
+        )
+        projects = result.scalars().all()
+        projects = [self._parse_technologies(p) for p in projects]
+
+        # Jami loyihalar soni
+        count_result = await self.db.execute(
+            select(func.count(Project.id)).where(Project.student_id == student_id)
+        )
+        total = count_result.scalar()
+
+        return {
+            "projects": projects,
+            "total": total,
+            "page": page,
+            "page_size": page_size
+        }
+
     async def update_project(self, project_id: int, data: ProjectUpdate) -> Project:
+<<<<<<< Updated upstream
 =======
     async def get_all_projects_by_student(self, student_id: int):
         result = await self.db.execute(
@@ -122,6 +154,17 @@ class ProjectService:
     async def update_project(self, project_id: int, student_id: int, data: ProjectUpdate) -> Project:
 >>>>>>> origin/branch-shoh
         project = await self.get_project(project_id)
+=======
+        """Loyihani yangilash"""
+        result = await self.db.execute(
+            select(Project).where(Project.id == project_id)
+        )
+        project = result.scalar_one_or_none()
+
+        if not project:
+            raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+
+>>>>>>> Stashed changes
         update_data = data.model_dump(exclude_unset=True)
 
         if "technologies_used" in update_data and update_data["technologies_used"] is not None:
@@ -130,18 +173,26 @@ class ProjectService:
         for key, value in update_data.items():
             setattr(project, key, value)
 
-        self._serialize_project(project)
+        project.updated_at = datetime.utcnow()
+
         await self.db.commit()
         await self.db.refresh(project)
         return await self._load_with_student(project.id)
 
-    async def delete_project(self, project_id: int) -> dict:
-        project = await self.get_project(project_id)
-        self._serialize_project(project)
+    async def delete_project(self, project_id: int) -> None:
+        """Loyihani o'chirish"""
+        result = await self.db.execute(
+            select(Project).where(Project.id == project_id)
+        )
+        project = result.scalar_one_or_none()
+
+        if not project:
+            raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+
         await self.db.delete(project)
         await self.db.commit()
-        return {"message": "Loyiha o'chirildi"}
 
+<<<<<<< Updated upstream
 <<<<<<< HEAD
     async def review_project(self, project_id: int, data: ProjectReview) -> Project:
         project = await self.get_project(project_id)
@@ -161,98 +212,58 @@ class ProjectService:
         project.status = "Submitted"
         project.submitted_at = datetime.utcnow()
 >>>>>>> origin/branch-shoh
+=======
+    async def submit_project(self, project_id: int) -> Project:
+        """Loyihani submit qilish"""
+        result = await self.db.execute(
+            select(Project).where(Project.id == project_id)
+        )
+        project = result.scalar_one_or_none()
+
+        if not project:
+            raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+
+        project.status = "Submitted"
+        project.submitted_at = datetime.utcnow()
+
+>>>>>>> Stashed changes
         await self.db.commit()
         await self.db.refresh(project)
         return await self._load_with_student(project.id)
 
-    async def update_project_status(self, project_id: int, data: ProjectStatusUpdate) -> Project:
-        project = await self.get_project(project_id)
-        project.status = data.status.value
-        if data.status.value == "Submitted":
-            project.submitted_at = datetime.utcnow()
-        self._serialize_project(project)
+    async def like_project(self, project_id: int) -> Project:
+        """Loyihani like qilish"""
+        result = await self.db.execute(
+            select(Project).where(Project.id == project_id)
+        )
+        project = result.scalar_one_or_none()
+
+        if not project:
+            raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+
+        project.likes_count += 1
+
         await self.db.commit()
         await self.db.refresh(project)
         return await self._load_with_student(project.id)
-
-    async def update_project_difficulty(self, project_id: int, data: ProjectDifficultyUpdate) -> Project:
-        project = await self.get_project(project_id)
-        project.difficulty_level = data.difficulty_level.value
-        self._serialize_project(project)
-        await self.db.commit()
-        await self.db.refresh(project)
-        return await self._load_with_student(project.id)
-
-    async def update_project_grade(self, project_id: int, data: ProjectGrade) -> Project:
-        project = await self.get_project(project_id)
-        project.grade = data.grade.value
-        project.points_earned = data.points_earned
-        self._serialize_project(project)
-        await self.db.commit()
-        await self.db.refresh(project)
-        return await self._load_with_student(project.id)
-
-    async def update_project_comment(self, project_id: int, data: ProjectComment) -> Project:
-        project = await self.get_project(project_id)
-        project.instructor_feedback = data.comment
-        self._serialize_project(project)
-        await self.db.commit()
-        await self.db.refresh(project)
-        return await self._load_with_student(project.id)
-
-    async def update_project_file(self, project_id: int, file: UploadFile) -> Project:
-        return await self._save_file(project_id, file, "files", "project_files")
-
-    async def update_project_image(self, project_id: int, file: UploadFile) -> Project:
-        allowed = {"image/jpeg", "image/png", "image/gif", "image/webp"}
-        if file.content_type not in allowed:
-            raise HTTPException(status_code=400, detail="Faqat rasm fayllari qabul qilinadi")
-        return await self._save_file(project_id, file, "images", "project_files")
-
-    async def update_project_video(self, project_id: int, file: UploadFile) -> Project:
-        allowed = {"video/mp4", "video/avi", "video/mov", "video/mkv"}
-        if file.content_type not in allowed:
-            raise HTTPException(status_code=400, detail="Faqat video fayllari qabul qilinadi")
-        return await self._save_file(project_id, file, "videos", "project_files")
-
-    async def update_project_code(self, project_id: int, file: UploadFile) -> Project:
-        return await self._save_file(project_id, file, "code", "project_files")
 
     # ─── Helper metodlar ───────────────────────────────────────────────────────
 
-    @staticmethod
-    def _serialize_project(project: Project) -> None:
-        """DB ga saqlashdan oldin list → JSON string ga o'zgartiradi"""
-        if isinstance(project.technologies_used, list):
-            project.technologies_used = json.dumps(project.technologies_used)
-
-    async def _save_file(self, project_id: int, file: UploadFile, folder: str, field: str) -> Project:
-        project = await self.get_project(project_id)
-
-        save_dir = os.path.join(UPLOAD_DIR, "projects", str(project_id), folder)
-        os.makedirs(save_dir, exist_ok=True)
-
-        file_path = os.path.join(save_dir, file.filename)
-        with open(file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-
-        setattr(project, field, file_path)
-        self._serialize_project(project)
-        await self.db.commit()
-        await self.db.refresh(project)
-        return await self._load_with_student(project.id)
-
     async def _load_with_student(self, project_id: int) -> Project:
+        """Loyihani student bilan birga yuklash"""
         result = await self.db.execute(
             select(Project)
             .options(selectinload(Project.student))
             .where(Project.id == project_id)
         )
-        project = result.scalars().first()
-        return self._parse_technologies(project)
+        project = result.scalar_one_or_none()
+        if project:
+            project = self._parse_technologies(project)
+        return project
 
     @staticmethod
     def _parse_technologies(project: Project) -> Project:
+        """JSON stringni listga o'zgartirish"""
         if project and isinstance(project.technologies_used, str):
             try:
                 project.__dict__['technologies_used'] = json.loads(project.technologies_used)

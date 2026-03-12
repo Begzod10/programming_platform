@@ -1,15 +1,18 @@
-from fastapi import APIRouter, Depends, status, Query, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, status, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
 
 <<<<<<< HEAD
 from app.db.session import get_db
+<<<<<<< Updated upstream
 from app.services.project_service import get_current_student, ProjectService
 =======
 from app.dependencies import get_db, get_current_student  # ✅ bir joydan
 from app.services.project_service import ProjectService
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
 >>>>>>> origin/branch-shoh
+=======
+from app.services.project_service import ProjectService
+>>>>>>> Stashed changes
 from app.models.user import Student
 from app.schemas.project import (
     ProjectCreate,
@@ -17,29 +20,17 @@ from app.schemas.project import (
     ProjectRead,
     ProjectReadWithStudent,
     ProjectListResponse,
-    ProjectReview,
-    ProjectStatusUpdate,
-    ProjectDifficultyUpdate,
-    ProjectGrade,
-    ProjectComment,
 )
+from app.services.auth_service import get_current_student
 
 router = APIRouter()
 
 
-# Service dependency
 def get_project_service(db: AsyncSession = Depends(get_db)) -> ProjectService:
     return ProjectService(db)
 
 
-# --- ASOSIY CRUD ENDPOINTLARI ---
-
-@router.post(
-    "/",
-    response_model=ProjectRead,
-    status_code=status.HTTP_201_CREATED,
-    summary="Yangi loyiha yaratish",
-)
+@router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED, summary="Yangi loyiha yaratish")
 async def create_project(
         payload: ProjectCreate,
         current_student: Student = Depends(get_current_student),
@@ -48,28 +39,32 @@ async def create_project(
     return await service.create_project(student_id=current_student.id, data=payload)
 
 
-@router.get(
-    "/",
-    response_model=ProjectListResponse,
-    summary="Barcha loyihalarni olish",
-)
+@router.get("/", response_model=ProjectListResponse, summary="Barcha loyihalarni olish")
 async def get_projects(
         page: int = Query(1, ge=1),
         page_size: int = Query(10, ge=1, le=100),
-        current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
     return await service.get_projects(page=page, page_size=page_size)
 
 
-@router.get(
-    "/{project_id}",
-    response_model=ProjectReadWithStudent,
-    summary="Loyihani ID bo'yicha olish",
-)
+@router.get("/my", response_model=ProjectListResponse, summary="Mening loyihalarim")
+async def get_my_projects(
+        page: int = Query(1, ge=1),
+        page_size: int = Query(10, ge=1, le=100),
+        current_student: Student = Depends(get_current_student),
+        service: ProjectService = Depends(get_project_service),
+):
+    return await service.get_student_projects(
+        student_id=current_student.id,
+        page=page,
+        page_size=page_size
+    )
+
+
+@router.get("/{project_id}", response_model=ProjectReadWithStudent, summary="Loyihani ID bo'yicha olish")
 async def get_project(
         project_id: int,
-        current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
     project = await service.get_project(project_id=project_id)
@@ -78,54 +73,61 @@ async def get_project(
     return project
 
 
-@router.put(
-    "/{project_id}",
-    response_model=ProjectRead,
-    status_code=status.HTTP_200_OK,
-    summary="Loyihani tahrirlash",
-)
+@router.put("/{project_id}", response_model=ProjectRead, summary="Loyihani tahrirlash")
 async def update_project(
         project_id: int,
         payload: ProjectUpdate,
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
+    project = await service.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    if project.student_id != current_student.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
     return await service.update_project(project_id=project_id, data=payload)
 
 
-@router.delete(
-    "/{project_id}",
-    status_code=status.HTTP_200_OK,
-    summary="Loyihani o'chirish",
-)
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Loyihani o'chirish")
 async def delete_project(
         project_id: int,
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
-    return await service.delete_project(project_id=project_id)
+    project = await service.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    if project.student_id != current_student.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    await service.delete_project(project_id=project_id)
 
 
-# --- LOYIHANI BAHOLASH VA STATUSLAR ---
-
-@router.post("/{project_id}/review", response_model=ProjectRead)
-async def review_project(
+@router.post("/{project_id}/submit", response_model=ProjectRead, summary="Loyihani ko'rib chiqishga yuborish")
+async def submit_project(
         project_id: int,
-        payload: ProjectReview,
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
+<<<<<<< Updated upstream
 <<<<<<< HEAD
     return await service.review_project(project_id=project_id, data=payload)
+=======
+    project = await service.get_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    if project.student_id != current_student.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    return await service.submit_project(project_id=project_id)
+>>>>>>> Stashed changes
 
 
-@router.post("/{project_id}/status", response_model=ProjectRead)
-async def update_project_status(
+@router.post("/{project_id}/like", response_model=ProjectRead, summary="Loyihani like qilish")
+async def like_project(
         project_id: int,
-        payload: ProjectStatusUpdate,
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
+<<<<<<< Updated upstream
     return await service.update_project_status(project_id=project_id, data=payload)
 
 
@@ -260,3 +262,6 @@ async def update_file(
 ):
     return await service.update_file(project_id=project_id, file_url=file_url)
 >>>>>>> origin/branch-shoh
+=======
+    return await service.like_project(project_id=project_id)
+>>>>>>> Stashed changes

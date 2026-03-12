@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
+from pydantic import BaseModel, EmailStr, ConfigDict, field_validator, Field
 from typing import Optional
 from datetime import datetime
 
@@ -18,11 +18,11 @@ class UserCreate(BaseModel):
     @field_validator("username")
     @classmethod
     def validate_username(cls, v: str) -> str:
-        v = v.strip() if isinstance(v, str) else v
+        v = v.strip()
         if len(v) < 3:
-            raise ValueError("Username must be at least 3 characters long.")
+            raise ValueError("Username kamida 3 ta belgidan iborat bo'lishi kerak")
         if len(v) > 50:
-            raise ValueError("Username Must not exceed 50 characters")
+            raise ValueError("Username 50 ta belgidan oshmasligi kerak")
         return v
 
     @field_validator("email", "password")
@@ -33,7 +33,7 @@ class UserCreate(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        v = v.strip() if isinstance(v, str) else v
+        v = v.strip()
         if len(v) < 8:
             raise ValueError("Parol kamida 8 ta belgidan iborat bo'lishi kerak")
         if len(v) > 72:
@@ -62,8 +62,11 @@ class UserUpdate(BaseModel):
         return v.strip() if isinstance(v, str) and v else v
 
 
-class UserRead(UserBase):
+class UserRead(BaseModel):
     id: int
+    username: str
+    email: EmailStr
+    full_name: Optional[str] = None
     current_level: str
     total_points: int
     is_active: bool

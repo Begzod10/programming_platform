@@ -1,12 +1,8 @@
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
-from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, func, select
+from typing import Optional
+from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.base_class import Base
-
-if TYPE_CHECKING:
-    from app.models.user import Student
 
 
 class Project(Base):
@@ -19,11 +15,11 @@ class Project(Base):
 
     github_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     live_demo_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    project_files: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    technologies_used: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    project_files: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON
+    technologies_used: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON array
     difficulty_level: Mapped[str] = mapped_column(String(20), nullable=False)
 
-    status: Mapped[str] = mapped_column(String(20), default="Draft")
+    status: Mapped[str] = mapped_column(String(20), default="Draft")  # Draft, Submitted, etc.
     points_earned: Mapped[int] = mapped_column(Integer, default=0)
     instructor_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     grade: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
@@ -37,11 +33,3 @@ class Project(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     student: Mapped["Student"] = relationship("Student", back_populates="projects")
-
-    @staticmethod
-    async def count_by_student(db: AsyncSession, student_id: int) -> int:
-        """Studentning jami projectlari soni"""
-        result = await db.execute(
-            select(func.count(Project.id)).where(Project.student_id == student_id)
-        )
-        return result.scalar() or 0

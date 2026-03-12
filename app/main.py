@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -6,8 +7,15 @@ from app.config import settings
 from app.api.v1.router import api_router
 from app.db.database import init_db
 from app.core.exceptions import register_exception_handlers
-from app.db.base_class import Base
 from app.db import base
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Student Programming Platform started!")
+    await init_db()
+    yield
+    print("Platform suspended...")
 
 
 def create_application() -> FastAPI:
@@ -18,6 +26,7 @@ def create_application() -> FastAPI:
         openapi_url=f"{settings.API_V1_PREFIX}/openapi.json",
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -47,15 +56,9 @@ def create_application() -> FastAPI:
 app = create_application()
 
 
-@app.on_event("startup")
-async def startup_event():
-    print("Student Programming Platform started!")
-    await init_db()
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    print("Platform suspended...")
+@app.get("/")
+async def root():
+    return {"message": "Student Platform API ishlayapti!"}
 
 
 @app.get("/")
@@ -65,5 +68,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)

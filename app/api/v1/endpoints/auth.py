@@ -14,7 +14,7 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
     return await auth_service.register_new_student(db, user_in)
 
 
-@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
+@router.post("/login", response_model=TokenResponse)
 async def login(
         form_data: OAuth2PasswordRequestForm = Depends(),
         db: AsyncSession = Depends(get_db)

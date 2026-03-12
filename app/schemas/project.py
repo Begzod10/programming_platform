@@ -3,6 +3,7 @@ from typing import Optional
 from datetime import datetime
 from enum import Enum
 from app.schemas.user import UserRead
+import json
 
 
 <<<<<<< HEAD
@@ -135,12 +136,32 @@ class ProjectRead(BaseModel):
                 return [t.strip() for t in v.split(",") if t.strip()]  # oddiy string bo'lsa
         return v
 
+    # DB dan JSON string kelsa, list ga parse qilish
+    @field_validator("technologies_used", mode="before")
+    @classmethod
+    def parse_technologies(cls, v) -> Optional[list[str]]:
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else []
+            except (json.JSONDecodeError, ValueError):
+                return []
+        return []
+
 
 # --- Read with Student
 
 class ProjectReadWithStudent(ProjectRead):
     student: UserRead
+<<<<<<< Updated upstream
 
+=======
+    model_config = ConfigDict(from_attributes=True)
+>>>>>>> Stashed changes
 
 # --- List Response
 
@@ -149,14 +170,12 @@ class ProjectListResponse(BaseModel):
     total: int
     page: int
     page_size: int
-
     model_config = ConfigDict(from_attributes=True)
 
 
 # --- Review
 
 class ProjectReview(BaseModel):
-    """Instructor tomonidan loyihani baholash"""
     status: ProjectStatusEnum
     grade: Grade
     points_earned: int
@@ -171,17 +190,14 @@ class ProjectReview(BaseModel):
 
 
 class ProjectStatusUpdate(BaseModel):
-    """Faqat statusni yangilash"""
     status: ProjectStatusEnum
 
 
 class ProjectDifficultyUpdate(BaseModel):
-    """Faqat qiyinlik darajasini yangilash"""
     difficulty_level: DifficultyLevel
 
 
 class ProjectGrade(BaseModel):
-    """Faqat baho va ball berish"""
     grade: Grade
     points_earned: int
 
@@ -194,7 +210,6 @@ class ProjectGrade(BaseModel):
 
 
 class ProjectComment(BaseModel):
-    """Izoh qoldirish"""
     comment: str
 
     @field_validator("comment", mode="before")
@@ -208,4 +223,5 @@ class ProjectComment(BaseModel):
         return v
 
 
+# Alias
 ProjectStatus = ProjectStatusEnum
