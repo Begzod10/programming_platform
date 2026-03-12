@@ -6,16 +6,21 @@ BASE_DIR = Path(__file__).parent.parent
 
 
 class Settings(BaseSettings):
+<<<<<<< HEAD
 
     DATABASE_URL: str = "postgresql+asyncpg://postgres:123@localhost:5432/Student_Platform"
 
+=======
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:123@localhost:5432/student_platform"
+    # ...
+>>>>>>> origin/branch-shoh
     APP_NAME: str = "Student Programming Platform"
     DEBUG: bool = True
     SECRET_KEY: str = "your-secret-key-here"
 
     JWT_SECRET_KEY: str = "your-jwt-secret-key"
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 soat
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     UPLOAD_DIR: str = str(BASE_DIR / "uploads")

@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from app.db.session import get_db
+from app.dependencies import get_db, get_current_student  # ✅ bir joydan
 from app.schemas.user import UserRead, UserUpdate
 from app.schemas.project import ProjectRead  # Qo'shildi
 from app.services import student_service
+<<<<<<< HEAD
 from app.services.project_service import get_current_student, ProjectService  # ProjectService qo'shildi
+=======
+>>>>>>> origin/branch-shoh
 from app.models.user import Student
 
 router = APIRouter()

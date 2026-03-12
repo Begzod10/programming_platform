@@ -2,8 +2,14 @@ from fastapi import APIRouter, Depends, status, Query, UploadFile, File, HTTPExc
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
+<<<<<<< HEAD
 from app.db.session import get_db
 from app.services.project_service import get_current_student, ProjectService
+=======
+from app.dependencies import get_db, get_current_student  # ✅ bir joydan
+from app.services.project_service import ProjectService
+from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
+>>>>>>> origin/branch-shoh
 from app.models.user import Student
 from app.schemas.project import (
     ProjectCreate,
@@ -109,6 +115,7 @@ async def review_project(
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
+<<<<<<< HEAD
     return await service.review_project(project_id=project_id, data=payload)
 
 
@@ -192,3 +199,64 @@ async def update_project_code(
         service: ProjectService = Depends(get_project_service),
 ):
     return await service.update_project_code(project_id=project_id, file=file)
+=======
+    return await service.submit_project(project_id=project_id, student_id=current_student.id)
+
+
+@router.post("/{project_id}/review")
+async def review_project(
+        project_id: int,
+        feedback: str = Query(...),
+        grade: str = Query(...),
+        points: int = Query(...),
+        # TODO: bu endpoint faqat instructor/admin uchun bo'lishi kerak
+        # current_student: Student = Depends(get_current_student),
+        service: ProjectService = Depends(get_project_service),
+):
+    return await service.review_project(project_id=project_id, feedback=feedback, grade=grade, points=points)
+
+
+@router.post("/{project_id}/status")
+async def update_status(
+        project_id: int,
+        status: str = Query(...),
+        service: ProjectService = Depends(get_project_service),
+):
+    return await service.update_status(project_id=project_id, status=status)
+
+
+@router.post("/{project_id}/grade")
+async def update_grade(
+        project_id: int,
+        grade: str = Query(...),
+        service: ProjectService = Depends(get_project_service),
+):
+    return await service.update_grade(project_id=project_id, grade=grade)
+
+
+@router.post("/{project_id}/comment")
+async def update_comment(
+        project_id: int,
+        comment: str = Query(...),
+        service: ProjectService = Depends(get_project_service),
+):
+    return await service.update_comment(project_id=project_id, comment=comment)
+
+
+@router.post("/{project_id}/difficulty")
+async def update_difficulty(
+        project_id: int,
+        difficulty: str = Query(...),
+        service: ProjectService = Depends(get_project_service),
+):
+    return await service.update_difficulty(project_id=project_id, difficulty=difficulty)
+
+
+@router.post("/{project_id}/file")
+async def update_file(
+        project_id: int,
+        file_url: str = Query(...),
+        service: ProjectService = Depends(get_project_service),
+):
+    return await service.update_file(project_id=project_id, file_url=file_url)
+>>>>>>> origin/branch-shoh

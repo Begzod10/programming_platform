@@ -6,6 +6,7 @@ from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+<<<<<<< HEAD
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException, status, Depends, UploadFile
@@ -45,16 +46,30 @@ async def get_current_student(
     if not user:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
     return user
+=======
+from fastapi import HTTPException
+from app.models.project import Project
+from app.schemas.project import ProjectCreate, ProjectUpdate
+from datetime import datetime
+>>>>>>> origin/branch-shoh
 
 
 class ProjectService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    # project_service.py - create_project
     async def create_project(self, student_id: int, data: ProjectCreate) -> Project:
+<<<<<<< HEAD
         data_dict = data.model_dump()
 
         if data_dict.get("technologies_used") is not None:
+=======
+        data_dict = data.dict()
+        # technologies_used listni JSON string ga aylantiramiz
+        if data_dict.get("technologies_used"):
+            import json
+>>>>>>> origin/branch-shoh
             data_dict["technologies_used"] = json.dumps(data_dict["technologies_used"])
 
         new_project = Project(**data_dict, student_id=student_id)
@@ -85,6 +100,7 @@ class ProjectService:
         projects = result.scalars().all()
         projects = [self._parse_technologies(p) for p in projects]
 
+<<<<<<< HEAD
         count_result = await self.db.execute(select(func.count(Project.id)))
         total = count_result.scalar()
 
@@ -96,6 +112,15 @@ class ProjectService:
         }
 
     async def update_project(self, project_id: int, data: ProjectUpdate) -> Project:
+=======
+    async def get_all_projects_by_student(self, student_id: int):
+        result = await self.db.execute(
+            select(Project).where(Project.student_id == student_id)
+        )
+        return result.scalars().all()
+
+    async def update_project(self, project_id: int, student_id: int, data: ProjectUpdate) -> Project:
+>>>>>>> origin/branch-shoh
         project = await self.get_project(project_id)
         update_data = data.model_dump(exclude_unset=True)
 
@@ -117,6 +142,7 @@ class ProjectService:
         await self.db.commit()
         return {"message": "Loyiha o'chirildi"}
 
+<<<<<<< HEAD
     async def review_project(self, project_id: int, data: ProjectReview) -> Project:
         project = await self.get_project(project_id)
         project.status = data.status.value
@@ -125,6 +151,16 @@ class ProjectService:
         project.instructor_feedback = data.instructor_feedback
         project.reviewed_at = datetime.utcnow()
         self._serialize_project(project)
+=======
+    async def submit_project(self, project_id: int, student_id: int):
+        project = await self.get_project(project_id)
+        if project.student_id != student_id:
+            raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+        if project.status != "Draft":
+            raise HTTPException(status_code=400, detail="Proyekt allaqachon yuborilgan")
+        project.status = "Submitted"
+        project.submitted_at = datetime.utcnow()
+>>>>>>> origin/branch-shoh
         await self.db.commit()
         await self.db.refresh(project)
         return await self._load_with_student(project.id)
@@ -222,4 +258,59 @@ class ProjectService:
                 project.__dict__['technologies_used'] = json.loads(project.technologies_used)
             except (json.JSONDecodeError, TypeError):
                 project.__dict__['technologies_used'] = []
+        return project
+
+    async def review_project(self, project_id: int, feedback: str, grade: str, points: int) -> Project:
+        project = await self.get_project(project_id)
+        project.instructor_feedback = feedback
+        project.grade = grade
+        project.points_earned = points
+        project.status = "Approved"
+        project.reviewed_at = datetime.utcnow()
+        await self.db.commit()
+        await self.db.refresh(project)
+        return project
+
+    async def update_status(self, project_id: int, status: str) -> Project:
+        allowed = ["Draft", "Submitted", "Under Review", "Approved", "Rejected"]
+        if status not in allowed:
+            raise HTTPException(status_code=400, detail=f"Status must be one of: {allowed}")
+        project = await self.get_project(project_id)
+        project.status = status
+        await self.db.commit()
+        await self.db.refresh(project)
+        return project
+
+    async def update_grade(self, project_id: int, grade: str) -> Project:
+        allowed = ["A", "B", "C", "D", "F"]
+        if grade not in allowed:
+            raise HTTPException(status_code=400, detail=f"Grade must be one of: {allowed}")
+        project = await self.get_project(project_id)
+        project.grade = grade
+        await self.db.commit()
+        await self.db.refresh(project)
+        return project
+
+    async def update_comment(self, project_id: int, comment: str) -> Project:
+        project = await self.get_project(project_id)
+        project.instructor_feedback = comment
+        await self.db.commit()
+        await self.db.refresh(project)
+        return project
+
+    async def update_difficulty(self, project_id: int, difficulty: str) -> Project:
+        allowed = ["Easy", "Medium", "Hard"]
+        if difficulty not in allowed:
+            raise HTTPException(status_code=400, detail=f"Difficulty must be one of: {allowed}")
+        project = await self.get_project(project_id)
+        project.difficulty_level = difficulty
+        await self.db.commit()
+        await self.db.refresh(project)
+        return project
+
+    async def update_file(self, project_id: int, file_url: str) -> Project:
+        project = await self.get_project(project_id)
+        project.project_files = file_url
+        await self.db.commit()
+        await self.db.refresh(project)
         return project

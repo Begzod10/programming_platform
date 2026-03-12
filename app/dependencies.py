@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,11 +28,52 @@ async def get_current_user(
     user_id = decode_access_token(token)
     if not user_id:
         raise credentials_exception
+=======
+from typing import AsyncGenerator
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+
+from app.db.database import AsyncSessionLocal
+from app.config import settings
+from app.models.user import Student
+
+
+# ✅ Yagona get_db — barcha fayllar shu yerdan import qilsin
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+
+
+# ✅ get_current_student bu yerda — project_service.py dan ko'chirildi
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+
+async def get_current_student(
+        token: str = Depends(oauth2_scheme),
+        db: AsyncSession = Depends(get_db)
+) -> Student:
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+        user_id: int = int(payload.get("sub"))
+    except (JWTError, TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token noto'g'ri yoki muddati o'tgan",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+>>>>>>> origin/branch-shoh
 
     result = await db.execute(select(Student).where(Student.id == user_id))
     user = result.scalars().first()
 
     if not user:
+<<<<<<< HEAD
         raise credentials_exception
 
     return user
@@ -96,3 +138,10 @@ def get_pagination(
         "offset": offset,
         "limit": page_size,
     }
+=======
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Foydalanuvchi topilmadi")
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Foydalanuvchi faol emas")
+
+    return user
+>>>>>>> origin/branch-shoh

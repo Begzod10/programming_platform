@@ -4,14 +4,12 @@ from sqlalchemy.orm import selectinload
 from app.models.ranking import Ranking
 from app.models.user import Student
 from app.models.project import Project
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Optional
 
 
 async def calculate_and_update_rankings(db: AsyncSession):
     """Barcha studentlar uchun rankingni qayta hisoblaydi"""
-
-    # Barcha studentlarni total_points bo'yicha tartiblash
     result = await db.execute(
         select(Student)
         .where(Student.is_active == True)
@@ -20,13 +18,11 @@ async def calculate_and_update_rankings(db: AsyncSession):
     students = result.scalars().all()
 
     for global_rank, student in enumerate(students, start=1):
-        # Ranking mavjudmi tekshirish
         ranking_result = await db.execute(
             select(Ranking).where(Ranking.student_id == student.id)
         )
         ranking = ranking_result.scalar_one_or_none()
 
-        # Tugallangan proyektlar soni
         projects_result = await db.execute(
             select(func.count(Project.id)).where(
                 Project.student_id == student.id,
@@ -35,7 +31,6 @@ async def calculate_and_update_rankings(db: AsyncSession):
         )
         projects_completed = projects_result.scalar() or 0
 
-        # O'rtacha baho hisoblash
         avg_result = await db.execute(
             select(func.avg(Project.points_earned)).where(
                 Project.student_id == student.id,
@@ -44,7 +39,6 @@ async def calculate_and_update_rankings(db: AsyncSession):
         )
         average_grade = float(avg_result.scalar() or 0)
 
-        # Level rank hisoblash
         level_result = await db.execute(
             select(Student)
             .where(
@@ -79,28 +73,35 @@ async def calculate_and_update_rankings(db: AsyncSession):
             )
             db.add(new_ranking)
 
-        # Student global_rank ni yangilash
         student.global_rank = global_rank
 
     await db.commit()
 
 
-async def get_global_leaderboard(db: AsyncSession, limit: int = 10, offset: int = 0):
-    """Global leaderboard"""
-    result = await db.execute(
+async def get_global_leaderboard(db: AsyncSession, limit: int = 10, offset: int = 0, level: str = None,
+                                 sort_by: str = "total_points"):
+    sort_map = {
+        "total_points": Ranking.total_points.desc(),
+        "weekly_points": Ranking.weekly_points.desc(),
+        "monthly_points": Ranking.monthly_points.desc(),
+    }
+    order = sort_map.get(sort_by, Ranking.total_points.desc())
+    query = (
         select(Ranking)
         .join(Student, Ranking.student_id == Student.id)
         .where(Student.is_active == True)
-        .order_by(Ranking.global_rank)
+        .order_by(order)
         .limit(limit)
         .offset(offset)
         .options(selectinload(Ranking.student))
     )
+    if level:
+        query = query.where(Student.current_level == level)
+    result = await db.execute(query)
     return result.scalars().all()
 
 
 async def get_level_leaderboard(db: AsyncSession, level: str, limit: int = 10):
-    """Level bo'yicha leaderboard"""
     result = await db.execute(
         select(Ranking)
         .join(Student, Ranking.student_id == Student.id)
@@ -113,7 +114,6 @@ async def get_level_leaderboard(db: AsyncSession, level: str, limit: int = 10):
 
 
 async def get_my_ranking(db: AsyncSession, student_id: int) -> Optional[Ranking]:
-    """Studentning o'z rankingini olish"""
     result = await db.execute(
         select(Ranking)
         .where(Ranking.student_id == student_id)
@@ -123,7 +123,6 @@ async def get_my_ranking(db: AsyncSession, student_id: int) -> Optional[Ranking]
 
 
 async def get_weekly_leaderboard(db: AsyncSession, limit: int = 10):
-    """Haftalik leaderboard"""
     result = await db.execute(
         select(Ranking)
         .join(Student, Ranking.student_id == Student.id)
@@ -136,7 +135,6 @@ async def get_weekly_leaderboard(db: AsyncSession, limit: int = 10):
 
 
 async def get_monthly_leaderboard(db: AsyncSession, limit: int = 10):
-    """Oylik leaderboard"""
     result = await db.execute(
         select(Ranking)
         .join(Student, Ranking.student_id == Student.id)
@@ -149,22 +147,17 @@ async def get_monthly_leaderboard(db: AsyncSession, limit: int = 10):
 
 
 async def add_points_to_student(db: AsyncSession, student_id: int, points: int):
-    """Studentga point qo'shish va rankingni yangilash"""
-    result = await db.execute(
-        select(Student).where(Student.id == student_id)
-    )
+    result = await db.execute(select(Student).where(Student.id == student_id))
     student = result.scalar_one_or_none()
     if not student:
         return None
 
     student.total_points += points
 
-    # Weekly va monthly points yangilash
-    ranking_result = await db.execute(
-        select(Ranking).where(Ranking.student_id == student_id)
-    )
+    ranking_result = await db.execute(select(Ranking).where(Ranking.student_id == student_id))
     ranking = ranking_result.scalar_one_or_none()
     if ranking:
+        ranking.total_points += points
         ranking.weekly_points += points
         ranking.monthly_points += points
 
@@ -173,8 +166,21 @@ async def add_points_to_student(db: AsyncSession, student_id: int, points: int):
     return student
 
 
+# ✅ YANGI — ranking.py endpointda chaqiriladi
+async def reset_weekly_points(db: AsyncSession):
+    """Haftalik pointlarni nolga tushirish"""
+    await db.execute(update(Ranking).values(weekly_points=0))
+    await db.commit()
+
+
+# ✅ YANGI — ranking.py endpointda chaqiriladi
+async def reset_monthly_points(db: AsyncSession):
+    """Oylik pointlarni nolga tushirish"""
+    await db.execute(update(Ranking).values(monthly_points=0))
+    await db.commit()
+
+
 async def delete_ranking(db: AsyncSession, ranking_id: int) -> bool:
-    """Rankingni o'chirish"""
     result = await db.execute(select(Ranking).where(Ranking.id == ranking_id))
     ranking = result.scalar_one_or_none()
     if not ranking:
@@ -185,7 +191,6 @@ async def delete_ranking(db: AsyncSession, ranking_id: int) -> bool:
 
 
 async def create_ranking(db: AsyncSession, student_id: int) -> Optional[Ranking]:
-    """Ranking yaratish"""
     existing = await db.execute(select(Ranking).where(Ranking.student_id == student_id))
     if existing.scalar_one_or_none():
         return None
@@ -206,7 +211,6 @@ async def create_ranking(db: AsyncSession, student_id: int) -> Optional[Ranking]
 
 
 async def update_ranking(db: AsyncSession, ranking_id: int, **kwargs) -> Optional[Ranking]:
-    """Rankingni yangilash"""
     result = await db.execute(select(Ranking).where(Ranking.id == ranking_id))
     ranking = result.scalar_one_or_none()
     if not ranking:

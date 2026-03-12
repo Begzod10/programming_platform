@@ -6,7 +6,7 @@ from datetime import datetime
 class UserBase(BaseModel):
     username: str
     email: EmailStr
-    full_name: str
+    full_name: Optional[str] = None
 
 
 class UserCreate(BaseModel):
@@ -25,7 +25,7 @@ class UserCreate(BaseModel):
             raise ValueError("Username Must not exceed 50 characters")
         return v
 
-    @field_validator("email", "full_name")
+    @field_validator("email", "password")
     @classmethod
     def strip_strings(cls, v: str) -> str:
         return v.strip() if isinstance(v, str) else v
@@ -36,7 +36,6 @@ class UserCreate(BaseModel):
         v = v.strip() if isinstance(v, str) else v
         if len(v) < 8:
             raise ValueError("Parol kamida 8 ta belgidan iborat bo'lishi kerak")
-        # bcrypt limit: 72 bytes
         if len(v) > 72:
             return v[:72]
         return v
@@ -69,7 +68,6 @@ class UserRead(UserBase):
     total_points: int
     is_active: bool
     created_at: datetime
-
     model_config = ConfigDict(from_attributes=True)
 
 
