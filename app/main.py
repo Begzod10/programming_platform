@@ -22,7 +22,7 @@ def create_application() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.BACKEND_CORS_ORIGINS,
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -56,6 +56,11 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     print("Platform suspended...")
+
+
+@app.get("/")
+async def root():
+    return {"message": "Student Platform API ishlayapti!"}
 
 
 if __name__ == "__main__":

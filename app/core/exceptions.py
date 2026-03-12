@@ -5,6 +5,7 @@ from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
 
 
 def register_exception_handlers(app):
+
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
         return JSONResponse(
@@ -20,6 +21,14 @@ def register_exception_handlers(app):
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        # ✅ ValueError objectini string ga aylantiramiz
+        errors = []
+        for error in exc.errors():
+            errors.append({
+                "field": " -> ".join(str(loc) for loc in error.get("loc", [])),
+                "message": error.get("msg", ""),
+                "type": error.get("type", ""),
+            })
         return JSONResponse(
             status_code=422,
             content={
@@ -27,7 +36,7 @@ def register_exception_handlers(app):
                 "error": {
                     "code": 422,
                     "message": "Validation error",
-                    "details": exc.errors()
+                    "details": errors  # ✅ endi JSON serializable
                 }
             }
         )

@@ -1,11 +1,11 @@
-from pydantic import BaseModel, ConfigDict, field_validator, HttpUrl
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional
 from datetime import datetime
 from enum import Enum
 from app.schemas.user import UserRead
 
 
-# ─── Enums
+# --- Enums
 
 class DifficultyLevel(str, Enum):
     easy = "Easy"
@@ -28,6 +28,8 @@ class Grade(str, Enum):
     d = "D"
     f = "F"
 
+
+# --- Base
 
 class ProjectBase(BaseModel):
     title: str
@@ -62,13 +64,23 @@ class ProjectBase(BaseModel):
             raise ValueError("Tavsif kamida 10 ta belgidan iborat bo'lishi kerak")
         return v
 
+    @field_validator("technologies_used", mode="before")
+    @classmethod
+    def parse_technologies(cls, v):
+        if isinstance(v, str):
+            return [t.strip() for t in v.split(",") if t.strip()]
+        return v
+
+
+# --- Create
 
 class ProjectCreate(ProjectBase):
     project_files: Optional[str] = None
 
 
+# --- Update
+
 class ProjectUpdate(BaseModel):
-    """Faqat o'zgartirish kere bogan fieldlarni yuborish  (PATCH logikasi)."""
     title: Optional[str] = None
     description: Optional[str] = None
     github_url: Optional[str] = None
@@ -85,6 +97,8 @@ class ProjectUpdate(BaseModel):
         return v
 
 
+# --- Read
+
 class ProjectRead(BaseModel):
     id: int
     student_id: int
@@ -92,8 +106,8 @@ class ProjectRead(BaseModel):
     description: str
     github_url: Optional[str] = None
     live_demo_url: Optional[str] = None
+    technologies_used: Optional[list[str]] = None  # saqlanadi
     project_files: Optional[str] = None
-    technologies_used: Optional[list[str]] = None
     difficulty_level: DifficultyLevel
     status: ProjectStatus
     points_earned: int
@@ -106,14 +120,26 @@ class ProjectRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    # ✅ Bazadan string kelsa listga aylantiramiz
+    @field_validator("technologies_used", mode="before")
+    @classmethod
+    def parse_technologies(cls, v):
+        if isinstance(v, str):
+            import json
+            try:
+                return json.loads(v)  # JSON array bo'lsa
+            except Exception:
+                return [t.strip() for t in v.split(",") if t.strip()]  # oddiy string bo'lsa
+        return v
 
+
+# --- Read with Student
 
 class ProjectReadWithStudent(ProjectRead):
     student: UserRead
 
-    model_config = ConfigDict(from_attributes=True)
 
+# --- List Response
 
 class ProjectListResponse(BaseModel):
     projects: list[ProjectReadWithStudent]
@@ -123,6 +149,8 @@ class ProjectListResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+# --- Review
 
 class ProjectReview(BaseModel):
     status: ProjectStatus
