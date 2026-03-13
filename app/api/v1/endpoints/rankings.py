@@ -27,6 +27,7 @@ async def global_leaderboard(
             username=r.student.username,
             full_name=r.student.full_name,
             total_points=r.total_points,
+            avatar_url=r.student.avatar_url,
             level=r.student.current_level.value,
             projects_completed=r.projects_completed,
             average_grade=round(r.average_grade, 2)
@@ -61,11 +62,14 @@ async def weekly_leaderboard(
     rankings = await ranking_service.get_weekly_leaderboard(db, limit)
     return [
         WeeklyLeaderboardItem(
+            rank=index + 1,  # ← shu ham
             student_id=r.student_id,
             username=r.student.username,
+            full_name=r.student.full_name,
+            avatar_url=r.student.avatar_url,  # ← shu
             weekly_points=r.weekly_points,
             total_points=r.total_points
-        ) for r in rankings
+        ) for index, r in enumerate(rankings)
     ]
 
 
@@ -77,11 +81,14 @@ async def monthly_leaderboard(
     rankings = await ranking_service.get_monthly_leaderboard(db, limit)
     return [
         MonthlyLeaderboardItem(
+            rank=index + 1,  # ← shu ham
             student_id=r.student_id,
             username=r.student.username,
+            full_name=r.student.full_name,
+            avatar_url=r.student.avatar_url,  # ← shu
             monthly_points=r.monthly_points,
             total_points=r.total_points
-        ) for r in rankings
+        ) for index, r in enumerate(rankings)
     ]
 
 

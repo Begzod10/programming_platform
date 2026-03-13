@@ -1,20 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+﻿from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-
-from app.dependencies import get_db, get_current_student  # ✅ bir joydan
+from app.dependencies import get_db, get_current_student
 from app.schemas.user import UserRead, UserUpdate
 from app.schemas.project import ProjectRead
 from app.services import student_service
-<<<<<<< Updated upstream
-<<<<<<< HEAD
-from app.services.project_service import get_current_student, ProjectService  # ProjectService qo'shildi
-=======
->>>>>>> origin/branch-shoh
-=======
-from app.core.security import get_current_user
 from app.services.project_service import ProjectService
->>>>>>> Stashed changes
 from app.models.user import Student
 
 router = APIRouter()
@@ -25,7 +16,7 @@ async def get_students(
         skip: int = Query(0, ge=0),
         limit: int = Query(10, ge=1, le=100),
         search: str = Query(None),
-        current_student: Student = Depends(get_current_user),
+        current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
     return await student_service.get_all_students(db, skip, limit, search)
@@ -33,16 +24,15 @@ async def get_students(
 
 @router.get("/projects/", response_model=List[ProjectRead])
 async def get_student_projects(
-        current_student: Student = Depends(get_current_user),
+        current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """Studentning o'ziga tegishli loyihalarni qaytaradi"""
     service = ProjectService(db)
-    return await service.get_projects_by_student(student_id=current_student.id)
+    return await service.get_all_projects_by_student(student_id=current_student.id)
 
 
 @router.get("/me", response_model=UserRead)
-async def get_me(current_student: Student = Depends(get_current_user)):
+async def get_me(current_student: Student = Depends(get_current_student)):
     return current_student
 
 
@@ -58,7 +48,7 @@ async def get_student(student_id: int, db: AsyncSession = Depends(get_db)):
 async def update_student(
         student_id: int,
         data: UserUpdate,
-        current_student: Student = Depends(get_current_user),
+        current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
     if current_student.id != student_id:
@@ -69,7 +59,7 @@ async def update_student(
 @router.delete("/{student_id}")
 async def delete_student(
         student_id: int,
-        current_student: Student = Depends(get_current_user),
+        current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
     if current_student.id != student_id:

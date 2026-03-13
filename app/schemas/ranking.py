@@ -29,6 +29,7 @@ class GlobalLeaderboardItem(BaseModel):
     student_id: int
     username: str
     full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     total_points: int
     level: str
     projects_completed: int
@@ -36,15 +37,21 @@ class GlobalLeaderboardItem(BaseModel):
 
 
 class WeeklyLeaderboardItem(BaseModel):
+    rank: int
     student_id: int
     username: str
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     weekly_points: int
     total_points: int
 
 
 class MonthlyLeaderboardItem(BaseModel):
+    rank: int
     student_id: int
     username: str
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
     monthly_points: int
     total_points: int
 

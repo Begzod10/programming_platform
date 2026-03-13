@@ -16,10 +16,10 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(
-        form_data: OAuth2PasswordRequestForm = Depends(),
+        user_in: UserLogin,
         db: AsyncSession = Depends(get_db)
 ):
-    return await auth_service.login(db, form_data.username, form_data.password)
+    return await auth_service.login(db, user_in.username, user_in.password)
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
@@ -30,8 +30,8 @@ async def logout(current_student: Student = Depends(get_current_student), db: As
 
 @router.delete("/me", status_code=status.HTTP_200_OK)
 async def delete_me(
-    current_student: Student = Depends(get_current_student),
-    db: AsyncSession = Depends(get_db)
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
 ):
     # ✅ faqat o'zini o'chira oladi
     return await auth_service.delete_user(current_student.id, db)
@@ -39,9 +39,9 @@ async def delete_me(
 
 @router.put("/me", status_code=status.HTTP_200_OK)
 async def update_me(
-    user_data: UserUpdate,
-    current_student: Student = Depends(get_current_student),
-    db: AsyncSession = Depends(get_db)
+        user_data: UserUpdate,
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
 ):
     # ✅ faqat o'zini yangilay oladi, UserUpdate ishlatadi
     return await auth_service.update_user(current_student.id, user_data, db)

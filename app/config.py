@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).parent.parent
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:123@localhost:5432/Student_Platform"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:123@localhost:5432/student_platform"
 
     APP_NAME: str = "Student Programming Platform"
     DEBUG: bool = True

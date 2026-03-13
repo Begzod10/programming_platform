@@ -1,23 +1,19 @@
-from pydantic import BaseModel, ConfigDict, field_validator
+﻿from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional
 from datetime import datetime
 from enum import Enum
 from app.schemas.user import UserRead
-import json
 
 
-<<<<<<< HEAD
-=======
 # --- Enums
 
->>>>>>> origin/branch-shoh
 class DifficultyLevel(str, Enum):
     easy = "Easy"
     medium = "Medium"
     hard = "Hard"
 
 
-class ProjectStatusEnum(str, Enum):
+class ProjectStatus(str, Enum):
     draft = "Draft"
     submitted = "Submitted"
     under_review = "Under Review"
@@ -110,10 +106,10 @@ class ProjectRead(BaseModel):
     description: str
     github_url: Optional[str] = None
     live_demo_url: Optional[str] = None
-    technologies_used: Optional[list[str]] = None  # saqlanadi
+    technologies_used: Optional[list[str]] = None
     project_files: Optional[str] = None
     difficulty_level: DifficultyLevel
-    status: ProjectStatusEnum
+    status: ProjectStatus
     points_earned: int
     instructor_feedback: Optional[str] = None
     grade: Optional[Grade] = None
@@ -124,44 +120,28 @@ class ProjectRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # ✅ Bazadan string kelsa listga aylantiramiz
+    # ✅ shu qo'shiladi
     @field_validator("technologies_used", mode="before")
     @classmethod
     def parse_technologies(cls, v):
         if isinstance(v, str):
             import json
             try:
-                return json.loads(v)  # JSON array bo'lsa
+                return json.loads(v)
             except Exception:
-                return [t.strip() for t in v.split(",") if t.strip()]  # oddiy string bo'lsa
+                return [t.strip() for t in v.split(",") if t.strip()]
         return v
 
-    # DB dan JSON string kelsa, list ga parse qilish
-    @field_validator("technologies_used", mode="before")
-    @classmethod
-    def parse_technologies(cls, v) -> Optional[list[str]]:
-        if v is None:
-            return None
-        if isinstance(v, list):
-            return v
-        if isinstance(v, str):
-            try:
-                parsed = json.loads(v)
-                return parsed if isinstance(parsed, list) else []
-            except (json.JSONDecodeError, ValueError):
-                return []
-        return []
+    model_config = ConfigDict(from_attributes=True)  # ← eng oxirida
+
+
 
 
 # --- Read with Student
 
 class ProjectReadWithStudent(ProjectRead):
     student: UserRead
-<<<<<<< Updated upstream
 
-=======
-    model_config = ConfigDict(from_attributes=True)
->>>>>>> Stashed changes
 
 # --- List Response
 
@@ -170,13 +150,14 @@ class ProjectListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
     model_config = ConfigDict(from_attributes=True)
 
 
 # --- Review
 
 class ProjectReview(BaseModel):
-    status: ProjectStatusEnum
+    status: ProjectStatus
     grade: Grade
     points_earned: int
     instructor_feedback: Optional[str] = None
@@ -187,41 +168,3 @@ class ProjectReview(BaseModel):
         if v < 0 or v > 100:
             raise ValueError("Ball 0 dan 100 gacha bo'lishi kerak")
         return v
-
-
-class ProjectStatusUpdate(BaseModel):
-    status: ProjectStatusEnum
-
-
-class ProjectDifficultyUpdate(BaseModel):
-    difficulty_level: DifficultyLevel
-
-
-class ProjectGrade(BaseModel):
-    grade: Grade
-    points_earned: int
-
-    @field_validator("points_earned", mode="before")
-    @classmethod
-    def validate_points(cls, v: int) -> int:
-        if v < 0 or v > 100:
-            raise ValueError("Ball 0 dan 100 gacha bo'lishi kerak")
-        return v
-
-
-class ProjectComment(BaseModel):
-    comment: str
-
-    @field_validator("comment", mode="before")
-    @classmethod
-    def validate_comment(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 3:
-            raise ValueError("Izoh kamida 3 ta belgidan iborat bo'lishi kerak")
-        if len(v) > 1000:
-            raise ValueError("Izoh 1000 ta belgidan oshmasligi kerak")
-        return v
-
-
-# Alias
-ProjectStatus = ProjectStatusEnum

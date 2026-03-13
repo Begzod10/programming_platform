@@ -42,10 +42,10 @@ class UserCreate(BaseModel):
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    username: str
     password: str
 
-    @field_validator("email", "password")
+    @field_validator("username", "password")
     @classmethod
     def strip_strings(cls, v: str) -> str:
         return v.strip() if isinstance(v, str) else v
@@ -67,6 +67,8 @@ class UserRead(BaseModel):
     username: str
     email: EmailStr
     full_name: Optional[str] = None
+    bio: Optional[str] = None  # ← shu
+    avatar_url: Optional[str] = None  # ← shu
     current_level: str
     total_points: int
     is_active: bool
