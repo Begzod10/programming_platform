@@ -1,0 +1,71 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select  # <--- BU QO'SHILDI
+from typing import List
+from app.schemas.group import GroupUpdate # Importni unutmang
+from app.dependencies import get_db
+from app.schemas.group import GroupCreate, GroupRead
+from app.services.group_service import GroupService
+from app.models.user import Student
+from app.models.group import Group  # <--- BU QO'SHILDI
+
+router = APIRouter()
+
+
+@router.post("/", response_model=GroupRead)
+async def create_new_group(payload: GroupCreate, db: AsyncSession = Depends(get_db)):
+    service = GroupService(db)
+    return await service.create_group(payload)
+
+
+@router.get("/", response_model=List[GroupRead])
+async def get_groups(db: AsyncSession = Depends(get_db)):
+    service = GroupService(db)
+    return await service.get_all_groups()
+
+
+@router.patch("/{group_id}/add-student/{student_id}")
+async def add_student_to_group(
+        group_id: int,
+        student_id: int,
+        db: AsyncSession = Depends(get_db)
+):
+    # 1. Guruh mavjudligini tekshirish
+    group_result = await db.execute(select(Group).where(Group.id == group_id))
+    group = group_result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Guruh topilmadi")
+
+    # 2. Talaba mavjudligini tekshirish
+    student_result = await db.execute(select(Student).where(Student.id == student_id))
+    student = student_result.scalar_one_or_none()
+    if not student:
+        raise HTTPException(status_code=404, detail="Talaba topilmadi")
+
+    # 3. Talabani guruhga biriktirish
+    student.group_id = group_id
+    await db.commit()
+
+    return {"message": f"Talaba {student.full_name} muvaffaqiyatli '{group.name}' guruhiga qo'shildi"}
+
+
+@router.put("/{group_id}", response_model=GroupRead)
+async def update_group(
+        group_id: int,
+        payload: GroupUpdate,
+        db: AsyncSession = Depends(get_db)
+):
+    service = GroupService(db)
+    updated_group = await service.update_group(group_id, payload)
+    if not updated_group:
+        raise HTTPException(status_code=404, detail="Guruh topilmadi yoki o'zgartirish yuborilmadi")
+    return updated_group
+
+
+@router.delete("/{group_id}")
+async def delete_group(group_id: int, db: AsyncSession = Depends(get_db)):
+    service = GroupService(db)
+    success = await service.delete_group(group_id) # Endi bu metod mavjud
+    if not success:
+        raise HTTPException(status_code=404, detail="Guruh topilmadi")
+    return {"message": "Guruh muvaffaqiyatli o'chirildi"}

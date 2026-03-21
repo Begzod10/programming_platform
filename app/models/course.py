@@ -1,17 +1,27 @@
 from datetime import datetime
-from typing import List
-from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, Table, Column
+from typing import List, Optional, TYPE_CHECKING
+from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, Text, func, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 
-# Junction table for student-course enrollment
-student_courses = Table(
-    "student_courses",
-    Base.metadata,
-    Column("student_id", ForeignKey("students.id", ondelete="CASCADE"), primary_key=True),
-    Column("course_id", ForeignKey("courses.id", ondelete="CASCADE"), primary_key=True),
-    extend_existing=True
-)
+if TYPE_CHECKING:
+    from app.models.user import Student
+    from app.models.lesson import Lesson
+
+
+class CourseEnrollment(Base):
+    __tablename__ = "course_enrollments"
+
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), primary_key=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), primary_key=True)
+
+    progress_percent: Mapped[float] = mapped_column(Float, default=0.0)
+    is_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    enrolled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    student: Mapped["Student"] = relationship(back_populates="course_enrollments")
+    course: Mapped["Course"] = relationship(back_populates="enrollments")
 
 
 class Course(Base):
@@ -19,24 +29,37 @@ class Course(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(150), nullable=False)
-    description: Mapped[str] = mapped_column(String(500))
-    instructor_id: Mapped[int] = mapped_column(Integer)  # assuming instructors table exists
-
-    difficulty_level: Mapped[str] = mapped_column(String(20))
-    duration_weeks: Mapped[int] = mapped_column(Integer)
-    max_points: Mapped[int] = mapped_column(Integer)
-
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    instructor_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False)
+    difficulty_level: Mapped[str] = mapped_column(String(20), nullable=False)
+    duration_weeks: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_points: Mapped[int] = mapped_column(Integer, nullable=False)
+    image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    students: Mapped[List["Student"]] = relationship(
-        "Student",
-        secondary="student_courses",
-        back_populates="enrolled_courses"
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
+                                                 onupdate=func.now())
+
+    # O'qituvchi bilan bog'lanish (Foreign key aniq ko'rsatilgan)
+    instructor: Mapped["Student"] = relationship("Student", foreign_keys=[instructor_id])
+
+    enrollments: Mapped[List["CourseEnrollment"]] = relationship(
+        "CourseEnrollment",
+        back_populates="course",
+        cascade="all, delete-orphan"
     )
+
     lessons: Mapped[List["Lesson"]] = relationship(
         "Lesson",
         back_populates="course",
         cascade="all, delete-orphan"
+    )
+
+    students: Mapped[List["Student"]] = relationship(
+        "Student",
+        secondary="course_enrollments",
+        back_populates="enrolled_courses",
+        viewonly=True,
+        overlaps="course,enrollments,student"  # Pydantic/SQLAlchemy ogohlantirishini yo'qotadi
     )

@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 import enum
 
 from sqlalchemy import (
@@ -8,9 +8,20 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
+from sqlalchemy import ForeignKey # ForeignKey ni import qilishni unutmang
+if TYPE_CHECKING:
+    from app.models.course import Course, CourseEnrollment
+    from app.models.project import Project
+    from app.models.achievement import StudentAchievement
+    from app.models.degree import StudentDegree
 
 
-class StudentLevel(enum.Enum):
+class UserRole(str, enum.Enum):
+    student = "student"
+    teacher = "teacher"
+
+
+class StudentLevel(str, enum.Enum):
     Beginner = "Beginner"
     Intermediate = "Intermediate"
     Advanced = "Advanced"
@@ -28,6 +39,12 @@ class Student(Base):
     avatar_url: Mapped[Optional[str]] = mapped_column(String(512))
     bio: Mapped[Optional[str]] = mapped_column(Text)
 
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole),
+        default=UserRole.student,
+        server_default="student"
+    )
+
     enrollment_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -41,20 +58,47 @@ class Student(Base):
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     projects: Mapped[List["Project"]] = relationship("Project", back_populates="student")
-    achievements: Mapped[List["StudentAchievement"]] = relationship("StudentAchievement", back_populates="student")
+    achievements: Mapped[List["StudentAchievement"]] = relationship(
+        "StudentAchievement", back_populates="student", cascade="all, delete-orphan"
+    )
     degrees: Mapped[List["StudentDegree"]] = relationship(
-        "StudentDegree",
+        "StudentDegree", back_populates="student", cascade="all, delete-orphan"
+    )
+
+    course_enrollments: Mapped[List["CourseEnrollment"]] = relationship(
+        "CourseEnrollment",
         back_populates="student",
         cascade="all, delete-orphan"
     )
+
+    # secondary jadval nomi endi 'course_enrollments'
     enrolled_courses: Mapped[List["Course"]] = relationship(
         "Course",
-        secondary="student_courses",
-        back_populates="students"
+        secondary="course_enrollments",
+        back_populates="students",
+        viewonly=True
     )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+    ranking: Mapped["Ranking"] = relationship(
+        "Ranking",
+        back_populates="student",
+        uselist=False,  # 1 ta studentda faqat 1 ta ranking bo'ladi
+        cascade="all, delete-orphan"  # Student o'chsa, ranking ham o'chadi
+    )
+
+    projects: Mapped[list["Project"]] = relationship(
+        "Project",
+        back_populates="student",
+        cascade="all, delete-orphan"  # Student o'chsa, loyihalari ham o'chadi
+    )
+    group_id: Mapped[Optional[int]] = mapped_column(ForeignKey("groups.id"), nullable=True)
+
+
+    group: Mapped["Group"] = relationship("Group", back_populates="students")

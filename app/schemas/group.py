@@ -1,0 +1,34 @@
+from pydantic import BaseModel
+from datetime import datetime
+from typing import Optional, List
+from app.schemas.user import UserRead # Talaba ma'lumotlari formati uchun
+class GroupBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class GroupCreate(GroupBase):
+    pass
+
+class GroupRead(GroupBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class GroupUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class GroupRead(GroupBase):
+    id: int
+    created_at: datetime
+    # Mana shu qatorni qo'shing:
+    students: List[UserRead] = []
+
+    class Config:
+        from_attributes = True

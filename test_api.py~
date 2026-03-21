@@ -1,0 +1,134 @@
+import requests
+import json
+
+BASE_URL = "http://127.0.0.1:8000/api/v1"
+
+
+def test_api():
+    print("=" * 50)
+    print("API TEST BOSHLANDI")
+    print("=" * 50)
+
+    # 1. Register - Teacher
+    print("\n1. TEACHER REGISTER QILISH...")
+    register_data = {
+        "username": "teacher1",
+        "email": "teacher@example.com",
+        "full_name": "O'qituvchi Birinchi",
+        "password": "12345678",
+        "role": "teacher"
+    }
+
+    response = requests.post(f"{BASE_URL}/auth/register", json=register_data)
+    if response.status_code == 201:
+        print("✅ Teacher muvaffaqiyatli yaratildi!")
+    else:
+        print(f"❌ Xato: {response.status_code}")
+        print(response.json())
+
+    # 2. Login - Teacher
+    print("\n2. TEACHER LOGIN QILISH...")
+    login_data = {
+        "email": "teacher@example.com",
+        "password": "12345678"
+    }
+
+    response = requests.post(f"{BASE_URL}/auth/login", json=login_data)
+    if response.status_code == 200:
+        data = response.json()
+        token = data["access_token"]
+        print("✅ Login muvaffaqiyatli!")
+        print(f"Token: {token[:50]}...")
+    else:
+        print(f"❌ Login xato: {response.status_code}")
+        return
+
+    # Headers with token
+    headers = {
+        "Authorization": f"Bearer {token}"
+    }
+
+    # 3. Register - Student
+    print("\n3. STUDENT REGISTER QILISH...")
+    student_data = {
+        "username": "student1",
+        "email": "student1@example.com",
+        "full_name": "Talaba Birinchi",
+        "password": "12345678",
+        "role": "student"
+    }
+
+    response = requests.post(f"{BASE_URL}/auth/register", json=student_data)
+    if response.status_code == 201:
+        print("✅ Student muvaffaqiyatli yaratildi!")
+    else:
+        print(f"⚠️ Student yaratilmadi (balki allaqachon bor): {response.status_code}")
+
+    # 4. Get all students (Teacher endpoint)
+    print("\n4. BARCHA STUDENTLARNI OLISH (Teacher)...")
+    response = requests.get(f"{BASE_URL}/teacher/students/?skip=0&limit=10", headers=headers)
+    if response.status_code == 200:
+        students = response.json()
+        print(f"✅ {len(students)} ta student topildi!")
+        for student in students:
+            print(f"   - {student['username']} ({student['email']}) - {student['role']}")
+    else:
+        print(f"❌ Xato: {response.status_code}")
+        print(response.json())
+
+    # 5. Login as Student
+    print("\n5. STUDENT LOGIN QILISH...")
+    student_login = {
+        "username": "teacher1",
+        "password": "12345678"
+    }
+
+    response = requests.post(f"{BASE_URL}/auth/login", json=student_login)
+    if response.status_code == 200:
+        data = response.json()
+        student_token = data["access_token"]
+        print("✅ Student login muvaffaqiyatli!")
+    else:
+        print(f"❌ Student login xato: {response.status_code}")
+        return
+
+    student_headers = {
+        "Authorization": f"Bearer {student_token}"
+    }
+
+    # 6. Create Project (Student)
+    print("\n6. PROYEKT YARATISH (Student)...")
+    project_data = {
+        "title": "My First Project",
+        "description": "Test project for API",
+        "github_url": "https://github.com/test/repo",
+        "live_demo_url": "https://test.com",
+        "technologies_used": ["Python", "FastAPI", "PostgreSQL"],
+        "difficulty_level": "Easy"
+    }
+
+    response = requests.post(f"{BASE_URL}/projects/", json=project_data, headers=student_headers)
+    if response.status_code == 201:
+        project = response.json()
+        print(f"✅ Proyekt yaratildi! ID: {project['id']}")
+        print(f"   Title: {project['title']}")
+    else:
+        print(f"❌ Proyekt yaratilmadi: {response.status_code}")
+        print(response.json())
+
+    # 7. Get my projects
+    print("\n7. MENING PROYEKTLARIM...")
+    response = requests.get(f"{BASE_URL}/projects/my", headers=student_headers)
+    if response.status_code == 200:
+        projects = response.json()
+        print(f"✅ {len(projects)} ta proyekt topildi!")
+    else:
+        print(f"❌ Xato: {response.status_code}")
+
+    print("\n" + "=" * 50)
+    print("TEST TUGADI!")
+    print("=" * 50)
+
+
+if __name__ == "__main__":
+    test_api()

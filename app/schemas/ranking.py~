@@ -1,0 +1,41 @@
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Optional
+from datetime import datetime
+
+
+class RankingCreate(BaseModel):
+    """Yangi ranking yaratish"""
+    student_id: int = Field(..., ge=1, description="Student ID")
+
+
+class RankingUpdate(BaseModel):
+    """Ranking yangilash"""
+    daily_points: Optional[int] = Field(None, ge=0)
+    weekly_points: Optional[int] = Field(None, ge=0)
+    monthly_points: Optional[int] = Field(None, ge=0)
+    total_points: Optional[int] = Field(None, ge=0)
+    projects_completed: Optional[int] = Field(None, ge=0)
+
+
+class LeaderboardItem(BaseModel):
+    """Leaderboard item"""
+    rank: int
+    student_id: int
+    username: str
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    points: int
+    level: str
+    projects_completed: int
+
+
+class MyRankingRead(BaseModel):
+    """O'z ranking ma'lumotlari"""
+    global_rank: int
+    level_rank: int
+    daily_points: int
+    weekly_points: int
+    monthly_points: int
+    total_points: int
+    projects_completed: int
+    last_calculated_at: Optional[datetime] = None

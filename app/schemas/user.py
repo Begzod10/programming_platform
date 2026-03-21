@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator, Field
 from typing import Optional
 from datetime import datetime
+from app.models.user import UserRole  # Import qo'shildi
 
 
 class UserBase(BaseModel):
@@ -14,6 +15,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
     password: str
+    role: Optional[UserRole] = Field(default=UserRole.student)  # YANGI
 
     @field_validator("username")
     @classmethod
@@ -55,6 +57,8 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
+    email: Optional[EmailStr] = None
+    username: Optional[str] = None
 
     @field_validator("full_name", "bio", "avatar_url")
     @classmethod
@@ -67,12 +71,14 @@ class UserRead(BaseModel):
     username: str
     email: EmailStr
     full_name: Optional[str] = None
-    bio: Optional[str] = None  # ← shu
-    avatar_url: Optional[str] = None  # ← shu
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
+    role: UserRole
     current_level: str
     total_points: int
     is_active: bool
     created_at: datetime
+
     model_config = ConfigDict(from_attributes=True)
 
 

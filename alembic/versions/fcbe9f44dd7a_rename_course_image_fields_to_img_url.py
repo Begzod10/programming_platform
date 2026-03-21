@@ -1,8 +1,8 @@
-"""drop role column
+"""rename course image fields to img_url
 
-Revision ID: a83cbfbb4464
-Revises: 35175fbb9150
-Create Date: 2026-03-10 15:58:48.106385
+Revision ID: fcbe9f44dd7a
+Revises: 46b0aa5a5075
+Create Date: 2026-03-18 20:24:00.679435
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'a83cbfbb4464'
-down_revision: Union[str, None] = '35175fbb9150'
+revision: str = 'fcbe9f44dd7a'
+down_revision: Union[str, None] = '46b0aa5a5075'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

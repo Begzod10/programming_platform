@@ -1,8 +1,8 @@
-"""remove role from students
+"""fix_student_cascade_delete
 
-Revision ID: eed203a8dece
-Revises: a83cbfbb4464
-Create Date: 2026-03-10 16:03:53.627357
+Revision ID: 8dd487d8f46c
+Revises: 58111f9dab54
+Create Date: 2026-03-19 15:15:39.357651
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'eed203a8dece'
-down_revision: Union[str, None] = 'a83cbfbb4464'
+revision: str = '8dd487d8f46c'
+down_revision: Union[str, None] = '58111f9dab54'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
