@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional, TYPE_CHECKING
-from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, Text, func, Float
+from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, Text, func, Table, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 
@@ -8,46 +8,69 @@ if TYPE_CHECKING:
     from app.models.user import Student
     from app.models.lesson import Lesson
 
-
-class CourseEnrollment(Base):
-    __tablename__ = "course_enrollments"
-
-    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), primary_key=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), primary_key=True)
-
-    progress_percent: Mapped[float] = mapped_column(Float, default=0.0)
-    is_completed: Mapped[bool] = mapped_column(Boolean, default=False)
-    enrolled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-
-    student: Mapped["Student"] = relationship(back_populates="course_enrollments")
-    course: Mapped["Course"] = relationship(back_populates="enrollments")
+# ✅ Junction table - student_courses
+student_courses = Table(
+    "student_courses",
+    Base.metadata,
+    Column("student_id", ForeignKey("students.id", ondelete="CASCADE"), primary_key=True),
+    Column("course_id", ForeignKey("courses.id", ondelete="CASCADE"), primary_key=True),
+    extend_existing=True
+)
 
 
 class Course(Base):
     __tablename__ = "courses"
 
+    # Primary key
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    # Basic info
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    instructor_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False)
+
+    # Foreign key
+    instructor_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    # Course details
     difficulty_level: Mapped[str] = mapped_column(String(20), nullable=False)
     duration_weeks: Mapped[int] = mapped_column(Integer, nullable=False)
     max_points: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Media URLs (ikkalasi ham - compatibility uchun)
     image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    cover_image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    thumbnail_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    video_intro_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    syllabus_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
-                                                 onupdate=func.now())
+    # Status
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
-    # O'qituvchi bilan bog'lanish (Foreign key aniq ko'rsatilgan)
-    instructor: Mapped["Student"] = relationship("Student", foreign_keys=[instructor_id])
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now()
+    )
 
-    enrollments: Mapped[List["CourseEnrollment"]] = relationship(
-        "CourseEnrollment",
-        back_populates="course",
-        cascade="all, delete-orphan"
+    # Relationships
+    instructor: Mapped["Student"] = relationship(
+        "Student",
+        foreign_keys=[instructor_id],
+        backref="taught_courses"
+    )
+
+    students: Mapped[List["Student"]] = relationship(
+        "Student",
+        secondary=student_courses,
+        back_populates="enrolled_courses"
     )
 
     lessons: Mapped[List["Lesson"]] = relationship(
@@ -56,10 +79,5 @@ class Course(Base):
         cascade="all, delete-orphan"
     )
 
-    students: Mapped[List["Student"]] = relationship(
-        "Student",
-        secondary="course_enrollments",
-        back_populates="enrolled_courses",
-        viewonly=True,
-        overlaps="course,enrollments,student"  # Pydantic/SQLAlchemy ogohlantirishini yo'qotadi
-    )
+    def __repr__(self) -> str:
+        return f"<Course(id={self.id}, title={self.title}, instructor_id={self.instructor_id})>"

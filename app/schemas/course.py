@@ -1,79 +1,98 @@
-from pydantic import BaseModel, ConfigDict, field_validator, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional, List
 from datetime import datetime
 
 
-# --- Base Schema ---
 class CourseBase(BaseModel):
-    title: str = Field(..., min_length=3, max_length=200)
-    description: str = Field(..., min_length=10, max_length=1000)
-    instructor_id: int = Field(..., ge=1)
+    """Base course fields"""
+    title: str = Field(..., min_length=1, max_length=150)
+    description: str = Field(..., min_length=1, max_length=5000)
     difficulty_level: str = Field(..., max_length=20)
-    duration_weeks: int = Field(..., ge=1, le=52)
-    max_points: int = Field(..., ge=0)
+    duration_weeks: int = Field(..., ge=1, le=104)
+    max_points: int = Field(..., ge=0, le=10000)
     image_url: Optional[str] = Field(None, max_length=500)
-    is_active: bool = True
-
-    @field_validator("title", "description", mode="before")
-    @classmethod
-    def strip_strings(cls, v):
-        if isinstance(v, str):
-            return v.strip()
-        return v
+    cover_image_url: Optional[str] = Field(None, max_length=500)
+    thumbnail_url: Optional[str] = Field(None, max_length=500)
+    video_intro_url: Optional[str] = Field(None, max_length=500)
+    syllabus_url: Optional[str] = Field(None, max_length=500)
 
     @field_validator("difficulty_level")
     @classmethod
     def validate_difficulty(cls, v: str) -> str:
-        allowed_levels = ["Beginner", "Intermediate", "Advanced", "Expert"]
-        if v not in allowed_levels:
-            raise ValueError(f"Ruxsat etilgan darajalar: {', '.join(allowed_levels)}")
+        allowed = ["Beginner", "Intermediate", "Advanced", "Expert"]
+        if v not in allowed:
+            raise ValueError(f"Qiyinlik darajasi: {', '.join(allowed)}")
         return v
 
 
 class CourseCreate(CourseBase):
+    """Kurs yaratish"""
     pass
 
 
 class CourseUpdate(BaseModel):
-    title: Optional[str] = Field(None, min_length=3, max_length=200)
-    description: Optional[str] = Field(None, min_length=10, max_length=1000)
-    difficulty_level: Optional[str] = None
-    duration_weeks: Optional[int] = Field(None, ge=1, le=52)
-    max_points: Optional[int] = Field(None, ge=0)
-    image_url: Optional[str] = None
+    """Kurs yangilash (barcha fieldlar optional)"""
+    title: Optional[str] = Field(None, min_length=1, max_length=150)
+    description: Optional[str] = Field(None, min_length=1, max_length=5000)
+    difficulty_level: Optional[str] = Field(None, max_length=20)
+    duration_weeks: Optional[int] = Field(None, ge=1, le=104)
+    max_points: Optional[int] = Field(None, ge=0, le=10000)
+    image_url: Optional[str] = Field(None, max_length=500)
+    cover_image_url: Optional[str] = Field(None, max_length=500)
+    thumbnail_url: Optional[str] = Field(None, max_length=500)
+    video_intro_url: Optional[str] = Field(None, max_length=500)
+    syllabus_url: Optional[str] = Field(None, max_length=500)
     is_active: Optional[bool] = None
 
+    @field_validator("difficulty_level")
+    @classmethod
+    def validate_difficulty(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        allowed = ["Beginner", "Intermediate", "Advanced", "Expert"]
+        if v not in allowed:
+            raise ValueError(f"Qiyinlik darajasi: {', '.join(allowed)}")
+        return v
 
-# --- Read Schemas ---
-class CourseRead(CourseBase):
+
+class CourseRead(BaseModel):
+    """Kurs ma'lumotlari (list va detail uchun)"""
     id: int
-    # Bular bazada yo'q, lekin API orqali yuboramiz
-    instructor_name: Optional[str] = "Noma'lum"
-    students_count: int = 0
+    title: str
+    description: str
+    instructor_id: int
+    difficulty_level: str
+    duration_weeks: int
+    max_points: int
+    image_url: Optional[str] = None
+    cover_image_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    video_intro_url: Optional[str] = None
+    syllabus_url: Optional[str] = None
+    is_active: bool
     created_at: datetime
     updated_at: datetime
+
+    # Hisoblangan fieldlar
+    lessons_count: int = 0
+    students_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class CourseReadWithStudents(CourseRead):
-    """Bitta kursni ko'rayotganda (details) ishlatiladi"""
-    lessons_count: int = 0
-    progress_percent: float = 0.0
-    is_completed: bool = False
-
-    model_config = ConfigDict(from_attributes=True)
+    """Kurs batafsil (detail page uchun - kelajakda qo'shimcha fieldlar bo'lishi mumkin)"""
+    pass
 
 
-# --- Response Schemas ---
 class CourseListResponse(BaseModel):
-    courses: List[CourseRead]
+    """Kurslar ro'yxati response"""
     total: int
-    page: int = 1
-    page_size: int = 10
+    courses: List[CourseRead]
 
 
 class CourseImageUploadResponse(BaseModel):
+    """Rasm yuklash response"""
     message: str
     image_url: str
     course: CourseRead

@@ -4,7 +4,7 @@ from app.db.base_class import Base  # Sizning deklarativ bazangiz
 
 # Barcha modellarni shu yerda import qilish shart!
 from app.models.user import Student
-from app.models.course import Course, CourseEnrollment
+from app.models.course import Course  # ✅ CourseEnrollment o'chirildi
 from app.models.project import Project
 from app.models.submission import Submission
 from app.models.ranking import Ranking
@@ -18,7 +18,6 @@ __all__ = [
     "Base",
     "Student",
     "Course",
-    "CourseEnrollment",
     "Project",
     "Submission",
     "Ranking",
