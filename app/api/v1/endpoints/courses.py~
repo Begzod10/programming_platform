@@ -2,7 +2,7 @@ import os
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from fastapi import APIRouter, Depends, Query, HTTPException, status, UploadFile, File
 from sqlalchemy import select, or_
@@ -26,14 +26,13 @@ UPLOAD_DIR = Path("uploads/courses")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
-async def _get_course_with_counts(db: AsyncSession, course_id: int) -> Optional[dict]:
-    """Course ni counts va instructor_name bilan birga olish"""
+async def _get_course_with_counts(db: AsyncSession, course_id: int) -> dict:
+    """Course ni counts bilan birga olish"""
     result = await db.execute(
         select(Course)
         .options(
             selectinload(Course.students),
-            selectinload(Course.lessons),
-            selectinload(Course.instructor),
+            selectinload(Course.lessons)
         )
         .where(Course.id == course_id)
     )
@@ -43,22 +42,6 @@ async def _get_course_with_counts(db: AsyncSession, course_id: int) -> Optional[
     data = CourseRead.model_validate(course).model_dump()
     data["lessons_count"] = len(course.lessons)
     data["students_count"] = len(course.students)
-    data["instructor_name"] = (
-        course.instructor.full_name or course.instructor.username
-        if course.instructor else None
-    )
-    return data
-
-
-def _build_course_dict(course: Course) -> dict:
-    """Course ob'ektidan dict yasash"""
-    data = CourseRead.model_validate(course).model_dump()
-    data["lessons_count"] = len(course.lessons) if course.lessons else 0
-    data["students_count"] = len(course.students) if course.students else 0
-    data["instructor_name"] = (
-        course.instructor.full_name or course.instructor.username
-        if course.instructor else None
-    )
     return data
 
 
@@ -88,8 +71,7 @@ async def get_courses(
     """Barcha kurslar (public)"""
     query = select(Course).options(
         selectinload(Course.students),
-        selectinload(Course.lessons),
-        selectinload(Course.instructor),
+        selectinload(Course.lessons)
     )
     if search:
         query = query.where(or_(
@@ -101,7 +83,15 @@ async def get_courses(
     query = query.order_by(Course.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     courses = result.scalars().all()
-    return [_build_course_dict(c) for c in courses]
+
+    return [
+        {
+            **CourseRead.model_validate(c).model_dump(),
+            "lessons_count": len(c.lessons),
+            "students_count": len(c.students),
+        }
+        for c in courses
+    ]
 
 
 @router.get("/my", response_model=List[CourseRead])
@@ -112,12 +102,19 @@ async def get_my_courses(
     """O'z kurslarim (faqat teacher)"""
     query = select(Course).options(
         selectinload(Course.students),
-        selectinload(Course.lessons),
-        selectinload(Course.instructor),
+        selectinload(Course.lessons)
     ).where(Course.instructor_id == current_teacher.id)
     result = await db.execute(query)
     courses = result.scalars().all()
-    return [_build_course_dict(c) for c in courses]
+
+    return [
+        {
+            **CourseRead.model_validate(c).model_dump(),
+            "lessons_count": len(c.lessons),
+            "students_count": len(c.students),
+        }
+        for c in courses
+    ]
 
 
 @router.get("/{course_id}", response_model=CourseReadWithStudents)
@@ -149,7 +146,7 @@ async def update_course(
 
     update_data = payload.model_dump(exclude_unset=True)
 
-    # image_url ni None bilan ustiga yozmaslik — rasm yo'qolmasin
+    # image_url ni None bilan ustiga yozmaslik
     if "image_url" in update_data and update_data["image_url"] is None:
         del update_data["image_url"]
 
@@ -259,16 +256,12 @@ async def upload_course_image(
     allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
     file_ext = os.path.splitext(file.filename)[1].lower()
     if file_ext not in allowed_extensions:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Faqat rasm yuklash mumkin: {', '.join(allowed_extensions)}"
-        )
+        raise HTTPException(status_code=400, detail=f"Faqat rasm yuklash mumkin: {', '.join(allowed_extensions)}")
 
     contents = await file.read()
     if len(contents) > 5 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Fayl hajmi 5MB dan oshmasligi kerak")
 
-    # Eski faylni o'chirish
     if course.image_url and course.image_url.startswith("/uploads/"):
         old_file = Path(".") / course.image_url.lstrip("/")
         if old_file.exists():

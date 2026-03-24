@@ -1,20 +1,16 @@
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional, List
-from app.schemas.user import UserRead # Talaba ma'lumotlari formati uchun
+from app.schemas.user import UserRead
+
+
 class GroupBase(BaseModel):
     name: str
     description: Optional[str] = None
 
+
 class GroupCreate(GroupBase):
     pass
-
-class GroupRead(GroupBase):
-    id: int
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class GroupUpdate(BaseModel):
@@ -24,10 +20,10 @@ class GroupUpdate(BaseModel):
     class Config:
         from_attributes = True
 
+
 class GroupRead(GroupBase):
     id: int
     created_at: datetime
-    # Mana shu qatorni qo'shing:
     students: List[UserRead] = []
 
     class Config:

@@ -1,92 +1,115 @@
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
-from app.models.user import UserRole  # Import qo'shildi
+from enum import Enum
 
 
+
+
+class UserRole(str, Enum):
+    student = "student"
+    admin = "admin"
+    instructor = "instructor"
+    teacher = "teacher"
+
+
+# --- ACHIEVEMENT SCHEMAS ---
+class AchievementRead(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    badge_image_url: Optional[str] = None
+    points_reward: int = 0
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- USER SCHEMAS ---
 class UserBase(BaseModel):
     username: str
     email: EmailStr
     full_name: Optional[str] = None
 
 
-class UserCreate(BaseModel):
-    username: str
-    email: EmailStr
-    full_name: Optional[str] = None
+class UserCreate(UserBase):
     password: str
-    role: Optional[UserRole] = Field(default=UserRole.student)  # YANGI
+    role: Optional[UserRole] = Field(default=UserRole.student)
 
     @field_validator("username")
     @classmethod
     def validate_username(cls, v: str) -> str:
         v = v.strip()
         if len(v) < 3:
-            raise ValueError("Username kamida 3 ta belgidan iborat bo'lishi kerak")
-        if len(v) > 50:
-            raise ValueError("Username 50 ta belgidan oshmasligi kerak")
+            raise ValueError("Username kamida 3 ta belgi bo'lishi kerak")
         return v
-
-    @field_validator("email", "password")
-    @classmethod
-    def strip_strings(cls, v: str) -> str:
-        return v.strip() if isinstance(v, str) else v
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
         v = v.strip()
-        if len(v) < 8:
-            raise ValueError("Parol kamida 8 ta belgidan iborat bo'lishi kerak")
-        if len(v) > 72:
-            return v[:72]
+        if len(v) < 5:
+            raise ValueError("Parol kamida 5 ta belgi bo'lishi kerak")
         return v
 
 
-class UserLogin(BaseModel):
-    username: str
-    password: str
-
-    @field_validator("username", "password")
-    @classmethod
-    def strip_strings(cls, v: str) -> str:
-        return v.strip() if isinstance(v, str) else v
-
-
+# MANA SHU KLASS ETISHMAYOTGAN EDI:
 class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
     full_name: Optional[str] = None
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
-    email: Optional[EmailStr] = None
-    username: Optional[str] = None
 
-    @field_validator("full_name", "bio", "avatar_url")
+    @field_validator("username", "full_name", "bio")
     @classmethod
     def strip_strings(cls, v: Optional[str]) -> Optional[str]:
-        return v.strip() if isinstance(v, str) and v else v
+        return v.strip() if v else v
 
 
 class UserRead(BaseModel):
     id: int
     username: str
     email: EmailStr
-    full_name: Optional[str] = None
-    bio: Optional[str] = None
-    avatar_url: Optional[str] = None
+
+    # Optional maydonlar: bazada null bo'lsa default qiymat oladi
+    full_name: Optional[str] = Field(default=None)
+    bio: Optional[str] = Field(default=None)
+    avatar_url: Optional[str] = Field(default=None)
+
+    # Role: Agar bazada kutilmagan rol (masalan 'teacher') bo'lsa xato bermasligi uchun
+    # UserRole enumidan foydalaniladi.
     role: UserRole
-    current_level: str
-    total_points: int
-    is_active: bool
+
+    # Default qiymatlar bilan himoyalash
+    current_level: Optional[str] = Field(default="Beginner")
+    total_points: int = Field(default=0)
+    is_active: bool = Field(default=True)
     created_at: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    # Yutuqlar: agar relationship yuklanmagan bo'lsa bo'sh list qaytadi
+    achievements: List[AchievementRead] = Field(default_factory=list)
+
+    # Pydantic v2 uchun sozlama
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+        arbitrary_types_allowed=True
+    )
+
+
+# --- AUTH SCHEMAS ---
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
+class TokenPayload(BaseModel):
+    sub: Optional[int] = None
+    exp: Optional[int] = None
 
 
 class TokenResponse(BaseModel):
     access_token: str
-    token_type: str
+    token_type: str = "bearer"
     user: UserRead
-
-
-class TokenPayload(BaseModel):
-    sub: int
