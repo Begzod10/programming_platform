@@ -12,11 +12,9 @@ from app.db import base
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     print("Student Programming Platform started!")
     await init_db()
     yield
-    # Shutdown
     print("Platform suspended...")
 
 
@@ -30,7 +28,6 @@ def create_application() -> FastAPI:
         redoc_url="/redoc",
         lifespan=lifespan,
     )
-
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -38,20 +35,9 @@ def create_application() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    app.include_router(
-        api_router,
-        prefix=settings.API_V1_PREFIX
-    )
-
-    app.mount(
-        "/uploads",
-        StaticFiles(directory=settings.UPLOAD_DIR),
-        name="uploads"
-    )
-
+    app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
     register_exception_handlers(app)
-
     return app
 
 

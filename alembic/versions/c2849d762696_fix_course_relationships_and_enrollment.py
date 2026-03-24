@@ -1,8 +1,8 @@
-"""drop role column
+"""fix_course_relationships_and_enrollment
 
-Revision ID: a83cbfbb4464
-Revises: 35175fbb9150
-Create Date: 2026-03-10 15:58:48.106385
+Revision ID: c2849d762696
+Revises: 591f848e2cf4
+Create Date: 2026-03-19 13:38:04.123642
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'a83cbfbb4464'
-down_revision: Union[str, None] = '35175fbb9150'
+revision: str = 'c2849d762696'
+down_revision: Union[str, None] = '591f848e2cf4'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

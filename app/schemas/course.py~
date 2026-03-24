@@ -1,48 +1,25 @@
-from pydantic import BaseModel, ConfigDict, field_validator
-from typing import Optional
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from typing import Optional, List
 from datetime import datetime
 
 
 class CourseBase(BaseModel):
-    title: str
-    description: str
-    difficulty_level: str
-    duration_weeks: int
-    max_points: int
-    is_active: bool = True
+    title: str = Field(..., min_length=1, max_length=150)
+    description: str = Field(..., min_length=1, max_length=5000)
+    difficulty_level: str = Field(..., max_length=20)
+    duration_weeks: int = Field(..., ge=1, le=104)
+    max_points: int = Field(..., ge=0)
+    image_url: Optional[str] = Field(None, max_length=500)
+    thumbnail_url: Optional[str] = Field(None, max_length=500)
+    video_intro_url: Optional[str] = Field(None, max_length=500)
+    syllabus_url: Optional[str] = Field(None, max_length=500)
 
-    @field_validator("title", mode="before")
+    @field_validator("difficulty_level")
     @classmethod
-    def validate_title(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 3:
-            raise ValueError("Kurs nomi kamida 3 ta belgidan iborat bo'lishi kerak")
-        if len(v) > 200:
-            raise ValueError("Kurs nomi 200 ta belgidan oshmasligi kerak")
-        return v
-
-    @field_validator("description", mode="before")
-    @classmethod
-    def validate_description(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 10:
-            raise ValueError("Tavsif kamida 10 ta belgidan iborat bo'lishi kerak")
-        return v
-
-    @field_validator("duration_weeks", mode="before")
-    @classmethod
-    def validate_duration(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("Davomiyligi kamida 1 hafta bo'lishi kerak")
-        if v > 52:
-            raise ValueError("Davomiyligi 52 haftadan oshmasligi kerak")
-        return v
-
-    @field_validator("max_points", mode="before")
-    @classmethod
-    def validate_points(cls, v: int) -> int:
-        if v < 0:
-            raise ValueError("Maksimal ball manfiy bo'lishi mumkin emas")
+    def validate_difficulty(cls, v: str) -> str:
+        allowed = ["Beginner", "Intermediate", "Advanced", "Expert"]
+        if v not in allowed:
+            raise ValueError(f"Qiyinlik darajasi: {', '.join(allowed)}")
         return v
 
 
@@ -51,23 +28,59 @@ class CourseCreate(CourseBase):
 
 
 class CourseUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    difficulty_level: Optional[str] = None
-    duration_weeks: Optional[int] = None
-    max_points: Optional[int] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=150)
+    description: Optional[str] = Field(None, min_length=1, max_length=5000)
+    difficulty_level: Optional[str] = Field(None, max_length=20)
+    duration_weeks: Optional[int] = Field(None, ge=1, le=104)
+    max_points: Optional[int] = Field(None, ge=0)
+    image_url: Optional[str] = Field(None, max_length=500)
+    thumbnail_url: Optional[str] = Field(None, max_length=500)
+    video_intro_url: Optional[str] = Field(None, max_length=500)
+    syllabus_url: Optional[str] = Field(None, max_length=500)
     is_active: Optional[bool] = None
 
+    @field_validator("difficulty_level")
+    @classmethod
+    def validate_difficulty(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        allowed = ["Beginner", "Intermediate", "Advanced", "Expert"]
+        if v not in allowed:
+            raise ValueError(f"Qiyinlik darajasi: {', '.join(allowed)}")
+        return v
 
-class CourseRead(CourseBase):
+
+class CourseRead(BaseModel):
     id: int
+    title: str
+    description: str
+    instructor_id: int
+    difficulty_level: str
+    duration_weeks: int
+    max_points: int
+    image_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    video_intro_url: Optional[str] = None
+    syllabus_url: Optional[str] = None
+    is_active: bool
     created_at: datetime
     updated_at: datetime
+    lessons_count: int = 0
+    students_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class CourseReadWithStudents(CourseRead):
-    students_count: Optional[int] = 0
+    pass
 
-    model_config = ConfigDict(from_attributes=True)
+
+class CourseListResponse(BaseModel):
+    total: int
+    courses: List[CourseRead]
+
+
+class CourseImageUploadResponse(BaseModel):
+    message: str
+    image_url: str
+    course: CourseRead

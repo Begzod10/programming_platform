@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 class StudentDegree(Base):
-    __tablename__ = "student_degrees"  
+    __tablename__ = "student_degrees"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False)
@@ -21,5 +21,5 @@ class StudentDegree(Base):
     verification_code: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
 
     # Relationships
-    student: Mapped["Student"] = relationship("Student", back_populates="degrees")
+    student: Mapped["Student"] = relationship("Student", back_populates="student_degrees")
     degree: Mapped["Degree"] = relationship("Degree", back_populates="students")

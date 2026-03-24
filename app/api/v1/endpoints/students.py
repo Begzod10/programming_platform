@@ -1,14 +1,57 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+﻿from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from app.dependencies import get_db, get_current_student  # ✅ bir joydan
+from app.dependencies import get_db, get_current_student
 from app.schemas.user import UserRead, UserUpdate
-from app.services import student_service
+from app.schemas.project import ProjectRead
+from app.services.project_service import ProjectService
+from app.services.student_service import StudentService
 from app.models.user import Student
 
 router = APIRouter()
 
+# --- SHAXSIY PROFIL (ME) SECTION ---
+
+@router.get("/me", response_model=UserRead)
+async def get_me(current_student: Student = Depends(get_current_student)):
+    """Joriy foydalanuvchi (o'zi) haqida ma'lumot olish"""
+    return current_student
+
+
+@router.put("/me", response_model=UserRead)
+async def update_my_profile(
+        data: UserUpdate,
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """O'z profilini tahrirlash"""
+    service = StudentService(db)
+    return await service.update_student(current_student.id, data)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_my_account(
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """Student o'z akkauntini o'chirishi (ID talab qilinmaydi)"""
+    service = StudentService(db)
+    await service.delete_student(current_student.id)
+    return None
+
+
+@router.get("/me/projects", response_model=List[ProjectRead])
+async def get_my_projects(
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """Faqat o'ziga tegishli loyihalarni olish"""
+    service = ProjectService(db)
+    return await service.get_projects_by_student(student_id=current_student.id)
+
+
+# --- UMUMIY VA MA'MURIY (ADMIN/TEACHER) SECTION ---
 
 @router.get("/", response_model=List[UserRead])
 async def get_students(
@@ -17,40 +60,64 @@ async def get_students(
         search: str = Query(None),
         db: AsyncSession = Depends(get_db)
 ):
-    return await student_service.get_all_students(db, skip, limit, search)
-
-
-@router.get("/me", response_model=UserRead)
-async def get_me(current_student: Student = Depends(get_current_student)):
-    return current_student
+    """Barcha studentlarni ro'yxatini olish"""
+    service = StudentService(db)
+    return await service.get_all_students(skip=skip, limit=limit, search=search)
 
 
 @router.get("/{student_id}", response_model=UserRead)
-async def get_student(student_id: int, db: AsyncSession = Depends(get_db)):
-    student = await student_service.get_student_by_id(db, student_id)
+async def get_student_by_id(
+        student_id: int,
+        db: AsyncSession = Depends(get_db)
+):
+    """ID orqali istalgan student ma'lumotini ko'rish"""
+    service = StudentService(db)
+    student = await service.get_student_by_id(student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student topilmadi")
     return student
 
 
 @router.put("/{student_id}", response_model=UserRead)
-async def update_student(
+async def update_specific_student(
         student_id: int,
         data: UserUpdate,
-        current_student: Student = Depends(get_current_student),
+        current_user: Student = Depends(get_current_student), # Bu yerda role tekshiruvi muhim
         db: AsyncSession = Depends(get_db)
 ):
-    if current_student.id != student_id:
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
-    return await student_service.update_student(db, student_id, data)
+    """
+    Ma'lum bir ID dagi studentni yangilash.
+    Agar student bo'lsa - faqat o'zini. Agar Admin bo'lsa - hamma studentni.
+    """
+    # Xavfsizlik filtri: Agar user student bo'lsa va birovni ID sini yuborsa - rad etish
+    if current_user.role == "student" and current_user.id != student_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sizda boshqa student ma'lumotlarini o'zgartirish huquqi yo'q"
+        )
+
+    service = StudentService(db)
+    student = await service.update_student(student_id, data)
+    if not student:
+        raise HTTPException(status_code=404, detail="Student topilmadi")
+    return student
 
 
-@router.delete("/{student_id}")
-async def delete_student(
+@router.delete("/{student_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_specific_student(
         student_id: int,
-        current_student: Student = Depends(get_current_student),
+        current_user: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    if current_student.id != student_id:
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
-    return await student_service.delete_student(db, student_id)
+    """Studentni o'chirish (Faqat o'zi yoki Admin uchun)"""
+    if current_user.role == "student" and current_user.id != student_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sizda bu akkauntni o'chirish huquqi yo'q"
+        )
+
+    service = StudentService(db)
+    success = await service.delete_student(student_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Student topilmadi")
+    return None

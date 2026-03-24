@@ -1,4 +1,4 @@
-from fastapi import Request, HTTPException
+﻿from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
@@ -21,18 +21,6 @@ def register_exception_handlers(app):
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
-
-        # ✅ ctx ichidagi ValueError ni str ga o'giramiz
-        clean_errors = []
-        for error in exc.errors():
-            clean_error = {
-                "field": " -> ".join(str(x) for x in error.get("loc", [])),
-                "message": error.get("msg", ""),
-                "type": error.get("type", ""),
-            }
-            clean_errors.append(clean_error)
-
-        # ✅ ValueError objectini string ga aylantiramiz
         errors = []
         for error in exc.errors():
             errors.append({
@@ -40,7 +28,6 @@ def register_exception_handlers(app):
                 "message": error.get("msg", ""),
                 "type": error.get("type", ""),
             })
-
         return JSONResponse(
             status_code=422,
             content={
@@ -48,11 +35,7 @@ def register_exception_handlers(app):
                 "error": {
                     "code": 422,
                     "message": "Validation error",
-
-                    "details": clean_errors,
-
-                    "details": errors  # ✅ endi JSON serializable
-
+                    "details": errors
                 }
             }
         )

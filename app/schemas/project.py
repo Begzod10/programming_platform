@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, field_validator
+﻿from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional
 from datetime import datetime
 from enum import Enum
@@ -106,7 +106,7 @@ class ProjectRead(BaseModel):
     description: str
     github_url: Optional[str] = None
     live_demo_url: Optional[str] = None
-    technologies_used: Optional[list[str]] = None  # saqlanadi
+    technologies_used: Optional[list[str]] = None
     project_files: Optional[str] = None
     difficulty_level: DifficultyLevel
     status: ProjectStatus
@@ -120,17 +120,21 @@ class ProjectRead(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # ✅ Bazadan string kelsa listga aylantiramiz
+    # ✅ shu qo'shiladi
     @field_validator("technologies_used", mode="before")
     @classmethod
     def parse_technologies(cls, v):
         if isinstance(v, str):
             import json
             try:
-                return json.loads(v)  # JSON array bo'lsa
+                return json.loads(v)
             except Exception:
-                return [t.strip() for t in v.split(",") if t.strip()]  # oddiy string bo'lsa
+                return [t.strip() for t in v.split(",") if t.strip()]
         return v
+
+    model_config = ConfigDict(from_attributes=True)  # ← eng oxirida
+
+
 
 
 # --- Read with Student

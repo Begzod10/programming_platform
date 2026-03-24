@@ -1,10 +1,13 @@
 from datetime import datetime
-from typing import List
-from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, Table, Column
+from typing import List, Optional, TYPE_CHECKING
+from sqlalchemy import Integer, String, Boolean, DateTime, ForeignKey, Text, func, Table, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 
-# Junction table for student-course enrollment
+if TYPE_CHECKING:
+    from app.models.user import Student
+    from app.models.lesson import Lesson
+
 student_courses = Table(
     "student_courses",
     Base.metadata,
@@ -19,19 +22,41 @@ class Course(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(150), nullable=False)
-    description: Mapped[str] = mapped_column(String(500))
-    instructor_id: Mapped[int] = mapped_column(Integer)  # assuming instructors table exists
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    instructor_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    difficulty_level: Mapped[str] = mapped_column(String(20), nullable=False)
+    duration_weeks: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_points: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    difficulty_level: Mapped[str] = mapped_column(String(20))
-    duration_weeks: Mapped[int] = mapped_column(Integer)
-    max_points: Mapped[int] = mapped_column(Integer)
+    image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    thumbnail_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    video_intro_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    syllabus_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    instructor: Mapped["Student"] = relationship(
+        "Student",
+        foreign_keys=[instructor_id],
+        backref="taught_courses"
+    )
     students: Mapped[List["Student"]] = relationship(
         "Student",
-        secondary="student_courses",
-        back_populates="enrolled_courses"
+        secondary=student_courses,
+        back_populates="enrolled_courses",
+        lazy="selectin"
     )
+    lessons: Mapped[List["Lesson"]] = relationship(
+        "Lesson",
+        back_populates="course",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+
+    def __repr__(self) -> str:
+        return f"<Course(id={self.id}, title={self.title})>"

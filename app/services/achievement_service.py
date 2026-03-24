@@ -190,3 +190,124 @@ async def delete_achievement(db: AsyncSession, achievement_id: int) -> bool:
     await db.delete(achievement)
     await db.commit()
     return True
+
+
+# ✅ YANGI - Teacher uchun
+async def get_students_with_achievement(db: AsyncSession, achievement_id: int) -> List[dict]:
+    """Sertifikat olgan studentlar"""
+    result = await db.execute(
+        select(StudentAchievement)
+        .options(selectinload(StudentAchievement.student))
+        .where(StudentAchievement.achievement_id == achievement_id)
+    )
+    student_achievements = result.scalars().all()
+
+    return [
+        {
+            "student_id": sa.student_id,
+            "username": sa.student.username,
+            "full_name": sa.student.full_name,
+            "email": sa.student.email,
+            "earned_at": sa.earned_at,
+            "total_points": sa.student.total_points,
+            "current_level": sa.student.current_level.value
+        }
+        for sa in student_achievements
+    ]
+
+
+async def get_students_without_achievement(db: AsyncSession, achievement_id: int) -> List[dict]:
+    """Sertifikat olmagan studentlar"""
+    # Achievement olgan studentlar ID'lari
+    earned_result = await db.execute(
+        select(StudentAchievement.student_id)
+        .where(StudentAchievement.achievement_id == achievement_id)
+    )
+    earned_ids = set(earned_result.scalars().all())
+
+    # Barcha studentlar
+    all_students_result = await db.execute(select(Student))
+    all_students = all_students_result.scalars().all()
+
+    # Achievement olmagan studentlar
+    students_without = [
+        {
+            "student_id": student.id,
+            "username": student.username,
+            "full_name": student.full_name,
+            "email": student.email,
+            "total_points": student.total_points,
+            "current_level": student.current_level.value,
+            "progress": await _calculate_student_progress(db, student.id, achievement_id)
+        }
+        for student in all_students
+        if student.id not in earned_ids
+    ]
+
+    return students_without
+
+
+async def _calculate_student_progress(db: AsyncSession, student_id: int, achievement_id: int) -> int:
+    """Student progressini hisoblash (helper)"""
+    achievement_result = await db.execute(
+        select(Achievement).where(Achievement.id == achievement_id)
+    )
+    achievement = achievement_result.scalar_one_or_none()
+    if not achievement:
+        return 0
+
+    student_result = await db.execute(select(Student).where(Student.id == student_id))
+    student = student_result.scalar_one_or_none()
+    if not student:
+        return 0
+
+    if achievement.criteria_type == "project_count":
+        projects_result = await db.execute(
+            select(func.count(Project.id)).where(
+                Project.student_id == student_id,
+                Project.status == "Approved"
+            )
+        )
+        current = projects_result.scalar() or 0
+    elif achievement.criteria_type == "points_threshold":
+        current = student.total_points
+    else:
+        current = 0
+
+    return min(100, int((current / max(achievement.criteria_value, 1)) * 100))
+
+
+async def get_achievement_statistics(db: AsyncSession, achievement_id: int) -> dict:
+    """Achievement statistikasi"""
+    achievement_result = await db.execute(
+        select(Achievement).where(Achievement.id == achievement_id)
+    )
+    achievement = achievement_result.scalar_one_or_none()
+    if not achievement:
+        return {}
+
+    # Olganlar soni
+    earned_count_result = await db.execute(
+        select(func.count(StudentAchievement.id))
+        .where(StudentAchievement.achievement_id == achievement_id)
+    )
+    earned_count = earned_count_result.scalar() or 0
+
+    # Jami studentlar
+    total_students_result = await db.execute(select(func.count(Student.id)))
+    total_students = total_students_result.scalar() or 0
+
+    # Olmagan studentlar
+    not_earned_count = total_students - earned_count
+
+    # Foiz
+    percentage = (earned_count / total_students * 100) if total_students > 0 else 0
+
+    return {
+        "achievement_id": achievement.id,
+        "achievement_name": achievement.name,
+        "total_students": total_students,
+        "students_earned": earned_count,
+        "students_not_earned": not_earned_count,
+        "completion_percentage": round(percentage, 2)
+    }

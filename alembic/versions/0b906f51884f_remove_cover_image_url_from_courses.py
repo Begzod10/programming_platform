@@ -1,8 +1,8 @@
-"""Add projects table
+"""remove cover_image_url from courses
 
-Revision ID: 31270fafaa20
-Revises: 935a977a126b
-Create Date: 2026-03-09 15:30:53.955627
+Revision ID: 0b906f51884f
+Revises: eda6c9b6980c
+Create Date: 2026-03-23 15:46:43.464600
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '31270fafaa20'
-down_revision: Union[str, None] = '935a977a126b'
+revision: str = '0b906f51884f'
+down_revision: Union[str, None] = 'eda6c9b6980c'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
