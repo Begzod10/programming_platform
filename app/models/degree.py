@@ -1,0 +1,30 @@
+from datetime import datetime
+from typing import List
+from sqlalchemy import Integer, String, Text, DateTime
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.db.base_class import Base
+from typing import Optional
+
+
+class Degree(Base):
+    __tablename__ = "degrees"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    description: Mapped[str] = mapped_column(Text)
+    level: Mapped[str] = mapped_column(String(50))
+
+    required_points: Mapped[int] = mapped_column(Integer, default=0)
+    required_projects: Mapped[int] = mapped_column(Integer, default=0)
+    required_courses: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON array of course ids
+
+    certificate_template: Mapped[str] = mapped_column(String(255))
+    badge_image_url: Mapped[str] = mapped_column(String(255))
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationship to StudentDegree
+    students: Mapped[List["StudentDegree"]] = relationship(
+        "StudentDegree", back_populates="degree", cascade="all, delete-orphan"
+    )

@@ -1,0 +1,57 @@
+import pytest
+from httpx import AsyncClient
+
+pytestmark = pytest.mark.asyncio
+
+
+async def test_get_students(async_client: AsyncClient):
+    response = await async_client.get("/api/v1/endpoints/students/")
+    assert response.status_code == 200
+    assert response.json()
+
+    response = await async_client.get("/api/v1/endpoints/students/1")
+    assert response.status_code == 200
+    assert response.json()
+
+    response = await async_client.get("/api/v1/endpoints/students/1/projects")
+    assert response.status_code == 200
+    assert response.json()
+
+    response = await async_client.get("/api/v1/endpoints/students/1/projects/1")
+    assert response.status_code == 200
+    assert response.json()
+
+    response = await async_client.get("/api/v1/endpoints/students/1/projects/1/code")
+    assert response.status_code == 200
+    assert response.json()
+
+    response = await async_client.get("/api/v1/endpoints/students/1/projects/1/file")
+    assert response.status_code == 200
+    assert response.json()
+
+    response = await async_client.get("/api/v1/endpoints/students/1/projects/1/video")
+    assert response.status_code == 200
+    assert response.json()
+
+    response = await async_client.get("/api/v1/endpoints/students/1/projects/1/image")
+    assert response.status_code == 200
+    assert response.json()
+
+    response = await async_client.get("/api/v1/endpoints/students/1/projects/1/grade")
+    assert response.status_code == 200
+    assert response.json()
+
+    response = await async_client.get("/api/v1/endpoints/students/1/projects/1/review")
+    assert response.status_code == 200
+    assert response.json()
+    response = await async_client.get("/api/v1/endpoints/students/1/projects/1/review")
+    assert response.status_code == 200
+    assert response.json()
+
+    response = await async_client.get("/api/v1/endpoints/students/1/projects/1/comment")
+    assert response.status_code == 200
+    assert response.json()
+
+    response = await async_client.get("/api/v1/endpoints/students/1/projects/1/status")
+    assert response.status_code == 200
+    assert response.json()

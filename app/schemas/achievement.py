@@ -1,0 +1,106 @@
+from pydantic import BaseModel, ConfigDict, field_validator
+from typing import Optional
+from datetime import datetime
+
+
+class AchievementBase(BaseModel):
+    name: str
+    description: str
+    badge_image_url: Optional[str] = ""
+    points_reward: int
+    criteria_type: str  # project_count, points_threshold
+    criteria_value: int
+
+
+class AchievementCreate(AchievementBase):
+    @field_validator("name", "description")
+    @classmethod
+    def strip_strings(cls, v: str) -> str:
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("criteria_type")
+    @classmethod
+    def validate_criteria_type(cls, v: str) -> str:
+        allowed = ["project_count", "points_threshold"]
+        if v not in allowed:
+            raise ValueError(f"criteria_type must be one of: {allowed}")
+        return v
+
+    @field_validator("points_reward", "criteria_value")
+    @classmethod
+    def validate_positive(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("Qiymat manfiy bo'lmasligi kerak")
+        return v
+
+
+class AchievementUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    badge_image_url: Optional[str] = None
+    points_reward: Optional[int] = None
+    criteria_type: Optional[str] = None
+    criteria_value: Optional[int] = None
+
+
+class AchievementRead(AchievementBase):
+    id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class StudentAchievementRead(BaseModel):
+    id: int
+    achievement_name: str
+    description: str
+    badge_image_url: str
+    points_reward: int
+    earned_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AchievementProgress(BaseModel):
+    achievement_id: int
+    name: str
+    description: str
+    badge_image_url: str
+    points_reward: int
+    criteria_type: str
+    criteria_value: int
+    current_value: int
+    progress: int
+    is_earned: bool
+
+
+# ✅ YANGI - Teacher uchun
+
+class StudentWithAchievementRead(BaseModel):
+    """Sertifikat olgan student"""
+    student_id: int
+    username: str
+    full_name: str
+    email: str
+    earned_at: datetime
+    total_points: int
+    current_level: str
+
+
+class StudentWithoutAchievementRead(BaseModel):
+    """Sertifikat olmagan student"""
+    student_id: int
+    username: str
+    full_name: str
+    email: str
+    total_points: int
+    current_level: str
+    progress: int  # Foizda
+
+
+class AchievementStatistics(BaseModel):
+    """Achievement statistikasi"""
+    achievement_id: int
+    achievement_name: str
+    total_students: int
+    students_earned: int
+    students_not_earned: int
+    completion_percentage: float

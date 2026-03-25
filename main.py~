@@ -1,0 +1,188 @@
+import os
+from datetime import datetime, timedelta, timezone
+from typing import List, Optional
+
+from fastapi import FastAPI, Depends, HTTPException, Request, status
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+
+from pydantic import BaseModel, EmailStr
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, create_engine, or_
+from sqlalchemy.orm import sessionmaker, declarative_base, Session, relationship
+
+from passlib.context import CryptContext
+from jose import jwt, JWTError
+
+# ================== DATABASE SETUP ==================
+# Bazangiz nomi: SkillGrid (StudentPlatform o'rniga)
+DATABASE_URL = "postgresql://postgres:123@localhost:5432/SkillGrid"
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+Base = declarative_base()
+
+# ================== SECURITY ==================
+SECRET_KEY = os.getenv("SECRET_KEY", "b38f828a2b3c4d5e6f7g8h9i0j1k2l3m")  # Real loyihada .env dan oling
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+# Bcrypt o'rniga pbkdf2_sha256 ishlatish WinError 5 xatosini oldini oladi
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+
+
+# ================== MODELS ==================
+class Student(Base):
+    __tablename__ = "students"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    full_name = Column(String, nullable=True)
+    role = Column(String, default="student")
+
+    # Profil ma'lumotlari
+    avatar_url = Column(String, nullable=True)
+    bio = Column(Text, nullable=True)
+    total_points = Column(Integer, default=0)
+
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+# Ma'lumotlar bazasini yaratish
+Base.metadata.create_all(bind=engine)
+
+
+# ================== SCHEMAS ==================
+class RegisterSchema(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+# ================== UTILS ==================
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def hash_password(password: str):
+    return pwd_context.hash(password)
+
+
+def verify_password(plain, hashed):
+    return pwd_context.verify(plain, hashed)
+
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire.timestamp()})  # Expire vaqtini timestamp holatida saqlash ishonchliroq
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+# ================== APP & TEMPLATES ==================
+app = FastAPI(title="SkillGrid - Student Programming Platform")
+
+# Papkalarni avtomatik yaratish
+for path in ["static", "template"]:
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="template")
+
+
+# ================== ROUTES ==================
+
+@app.get("/", response_class=HTMLResponse)
+@app.get("/login-page", response_class=HTMLResponse)
+def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
+@app.get("/register-page", response_class=HTMLResponse)
+def register_page(request: Request):
+    return templates.TemplateResponse("register.html", {"request": request})
+
+
+@app.post("/register", status_code=status.HTTP_201_CREATED)
+def register(data: RegisterSchema, db: Session = Depends(get_db)):
+    if len(data.password) < 6:
+        raise HTTPException(status_code=400, detail="Parol juda qisqa (min 6 belgi)")
+
+    user_exists = db.query(Student).filter(
+        or_(Student.username == data.username, Student.email == data.email)
+    ).first()
+
+    if user_exists:
+        raise HTTPException(status_code=400, detail="Username yoki Email band")
+
+    new_student = Student(
+        username=data.username,
+        email=data.email,
+        hashed_password=hash_password(data.password)
+    )
+
+    db.add(new_student)
+    db.commit()
+    return {"message": "Muvaffaqiyatli ro'yxatdan o'tdingiz"}
+
+
+@app.post("/login", response_model=Token)
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    student = db.query(Student).filter(Student.username == form_data.username).first()
+
+    if not student or not verify_password(form_data.password, student.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Login yoki parol xato",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    access_token = create_access_token(data={"sub": student.username})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+# ================== AUTH DEPENDENCY ==================
+def get_current_student(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Tokenni tasdiqlab bo'lmadi",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    student = db.query(Student).filter(Student.username == username).first()
+    if student is None:
+        raise credentials_exception
+    return student
+
+
+@app.get("/me")
+def read_users_me(current_user: Student = Depends(get_current_student)):
+    return {
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "points": current_user.total_points,
+        "role": current_user.role
+    }
