@@ -7,6 +7,7 @@ from app.api.v1.endpoints import (
     degrees,
     achievements,
     courses,
+    quizzes,
     lessons
 )
 
@@ -25,3 +26,4 @@ api_router.include_router(rankings.router, prefix="/rankings", tags=["Ranking"])
 api_router.include_router(degrees.router, prefix="/degrees", tags=["Degree"])
 api_router.include_router(achievements.router, prefix="/achievements", tags=["Achievements"])
 api_router.include_router(lessons.router, prefix="", tags=["Lessons"])
+api_router.include_router(quizzes.router, prefix="/quizzes", tags=["Quizzes"])
