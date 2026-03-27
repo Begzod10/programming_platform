@@ -1,128 +1,198 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
-from sqlalchemy.orm import selectinload
-from typing import List
+import os
+import uuid
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional
 
-from app.db.session import get_db
-from app.schemas.course import CourseRead, CourseCreate, CourseUpdate
+from fastapi import APIRouter, Depends, Query, HTTPException, status, UploadFile, File
+from sqlalchemy import select, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.dependencies import get_db, get_current_student, get_current_teacher
 from app.models.course import Course
 from app.models.user import Student
-from app.services.auth_service import get_current_student
+from app.schemas.course import (
+    CourseRead,
+    CourseCreate,
+    CourseUpdate,
+    CourseReadWithStudents,
+    CourseImageUploadResponse,
+)
 
 router = APIRouter()
 
+UPLOAD_DIR = Path("uploads/courses")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-@router.post(
-    "/",
-    response_model=CourseRead,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a new course",
-)
+
+async def _get_course_with_counts(db: AsyncSession, course_id: int) -> Optional[dict]:
+    """Course ni counts va instructor_name bilan birga olish"""
+    result = await db.execute(
+        select(Course)
+        .options(
+            selectinload(Course.students),
+            selectinload(Course.lessons),
+            selectinload(Course.instructor),
+        )
+        .where(Course.id == course_id)
+    )
+    course = result.scalar_one_or_none()
+    if not course:
+        return None
+    data = CourseRead.model_validate(course).model_dump()
+    data["lessons_count"] = len(course.lessons)
+    data["students_count"] = len(course.students)
+    data["instructor_name"] = (
+        course.instructor.full_name or course.instructor.username
+        if course.instructor else None
+    )
+    return data
+
+
+def _build_course_dict(course: Course) -> dict:
+    """Course ob'ektidan dict yasash"""
+    data = CourseRead.model_validate(course).model_dump()
+    data["lessons_count"] = len(course.lessons) if course.lessons else 0
+    data["students_count"] = len(course.students) if course.students else 0
+    data["instructor_name"] = (
+        course.instructor.full_name or course.instructor.username
+        if course.instructor else None
+    )
+    return data
+
+
+@router.post("/", response_model=CourseRead, status_code=status.HTTP_201_CREATED)
 async def create_course(
         payload: CourseCreate,
+        current_teacher: Student = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db),
 ):
-    new_course = Course(**payload.model_dump())
+    """Yangi kurs yaratish (faqat teacher)"""
+    course_data = payload.model_dump()
+    course_data["instructor_id"] = current_teacher.id
+    new_course = Course(**course_data)
     db.add(new_course)
     await db.commit()
-    await db.refresh(new_course)
-    return new_course
+    return await _get_course_with_counts(db, new_course.id)
 
 
-@router.get(
-    "/",
-    response_model=List[CourseRead],
-    summary="Get all courses",
-)
+@router.get("/", response_model=List[CourseRead])
 async def get_courses(
         skip: int = Query(0, ge=0),
         limit: int = Query(10, ge=1, le=100),
         search: str = Query(None),
+        is_active: bool = Query(None),
+        db: AsyncSession = Depends(get_db)
+):
+    """Barcha kurslar (public)"""
+    query = select(Course).options(
+        selectinload(Course.students),
+        selectinload(Course.lessons),
+        selectinload(Course.instructor),
+    )
+    if search:
+        query = query.where(or_(
+            Course.title.ilike(f"%{search}%"),
+            Course.description.ilike(f"%{search}%")
+        ))
+    if is_active is not None:
+        query = query.where(Course.is_active == is_active)
+    query = query.order_by(Course.created_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(query)
+    courses = result.scalars().all()
+    return [_build_course_dict(c) for c in courses]
+
+
+@router.get("/my", response_model=List[CourseRead])
+async def get_my_courses(
+        current_teacher: Student = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db),
 ):
-    query = select(Course)
-
-    if search:
-        query = query.where(
-            or_(
-                Course.title.ilike(f"%{search}%"),
-                Course.description.ilike(f"%{search}%"),
-            )
-        )
-
-    result = await db.execute(query.offset(skip).limit(limit))
-    return result.scalars().all()
+    """O'z kurslarim (faqat teacher)"""
+    query = select(Course).options(
+        selectinload(Course.students),
+        selectinload(Course.lessons),
+        selectinload(Course.instructor),
+    ).where(Course.instructor_id == current_teacher.id)
+    result = await db.execute(query)
+    courses = result.scalars().all()
+    return [_build_course_dict(c) for c in courses]
 
 
-@router.get(
-    "/{course_id}",
-    response_model=CourseRead,
-    summary="Get a course by ID",
-)
-async def get_course(course_id: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Course).where(Course.id == course_id))
-    course = result.scalar_one_or_none()
-    if not course:
+@router.get("/{course_id}", response_model=CourseReadWithStudents)
+async def get_course(
+        course_id: int,
+        db: AsyncSession = Depends(get_db)
+):
+    """Kurs haqida to'liq ma'lumot"""
+    data = await _get_course_with_counts(db, course_id)
+    if not data:
         raise HTTPException(status_code=404, detail="Kurs topilmadi")
-    return course
+    return data
 
 
-@router.put(
-    "/{course_id}",
-    response_model=CourseRead,
-    summary="Update a course by ID",
-)
+@router.put("/{course_id}", response_model=CourseRead)
 async def update_course(
         course_id: int,
         payload: CourseUpdate,
+        current_teacher: Student = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db),
 ):
+    """Kursni yangilash (faqat egasi)"""
     result = await db.execute(select(Course).where(Course.id == course_id))
     course = result.scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=404, detail="Kurs topilmadi")
+    if course.instructor_id != current_teacher.id:
+        raise HTTPException(status_code=403, detail="Faqat o'z kursingizni tahrirlashingiz mumkin")
 
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    update_data = payload.model_dump(exclude_unset=True)
+
+    # image_url ni None bilan ustiga yozmaslik — rasm yo'qolmasin
+    if "image_url" in update_data and update_data["image_url"] is None:
+        del update_data["image_url"]
+
+    for key, value in update_data.items():
         setattr(course, key, value)
 
+    course.updated_at = datetime.utcnow()
     await db.commit()
-    await db.refresh(course)
-    return course
+    return await _get_course_with_counts(db, course_id)
 
 
-@router.delete(
-    "/{course_id}",
-    status_code=status.HTTP_200_OK,
-    summary="Delete a course by ID",
-)
-async def delete_course(course_id: int, db: AsyncSession = Depends(get_db)):
+@router.delete("/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_course(
+        course_id: int,
+        current_teacher: Student = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    """Kursni o'chirish (faqat egasi)"""
     result = await db.execute(select(Course).where(Course.id == course_id))
     course = result.scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=404, detail="Kurs topilmadi")
-
+    if course.instructor_id != current_teacher.id:
+        raise HTTPException(status_code=403, detail="Faqat o'z kursingizni o'chirishingiz mumkin")
     await db.delete(course)
     await db.commit()
-    return {"message": "Kurs o'chirildi"}
+    return None
 
 
-@router.post(
-    "/{course_id}/enroll",
-    status_code=status.HTTP_200_OK,
-    summary="Enroll in a course",
-)
+@router.post("/{course_id}/enroll")
 async def enroll_course(
         course_id: int,
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db),
 ):
+    """Kursga yozilish"""
     course_result = await db.execute(select(Course).where(Course.id == course_id))
     course = course_result.scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=404, detail="Kurs topilmadi")
+    if not course.is_active:
+        raise HTTPException(status_code=400, detail="Kurs faol emas")
 
-    # ✅ selectinload bilan enrolled_courses ni yukla
     student_result = await db.execute(
         select(Student)
         .options(selectinload(Student.enrolled_courses))
@@ -135,19 +205,22 @@ async def enroll_course(
 
     student.enrolled_courses.append(course)
     await db.commit()
-    return {"message": f"'{course.title}' kursiga muvaffaqiyatli yozildingiz"}
+
+    data = await _get_course_with_counts(db, course_id)
+    return {
+        "message": f"'{course.title}' kursiga muvaffaqiyatli yozildingiz",
+        "course_id": course.id,
+        "students_count": data["students_count"]
+    }
 
 
-@router.delete(
-    "/{course_id}/unenroll",
-    status_code=status.HTTP_200_OK,
-    summary="Unenroll from a course",
-)
+@router.delete("/{course_id}/unenroll")
 async def unenroll_course(
         course_id: int,
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db),
 ):
+    """Kursdan chiqish"""
     course_result = await db.execute(select(Course).where(Course.id == course_id))
     course = course_result.scalar_one_or_none()
     if not course:
@@ -166,3 +239,53 @@ async def unenroll_course(
     student.enrolled_courses.remove(course)
     await db.commit()
     return {"message": f"'{course.title}' kursidan chiqildingiz"}
+
+
+@router.post("/{course_id}/upload-image", response_model=CourseImageUploadResponse)
+async def upload_course_image(
+        course_id: int,
+        file: UploadFile = File(...),
+        current_teacher: Student = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    """Kurs rasmini yuklash (faqat egasi)"""
+    result = await db.execute(select(Course).where(Course.id == course_id))
+    course = result.scalar_one_or_none()
+    if not course:
+        raise HTTPException(status_code=404, detail="Kurs topilmadi")
+    if course.instructor_id != current_teacher.id:
+        raise HTTPException(status_code=403, detail="Faqat o'z kursingizni tahrirlashingiz mumkin")
+
+    allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Faqat rasm yuklash mumkin: {', '.join(allowed_extensions)}"
+        )
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Fayl hajmi 5MB dan oshmasligi kerak")
+
+    # Eski faylni o'chirish
+    if course.image_url and course.image_url.startswith("/uploads/"):
+        old_file = Path(".") / course.image_url.lstrip("/")
+        if old_file.exists():
+            os.remove(old_file)
+
+    unique_filename = f"course_{uuid.uuid4()}{file_ext}"
+    file_path = UPLOAD_DIR / unique_filename
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    course.image_url = f"/uploads/courses/{unique_filename}"
+    course.updated_at = datetime.utcnow()
+    await db.commit()
+
+    data = await _get_course_with_counts(db, course_id)
+    return {
+        "message": "Rasm yuklandi",
+        "image_url": data["image_url"],
+        "course": data
+    }

@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Integer, String, Text, DateTime, ForeignKey
+from sqlalchemy import Integer, String, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 from typing import List
@@ -13,12 +13,10 @@ class Achievement(Base):
     description: Mapped[str] = mapped_column(Text)
     badge_image_url: Mapped[str] = mapped_column(String(255))
     points_reward: Mapped[int] = mapped_column(Integer)
-
-    criteria_type: Mapped[str] = mapped_column(String(50))  # project_count, points_threshold
+    criteria_type: Mapped[str] = mapped_column(String(50))
     criteria_value: Mapped[int] = mapped_column(Integer)
-
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    students: Mapped[List["StudentAchievement"]] = relationship(
+    student_achievements: Mapped[List["StudentAchievement"]] = relationship(
         "StudentAchievement", back_populates="achievement"
     )

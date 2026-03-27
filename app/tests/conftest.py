@@ -64,8 +64,8 @@ async def registered_student(async_client, setup_db):
 
 @pytest_asyncio.fixture(scope="session")
 async def auth_token(async_client, registered_student):
-    response = await async_client.post("/api/v1/auth/login", data={
-        "username": registered_student["email"],
+    response = await async_client.post("/api/v1/auth/login", json={
+        "username": registered_student["username"],
         "password": registered_student["password"]
     })
     print("\nLOGIN:", response.status_code, response.json())

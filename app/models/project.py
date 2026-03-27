@@ -3,7 +3,7 @@ from typing import Optional
 from sqlalchemy import String, Integer, Text, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
-
+from typing import List
 
 class Project(Base):
     __tablename__ = "projects"
@@ -35,4 +35,8 @@ class Project(Base):
         "Student",
         back_populates="projects",
         passive_deletes=True
+    )
+    lessons: Mapped[List["Lesson"]] = relationship(
+        "Lesson",
+        back_populates="project"
     )

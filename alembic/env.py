@@ -4,31 +4,27 @@ from alembic import context
 import sys
 import os
 
-# Path setup
+# 1. Proekt yo'lini tizimga qo'shish
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-# Import models
-from app.db.base import Base
+# 2. Modellarni jamlangan joydan import qilish (MUHIM!)
+from app.db.base import Base  # Yuqorida to'g'irlagan faylimiz
 from app.config import settings
-from app.models.user import Student
-from app.models.project import Project
 
-# Alembic Config object
 config = context.config
 
-# Set database URL from settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.replace("+asyncpg", ""))
+# 3. Database URL-ni sozlash (Alembic asyncpg-ni tushunmaydi, shuning uchun o'zgartiramiz)
+db_url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+config.set_main_option("sqlalchemy.url", db_url)
 
-# Interpret the config file for Python logging
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Metadata for autogenerate support
+# 4. Metadata - Alembic endi barcha modellarni ko'radi
 target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -36,21 +32,14 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode."""
-    # Get URL and replace asyncpg with psycopg2 for Alembic
-    url = config.get_main_option("sqlalchemy.url")
-
-    configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = url
-
+    # Online migratsiya uchun ulanish
     connectable = engine_from_config(
-        configuration,
+        config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
@@ -60,7 +49,6 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata
         )
-
         with context.begin_transaction():
             context.run_migrations()
 

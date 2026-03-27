@@ -14,7 +14,7 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
     return await auth_service.register_new_student(db, user_in)
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 async def login(
         user_in: UserLogin,
         db: AsyncSession = Depends(get_db)
@@ -22,10 +22,33 @@ async def login(
     return await auth_service.login(db, user_in.username, user_in.password)
 
 
-@router.post("/logout", status_code=status.HTTP_200_OK)
-async def logout(current_student: Student = Depends(get_current_student), db: AsyncSession = Depends(get_db)):
-    # ✅ faqat login bo'lgan user logout qila oladi
-    return await auth_service.logout(db, current_student.email, "")
+@router.post(
+    "/logout",
+    summary="Logout user"
+)
+async def logout():
+    """
+    Tizimdan chiqish
+
+    JWT token client tomonda saqlanadi, shuning uchun logout
+    client tomonida token'ni o'chirish orqali amalga oshiriladi.
+    """
+    return {
+        "message": "Logout muvaffaqiyatli",
+        "detail": "Token'ni client tomonida o'chiring (localStorage yoki sessionStorage)"
+    }
+
+
+@router.get(
+    "/me",
+    response_model=UserRead,
+    summary="Get current user info"
+)
+async def get_me(
+        current_student: Student = Depends(get_current_student)
+):
+    """Joriy foydalanuvchi ma'lumotlarini olish"""
+    return current_student
 
 
 @router.delete("/me", status_code=status.HTTP_200_OK)
@@ -33,7 +56,6 @@ async def delete_me(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    # ✅ faqat o'zini o'chira oladi
     return await auth_service.delete_user(current_student.id, db)
 
 
@@ -43,5 +65,4 @@ async def update_me(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    # ✅ faqat o'zini yangilay oladi, UserUpdate ishlatadi
     return await auth_service.update_user(current_student.id, user_data, db)

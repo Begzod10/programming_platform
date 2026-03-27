@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,18 +8,23 @@ from app.config import settings
 from app.api.v1.router import api_router
 from app.db.database import init_db
 from app.core.exceptions import register_exception_handlers
-from app.db import base
 
+# Bu yerdagi ortiqcha app = FastAPI(...) qismini o'chirib tashlang,
+# chunki pastda create_application funksiyasi yangi app yaratadi.
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Student Programming Platform started!")
+    if not os.path.exists("uploads"):
+        os.makedirs("uploads")
+
+    print("🚀 Student Programming Platform started!")
     await init_db()
     yield
-    print("Platform suspended...")
+    print("🛑 Platform suspended...")
 
 
 def create_application() -> FastAPI:
+    # SHU YERGA QO'SHAMIZ:
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
@@ -27,6 +33,8 @@ def create_application() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=lifespan,
+        # Mana bu parametr hammasini yopib qo'yadi:
+        swagger_ui_parameters={"docExpansion": "none"}
     )
 
     app.add_middleware(
@@ -37,36 +45,26 @@ def create_application() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(
-        api_router,
-        prefix=settings.API_V1_PREFIX
-    )
-
-    app.mount(
-        "/uploads",
-        StaticFiles(directory=settings.UPLOAD_DIR),
-        name="uploads"
-    )
-
+    app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
     register_exception_handlers(app)
 
     return app
 
 
+# Endi bu app obyekti hamma sozlamalarni o'z ichiga oladi
 app = create_application()
 
 
 @app.get("/")
 async def root():
-    return {"message": "Student Platform API ishlayapti!"}
-
-
-@app.get("/")
-async def root():
-    return {"message": "Student Platform API ishlayapti!"}
+    return {
+        "status": "ok",
+        "message": "Student Platform API ishlayapti!",
+        "version": settings.APP_VERSION
+    }
 
 
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
