@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
 from pydantic import BaseModel
-from sqlalchemy.orm import selectinload
+
 from app.dependencies import get_db, get_current_student, get_current_teacher
 from app.services import lesson_service
 from app.schemas.lesson import LessonCreate, LessonUpdate, LessonRead

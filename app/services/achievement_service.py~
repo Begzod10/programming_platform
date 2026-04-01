@@ -298,14 +298,3 @@ async def delete_achievement(db: AsyncSession, achievement_id: int) -> bool:
     await db.delete(achievement)
     await db.commit()
     return True
-
-async def force_sync_all_levels(db: AsyncSession):
-    result = await db.execute(select(Student))
-    students = result.scalars().all()
-
-    for student in students:
-
-        student.total_points = student.total_points
-
-    await db.commit()
-    return {"status": "done"}

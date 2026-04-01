@@ -1,0 +1,159 @@
+﻿import json
+from pydantic import BaseModel, ConfigDict, field_validator
+from typing import Optional, List, Any
+from datetime import datetime
+from enum import Enum
+from app.schemas.user import UserRead
+
+
+# --- Enums
+
+class DifficultyLevel(str, Enum):
+    easy = "Easy"
+    medium = "Medium"
+    hard = "Hard"
+
+
+class ProjectStatus(str, Enum):
+    draft = "Draft"
+    submitted = "Submitted"
+    under_review = "Under Review"
+    approved = "Approved"
+    rejected = "Rejected"
+
+
+class Grade(str, Enum):
+    a = "A"
+    b = "B"
+    c = "C"
+    d = "D"
+    f = "F"
+
+
+# --- Reusable Validators (Kod takrorlanishini kamaytirish uchun)
+
+def validate_url_field(v: Optional[str]) -> Optional[str]:
+    if v is not None and v.strip() != "" and not v.startswith(("http://", "https://")):
+        raise ValueError("URL http:// yoki https:// bilan boshlanishi kerak")
+    return v
+
+
+def parse_tech_list(v: Any) -> List[str]:
+    if isinstance(v, str):
+        try:
+            # Agar JSON string bo'lsa
+            data = json.loads(v)
+            return data if isinstance(data, list) else [str(data)]
+        except Exception:
+            # Agar vergul bilan ajratilgan string bo'lsa
+            return [t.strip() for t in v.split(",") if t.strip()]
+    return v if isinstance(v, list) else []
+
+
+# --- Base
+
+class ProjectBase(BaseModel):
+    title: str
+    description: str
+    github_url: Optional[str] = None
+    live_demo_url: Optional[str] = None
+    technologies_used: Optional[List[str]] = None
+    difficulty_level: DifficultyLevel
+
+    @field_validator("github_url", "live_demo_url")
+    @classmethod
+    def validate_urls(cls, v):
+        return validate_url_field(v)
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("Sarlavha kamida 3 ta belgidan iborat bo'lishi kerak")
+        return v
+
+    @field_validator("technologies_used", mode="before")
+    @classmethod
+    def parse_technologies(cls, v):
+        return parse_tech_list(v)
+
+
+# --- Create
+
+class ProjectCreate(ProjectBase):
+    pass  # Files odatda UploadFile orqali endpointda boshqariladi
+
+
+# --- Update
+
+class ProjectUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    github_url: Optional[str] = None
+    live_demo_url: Optional[str] = None
+    technologies_used: Optional[List[str]] = None
+    difficulty_level: Optional[DifficultyLevel] = None
+
+    @field_validator("github_url", "live_demo_url")
+    @classmethod
+    def validate_urls(cls, v):
+        return validate_url_field(v)
+
+    @field_validator("technologies_used", mode="before")
+    @classmethod
+    def parse_technologies(cls, v):
+        return parse_tech_list(v)
+
+
+# --- Read
+
+class ProjectRead(ProjectBase):
+    id: int
+    student_id: int
+    project_files: Optional[str] = None
+    status: ProjectStatus
+    points_earned: int = 0
+    instructor_feedback: Optional[str] = None
+    grade: Optional[Grade] = None
+    views_count: int = 0
+    likes_count: int = 0
+    submitted_at: Optional[datetime] = None
+    reviewed_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Detailed Read
+
+class ProjectReadWithStudent(ProjectRead):
+    student: UserRead
+
+
+# --- List Response
+
+class ProjectListResponse(BaseModel):
+    projects: List[ProjectReadWithStudent]
+    total: int
+    page: int
+    page_size: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- Review
+
+class ProjectReview(BaseModel):
+    status: ProjectStatus
+    grade: Grade
+    points_earned: int
+    instructor_feedback: Optional[str] = None
+
+    @field_validator("points_earned")
+    @classmethod
+    def validate_points(cls, v: int) -> int:
+        if not 0 <= v <= 100:
+            raise ValueError("Ball 0 dan 100 gacha bo'lishi kerak")
+        return v

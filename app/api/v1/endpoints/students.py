@@ -1,8 +1,9 @@
 ﻿from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from app.dependencies import get_db, get_current_student
+from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.schemas.user import UserRead, UserUpdate
 from app.schemas.project import ProjectRead
 from app.services.project_service import ProjectService
@@ -11,7 +12,6 @@ from app.models.user import Student
 
 router = APIRouter()
 
-# --- SHAXSIY PROFIL (ME) SECTION ---
 
 @router.get("/me", response_model=UserRead)
 async def get_me(current_student: Student = Depends(get_current_student)):
@@ -82,7 +82,7 @@ async def get_student_by_id(
 async def update_specific_student(
         student_id: int,
         data: UserUpdate,
-        current_user: Student = Depends(get_current_student), # Bu yerda role tekshiruvi muhim
+        current_user: Student = Depends(get_current_student),  # Bu yerda role tekshiruvi muhim
         db: AsyncSession = Depends(get_db)
 ):
     """
@@ -121,3 +121,29 @@ async def delete_specific_student(
     if not success:
         raise HTTPException(status_code=404, detail="Student topilmadi")
     return None
+
+
+@router.post("/refresh-all-student-levels")
+async def refresh_all_student_levels(
+        db: AsyncSession = Depends(get_db),
+        current_teacher=Depends(get_current_instructor)  # Faqat admin/teacher qila olsin
+):
+    """Bazadagi barcha studentlarning darajasini ballariga qarab to'g'rilab chiqish"""
+    result = await db.execute(select(Student))
+    students = result.scalars().all()
+
+    updated_count = 0
+    for student in students:
+        old_level = student.current_level
+        # Modelda biz yozgan metodni chaqiramiz
+        student.update_level_based_on_points()
+
+        if old_level != student.current_level:
+            updated_count += 1
+
+    await db.commit()
+    return {
+        "status": "success",
+        "total_students": len(students),
+        "updated_levels_count": updated_count
+    }

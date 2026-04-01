@@ -8,19 +8,27 @@ from app.config import settings
 from app.api.v1.router import api_router
 from app.db.database import init_db
 from app.core.exceptions import register_exception_handlers
+from app.scheduler import start_scheduler, scheduler
 
 from app.db import base
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-
+    # Startup
     if not os.path.exists("uploads"):
         os.makedirs("uploads")
 
     print("🚀 Student Programming Platform started!")
     await init_db()
+
+    # Scheduler ishga tushirish
+    start_scheduler()
+
     yield
+
+    # Shutdown
+    scheduler.shutdown()
     print("🛑 Platform suspended...")
 
 

@@ -89,8 +89,7 @@ class StudentWithoutAchievementRead(BaseModel):
     """Sertifikat olmagan student"""
     student_id: int
     username: str
-    full_name: str
-    email: str
+    full_name: Optional[str] = None
     total_points: int
     current_level: str
     progress: int  # Foizda

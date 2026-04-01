@@ -53,7 +53,6 @@ class UserCreate(UserBase):
         return v
 
 
-# MANA SHU KLASS ETISHMAYOTGAN EDI:
 class UserUpdate(BaseModel):
     username: Optional[str] = None
     email: Optional[EmailStr] = None
