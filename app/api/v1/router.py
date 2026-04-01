@@ -28,7 +28,11 @@ api_router.include_router(lessons.router, prefix="", tags=["Lessons"])
 api_router.include_router(quizzes.router, prefix="/quizzes", tags=["Quizzes"])
 api_router.include_router(teacher_students.router, prefix="/teacher/students", tags=["Teacher - Students"])
 # api_router.include_router(teacher_projects.router, prefix="/teacher/projects", tags=["Teacher - Projects"])
-api_router.include_router(groups.router, prefix="/groups", tags=["Groups"])
-from app.api.v1.endpoints import exercises
 
-api_router.include_router(exercises.router, prefix="", tags=["Exercises"])
+from app.api.v1.endpoints import ai_review
+
+api_router.include_router(
+    ai_review.router,
+    prefix="/ai",
+    tags=["AI Review"]
+)

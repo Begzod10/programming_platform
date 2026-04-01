@@ -9,6 +9,7 @@ from app.api.v1.router import api_router
 from app.db.database import init_db
 from app.core.exceptions import register_exception_handlers
 
+
 # Bu yerdagi ortiqcha app = FastAPI(...) qismini o'chirib tashlang,
 # chunki pastda create_application funksiyasi yangi app yaratadi.
 
@@ -67,4 +68,5 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

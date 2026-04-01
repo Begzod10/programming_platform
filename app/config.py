@@ -7,24 +7,24 @@ BASE_DIR = Path(__file__).parent.parent
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://postgres:1234@localhost:5432/student_platform"
-
     APP_NAME: str = "Student Programming Platform"
     DEBUG: bool = True
     SECRET_KEY: str = "your-secret-key-here"
-
     JWT_SECRET_KEY: str = "your-jwt-secret-key"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-
     UPLOAD_DIR: str = str(BASE_DIR / "uploads")
     MAX_FILE_SIZE: int = 10 * 1024 * 1024
     ALLOWED_EXTENSIONS: str = ".py,.js,.html,.css,.json,.md,.txt,.zip"
-
     API_V1_PREFIX: str = "/api/v1"
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
-
     APP_VERSION: str = "1.0.0"
+
+    # Grok AI
+    GROK_API_KEY: str = "xai-sPpQKNuTEpRTv4FslxMMXloZV571Bh097H9DwAm0VVSeIrc1VtsSa3LnmOY0eBxwFzoklAoI3FghI5Mx"
+    GROK_API_URL: str = "https://api.x.ai/v1/chat/completions"
+    GROK_MODEL: str = "grok-3"
 
     class Config:
         env_file = ".env"
