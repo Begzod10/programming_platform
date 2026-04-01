@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
 
     # Grok AI
+    import os
+    API_KEY = os.getenv("API_KEY")
     GROK_API_URL: str = "https://api.x.ai/v1/chat/completions"
     GROK_MODEL: str = "grok-3"
 
