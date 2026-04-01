@@ -21,11 +21,9 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
     APP_VERSION: str = "1.0.0"
 
-    # Grok AI
+
     import os
-    API_KEY = os.getenv("API_KEY")
-    GROK_API_URL: str = "https://api.x.ai/v1/chat/completions"
-    GROK_MODEL: str = "grok-3"
+    XAI_API_KEY = os.getenv("XAI_API_KEY")  # Kalitni bu yerga yozmang!
 
     class Config:
         env_file = ".env"
