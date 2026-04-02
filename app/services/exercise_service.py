@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from typing import List, Optional
 import httpx
 import json
+import re
 
 from app.models.exercise import Exercise, ExerciseSubmission
 from app.schemas.exercise import ExerciseCreate, ExerciseUpdate, ExerciseSubmitRequest
@@ -52,6 +53,44 @@ async def delete_exercise(db: AsyncSession, exercise_id: int) -> bool:
     return True
 
 
+async def get_ai_explanation(
+        question: str,
+        correct_answer: str,
+        student_answer: str,
+        explanation: Optional[str] = None
+) -> str:
+    """Xato javob uchun AI tushuntirish olish"""
+    prompt = f"""Sen dasturlash o'qituvchisisiz. O'quvchi savolga xato javob berdi. Xatosini tushuntirib ber.
+
+Savol: {question}
+O'quvchi javobi: {student_answer}
+To'g'ri javob: {correct_answer}
+{"Qo'shimcha tushuntirish: " + explanation if explanation else ""}
+
+O'zbek tilida qisqa va tushunarli tushuntirish yoz (2-3 jumla). Nima uchun o'quvchi javobi xato va to'g'ri javob nima ekanligini ayt."""
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.post(
+                settings.GROK_API_URL,
+                headers={
+                    "Authorization": f"Bearer {settings.GROK_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": settings.GROK_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": 300
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data["choices"][0]["message"]["content"].strip()
+    except Exception:
+        return f"Noto'g'ri. To'g'ri javob: {correct_answer}"
+
+
 def check_answer_locally(exercise: Exercise, student_answer: str) -> dict:
     """AI siz oddiy tekshiruv"""
     exercise_type = exercise.exercise_type
@@ -63,7 +102,9 @@ def check_answer_locally(exercise: Exercise, student_answer: str) -> dict:
         return {
             "is_correct": is_correct,
             "partial_score": 1.0 if is_correct else 0.0,
-            "feedback": "To'g'ri!" if is_correct else f"Noto'g'ri. To'g'ri javob: {exercise.correct_answers}"
+            "needs_ai_explanation": not is_correct,
+            "correct_answer": exercise.correct_answers,
+            "feedback": "To'g'ri!" if is_correct else None
         }
 
     elif exercise_type == "drag_and_drop":
@@ -74,10 +115,17 @@ def check_answer_locally(exercise: Exercise, student_answer: str) -> dict:
             return {
                 "is_correct": is_correct,
                 "partial_score": 1.0 if is_correct else 0.0,
-                "feedback": "To'g'ri tartib!" if is_correct else f"Noto'g'ri. To'g'ri tartib: {exercise.correct_order}"
+                "needs_ai_explanation": not is_correct,
+                "correct_answer": exercise.correct_order,
+                "feedback": "To'g'ri tartib!" if is_correct else None
             }
-        except:
-            return {"is_correct": False, "partial_score": 0, "feedback": "Javob formati noto'g'ri"}
+        except Exception:
+            return {
+                "is_correct": False,
+                "partial_score": 0,
+                "needs_ai_explanation": False,
+                "feedback": "Javob formati noto'g'ri"
+            }
 
     elif exercise_type == "multiple_choice":
         correct = set(a.strip() for a in (exercise.correct_answers or "").split(","))
@@ -86,18 +134,77 @@ def check_answer_locally(exercise: Exercise, student_answer: str) -> dict:
         return {
             "is_correct": is_correct,
             "partial_score": 1.0 if is_correct else 0.0,
-            "feedback": "To'g'ri!" if is_correct else f"Noto'g'ri. To'g'ri javob: {exercise.correct_answers}"
+            "needs_ai_explanation": not is_correct,
+            "correct_answer": exercise.correct_answers,
+            "feedback": "To'g'ri!" if is_correct else None
         }
 
-    else:  # text_input — AI kerak
+    else:
+        # text_input — Grok AI tekshiradi
         return None
 
 
+async def check_answer_with_grok(
+        question: str,
+        expected_answer: Optional[str],
+        student_answer: str,
+        hint: Optional[str] = None,
+        explanation: Optional[str] = None
+) -> dict:
+    """Grok AI yordamida erkin javobni tekshirish"""
+
+    prompt = f"""Sen dasturlash o'qituvchisisiz. Student savolga erkin javob berdi. Javobni baholab ber.
+
+Savol: {question}
+{"Kutilgan javob: " + expected_answer if expected_answer else ""}
+{"Yordam: " + hint if hint else ""}
+{"Tushuntirish: " + explanation if explanation else ""}
+Student javobi: {student_answer}
+
+Faqat JSON formatda javob ber, boshqa hech narsa yozma:
+{{
+  "is_correct": true yoki false,
+  "partial_score": 0.0 dan 1.0 gacha,
+  "feedback": "O'zbek tilida tushuntirish. Xato bo'lsa nima noto'g'ri va qanday to'g'rilash kerakligini ayt."
+}}"""
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                settings.GROK_API_URL,
+                headers={
+                    "Authorization": f"Bearer {settings.GROK_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": settings.GROK_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": 500
+                }
+            )
+            response.raise_for_status()
+            data = response.json()
+            text = data["choices"][0]["message"]["content"]
+
+            json_match = re.search(r'\{.*\}', text, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group())
+            else:
+                return {"is_correct": False, "partial_score": 0.5, "feedback": text}
+    except Exception as e:
+        return {
+            "is_correct": False,
+            "partial_score": 0,
+            "feedback": f"AI xato: {str(e)}"
+        }
+
+
 async def submit_exercise(
-    db: AsyncSession,
-    exercise_id: int,
-    student_id: int,
-    data: ExerciseSubmitRequest
+        db: AsyncSession,
+        exercise_id: int,
+        student_id: int,
+        data: ExerciseSubmitRequest
 ) -> ExerciseSubmission:
     exercise = await get_exercise_by_id(db, exercise_id)
     if not exercise:
@@ -106,15 +213,24 @@ async def submit_exercise(
     # Avval oddiy tekshiruv
     result = check_answer_locally(exercise, data.student_answer)
 
-    # text_input uchun AI tekshiradi
     if result is None:
-        result = await check_answer_with_ai(
+        # text_input — Grok AI tekshiradi
+        result = await check_answer_with_grok(
             question=exercise.description,
             expected_answer=exercise.expected_answer,
             student_answer=data.student_answer,
             hint=exercise.hint,
             explanation=exercise.explanation
         )
+    elif not result.get("is_correct") and result.get("needs_ai_explanation"):
+        # Xato javob — AI tushuntirish beradi
+        ai_feedback = await get_ai_explanation(
+            question=exercise.description,
+            correct_answer=result.get("correct_answer", ""),
+            student_answer=data.student_answer,
+            explanation=exercise.explanation
+        )
+        result["feedback"] = ai_feedback
 
     is_correct = result.get("is_correct", False)
     partial = result.get("partial_score", 0)
@@ -132,63 +248,6 @@ async def submit_exercise(
     await db.commit()
     await db.refresh(submission)
     return submission
-
-
-async def check_answer_with_ai(
-    question: str,
-    expected_answer: Optional[str],
-    student_answer: str,
-    hint: Optional[str] = None,
-    explanation: Optional[str] = None
-) -> dict:
-    if not hasattr(settings, 'ANTHROPIC_API_KEY') or settings.ANTHROPIC_API_KEY == "your-anthropic-api-key":
-        return {
-            "is_correct": False,
-            "partial_score": 0,
-            "feedback": "Javobingiz qabul qilindi. AI tekshiruv hozircha mavjud emas."
-        }
-
-    prompt = f"""Sen o'qituvchi assistantsan. Student mashqqa javob berdi.
-
-Mashq: {question}
-{"Kutilgan javob: " + expected_answer if expected_answer else ""}
-{"Yordam: " + hint if hint else ""}
-{"Tushuntirish: " + explanation if explanation else ""}
-Student javobi: {student_answer}
-
-Faqat JSON formatda javob ber:
-{{
-  "is_correct": true yoki false,
-  "partial_score": 0.0 dan 1.0 gacha,
-  "feedback": "O'zbek tilida qisqa tushuntirish. Xato bo'lsa nima noto'g'ri va qanday to'g'rilash kerakligini ayt."
-}}"""
-
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": settings.ANTHROPIC_API_KEY,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json"
-                },
-                json={
-                    "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 500,
-                    "messages": [{"role": "user", "content": prompt}]
-                },
-                timeout=30.0
-            )
-            result = response.json()
-            text = result["content"][0]["text"]
-            clean = text.replace("```json", "").replace("```", "").strip()
-            return json.loads(clean)
-    except Exception:
-        return {
-            "is_correct": False,
-            "partial_score": 0,
-            "feedback": "Javobingiz qabul qilindi."
-        }
 
 
 async def get_my_submissions(db: AsyncSession, student_id: int, exercise_id: int) -> List[ExerciseSubmission]:
