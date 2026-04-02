@@ -4,7 +4,6 @@ import os
 
 BASE_DIR = Path(__file__).parent.parent
 
-
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://postgres:1234@localhost:5432/student_platform"
     APP_NAME: str = "Student Programming Platform"
@@ -21,14 +20,14 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
     APP_VERSION: str = "1.0.0"
 
-
-    import os
-    XAI_API_KEY = os.getenv("XAI_API_KEY")  # Kalitni bu yerga yozmang!
+    # Grok AI Settings
+    XAI_API_KEY: str = os.getenv("XAI_API_KEY", "")
+    GROK_API_URL: str = "https://api.x.ai/v1/chat/completions"
+    GROK_MODEL: str = "grok-3"
 
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
-
 
 settings = Settings()
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
