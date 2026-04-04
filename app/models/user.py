@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional, TYPE_CHECKING
 import enum
-
+from sqlalchemy.orm import validates
 from sqlalchemy import (
     String, Integer, Boolean, DateTime, Enum, Text, func, ForeignKey
 )
@@ -110,7 +110,7 @@ class Student(Base):
 
     enrolled_courses: Mapped[List["Course"]] = relationship(
         "Course",
-        secondary=student_courses,
+        secondary="student_courses",
         back_populates="students"
     )
 
@@ -125,6 +125,30 @@ class Student(Base):
         "Group",
         back_populates="students"
     )
+
+    lesson_completions: Mapped[List["LessonCompletion"]] = relationship(
+        "LessonCompletion",
+        back_populates="student",
+        cascade="all, delete-orphan"
+    )
+
+    taught_courses: Mapped[List["Course"]] = relationship(
+        "Course",
+        back_populates="instructor"
+    )
+
+    @validates('total_points')
+    def sync_level_with_points(self, key, value):
+        points = value if value is not None else 0
+
+        if points >= 5000:
+            self.current_level = StudentLevel.Advanced
+        elif points >= 1000:
+            self.current_level = StudentLevel.Intermediate
+        else:
+            self.current_level = StudentLevel.Beginner
+
+        return points
 
     def __repr__(self) -> str:
         return f"<Student(id={self.id}, username={self.username}, role={self.role})>"

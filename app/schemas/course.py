@@ -5,21 +5,21 @@ from datetime import datetime
 
 class CourseBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=150)
-    description: str = Field(..., min_length=1, max_length=5000)
-    difficulty_level: str = Field(..., max_length=20)
-    duration_weeks: int = Field(..., ge=1, le=104)
+    description: str = Field(..., min_length=1)
+    difficulty_level: str
+    duration_weeks: int = Field(..., ge=1)
     max_points: int = Field(..., ge=0)
-    image_url: Optional[str] = Field(None, max_length=500)
-    thumbnail_url: Optional[str] = Field(None, max_length=500)
-    video_intro_url: Optional[str] = Field(None, max_length=500)
-    syllabus_url: Optional[str] = Field(None, max_length=500)
+    image_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    video_intro_url: Optional[str] = None
+    syllabus_url: Optional[str] = None
 
     @field_validator("difficulty_level")
     @classmethod
     def validate_difficulty(cls, v: str) -> str:
         allowed = ["Beginner", "Intermediate", "Advanced", "Expert"]
         if v not in allowed:
-            raise ValueError(f"Qiyinlik darajasi: {', '.join(allowed)}")
+            raise ValueError(f"Ruxsat etilgan: {', '.join(allowed)}")
         return v
 
 
@@ -28,44 +28,22 @@ class CourseCreate(CourseBase):
 
 
 class CourseUpdate(BaseModel):
-    title: Optional[str] = Field(None, min_length=1, max_length=150)
-    description: Optional[str] = Field(None, min_length=1, max_length=5000)
-    difficulty_level: Optional[str] = Field(None, max_length=20)
-    duration_weeks: Optional[int] = Field(None, ge=1, le=104)
-    max_points: Optional[int] = Field(None, ge=0)
-    image_url: Optional[str] = Field(None, max_length=500)
-    thumbnail_url: Optional[str] = Field(None, max_length=500)
-    video_intro_url: Optional[str] = Field(None, max_length=500)
-    syllabus_url: Optional[str] = Field(None, max_length=500)
+    title: Optional[str] = None
+    description: Optional[str] = None
+    difficulty_level: Optional[str] = None
+    duration_weeks: Optional[int] = None
+    max_points: Optional[int] = None
     is_active: Optional[bool] = None
 
-    @field_validator("difficulty_level")
-    @classmethod
-    def validate_difficulty(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        allowed = ["Beginner", "Intermediate", "Advanced", "Expert"]
-        if v not in allowed:
-            raise ValueError(f"Qiyinlik darajasi: {', '.join(allowed)}")
-        return v
 
-
-class CourseRead(BaseModel):
+class CourseRead(CourseBase):
     id: int
-    title: str
-    description: str
     instructor_id: int
     instructor_name: Optional[str] = None
-    difficulty_level: str
-    duration_weeks: int
-    max_points: int
-    image_url: Optional[str] = None
-    thumbnail_url: Optional[str] = None
-    video_intro_url: Optional[str] = None
-    syllabus_url: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    progress_percentage: int = 0
     lessons_count: int = 0
     students_count: int = 0
 
@@ -76,12 +54,6 @@ class CourseReadWithStudents(CourseRead):
     pass
 
 
-class CourseListResponse(BaseModel):
-    total: int
-    courses: List[CourseRead]
-
-
 class CourseImageUploadResponse(BaseModel):
     message: str
     image_url: str
-    course: CourseRead

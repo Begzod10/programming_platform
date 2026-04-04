@@ -18,5 +18,8 @@ class Achievement(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     student_achievements: Mapped[List["StudentAchievement"]] = relationship(
-        "StudentAchievement", back_populates="achievement"
+        "StudentAchievement",
+        back_populates="achievement",
+        cascade="all, delete-orphan",
+        passive_deletes=True
     )

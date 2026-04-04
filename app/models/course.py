@@ -16,7 +16,6 @@ student_courses = Table(
     extend_existing=True
 )
 
-
 class Course(Base):
     __tablename__ = "courses"
 
@@ -27,7 +26,7 @@ class Course(Base):
         ForeignKey("students.id", ondelete="CASCADE"),
         nullable=False
     )
-    difficulty_level: Mapped[str] = mapped_column(String(20), nullable=False)
+    difficulty_level: Mapped[str] = mapped_column(String(50), nullable=False) # Uzunlik oshirildi
     duration_weeks: Mapped[int] = mapped_column(Integer, nullable=False)
     max_points: Mapped[int] = mapped_column(Integer, nullable=False)
 
@@ -40,10 +39,11 @@ class Course(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    # Relationshipni back_populates bilan to'g'irlash
     instructor: Mapped["Student"] = relationship(
         "Student",
         foreign_keys=[instructor_id],
-        backref="taught_courses"
+        back_populates="taught_courses"
     )
     students: Mapped[List["Student"]] = relationship(
         "Student",
@@ -58,5 +58,10 @@ class Course(Base):
         lazy="selectin"
     )
 
-    def __repr__(self) -> str:
-        return f"<Course(id={self.id}, title={self.title})>"
+    @property
+    def lessons_count(self):
+        return len(self.lessons) if self.lessons else 0
+
+    @property
+    def students_count(self):
+        return len(self.students) if self.students else 0

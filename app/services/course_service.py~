@@ -222,21 +222,19 @@ class CourseService:
         st_count_res = await db.execute(st_count_stmt)
         data["students_count"] = st_count_res.scalar() or 0
 
+        # 4. Progress - Faqat darslar bor bo'lsa va student_id bo'lsa hisoblaymiz
         if student_id and total_count > 0:
-            comp_stmt = (
-                select(func.count(LessonCompletion.id))
-                .join(Lesson, LessonCompletion.lesson_id == Lesson.id)  # ✅ aniq join sharti
-                .where(
-                    Lesson.course_id == course.id,
-                    Lesson.is_active == True,  # ✅ faqat faol darslar
-                    LessonCompletion.student_id == student_id
-                )
+            comp_stmt = select(func.count(LessonCompletion.id)).join(Lesson).where(
+                Lesson.course_id == course.id,
+                LessonCompletion.student_id == student_id
             )
             comp_res = await db.execute(comp_stmt)
             comp_count = comp_res.scalar() or 0
 
+            # Progressni hisoblash
             data["progress_percentage"] = int((comp_count / total_count) * 100)
         else:
+            # Darslar 0 bo'lsa yoki student kirmagan bo'lsa doim 0%
             data["progress_percentage"] = 0
 
         return data
