@@ -38,7 +38,8 @@ class Ranking(Base):
     # Vaqtlar
     last_calculated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        server_default=func.now(),
+        server_default=func.now(),  # Bazada avtomatik vaqt qo'yish
+        default=datetime.now,  # Python kodida avtomatik vaqt qo'yish
         nullable=False
     )
     last_daily_reset: Mapped[datetime] = mapped_column(

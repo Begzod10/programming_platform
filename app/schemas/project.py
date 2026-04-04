@@ -167,4 +167,4 @@ class ProjectReview(BaseModel):
     def validate_points(cls, v: int) -> int:
         if v < 0 or v > 100:
             raise ValueError("Ball 0 dan 100 gacha bo'lishi kerak")
-        return v
+        return

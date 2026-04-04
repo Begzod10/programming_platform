@@ -17,4 +17,8 @@ alembic.ini
 
 *.log
 "@ | Set-Content .gitignore -Encoding utf8
+<<<<<<< HEAD
 uploads/
+=======
+uploads/
+>>>>>>> 911e25fecb66a7aafbb48f3d24e30e2a7f6a07f8

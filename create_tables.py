@@ -1,6 +1,7 @@
 import asyncio
 from app.db.base_class import Base
 from app.models.lesson import Lesson
+from app.models.quiz import Quiz, Question, StudentQuizResult
 from sqlalchemy.ext.asyncio import create_async_engine
 from app.config import settings
 

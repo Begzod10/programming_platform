@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional
+from app.schemas.exercise import ExerciseRead
 from datetime import datetime
 
 
@@ -68,14 +69,19 @@ class LessonUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+from typing import TYPE_CHECKING, List
+
+if TYPE_CHECKING:
+    from app.schemas.exercise import ExerciseRead
+
+
 class LessonRead(LessonBase):
-    """Dars ma'lumotlarini o'qish"""
     id: int
     course_id: int
     is_active: bool
     created_at: datetime
     updated_at: datetime
-
+    exercises: List["ExerciseRead"] = []  # ← shu
     model_config = ConfigDict(from_attributes=True)
 
 

@@ -1,8 +1,8 @@
-"""Initial migration
+"""final_full_setup
 
-Revision ID: 49a0a896bd77
-Revises: a529921d633e
-Create Date: 2026-03-14 21:01:45.035604
+Revision ID: 6c7efec7e1e6
+Revises: 
+Create Date: 2026-03-26 14:53:14.256835
 
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '49a0a896bd77'
-down_revision: Union[str, None] = 'a529921d633e'
+revision: str = '6c7efec7e1e6'
+down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -31,19 +31,6 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('courses',
-    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-    sa.Column('title', sa.String(length=150), nullable=False),
-    sa.Column('description', sa.String(length=500), nullable=False),
-    sa.Column('instructor_id', sa.Integer(), nullable=False),
-    sa.Column('difficulty_level', sa.String(length=20), nullable=False),
-    sa.Column('duration_weeks', sa.Integer(), nullable=False),
-    sa.Column('max_points', sa.Integer(), nullable=False),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
-    )
     op.create_table('degrees',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('name', sa.String(length=150), nullable=False),
@@ -58,8 +45,44 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('groups',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
+    sa.Column('description', sa.String(length=500), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('name')
+    )
+    op.create_table('quizzes',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('title', sa.String(length=200), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('difficulty_level', sa.String(length=20), nullable=False),
+    sa.Column('time_limit_minutes', sa.Integer(), nullable=True),
+    sa.Column('passing_score', sa.Integer(), nullable=False),
+    sa.Column('points_reward', sa.Integer(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('questions',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('quiz_id', sa.Integer(), nullable=False),
+    sa.Column('text', sa.Text(), nullable=False),
+    sa.Column('option_a', sa.Text(), nullable=False),
+    sa.Column('option_b', sa.Text(), nullable=False),
+    sa.Column('option_c', sa.Text(), nullable=True),
+    sa.Column('option_d', sa.Text(), nullable=True),
+    sa.Column('correct_answer', sa.String(length=1), nullable=False),
+    sa.Column('explanation', sa.Text(), nullable=True),
+    sa.Column('order', sa.Integer(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.ForeignKeyConstraint(['quiz_id'], ['quizzes.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('students',
-    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('username', sa.String(length=50), nullable=False),
     sa.Column('email', sa.String(length=255), nullable=False),
     sa.Column('hashed_password', sa.String(length=255), nullable=False),
@@ -68,17 +91,37 @@ def upgrade() -> None:
     sa.Column('bio', sa.Text(), nullable=True),
     sa.Column('role', sa.Enum('student', 'teacher', name='userrole'), server_default='student', nullable=False),
     sa.Column('enrollment_date', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
-    sa.Column('current_level', sa.Enum('Beginner', 'Intermediate', 'Advanced', name='studentlevel'), nullable=False),
-    sa.Column('total_points', sa.Integer(), nullable=False),
+    sa.Column('current_level', sa.Enum('Beginner', 'Intermediate', 'Advanced', name='studentlevel'), server_default='Beginner', nullable=False),
+    sa.Column('total_points', sa.Integer(), server_default='0', nullable=False),
     sa.Column('global_rank', sa.Integer(), nullable=True),
-    sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.Column('is_verified', sa.Boolean(), nullable=False),
+    sa.Column('is_active', sa.Boolean(), server_default='true', nullable=False),
+    sa.Column('is_verified', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('group_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['group_id'], ['groups.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_students_email'), 'students', ['email'], unique=True)
     op.create_index(op.f('ix_students_username'), 'students', ['username'], unique=True)
+    op.create_table('courses',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('title', sa.String(length=150), nullable=False),
+    sa.Column('description', sa.Text(), nullable=False),
+    sa.Column('instructor_id', sa.Integer(), nullable=False),
+    sa.Column('difficulty_level', sa.String(length=20), nullable=False),
+    sa.Column('duration_weeks', sa.Integer(), nullable=False),
+    sa.Column('max_points', sa.Integer(), nullable=False),
+    sa.Column('image_url', sa.String(length=500), nullable=True),
+    sa.Column('thumbnail_url', sa.String(length=500), nullable=True),
+    sa.Column('video_intro_url', sa.String(length=500), nullable=True),
+    sa.Column('syllabus_url', sa.String(length=500), nullable=True),
+    sa.Column('is_active', sa.Boolean(), server_default='true', nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['instructor_id'], ['students.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('projects',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('student_id', sa.Integer(), nullable=False),
@@ -105,17 +148,21 @@ def upgrade() -> None:
     op.create_table('rankings',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('student_id', sa.Integer(), nullable=False),
+    sa.Column('daily_points', sa.Integer(), nullable=False),
+    sa.Column('weekly_points', sa.Integer(), nullable=False),
+    sa.Column('monthly_points', sa.Integer(), nullable=False),
     sa.Column('total_points', sa.Integer(), nullable=False),
     sa.Column('global_rank', sa.Integer(), nullable=False),
     sa.Column('level_rank', sa.Integer(), nullable=False),
     sa.Column('projects_completed', sa.Integer(), nullable=False),
     sa.Column('average_grade', sa.Float(), nullable=False),
-    sa.Column('weekly_points', sa.Integer(), nullable=False),
-    sa.Column('monthly_points', sa.Integer(), nullable=False),
-    sa.Column('last_calculated_at', sa.DateTime(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), nullable=False),
-    sa.ForeignKeyConstraint(['student_id'], ['students.id'], ),
+    sa.Column('last_calculated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('last_daily_reset', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('last_weekly_reset', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('last_monthly_reset', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['student_id'], ['students.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('student_id')
     )
@@ -123,17 +170,10 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('student_id', sa.Integer(), nullable=False),
     sa.Column('achievement_id', sa.Integer(), nullable=False),
-    sa.Column('earned_at', sa.DateTime(), nullable=False),
-    sa.ForeignKeyConstraint(['achievement_id'], ['achievements.id'], ),
-    sa.ForeignKeyConstraint(['student_id'], ['students.id'], ),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_table('student_courses',
-    sa.Column('student_id', sa.Integer(), nullable=False),
-    sa.Column('course_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
+    sa.Column('earned_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['achievement_id'], ['achievements.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['student_id'], ['students.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('student_id', 'course_id')
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_table('student_degrees',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -147,11 +187,30 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('verification_code')
     )
+    op.create_table('student_quiz_results',
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
+    sa.Column('student_id', sa.Integer(), nullable=False),
+    sa.Column('quiz_id', sa.Integer(), nullable=False),
+    sa.Column('score', sa.Integer(), nullable=False),
+    sa.Column('correct_answers', sa.Integer(), nullable=False),
+    sa.Column('total_questions', sa.Integer(), nullable=False),
+    sa.Column('passed', sa.Boolean(), nullable=False),
+    sa.Column('time_spent_seconds', sa.Integer(), nullable=True),
+    sa.Column('completed_at', sa.DateTime(), nullable=False),
+    sa.ForeignKeyConstraint(['quiz_id'], ['quizzes.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['student_id'], ['students.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('lessons',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('course_id', sa.Integer(), nullable=False),
     sa.Column('title', sa.String(length=200), nullable=False),
     sa.Column('order', sa.Integer(), nullable=False),
+    sa.Column('task_title', sa.String(length=200), nullable=True),
+    sa.Column('task_description', sa.Text(), nullable=True),
+    sa.Column('task_requirements', sa.Text(), nullable=True),
+    sa.Column('task_technologies', sa.Text(), nullable=True),
+    sa.Column('task_deadline_days', sa.Integer(), nullable=True),
     sa.Column('text_content', sa.Text(), nullable=True),
     sa.Column('code_content', sa.Text(), nullable=True),
     sa.Column('code_language', sa.String(length=50), nullable=True),
@@ -160,24 +219,36 @@ def upgrade() -> None:
     sa.Column('file_url', sa.String(length=500), nullable=True),
     sa.Column('project_id', sa.Integer(), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('student_courses',
+    sa.Column('student_id', sa.Integer(), nullable=False),
+    sa.Column('course_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['course_id'], ['courses.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['student_id'], ['students.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('student_id', 'course_id')
     )
     op.create_table('submissions',
     sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('project_id', sa.Integer(), nullable=False),
     sa.Column('student_id', sa.Integer(), nullable=False),
-    sa.Column('submitted_at', sa.DateTime(), nullable=False),
+    sa.Column('lesson_id', sa.Integer(), nullable=True),
+    sa.Column('github_url', sa.String(length=255), nullable=True),
+    sa.Column('live_demo_url', sa.String(length=255), nullable=True),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('submitted_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('reviewed_at', sa.DateTime(), nullable=True),
     sa.Column('status', sa.String(length=50), nullable=False),
     sa.Column('instructor_feedback', sa.Text(), nullable=True),
     sa.Column('grade', sa.String(length=2), nullable=True),
     sa.Column('points_earned', sa.Integer(), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.ForeignKeyConstraint(['lesson_id'], ['lessons.id'], ),
     sa.ForeignKeyConstraint(['project_id'], ['projects.id'], ),
     sa.ForeignKeyConstraint(['student_id'], ['students.id'], ),
     sa.PrimaryKeyConstraint('id')
@@ -188,16 +259,20 @@ def upgrade() -> None:
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_table('submissions')
-    op.drop_table('lessons')
-    op.drop_table('student_degrees')
     op.drop_table('student_courses')
+    op.drop_table('lessons')
+    op.drop_table('student_quiz_results')
+    op.drop_table('student_degrees')
     op.drop_table('student_achievements')
     op.drop_table('rankings')
     op.drop_table('projects')
+    op.drop_table('courses')
     op.drop_index(op.f('ix_students_username'), table_name='students')
     op.drop_index(op.f('ix_students_email'), table_name='students')
     op.drop_table('students')
+    op.drop_table('questions')
+    op.drop_table('quizzes')
+    op.drop_table('groups')
     op.drop_table('degrees')
-    op.drop_table('courses')
     op.drop_table('achievements')
     # ### end Alembic commands ###
