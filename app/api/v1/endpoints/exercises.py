@@ -82,3 +82,45 @@ async def my_submissions(
 ):
     """Mening javoblarim — GET /courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}/my-submissions"""
     return await exercise_service.get_my_submissions(db, current_student.id, exercise_id)
+
+
+@router.get("/{lesson_id}/exercises/progress")
+async def get_course_progress(
+        course_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_student: Student = Depends(get_current_student)
+):
+    """Course progress foizi"""
+    from sqlalchemy import func
+    from app.models.lesson import Lesson
+    from app.models.exercise import Exercise, ExerciseSubmission
+
+    # Coursedagi jami exerciselar
+    total = await db.execute(
+        select(func.count(Exercise.id))
+        .join(Lesson, Lesson.id == Exercise.lesson_id)
+        .where(Lesson.course_id == course_id, Exercise.is_active == True)
+    )
+    total_count = total.scalar() or 0
+
+    # Bajarilgan exerciselar
+    completed = await db.execute(
+        select(func.count(ExerciseSubmission.exercise_id.distinct()))
+        .join(Exercise, Exercise.id == ExerciseSubmission.exercise_id)
+        .join(Lesson, Lesson.id == Exercise.lesson_id)
+        .where(
+            Lesson.course_id == course_id,
+            ExerciseSubmission.student_id == current_student.id,
+            ExerciseSubmission.is_correct == True
+        )
+    )
+    completed_count = completed.scalar() or 0
+
+    progress = round((completed_count / total_count * 100), 1) if total_count > 0 else 0
+
+    return {
+        "course_id": course_id,
+        "total_exercises": total_count,
+        "completed_exercises": completed_count,
+        "progress_percent": progress
+    }

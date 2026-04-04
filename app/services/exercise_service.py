@@ -151,8 +151,6 @@ async def check_answer_with_grok(
         hint: Optional[str] = None,
         explanation: Optional[str] = None
 ) -> dict:
-    """Grok AI yordamida erkin javobni tekshirish"""
-
     prompt = f"""Sen dasturlash o'qituvchisisiz. Student savolga erkin javob berdi. Javobni baholab ber.
 
 Savol: {question}
@@ -164,8 +162,8 @@ Student javobi: {student_answer}
 Faqat JSON formatda javob ber, boshqa hech narsa yozma:
 {{
   "is_correct": true yoki false,
-  "partial_score": 0.0 dan 1.0 gacha,
-  "feedback": "O'zbek tilida tushuntirish. Xato bo'lsa nima noto'g'ri va qanday to'g'rilash kerakligini ayt."
+  "partial_score": 0.0 dan 1.0 gacha (qisman togri bolsa),
+  "feedback": "Uzbek tilida tushuntirish. Xato bolsa nima notogri va qanday togrash kerakligini ayt."
 }}"""
 
     try:
@@ -201,20 +199,32 @@ Faqat JSON formatda javob ber, boshqa hech narsa yozma:
 
 
 async def submit_exercise(
-        db: AsyncSession,
-        exercise_id: int,
-        student_id: int,
-        data: ExerciseSubmitRequest
+    db: AsyncSession,
+    exercise_id: int,
+    student_id: int,
+    data: ExerciseSubmitRequest
 ) -> ExerciseSubmission:
+    from app.services.ranking_service import RankingService
+    from app.models.lesson import Lesson
+
     exercise = await get_exercise_by_id(db, exercise_id)
     if not exercise:
         raise HTTPException(status_code=404, detail="Mashq topilmadi")
 
-    # Avval oddiy tekshiruv
+    # ✅ Allaqachon bajarilganmi tekshirish
+    already_done = await db.execute(
+        select(ExerciseSubmission).where(
+            ExerciseSubmission.exercise_id == exercise_id,
+            ExerciseSubmission.student_id == student_id,
+            ExerciseSubmission.is_correct == True
+        )
+    )
+    if already_done.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="Bu mashqni allaqachon bajardingiz!")
+
     result = check_answer_locally(exercise, data.student_answer)
 
     if result is None:
-        # text_input — Grok AI tekshiradi
         result = await check_answer_with_grok(
             question=exercise.description,
             expected_answer=exercise.expected_answer,
@@ -223,7 +233,6 @@ async def submit_exercise(
             explanation=exercise.explanation
         )
     elif not result.get("is_correct") and result.get("needs_ai_explanation"):
-        # Xato javob — AI tushuntirish beradi
         ai_feedback = await get_ai_explanation(
             question=exercise.description,
             correct_answer=result.get("correct_answer", ""),
@@ -235,6 +244,11 @@ async def submit_exercise(
     is_correct = result.get("is_correct", False)
     partial = result.get("partial_score", 0)
     score = exercise.points if is_correct else int(exercise.points * partial)
+
+    # ✅ Ball qo'shish
+    if score > 0:
+        ranking_service = RankingService(db)
+        await ranking_service.add_points_to_student(student_id, score)
 
     submission = ExerciseSubmission(
         exercise_id=exercise_id,
@@ -248,7 +262,6 @@ async def submit_exercise(
     await db.commit()
     await db.refresh(submission)
     return submission
-
 
 async def get_my_submissions(db: AsyncSession, student_id: int, exercise_id: int) -> List[ExerciseSubmission]:
     result = await db.execute(

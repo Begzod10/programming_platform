@@ -81,7 +81,8 @@ class LessonRead(LessonBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    exercises: List["ExerciseRead"] = []  # ← shu
+    exercises: List["ExerciseRead"] = []
+    is_completed: bool = False  # ✅ qo'shildi
     model_config = ConfigDict(from_attributes=True)
 
 

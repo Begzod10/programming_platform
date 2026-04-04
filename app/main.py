@@ -16,14 +16,11 @@ from app.scheduler import start_scheduler, scheduler
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-<<<<<<< HEAD
-=======
-    # Startup
->>>>>>> 450b4258aa39e63e9b21e48a0e1b32901b387ed6
+
     if not os.path.exists("uploads"):
         os.makedirs("uploads")
 
-    print("🚀 Student Programming Platform started!")
+    print(" Student Programming Platform started!")
     await init_db()
 
     # Scheduler ishga tushirish
@@ -33,7 +30,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     scheduler.shutdown()
-    print("🛑 Platform suspended...")
+    print(" Student Programming Platform suspended...")
 
 
 def create_application() -> FastAPI:

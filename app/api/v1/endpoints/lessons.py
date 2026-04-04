@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from fastapi import APIRouter, Depends, HTTPException, status, Request  # ← Request qo'shildi
 from typing import List, Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
@@ -14,12 +15,12 @@ from app.models.submission import Submission
 from app.models.project import Project
 from app.models.lesson import LessonCompletion, Lesson
 from app.models.course import Course
+
 router = APIRouter()
 
 
-<<<<<<< HEAD
 # ============ LESSON ENDPOINTS ============
-=======
+
 async def _calc_course_progress(db: AsyncSession, course_id: int, student_id: int) -> dict:
     total_query = await db.execute(
         select(func.count(Lesson.id)).where(Lesson.course_id == course_id, Lesson.is_active == True)
@@ -57,12 +58,54 @@ async def _ensure_enrolled(db: AsyncSession, student_id: int, course_id: int):
             student.enrolled_courses.append(course)
             await db.flush()  # Transactionni davom ettirish uchun
 
->>>>>>> 450b4258aa39e63e9b21e48a0e1b32901b387ed6
 
-@router.get("/courses/{course_id}/lessons", response_model=List[LessonRead])
-async def get_lessons(course_id: int, db: AsyncSession = Depends(get_db)):
-    """Kurs darslarini olish"""
-    return await lesson_service.get_lessons_by_course(db, course_id)
+@router.get("/courses/{course_id}/lessons")
+async def get_lessons(
+        course_id: int,
+        request: Request,  # ✅ qo'shildi
+        db: AsyncSession = Depends(get_db)
+):
+    from app.api.v1.endpoints.courses import _get_id_from_auth
+    student_id = await _get_id_from_auth(request)
+    lessons = await lesson_service.get_lessons_by_course(db, course_id)
+    # student_id = await _get_id_from_auth(request)
+
+    result = []
+    for lesson in lessons:
+        lesson_dict = {
+            "id": lesson.id,
+            "course_id": lesson.course_id,
+            "title": lesson.title,
+            "order": lesson.order,
+            "task_title": lesson.task_title,
+            "task_description": lesson.task_description,
+            "task_requirements": lesson.task_requirements,
+            "task_technologies": lesson.task_technologies,
+            "task_deadline_days": lesson.task_deadline_days,
+            "text_content": lesson.text_content,
+            "code_content": lesson.code_content,
+            "code_language": lesson.code_language,
+            "video_url": lesson.video_url,
+            "image_url": lesson.image_url,
+            "file_url": lesson.file_url,
+            "project_id": lesson.project_id,
+            "is_active": lesson.is_active,
+            "created_at": lesson.created_at,
+            "updated_at": lesson.updated_at,
+            "exercises": lesson.exercises if hasattr(lesson, 'exercises') else [],
+            "is_completed": False
+        }
+        if student_id:
+            comp = await db.execute(
+                select(LessonCompletion).where(
+                    LessonCompletion.student_id == student_id,
+                    LessonCompletion.lesson_id == lesson.id
+                )
+            )
+            lesson_dict["is_completed"] = comp.scalar_one_or_none() is not None
+        result.append(lesson_dict)
+
+    return result
 
 
 @router.get("/courses/{course_id}/lessons/{lesson_id}", response_model=LessonRead)
@@ -115,7 +158,6 @@ async def delete_lesson(
     return None
 
 
-<<<<<<< HEAD
 # ============ EXERCISE ENDPOINTS (lesson ichida) ============
 
 @router.get("/courses/{course_id}/lessons/{lesson_id}/exercises", response_model=List[ExerciseRead])
@@ -254,7 +296,7 @@ async def my_exercise_submissions(
 
 
 # ============ SUBMISSION ENDPOINTS ============
-=======
+
 # ============================================================
 # PROGRESS ENDPOINTS
 # ============================================================
@@ -364,7 +406,7 @@ async def get_course_progress(
 # ============================================================
 # SUBMISSION ENDPOINTS
 # ============================================================
->>>>>>> 450b4258aa39e63e9b21e48a0e1b32901b387ed6
+
 
 class LessonSubmitRequest(BaseModel):
     github_url: Optional[str] = None
@@ -394,10 +436,6 @@ async def submit_lesson_project(
     if existing_result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Bu dars allaqachon topshirilgan")
 
-<<<<<<< HEAD
-=======
-    # 1. Project yaratish
->>>>>>> 450b4258aa39e63e9b21e48a0e1b32901b387ed6
     new_project = Project(
         student_id=current_student.id,
         title=lesson.task_title or lesson.title,
@@ -410,10 +448,6 @@ async def submit_lesson_project(
     db.add(new_project)
     await db.flush()
 
-<<<<<<< HEAD
-=======
-    # 2. Submission yaratish
->>>>>>> 450b4258aa39e63e9b21e48a0e1b32901b387ed6
     submission = Submission(
         lesson_id=lesson_id,
         student_id=current_student.id,

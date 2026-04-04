@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).parent.parent
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:1234@localhost:5432/student_platform"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:123@localhost:5433/student_platform"
     APP_NAME: str = "Student Programming Platform"
     DEBUG: bool = True
     SECRET_KEY: str = "your-secret-key-here"
@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
 
     # Grok AI
+
 
 
     class Config:
