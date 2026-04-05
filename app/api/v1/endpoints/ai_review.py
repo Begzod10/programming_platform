@@ -12,57 +12,55 @@ from app.schemas.ai_review import AIReviewResponse, AIReviewResult
 router = APIRouter()
 
 
-@router.post("/projects/{project_id}/ai-review", response_model=AIReviewResponse)
-async def ai_review_project(
+@router.post("/{project_id}/ai-review")
+async def ai_review(
         project_id: int,
-        db: AsyncSession = Depends(get_db),
-        current_student: Student = Depends(get_current_student)
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
 ):
-    """
-    O'quvchi proektini Grok AI yordamida tahlil qiladi va baho beradi.
-    Faqat proekt egasi yoki admin chaqira oladi.
-    """
-    # Proektni olish
+    """AI orqali loyihani baholash"""
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
 
     if not project:
-        raise HTTPException(status_code=404, detail="Proekt topilmadi")
-
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
     if project.student_id != current_student.id:
-        raise HTTPException(status_code=403, detail="Bu proektni baholashga ruxsat yo'q")
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
 
-    # Texnologiyalarni parse qilish
-    technologies = []
-    if project.technologies_used:
-        try:
-            technologies = json.loads(project.technologies_used)
-        except Exception:
-            technologies = [t.strip() for t in project.technologies_used.split(",") if t.strip()]
+    if not project.github_url:
+        raise HTTPException(status_code=400, detail="AI baholash uchun GitHub URL kerak")
 
-    # Grok AI ga yuborish
-    try:
-        ai_result = await analyze_project_with_grok(
-            title=project.title,
-            description=project.description,
-            github_url=project.github_url or "",
-            technologies=technologies,
-            difficulty_level=project.difficulty_level
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI tahlil xatosi: {str(e)}")
+    technologies = project.technologies_used.split(",") if project.technologies_used else []
 
-    # Natijani bazaga saqlash
-    project.grade = ai_result.get("grade", "C")
-    project.points_earned = ai_result.get("points", 60)
-    project.instructor_feedback = ai_result.get("feedback", "")
+    review = await analyze_project_with_grok(
+        title=project.title,
+        description=project.description or "",
+        github_url=project.github_url,
+        technologies=technologies,
+        difficulty_level=str(project.difficulty_level or "Easy")
+    )
+
+    new_points = review.get("points", 60)
+    old_points = project.points_earned or 0
+
+    # Eski ballni ayirib, yangi ball qo'shamiz
+    ranking_service = RankingService(db)
+    if old_points > 0:
+        await ranking_service.subtract_points_from_student(project.student_id, old_points)
+    await ranking_service.add_points_to_student(project.student_id, new_points)
+
+    project.instructor_feedback = review.get("feedback", "")
+    project.grade = review.get("grade", "C")
+    project.points_earned = new_points
     project.status = "Approved"
+    project.reviewed_at = datetime.utcnow()
 
     await db.commit()
-    await db.refresh(project)
 
-    return AIReviewResponse(
-        project_id=project_id,
-        ai_review=AIReviewResult(**ai_result),
-        message="AI tahlil muvaffaqiyatli bajarildi"
-    )
+    return {
+        "message": "AI baholash yakunlandi!",
+        "project_id": project_id,
+        "old_points": old_points,
+        "new_points": new_points,
+        **review
+    }

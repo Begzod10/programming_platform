@@ -1,15 +1,21 @@
-﻿from fastapi import APIRouter, Depends, status, Query, HTTPException, Body
+﻿import os
+from datetime import datetime
+from typing import List
+
+from fastapi import APIRouter, Depends, status, Query, HTTPException, Body, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
 from pydantic import BaseModel
-from app.models.project import Project
 
 from app.dependencies import get_db, get_current_student, get_current_instructor
-from app.services.project_service import ProjectService
-from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
+from app.models.project import Project
 from app.models.user import Student
+from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
+from app.services.project_service import ProjectService
 from app.services.ranking_service import RankingService
+from app.services.grok_service import analyze_project_with_grok
+from app.config import settings
+
 router = APIRouter()
 
 
@@ -17,7 +23,7 @@ def get_project_service(db: AsyncSession = Depends(get_db)) -> ProjectService:
     return ProjectService(db)
 
 
-# ✅ STUDENT ENDPOINT'LAR
+# ============ STUDENT ENDPOINTS ============
 
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 async def create_project(
@@ -35,7 +41,7 @@ async def get_projects(
         limit: int = Query(10, ge=1, le=100),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Barcha proyektlar (public)"""
+    """Barcha proyektlar"""
     return await service.get_all_projects(skip=skip, limit=limit)
 
 
@@ -53,7 +59,7 @@ async def get_project(
         project_id: int,
         service: ProjectService = Depends(get_project_service),
 ):
-    """Proyektni ko'rish (public)"""
+    """Proyektni ko'rish"""
     project = await service.get_project(project_id=project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
@@ -67,7 +73,7 @@ async def update_project(
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Proyektni yangilash (faqat egasi)"""
+    """Proyektni yangilash"""
     return await service.update_project(
         project_id=project_id,
         student_id=current_student.id,
@@ -81,7 +87,7 @@ async def delete_project(
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Proyektni o'chirish (faqat egasi)"""
+    """Proyektni o'chirish"""
     await service.delete_project(project_id=project_id, student_id=current_student.id)
 
 
@@ -91,7 +97,7 @@ async def submit_project(
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Proyektni taqdim qilish (faqat egasi)"""
+    """Proyektni topshirish"""
     return await service.submit_project(
         project_id=project_id,
         student_id=current_student.id
@@ -105,13 +111,99 @@ async def like_project(
         service: ProjectService = Depends(get_project_service),
 ):
     """Proyektni like qilish"""
-    return await service.like_project(
-        project_id=project_id,
-        student_id=current_student.id  # ✅ Student ID qo'shildi
+    return await service.like_project(project_id=project_id)
+
+
+@router.post("/{project_id}/upload-zip")
+async def upload_project_zip(
+        project_id: int,
+        file: UploadFile = File(...),
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """Zip fayl yuklash (max 15MB)"""
+    ext = os.path.splitext(file.filename or "")[-1].lower()
+    if ext != ".zip":
+        raise HTTPException(status_code=400, detail="Faqat .zip fayl qabul qilinadi")
+
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    if project.student_id != current_student.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+
+    contents = await file.read()
+    if len(contents) > 15 * 1024 * 1024:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Fayl 15MB dan oshmasligi kerak. Hozir: {len(contents) / 1024 / 1024:.1f}MB"
+        )
+
+    upload_dir = os.path.join(settings.UPLOAD_DIR, "projects", str(project_id))
+    os.makedirs(upload_dir, exist_ok=True)
+    file_path = os.path.join(upload_dir, f"project_{project_id}.zip")
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    file_url = f"/uploads/projects/{project_id}/project_{project_id}.zip"
+    project.project_files = file_url
+    await db.commit()
+
+    return {
+        "message": "Zip fayl yuklandi!",
+        "file_url": file_url,
+        "file_size_mb": round(len(contents) / 1024 / 1024, 2)
+    }
+
+
+@router.post("/{project_id}/ai-review")
+async def ai_review(
+        project_id: int,
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """AI orqali loyihani baholash"""
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    if project.student_id != current_student.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+
+    if not project.github_url:
+        raise HTTPException(status_code=400, detail="AI baholash uchun GitHub URL kerak")
+
+    technologies = project.technologies_used.split(",") if project.technologies_used else []
+
+    review = await analyze_project_with_grok(
+        title=project.title,
+        description=project.description or "",
+        github_url=project.github_url,
+        technologies=technologies,
+        difficulty_level=str(project.difficulty_level or "Easy")
     )
 
+    project.instructor_feedback = review.get("feedback", "")
+    project.grade = review.get("grade", "C")
+    project.points_earned = review.get("points", 60)
+    project.status = "Approved"
+    project.reviewed_at = datetime.utcnow()
 
-# ✅ TEACHER ENDPOINT'LAR (FAQAT INSTRUCTOR)
+    ranking_service = RankingService(db)
+    await ranking_service.add_points_to_student(project.student_id, review.get("points", 60))
+
+    await db.commit()
+
+    return {
+        "message": "AI baholash yakunlandi!",
+        "project_id": project_id,
+        **review
+    }
+
+
+# ============ TEACHER ENDPOINTS ============
 
 class ReviewProjectRequest(BaseModel):
     feedback: str
@@ -122,32 +214,31 @@ class ReviewProjectRequest(BaseModel):
 @router.post("/{project_id}/review")
 async def review_project(
         project_id: int,
-        data: ReviewProjectRequest, # ReviewProjectRequest schema ishlatilsin
+        data: ReviewProjectRequest,
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    # 1. Loyihani topish
+    """Loyihani tekshirish (faqat teacher)"""
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
 
     if not project:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
-
     if project.status == "Approved":
-         raise HTTPException(status_code=400, detail="Bu loyiha allaqachon tasdiqlangan")
+        raise HTTPException(status_code=400, detail="Bu loyiha allaqachon tasdiqlangan")
 
-    # 2. RankingService orqali ballarni va proyekt sonini yangilash
     service = RankingService(db)
     await service.add_points_to_student(project.student_id, data.points)
 
-    # 3. Loyiha holatini yangilash
     project.status = "Approved"
-    project.feedback = data.feedback
+    project.instructor_feedback = data.feedback
     project.grade = data.grade
     project.points_earned = data.points
+    project.reviewed_at = datetime.utcnow()
 
     await db.commit()
-    return {"message": "Loyiha tasdiqlandi, ballar va proyekt soni yangilandi"}
+    return {"message": "Loyiha tasdiqlandi!"}
+
 
 @router.patch("/{project_id}/status")
 async def update_status(
@@ -182,8 +273,6 @@ async def update_difficulty(
     return await service.update_difficulty(project_id=project_id, difficulty=difficulty)
 
 
-# ✅ OPTIONAL ENDPOINT'LAR (student yoki teacher)
-
 @router.patch("/{project_id}/comment")
 async def update_comment(
         project_id: int,
@@ -204,35 +293,3 @@ async def update_file(
 ):
     """Fayl urlini yangilash"""
     return await service.update_file(project_id=project_id, file_url=file_url)
-
-
-@router.post("/{project_id}/review")
-async def review_project(
-        project_id: int,
-        feedback: str,
-        grade: str,
-        points: int,
-        db: AsyncSession = Depends(get_db)
-):
-    # 1. Avval loyihani bazadan qidirib topamiz
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-
-    if not project:
-        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
-
-    # 2. ENDI BIZDA student_id BOR (project ob'ekti ichida)
-    student_id = project.student_id  # <--- MANA SHU QATORNI QO'SHING
-
-    # 3. Ballarni qo'shish
-    service = RankingService(db)
-    await service.add_points_to_student(student_id, points)
-
-    # 4. Loyiha holatini yangilash
-    project.status = "Approved"
-    project.feedback = feedback
-    project.grade = grade
-    project.points_earned = points
-
-    await db.commit()
-    return {"message": "Loyiha tekshirildi va ballar qo'shildi"}

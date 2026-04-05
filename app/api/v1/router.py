@@ -30,3 +30,10 @@ api_router.include_router(groups.router, prefix="/groups", tags=["Groups"])
 api_router.include_router(exercises.router, prefix="/courses/{course_id}/lessons", tags=["Exercises"])
 api_router.include_router(ai_review.router, prefix="/ai", tags=["AI Review"])
 api_router.include_router(teacher_students.router, prefix="/teacher/students", tags=["Teacher - Students"])
+from app.api.v1.endpoints import classroom
+
+api_router.include_router(
+    classroom.router,
+    prefix="/classroom",
+    tags=["Classroom"]
+)

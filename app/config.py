@@ -6,7 +6,7 @@ BASE_DIR = Path(__file__).parent.parent
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:123@localhost:5433/student_platform"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:123@localhost:5432/Student_Platform"
     APP_NAME: str = "Student Programming Platform"
     DEBUG: bool = True
     SECRET_KEY: str = "your-secret-key-here"
@@ -22,7 +22,9 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
 
     # Grok AI
-
+    GROK_API_KEY: str = "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"
+    GROK_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
+    GROK_MODEL: str = "llama-3.3-70b-versatile"
 
 
     class Config:
