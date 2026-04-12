@@ -135,7 +135,6 @@ async def refresh_all_student_levels(
     updated_count = 0
     for student in students:
         old_level = student.current_level
-        # Modelda biz yozgan metodni chaqiramiz
         student.update_level_based_on_points()
 
         if old_level != student.current_level:

@@ -56,7 +56,19 @@ class StudentAchievementRead(BaseModel):
     badge_image_url: str
     points_reward: int
     earned_at: datetime
+
     model_config = ConfigDict(from_attributes=True)
+
+    @classmethod
+    def from_orm_custom(cls, sa: "StudentAchievement"):
+        return cls(
+            id=sa.id,
+            achievement_name=sa.achievement.name,
+            description=sa.achievement.description,
+            badge_image_url=sa.achievement.badge_image_url,
+            points_reward=sa.achievement.points_reward,
+            earned_at=sa.earned_at,
+        )
 
 
 class AchievementProgress(BaseModel):
@@ -103,3 +115,18 @@ class AchievementStatistics(BaseModel):
     students_earned: int
     students_not_earned: int
     completion_percentage: float
+
+
+class CertificateRead(BaseModel):
+    id: int
+    course_id: int
+    course_title: str
+    issued_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CertificateDetail(CertificateRead):
+    student_id: int
+    student_name: Optional[str] = None
+    course_difficulty: Optional[str] = None
+    course_duration_weeks: Optional[int] = None

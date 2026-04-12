@@ -89,7 +89,7 @@ class StudentWithoutAchievementRead(BaseModel):
     """Sertifikat olmagan student"""
     student_id: int
     username: str
-    full_name: Optional[str] = None  # <--- Shuni qo'shing    email: str
+    full_name: Optional[str] = None
     total_points: int
     current_level: str
     progress: int  # Foizda
@@ -103,3 +103,18 @@ class AchievementStatistics(BaseModel):
     students_earned: int
     students_not_earned: int
     completion_percentage: float
+
+
+class CertificateRead(BaseModel):
+    id: int
+    course_id: int
+    course_title: str
+    issued_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CertificateDetail(CertificateRead):
+    student_id: int
+    student_name: Optional[str] = None
+    course_difficulty: Optional[str] = None
+    course_duration_weeks: Optional[int] = None

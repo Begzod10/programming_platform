@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.services.ranking_service import RankingService
-from app.schemas.ranking import LeaderboardItem, MyRankingRead, RankingUpdate, RankingCreate
+from app.schemas.ranking import LeaderboardItem, MyRankingRead, RankingUpdate
 from app.models.user import Student
 from typing import List, Literal
 
 router = APIRouter()
 
 
-# ========== PUBLIC ENDPOINTS ==========
+# ========== STUDENT ENDPOINTS ==========
 
 @router.get("/leaderboard", response_model=List[LeaderboardItem])
 async def get_leaderboard(
@@ -19,15 +19,7 @@ async def get_leaderboard(
         level: str = Query(None),
         db: AsyncSession = Depends(get_db)
 ):
-    """
-    Leaderboard - barcha uchun
-
-    period:
-    - daily: Kunlik reyting (daily_points)
-    - weekly: Haftalik reyting (weekly_points)
-    - monthly: Oylik reyting (monthly_points)
-    - all: Hammasi (total_points)
-    """
+    """Leaderboard - Tanlangan period bo'yicha dinamik o'rin (rank) bilan."""
     service = RankingService(db)
     rankings = await service.get_leaderboard(
         period=period,
@@ -36,19 +28,27 @@ async def get_leaderboard(
         level=level
     )
 
-    return [
-        LeaderboardItem(
-            rank=index + 1 + offset,
-            student_id=r.student_id,
-            username=r.student.username,
-            full_name=r.student.full_name,
-            avatar_url=r.student.avatar_url,
-            points=r.get_points_for_period(period),
-            level=r.student.current_level.value,
-            projects_completed=r.projects_completed
+    result = []
+    for r in rankings:
+        # Periodga qarab ochkoni dinamik tanlaymiz
+        if period == "all":
+            pts = r.total_points
+        else:
+            pts = getattr(r, f"{period}_points", 0)
+
+        result.append(
+            LeaderboardItem(
+                rank=r.period_rank,
+                student_id=r.student_id,
+                username=r.username,
+                full_name=r.full_name,
+                avatar_url=r.avatar_url,
+                points=pts,
+                level=r.current_level,
+                projects_completed=r.projects_completed
+            )
         )
-        for index, r in enumerate(rankings)
-    ]
+    return result
 
 
 @router.get("/me", response_model=MyRankingRead)
@@ -56,22 +56,25 @@ async def my_ranking(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """Mening statistikam"""
+    """Foydalanuvchining barcha periodlar bo'yicha shaxsiy o'rinlari"""
     service = RankingService(db)
-    ranking = await service.get_my_ranking(current_student.id)
+    r = await service.get_my_ranking(current_student.id)
 
-    if not ranking:
+    if not r:
         raise HTTPException(status_code=404, detail="Ranking topilmadi")
 
+    # Mapping'dan (dict ko'rinishida) ma'lumotlarni olamiz
     return MyRankingRead(
-        global_rank=ranking.global_rank,
-        level_rank=ranking.level_rank,
-        daily_points=ranking.daily_points,
-        weekly_points=ranking.weekly_points,
-        monthly_points=ranking.monthly_points,
-        total_points=ranking.total_points,
-        projects_completed=ranking.projects_completed,
-        last_calculated_at=ranking.last_calculated_at
+        global_rank=r['all_rank'],
+        daily_rank=r['daily_rank'],
+        weekly_rank=r['weekly_rank'],
+        monthly_rank=r['monthly_rank'],
+        daily_points=r['Ranking'].daily_points,
+        weekly_points=r['Ranking'].weekly_points,
+        monthly_points=r['Ranking'].monthly_points,
+        total_points=r['Ranking'].total_points,
+        projects_completed=r['Ranking'].projects_completed,
+        last_calculated_at=r['Ranking'].last_calculated_at
     )
 
 
@@ -80,25 +83,27 @@ async def get_my_stats(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """Dashboard uchun statistika"""
+    """Dashboard tepadagi widget (yulduzcha va global rank) uchun"""
     service = RankingService(db)
-    ranking = await service.get_my_ranking(current_student.id)
+    ranking_data = await service.get_my_ranking(current_student.id)
 
-    if not ranking:
+    if not ranking_data:
         return {
-            "total_points": 0,
+            "total_points": current_student.total_points,
             "global_rank": "-",
             "projects_completed": 0
         }
 
+    # ranking_data['Ranking'] -> Model obyektiga
+    # ranking_data['all_rank'] -> Hisoblangan global o'ringa murojaat
     return {
-        "total_points": ranking.total_points,
-        "global_rank": f"#{ranking.global_rank}" if ranking.global_rank > 0 else "-",
-        "projects_completed": ranking.projects_completed
+        "total_points": current_student.total_points,
+        "global_rank": f"#{ranking_data['all_rank']}" if ranking_data['all_rank'] > 0 else "-",
+        "projects_completed": ranking_data['Ranking'].projects_completed
     }
 
 
-# ========== TEACHER ENDPOINTS ==========
+# ========== INSTRUCTOR (TEACHER) ENDPOINTS ==========
 
 @router.post("/", status_code=201)
 async def create_ranking(
@@ -106,7 +111,7 @@ async def create_ranking(
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Yangi ranking yaratish (faqat teacher)"""
+    """Yangi ranking yaratish"""
     service = RankingService(db)
     result = await service.create_ranking(student_id)
 
@@ -116,11 +121,7 @@ async def create_ranking(
             detail="Ranking allaqachon mavjud yoki foydalanuvchi student emas"
         )
 
-    return {
-        "message": "Ranking yaratildi!",
-        "id": result.id,
-        "student_id": result.student_id
-    }
+    return {"message": "Ranking yaratildi!", "id": result.id, "student_id": result.student_id}
 
 
 @router.put("/{ranking_id}")
@@ -130,17 +131,9 @@ async def update_ranking(
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Ranking'ni yangilash (faqat teacher)"""
+    """Ranking ochkolarini va statistikasini qo'lda yangilash"""
     service = RankingService(db)
-
-    result = await service.update_ranking(
-        ranking_id,
-        daily_points=data.daily_points,
-        weekly_points=data.weekly_points,
-        monthly_points=data.monthly_points,
-        total_points=data.total_points,
-        projects_completed=data.projects_completed
-    )
+    result = await service.update_ranking(ranking_id, **data.dict(exclude_unset=True))
 
     if not result:
         raise HTTPException(status_code=404, detail="Ranking topilmadi")
@@ -148,8 +141,7 @@ async def update_ranking(
     return {
         "message": "Ranking yangilandi!",
         "id": result.id,
-        "student_id": result.student_id,
-        "total_points": result.total_points
+        "total_points": result.student.total_points
     }
 
 
@@ -159,13 +151,11 @@ async def delete_ranking(
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Ranking'ni o'chirish (faqat teacher)"""
+    """Rankingni o'chirish"""
     service = RankingService(db)
     success = await service.delete_ranking(ranking_id)
-
     if not success:
         raise HTTPException(status_code=404, detail="Ranking topilmadi")
-
     return None
 
 
@@ -176,18 +166,12 @@ async def add_points(
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Studentga ball qo'shish (faqat teacher)"""
+    """Studentga ball qo'shish"""
     service = RankingService(db)
     result = await service.add_points_to_student(student_id, points)
-
     if not result:
         raise HTTPException(status_code=404, detail="Student topilmadi")
-
-    return {
-        "message": f"{points} ball qo'shildi!",
-        "student_id": student_id,
-        "total_points": result.total_points
-    }
+    return {"message": f"{points} ball qo'shildi!", "total_points": result.total_points}
 
 
 @router.post("/subtract-points")
@@ -197,18 +181,12 @@ async def subtract_points(
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Studentdan ball ayirish (faqat teacher)"""
+    """Studentdan ball ayirish"""
     service = RankingService(db)
     result = await service.subtract_points_from_student(student_id, points)
-
     if not result:
         raise HTTPException(status_code=404, detail="Student topilmadi")
-
-    return {
-        "message": f"{points} ball ayirildi!",
-        "student_id": student_id,
-        "total_points": result.total_points
-    }
+    return {"message": f"{points} ball ayirildi!", "total_points": result.total_points}
 
 
 @router.post("/recalculate")
@@ -216,43 +194,31 @@ async def recalculate_rankings(
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Reytinglarni qayta hisoblash (faqat teacher)"""
+    """Barcha reytinglarni qayta hisoblash"""
     service = RankingService(db)
     await service.calculate_and_update_rankings()
     return {"message": "Reytinglar qayta hisoblandi!"}
 
 
 @router.post("/reset-daily")
-async def reset_daily(
-        current_teacher: Student = Depends(get_current_instructor),
-        db: AsyncSession = Depends(get_db)
-):
-    """Kunlik ballarni nolga tushirish (faqat teacher)"""
+async def reset_daily(current_teacher: Student = Depends(get_current_instructor), db: AsyncSession = Depends(get_db)):
     service = RankingService(db)
     await service.reset_daily_points()
-    return {"message": "Barcha studentlarning kunlik ballari nolga tushirildi!"}
+    return {"message": "Kunlik ballar nolga tushirildi!"}
 
 
 @router.post("/reset-weekly")
-async def reset_weekly(
-        current_teacher: Student = Depends(get_current_instructor),
-        db: AsyncSession = Depends(get_db)
-):
-    """Haftalik ballarni nolga tushirish (faqat teacher)"""
+async def reset_weekly(current_teacher: Student = Depends(get_current_instructor), db: AsyncSession = Depends(get_db)):
     service = RankingService(db)
     await service.reset_weekly_points()
-    return {"message": "Barcha studentlarning haftalik ballari nolga tushirildi!"}
+    return {"message": "Haftalik ballar nolga tushirildi!"}
 
 
 @router.post("/reset-monthly")
-async def reset_monthly(
-        current_teacher: Student = Depends(get_current_instructor),
-        db: AsyncSession = Depends(get_db)
-):
-    """Oylik ballarni nolga tushirish (faqat teacher)"""
+async def reset_monthly(current_teacher: Student = Depends(get_current_instructor), db: AsyncSession = Depends(get_db)):
     service = RankingService(db)
     await service.reset_monthly_points()
-    return {"message": "Barcha studentlarning oylik ballari nolga tushirildi!"}
+    return {"message": "Oylik ballar nolga tushirildi!"}
 
 
 @router.get("/all", response_model=List[MyRankingRead])
@@ -262,14 +228,15 @@ async def get_all_rankings(
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Barcha ranking'larni ko'rish (faqat teacher)"""
+    """Barcha rankinglarni ko'rish (Teacher uchun)"""
     service = RankingService(db)
     rankings = await service.get_all_rankings(skip, limit)
-
     return [
         MyRankingRead(
             global_rank=r.global_rank,
-            level_rank=r.level_rank,
+            daily_rank=r.daily_rank,
+            weekly_rank=r.weekly_rank,
+            monthly_rank=r.monthly_rank,
             daily_points=r.daily_points,
             weekly_points=r.weekly_points,
             monthly_points=r.monthly_points,

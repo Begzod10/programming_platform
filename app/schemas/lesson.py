@@ -7,8 +7,9 @@ class LessonBase(BaseModel):
     """Lesson base schema"""
     title: str = Field(..., min_length=1, max_length=200, description="Dars nomi")
     order: int = Field(default=0, ge=0, description="Dars tartibi")
+    points_reward: int = Field(default=10, ge=0, description="Darsni tugatganda beriladigan ball")
 
-    # ✅ VAZIFA FIELD'LARI - YANGI
+    # Vazifa fieldlari
     task_title: Optional[str] = Field(None, max_length=200, description="Vazifa sarlavhasi")
     task_description: Optional[str] = Field(None, description="Vazifa tavsifi")
     task_requirements: Optional[str] = Field(None, description="Talablar (har qatordan)")
@@ -31,7 +32,6 @@ class LessonCreate(LessonBase):
     @field_validator("code_language")
     @classmethod
     def validate_code_language(cls, v: Optional[str]) -> Optional[str]:
-        """Dasturlash tilini tekshirish"""
         if v:
             allowed_languages = [
                 "python", "javascript", "typescript", "java", "c++", "csharp",
@@ -49,8 +49,9 @@ class LessonUpdate(BaseModel):
     """Darsni yangilash (barcha fieldlar optional)"""
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     order: Optional[int] = Field(None, ge=0)
+    points_reward: Optional[int] = Field(None, ge=0, description="Darsni tugatganda beriladigan ball")
 
-    # ✅ VAZIFA - YANGI
+    # Vazifa
     task_title: Optional[str] = Field(None, max_length=200)
     task_description: Optional[str] = None
     task_requirements: Optional[str] = None

@@ -8,10 +8,9 @@ from app.api.v1.endpoints import (
     achievements,
     courses,
     lessons,
-    groups
+    groups,
 )
 from app.api.v1.endpoints.teacher import students as teacher_students
-# from app.api.v1.endpoints.teacher import projects as teacher_projects
 
 api_router = APIRouter()
 
@@ -24,5 +23,5 @@ api_router.include_router(degrees.router, prefix="/degrees", tags=["Degree"])
 api_router.include_router(achievements.router, prefix="/achievements", tags=["Achievements"])
 api_router.include_router(lessons.router, prefix="", tags=["Lessons"])
 api_router.include_router(teacher_students.router, prefix="/teacher/students", tags=["Teacher - Students"])
-# api_router.include_router(teacher_projects.router, prefix="/teacher/projects", tags=["Teacher - Projects"])
 api_router.include_router(groups.router, prefix="/groups", tags=["Groups"])
+

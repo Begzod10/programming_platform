@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 
 from app.models.project import Project
+from app.models.user import Student
 from app.schemas.project import ProjectCreate, ProjectUpdate
 
 
@@ -92,11 +93,33 @@ class ProjectService:
         project = await self.get_project(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+
         project.instructor_feedback = feedback
         project.grade = grade
         project.points_earned = points
         project.status = "Approved"
         project.reviewed_at = datetime.utcnow()
+
+        # Studentga ball qo'shish
+        student_result = await self.db.execute(
+            select(Student).where(Student.id == project.student_id)
+        )
+        student = student_result.scalar_one_or_none()
+        if student and points > 0:
+            student.total_points += points
+
+            # Rankingniyam yangilash
+            from app.models.ranking import Ranking
+            ranking_result = await self.db.execute(
+                select(Ranking).where(Ranking.student_id == student.id)
+            )
+            ranking = ranking_result.scalar_one_or_none()
+            if ranking:
+                ranking.total_points = student.total_points
+                ranking.daily_points += points
+                ranking.weekly_points += points
+                ranking.monthly_points += points
+
         await self.db.commit()
         await self.db.refresh(project)
         return project

@@ -1,0 +1,36 @@
+from datetime import datetime
+from sqlalchemy import Integer, ForeignKey, DateTime, UniqueConstraint, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.db.base_class import Base
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.user import Student
+    from app.models.course import Course
+
+
+class CourseCertificate(Base):
+    __tablename__ = "course_certificates"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=False
+    )
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    )
+    issued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    # Bir student bir kursdan faqat 1 ta sertifikat olishi mumkin
+    __table_args__ = (
+        UniqueConstraint("student_id", "course_id", name="uq_student_course_cert"),
+    )
+
+    student: Mapped["Student"] = relationship("Student", back_populates="certificates")
+    course: Mapped["Course"] = relationship("Course", back_populates="certificates")
+
+    def __repr__(self):
+        return f"<Certificate student={self.student_id} course={self.course_id}>"

@@ -1,27 +1,26 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
+﻿from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
+import io
+import os
 
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.services import achievement_service
+from app.utils.certificate import generate_certificate
 from app.schemas.achievement import (
-    AchievementCreate, AchievementUpdate, AchievementRead,
-    StudentAchievementRead, AchievementProgress,
-    StudentWithAchievementRead, StudentWithoutAchievementRead,
-    AchievementStatistics
+    AchievementCreate,
+    AchievementUpdate,
+    AchievementRead,
+    StudentAchievementRead,
+    AchievementProgress,
+    StudentWithAchievementRead,
+    StudentWithoutAchievementRead,
+    AchievementStatistics,
+    CertificateRead
 )
-from app.models.user import Student
 
 router = APIRouter()
-
-
-# ========== PUBLIC / STUDENT ENDPOINTS (Talabalar uchun) ==========
-
-@router.get("/", response_model=List[AchievementRead])
-async def get_all_achievements(db: AsyncSession = Depends(get_db)):
-    """Barcha mavjud achievementlar ro'yxati"""
-    return await achievement_service.get_all_achievements(db)
 
 
 @router.get("/my", response_model=List[StudentAchievementRead])
@@ -29,56 +28,67 @@ async def my_achievements(
         current_student=Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """Mening qo'lga kiritgan achievementlarim"""
-    achievements = await achievement_service.get_my_achievements(db, current_student.id)
+    await achievement_service.check_and_award_achievements(db, current_student.id)
+    results = await achievement_service.get_my_achievements(db, current_student.id)
+    return [StudentAchievementRead.from_orm_custom(sa) for sa in results]
+
+
+@router.get("/my-progress", response_model=List[AchievementProgress])
+async def my_achievement_progress(
+        current_student=Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """Talaba hali olmagan yutuqlari bo'yicha progressni ko'rishi"""
+    return await achievement_service.get_achievement_progress(db, current_student.id)
+
+
+@router.get("/my-certificates", response_model=List[CertificateRead])
+async def my_certificates(
+        current_student=Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """Talaba sertifikatlarini ko'rish"""
+    # Xatoni to'g'irlash: service ichida get_my_certificates bo'lishi shart
+    certs = await achievement_service.get_my_certificates(db, current_student.id)
     return [
-        StudentAchievementRead(
-            id=sa.id,
-            achievement_name=sa.achievement.name,
-            description=sa.achievement.description,
-            badge_image_url=sa.achievement.badge_image_url,
-            points_reward=sa.achievement.points_reward,
-            earned_at=sa.earned_at
-        ) for sa in achievements
+        CertificateRead(
+            id=c.id,
+            course_id=c.course_id,
+            course_title=c.course.title,
+            issued_at=c.issued_at
+        ) for c in certs
     ]
 
 
-@router.get("/progress", response_model=List[AchievementProgress])
-async def achievement_progress(
+@router.post("/check-and-earn-certificate")
+async def check_and_earn_certificate(
+        course_id: int = Query(...),
         current_student=Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """Yutuqlarga bo'lgan progressim (necha foiz qoldi)"""
-    progress = await achievement_service.get_achievement_progress(db, current_student.id)
-    if not progress:
-        raise HTTPException(status_code=404, detail="Progress ma'lumotlari topilmadi")
-    return progress
+    """Avtomatik sertifikat berish mantiqi"""
+    cert = await achievement_service.award_certificate(db, current_student.id, course_id)
+    if not cert:
+        return {"message": "Sertifikat allaqachon mavjud yoki shartlar bajarilmagan", "issued": False}
+    return {"message": "Tabriklaymiz! Sertifikat berildi!", "certificate_id": cert.id}
 
 
-@router.post("/check-and-award")
-async def check_and_award(
-        current_student=Depends(get_current_student),
+@router.get("/all", response_model=List[AchievementRead])
+async def get_all_achievements(
+        current_teacher=Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Kriteriyalar bajarilgan bo'lsa, avtomatik yutuqlarni berish"""
-    awarded = await achievement_service.check_and_award_achievements(db, current_student.id)
-    if not awarded:
-        return {"message": "Yangi achievement yo'q", "awarded": []}
-    return {
-        "message": f"{len(awarded)} ta yangi achievement berildi!",
-        "awarded": [{"id": a.achievement_id, "earned_at": a.earned_at} for a in awarded]
-    }
+    """Barcha mavjud yutuqlar turlari ro'yxati"""
+    return await achievement_service.get_all_achievements(db)
 
 
-# ========== TEACHER ENDPOINTS (Faqat o'qituvchilar uchun) ==========
-
-@router.post("/create", response_model=AchievementRead)
+@router.post("/create", response_model=AchievementRead, status_code=status.HTTP_201_CREATED)
 async def create_achievement(
         data: AchievementCreate,
         current_teacher=Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Yangi achievement yaratish (masalan: 'Top Coder')"""
+    """Yangi yutuq turi yaratish"""
     return await achievement_service.create_achievement(db, **data.model_dump())
 
 
@@ -89,128 +99,140 @@ async def update_achievement(
         current_teacher=Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Achievement ma'lumotlarini tahrirlash"""
-    achievement = await achievement_service.update_achievement(
-        db, achievement_id, **data.model_dump(exclude_unset=True)
-    )
-    if not achievement:
-        raise HTTPException(status_code=404, detail="Achievement topilmadi")
-    return achievement
-
-
-@router.delete("/{achievement_id}")
-async def delete_achievement(
-        achievement_id: int,
-        current_teacher=Depends(get_current_instructor),
-        db: AsyncSession = Depends(get_db)
-):
-    """Achievementni o'chirish (Kaskadli: barcha talabalardan ham o'chadi)"""
-    result = await achievement_service.delete_achievement(db, achievement_id)
-    if not result:
-        raise HTTPException(status_code=404, detail="Achievement topilmadi")
-    return {"message": "Achievement muvaffaqiyatli o'chirildi!"}
+    """Yutuq ma'lumotlarini o'zgartirish"""
+    return await achievement_service.update_achievement(db, achievement_id, **data.model_dump(exclude_unset=True))
 
 
 @router.post("/award")
-async def award_achievement(
+async def award_achievement_manual(
         student_id: int = Query(...),
         achievement_id: int = Query(...),
         current_teacher=Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Studentga qo'lda achievement berish (Ball qo'shiladi va Daraja yangilanadi)"""
+    """O'qituvchi tomonidan talabaga yutuqni qo'lda berish"""
     result = await achievement_service.award_achievement(db, student_id, achievement_id)
     if not result:
         raise HTTPException(
             status_code=400,
-            detail="Achievement berib bo'lmadi yoki studentda u allaqachon mavjud"
+            detail="Yutuq allaqachon berilgan yoki ma'lumotlarda xatolik bor"
         )
-    return {"message": "Achievement berildi!", "earned_at": result.earned_at}
+    return {"message": "Yutuq muvaffaqiyatli berildi", "data": result}
 
 
-@router.delete("/{achievement_id}/revoke")
+@router.delete("/{achievement_id}", status_code=status.HTTP_200_OK)
+async def delete_achievement(
+        achievement_id: int,
+        current_teacher=Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """Yutuqni o'chirish"""
+    result = await achievement_service.delete_achievement(db, achievement_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Yutuq topilmadi")
+    return {"message": "Muvaffaqiyatli o'chirildi"}
+
+
+@router.get("/{achievement_id}/statistics", response_model=AchievementStatistics)
+async def get_achievement_stats(
+        achievement_id: int,
+        current_teacher=Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """Yutuq statistikasi (Olganlar va olmaganlar soni)"""
+    return await achievement_service.get_achievement_statistics(db, achievement_id)
+
+
+@router.get("/{achievement_id}/students-with", response_model=List[StudentWithAchievementRead])
+async def get_earned_students(
+        achievement_id: int,
+        current_teacher=Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """Frontend 'Получили' tabi uchun"""
+    return await achievement_service.get_students_with_achievement(db, achievement_id)
+
+
+@router.get("/{achievement_id}/students-without", response_model=List[StudentWithoutAchievementRead])
+async def get_not_earned_students(
+        achievement_id: int,
+        current_teacher=Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """Frontend 'Не получили' tabi uchun"""
+    return await achievement_service.get_students_without_achievement(db, achievement_id)
+
+
+@router.get("/{achievement_id}/download")
+async def download_achievement_pdf(
+        achievement_id: int,
+        current_student=Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """Yutuqni (Badge) PDF shaklida yuklab olish"""
+    pdf_buffer = await achievement_service.generate_certificate_pdf(db, current_student.id, achievement_id)
+
+    if not pdf_buffer or pdf_buffer in ["error", "template_missing"]:
+        raise HTTPException(status_code=400, detail="Fayl yaratishda xatolik")
+
+    pdf_buffer.seek(0)
+    filename = f"Badge_{current_student.username}_{achievement_id}.pdf"
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/course/{course_id}/download")
+async def download_course_certificate(
+        course_id: int,
+        current_student=Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    cert = await achievement_service.get_course_certificate(db, current_student.id, course_id)
+    if not cert:
+        raise HTTPException(status_code=403, detail="Sizda sertifikat mavjud emas")
+
+    student_name = current_student.full_name or current_student.username
+    course_name = cert.course.title
+    cert_number = cert.id
+
+    pdf_output = generate_certificate(student_name, course_name, cert_number)
+
+    if isinstance(pdf_output, bytes):
+        pdf_output = io.BytesIO(pdf_output)
+
+    filename = f"Certificate_{course_id}.pdf"
+    return StreamingResponse(
+        pdf_output,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+@router.delete("/{achievement_id}/revoke", status_code=status.HTTP_200_OK)
 async def revoke_achievement(
         achievement_id: int,
         student_id: int = Query(...),
         current_teacher=Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Studentdan achievementni qaytib olish (Ball ayiriladi va Daraja tushishi mumkin)"""
+    """O'qituvchi tomonidan talabadan yutuqni qaytarib olish"""
     result = await achievement_service.revoke_achievement(db, student_id, achievement_id)
     if not result:
-        raise HTTPException(
-            status_code=404,
-            detail="Talabada ushbu achievement topilmadi"
-        )
-    return {"message": "Achievement bekor qilindi, ballar va daraja qayta hisoblandi."}
+        raise HTTPException(status_code=404, detail="Yutuq topilmadi yoki talabada mavjud emas")
+    return {"message": "Yutuq muvaffaqiyatli qaytarib olindi"}
 
 
-# ========== MONITORING ENDPOINTS (Statistika) ==========
-
-@router.get("/{achievement_id}/students-with", response_model=List[StudentWithAchievementRead])
-async def get_students_with_achievement(
+@router.delete("/{achievement_id}/revoke", status_code=status.HTTP_200_OK)
+async def revoke_achievement_from_student(
         achievement_id: int,
+        student_id: int = Query(...),
         current_teacher=Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Ushbu yutuqni qo'lga kiritgan talabalar ro'yxati"""
-    return await achievement_service.get_students_with_achievement(db, achievement_id)
-
-
-@router.get("/{achievement_id}/students-without", response_model=List[StudentWithoutAchievementRead])
-async def get_students_without_achievement(
-        achievement_id: int,
-        current_teacher=Depends(get_current_instructor),
-        db: AsyncSession = Depends(get_db)
-):
-    """Ushbu yutuqni hali olmagan talabalar va ularning progressi"""
-    return await achievement_service.get_students_without_achievement(db, achievement_id)
-
-
-@router.get("/{achievement_id}/statistics", response_model=AchievementStatistics)
-async def get_achievement_statistics(
-        achievement_id: int,
-        current_teacher=Depends(get_current_instructor),
-        db: AsyncSession = Depends(get_db)
-):
-    """Achievement bo'yicha umumiy statistika (foizlar va sonlar)"""
-    stats = await achievement_service.get_achievement_statistics(db, achievement_id)
-    if not stats:
-        raise HTTPException(status_code=404, detail="Statistika topilmadi")
-    return stats
-
-
-@router.post("/fix-levels-all-students")
-async def fix_levels(db: AsyncSession = Depends(get_db)):
-    """Barcha talabalarning darajasini ballariga qarab to'g'rilab chiqish"""
-    result = await db.execute(select(Student))
-    students = result.scalars().all()
-
-    updated_count = 0
-    for student in students:
-        old_level = student.current_level
-        student.update_level_based_on_points()
-        if old_level != student.current_level:
-            updated_count += 1
-
-    await db.commit()
-    return {"message": f"{len(students)} ta talabadan {updated_count} tasining darajasi yangilandi."}
-
-
-@router.post("/force-update-all-levels")
-async def force_update_all_levels(db: AsyncSession = Depends(get_db)):
-    """Bazadagi barcha studentlarni ballariga qarab darajasini to'g'rilash"""
-    # 1. Barcha studentlarni bazadan olamiz
-    result = await db.execute(select(Student))
-    students = result.scalars().all()
-
-    updated_count = 0
-    for student in students:
-        old_level = student.current_level
-        student.total_points = student.total_points
-
-        if old_level != student.current_level:
-            updated_count += 1
-
-    await db.commit()
-    return {"status": "Success", "updated_students": updated_count}
+    """O'qituvchi tomonidan talabadan yutuqni qaytarib olish"""
+    result = await achievement_service.revoke_achievement(db, student_id, achievement_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Yutuq topilmadi yoki talabada mavjud emas")
+    return {"message": "Yutuq muvaffaqiyatli qaytarib olindi"}

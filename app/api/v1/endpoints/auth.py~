@@ -1,41 +1,25 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.dependencies import get_db, get_current_student
-from app.schemas.user import UserCreate, UserRead, TokenResponse, UserUpdate
+from app.schemas.user import UserCreate, UserRead, UserLogin, TokenResponse, UserUpdate
 from app.services import auth_service
 from app.models.user import Student
 
 router = APIRouter()
 
 
-@router.post(
-    "/register",
-    response_model=TokenResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Register new user"
-)
-async def register(
-        user_in: UserCreate,
-        db: AsyncSession = Depends(get_db)
-):
-    """Yangi foydalanuvchi ro'yxatdan o'tkazish"""
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
     return await auth_service.register_new_student(db, user_in)
 
 
-@router.post(
-    "/login",
-    response_model=TokenResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Login user"
-)
+@router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 async def login(
-        username: str,
-        password: str,
+        user_in: UserLogin,
         db: AsyncSession = Depends(get_db)
 ):
-    """Tizimga kirish"""
-    return await auth_service.login(db, username, password)
+    return await auth_service.login(db, user_in.username, user_in.password)
 
 
 @router.post(
@@ -67,29 +51,18 @@ async def get_me(
     return current_student
 
 
-@router.put(
-    "/me",
-    response_model=UserRead,
-    summary="Update current user"
-)
+@router.delete("/me", status_code=status.HTTP_200_OK)
+async def delete_me(
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    return await auth_service.delete_user(current_student.id, db)
+
+
+@router.put("/me", status_code=status.HTTP_200_OK)
 async def update_me(
         user_data: UserUpdate,
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """O'z ma'lumotlarini yangilash"""
     return await auth_service.update_user(current_student.id, user_data, db)
-
-
-@router.delete(
-    "/me",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete current user"
-)
-async def delete_me(
-        current_student: Student = Depends(get_current_student),
-        db: AsyncSession = Depends(get_db)
-):
-    """O'z akkauntini o'chirish"""
-    await auth_service.delete_user(current_student.id, db)
-    return None

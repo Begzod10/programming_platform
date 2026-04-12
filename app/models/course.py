@@ -7,6 +7,7 @@ from app.db.base_class import Base
 if TYPE_CHECKING:
     from app.models.user import Student
     from app.models.lesson import Lesson
+    from app.models.certificate import CourseCertificate
 
 student_courses = Table(
     "student_courses",
@@ -56,6 +57,17 @@ class Course(Base):
         back_populates="course",
         cascade="all, delete-orphan",
         lazy="selectin"
+    )
+
+    certificates: Mapped[List["CourseCertificate"]] = relationship(
+        "CourseCertificate",
+        back_populates="course",
+        cascade="all, delete-orphan"
+    )
+    certificates: Mapped[List["CourseCertificate"]] = relationship(
+        "CourseCertificate",
+        back_populates="course",
+        cascade="all, delete-orphan"
     )
 
     @property

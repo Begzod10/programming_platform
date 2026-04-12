@@ -137,10 +137,15 @@ class Student(Base):
         back_populates="instructor"
     )
 
+    certificates: Mapped[List["CourseCertificate"]] = relationship(
+        "CourseCertificate",
+        back_populates="student",
+        cascade="all, delete-orphan"
+    )
+
     @validates('total_points')
     def sync_level_with_points(self, key, value):
-        # Agar value None bo'lsa 0 deb olamiz
-        points = value or 0
+        points = value if value is not None else 0
 
         if points >= 5000:
             self.current_level = StudentLevel.Advanced

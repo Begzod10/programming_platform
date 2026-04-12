@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from app.models.student_degree import StudentDegree
     from app.models.ranking import Ranking
     from app.models.group import Group
+    from app.models.certificate import CourseCertificate
 
 
 class UserRole(str, enum.Enum):
@@ -135,6 +136,12 @@ class Student(Base):
     taught_courses: Mapped[List["Course"]] = relationship(
         "Course",
         back_populates="instructor"
+    )
+
+    certificates: Mapped[List["CourseCertificate"]] = relationship(
+        "CourseCertificate",
+        back_populates="student",
+        cascade="all, delete-orphan"
     )
 
     @validates('total_points')

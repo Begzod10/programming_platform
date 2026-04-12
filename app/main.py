@@ -9,7 +9,7 @@ from app.api.v1.router import api_router
 from app.db.database import init_db
 from app.core.exceptions import register_exception_handlers
 from app.scheduler import start_scheduler, scheduler
-
+from app.utils import certificate as cert_utils
 from app.db import base
 
 
@@ -21,9 +21,19 @@ async def lifespan(app: FastAPI):
 
     print("🚀 Student Programming Platform started!")
     await init_db()
-
-    # Scheduler ishga tushirish
     start_scheduler()
+
+    # Shablon faylni xotiraga olish
+    path = "app/static/web_certificate.pdf"
+    abs_path = os.path.abspath(path)
+    print(f"📁 Fayl yo'li: {abs_path}")
+    print(f"📁 Mavjudmi: {os.path.exists(abs_path)}")
+    try:
+        with open(abs_path, "rb") as f:
+            cert_utils._COURSE_TEMPLATE_BYTES = f.read()
+            print(f"✅ Shablon yuklandi: {len(cert_utils._COURSE_TEMPLATE_BYTES)} bytes")
+    except Exception as e:
+        print(f"❌ Shablon yuklanmadi: {e}")
 
     yield
 
@@ -52,9 +62,7 @@ def create_application() -> FastAPI:
     )
 
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
-
     app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-
     register_exception_handlers(app)
 
     return app
@@ -74,5 +82,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

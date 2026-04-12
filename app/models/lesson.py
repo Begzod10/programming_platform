@@ -21,6 +21,7 @@ class Lesson(Base):
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     order: Mapped[int] = mapped_column(Integer, default=0)
+    points_reward: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
 
     # Vazifa ma'lumotlari
     task_title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
