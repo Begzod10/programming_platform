@@ -44,25 +44,27 @@ def generate_certificate(
     can.translate(W_orig, 0)
     can.rotate(90)
 
+    # Talaba ismi
     can.setFillColorRGB(0, 0, 0)
-
-    # ✅ Talaba ismi
-    can.setFont("Times-Bold", int(24 * fs))
+    can.setFont("Times-Bold", int(20 * fs))
     can.drawString(310, LH * 0.595, student_name)
 
-    # ✅ Kurs nomi — X=400, "has..." bilan TENG CHIZIQDA
-    can.setFont("Times-Roman", int(16 * fs))
+    # Kurs nomi
+    can.setFillColorRGB(0, 0, 0)
+    can.setFont("Times-Roman", int(20 * fs))
     can.drawString(310, LH * 0.505, course_name.upper() + " Course")
 
-    # ✅ ID raqami — X=400, "ID number: AA" bilan TENG, raqam AA DAN KEYIN
-    can.setFont("Times-Roman", int(14 * fs))
-    id_font_size = int(14 * fs)
+    # ID raqam
+    can.setFillColorRGB(0, 0, 0)
+    can.setFont("Times-Roman", int(15 * fs))
+    id_font_size = int(17 * fs)
     id_offset = stringWidth("ID number:  AA ", "Times-Roman", id_font_size)
-    can.drawString(330 + id_offset, LH * 0.460, f"{cert_number:07d}")
+    can.drawString(260 + id_offset, LH * 0.458, f"{cert_number:07d}")
 
-    # ✅ Teacher ismi — X=400, "Course Teacher" bilan TENG
-    can.setFont("Times-Bold", int(12 * fs))
-    can.drawString(325, LH * 0.170, teacher_name)
+    # O'qituvchi ismi
+    can.setFillColorRGB(0, 0, 0)
+    can.setFont("Times-Roman", int(20 * fs))
+    can.drawString(320, LH * 0.170, teacher_name)
 
     can.restoreState()
     can.save()
@@ -97,7 +99,7 @@ def generate_badge_certificate(
     W, H = 842, 595
     can = canvas.Canvas(packet, pagesize=(W, H))
 
-    can.setFillColorRGB(0.95, 0.95, 1.0)
+    can.setFillColorRGB(1, 1, 1)
     can.rect(0, 0, W, H, fill=1, stroke=0)
     can.setStrokeColorRGB(0.4, 0.4, 0.8)
     can.setLineWidth(3)
