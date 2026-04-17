@@ -7,7 +7,7 @@ from app.db.base_class import Base
 if TYPE_CHECKING:
     from app.models.user import Student
     from app.models.lesson import Lesson
-    from app.models.certificate import CourseCertificate
+    from app.models.student_achievement import CourseCertificate
 
 student_courses = Table(
     "student_courses",
@@ -16,6 +16,7 @@ student_courses = Table(
     Column("course_id", ForeignKey("courses.id", ondelete="CASCADE"), primary_key=True),
     extend_existing=True
 )
+
 
 class Course(Base):
     __tablename__ = "courses"
@@ -27,9 +28,15 @@ class Course(Base):
         ForeignKey("students.id", ondelete="CASCADE"),
         nullable=False
     )
-    difficulty_level: Mapped[str] = mapped_column(String(50), nullable=False) # Uzunlik oshirildi
+    difficulty_level: Mapped[str] = mapped_column(String(50), nullable=False)
     duration_weeks: Mapped[int] = mapped_column(Integer, nullable=False)
     max_points: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Kurs ketma-ketligi: bu kurs uchun oldindan tugatilishi kerak bo'lgan kurs
+    prerequisite_course_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("courses.id", ondelete="SET NULL"),
+        nullable=True
+    )
 
     image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     thumbnail_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
@@ -38,7 +45,8 @@ class Course(Base):
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
+                                                 onupdate=func.now())
 
     # Relationshipni back_populates bilan to'g'irlash
     instructor: Mapped["Student"] = relationship(
@@ -64,10 +72,15 @@ class Course(Base):
         back_populates="course",
         cascade="all, delete-orphan"
     )
-    certificates: Mapped[List["CourseCertificate"]] = relationship(
-        "CourseCertificate",
-        back_populates="course",
-        cascade="all, delete-orphan"
+
+    achievements: Mapped[List["Achievement"]] = relationship("Achievement", back_populates="course")
+
+    # Self-referential: ushbu kursning oldindan talab qilinadigan kursi
+    prerequisite_course: Mapped[Optional["Course"]] = relationship(
+        "Course",
+        remote_side="Course.id",
+        foreign_keys="[Course.prerequisite_course_id]",
+        uselist=False
     )
 
     @property

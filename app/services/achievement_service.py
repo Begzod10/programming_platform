@@ -7,20 +7,14 @@ from app.models.user import Student
 from app.models.project import Project
 from typing import Optional, List
 from datetime import datetime
-from app.models.lesson import Lesson
+from app.models.lesson import Lesson, LessonCompletion
 from app.models.submission import Submission
 from app.models.student_achievement import CourseCertificate
 from sqlalchemy import and_
 
-import os
 import io
 from app.utils.certificate import generate_certificate, generate_badge_certificate
-from app.models.student_achievement import CourseCertificate, StudentAchievement
-from app.models.achievement import Achievement
-from app.models.user import Student
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
-from sqlalchemy.orm import selectinload
 from typing import Optional, Union
 
 
@@ -48,46 +42,8 @@ async def get_my_achievements(db: AsyncSession, student_id: int) -> List[Student
 
 # ========== CORE LOGIC (AWARD / REVOKE / CHECK) ==========
 
-async def award_achievement(db: AsyncSession, student_id: int, achievement_id: int) -> Optional[StudentAchievement]:
-    """Studentga achievement berish, ball qo'shish va darajani yangilash"""
-    # 1. Allaqachon borligini tekshirish
-    existing = await db.execute(
-        select(StudentAchievement).where(
-            StudentAchievement.student_id == student_id,
-            StudentAchievement.achievement_id == achievement_id
-        )
-    )
-    if existing.scalar_one_or_none():
-        return None
-
-    # 2. Achievement va Studentni yuklash
-    achievement = await get_achievement_by_id(db, achievement_id)
-    student_result = await db.execute(select(Student).where(Student.id == student_id))
-    student = student_result.scalar_one_or_none()
-
-    if not student or not achievement:
-        return None
-
-    # 3. Ballarni qo'shish va Darajani yangilash
-    student.total_points += achievement.points_reward
-    if hasattr(student, 'update_level_based_on_points'):
-        student.update_level_based_on_points()
-
-    # 4. Saqlash
-    new_sa = StudentAchievement(
-        student_id=student_id,
-        achievement_id=achievement_id,
-        earned_at=datetime.utcnow()
-    )
-    db.add(new_sa)
-    await db.commit()
-    await db.refresh(new_sa)
-    return new_sa
-
-
 async def revoke_achievement(db: AsyncSession, student_id: int, achievement_id: int) -> bool:
-    """Studentdan achievementni qaytib olish, ballarni ayirish va darajani qayta hisoblash"""
-    # 1. Bog'liqlikni qidirish
+    """Studentdan achievementni qaytib olish"""
     result = await db.execute(
         select(StudentAchievement).where(
             StudentAchievement.student_id == student_id,
@@ -98,31 +54,27 @@ async def revoke_achievement(db: AsyncSession, student_id: int, achievement_id: 
     if not student_achievement:
         return False
 
-    # 2. Achievement va Student ma'lumotlarini olish
     achievement = await get_achievement_by_id(db, achievement_id)
     student_result = await db.execute(select(Student).where(Student.id == student_id))
     student = student_result.scalar_one_or_none()
 
-    # 3. Ballarni ayirish va darajani qayta hisoblash
     if student and achievement:
         student.total_points = max(0, student.total_points - achievement.points_reward)
         if hasattr(student, 'update_level_based_on_points'):
             student.update_level_based_on_points()
 
-    # 4. O'chirish
     await db.delete(student_achievement)
     await db.commit()
     return True
 
 
 async def check_and_award_achievements(db: AsyncSession, student_id: int) -> List[StudentAchievement]:
-    """Avtomatik achievement tekshiruvi (kriteriyalar bo'yicha)"""
+    """Avtomatik achievement tekshiruvi"""
     student_result = await db.execute(select(Student).where(Student.id == student_id))
     student = student_result.scalar_one_or_none()
     if not student:
         return []
 
-    # Tugallangan proyektlar soni
     projects_result = await db.execute(
         select(func.count(Project.id)).where(
             Project.student_id == student_id,
@@ -131,7 +83,6 @@ async def check_and_award_achievements(db: AsyncSession, student_id: int) -> Lis
     )
     completed_projects = projects_result.scalar() or 0
 
-    # Barcha mavjud achievementlar
     achievements = await get_all_achievements(db)
 
     awarded = []
@@ -141,12 +92,235 @@ async def check_and_award_achievements(db: AsyncSession, student_id: int) -> Lis
             should_award = True
         elif ach.criteria_type == "points_threshold" and student.total_points >= ach.criteria_value:
             should_award = True
+        elif ach.criteria_type == "course_completion" and ach.course_id:
+            # Kurs tugatilganini tekshiramiz
+            is_complete = await check_course_completion(db, student_id, ach.course_id)
+            if is_complete:
+                should_award = True
 
         if should_award:
             result = await award_achievement(db, student_id, ach.id)
             if result:
                 awarded.append(result)
+            
+            # AGAR BU KURS SERTIFIKATI BO'LSA - Rasmiy sertifikatni ham beramiz
+            if ach.criteria_type == "course_completion" and ach.course_id:
+                await award_certificate(db, student_id, ach.course_id)
+                
     return awarded
+
+
+# ========== COURSE COMPLETION & CERTIFICATE ==========
+
+async def check_course_completion(db: AsyncSession, student_id: int, course_id: int) -> bool:
+    """Studentning kursni to'liq tugatganini tekshirish — LessonCompletion orqali"""
+
+    # 1. Kursda nechta aktiv dars bor
+    total_res = await db.execute(
+        select(func.count(Lesson.id)).where(
+            Lesson.course_id == course_id,
+            Lesson.is_active == True
+        )
+    )
+    total = total_res.scalar() or 0
+
+    if total == 0:
+        return False
+
+    # 2. Student nechta darsni tugatgan
+    completed_res = await db.execute(
+        select(func.count(LessonCompletion.id))
+        .join(Lesson, LessonCompletion.lesson_id == Lesson.id)
+        .where(
+            Lesson.course_id == course_id,
+            LessonCompletion.student_id == student_id
+        )
+    )
+    completed = completed_res.scalar() or 0
+
+    return completed >= total
+
+
+async def award_certificate(
+    db: AsyncSession, student_id: int, course_id: int
+) -> Optional[CourseCertificate]:
+    """Kursning barcha darslari tugaganda avtomatik sertifikat berish.
+    Allaqachon sertifikat mavjud bo'lsa yoki kurs tugatilmagan bo'lsa None qaytaradi."""
+
+    # 1. Sertifikat allaqachon berilganmi?
+    existing_res = await db.execute(
+        select(CourseCertificate).where(
+            and_(
+                CourseCertificate.student_id == student_id,
+                CourseCertificate.course_id == course_id,
+            )
+        )
+    )
+    if existing_res.scalar_one_or_none():
+        print(f"ℹ️ Sertifikat allaqachon mavjud: student={student_id}, course={course_id}")
+        return None
+
+    # 2. Kurs to'liq tugatilganmi?
+    is_complete = await check_course_completion(db, student_id, course_id)
+    if not is_complete:
+        return None
+
+    # 3. Yangi sertifikat yaratish
+    cert = CourseCertificate(student_id=student_id, course_id=course_id)
+    db.add(cert)
+    await db.commit()
+    await db.refresh(cert)
+    print(f"🎓 Sertifikat berildi: student={student_id}, course={course_id}, cert_id={cert.id}")
+    return cert
+
+
+async def check_course_prerequisite(
+    db: AsyncSession, student_id: int, course_id: int
+) -> bool:
+    """Kursning oldingi kursi tugatilganmi tekshiradi.
+    True  → kirish ruxsat beriladi (prereq yo'q yoki tugatilgan)
+    False → kirish bloklanadi (prereq tugatilmagan)"""
+    from app.models.course import Course
+
+    # Kursni olish
+    course_res = await db.execute(select(Course).where(Course.id == course_id))
+    course = course_res.scalar_one_or_none()
+
+    if not course:
+        return False  # Kurs topilmadi
+
+    # Prereq yo'q bo'lsa — hamma kirishi mumkin
+    if not course.prerequisite_course_id:
+        return True
+
+    # Prereq kursni talaba tugatganmi?
+    return await check_course_completion(db, student_id, course.prerequisite_course_id)
+
+
+async def award_achievement(db: AsyncSession, student_id: int, achievement_id: int) -> Optional[StudentAchievement]:
+    """Studentga achievement berish, ball qo'shish va course_id ni bog'lash"""
+    # 1. Avval berilganini tekshirish
+    existing = await db.execute(
+        select(StudentAchievement).where(
+            StudentAchievement.student_id == student_id,
+            StudentAchievement.achievement_id == achievement_id
+        )
+    )
+    if existing.scalar_one_or_none():
+        return None
+
+    # 2. Ma'lumotlarni olish
+    achievement = await get_achievement_by_id(db, achievement_id)
+    student_result = await db.execute(select(Student).where(Student.id == student_id))
+    student = student_result.scalar_one_or_none()
+
+    if not student or not achievement:
+        return None
+
+    # 3. Balllarni yangilash (Ranking bilan birga)
+    from app.services.ranking_service import RankingService
+    ranking_service = RankingService(db)
+    await ranking_service.add_points_to_student(student_id, achievement.points_reward)
+
+    # 4. Bazaga yozish (course_id bilan birga)
+    new_sa = StudentAchievement(
+        student_id=student_id,
+        achievement_id=achievement_id,
+        course_id=achievement.course_id,  # Muhim: frontend uchun
+        earned_at=datetime.utcnow()
+    )
+    db.add(new_sa)
+
+    # 5. Saqlash
+    await db.commit()
+    await db.refresh(new_sa)
+    return new_sa
+
+
+async def get_my_certificates(db: AsyncSession, student_id: int):
+    """Talabaning sertifikatlarini kurs ma'lumotlari bilan olish"""
+    result = await db.execute(
+        select(CourseCertificate)
+        .options(selectinload(CourseCertificate.course))
+        .where(CourseCertificate.student_id == student_id)
+    )
+    return result.scalars().all()
+
+
+async def get_course_certified_students(db: AsyncSession, course_id: int):
+    """Muayyan kursdan sertifikat olgan barcha talabalar"""
+    result = await db.execute(
+        select(CourseCertificate)
+        .options(selectinload(CourseCertificate.student))
+        .where(CourseCertificate.course_id == course_id)
+    )
+    certs = result.scalars().all()
+    return [
+        {
+            "student_name": c.student.full_name or c.student.username,
+            "issued_at": c.issued_at,
+            "certificate_id": c.id
+        } for c in certs
+    ]
+
+
+async def get_course_certificate(
+        db: AsyncSession, student_id: int, course_id: int
+) -> Optional[CourseCertificate]:
+    result = await db.execute(
+        select(CourseCertificate)
+        .options(selectinload(CourseCertificate.course))
+        .where(
+            and_(
+                CourseCertificate.student_id == student_id,
+                CourseCertificate.course_id == course_id,
+            )
+        )
+    )
+    cert = result.scalar_one_or_none()
+    print(f"🔍 get_course_certificate: student={student_id}, course={course_id}, cert={cert}")
+    return cert
+
+
+async def generate_certificate_pdf(
+        db: AsyncSession, student_id: int, achievement_id: int
+) -> Optional[Union[io.BytesIO, str]]:
+    """Achievement uchun badge PDF yaratish"""
+    sa_result = await db.execute(
+        select(StudentAchievement)
+        .options(selectinload(StudentAchievement.achievement))
+        .where(
+            and_(
+                StudentAchievement.student_id == student_id,
+                StudentAchievement.achievement_id == achievement_id,
+            )
+        )
+    )
+    student_achievement = sa_result.scalar_one_or_none()
+    if not student_achievement:
+        print(f"❌ Student {student_id} achievement {achievement_id} olmagan")
+        return None
+
+    student_res = await db.execute(select(Student).where(Student.id == student_id))
+    student = student_res.scalar_one_or_none()
+    if not student:
+        print(f"❌ Student {student_id} topilmadi")
+        return None
+
+    achievement = student_achievement.achievement
+
+    try:
+        pdf_buffer = generate_badge_certificate(
+            student_name=student.full_name or student.username,
+            achievement_name=achievement.name,
+            achievement_description=achievement.description,
+            cert_number=student_achievement.id,
+        )
+        print(f"✅ PDF yaratildi: {pdf_buffer}")
+        return pdf_buffer
+    except Exception as e:
+        print(f"❌ Xatolik: {e}")
+        return "error"
 
 
 # ========== MONITORING & PROGRESS ==========
@@ -158,7 +332,6 @@ async def get_achievement_progress(db: AsyncSession, student_id: int) -> List[di
     if not student:
         return []
 
-    # Proyektlar soni
     projects_result = await db.execute(
         select(func.count(Project.id)).where(
             Project.student_id == student_id,
@@ -169,7 +342,6 @@ async def get_achievement_progress(db: AsyncSession, student_id: int) -> List[di
 
     achievements = await get_all_achievements(db)
 
-    # Studentning olingan yutuqlari ID'lari
     my_sa_result = await db.execute(
         select(StudentAchievement.achievement_id).where(StudentAchievement.student_id == student_id)
     )
@@ -177,7 +349,14 @@ async def get_achievement_progress(db: AsyncSession, student_id: int) -> List[di
 
     progress_list = []
     for ach in achievements:
-        current = completed_projects if ach.criteria_type == "project_count" else student.total_points
+        if ach.criteria_type == "project_count":
+            current = completed_projects
+        elif ach.criteria_type == "course_completion" and ach.course_id:
+            # Kurs progressini hisoblaymiz
+            current = 1 if await check_course_completion(db, student_id, ach.course_id) else 0
+        else:
+            current = student.total_points
+
         progress = min(100, int((current / max(ach.criteria_value, 1)) * 100))
 
         progress_list.append({
@@ -217,7 +396,7 @@ async def get_students_with_achievement(db: AsyncSession, achievement_id: int) -
 
 
 async def get_students_without_achievement(db: AsyncSession, achievement_id: int) -> List[dict]:
-    """Sertifikat olmagan studentlar ro'yxati va ularning progressi"""
+    """Sertifikat olmagan studentlar ro'yxati"""
     earned_result = await db.execute(
         select(StudentAchievement.student_id).where(StudentAchievement.achievement_id == achievement_id)
     )
@@ -243,7 +422,6 @@ async def get_students_without_achievement(db: AsyncSession, achievement_id: int
 
 
 async def _calculate_student_progress(db: AsyncSession, student_id: int, achievement_id: int) -> int:
-    """Yordamchi funksiya: bitta studentning bitta achievement bo'yicha progressi"""
     ach = await get_achievement_by_id(db, achievement_id)
     student_result = await db.execute(select(Student).where(Student.id == student_id))
     student = student_result.scalar_one_or_none()
@@ -253,8 +431,14 @@ async def _calculate_student_progress(db: AsyncSession, student_id: int, achieve
 
     if ach.criteria_type == "project_count":
         res = await db.execute(
-            select(func.count(Project.id)).where(Project.student_id == student_id, Project.status == "Approved"))
+            select(func.count(Project.id)).where(
+                Project.student_id == student_id,
+                Project.status == "Approved"
+            )
+        )
         current = res.scalar() or 0
+    elif ach.criteria_type == "course_completion" and ach.course_id:
+        current = 1 if await check_course_completion(db, student_id, ach.course_id) else 0
     else:
         current = student.total_points
 
@@ -264,10 +448,12 @@ async def _calculate_student_progress(db: AsyncSession, student_id: int, achieve
 async def get_achievement_statistics(db: AsyncSession, achievement_id: int) -> dict:
     """Achievement bo'yicha umumiy statistika"""
     ach = await get_achievement_by_id(db, achievement_id)
-    if not ach: return {}
+    if not ach:
+        return {}
 
     earned_count_res = await db.execute(
-        select(func.count(StudentAchievement.id)).where(StudentAchievement.achievement_id == achievement_id))
+        select(func.count(StudentAchievement.id)).where(StudentAchievement.achievement_id == achievement_id)
+    )
     earned_count = earned_count_res.scalar() or 0
 
     total_students_res = await db.execute(select(func.count(Student.id)))
@@ -285,7 +471,7 @@ async def get_achievement_statistics(db: AsyncSession, achievement_id: int) -> d
     }
 
 
-# ========== CRUD (CREATE / UPDATE / DELETE) ==========
+# ========== CRUD ==========
 
 async def create_achievement(db: AsyncSession, **kwargs) -> Achievement:
     new_achievement = Achievement(**kwargs)
@@ -297,9 +483,11 @@ async def create_achievement(db: AsyncSession, **kwargs) -> Achievement:
 
 async def update_achievement(db: AsyncSession, achievement_id: int, **kwargs) -> Optional[Achievement]:
     achievement = await get_achievement_by_id(db, achievement_id)
-    if not achievement: return None
+    if not achievement:
+        return None
     for key, value in kwargs.items():
-        if value is not None: setattr(achievement, key, value)
+        if value is not None:
+            setattr(achievement, key, value)
     await db.commit()
     await db.refresh(achievement)
     return achievement
@@ -307,7 +495,8 @@ async def update_achievement(db: AsyncSession, achievement_id: int, **kwargs) ->
 
 async def delete_achievement(db: AsyncSession, achievement_id: int) -> bool:
     achievement = await get_achievement_by_id(db, achievement_id)
-    if not achievement: return False
+    if not achievement:
+        return False
     await db.delete(achievement)
     await db.commit()
     return True
@@ -316,135 +505,7 @@ async def delete_achievement(db: AsyncSession, achievement_id: int) -> bool:
 async def force_sync_all_levels(db: AsyncSession):
     result = await db.execute(select(Student))
     students = result.scalars().all()
-
     for student in students:
         student.total_points = student.total_points
-
     await db.commit()
     return {"status": "done"}
-
-
-async def check_course_completion(db: AsyncSession, student_id: int, course_id: int) -> bool:
-    return True
-
-
-async def award_certificate(db: AsyncSession, student_id: int, course_id: int):
-    # 1. Avval berilganligini tekshirish
-    existing = await db.execute(
-        select(CourseCertificate).where(
-            and_(CourseCertificate.student_id == student_id, CourseCertificate.course_id == course_id)
-        )
-    )
-    if existing.scalar_one_or_none():
-        print("⚠️ Sertifikat allaqachon mavjud")
-        return None
-
-    # 2. To'liq tugatganini tekshirish
-    is_complete = await check_course_completion(db, student_id, course_id)
-    print(f"✅ is_complete: {is_complete}")
-    if not is_complete:
-        print("❌ Kurs tugatilmagan")
-        return None
-
-    # 3. Sertifikat yaratish
-    new_cert = CourseCertificate(
-        student_id=student_id,
-        course_id=course_id,
-        issued_at=datetime.utcnow()
-    )
-    db.add(new_cert)
-
-    student_res = await db.execute(select(Student).where(Student.id == student_id))
-    student = student_res.scalar_one_or_none()
-    if student:
-        student.total_points += 500
-
-    await db.commit()
-    await db.refresh(new_cert)
-    print(f"🎉 Sertifikat yaratildi: {new_cert.id}")
-    return new_cert
-
-
-async def get_my_certificates(db: AsyncSession, student_id: int):
-    """Talabaning sertifikatlarini kurs ma'lumotlari bilan olish"""
-    result = await db.execute(
-        select(CourseCertificate)
-        .options(selectinload(CourseCertificate.course))
-        .where(CourseCertificate.student_id == student_id)
-    )
-    return result.scalars().all()
-
-
-async def get_course_certified_students(db: AsyncSession, course_id: int):
-    """Muayyan kursdan sertifikat olgan barcha talabalar"""
-    result = await db.execute(
-        select(CourseCertificate)
-        .options(selectinload(CourseCertificate.student))
-        .where(CourseCertificate.course_id == course_id)
-    )
-    certs = result.scalars().all()
-    return [
-        {
-            "student_name": c.student.full_name or c.student.username,
-            "issued_at": c.issued_at,
-            "certificate_id": c.id
-        } for c in certs
-    ]
-
-
-async def get_course_certificate(
-    db: AsyncSession, student_id: int, course_id: int
-) -> Optional[CourseCertificate]:
-    result = await db.execute(
-        select(CourseCertificate)
-        .options(selectinload(CourseCertificate.course))
-        .where(
-            and_(
-                CourseCertificate.student_id == student_id,
-                CourseCertificate.course_id == course_id,
-            )
-        )
-    )
-    cert = result.scalar_one_or_none()
-    print(f"🔍 get_course_certificate: student={student_id}, course={course_id}, cert={cert}")
-    return cert
-
-async def generate_certificate_pdf(
-        db: AsyncSession, student_id: int, achievement_id: int
-) -> Optional[Union[io.BytesIO, str]]:
-    # 1. Talaba achievement olganini tekshirish
-    sa_result = await db.execute(
-        select(StudentAchievement)
-        .options(selectinload(StudentAchievement.achievement))
-        .where(
-            and_(
-                StudentAchievement.student_id == student_id,
-                StudentAchievement.achievement_id == achievement_id,
-            )
-        )
-    )
-    student_achievement = sa_result.scalar_one_or_none()
-    if not student_achievement:
-        print(f"❌ Student {student_id} achievement {achievement_id} olmagan")
-        return None
-
-    student_res = await db.execute(select(Student).where(Student.id == student_id))
-    student = student_res.scalar_one_or_none()
-    if not student:
-        print(f"❌ Student {student_id} topilmadi")
-        return None
-
-    achievement = student_achievement.achievement
-
-    try:
-        pdf_buffer = generate_badge_certificate(
-            student_name=student.full_name or student.username,
-            achievement_name=achievement.name,
-            achievement_description=achievement.description,
-            cert_number=student_achievement.id,
-        )
-        print(f"✅ PDF yaratildi: {pdf_buffer}")
-        return pdf_buffer
-    except Exception as e:
-        print(f"❌ Xatolik: {e}")
-        return "error"

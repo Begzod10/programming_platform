@@ -1,5 +1,5 @@
-﻿from typing import AsyncGenerator
-from fastapi import Depends, HTTPException, status
+from typing import AsyncGenerator, Optional, List
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +20,35 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+
+
+from app.core.security import decode_access_token
+
+
+async def get_current_student_optional(
+        request: Request,
+        token: Optional[str] = Depends(oauth2_scheme_optional),
+        db: AsyncSession = Depends(get_db)
+) -> Optional[Student]:
+    """Get current student if token provided, else None"""
+    
+    # 1. Standard token extraction
+    if not token:
+        # Fallback: manual check for Authorization header
+        auth = request.headers.get("Authorization")
+        if auth and auth.lower().startswith("bearer "):
+            token = auth.split(" ", 1)[1]
+    
+    if not token:
+        return None
+    
+    user_id = decode_access_token(token)
+    if user_id is None:
+        return None
+
+    result = await db.execute(select(Student).where(Student.id == user_id))
+    return result.scalars().first()
 
 
 async def get_current_student(
@@ -27,10 +56,8 @@ async def get_current_student(
         db: AsyncSession = Depends(get_db)
 ) -> Student:
     """Get current authenticated student (any role)"""
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-        user_id: int = int(payload.get("sub"))
-    except (JWTError, TypeError, ValueError):
+    user_id = decode_access_token(token)
+    if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token noto'g'ri yoki muddati o'tgan",

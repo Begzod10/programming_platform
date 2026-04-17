@@ -4,16 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from pydantic import BaseModel
 from app.models.project import Project
-from app.models.lesson import Lesson
-from app.models.submission import Submission
 
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.services.project_service import ProjectService
-from app.services import achievement_service
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
 from app.models.user import Student
 from app.services.ranking_service import RankingService
-
 router = APIRouter()
 
 
@@ -21,9 +17,7 @@ def get_project_service(db: AsyncSession = Depends(get_db)) -> ProjectService:
     return ProjectService(db)
 
 
-# ============================================================
-# STUDENT ENDPOINTS
-# ============================================================
+# ✅ STUDENT ENDPOINT'LAR
 
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 async def create_project(
@@ -113,13 +107,11 @@ async def like_project(
     """Proyektni like qilish"""
     return await service.like_project(
         project_id=project_id,
-        student_id=current_student.id
+        student_id=current_student.id  # ✅ Student ID qo'shildi
     )
 
 
-# ============================================================
-# TEACHER ENDPOINTS
-# ============================================================
+# ✅ TEACHER ENDPOINT'LAR (FAQAT INSTRUCTOR)
 
 class ReviewProjectRequest(BaseModel):
     feedback: str
@@ -130,17 +122,10 @@ class ReviewProjectRequest(BaseModel):
 @router.post("/{project_id}/review")
 async def review_project(
         project_id: int,
-        data: ReviewProjectRequest,
+        data: ReviewProjectRequest, # ReviewProjectRequest schema ishlatilsin
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """
-    O'qituvchi loyihani tasdiqlaydi.
-    Tasdiqlangandan keyin avtomatik:
-      - Ballar qo'shiladi
-      - Kurs tugagan bo'lsa sertifikat beriladi
-      - Achievementlar tekshiriladi
-    """
     # 1. Loyihani topish
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
@@ -149,11 +134,11 @@ async def review_project(
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
 
     if project.status == "Approved":
-        raise HTTPException(status_code=400, detail="Bu loyiha allaqachon tasdiqlangan")
+         raise HTTPException(status_code=400, detail="Bu loyiha allaqachon tasdiqlangan")
 
-    # 2. Ballarni qo'shish
-    ranking_service = RankingService(db)
-    await ranking_service.add_points_to_student(project.student_id, data.points)
+    # 2. RankingService orqali ballarni va proyekt sonini yangilash
+    service = RankingService(db)
+    await service.add_points_to_student(project.student_id, data.points)
 
     # 3. Loyiha holatini yangilash
     project.status = "Approved"
@@ -162,38 +147,7 @@ async def review_project(
     project.points_earned = data.points
 
     await db.commit()
-
-    # 4. ✅ Submission orqali course_id ni topib sertifikat berish
-    sub_result = await db.execute(
-        select(Submission).where(Submission.project_id == project_id)
-    )
-    submission = sub_result.scalar_one_or_none()
-
-    certificate_issued = False
-    certificate_id = None
-
-    if submission and submission.lesson_id:
-        lesson_res = await db.execute(
-            select(Lesson).where(Lesson.id == submission.lesson_id)
-        )
-        lesson = lesson_res.scalar_one_or_none()
-        if lesson:
-            cert = await achievement_service.award_certificate(
-                db, project.student_id, lesson.course_id
-            )
-            if cert:
-                certificate_issued = True
-                certificate_id = cert.id
-
-    # 5. ✅ Achievementlarni tekshirish
-    await achievement_service.check_and_award_achievements(db, project.student_id)
-
-    return {
-        "message": "Loyiha tasdiqlandi, ballar va proyekt soni yangilandi",
-        "certificate_issued": certificate_issued,
-        "certificate_id": certificate_id
-    }
-
+    return {"message": "Loyiha tasdiqlandi, ballar va proyekt soni yangilandi"}
 
 @router.patch("/{project_id}/status")
 async def update_status(
@@ -228,6 +182,8 @@ async def update_difficulty(
     return await service.update_difficulty(project_id=project_id, difficulty=difficulty)
 
 
+# ✅ OPTIONAL ENDPOINT'LAR (student yoki teacher)
+
 @router.patch("/{project_id}/comment")
 async def update_comment(
         project_id: int,
@@ -248,3 +204,35 @@ async def update_file(
 ):
     """Fayl urlini yangilash"""
     return await service.update_file(project_id=project_id, file_url=file_url)
+
+
+@router.post("/{project_id}/review")
+async def review_project(
+        project_id: int,
+        feedback: str,
+        grade: str,
+        points: int,
+        db: AsyncSession = Depends(get_db)
+):
+    # 1. Avval loyihani bazadan qidirib topamiz
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+
+    # 2. ENDI BIZDA student_id BOR (project ob'ekti ichida)
+    student_id = project.student_id  # <--- MANA SHU QATORNI QO'SHING
+
+    # 3. Ballarni qo'shish
+    service = RankingService(db)
+    await service.add_points_to_student(student_id, points)
+
+    # 4. Loyiha holatini yangilash
+    project.status = "Approved"
+    project.feedback = feedback
+    project.grade = grade
+    project.points_earned = points
+
+    await db.commit()
+    return {"message": "Loyiha tekshirildi va ballar qo'shildi"}

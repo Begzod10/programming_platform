@@ -1,4 +1,4 @@
-﻿import json
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -106,19 +106,9 @@ class ProjectService:
         )
         student = student_result.scalar_one_or_none()
         if student and points > 0:
-            student.total_points += points
-
-            # Rankingniyam yangilash
-            from app.models.ranking import Ranking
-            ranking_result = await self.db.execute(
-                select(Ranking).where(Ranking.student_id == student.id)
-            )
-            ranking = ranking_result.scalar_one_or_none()
-            if ranking:
-                ranking.total_points = student.total_points
-                ranking.daily_points += points
-                ranking.weekly_points += points
-                ranking.monthly_points += points
+            from app.services.ranking_service import RankingService
+            ranking_service = RankingService(self.db)
+            await ranking_service.add_points_to_student(student.id, points)
 
         await self.db.commit()
         await self.db.refresh(project)

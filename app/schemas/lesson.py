@@ -74,6 +74,8 @@ class LessonRead(LessonBase):
     id: int
     course_id: int
     is_active: bool
+    is_completed: bool = False  # ✅ Talaba uchun tugatilganlik holati
+    completed: bool = False     # Alias for frontend
     created_at: datetime
     updated_at: datetime
 

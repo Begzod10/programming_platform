@@ -1,4 +1,4 @@
-﻿from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
@@ -84,6 +84,7 @@ async def register_new_student(db: AsyncSession, user_data: UserCreate):
 async def login(db: AsyncSession, username: str, password: str):
     """Login - username YOKI email bilan"""
     # Username yoki email bilan topish
+    username = username.strip()
     result = await db.execute(
         select(Student).where(
             (Student.username == username) |

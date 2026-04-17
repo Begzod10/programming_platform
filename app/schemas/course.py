@@ -9,6 +9,7 @@ class CourseBase(BaseModel):
     difficulty_level: str
     duration_weeks: int = Field(..., ge=1)
     max_points: int = Field(..., ge=0)
+    prerequisite_course_id: Optional[int] = None
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
     video_intro_url: Optional[str] = None
@@ -34,6 +35,7 @@ class CourseUpdate(BaseModel):
     duration_weeks: Optional[int] = None
     max_points: Optional[int] = None
     is_active: Optional[bool] = None
+    prerequisite_course_id: Optional[int] = None
 
 
 class CourseRead(CourseBase):
@@ -46,6 +48,7 @@ class CourseRead(CourseBase):
     progress_percentage: int = 0
     lessons_count: int = 0
     students_count: int = 0
+    prerequisite_course_id: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 

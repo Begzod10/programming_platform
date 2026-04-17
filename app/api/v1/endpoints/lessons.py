@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
-from app.dependencies import get_db, get_current_student, get_current_teacher
-from app.services import lesson_service
+from app.dependencies import get_db, get_current_student, get_current_teacher, get_current_student_optional
+from app.services import lesson_service, achievement_service
 from app.schemas.lesson import LessonCreate, LessonUpdate, LessonRead
 from app.models.user import Student
 from app.models.submission import Submission
@@ -18,7 +18,10 @@ router = APIRouter()
 
 async def _calc_course_progress(db: AsyncSession, course_id: int, student_id: int) -> dict:
     total_query = await db.execute(
-        select(func.count(Lesson.id)).where(Lesson.course_id == course_id, Lesson.is_active == True)
+        select(func.count(Lesson.id)).where(
+            Lesson.course_id == course_id,
+            Lesson.is_active == True
+        )
     )
     total = total_query.scalar() or 0
     if total == 0:
@@ -27,14 +30,19 @@ async def _calc_course_progress(db: AsyncSession, course_id: int, student_id: in
     completed_query = await db.execute(
         select(func.count(LessonCompletion.id))
         .join(Lesson, LessonCompletion.lesson_id == Lesson.id)
-        .where(Lesson.course_id == course_id, LessonCompletion.student_id == student_id)
+        .where(
+            Lesson.course_id == course_id,
+            LessonCompletion.student_id == student_id
+        )
     )
     completed = completed_query.scalar() or 0
     percentage = int((completed / total) * 100)
     return {
         "total_lessons": total,
         "completed_lessons": completed,
-        "progress_percentage": min(percentage, 100)
+        "progress_percentage": min(percentage, 100),
+        "progress": min(percentage, 100),  # Alias
+        "percentage": min(percentage, 100)  # Alias
     }
 
 
@@ -54,13 +62,13 @@ async def _ensure_enrolled(db: AsyncSession, student_id: int, course_id: int):
 
 
 async def _add_points(db: AsyncSession, student_id: int, points: int) -> int:
-    """Studentga ball qo'shish va yangilangan balini qaytarish"""
+    """Studentga ball qo'shish (Ranking orqali)"""
     if not points or points <= 0:
         return 0
-    student_res = await db.execute(select(Student).where(Student.id == student_id))
-    student = student_res.scalar_one_or_none()
+    from app.services.ranking_service import RankingService
+    service = RankingService(db)
+    student = await service.add_points_to_student(student_id, points)
     if student:
-        student.total_points += points
         return student.total_points
     return 0
 
@@ -70,18 +78,74 @@ async def _add_points(db: AsyncSession, student_id: int, points: int) -> int:
 # ============================================================
 
 @router.get("/courses/{course_id}/lessons", response_model=List[LessonRead])
-async def get_lessons(course_id: int, db: AsyncSession = Depends(get_db)):
-    """Kurs darslarini olish (hamma ko'rishi mumkin)"""
-    return await lesson_service.get_lessons_by_course(db, course_id)
+async def get_lessons(
+        course_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_student: Optional[Student] = Depends(get_current_student_optional)
+):
+    """Kurs darslarini olish."""
+    # Autentifikatsiya bo'lgan talabalar uchun prerequisite tekshiruvi
+    if current_student:
+        allowed = await achievement_service.check_course_prerequisite(db, current_student.id, course_id)
+        if not allowed:
+            raise HTTPException(
+                status_code=403,
+                detail="Bu kursga kirish uchun avval oldingi kursni tugatishingiz kerak."
+            )
+
+    lessons = await lesson_service.get_lessons_by_course(db, course_id)
+
+    # Darslar tugatilganligini tekshiramiz
+    completed_ids = set()
+    if current_student:
+        completed_lessons = await db.execute(
+            select(LessonCompletion.lesson_id)
+            .where(
+                LessonCompletion.student_id == current_student.id,
+                LessonCompletion.lesson_id.in_([l.id for l in lessons])
+            )
+        )
+        completed_ids = {r[0] for r in completed_lessons.all()}
+    
+    # LessonRead ob'ektlarini qo'lda yig'amiz (is_completed va completed bilan)
+    result = []
+    for l in lessons:
+        lesson_data = LessonRead.model_validate(l)
+        is_comp = l.id in completed_ids
+        lesson_data.is_completed = is_comp
+        lesson_data.completed = is_comp  # Alias
+        result.append(lesson_data)
+
+    return result
 
 
 @router.get("/courses/{course_id}/lessons/{lesson_id}", response_model=LessonRead)
-async def get_lesson(course_id: int, lesson_id: int, db: AsyncSession = Depends(get_db)):
-    """Darsni olish (hamma ko'rishi mumkin)"""
+async def get_lesson(
+        course_id: int,
+        lesson_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_student: Optional[Student] = Depends(get_current_student_optional)
+):
+    """Darsni olish"""
     lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
     if not lesson or lesson.course_id != course_id:
         raise HTTPException(status_code=404, detail="Dars topilmadi")
-    return lesson
+
+    # LessonRead ob'ektini quramiz
+    res = LessonRead.model_validate(lesson)
+    
+    if current_student:
+        existing = await db.execute(
+            select(LessonCompletion).where(
+                LessonCompletion.student_id == current_student.id,
+                LessonCompletion.lesson_id == lesson_id
+            )
+        )
+        is_comp = existing.scalar_one_or_none() is not None
+        res.is_completed = is_comp
+        res.completed = is_comp  # Alias
+
+    return res
 
 
 @router.post("/courses/{course_id}/lessons", response_model=LessonRead, status_code=201)
@@ -126,53 +190,27 @@ async def delete_lesson(
 
 
 # ============================================================
+# LESSON COMPLETION ENDPOINTS
+# ============================================================
+
 @router.post("/lessons/{lesson_id}/complete")
 async def complete_lesson(
         lesson_id: int,
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    lesson_res = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
-    lesson = lesson_res.scalar_one_or_none()
-    if not lesson:
-        raise HTTPException(404, "Dars topilmadi")
+    """Darsni tugatish — ball qo'shiladi, kurs tugasa sertifikat beriladi"""
+    # Service layer orqali bajarish (Ranking va Pointlar shu yerda)
+    result = await lesson_service.complete_lesson(db, lesson_id, current_student.id)
+    course_id = result.get("course_id")
 
-    await _ensure_enrolled(db, current_student.id, lesson.course_id)
+    # ✅ Kurs tugaganini tekshirib sertifikat berish
+    cert = await achievement_service.award_certificate(db, current_student.id, course_id)
 
-    existing = await db.execute(
-        select(LessonCompletion).where(
-            LessonCompletion.student_id == current_student.id,
-            LessonCompletion.lesson_id == lesson_id
-        )
-    )
-    points_earned = 0
-    if not existing.scalar_one_or_none():
-        completion = LessonCompletion(student_id=current_student.id, lesson_id=lesson_id)
-        db.add(completion)
-
-        # Ball qo'shish — to'g'ridan student ni olish
-        points_reward = getattr(lesson, "points_reward", 0) or 0
-        if points_reward > 0:
-            student_res = await db.execute(
-                select(Student).where(Student.id == current_student.id)
-            )
-            student_obj = student_res.scalar_one_or_none()
-            if student_obj:
-                student_obj.total_points = (student_obj.total_points or 0) + points_reward
-                points_earned = points_reward
-
-    await db.commit()
-
-    # Commit dan keyin yangilangan balini olish
-    student_res = await db.execute(select(Student).where(Student.id == current_student.id))
-    student_obj = student_res.scalar_one_or_none()
-
-    progress = await _calc_course_progress(db, lesson.course_id, current_student.id)
     return {
-        "message": "Dars tugatildi",
-        **progress,
-        "points_earned": points_earned,
-        "total_points": student_obj.total_points if student_obj else 0
+        **result,
+        "certificate_issued": cert is not None,
+        "certificate_id": cert.id if cert else None
     }
 
 
@@ -209,10 +247,19 @@ async def is_lesson_completed(
 @router.get("/courses/{course_id}/progress")
 async def get_course_progress(
         course_id: int,
-        current_student: Student = Depends(get_current_student),
+        current_student: Optional[Student] = Depends(get_current_student_optional),
         db: AsyncSession = Depends(get_db)
 ):
     """Kurs progressini qaytaradi"""
+    if not current_student:
+        return {
+            "course_id": course_id,
+            "total_lessons": 0,
+            "completed_lessons": 0,
+            "progress_percentage": 0,
+            "progress": 0,
+            "percentage": 0
+        }
     progress = await _calc_course_progress(db, course_id, current_student.id)
     return {"course_id": course_id, **progress}
 
@@ -235,7 +282,7 @@ async def submit_lesson_project(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """Dars loyihasini topshirish — ball avtomatik qo'shiladi"""
+    """Dars loyihasini topshirish — ball avtomatik qo'shiladi, kurs tugasa sertifikat beriladi"""
     lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
     if not lesson or lesson.course_id != course_id:
         raise HTTPException(status_code=404, detail="Dars topilmadi")
@@ -275,7 +322,7 @@ async def submit_lesson_project(
     )
     db.add(submission)
 
-    # 3. LessonCompletion yozish + ball qo'shish ✅
+    # 3. LessonCompletion + ball qo'shish
     points_earned = 0
     completion_check = await db.execute(
         select(LessonCompletion).where(
@@ -290,13 +337,15 @@ async def submit_lesson_project(
         )
         db.add(completion)
 
-        # Ball qo'shish ✅
         points_reward = getattr(lesson, "points_reward", 0) or 0
         if points_reward > 0:
             await _add_points(db, current_student.id, points_reward)
             points_earned = points_reward
 
     await db.commit()
+
+    # ✅ Kurs tugaganini tekshirib sertifikat berish
+    cert = await achievement_service.award_certificate(db, current_student.id, course_id)
 
     # Yangilangan student balini olish
     student_res = await db.execute(select(Student).where(Student.id == current_student.id))
@@ -309,7 +358,9 @@ async def submit_lesson_project(
         "project_id": new_project.id,
         **progress,
         "points_earned": points_earned,
-        "total_points": student.total_points if student else 0
+        "total_points": student.total_points if student else 0,
+        "certificate_issued": cert is not None,
+        "certificate_id": cert.id if cert else None
     }
 
 

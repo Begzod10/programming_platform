@@ -136,23 +136,12 @@ async def create_course(
         db: AsyncSession = Depends(get_db),
 ):
     """Yangi kurs yaratish"""
-    course_data = payload.model_dump()
-    course_data["instructor_id"] = current_teacher.id
+    course_service = CourseService(db)
+    new_course = await course_service.create_course(payload, current_teacher.id)
 
-    new_course = Course(**course_data)
-    db.add(new_course)
-    await db.commit()
-    await db.refresh(new_course)
-
-    # To'liq ma'lumot yuklash
-    query = select(Course).options(
-        selectinload(Course.instructor),
-        selectinload(Course.lessons),
-        selectinload(Course.students)
-    ).where(Course.id == new_course.id)
-
-    res = await db.execute(query)
-    return await CourseService.build_dto(db, res.scalar_one(), current_teacher.id)
+    # To'liq ma'lumot yuklash va DTO qurish
+    summary = await CourseService.build_dto(db, new_course, current_teacher.id)
+    return summary
 
 
 @router.put("/{course_id}", response_model=CourseRead)

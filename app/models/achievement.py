@@ -1,8 +1,8 @@
 from datetime import datetime
-from sqlalchemy import Integer, String, Text, DateTime
+from sqlalchemy import Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
-from typing import List
+from typing import List, Optional
 
 
 class Achievement(Base):
@@ -16,6 +16,11 @@ class Achievement(Base):
     criteria_type: Mapped[str] = mapped_column(String(50))
     criteria_value: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    course_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("courses.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    course: Mapped["Course"] = relationship("Course", back_populates="achievements")
 
     student_achievements: Mapped[List["StudentAchievement"]] = relationship(
         "StudentAchievement",

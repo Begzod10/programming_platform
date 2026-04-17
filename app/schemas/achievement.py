@@ -51,6 +51,7 @@ class AchievementRead(AchievementBase):
 
 class StudentAchievementRead(BaseModel):
     id: int
+    course_id: Optional[int] = None  # Kurs ID si frontend uchun muhim
     achievement_name: str
     description: str
     badge_image_url: str
@@ -63,10 +64,12 @@ class StudentAchievementRead(BaseModel):
     def from_orm_custom(cls, sa: "StudentAchievement"):
         return cls(
             id=sa.id,
-            achievement_name=sa.achievement.name,
-            description=sa.achievement.description,
-            badge_image_url=sa.achievement.badge_image_url,
-            points_reward=sa.achievement.points_reward,
+            # Ustun bo'sh bo'lsa, yutuq modelidan oladi
+            course_id=sa.course_id or (sa.achievement.course_id if sa.achievement else None),
+            achievement_name=sa.achievement.name if sa.achievement else "Noma'lum",
+            description=sa.achievement.description if sa.achievement else "",
+            badge_image_url=sa.achievement.badge_image_url if sa.achievement else "",
+            points_reward=sa.achievement.points_reward if sa.achievement else 0,
             earned_at=sa.earned_at,
         )
 

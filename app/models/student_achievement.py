@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from sqlalchemy import Integer, ForeignKey, DateTime, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
@@ -25,6 +25,8 @@ class StudentAchievement(Base):
         nullable=False
     )
 
+    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"), nullable=True)
+
     earned_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -40,6 +42,7 @@ class StudentAchievement(Base):
         "Achievement",
         back_populates="student_achievements"
     )
+    course: Mapped[Optional["Course"]] = relationship("Course")
 
     __table_args__ = (
         UniqueConstraint("student_id", "achievement_id", name="uq_student_achievement"),

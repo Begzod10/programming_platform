@@ -74,7 +74,10 @@ class CourseCertificate(Base):
         "Student",
         back_populates="certificates"
     )
-    course: Mapped["Course"] = relationship("Course", back_populates="certificates")
+    course: Mapped["Course"] = relationship(
+        "Course",
+        back_populates="certificates"
+    )
 
     __table_args__ = (
         UniqueConstraint("student_id", "course_id", name="uq_student_course_cert"),

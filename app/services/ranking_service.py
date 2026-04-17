@@ -131,13 +131,16 @@ class RankingService:
         return res.mappings().all()
 
     async def add_points_to_student(self, student_id: int, points: int) -> Optional[Student]:
+        """Studentga ball qo'shish (Yagona nuqta)"""
         res = await self.db.execute(select(Student).where(Student.id == student_id))
         student = res.scalar_one_or_none()
         if not student:
             return None
 
+        # 1. Student modelini yangilaymiz
         student.total_points += points
 
+        # 2. Ranking modelini yangilaymiz
         result = await self.db.execute(select(Ranking).where(Ranking.student_id == student_id))
         ranking = result.scalar_one_or_none()
 
@@ -150,9 +153,10 @@ class RankingService:
         else:
             ranking = Ranking(
                 student_id=student_id,
-                daily_points=points, weekly_points=points,
-                monthly_points=points, total_points=student.total_points,
-                global_rank=0, daily_rank=0, weekly_rank=0, monthly_rank=0,
+                daily_points=points,
+                weekly_points=points,
+                monthly_points=points,
+                total_points=student.total_points,
                 last_calculated_at=datetime.utcnow(),
                 last_daily_reset=datetime.utcnow(),
                 last_weekly_reset=datetime.utcnow(),
@@ -161,12 +165,13 @@ class RankingService:
             self.db.add(ranking)
 
         await self.db.flush()
-        self.db.expire_all()
+        # Ranklarni qayta hisoblash
         await self.calculate_and_update_rankings()
         await self.db.refresh(student)
         return student
 
     async def subtract_points_from_student(self, student_id: int, points: int) -> Optional[Student]:
+        """Studentdan ball ayirish"""
         res = await self.db.execute(select(Student).where(Student.id == student_id))
         student = res.scalar_one_or_none()
         if not student:
@@ -185,54 +190,78 @@ class RankingService:
             ranking.last_calculated_at = datetime.utcnow()
 
         await self.db.flush()
-        self.db.expire_all()
         await self.calculate_and_update_rankings()
         await self.db.refresh(student)
         return student
 
-    # ========== RESET (CASCADE) ==========
+    # ========== RESET (NO CASCADE - simplified) ==========
 
     async def reset_daily_points(self):
-        """Kun tugadi: daily → weekly ga qo'shiladi, daily = 0"""
+        """Kun tugadi: daily = 0 (Weekly o'zi dolzarb qoladi)"""
         result = await self.db.execute(select(Ranking))
         rankings = result.scalars().all()
         for r in rankings:
-            if r.daily_points > 0:
-                r.weekly_points += r.daily_points
             r.daily_points = 0
             r.last_daily_reset = datetime.utcnow()
         await self.db.commit()
         await self.calculate_and_update_rankings()
 
     async def reset_weekly_points(self):
-        """Hafta tugadi: weekly → monthly ga qo'shiladi, weekly = 0"""
+        """Hafta tugadi: weekly = 0"""
         result = await self.db.execute(select(Ranking))
         rankings = result.scalars().all()
         for r in rankings:
-            if r.weekly_points > 0:
-                r.monthly_points += r.weekly_points
             r.weekly_points = 0
             r.last_weekly_reset = datetime.utcnow()
         await self.db.commit()
         await self.calculate_and_update_rankings()
 
     async def reset_monthly_points(self):
-        """tugadi: monthly → total ga qo'shiladi, monthly = 0"""
+        """Oy tugadi: monthly = 0"""
         result = await self.db.execute(select(Ranking))
         rankings = result.scalars().all()
         for r in rankings:
-            if r.monthly_points > 0:
-                r.total_points += r.monthly_points
-                student_res = await self.db.execute(
-                    select(Student).where(Student.id == r.student_id)
-                )
-                student = student_res.scalar_one_or_none()
-                if student:
-                    student.total_points = r.total_points
             r.monthly_points = 0
             r.last_monthly_reset = datetime.utcnow()
         await self.db.commit()
         await self.calculate_and_update_rankings()
+
+    async def sync_all_student_points(self):
+        """Barcha studentlar ballarini Ranking jadvali bilan sinxronizatsiya qilish"""
+        # Barcha studentlarni olamiz
+        student_res = await self.db.execute(
+            select(Student).where(Student.role == UserRole.student)
+        )
+        students = student_res.scalars().all()
+
+        for student in students:
+            # Ranking mavjudligini tekshiramiz
+            rank_res = await self.db.execute(
+                select(Ranking).where(Ranking.student_id == student.id)
+            )
+            ranking = rank_res.scalar_one_or_none()
+
+            if ranking:
+                # Agar bor bo'lsa, total_points ni yangilaymiz
+                # Daily/Weekly/Monthly larni tegmaymiz (ular o'zi reset bo'ladi)
+                ranking.total_points = student.total_points
+            else:
+                # Agar yo'q bo'lsa, yangi yaratamiz
+                new_ranking = Ranking(
+                    student_id=student.id,
+                    daily_points=0,
+                    weekly_points=0,
+                    monthly_points=0,
+                    total_points=student.total_points,
+                    last_daily_reset=datetime.utcnow(),
+                    last_weekly_reset=datetime.utcnow(),
+                    last_monthly_reset=datetime.utcnow()
+                )
+                self.db.add(new_ranking)
+        
+        await self.db.commit()
+        await self.calculate_and_update_rankings()
+        return len(students)
 
     # ========== RECALCULATE ==========
 
