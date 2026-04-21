@@ -9,12 +9,8 @@ from app.api.v1.router import api_router
 from app.db.database import init_db
 from app.core.exceptions import register_exception_handlers
 from app.scheduler import start_scheduler, scheduler
-<<<<<<< HEAD
 from app.utils import certificate as cert_utils
 from app.db import base
-=======
-
->>>>>>> origin/branch-shoh
 
 # Bu yerdagi ortiqcha app = FastAPI(...) qismini o'chirib tashlang,
 # chunki pastda create_application funksiyasi yangi app yaratadi.
@@ -92,9 +88,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-<<<<<<< HEAD
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
-=======
-
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
->>>>>>> origin/branch-shoh

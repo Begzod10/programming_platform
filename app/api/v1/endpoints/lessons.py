@@ -1,17 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from fastapi import APIRouter, Depends, HTTPException, status, Request  # ← Request qo'shildi
 from typing import List, Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
-<<<<<<< HEAD
+
 from app.dependencies import get_db, get_current_student, get_current_teacher, get_current_student_optional
-from app.services import lesson_service, achievement_service
-=======
-from app.dependencies import get_db, get_current_student, get_current_teacher
-from app.services import lesson_service, exercise_service
->>>>>>> origin/branch-shoh
+from app.services import lesson_service, achievement_service, exercise_service
 from app.schemas.lesson import LessonCreate, LessonUpdate, LessonRead
 from app.schemas.exercise import ExerciseCreate, ExerciseUpdate, ExerciseRead, ExerciseSubmitRequest, \
     ExerciseSubmissionRead
@@ -71,7 +66,6 @@ async def _ensure_enrolled(db: AsyncSession, student_id: int, course_id: int):
             await db.flush()
 
 
-<<<<<<< HEAD
 async def _add_points(db: AsyncSession, student_id: int, points: int) -> int:
     """Studentga ball qo'shish (Ranking orqali)"""
     if not points or points <= 0:
@@ -118,7 +112,7 @@ async def get_lessons(
         )
         completed_ids = {r[0] for r in completed_lessons.all()}
     
-    # LessonRead ob'ektlarini qo'lda yig'amiz (is_completed va completed bilan)
+    # LessonRead ob'ektlarini qo'lda yig'amiz
     result = []
     for l in lessons:
         lesson_data = LessonRead.model_validate(l)
@@ -126,68 +120,17 @@ async def get_lessons(
         lesson_data.is_completed = is_comp
         lesson_data.completed = is_comp  # Alias
         result.append(lesson_data)
-=======
-@router.get("/courses/{course_id}/lessons")
-async def get_lessons(
-        course_id: int,
-        request: Request,  # ✅ qo'shildi
-        db: AsyncSession = Depends(get_db)
-):
-    from app.api.v1.endpoints.courses import _get_id_from_auth
-    student_id = await _get_id_from_auth(request)
-    lessons = await lesson_service.get_lessons_by_course(db, course_id)
-    # student_id = await _get_id_from_auth(request)
-
-    result = []
-    for lesson in lessons:
-        lesson_dict = {
-            "id": lesson.id,
-            "course_id": lesson.course_id,
-            "title": lesson.title,
-            "order": lesson.order,
-            "task_title": lesson.task_title,
-            "task_description": lesson.task_description,
-            "task_requirements": lesson.task_requirements,
-            "task_technologies": lesson.task_technologies,
-            "task_deadline_days": lesson.task_deadline_days,
-            "text_content": lesson.text_content,
-            "code_content": lesson.code_content,
-            "code_language": lesson.code_language,
-            "video_url": lesson.video_url,
-            "image_url": lesson.image_url,
-            "file_url": lesson.file_url,
-            "project_id": lesson.project_id,
-            "is_active": lesson.is_active,
-            "created_at": lesson.created_at,
-            "updated_at": lesson.updated_at,
-            "exercises": lesson.exercises if hasattr(lesson, 'exercises') else [],
-            "is_completed": False
-        }
-        if student_id:
-            comp = await db.execute(
-                select(LessonCompletion).where(
-                    LessonCompletion.student_id == student_id,
-                    LessonCompletion.lesson_id == lesson.id
-                )
-            )
-            lesson_dict["is_completed"] = comp.scalar_one_or_none() is not None
-        result.append(lesson_dict)
->>>>>>> origin/branch-shoh
 
     return result
 
 
 @router.get("/courses/{course_id}/lessons/{lesson_id}", response_model=LessonRead)
-<<<<<<< HEAD
 async def get_lesson(
         course_id: int,
         lesson_id: int,
         db: AsyncSession = Depends(get_db),
         current_student: Optional[Student] = Depends(get_current_student_optional)
 ):
-=======
-async def get_lesson(course_id: int, lesson_id: int, db: AsyncSession = Depends(get_db)):
->>>>>>> origin/branch-shoh
     """Darsni olish"""
     lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
     if not lesson or lesson.course_id != course_id:
@@ -292,7 +235,7 @@ async def create_exercise(
         db: AsyncSession = Depends(get_db)
 ):
     """Darsga mashq qo'shish (faqat teacher)
-
+    
     exercise_type:
     - fill_in_blank: description da ___ bilan bo'sh joy, correct_answers: "javob1,javob2"
     - drag_and_drop: drag_items: '["item1","item2"]', correct_order: '["item2","item1"]'
@@ -343,7 +286,7 @@ async def delete_exercise(
     return None
 
 
-@router.post("/courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}/submit",
+@router.post("/courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}/submit", 
              response_model=ExerciseSubmissionRead, status_code=201)
 async def submit_exercise(
         course_id: int,
@@ -354,7 +297,7 @@ async def submit_exercise(
         db: AsyncSession = Depends(get_db)
 ):
     """Mashqqa javob berish (student)
-
+    
     fill_in_blank: "javob1,javob2"
     drag_and_drop: '["item2","item1","item3"]'
     multiple_choice: "A" yoki "A,C"
@@ -369,7 +312,7 @@ async def submit_exercise(
     return await exercise_service.submit_exercise(db, exercise_id, current_student.id, data)
 
 
-@router.get("/courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}/my-submissions",
+@router.get("/courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}/my-submissions", 
             response_model=List[ExerciseSubmissionRead])
 async def my_exercise_submissions(
         course_id: int,
@@ -387,8 +330,6 @@ async def my_exercise_submissions(
         raise HTTPException(status_code=404, detail="Mashq topilmadi")
     return await exercise_service.get_my_submissions(db, current_student.id, exercise_id)
 
-
-# ============ SUBMISSION ENDPOINTS ============
 
 # ============================================================
 # LESSON COMPLETION ENDPOINTS
