@@ -49,8 +49,9 @@ class RankingService:
         """Foydalanuvchining har bir perioddagi dinamik o'rnini (7-o'rin bo'lsa 7) hisoblash"""
 
         def get_rank_subquery(column):
-            # Mening ballimni aniqlaymiz
-            my_val = select(column).where(Ranking.student_id == student_id).scalar_subquery()
+            # Mening ballimni aniqlaymiz (Agar ye'q bo'lsa 0)
+            my_val_query = select(func.coalesce(column, 0)).where(Ranking.student_id == student_id)
+            my_val = my_val_query.scalar_subquery()
 
             # O'zimdan ko'p balli bo'lganlar SONI +
             # Balli teng bo'lib, lekin IDsi mendan kichik bo'lganlar SONI
@@ -59,6 +60,12 @@ class RankingService:
                 ((column == my_val) & (Ranking.student_id < student_id))
             )
             return count_query.scalar_subquery()
+
+        # Ranking mavjudligini tekshiramiz
+        check_res = await self.db.execute(select(Ranking).where(Ranking.student_id == student_id))
+        if not check_res.scalar_one_or_none():
+            # Agar yo'q bo'lsa, yaratishga harakat qilamiz yoki default qaytaramiz
+            await self.create_ranking(student_id)
 
         query = select(
             Ranking,

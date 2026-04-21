@@ -59,10 +59,40 @@ class CourseService:
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
+    async def validate_course_integrity(self, course: Course):
+        """Kurs butunligini tekshirish (Ballar va darslar)"""
+        # 1. Agar kurs aktiv bo'lsa, kamida bitta dars bo'lishi kerak
+        if course.is_active:
+            result = await self.db.execute(
+                select(func.count(Lesson.id)).where(Lesson.course_id == course.id, Lesson.is_active == True)
+            )
+            count = result.scalar() or 0
+            if count == 0:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="Aktiv kursda kamida bitta faol dars bo'lishi shart"
+                )
+
+        # 2. Kursning max_points darslar ballari yig'indisidan kichik bo'lmasligi kerak
+        # (O'qituvchi adashib max_pointsni kamaytirib qo'ymasligi uchun)
+        res_points = await self.db.execute(
+            select(func.sum(Lesson.points_reward)).where(Lesson.course_id == course.id, Lesson.is_active == True)
+        )
+        sum_points = res_points.scalar() or 0
+        if course.max_points < sum_points:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Kursning umumiy balli ({course.max_points}) darslar ballari yig'indisidan ({sum_points}) kam bo'lishi mumkin emas"
+            )
+
     async def create_course(self, course_data: CourseCreate, instructor_id: int) -> Course:
         """Yangi kurs yaratish va unga mos achievement (sertifikat) qo'shish"""
         data = course_data.model_dump()
         data["instructor_id"] = instructor_id
+
+        # Yangi kursda max_points 0 bo'lmasligi kerak (ixtiyoriy check)
+        if data.get("max_points", 0) <= 0:
+            raise HTTPException(status_code=400, detail="Kursning maksimal balli 0 dan katta bo'lishi kerak")
 
         new_course = Course(**data)
         self.db.add(new_course)
@@ -108,6 +138,9 @@ class CourseService:
 
         for key, value in update_data.items():
             setattr(course, key, value)
+
+        # Integrity check: Ballar va darslar sonini tekshiramiz
+        await self.validate_course_integrity(course)
 
         # 🔄 Agar kurs nomi o'zgarsa, unga tegishli achievement nomini ham o'zgartiramiz
         if new_title and new_title != old_title:

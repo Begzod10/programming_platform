@@ -151,31 +151,15 @@ async def update_course(
         current_teacher: Student = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db),
 ):
-    """Kursni tahrirlash"""
-    result = await db.execute(select(Course).where(Course.id == course_id))
-    course = result.scalar_one_or_none()
+    """Kursni tahrirlash (Service layer orqali)"""
+    course_service = CourseService(db)
+    updated_course = await course_service.update_course(course_id, payload, current_teacher.id)
 
-    if not course:
+    if not updated_course:
         raise HTTPException(404, "Kurs topilmadi")
-    if course.instructor_id != current_teacher.id:
-        raise HTTPException(403, "Siz ushbu kurs egasi emassiz")
 
-    update_data = payload.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(course, key, value)
-
-    course.updated_at = datetime.now(timezone.utc)
-    await db.commit()
-
-    # Yangilangan holda qaytarish
-    query = select(Course).options(
-        selectinload(Course.instructor),
-        selectinload(Course.lessons),
-        selectinload(Course.students)
-    ).where(Course.id == course_id)
-
-    res = await db.execute(query)
-    return await CourseService.build_dto(db, res.scalar_one(), current_teacher.id)
+    # DTO qurib qaytarish
+    return await CourseService.build_dto(db, updated_course, current_teacher.id)
 
 
 @router.post("/{course_id}/enroll")
