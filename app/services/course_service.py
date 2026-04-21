@@ -289,17 +289,46 @@ class CourseService:
         if student_id and total_count > 0:
             comp_stmt = (
                 select(func.count(LessonCompletion.id))
-                .join(Lesson, LessonCompletion.lesson_id == Lesson.id)  # ✅ aniq join sharti
+                .join(Lesson, LessonCompletion.lesson_id == Lesson.id)
                 .where(
                     Lesson.course_id == course.id,
-                    Lesson.is_active == True,  # ✅ faqat faol darslar
+                    Lesson.is_active == True,
                     LessonCompletion.student_id == student_id
                 )
             )
             comp_res = await db.execute(comp_stmt)
-            comp_count = comp_res.scalar() or 0
+            lesson_completed = comp_res.scalar() or 0
 
-            data["progress_percentage"] = int((comp_count / total_count) * 100)
+            from app.models.exercise import Exercise, ExerciseSubmission
+
+            total_exercises_stmt = (
+                select(func.count(Exercise.id))
+                .join(Lesson, Exercise.lesson_id == Lesson.id)
+                .where(
+                    Lesson.course_id == course.id,
+                    Exercise.is_active == True
+                )
+            )
+            total_ex_res = await db.execute(total_exercises_stmt)
+            total_exercises = total_ex_res.scalar() or 0
+
+            completed_ex_stmt = (
+                select(func.count(ExerciseSubmission.exercise_id.distinct()))
+                .join(Exercise, Exercise.id == ExerciseSubmission.exercise_id)
+                .join(Lesson, Lesson.id == Exercise.lesson_id)
+                .where(
+                    Lesson.course_id == course.id,
+                    ExerciseSubmission.student_id == student_id,
+                    ExerciseSubmission.is_correct == True
+                )
+            )
+            completed_ex_res = await db.execute(completed_ex_stmt)
+            completed_exercises = completed_ex_res.scalar() or 0
+
+            total_all = total_count + total_exercises
+            completed_all = lesson_completed + completed_exercises
+
+            data["progress_percentage"] = int((completed_all / total_all) * 100) if total_all > 0 else 0
         else:
             data["progress_percentage"] = 0
 

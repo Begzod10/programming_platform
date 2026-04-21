@@ -1,20 +1,26 @@
-@"
+# IDEs
 .idea/
+.vscode/
 
+# Python
 __pycache__/
-*.py[cod]
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
 venv/
 .env
 
+# Database
 *.db
 *.sqlite3
-
 *.postgres
 
-__alembic__/
+# Alembic
 alembic.ini
 
+# Logs
 *.log
-"@ | Set-Content .gitignore -Encoding utf8
+
+# App specific
 uploads/

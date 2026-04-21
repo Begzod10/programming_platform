@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
+from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 from typing import Optional, List
 
@@ -13,12 +14,17 @@ async def get_lessons_by_course(db: AsyncSession, course_id: int) -> List[Lesson
         select(Lesson)
         .where(Lesson.course_id == course_id, Lesson.is_active == True)
         .order_by(Lesson.order)
+        .options(selectinload(Lesson.exercises))
     )
     return result.scalars().all()
 
 
 async def get_lesson_by_id(db: AsyncSession, lesson_id: int) -> Optional[Lesson]:
-    result = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
+    result = await db.execute(
+        select(Lesson)
+        .where(Lesson.id == lesson_id)
+        .options(selectinload(Lesson.exercises))
+    )
     return result.scalar_one_or_none()
 
 
@@ -27,7 +33,14 @@ async def create_lesson(db: AsyncSession, course_id: int, data: LessonCreate) ->
     db.add(new_lesson)
     await db.commit()
     await db.refresh(new_lesson)
-    return new_lesson
+    
+    # exercises ni ham yuklaymiz
+    result = await db.execute(
+        select(Lesson)
+        .where(Lesson.id == new_lesson.id)
+        .options(selectinload(Lesson.exercises))
+    )
+    return result.scalar_one()
 
 
 async def update_lesson(db: AsyncSession, lesson_id: int, data: LessonUpdate) -> Optional[Lesson]:
@@ -37,8 +50,13 @@ async def update_lesson(db: AsyncSession, lesson_id: int, data: LessonUpdate) ->
     for key, value in data.dict(exclude_unset=True).items():
         setattr(lesson, key, value)
     await db.commit()
-    await db.refresh(lesson)
-    return lesson
+    
+    result = await db.execute(
+        select(Lesson)
+        .where(Lesson.id == lesson_id)
+        .options(selectinload(Lesson.exercises))
+    )
+    return result.scalar_one()
 
 
 async def delete_lesson(db: AsyncSession, lesson_id: int) -> bool:
@@ -69,7 +87,6 @@ async def complete_lesson(db: AsyncSession, lesson_id: int, student_id: int) -> 
     )
     if existing.scalar_one_or_none():
         # Agar allaqachon tugatilgan bo'lsa, xato bermasdan joriy progressni qaytaramiz?
-        # Yo'q, 400 xato turaversin, lekin API da buni hande qilish mumkin
         raise HTTPException(status_code=400, detail="Dars allaqachon tugatilgan")
 
     # LessonCompletion yaratish

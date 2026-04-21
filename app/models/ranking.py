@@ -32,12 +32,37 @@ class Ranking(Base):
     projects_completed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     average_grade: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
+<<<<<<< HEAD
     last_calculated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_daily_reset: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_weekly_reset: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     last_monthly_reset: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+=======
+    # Vaqtlar
+    last_calculated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),  # Bazada avtomatik vaqt qo'yish
+        default=datetime.now,  # Python kodida avtomatik vaqt qo'yish
+        nullable=False
+    )
+    last_daily_reset: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+    last_weekly_reset: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+    last_monthly_reset: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+>>>>>>> origin/branch-shoh
 
     student: Mapped["Student"] = relationship("Student", back_populates="ranking")
 
@@ -45,9 +70,14 @@ class Ranking(Base):
         return {"daily": self.daily_points, "weekly": self.weekly_points,
                 "monthly": self.monthly_points, "all": self.total_points}.get(period, self.total_points)
 
+<<<<<<< HEAD
     def get_rank_for_period(self, period: Literal["daily", "weekly", "monthly", "all"]) -> int:
         return {"daily": self.daily_rank, "weekly": self.weekly_rank,
                 "monthly": self.monthly_rank, "all": self.global_rank}.get(period, self.global_rank)
 
     def __repr__(self):
         return f"<Ranking(student_id={self.student_id}, total={self.total_points}, rank={self.global_rank})>"
+=======
+    def __repr__(self) -> str:
+        return f"<Ranking(student_id={self.student_id}, total_points={self.total_points}, global_rank={self.global_rank})>"
+>>>>>>> origin/branch-shoh

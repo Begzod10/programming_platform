@@ -28,7 +28,6 @@ UPLOAD_DIR = Path("uploads/courses")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
-
 async def _get_id_from_auth(request: Request) -> Optional[int]:
     """Tokenni dekod qilib, student ID sini qaytaradi (Xavfsiz variant)"""
     auth = request.headers.get("Authorization")
@@ -105,7 +104,7 @@ async def get_course(
 
     # ✅ Debug: student_id ni tekshirish
     print(f"DEBUG get_course: course_id={course_id}, student_id={student_id}")
-
+    print(f"DEBUG headers: {dict(request.headers)}")
     query = (
         select(Course)
         .options(
