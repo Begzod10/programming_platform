@@ -1,0 +1,121 @@
+.stats {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    color: #1a1a2e;
+}
+
+/* HEADER */
+.stats-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.stats-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a1a2e;
+}
+
+.stats-period {
+    font-size: 13px;
+    color: rgba(26, 26, 46, 0.6);
+}
+
+/* BLOCK */
+.stats-block {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(22px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 22px;
+    padding: 22px 24px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+}
+
+.stats-block h4 {
+    margin: 0 0 14px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1a2e;
+}
+
+/* LIST */
+.stats-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px 24px;
+}
+
+.stats-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 6px;
+    border-bottom: 1px dashed rgba(26, 26, 46, 0.15);
+}
+
+.stats-list span {
+    font-size: 13px;
+    color: rgba(26, 26, 46, 0.6);
+}
+
+.stats-list b {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a2e;
+}
+
+.stats-list.compact {
+    grid-template-columns: 1fr;
+}
+
+.positive {
+    color: #00b894;
+}
+
+/* CHART */
+.chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+    height: clamp(180px, 35vh, 320px);
+}
+
+.chart-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    height: 250px;
+}
+
+
+
+.chart-bar {
+    width: 60%;
+    min-height: 5px;
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    border-radius: 10px 10px 6px 6px;
+    box-shadow: 0 6px 18px rgba(108, 92, 231, 0.35);
+    transition: height 0.4s ease;
+    animation: growUp 0.8s ease forwards;
+    flex-shrink: 0;
+}
+
+@keyframes growUp {
+    from {
+        height: 0;
+    }
+}
+
+.chart-label {
+    font-size: 11px;
+    color: rgba(26, 26, 46, 0.6);
+}

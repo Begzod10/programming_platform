@@ -1,0 +1,465 @@
+/* ============================================================
+   EXERCISE BLOCK — LessonModal (Teacher Editor)
+   /teacher/courses/Exercise additions/Lessonmodal exercise additions.css
+   ============================================================ */
+
+/* ── Editor wrapper ── */
+.ex-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* ── Empty state ── */
+.ex-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    border: 2px dashed rgba(108, 92, 231, 0.18);
+    border-radius: 16px;
+    background: rgba(108, 92, 231, 0.02);
+    gap: 8px;
+    text-align: center;
+}
+.ex-empty-icon  { font-size: 38px; margin-bottom: 4px; }
+.ex-empty-title { font-size: 15px; font-weight: 700; color: #1a1a2e; }
+.ex-empty-sub   { font-size: 13px; color: rgba(26, 26, 46, 0.4); margin: 0; }
+
+/* ── List ── */
+.ex-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ══════════════════════════════════════
+   SINGLE EXERCISE CARD
+══════════════════════════════════════ */
+.ex-item {
+    border: 1.5px solid rgba(108, 92, 231, 0.15);
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 3px 14px rgba(108, 92, 231, 0.07);
+    animation: lmSectionIn 0.22s ease;
+}
+
+/* ── Card header ── */
+.ex-item-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 16px;
+    background: linear-gradient(135deg, rgba(108,92,231,0.05), rgba(162,155,254,0.08));
+    border-bottom: 1.5px solid rgba(108, 92, 231, 0.09);
+    flex-wrap: wrap;
+}
+
+.ex-item-num {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    color: white;
+    font-size: 12px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+/* ── Type pill buttons ── */
+.ex-type-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+.ex-type-pill {
+    padding: 6px 13px;
+    border-radius: 20px;
+    border: 1.5px solid rgba(26, 26, 46, 0.1);
+    background: white;
+    color: rgba(26, 26, 46, 0.5);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.18s;
+    white-space: nowrap;
+}
+.ex-type-pill:hover {
+    border-color: rgba(108, 92, 231, 0.35);
+    color: #6c5ce7;
+    background: rgba(108, 92, 231, 0.05);
+}
+.ex-type-pill.active {
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    color: white;
+    border-color: transparent;
+    box-shadow: 0 3px 10px rgba(108, 92, 231, 0.3);
+}
+
+.ex-delete-btn {
+    background: none;
+    border: none;
+    color: rgba(26, 26, 46, 0.28);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: all 0.18s;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+.ex-delete-btn:hover { color: #ff7675; background: rgba(255, 118, 117, 0.1); }
+
+/* ── Type description ── */
+.ex-type-desc {
+    padding: 8px 16px;
+    font-size: 12px;
+    color: #6c5ce7;
+    background: rgba(108, 92, 231, 0.04);
+    border-bottom: 1px solid rgba(108, 92, 231, 0.07);
+    font-style: italic;
+    font-weight: 500;
+}
+
+/* ── Card body ── */
+.ex-item-body {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* ── Meta row ── */
+.ex-meta-row {
+    display: flex;
+    gap: 20px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    padding: 14px 16px;
+    background: rgba(26, 26, 46, 0.018);
+    border-radius: 12px;
+    border: 1px solid rgba(26, 26, 46, 0.05);
+}
+
+.ex-meta-group {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.ex-meta-group > label {
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    color: rgba(26, 26, 46, 0.42) !important;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0 !important;
+    border: none !important;
+    background: none !important;
+}
+
+/* Difficulty pills */
+.ex-diff-pills {
+    display: flex;
+    gap: 6px;
+}
+
+.ex-diff-pill {
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1.5px solid rgba(26, 26, 46, 0.12);
+    background: white;
+    color: rgba(26, 26, 46, 0.5);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.18s;
+}
+.ex-diff-pill:hover { border-color: rgba(26, 26, 46, 0.25); color: #1a1a2e; }
+
+/* Points */
+.ex-points-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 184, 148, 0.07);
+    border: 1.5px solid rgba(0, 184, 148, 0.22);
+    border-radius: 10px;
+    padding: 6px 14px;
+}
+.ex-points-input {
+    width: 52px;
+    border: none;
+    background: transparent;
+    color: #00b894;
+    font-size: 17px;
+    font-weight: 800;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    text-align: center;
+    padding: 0;
+}
+.ex-points-suffix {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(0, 184, 148, 0.65);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* ── Label note ── */
+.ex-label-note {
+    font-size: 10px;
+    font-weight: 500;
+    color: rgba(26, 26, 46, 0.36);
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: 3px;
+}
+
+/* ── Options list (multiple choice) ── */
+.ex-options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.ex-option-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(26, 26, 46, 0.022);
+    border: 1.5px solid rgba(26, 26, 46, 0.07);
+    border-radius: 11px;
+    transition: border-color 0.15s;
+}
+.ex-option-row:hover { border-color: rgba(108, 92, 231, 0.2); }
+
+.ex-option-letter {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(108, 92, 231, 0.1);
+    color: #6c5ce7;
+    font-size: 11px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ex-option-text {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1a1a2e;
+}
+
+.ex-option-del {
+    background: none;
+    border: none;
+    color: rgba(26, 26, 46, 0.22);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 3px 6px;
+    border-radius: 6px;
+    transition: all 0.15s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.ex-option-del:hover { color: #ff7675; background: rgba(255, 118, 117, 0.1); }
+
+.ex-options-empty {
+    padding: 14px;
+    font-size: 12px;
+    color: rgba(26, 26, 46, 0.32);
+    text-align: center;
+    border: 2px dashed rgba(26, 26, 46, 0.08);
+    border-radius: 10px;
+    font-style: italic;
+}
+
+/* ── Drag list ── */
+.ex-drag-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.ex-drag-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(108, 92, 231, 0.03);
+    border: 1.5px solid rgba(108, 92, 231, 0.1);
+    border-radius: 11px;
+}
+
+.ex-drag-handle {
+    color: rgba(108, 92, 231, 0.3);
+    font-size: 16px;
+    cursor: grab;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.ex-drag-text {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1a1a2e;
+}
+
+/* ── Input row ── */
+.ex-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.ex-input-row input {
+    flex: 1;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1.5px solid rgba(26, 26, 46, 0.1);
+    background: #fafafa;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+    color: #1a1a2e;
+    transition: 0.2s;
+}
+.ex-input-row input:focus {
+    border-color: #6c5ce7;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.08);
+}
+.ex-input-row input::placeholder { color: rgba(26, 26, 46, 0.28); }
+
+.ex-add-btn {
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: none;
+    background: rgba(108, 92, 231, 0.1);
+    color: #6c5ce7;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.18s;
+    white-space: nowrap;
+}
+.ex-add-btn:hover { background: rgba(108, 92, 231, 0.18); }
+
+/* ── Fill in blank preview ── */
+.ex-blank-preview {
+    background: rgba(108, 92, 231, 0.03);
+    border: 1.5px solid rgba(108, 92, 231, 0.12);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.ex-blank-preview-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(108, 92, 231, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+}
+.ex-blank-preview-text {
+    font-size: 14px;
+    color: #1a1a2e;
+    line-height: 2.2;
+}
+.ex-blank-input-mock {
+    display: inline-block;
+    width: 80px;
+    height: 28px;
+    background: white;
+    border: 2px solid rgba(108, 92, 231, 0.5);
+    border-radius: 6px;
+    margin: 0 4px;
+    vertical-align: middle;
+}
+
+/* ── Hint row ── */
+.ex-hint-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+/* ── Checkbox ── */
+.ex-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(26, 26, 46, 0.6);
+    cursor: pointer;
+    user-select: none;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(108, 92, 231, 0.03);
+    border: 1.5px solid rgba(108, 92, 231, 0.1);
+    transition: background 0.15s;
+}
+.ex-checkbox-label:hover { background: rgba(108, 92, 231, 0.06); }
+.ex-checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #6c5ce7;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* ── Add exercise button ── */
+.ex-add-exercise-btn {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: 2px dashed rgba(108, 92, 231, 0.22);
+    background: rgba(108, 92, 231, 0.025);
+    color: #6c5ce7;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.2s;
+    letter-spacing: 0.01em;
+}
+.ex-add-exercise-btn:hover {
+    background: rgba(108, 92, 231, 0.07);
+    border-color: rgba(108, 92, 231, 0.42);
+    transform: translateY(-1px);
+    box-shadow: 0 5px 16px rgba(108, 92, 231, 0.12);
+}
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+    .ex-type-pills    { gap: 4px; }
+    .ex-type-pill     { padding: 5px 10px; font-size: 11px; }
+    .ex-meta-row      { gap: 12px; }
+    .ex-diff-pills    { gap: 4px; }
+    .ex-diff-pill     { padding: 4px 10px; font-size: 11px; }
+    .ex-hint-row      { grid-template-columns: 1fr; }
+    .ex-item-body     { padding: 14px; gap: 12px; }
+    .ex-item-head     { gap: 6px; padding: 10px 12px; }
+}
