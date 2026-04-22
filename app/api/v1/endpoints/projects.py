@@ -104,16 +104,6 @@ async def submit_project(
     )
 
 
-@router.post("/{project_id}/like", response_model=ProjectRead)
-async def like_project(
-        project_id: int,
-        current_student: Student = Depends(get_current_student),
-        service: ProjectService = Depends(get_project_service),
-):
-    """Proyektni like qilish"""
-    return await service.like_project(project_id=project_id)
-
-
 @router.post("/{project_id}/upload-zip")
 async def upload_project_zip(
         project_id: int,
@@ -163,7 +153,7 @@ async def ai_review(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """AI orqali loyihani baholash"""
+    """AI orqali loyihani baholash (github yoki zip)"""
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
 
@@ -176,29 +166,49 @@ async def ai_review(
         raise HTTPException(status_code=400, detail="AI baholash uchun GitHub URL kerak")
 
     technologies = project.technologies_used.split(",") if project.technologies_used else []
-
+    old_points = project.points_earned if project.points_earned else 0
     review = await analyze_project_with_grok(
         title=project.title,
         description=project.description or "",
         github_url=project.github_url,
         technologies=technologies,
-        difficulty_level=str(project.difficulty_level or "Easy")
+        difficulty_level=str(project.difficulty_level or "Easy"),
+        previous_points=old_points  # ✅ qo'shildi
     )
+    new_points = review.get("points", 60)
 
-    project.instructor_feedback = review.get("feedback", "")
-    project.grade = review.get("grade", "C")
-    project.points_earned = review.get("points", 60)
-    project.status = "Approved"
-    project.reviewed_at = datetime.utcnow()
+    old_points = project.points_earned if project.points_earned else 0
+    print(f"DEBUG: project_id={project_id}, old_points={old_points}, new_points biz hali bilmaymiz")
+    print(f"DEBUG: project_id={project_id}, old_points={old_points}, new_points={new_points}")
 
     ranking_service = RankingService(db)
-    await ranking_service.add_points_to_student(project.student_id, review.get("points", 60))
+
+    if old_points > 0:
+        await ranking_service.subtract_points_from_student(project.student_id, old_points)
+        await ranking_service.add_points_to_student(project.student_id, new_points)
+        diff = new_points - old_points
+        if diff > 0:
+            message = f"Ball oshdi! {old_points} → {new_points} (+{diff})"
+        elif diff < 0:
+            message = f"Ball kamaydi! {old_points} → {new_points} ({diff})"
+        else:
+            message = f"Ball o'zgarmadi: {new_points}"
+    else:
+        await ranking_service.add_points_to_student(project.student_id, new_points)
+        message = f"Birinchi baholash! Ball: {new_points}"
+    project.points_earned = new_points
+    project.grade = review.get("grade", "C")
+    project.instructor_feedback = review.get("feedback", "")
+    project.status = "Approved"
+    project.reviewed_at = datetime.utcnow()
 
     await db.commit()
 
     return {
-        "message": "AI baholash yakunlandi!",
+        "message": message,
         "project_id": project_id,
+        "old_points": old_points,
+        "new_points": new_points,
         **review
     }
 
@@ -227,8 +237,13 @@ async def review_project(
     if project.status == "Approved":
         raise HTTPException(status_code=400, detail="Bu loyiha allaqachon tasdiqlangan")
 
-    service = RankingService(db)
-    await service.add_points_to_student(project.student_id, data.points)
+    old_points = project.points_earned if project.points_earned else 0
+    ranking_service = RankingService(db)
+
+    if old_points > 0:
+        await ranking_service.subtract_points_from_student(project.student_id, old_points)
+
+    await ranking_service.add_points_to_student(project.student_id, data.points)
 
     project.status = "Approved"
     project.instructor_feedback = data.feedback
@@ -237,7 +252,7 @@ async def review_project(
     project.reviewed_at = datetime.utcnow()
 
     await db.commit()
-    return {"message": "Loyiha tasdiqlandi!"}
+    return {"message": "Loyiha tasdiqlandi!", "points": data.points}
 
 
 @router.patch("/{project_id}/status")

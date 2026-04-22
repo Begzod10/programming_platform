@@ -1,6 +1,9 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.dependencies import get_current_teacher
 from app.models.user import Student
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.services.ranking_service import RankingService
+from app.dependencies import get_db
 import httpx
 
 router = APIRouter()
@@ -10,6 +13,77 @@ CLASSROOM_USERNAME = "rimefara_teach"
 CLASSROOM_PASSWORD = "22100122"
 
 _cached_token = None
+
+
+@router.post("/sync")
+async def sync_classroom_students(
+        current_teacher: Student = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    """Classroom studentlarini bazaga sync qilish"""
+    from app.models.user import Student as StudentModel, UserRole
+    from app.core.security import get_password_hash
+    from app.services.ranking_service import RankingService
+    from app.models.ranking import Ranking
+    from sqlalchemy import select
+
+    data = await classroom_get(f"{CLASSROOM_API}/group/get_groups")
+    groups = data if isinstance(data, list) else data.get("data", [])
+
+    created = 0
+    skipped = 0
+    ranking_created = 0
+
+    for group in groups:
+        for student in group.get("students", []):
+            name = student.get("name", "").strip()
+            if not name:
+                continue
+
+            username = name.lower().replace(" ", "_") + f"_{student.get('id', '')}"
+            email = f"{username}@classroom.uz"
+
+            existing_result = await db.execute(
+                select(StudentModel).where(StudentModel.username == username)
+            )
+            existing = existing_result.scalar_one_or_none()
+
+            if existing:
+                # Ranking bormi tekshir
+                ranking_result = await db.execute(
+                    select(Ranking).where(Ranking.student_id == existing.id)
+                )
+                if not ranking_result.scalar_one_or_none():
+                    ranking_service = RankingService(db)
+                    await ranking_service.create_ranking(existing.id)
+                    ranking_created += 1
+                skipped += 1
+                continue
+
+            new_student = StudentModel(
+                username=username,
+                email=email,
+                full_name=name,
+                hashed_password=get_password_hash("12345678"),
+                role=UserRole.student,
+                is_active=True
+            )
+            db.add(new_student)
+            await db.flush()
+
+            ranking_service = RankingService(db)
+            await ranking_service.create_ranking(new_student.id)
+
+            created += 1
+
+    await db.commit()
+
+    return {
+        "message": "Sync yakunlandi!",
+        "created": created,
+        "skipped": skipped,
+        "ranking_created": ranking_created
+    }
 
 
 async def get_classroom_token() -> str:
@@ -33,6 +107,7 @@ async def get_classroom_token() -> str:
     except Exception as e:
         print(f"Token olishda xato: {e}")
     return ""
+
 
 async def classroom_get(url: str) -> dict:
     """Classroom API ga GET so'rov"""
