@@ -1,0 +1,258 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+
+.app {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    padding: 20px;
+}
+
+/* ===== CARD — bigger for desktop ===== */
+.login-card {
+    width: 100%;
+    max-width: 460px;
+    padding: 48px 42px;
+    border-radius: 24px;
+    background: white;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+    text-align: center;
+    animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+    from { transform: translateY(24px); opacity: 0; }
+    to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ===== LOGO ===== */
+.logo-wrapper {
+    width: 120px; height: 120px;
+    margin: 0 auto 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.logo-wrapper img {
+    width: 80%;
+    object-fit: contain;
+    border-radius: 25%;
+}
+
+/* ===== TITLES ===== */
+.login-card h1 {
+    margin: 0 0 6px;
+    font-size: 28px;
+    font-weight: 800;
+    color: #1a1a2e;
+    letter-spacing: -0.5px;
+}
+
+.subtitle {
+    font-size: 15px;
+    color: rgba(26,26,46,0.5);
+    margin: 0 0 28px;
+}
+
+/* ===== INPUTS ===== */
+.login-card input {
+    width: 100%;
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    border-radius: 14px;
+    border: 1.5px solid rgba(26,26,46,0.1);
+    outline: none;
+    font-size: 15px;
+    font-family: 'Inter', sans-serif;
+    background: rgba(26,26,46,0.03);
+    color: #1a1a2e;
+    transition: all 0.2s;
+    display: block;
+}
+
+.login-card input:focus {
+    border-color: #6c5ce7;
+    background: rgba(108,92,231,0.04);
+    box-shadow: 0 0 0 3px rgba(108,92,231,0.1);
+}
+
+.login-card input::placeholder { color: rgba(26,26,46,0.35); }
+.login-card input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ===== ERROR ===== */
+.login-error {
+    margin: -4px 0 14px;
+    padding: 11px 16px;
+    background: rgba(255,118,117,0.08);
+    border: 1px solid rgba(255,118,117,0.22);
+    border-radius: 12px;
+    color: #d63031;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25%      { transform: translateX(-4px); }
+    75%      { transform: translateX(4px); }
+}
+
+/* ===== LOGIN BUTTON ===== */
+.login-btn {
+    width: 100%;
+    padding: 15px;
+    border-radius: 14px;
+    border: none;
+    font-size: 16px;
+    font-weight: 700;
+    font-family: 'Inter', sans-serif;
+    color: #fff;
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 6px 20px rgba(108,92,231,0.4);
+    letter-spacing: 0.01em;
+}
+
+.login-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(108,92,231,0.55);
+}
+.login-btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 4px 12px rgba(108,92,231,0.3);
+}
+.login-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* ===== DIVIDER ===== */
+.login-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 20px 0 0;
+    color: rgba(26,26,46,0.25);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.login-divider::before,
+.login-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(26,26,46,0.08);
+}
+
+/* ===== REGISTER BUTTON — чёткая видимая кнопка ===== */
+.toggle-text {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    padding: 14px;
+    border-radius: 14px;
+    border: 2px solid rgba(108,92,231,0.3);
+    background: transparent;
+    color: #6c5ce7;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+    text-align: center;
+    letter-spacing: 0.01em;
+}
+
+.toggle-text:hover {
+    background: rgba(108,92,231,0.08);
+    border-color: #6c5ce7;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(108,92,231,0.18);
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 768px) {
+    .login-card {
+        max-width: 420px;
+        padding: 36px 30px;
+    }
+    .login-card h1 { font-size: 26px; }
+}
+
+@media (max-width: 480px) {
+    .app { padding: 16px; }
+
+    .login-card {
+        padding: 28px 22px;
+        border-radius: 18px;
+        max-width: 100%;
+    }
+
+    .logo-wrapper { width: 100px; height: 100px; }
+    .login-card h1 { font-size: 22px; }
+    .subtitle { font-size: 13px; margin-bottom: 20px; }
+    .login-card input { font-size: 16px; padding: 13px 16px; }
+    .login-btn { font-size: 16px; padding: 14px; }
+}
+
+@media (max-width: 360px) {
+    .app { padding: 12px; }
+    .login-card { padding: 24px 16px; }
+    .login-card h1 { font-size: 20px; }
+    .logo-wrapper { width: 88px; height: 88px; }
+}
+.login-field {
+    margin-bottom: 12px;
+    width: 100%;
+}
+
+.password-field-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Оставляем место под иконку */
+.password-field-wrapper input {
+    padding-right: 46px !important;
+}
+
+.password-toggle-icon {
+    position: absolute;
+    right: 16px;
+    top: 25px;
+    transform: translateY(-50%);
+    cursor: pointer;
+    color: rgba(26, 26, 46, 0.4);
+    font-size: 16px;
+    z-index: 10;
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.password-toggle-icon:hover {
+    color: #6c5ce7;
+}
+
+/* Чтобы ошибка не перекрывала иконку, если она выводится под инпутом */
+.login-error {
+    color: #d63031;
+    font-size: 13px;
+    margin-top: 4px;
+    font-weight: 600;
+}
