@@ -59,9 +59,9 @@ async def revoke_achievement(db: AsyncSession, student_id: int, achievement_id: 
     student = student_result.scalar_one_or_none()
 
     if student and achievement:
-        student.total_points = max(0, student.total_points - achievement.points_reward)
-        if hasattr(student, 'update_level_based_on_points'):
-            student.update_level_based_on_points()
+        from app.services.ranking_service import RankingService
+        ranking_service = RankingService(db)
+        await ranking_service.subtract_points_from_student(student_id, achievement.points_reward)
 
     await db.delete(student_achievement)
     await db.commit()
