@@ -331,3 +331,43 @@
     .tc-confirm-actions .tc-cancel-btn,
     .tc-confirm-actions .tc-delete-btn { width: 100%; flex: none; }
 }
+.tc-publish-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+.tc-publish-btn.published {
+    background: rgba(0, 184, 148, 0.12);
+    color: #00b894;
+}
+.tc-publish-btn.published:hover {
+    background: rgba(214, 48, 49, 0.1);
+    color: #d63031;
+}
+.tc-publish-btn.draft {
+    background: rgba(99, 99, 99, 0.1);
+    color: #888;
+}
+.tc-publish-btn.draft:hover {
+    background: rgba(0, 184, 148, 0.12);
+    color: #00b894;
+}
+.tc-publish-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+.tc-publish-btn.published .tc-publish-dot { background: #00b894; }
+.tc-publish-btn.draft     .tc-publish-dot { background: #888; }
+.tc-publish-btn.published:hover .tc-publish-dot { background: #d63031; }
+.tc-publish-btn.draft:hover     .tc-publish-dot { background: #00b894; }

@@ -10,7 +10,6 @@ function TeacherSidebar({ activeTab, setActiveTab, onLogout }) {
         { id: 'profile',       label: 'Профиль',         icon: '👨‍🏫' },
         { id: 'review',        label: 'Проверка работ',  icon: '📥' },
         { id: 'students_list', label: 'Мои Студенты',    icon: '👥' },
-        { id: 'groups',        label: 'Мои Группы',      icon: '👨🏻‍🎓' },
         { id: 'courses',       label: 'Курсы',           icon: '📚' },
         { id: 'certificates',  label: 'Сертификаты',     icon: '🏅' },
         { id: 'statistics',    label: 'Статистика',      icon: '📈' },

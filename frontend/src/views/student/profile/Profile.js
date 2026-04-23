@@ -9,7 +9,6 @@ function Profile({ user: initialUser, onLogout }) {
     const [profile,     setProfile]     = useState(null);
     const [loading,     setLoading]     = useState(true);
     const [editMode,    setEditMode]    = useState(false);
-    const [deleteModal, setDeleteModal] = useState(false);
     const [saving,      setSaving]      = useState(false);
     const [deleting,    setDeleting]    = useState(false);
     const [error,       setError]       = useState('');
@@ -102,10 +101,6 @@ function Profile({ user: initialUser, onLogout }) {
                             onClick={() => { setEditMode(true); setError(''); }}>
                             ✏️ Редактировать
                         </button>
-                        <button className="delete-profile-btn"
-                            onClick={() => setDeleteModal(true)}>
-                            🗑️ Удалить аккаунт
-                        </button>
                     </div>
                 </div>
 
@@ -190,26 +185,6 @@ function Profile({ user: initialUser, onLogout }) {
                     )}
                 </div>
             </div>
-
-            {/* ✅ PORTAL — рендерится прямо в document.body, поверх всего */}
-            {deleteModal && ReactDOM.createPortal(
-                <div className="profile-overlay" onClick={() => setDeleteModal(false)}>
-                    <div className="profile-confirm" onClick={e => e.stopPropagation()}>
-                        <span className="profile-confirm-icon">⚠️</span>
-                        <h4>Удалить аккаунт?</h4>
-                        <p>Это действие нельзя отменить. Все данные будут удалены.</p>
-                        <div className="profile-confirm-actions">
-                            <button className="profile-cancel-btn" onClick={() => setDeleteModal(false)}>
-                                Отмена
-                            </button>
-                            <button className="profile-delete-btn" onClick={handleDelete} disabled={deleting}>
-                                {deleting ? '⏳ Удаление...' : '🗑️ Удалить'}
-                            </button>
-                        </div>
-                    </div>
-                </div>,
-                document.body
-            )}
         </div>
     );
 }

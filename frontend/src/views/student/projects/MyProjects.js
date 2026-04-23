@@ -87,9 +87,6 @@ function MyProjects() {
     const [aiLoading,  setAiLoading]  = useState(false);
     const [aiResult,   setAiResult]   = useState('');
 
-    // Like optimistic state
-    const [likedIds,   setLikedIds]   = useState(new Set());
-
     useEffect(() => {
         request(`${API_URL}v1/project/my`, 'GET', null, headers())
             .then(data => setProjects(Array.isArray(data) ? data : []))
@@ -168,22 +165,6 @@ function MyProjects() {
             .catch(() => alert('Ошибка при удалении'));
     };
 
-    /* ── LIKE ── */
-    const handleLike = (projectId) => {
-        request(`${API_URL}v1/project/${projectId}/like`, 'POST', JSON.stringify({}), headers())
-            .then(() => {
-                setLikedIds(s => new Set([...s, projectId]));
-                setProjects(p => p.map(pr =>
-                    pr.id === projectId ? { ...pr, likes_count: (pr.likes_count || 0) + 1 } : pr
-                ));
-                setDetail(d => d && d.id === projectId
-                    ? { ...d, likes_count: (d.likes_count || 0) + 1 }
-                    : d
-                );
-            })
-            .catch(() => alert('Ошибка при лайке'));
-    };
-
     /* ── UPLOAD ZIP ── */
     const handleZipUpload = (projectId, file) => {
         if (!file) return;
@@ -195,7 +176,6 @@ function MyProjects() {
         formData.append('file', file);
 
         setUploading(true); setUploadMsg('');
-        // Use fetch directly for multipart/form-data (no Content-Type override)
         const h = headers();
         delete h['Content-Type'];
         fetch(`${API_URL}v1/project/${projectId}/upload-zip`, {
@@ -206,7 +186,6 @@ function MyProjects() {
             .then(async r => {
                 if (!r.ok) throw new Error();
                 setUploadMsg('✅ ZIP загружен успешно');
-                // refresh project
                 return request(`${API_URL}v1/project/${projectId}`, 'GET', null, headers());
             })
             .then(res => {
@@ -286,11 +265,8 @@ function MyProjects() {
                             points={p.points_earned}
                             techStack={p.technologies_used || []}
                             grade={p.grade}
-                            liked={likedIds.has(p.id)}
-                            likesCount={p.likes_count || 0}
                             viewsCount={p.views_count || 0}
                             onDetails={() => { setAiResult(''); setUploadMsg(''); setDetail(p); }}
-                            onLike={() => handleLike(p.id)}
                         />
                     ))}
                 </div>
@@ -374,11 +350,6 @@ function MyProjects() {
                                 <span className="mp-stat-val">{detail.views_count ?? 0}</span>
                                 <span className="mp-stat-label">просмотров</span>
                             </div>
-                            <div className="mp-stat">
-                                <span className="mp-stat-icon">❤️</span>
-                                <span className="mp-stat-val">{detail.likes_count ?? 0}</span>
-                                <span className="mp-stat-label">лайков</span>
-                            </div>
                         </div>
 
                         {/* Description */}
@@ -450,7 +421,6 @@ function MyProjects() {
                                     setUploadMsg('');
                                 }}
                             />
-                            {/* File preview before upload */}
                             {selectedFile && (
                                 <div className={`mp-file-preview ${selectedFile.size > 15 * 1024 * 1024 ? 'too-large' : 'ok'}`}>
                                     <div className="mp-file-info">
@@ -526,13 +496,6 @@ function MyProjects() {
                                     </button>
                                 </>
                             )}
-                            <button
-                                className={`mp-btn-like ${likedIds.has(detail.id) ? 'liked' : ''}`}
-                                onClick={() => handleLike(detail.id)}
-                                disabled={likedIds.has(detail.id)}
-                            >
-                                {likedIds.has(detail.id) ? '❤️ Liked' : '🤍 Лайк'}
-                            </button>
                         </div>
                     </div>
                 </Modal>

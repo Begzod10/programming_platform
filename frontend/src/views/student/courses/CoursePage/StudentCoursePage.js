@@ -2,22 +2,17 @@ import React from 'react';
 import './StudentCoursePage.css';
 
 const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
-  // Используем актуальные данные из пропса course
-  // Если массив уроков пуст, берем процент из объекта курса (для подстраховки)
-  const total = course.lessons ? course.lessons.length : (course.lessonsCount || 0);
-  const completedLessons = course.lessons ? course.lessons.filter(l => l.completed).length : 0;
+  const lessonsArray = (course.lessons || []).filter(l => l.is_published !== false);
 
-  // РАСЧЕТ ПРОГРЕССА:
-  // Если уроки загружены, считаем по ним. Если нет — верим цифре из бэкенда.
-  const progress = (course.lessons && course.lessons.length > 0)
+  const total = lessonsArray.length;
+  const completedLessons = lessonsArray.filter(l => l.completed).length;
+
+  const progress = total > 0
     ? Math.round((completedLessons / total) * 100)
     : Math.round(course.progress_percentage || 0);
 
-  /* Группировка по главам */
-  const lessonsArray = course.lessons || [];
   const noChapter = lessonsArray.filter(l => !l.chapter);
   const byChapter = {};
-
   lessonsArray.forEach(l => {
     if (l.chapter) {
       if (!byChapter[l.chapter]) byChapter[l.chapter] = [];
@@ -26,19 +21,16 @@ const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
   });
   const chapterKeys = Object.keys(byChapter);
 
-  /* Глобальный индекс уроков */
   const lessonIdx = {};
   lessonsArray.forEach((l, i) => { lessonIdx[l.id] = i + 1; });
 
   return (
     <div className="scp-container">
 
-      {/* Top bar */}
       <div className="scp-top-bar">
         <button className="scp-back-btn" onClick={onBack}>← Назад к курсам</button>
       </div>
 
-      {/* Banner */}
       <div className="scp-banner">
         <img src={course.image} alt={course.title} className="scp-banner-img" />
         <div className="scp-banner-overlay">
@@ -53,7 +45,6 @@ const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
             </div>
           </div>
 
-          {/* Progress ring */}
           <div className="scp-progress-ring-wrap">
             <svg viewBox="0 0 100 100" className="scp-progress-ring">
               <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="8"/>
@@ -74,13 +65,11 @@ const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
           </div>
         </div>
 
-        {/* Progress bar */}
         <div className="scp-banner-progress">
           <div className="scp-banner-progress-fill" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
-      {/* Lessons */}
       <h2 className="scp-section-title">📖 Уроки курса</h2>
 
       {total === 0 ? (
@@ -90,7 +79,6 @@ const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
         </div>
       ) : (
         <>
-          {/* По главам */}
           {chapterKeys.map(ch => (
             <div key={ch} className="scp-chapter-group">
               <div className="scp-chapter-label">
@@ -110,7 +98,6 @@ const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
             </div>
           ))}
 
-          {/* Без раздела */}
           {noChapter.length > 0 && (
             <div className="scp-chapter-group">
               {chapterKeys.length > 0 && (
@@ -148,13 +135,10 @@ const LessonCard = ({ lesson, index, onOpen }) => {
           ? <img src={lesson.image} alt={lesson.title} />
           : <div className="scp-lesson-no-img">📹</div>
         }
-
         <span className="scp-lesson-num">{index}</span>
-
         {lesson.completed && (
           <span className="scp-lesson-done-badge">✓</span>
         )}
-
         <div className="scp-lesson-play-overlay">
           <div className="scp-play-circle">
             {lesson.completed ? '↺' : '▶'}

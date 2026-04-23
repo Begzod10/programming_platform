@@ -5,10 +5,6 @@ import StudentCoursePage from "../CoursePage/StudentCoursePage";
 import StudentLessonPage from "../LessonPage/StudentLessonPage";
 import {API_URL, useHttp, headers} from '../../../../api/search/base';
 
-/* ─────────────────────────────────────────
-   Умный парсер строки → массив
-   Обрабатывает: массив, JSON-строку, plain "a,b,c"
-───────────────────────────────────────── */
 const parseListField = (val) => {
     if (!val) return [];
     if (Array.isArray(val)) return val.map(s => String(s).trim()).filter(Boolean);
@@ -25,9 +21,6 @@ const parseListField = (val) => {
     return [];
 };
 
-/* ─────────────────────────────────────────
-   API → Exercise object
-───────────────────────────────────────── */
 const apiToExercise = (ex) => ({
     id:                 ex.id,
     title:              ex.title              || '',
@@ -45,9 +38,6 @@ const apiToExercise = (ex) => ({
     order:              ex.order               || 0,
 });
 
-/* ─────────────────────────────────────────
-   API → Lesson object
-───────────────────────────────────────── */
 const apiToLesson = (l, isCompleted = false, exercises = []) => {
     const baseSections = [
         l.text_content ? {id: `t${l.id}`, type: 'text',  label: 'Текст', html: l.text_content} : null,
@@ -75,19 +65,17 @@ const apiToLesson = (l, isCompleted = false, exercises = []) => {
     }
 
     return {
-        id:        l.id,
-        title:     l.title,
-        chapter:   l.chapter    || '',
-        image:     l.image_url  || '',
-        completed: isCompleted,
-        order:     l.order      || 0,
-        sections:  baseSections,
+        id:           l.id,
+        title:        l.title,
+        chapter:      l.chapter    || '',
+        image:        l.image_url  || '',
+        completed:    isCompleted,
+        order:        l.order      || 0,
+        is_published: l.is_published ?? true,
+        sections:     baseSections,
     };
 };
 
-/* ─────────────────────────────────────────
-   Progress helper
-───────────────────────────────────────── */
 const getCourseProgress = (course) => {
     if (course.lessons && course.lessons.length > 0) {
         const done = course.lessons.filter(l => l.completed).length;
@@ -96,9 +84,6 @@ const getCourseProgress = (course) => {
     return Math.round(course.progress_percentage || 0);
 };
 
-/* ─────────────────────────────────────────
-   Main Component
-───────────────────────────────────────── */
 const StudentCourses = () => {
     const {request} = useHttp();
     const [courses,       setCourses]      = useState([]);
@@ -108,41 +93,42 @@ const StudentCourses = () => {
     const [activeCourse,  setActiveCourse] = useState(null);
     const [activeLesson,  setActiveLesson] = useState(null);
 
-    /* ── Функция загрузки (теперь отдельная, чтобы вызывать при выходе из курса) ── */
     const fetchCourses = () => {
         setLoading(true);
-        // Добавлен timestamp для обхода кэша
         request(`${API_URL}v1/courses/?t=${Date.now()}`, 'GET', null, headers())
             .then(data => {
                 const list = Array.isArray(data) ? data : [];
-                setCourses(list.map(c => ({
-                    ...c,
-                    image:               c.image_url           || '',
-                    teacher:             c.instructor_name     || "O'qituvchi",
-                    studentsCount:       c.students_count      || 0,
-                    lessonsCount:        c.lessons_count       || 0,
-                    progress_percentage: c.progress_percentage || 0,
-                    enrolled:            true,
-                    lessons:             [],
-                })));
+                setCourses(list
+                    // Фильтруем неопубликованные курсы
+                    .filter(c => c.is_published !== false)
+                    .map(c => ({
+                        ...c,
+                        image:               c.image_url           || '',
+                        teacher:             c.instructor_name     || "O'qituvchi",
+                        studentsCount:       c.students_count      || 0,
+                        lessonsCount:        c.lessons_count       || 0,
+                        progress_percentage: c.progress_percentage || 0,
+                        enrolled:            true,
+                        lessons:             [],
+                    })));
             })
             .catch(err => console.error('Courses load error:', err))
             .finally(() => setLoading(false));
     };
 
-    /* ── Load courses initial ── */
     useEffect(() => {
         fetchCourses();
     }, []);
 
-    /* ── Load lessons + exercises ── */
     const loadLessons = async (courseId) => {
         try {
-            // Тут тоже можно добавить timestamp если уроки "залипают"
             const data = await request(`${API_URL}v1/courses/${courseId}/lessons?t=${Date.now()}`, 'GET', null, headers());
             const list = Array.isArray(data) ? data : [];
 
-            const lessonsBuilt = await Promise.all(list.map(async (lesson) => {
+            // Фильтруем неопубликованные уроки сразу
+            const publishedList = list.filter(l => l.is_published !== false);
+
+            const lessonsBuilt = await Promise.all(publishedList.map(async (lesson) => {
                 let isDone = false;
                 try {
                     const s = await request(`${API_URL}v1/lessons/${lesson.id}/is-completed?t=${Date.now()}`, 'GET', null, headers());
@@ -170,7 +156,6 @@ const StudentCourses = () => {
         }
     };
 
-    /* ── Mark lesson complete ── */
     const markComplete = (lessonId) => {
         request(`${API_URL}v1/lessons/${lessonId}/complete`, 'POST', null, headers())
             .then(() => {
@@ -204,7 +189,7 @@ const StudentCourses = () => {
                     if (target === 'courses') {
                         setView('courses');
                         setActiveCourse(null);
-                        fetchCourses(); // Обновляем курсы при полном выходе
+                        fetchCourses();
                     }
                     else setView('course');
                     setActiveLesson(null);
@@ -223,7 +208,7 @@ const StudentCourses = () => {
                 onBack={() => {
                     setView('courses');
                     setActiveCourse(null);
-                    fetchCourses(); // ОБНОВЛЯЕМ ДАННЫЕ ПРИ ВОЗВРАТЕ К СПИСКУ
+                    fetchCourses();
                 }}
                 onOpenLesson={(lesson) => { setActiveLesson(lesson); setView('lesson'); }}
             />

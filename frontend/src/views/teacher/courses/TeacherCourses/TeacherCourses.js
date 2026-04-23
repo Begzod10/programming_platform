@@ -8,17 +8,6 @@ import { API_URL, useHttp, headers } from '../../../../api/search/base';
 
 const INITIAL_CHAPTERS = ['Basic', 'Advanced', 'Test'];
 
-/* ─────────────────────────────────────────
-   API ↔ UI helpers
-───────────────────────────────────────── */
-
-/**
- * Парсим поле которое может быть:
- *   - JSON-строкой:  '["a","b"]'  → 'a,b'
- *   - CSV-строкой:   'a,b,c'      → 'a,b,c'
- *   - уже массивом:  ['a','b']    → 'a,b'
- *   - null/undefined              → ''
- */
 const parseToComma = (val) => {
     if (!val) return '';
     if (Array.isArray(val)) return val.join(',');
@@ -35,9 +24,6 @@ const parseToComma = (val) => {
     return '';
 };
 
-/**
- * Наш внутренний формат "item1,item2" → JSON-массив строку для API
- */
 const commaToJsonArray = (str) => {
     if (!str) return null;
     const arr = str.split(',').map(s => s.trim()).filter(Boolean);
@@ -45,7 +31,6 @@ const commaToJsonArray = (str) => {
     return JSON.stringify(arr);
 };
 
-/* Exercise: API → local form object */
 const apiToExercise = (e) => ({
     _localId:           e.id,
     id:                 e.id,
@@ -65,7 +50,6 @@ const apiToExercise = (e) => ({
     order:              e.order              || 0,
 });
 
-/* Exercise: local form → API body */
 const exerciseToApi = (ex) => ({
     title:              ex.title,
     description:        ex.description,
@@ -83,14 +67,14 @@ const exerciseToApi = (ex) => ({
     order:              ex.order             || 0,
 });
 
-/* Lesson: API → UI */
 const apiToLesson = (l) => ({
-    id:        l.id,
-    title:     l.title,
-    chapter:   l.chapter || '',
-    image:     l.image_url || '',
-    completed: false,
-    order:     l.order || 0,
+    id:           l.id,
+    title:        l.title,
+    chapter:      l.chapter      || '',
+    image:        l.image_url    || '',
+    completed:    false,
+    order:        l.order        || 0,
+    is_published: l.is_published || false,
     sections: [
         l.text_content ? { id: `t${l.id}`, type: 'text',  label: 'Текст', html: l.text_content } : null,
         l.code_content ? { id: `c${l.id}`, type: 'code',  label: 'Код',   lang: l.code_language || 'javascript', code: l.code_content } : null,
@@ -99,9 +83,9 @@ const apiToLesson = (l) => ({
         l.file_url     ? { id: `f${l.id}`, type: 'file',  label: 'Файл',  fileName: l.file_url } : null,
         l.mashq_type ? {
             id: `m${l.id}`, type: 'mashq', label: 'Mashq',
-            mashqType: l.mashq_type || 'textarea',
-            question:  l.mashq_question  || '',
-            answer:    l.mashq_answer    || '',
+            mashqType: l.mashq_type     || 'textarea',
+            question:  l.mashq_question || '',
+            answer:    l.mashq_answer   || '',
             words:     l.mashq_words
                 ? (Array.isArray(l.mashq_words) ? l.mashq_words : l.mashq_words.split(',').map(w => w.trim()))
                 : [],
@@ -113,8 +97,6 @@ const apiToLesson = (l) => ({
             techStack:    l.task_technologies || '',
             deadline:     l.task_deadline_days || '',
         } : null,
-        // Exercises: создаём секцию всегда когда поле exercises есть в ответе API
-        // (даже пустой массив — чтобы редактор мог работать с блоком)
         Array.isArray(l.exercises) ? {
             id:        `e${l.id}`,
             type:      'exercise',
@@ -124,7 +106,6 @@ const apiToLesson = (l) => ({
     ].filter(Boolean),
 });
 
-/* Lesson: UI → API */
 const lessonToApi = (form) => {
     const project = form.sections?.find(s => s.type === 'project');
     const mashq   = form.sections?.find(s => s.type === 'mashq');
@@ -150,9 +131,7 @@ const lessonToApi = (form) => {
     };
 };
 
-/* ─────────────────────────────────────────
-   Confirm Modal
-───────────────────────────────────────── */
+/* ─── Confirm Modal ─── */
 const ConfirmModal = ({ title, text, onConfirm, onClose }) => {
     useEffect(() => {
         const h = e => { if (e.key === 'Escape') onClose(); };
@@ -176,9 +155,7 @@ const ConfirmModal = ({ title, text, onConfirm, onClose }) => {
     );
 };
 
-/* ─────────────────────────────────────────
-   Chapters Modal
-───────────────────────────────────────── */
+/* ─── Chapters Modal ─── */
 const ChaptersModal = ({ chapters, onSave, onClose }) => {
     const [list,  setList]  = useState([...chapters]);
     const [input, setInput] = useState('');
@@ -223,9 +200,7 @@ const ChaptersModal = ({ chapters, onSave, onClose }) => {
     );
 };
 
-/* ─────────────────────────────────────────
-   Main Component
-───────────────────────────────────────── */
+/* ─── Main ─── */
 const TeacherCourses = () => {
     const { request } = useHttp();
 
@@ -319,8 +294,8 @@ const TeacherCourses = () => {
         setNewCourse({
             title: course.title, description: course.description, image: course.image,
             difficulty_level: course.difficulty_level || 'Beginner',
-            duration_weeks: course.duration_weeks || '4',
-            max_points: course.max_points || '100',
+            duration_weeks:   course.duration_weeks   || '4',
+            max_points:       course.max_points       || '100',
         });
         setShowCourseModal(true);
     };
@@ -329,12 +304,14 @@ const TeacherCourses = () => {
         if (!newCourse.title.trim() || !newCourse.description.trim()) return;
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         const body = {
-            title: newCourse.title, description: newCourse.description,
-            image_url: newCourse.image, instructor_id: user.id,
+            title:            newCourse.title,
+            description:      newCourse.description,
+            image_url:        newCourse.image,
+            instructor_id:    user.id,
             difficulty_level: newCourse.difficulty_level || 'Beginner',
-            duration_weeks: Number(newCourse.duration_weeks) || 4,
-            max_points: Number(newCourse.max_points) || 100,
-            is_active: true,
+            duration_weeks:   Number(newCourse.duration_weeks) || 4,
+            max_points:       Number(newCourse.max_points) || 100,
+            is_active:        true,
         };
         if (editingCourse) {
             request(`${API_URL}v1/courses/${editingCourse.id}`, 'PUT', JSON.stringify(body), headers())
@@ -349,6 +326,21 @@ const TeacherCourses = () => {
                     setShowCourseModal(false);
                 }).catch(() => {});
         }
+    };
+
+    /* ── Toggle course publish ── */
+    const toggleCoursePublish = (course, e) => {
+        e.stopPropagation();
+        const newVal = !course.is_published;
+        setCourses(cs => cs.map(c =>
+            c.id === course.id ? { ...c, is_published: newVal } : c
+        ));
+        request(`${API_URL}v1/courses/${course.id}`, 'PUT', JSON.stringify({ is_published: newVal }), headers())
+            .catch(() => {
+                setCourses(cs => cs.map(c =>
+                    c.id === course.id ? { ...c, is_published: !newVal } : c
+                ));
+            });
     };
 
     const doDeleteCourse = (id) => {
@@ -413,6 +405,35 @@ const TeacherCourses = () => {
         }
     };
 
+    /* ── Toggle lesson publish ── */
+    const toggleLessonPublish = (lesson) => {
+        if (!activeCourse) return;
+        const newVal = !lesson.is_published;
+        setCourses(cs => cs.map(c => {
+            if (c.id !== activeCourse.id) return c;
+            return {
+                ...c,
+                lessons: c.lessons.map(l =>
+                    l.id === lesson.id ? { ...l, is_published: newVal } : l
+                ),
+            };
+        }));
+        request(
+            `${API_URL}v1/courses/${activeCourse.id}/lessons/${lesson.id}`,
+            'PUT', JSON.stringify({ is_published: newVal }), headers()
+        ).catch(() => {
+            setCourses(cs => cs.map(c => {
+                if (c.id !== activeCourse.id) return c;
+                return {
+                    ...c,
+                    lessons: c.lessons.map(l =>
+                        l.id === lesson.id ? { ...l, is_published: !newVal } : l
+                    ),
+                };
+            }));
+        });
+    };
+
     const doDeleteLesson = (lessonId) => {
         if (!activeCourse) return;
         fetch(`${API_URL}v1/courses/${activeCourse.id}/lessons/${lessonId}`, { method: 'DELETE', mode: 'cors', headers: headers() })
@@ -432,7 +453,6 @@ const TeacherCourses = () => {
     };
 
     /* ── Views ── */
-
     if (view === 'lesson' && activeLesson && activeCourse) {
         const fresh = activeCourse.lessons.find(l => l.id === activeLesson.id) || activeLesson;
         return (
@@ -467,6 +487,7 @@ const TeacherCourses = () => {
                     onAddLesson={openAddLesson}
                     onEditLesson={openEditLesson}
                     onDeleteLesson={id => setConfirmLesson(id)}
+                    onToggleLessonPublish={toggleLessonPublish}
                 />
                 {showLessonModal && (
                     <LessonModal course={activeCourse} lesson={editingLesson} chapters={chapters}
@@ -530,6 +551,14 @@ const TeacherCourses = () => {
                                 <div className="tc-course-header">
                                     <h3>{course.title}</h3>
                                     <div className="tc-course-actions">
+                                        <button
+                                            className={`tc-publish-btn ${course.is_published ? 'published' : 'draft'}`}
+                                            onClick={e => toggleCoursePublish(course, e)}
+                                            title={course.is_published ? 'Скрыть от студентов' : 'Опубликовать курс'}
+                                        >
+                                            <span className="tc-publish-dot" />
+                                            {course.is_published ? 'Опубликован' : 'Черновик'}
+                                        </button>
                                         <button className="tc-icon-btn tc-ediet-icon" onClick={e => openEditCourse(course, e)}>✏️</button>
                                         <button className="tc-icon-btn tc-delete-icon" onClick={e => { e.stopPropagation(); setConfirmCourse(course.id); }}>🗑️</button>
                                     </div>

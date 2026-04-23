@@ -3,7 +3,6 @@ import TeacherSidebar from '../components/sidebar/TeacherSidebar';
 import TeacherProfile from '../views/teacher/profile/TeacherProfile';
 import TeacherReview from '../views/teacher/teacherreview/TeacherReview';
 import MyStudents from '../views/teacher/mystudents/MyStudents';
-import MyGroups from '../views/teacher/mygroups/MyGroups';
 import TeacherStatistics from '../views/teacher/statistics/TeacherStatistics';
 import TeacherCourses from '../views/teacher/courses/TeacherCourses/TeacherCourses';
 import TeacherCertificates from '../views/teacher/TeacherCertificates/Teachercertificates';
@@ -28,7 +27,6 @@ function TeacherLayout({ user, activeTab, setActiveTab, onLogout }) {
                     {activeTab === 'profile'       && <TeacherProfile user={user} />}
                     {activeTab === 'review'        && <TeacherReview />}
                     {activeTab === 'students_list' && <MyStudents />}
-                    {activeTab === 'groups'        && <MyGroups />}
                     {activeTab === 'statistics'    && <TeacherStatistics />}
                     {activeTab === 'courses'       && <TeacherCourses />}
                     {activeTab === 'certificates'  && <TeacherCertificates />}
