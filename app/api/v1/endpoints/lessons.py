@@ -6,10 +6,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_db, get_current_student, get_current_teacher, get_current_student_optional
-from app.services import lesson_service, achievement_service, exercise_service
+from app.services import lesson_service, achievement_service
 from app.schemas.lesson import LessonCreate, LessonUpdate, LessonRead
-from app.schemas.exercise import ExerciseCreate, ExerciseUpdate, ExerciseRead, ExerciseSubmitRequest, \
-    ExerciseSubmissionRead
 from app.models.user import Student
 from app.models.submission import Submission
 from app.models.project import Project
@@ -89,7 +87,6 @@ async def get_lessons(
         current_student: Optional[Student] = Depends(get_current_student_optional)
 ):
     """Kurs darslarini olish."""
-    # Autentifikatsiya bo'lgan talabalar uchun prerequisite tekshiruvi
     if current_student:
         allowed = await achievement_service.check_course_prerequisite(db, current_student.id, course_id)
         if not allowed:
@@ -100,7 +97,6 @@ async def get_lessons(
 
     lessons = await lesson_service.get_lessons_by_course(db, course_id)
 
-    # Darslar tugatilganligini tekshiramiz
     completed_ids = set()
     if current_student:
         completed_lessons = await db.execute(
@@ -111,8 +107,7 @@ async def get_lessons(
             )
         )
         completed_ids = {r[0] for r in completed_lessons.all()}
-    
-    # LessonRead ob'ektlarini qo'lda yig'amiz
+
     result = []
     for l in lessons:
         lesson_data = LessonRead.model_validate(l)
@@ -136,9 +131,8 @@ async def get_lesson(
     if not lesson or lesson.course_id != course_id:
         raise HTTPException(status_code=404, detail="Dars topilmadi")
 
-    # LessonRead ob'ektini quramiz
     res = LessonRead.model_validate(lesson)
-    
+
     if current_student:
         existing = await db.execute(
             select(LessonCompletion).where(
@@ -194,143 +188,6 @@ async def delete_lesson(
     return None
 
 
-# ============ EXERCISE ENDPOINTS (lesson ichida) ============
-
-@router.get("/courses/{course_id}/lessons/{lesson_id}/exercises", response_model=List[ExerciseRead])
-async def get_exercises(
-        course_id: int,
-        lesson_id: int,
-        db: AsyncSession = Depends(get_db)
-):
-    """Dars mashqlarini olish"""
-    lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
-    if not lesson or lesson.course_id != course_id:
-        raise HTTPException(status_code=404, detail="Dars topilmadi")
-    return await exercise_service.get_exercises_by_lesson(db, lesson_id)
-
-
-@router.get("/courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}", response_model=ExerciseRead)
-async def get_exercise(
-        course_id: int,
-        lesson_id: int,
-        exercise_id: int,
-        db: AsyncSession = Depends(get_db)
-):
-    """Bitta mashqni olish"""
-    lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
-    if not lesson or lesson.course_id != course_id:
-        raise HTTPException(status_code=404, detail="Dars topilmadi")
-    exercise = await exercise_service.get_exercise_by_id(db, exercise_id)
-    if not exercise or exercise.lesson_id != lesson_id:
-        raise HTTPException(status_code=404, detail="Mashq topilmadi")
-    return exercise
-
-
-@router.post("/courses/{course_id}/lessons/{lesson_id}/exercises", response_model=ExerciseRead, status_code=201)
-async def create_exercise(
-        course_id: int,
-        lesson_id: int,
-        data: ExerciseCreate,
-        current_teacher: Student = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
-):
-    """Darsga mashq qo'shish (faqat teacher)
-    
-    exercise_type:
-    - fill_in_blank: description da ___ bilan bo'sh joy, correct_answers: "javob1,javob2"
-    - drag_and_drop: drag_items: '["item1","item2"]', correct_order: '["item2","item1"]'
-    - multiple_choice: options: '["A variant","B variant"]', correct_answers: "A" yoki "A,C"
-    - text_input: expected_answer (AI tekshiradi)
-    """
-    lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
-    if not lesson or lesson.course_id != course_id:
-        raise HTTPException(status_code=404, detail="Dars topilmadi")
-    return await exercise_service.create_exercise(db, lesson_id, data)
-
-
-@router.put("/courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}", response_model=ExerciseRead)
-async def update_exercise(
-        course_id: int,
-        lesson_id: int,
-        exercise_id: int,
-        data: ExerciseUpdate,
-        current_teacher: Student = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
-):
-    """Mashqni yangilash (faqat teacher)"""
-    lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
-    if not lesson or lesson.course_id != course_id:
-        raise HTTPException(status_code=404, detail="Dars topilmadi")
-    exercise = await exercise_service.get_exercise_by_id(db, exercise_id)
-    if not exercise or exercise.lesson_id != lesson_id:
-        raise HTTPException(status_code=404, detail="Mashq topilmadi")
-    return await exercise_service.update_exercise(db, exercise_id, data)
-
-
-@router.delete("/courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}", status_code=204)
-async def delete_exercise(
-        course_id: int,
-        lesson_id: int,
-        exercise_id: int,
-        current_teacher: Student = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
-):
-    """Mashqni o'chirish (faqat teacher)"""
-    lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
-    if not lesson or lesson.course_id != course_id:
-        raise HTTPException(status_code=404, detail="Dars topilmadi")
-    exercise = await exercise_service.get_exercise_by_id(db, exercise_id)
-    if not exercise or exercise.lesson_id != lesson_id:
-        raise HTTPException(status_code=404, detail="Mashq topilmadi")
-    await exercise_service.delete_exercise(db, exercise_id)
-    return None
-
-
-@router.post("/courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}/submit", 
-             response_model=ExerciseSubmissionRead, status_code=201)
-async def submit_exercise(
-        course_id: int,
-        lesson_id: int,
-        exercise_id: int,
-        data: ExerciseSubmitRequest,
-        current_student: Student = Depends(get_current_student),
-        db: AsyncSession = Depends(get_db)
-):
-    """Mashqqa javob berish (student)
-    
-    fill_in_blank: "javob1,javob2"
-    drag_and_drop: '["item2","item1","item3"]'
-    multiple_choice: "A" yoki "A,C"
-    text_input: oddiy matn (AI tekshiradi)
-    """
-    lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
-    if not lesson or lesson.course_id != course_id:
-        raise HTTPException(status_code=404, detail="Dars topilmadi")
-    exercise = await exercise_service.get_exercise_by_id(db, exercise_id)
-    if not exercise or exercise.lesson_id != lesson_id:
-        raise HTTPException(status_code=404, detail="Mashq topilmadi")
-    return await exercise_service.submit_exercise(db, exercise_id, current_student.id, data)
-
-
-@router.get("/courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}/my-submissions", 
-            response_model=List[ExerciseSubmissionRead])
-async def my_exercise_submissions(
-        course_id: int,
-        lesson_id: int,
-        exercise_id: int,
-        current_student: Student = Depends(get_current_student),
-        db: AsyncSession = Depends(get_db)
-):
-    """Mening mashq javoblarim tarixi"""
-    lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
-    if not lesson or lesson.course_id != course_id:
-        raise HTTPException(status_code=404, detail="Dars topilmadi")
-    exercise = await exercise_service.get_exercise_by_id(db, exercise_id)
-    if not exercise or exercise.lesson_id != lesson_id:
-        raise HTTPException(status_code=404, detail="Mashq topilmadi")
-    return await exercise_service.get_my_submissions(db, current_student.id, exercise_id)
-
-
 # ============================================================
 # LESSON COMPLETION ENDPOINTS
 # ============================================================
@@ -342,11 +199,9 @@ async def complete_lesson(
         db: AsyncSession = Depends(get_db)
 ):
     """Darsni tugatish — ball qo'shiladi, kurs tugasa sertifikat beriladi"""
-    # Service layer orqali bajarish (Ranking va Pointlar shu yerda)
     result = await lesson_service.complete_lesson(db, lesson_id, current_student.id)
     course_id = result.get("course_id")
 
-    # ✅ Kurs tugaganini tekshirib sertifikat berish
     cert = await achievement_service.award_certificate(db, current_student.id, course_id)
 
     return {
@@ -410,7 +265,6 @@ async def get_course_progress(
 # SUBMISSION ENDPOINTS
 # ============================================================
 
-
 class LessonSubmitRequest(BaseModel):
     github_url: Optional[str] = None
     live_demo_url: Optional[str] = None
@@ -462,7 +316,6 @@ async def submit_lesson_project(
     )
     db.add(submission)
 
-    # 3. LessonCompletion + ball qo'shish
     points_earned = 0
     completion_check = await db.execute(
         select(LessonCompletion).where(
@@ -484,10 +337,8 @@ async def submit_lesson_project(
 
     await db.commit()
 
-    # ✅ Kurs tugaganini tekshirib sertifikat berish
     cert = await achievement_service.award_certificate(db, current_student.id, course_id)
 
-    # Yangilangan student balini olish
     student_res = await db.execute(select(Student).where(Student.id == current_student.id))
     student = student_res.scalar_one_or_none()
 
