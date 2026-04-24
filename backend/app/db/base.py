@@ -1,10 +1,9 @@
 # app/db/base.py
 
-from app.db.base_class import Base  # Sizning deklarativ bazangiz
+from app.db.base_class import Base
 
-# Barcha modellarni shu yerda import qilish shart!
 from app.models.user import Student
-from app.models.course import Course  # ✅ CourseEnrollment o'chirildi
+from app.models.course import Course
 from app.models.project import Project
 from app.models.submission import Submission
 from app.models.ranking import Ranking
@@ -13,7 +12,10 @@ from app.models.student_degree import StudentDegree
 from app.models.achievement import Achievement
 from app.models.student_achievement import StudentAchievement
 from app.models.lesson import Lesson
-from app.models.group import Group  # <-- BU ALBATTA BO'LISHI SHART
+from app.models.group import Group
+from app.models.exercise import Exercise, ExerciseSubmission
+from app.models.quiz import Quiz, Question, StudentQuizResult
+
 __all__ = [
     "Base",
     "Student",
@@ -25,6 +27,11 @@ __all__ = [
     "StudentDegree",
     "Achievement",
     "StudentAchievement",
+    "Exercise",
+    "ExerciseSubmission",
     "Lesson",
-    "Group"
+    "Group",
+    "Quiz",
+    "Question",
+    "StudentQuizResult"
 ]

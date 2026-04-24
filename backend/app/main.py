@@ -12,14 +12,16 @@ from app.scheduler import start_scheduler, scheduler
 from app.utils import certificate as cert_utils
 from app.db import base
 
+# Bu yerdagi ortiqcha app = FastAPI(...) qismini o'chirib tashlang,
+# chunki pastda create_application funksiyasi yangi app yaratadi.
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+
     if not os.path.exists("uploads"):
         os.makedirs("uploads")
 
-    print("🚀 Student Programming Platform started!")
+    print(" Student Programming Platform started!")
     await init_db()
     start_scheduler()
 
@@ -39,10 +41,11 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     scheduler.shutdown()
-    print("🛑 Platform suspended...")
+    print(" Student Programming Platform suspended...")
 
 
 def create_application() -> FastAPI:
+    # SHU YERGA QO'SHAMIZ:
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
@@ -51,11 +54,13 @@ def create_application() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=lifespan,
+        # Mana bu parametr hammasini yopib qo'yadi:
+        swagger_ui_parameters={"docExpansion": "none"}
     )
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.BACKEND_CORS_ORIGINS,
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -68,6 +73,7 @@ def create_application() -> FastAPI:
     return app
 
 
+# Endi bu app obyekti hamma sozlamalarni o'z ichiga oladi
 app = create_application()
 
 

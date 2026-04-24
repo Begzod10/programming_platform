@@ -49,5 +49,5 @@ class Ranking(Base):
         return {"daily": self.daily_rank, "weekly": self.weekly_rank,
                 "monthly": self.monthly_rank, "all": self.global_rank}.get(period, self.global_rank)
 
-    def __repr__(self):
-        return f"<Ranking(student_id={self.student_id}, total={self.total_points}, rank={self.global_rank})>"
+    def __repr__(self) -> str:
+        return f"<Ranking(student_id={self.student_id}, total_points={self.total_points}, global_rank={self.global_rank})>"

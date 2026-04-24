@@ -61,7 +61,19 @@ async def my_ranking(
     r = await service.get_my_ranking(current_student.id)
 
     if not r:
-        raise HTTPException(status_code=404, detail="Ranking topilmadi")
+        # Ranking topilmasa default qiymatlar
+        return MyRankingRead(
+            global_rank=0,
+            daily_rank=0,
+            weekly_rank=0,
+            monthly_rank=0,
+            daily_points=0,
+            weekly_points=0,
+            monthly_points=0,
+            total_points=current_student.total_points,
+            projects_completed=0,
+            last_calculated_at=None
+        )
 
     # Mapping'dan (dict ko'rinishida) ma'lumotlarni olamiz
     return MyRankingRead(

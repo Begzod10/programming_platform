@@ -49,8 +49,9 @@ class RankingService:
         """Foydalanuvchining har bir perioddagi dinamik o'rnini (7-o'rin bo'lsa 7) hisoblash"""
 
         def get_rank_subquery(column):
-            # Mening ballimni aniqlaymiz
-            my_val = select(column).where(Ranking.student_id == student_id).scalar_subquery()
+            # Mening ballimni aniqlaymiz (Agar ye'q bo'lsa 0)
+            my_val_query = select(func.coalesce(column, 0)).where(Ranking.student_id == student_id)
+            my_val = my_val_query.scalar_subquery()
 
             # O'zimdan ko'p balli bo'lganlar SONI +
             # Balli teng bo'lib, lekin IDsi mendan kichik bo'lganlar SONI
@@ -59,6 +60,12 @@ class RankingService:
                 ((column == my_val) & (Ranking.student_id < student_id))
             )
             return count_query.scalar_subquery()
+
+        # Ranking mavjudligini tekshiramiz
+        check_res = await self.db.execute(select(Ranking).where(Ranking.student_id == student_id))
+        if not check_res.scalar_one_or_none():
+            # Agar yo'q bo'lsa, yaratishga harakat qilamiz yoki default qaytaramiz
+            await self.create_ranking(student_id)
 
         query = select(
             Ranking,
@@ -89,10 +96,12 @@ class RankingService:
             level: str = None
     ):
         # 1. Periodga qarab saralash ustunini aniqlaymiz
+        # CHAINED LOGIC: Weekly/Monthly hozirda o'tgan kunlar summasini saqlaydi. 
+        # Shuning uchun real-time ko'rsatish uchun daily_points ni ham qo'shamiz.
         sort_column_map = {
             "daily": Ranking.daily_points,
-            "weekly": Ranking.weekly_points,
-            "monthly": Ranking.monthly_points,
+            "weekly": Ranking.weekly_points + Ranking.daily_points,
+            "monthly": Ranking.monthly_points + Ranking.daily_points,
             "all": Ranking.total_points
         }
         target_col = sort_column_map.get(period, Ranking.total_points)
@@ -137,7 +146,7 @@ class RankingService:
         if not student:
             return None
 
-        # 1. Student modelini yangilaymiz
+        # 1. Student modelini yangilaymiz (Umumiy ball doim lifetimi)
         student.total_points += points
 
         # 2. Ranking modelini yangilaymiz
@@ -145,17 +154,17 @@ class RankingService:
         ranking = result.scalar_one_or_none()
 
         if ranking:
+            # FAQAT daily_points va total_points yangilanadi. 
+            # Weekly/Monthly midnight resetda qo'shiladi (yoki leaderboadda sum qilinadi)
             ranking.daily_points += points
-            ranking.weekly_points += points
-            ranking.monthly_points += points
             ranking.total_points = student.total_points
             ranking.last_calculated_at = datetime.utcnow()
         else:
             ranking = Ranking(
                 student_id=student_id,
                 daily_points=points,
-                weekly_points=points,
-                monthly_points=points,
+                weekly_points=0,   # Yangi student uchun 0 dan boshlanadi
+                monthly_points=0,
                 total_points=student.total_points,
                 last_calculated_at=datetime.utcnow(),
                 last_daily_reset=datetime.utcnow(),
@@ -171,7 +180,7 @@ class RankingService:
         return student
 
     async def subtract_points_from_student(self, student_id: int, points: int) -> Optional[Student]:
-        """Studentdan ball ayirish"""
+        """Studentdan ball ayirish - barcha bucketlardan ayiramiz"""
         res = await self.db.execute(select(Student).where(Student.id == student_id))
         student = res.scalar_one_or_none()
         if not student:
@@ -197,17 +206,23 @@ class RankingService:
     # ========== RESET (NO CASCADE - simplified) ==========
 
     async def reset_daily_points(self):
-        """Kun tugadi: daily = 0 (Weekly o'zi dolzarb qoladi)"""
+        """
+        Kun tugadi: daily_points haftalikka va oylikka QO'SHILADI.
+        Keyin daily_points 0 qilinadi.
+        """
         result = await self.db.execute(select(Ranking))
         rankings = result.scalars().all()
         for r in rankings:
+            # Foydalanuvchi xohlaganidek: haftalik va oylikka avtomatik qo'shiladi
+            r.weekly_points += r.daily_points
+            r.monthly_points += r.daily_points
             r.daily_points = 0
             r.last_daily_reset = datetime.utcnow()
         await self.db.commit()
         await self.calculate_and_update_rankings()
 
     async def reset_weekly_points(self):
-        """Hafta tugadi: weekly = 0"""
+        """Hafta tugadi: haftalik ballar nolga tushadi"""
         result = await self.db.execute(select(Ranking))
         rankings = result.scalars().all()
         for r in rankings:
@@ -217,7 +232,7 @@ class RankingService:
         await self.calculate_and_update_rankings()
 
     async def reset_monthly_points(self):
-        """Oy tugadi: monthly = 0"""
+        """Oy tugadi: oylik ballar nolga tushadi"""
         result = await self.db.execute(select(Ranking))
         rankings = result.scalars().all()
         for r in rankings:
@@ -287,7 +302,15 @@ class RankingService:
         ]
 
         for points_attr, rank_attr in period_config:
-            sorted_r = sorted(all_rankings, key=lambda r: getattr(r, points_attr), reverse=True)
+            # Sortlashda real-time summani hisobga olamiz
+            if points_attr == "weekly_points":
+                key_func = lambda r: r.weekly_points + r.daily_points
+            elif points_attr == "monthly_points":
+                key_func = lambda r: r.monthly_points + r.daily_points
+            else:
+                key_func = lambda r: getattr(r, points_attr)
+
+            sorted_r = sorted(all_rankings, key=key_func, reverse=True)
             for rank, ranking in enumerate(sorted_r, start=1):
                 setattr(ranking, rank_attr, rank)
                 if rank_attr == "global_rank":
@@ -359,16 +382,23 @@ class RankingService:
         """Foydalanuvchining har bir perioddagi rankini SQL orqali hisoblash"""
 
         # Har bir period uchun alohida subquery (o'rinni aniqlash uchun)
-        def get_rank_subquery(column):
-            return select(func.count(Ranking.id)).where(
-                column > select(column).where(Ranking.student_id == student_id).scalar_subquery()
-            ).scalar_subquery()
+        # Real-time summalarni hisobga olamiz
+        def get_rank_subquery(column, is_cumulative=False):
+            if is_cumulative:
+                my_val = select(column + Ranking.daily_points).where(Ranking.student_id == student_id).scalar_subquery()
+                return select(func.count(Ranking.id)).where(
+                    (column + Ranking.daily_points) > my_val
+                ).scalar_subquery()
+            else:
+                return select(func.count(Ranking.id)).where(
+                    column > select(column).where(Ranking.student_id == student_id).scalar_subquery()
+                ).scalar_subquery()
 
         query = select(
             Ranking,
             (get_rank_subquery(Ranking.daily_points) + 1).label("daily_rank"),
-            (get_rank_subquery(Ranking.weekly_points) + 1).label("weekly_rank"),
-            (get_rank_subquery(Ranking.monthly_points) + 1).label("monthly_rank"),
+            (get_rank_subquery(Ranking.weekly_points, True) + 1).label("weekly_rank"),
+            (get_rank_subquery(Ranking.monthly_points, True) + 1).label("monthly_rank"),
             Ranking.global_rank.label("all_rank")
         ).where(Ranking.student_id == student_id).options(selectinload(Ranking.student))
 

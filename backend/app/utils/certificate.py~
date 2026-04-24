@@ -1,0 +1,138 @@
+import io
+from PyPDF2 import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
+from reportlab.pdfbase.pdfmetrics import stringWidth
+from pathlib import Path
+
+_COURSE_TEMPLATE_BYTES = None
+
+
+def _load_template_bytes(template_path: str):
+    try:
+        abs_path = Path(template_path).resolve()
+        if abs_path.exists():
+            with open(str(abs_path), "rb") as f:
+                data = f.read()
+            return data if len(data) > 0 else None
+    except Exception as e:
+        print(f"❌ Shablon yuklanmadi: {e}")
+    return None
+
+
+def _get_course_template():
+    global _COURSE_TEMPLATE_BYTES
+    if _COURSE_TEMPLATE_BYTES is None:
+        _COURSE_TEMPLATE_BYTES = _load_template_bytes("app/static/web_certificate.pdf")
+    return _COURSE_TEMPLATE_BYTES
+
+
+def generate_certificate(
+        student_name: str,
+        course_name: str,
+        cert_number: int,
+        teacher_name: str = "Begzod Jumaniyozov",
+        template_path: str = "app/static/web_certificate.pdf",
+) -> io.BytesIO:
+    W_orig, H_orig = 2450, 3475
+    LW, LH = H_orig, W_orig  # 3475 x 2450
+    fs = W_orig / 595  # ≈ 4.12
+
+    packet = io.BytesIO()
+    can = canvas.Canvas(packet, pagesize=(W_orig, H_orig))
+
+    can.saveState()
+    can.translate(W_orig, 0)
+    can.rotate(90)
+
+    can.setFillColorRGB(0, 0, 0)
+
+    # ✅ Talaba ismi
+    can.setFont("Times-Bold", int(20 * fs))
+    can.drawString(310, LH * 0.595, student_name)
+
+    can.setFont("Times-Roman", int(20 * fs))
+    can.drawString(310, LH * 0.505, course_name.upper() + " Course")
+
+    can.setFillColorRGB(0, 0, 0)
+    can.setFont("Times-Roman", int(15 * fs))
+    id_font_size = int(17 * fs)
+    id_offset = stringWidth("ID number:  AA ", "Times-Roman", id_font_size)
+    can.drawString(260 + id_offset, LH * 0.458, f"{cert_number:07d}")
+
+    can.setFont("Times-Roman", int(20 * fs))
+    can.drawString(320, LH * 0.170, teacher_name)
+
+    can.restoreState()
+    can.save()
+    packet.seek(0)
+
+    try:
+        new_pdf = PdfReader(packet)
+        with open(template_path, "rb") as f:
+            existing_pdf = PdfReader(f)
+            output = PdfWriter()
+            page = existing_pdf.pages[0]
+            page.merge_page(new_pdf.pages[0])
+            output.add_page(page)
+            result_buffer = io.BytesIO()
+            output.write(result_buffer)
+            result_buffer.seek(0)
+            return result_buffer
+    except Exception as e:
+        print(f"❌ PDF xato: {e}")
+        packet.seek(0)
+        return packet
+
+
+def generate_badge_certificate(
+        student_name: str,
+        achievement_name: str,
+        achievement_description: str,
+        cert_number: int,
+        template_path: str = None,
+) -> io.BytesIO:
+    packet = io.BytesIO()
+    W, H = 842, 595
+    can = canvas.Canvas(packet, pagesize=(W, H))
+
+    can.setFillColorRGB(1, 1, 1)
+    can.rect(0, 0, W, H, fill=1, stroke=0)
+    can.setStrokeColorRGB(0.4, 0.4, 0.8)
+    can.setLineWidth(3)
+    can.rect(20, 20, W - 40, H - 40, fill=0, stroke=1)
+
+    can.setFillColorRGB(0.2, 0.2, 0.6)
+    can.setFont("Times-Bold", 36)
+    can.drawCentredString(W / 2, H - 100, "ACHIEVEMENT CERTIFICATE")
+
+    can.setFillColorRGB(0, 0, 0)
+    can.setFont("Times-Roman", 14)
+    can.drawCentredString(W / 2, H - 150, "This certifies that")
+
+    can.setFont("Times-Bold", 28)
+    can.setFillColorRGB(0.1, 0.1, 0.5)
+    can.drawCentredString(W / 2, H - 200, student_name)
+
+    can.setFont("Times-Roman", 14)
+    can.setFillColorRGB(0, 0, 0)
+    can.drawCentredString(W / 2, H - 250, "has earned the achievement")
+
+    can.setFont("Times-Bold", 22)
+    can.setFillColorRGB(0.2, 0.5, 0.2)
+    can.drawCentredString(W / 2, H - 290, achievement_name)
+
+    can.setFont("Times-Roman", 12)
+    can.setFillColorRGB(0.3, 0.3, 0.3)
+    can.drawCentredString(W / 2, H - 330, achievement_description[:80])
+
+    can.setFont("Times-Roman", 11)
+    can.setFillColorRGB(0.5, 0.5, 0.5)
+    can.drawCentredString(W / 2, 60, f"Certificate ID: BA{cert_number:07d}")
+
+    can.setFont("Times-Bold", 14)
+    can.setFillColorRGB(0.2, 0.2, 0.6)
+    can.drawCentredString(W / 2, 40, "Gennis Innovative School")
+
+    can.save()
+    packet.seek(0)
+    return packet

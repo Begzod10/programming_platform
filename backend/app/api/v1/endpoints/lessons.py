@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 from typing import List, Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
+
 from app.dependencies import get_db, get_current_student, get_current_teacher, get_current_student_optional
 from app.services import lesson_service, achievement_service
 from app.schemas.lesson import LessonCreate, LessonUpdate, LessonRead
@@ -15,6 +16,8 @@ from app.models.course import Course
 
 router = APIRouter()
 
+
+# ============ LESSON ENDPOINTS ============
 
 async def _calc_course_progress(db: AsyncSession, course_id: int, student_id: int) -> dict:
     total_query = await db.execute(
@@ -84,7 +87,6 @@ async def get_lessons(
         current_student: Optional[Student] = Depends(get_current_student_optional)
 ):
     """Kurs darslarini olish."""
-    # Autentifikatsiya bo'lgan talabalar uchun prerequisite tekshiruvi
     if current_student:
         allowed = await achievement_service.check_course_prerequisite(db, current_student.id, course_id)
         if not allowed:
@@ -95,7 +97,6 @@ async def get_lessons(
 
     lessons = await lesson_service.get_lessons_by_course(db, course_id)
 
-    # Darslar tugatilganligini tekshiramiz
     completed_ids = set()
     if current_student:
         completed_lessons = await db.execute(
@@ -106,8 +107,7 @@ async def get_lessons(
             )
         )
         completed_ids = {r[0] for r in completed_lessons.all()}
-    
-    # LessonRead ob'ektlarini qo'lda yig'amiz (is_completed va completed bilan)
+
     result = []
     for l in lessons:
         lesson_data = LessonRead.model_validate(l)
@@ -131,9 +131,8 @@ async def get_lesson(
     if not lesson or lesson.course_id != course_id:
         raise HTTPException(status_code=404, detail="Dars topilmadi")
 
-    # LessonRead ob'ektini quramiz
     res = LessonRead.model_validate(lesson)
-    
+
     if current_student:
         existing = await db.execute(
             select(LessonCompletion).where(
@@ -200,11 +199,9 @@ async def complete_lesson(
         db: AsyncSession = Depends(get_db)
 ):
     """Darsni tugatish — ball qo'shiladi, kurs tugasa sertifikat beriladi"""
-    # Service layer orqali bajarish (Ranking va Pointlar shu yerda)
     result = await lesson_service.complete_lesson(db, lesson_id, current_student.id)
     course_id = result.get("course_id")
 
-    # ✅ Kurs tugaganini tekshirib sertifikat berish
     cert = await achievement_service.award_certificate(db, current_student.id, course_id)
 
     return {
@@ -287,7 +284,6 @@ async def submit_lesson_project(
     if not lesson or lesson.course_id != course_id:
         raise HTTPException(status_code=404, detail="Dars topilmadi")
 
-    # Allaqachon topshirilganmi?
     existing_result = await db.execute(
         select(Submission).where(
             Submission.lesson_id == lesson_id,
@@ -297,7 +293,6 @@ async def submit_lesson_project(
     if existing_result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Bu dars allaqachon topshirilgan")
 
-    # 1. Project yaratish
     new_project = Project(
         student_id=current_student.id,
         title=lesson.task_title or lesson.title,
@@ -310,7 +305,6 @@ async def submit_lesson_project(
     db.add(new_project)
     await db.flush()
 
-    # 2. Submission yaratish
     submission = Submission(
         lesson_id=lesson_id,
         student_id=current_student.id,
@@ -322,7 +316,6 @@ async def submit_lesson_project(
     )
     db.add(submission)
 
-    # 3. LessonCompletion + ball qo'shish
     points_earned = 0
     completion_check = await db.execute(
         select(LessonCompletion).where(
@@ -344,10 +337,8 @@ async def submit_lesson_project(
 
     await db.commit()
 
-    # ✅ Kurs tugaganini tekshirib sertifikat berish
     cert = await achievement_service.award_certificate(db, current_student.id, course_id)
 
-    # Yangilangan student balini olish
     student_res = await db.execute(select(Student).where(Student.id == current_student.id))
     student = student_res.scalar_one_or_none()
 

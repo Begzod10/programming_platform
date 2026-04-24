@@ -1,10 +1,9 @@
-﻿import os
-import shutil
-from fastapi import APIRouter, Depends, status, Query, HTTPException, Body, UploadFile, File
+from fastapi import APIRouter, Depends, status, Query, HTTPException, Body
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from pydantic import BaseModel
+from datetime import datetime
 from app.models.project import Project
 from app.models.lesson import Lesson
 from app.models.submission import Submission
@@ -119,110 +118,6 @@ async def like_project(
     )
 
 
-@router.post("/{project_id}/upload-zip")
-async def upload_project_zip(
-        project_id: int,
-        file: UploadFile = File(...),
-        current_student: Student = Depends(get_current_student),
-        db: AsyncSession = Depends(get_db),
-):
-    """ZIP fayl yuklash va loyihaga bog'lash"""
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
-    if project.student_id != current_student.id:
-        raise HTTPException(status_code=403, detail="Bu loyiha sizga tegishli emas")
-
-    if not file.filename.endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Faqat ZIP format qabul qilinadi")
-
-    MAX_SIZE = 15 * 1024 * 1024
-    content = await file.read()
-    if len(content) > MAX_SIZE:
-        raise HTTPException(status_code=400, detail="Fayl hajmi 15MB dan oshmasligi kerak")
-
-    upload_dir = os.path.join("uploads", "projects", str(project_id))
-    os.makedirs(upload_dir, exist_ok=True)
-
-    safe_filename = f"project_{project_id}.zip"
-    file_path = os.path.join(upload_dir, safe_filename)
-    with open(file_path, "wb") as f:
-        f.write(content)
-
-    project.project_files = f"/uploads/projects/{project_id}/{safe_filename}"
-    await db.commit()
-    await db.refresh(project)
-    return project
-
-
-@router.post("/{project_id}/ai-review")
-async def ai_review_project(
-        project_id: int,
-        current_student: Student = Depends(get_current_student),
-        db: AsyncSession = Depends(get_db),
-):
-    """Loyihani avtomatik baholash"""
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
-
-    score = 0
-    feedback_lines = []
-
-    if project.title and len(project.title) > 5:
-        score += 10
-        feedback_lines.append("✅ Sarlavha mavjud")
-    else:
-        feedback_lines.append("⚠️ Sarlavhani to'ldiring")
-
-    if project.description and len(project.description) > 50:
-        score += 20
-        feedback_lines.append("✅ Tavsif yaxshi yozilgan")
-    else:
-        feedback_lines.append("⚠️ Tavsifni batafsil yozing (kamida 50 belgi)")
-
-    if project.github_url:
-        score += 25
-        feedback_lines.append("✅ GitHub havolasi mavjud")
-    else:
-        feedback_lines.append("⚠️ GitHub havolasini qo'shing")
-
-    if project.live_demo_url:
-        score += 20
-        feedback_lines.append("✅ Live demo havolasi mavjud")
-    else:
-        feedback_lines.append("⚠️ Live demo havolasini qo'shish tavsiya etiladi")
-
-    if project.technologies_used:
-        score += 15
-        feedback_lines.append("✅ Texnologiyalar ko'rsatilgan")
-    else:
-        feedback_lines.append("⚠️ Ishlatilgan texnologiyalarni ko'rsating")
-
-    if project.project_files:
-        score += 10
-        feedback_lines.append("✅ ZIP fayl yuklangan")
-    else:
-        feedback_lines.append("⚠️ Loyiha ZIP faylini yuklang")
-
-    if score >= 80:
-        verdict = "🌟 A'lo"
-    elif score >= 60:
-        verdict = "👍 Yaxshi"
-    elif score >= 40:
-        verdict = "📝 O'rtacha"
-    else:
-        verdict = "❌ Yaxshilash kerak"
-
-    review = (
-        f"📊 AI Baholash: {score}/100 — {verdict}\n\n"
-        + "\n".join(feedback_lines)
-    )
-    return review
-
-
 # ============================================================
 # TEACHER ENDPOINTS
 # ============================================================
@@ -263,9 +158,10 @@ async def review_project(
 
     # 3. Loyiha holatini yangilash
     project.status = "Approved"
-    project.feedback = data.feedback
+    project.instructor_feedback = data.feedback
     project.grade = data.grade
     project.points_earned = data.points
+    project.reviewed_at = datetime.utcnow()
 
     await db.commit()
 

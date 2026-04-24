@@ -9,3 +9,7 @@ from app.models.course import Course
 from app.models.degree import Degree
 from app.models.lesson import Lesson
 from app.models.group import Group
+
+
+def certificate():
+    return None

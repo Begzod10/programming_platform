@@ -30,7 +30,7 @@ async def my_achievements(
 ):
     # Avtomatik tekshiruv va berish (Badge va Sertifikat)
     await achievement_service.check_and_award_achievements(db, current_student.id)
-    
+
     results = await achievement_service.get_my_achievements(db, current_student.id)
     return [StudentAchievementRead.from_orm_custom(sa) for sa in results]
 
@@ -54,7 +54,7 @@ async def my_certificates(
     """Talaba sertifikatlarini ko'rish"""
     # Har safar kirganda tekshiramiz va beramiz (BUG FIX: hamma userlar uchun)
     await achievement_service.check_and_award_achievements(db, current_student.id)
-    
+
     certs = await achievement_service.get_my_certificates(db, current_student.id)
     return [
         CertificateRead(
@@ -223,6 +223,7 @@ async def download_course_certificate(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+
 
 @router.delete("/{achievement_id}/revoke", status_code=status.HTTP_200_OK)
 async def revoke_achievement(

@@ -62,6 +62,12 @@ class Lesson(Base):
         "Project",
         back_populates="lessons"
     )
+
+    from typing import List
+    exercises: Mapped[List["Exercise"]] = relationship(
+        "Exercise", back_populates="lesson", cascade="all, delete-orphan"
+    )
+
     completions: Mapped[List["LessonCompletion"]] = relationship(
         "LessonCompletion",
         back_populates="lesson",
@@ -101,3 +107,4 @@ class LessonCompletion(Base):
 
     def __repr__(self) -> str:
         return f"<LessonCompletion(student_id={self.student_id}, lesson_id={self.lesson_id})>"
+
