@@ -21,6 +21,7 @@ class Lesson(Base):
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     order: Mapped[int] = mapped_column(Integer, default=0)
+    points_reward: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
 
     # Vazifa ma'lumotlari
     task_title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
@@ -28,7 +29,7 @@ class Lesson(Base):
     task_requirements: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     task_technologies: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     task_deadline_days: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     # Kontent turlari
     text_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     code_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -106,4 +107,3 @@ class LessonCompletion(Base):
 
     def __repr__(self) -> str:
         return f"<LessonCompletion(student_id={self.student_id}, lesson_id={self.lesson_id})>"
-

@@ -1,4 +1,4 @@
-﻿from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
@@ -83,7 +83,7 @@ async def register_new_student(db: AsyncSession, user_data: UserCreate):
 
 async def login(db: AsyncSession, username: str, password: str):
     """Login - username YOKI email bilan"""
-    # Username yoki email bilan topish
+    username = username.strip()
     result = await db.execute(
         select(Student).where(
             (Student.username == username) |
@@ -92,21 +92,26 @@ async def login(db: AsyncSession, username: str, password: str):
     )
     user = result.scalars().first()
 
-    # Foydalanuvchi yoki parol noto'g'ri
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Username yoki parol noto'g'ri"
         )
 
-    # Faol emasligini tekshirish
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Foydalanuvchi faol emas"
         )
 
-    # Token qaytarish
+    # ✅ Teacher login qilganda avtomatik sync
+    if user.role == UserRole.teacher:
+        try:
+            from app.api.v1.endpoints.classroom import sync_students_internal
+            await sync_students_internal(db)
+        except Exception as e:
+            print(f"Sync xatosi: {e}")  # Sync xato bo'lsa login to'xtamasin
+
     return {
         "access_token": create_access_token(subject=user.id),
         "token_type": "bearer",

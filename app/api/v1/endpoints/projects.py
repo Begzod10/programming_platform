@@ -9,10 +9,13 @@ from pydantic import BaseModel
 
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.models.project import Project
+from app.models.lesson import Lesson
+from app.models.submission import Submission
 from app.models.user import Student
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
 from app.services.project_service import ProjectService
 from app.services.ranking_service import RankingService
+from app.services import achievement_service
 from app.services.grok_service import analyze_project_with_grok
 from app.config import settings
 
@@ -23,7 +26,9 @@ def get_project_service(db: AsyncSession = Depends(get_db)) -> ProjectService:
     return ProjectService(db)
 
 
-# ============ STUDENT ENDPOINTS ============
+# ============================================================
+# STUDENT ENDPOINTS
+# ============================================================
 
 @router.post("/", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
 async def create_project(
@@ -167,35 +172,28 @@ async def ai_review(
 
     technologies = project.technologies_used.split(",") if project.technologies_used else []
     old_points = project.points_earned if project.points_earned else 0
+
     review = await analyze_project_with_grok(
         title=project.title,
         description=project.description or "",
         github_url=project.github_url,
         technologies=technologies,
         difficulty_level=str(project.difficulty_level or "Easy"),
-        previous_points=old_points  # ✅ qo'shildi
+        previous_points=old_points
     )
+
     new_points = review.get("points", 60)
-
-    old_points = project.points_earned if project.points_earned else 0
-    print(f"DEBUG: project_id={project_id}, old_points={old_points}, new_points biz hali bilmaymiz")
-    print(f"DEBUG: project_id={project_id}, old_points={old_points}, new_points={new_points}")
-
     ranking_service = RankingService(db)
 
     if old_points > 0:
         await ranking_service.subtract_points_from_student(project.student_id, old_points)
         await ranking_service.add_points_to_student(project.student_id, new_points)
         diff = new_points - old_points
-        if diff > 0:
-            message = f"Ball oshdi! {old_points} → {new_points} (+{diff})"
-        elif diff < 0:
-            message = f"Ball kamaydi! {old_points} → {new_points} ({diff})"
-        else:
-            message = f"Ball o'zgarmadi: {new_points}"
+        message = f"Ball yangilandi: {old_points} → {new_points}"
     else:
         await ranking_service.add_points_to_student(project.student_id, new_points)
         message = f"Birinchi baholash! Ball: {new_points}"
+
     project.points_earned = new_points
     project.grade = review.get("grade", "C")
     project.instructor_feedback = review.get("feedback", "")
@@ -213,7 +211,9 @@ async def ai_review(
     }
 
 
-# ============ TEACHER ENDPOINTS ============
+# ============================================================
+# TEACHER ENDPOINTS
+# ============================================================
 
 class ReviewProjectRequest(BaseModel):
     feedback: str
@@ -228,7 +228,10 @@ async def review_project(
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Loyihani tekshirish (faqat teacher)"""
+    """
+    O'qituvchi loyihani tasdiqlaydi.
+    Tasdiqlangandan keyin avtomatik: Ballar, Achievementlar va Sertifikat tekshiriladi.
+    """
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
 
@@ -237,9 +240,10 @@ async def review_project(
     if project.status == "Approved":
         raise HTTPException(status_code=400, detail="Bu loyiha allaqachon tasdiqlangan")
 
-    old_points = project.points_earned if project.points_earned else 0
     ranking_service = RankingService(db)
 
+    # Eskidan ball bo'lsa ayirib tashlaymiz
+    old_points = project.points_earned if project.points_earned else 0
     if old_points > 0:
         await ranking_service.subtract_points_from_student(project.student_id, old_points)
 
@@ -252,7 +256,37 @@ async def review_project(
     project.reviewed_at = datetime.utcnow()
 
     await db.commit()
-    return {"message": "Loyiha tasdiqlandi!", "points": data.points}
+
+    # Sertifikat tekshirish
+    sub_result = await db.execute(
+        select(Submission).where(Submission.project_id == project_id)
+    )
+    submission = sub_result.scalar_one_or_none()
+
+    certificate_issued = False
+    certificate_id = None
+
+    if submission and submission.lesson_id:
+        lesson_res = await db.execute(
+            select(Lesson).where(Lesson.id == submission.lesson_id)
+        )
+        lesson = lesson_res.scalar_one_or_none()
+        if lesson:
+            cert = await achievement_service.award_certificate(
+                db, project.student_id, lesson.course_id
+            )
+            if cert:
+                certificate_issued = True
+                certificate_id = cert.id
+
+    await achievement_service.check_and_award_achievements(db, project.student_id)
+
+    return {
+        "message": "Loyiha tasdiqlandi!",
+        "points": data.points,
+        "certificate_issued": certificate_issued,
+        "certificate_id": certificate_id
+    }
 
 
 @router.patch("/{project_id}/status")

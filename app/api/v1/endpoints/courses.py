@@ -128,31 +128,38 @@ async def get_course(
     return dto
 
 
-@router.post("/", response_model=CourseRead, status_code=status.HTTP_201_CREATED)
-async def create_course(
-        payload: CourseCreate,
-        current_teacher: Student = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db),
+@router.get("/", response_model=List[CourseRead])
+async def get_courses(
+        request: Request,
+        skip: int = Query(0, ge=0),
+        limit: int = Query(10, ge=1, le=100),
+        db: AsyncSession = Depends(get_db)
 ):
-    """Yangi kurs yaratish"""
-    course_data = payload.model_dump()
-    course_data["instructor_id"] = current_teacher.id
+    student_id = await _get_id_from_auth(request)
 
-    new_course = Course(**course_data)
-    db.add(new_course)
-    await db.commit()
-    await db.refresh(new_course)
+    # Teacher bo'lsa hammasini, student bo'lsa faqat published
+    if student_id:
+        from app.models.user import UserRole
+        student_res = await db.execute(
+            select(Student).where(Student.id == student_id)
+        )
+        student = student_res.scalar_one_or_none()
+        is_teacher = student and student.role == UserRole.teacher
+    else:
+        is_teacher = False
 
-    # To'liq ma'lumot yuklash
     query = select(Course).options(
-        selectinload(Course.instructor),
-        selectinload(Course.lessons),
-        selectinload(Course.students)
-    ).where(Course.id == new_course.id)
+        selectinload(Course.instructor)
+    ).where(Course.is_active == True)
 
-    res = await db.execute(query)
-    return await CourseService.build_dto(db, res.scalar_one(), current_teacher.id)
+    if not is_teacher:
+        query = query.where(Course.is_published == True)
 
+    query = query.offset(skip).limit(limit)
+    result = await db.execute(query)
+    courses = result.scalars().all()
+
+    return [await CourseService.build_dto(db, c, student_id) for c in courses]
 
 @router.put("/{course_id}", response_model=CourseRead)
 async def update_course(

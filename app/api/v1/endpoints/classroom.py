@@ -1,163 +1,104 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.dependencies import get_current_teacher
-from app.models.user import Student
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services.ranking_service import RankingService
-from app.dependencies import get_db
+from sqlalchemy import select
 import httpx
+
+from app.dependencies import get_db, get_current_teacher
+from app.models.user import Student, UserRole
+from app.services.ranking_service import RankingService
+from app.core.security import get_password_hash
 
 router = APIRouter()
 
-CLASSROOM_API = "https://classroom.gennis.uz/api"
-CLASSROOM_USERNAME = "rimefara_teach"
-CLASSROOM_PASSWORD = "22100122"
-
-_cached_token = None
-
-
-@router.post("/sync")
-async def sync_classroom_students(
-        current_teacher: Student = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
-):
-    """Classroom studentlarini bazaga sync qilish"""
-    from app.models.user import Student as StudentModel, UserRole
-    from app.core.security import get_password_hash
-    from app.services.ranking_service import RankingService
-    from app.models.ranking import Ranking
-    from sqlalchemy import select
-
-    data = await classroom_get(f"{CLASSROOM_API}/group/get_groups")
-    groups = data if isinstance(data, list) else data.get("data", [])
-
-    created = 0
-    skipped = 0
-    ranking_created = 0
-
-    for group in groups:
-        for student in group.get("students", []):
-            name = student.get("name", "").strip()
-            if not name:
-                continue
-
-            username = name.lower().replace(" ", "_") + f"_{student.get('id', '')}"
-            email = f"{username}@classroom.uz"
-
-            existing_result = await db.execute(
-                select(StudentModel).where(StudentModel.username == username)
-            )
-            existing = existing_result.scalar_one_or_none()
-
-            if existing:
-                # Ranking bormi tekshir
-                ranking_result = await db.execute(
-                    select(Ranking).where(Ranking.student_id == existing.id)
-                )
-                if not ranking_result.scalar_one_or_none():
-                    ranking_service = RankingService(db)
-                    await ranking_service.create_ranking(existing.id)
-                    ranking_created += 1
-                skipped += 1
-                continue
-
-            new_student = StudentModel(
-                username=username,
-                email=email,
-                full_name=name,
-                hashed_password=get_password_hash("12345678"),
-                role=UserRole.student,
-                is_active=True
-            )
-            db.add(new_student)
-            await db.flush()
-
-            ranking_service = RankingService(db)
-            await ranking_service.create_ranking(new_student.id)
-
-            created += 1
-
-    await db.commit()
-
-    return {
-        "message": "Sync yakunlandi!",
-        "created": created,
-        "skipped": skipped,
-        "ranking_created": ranking_created
-    }
+ADMIN_API = "https://admin.gennis.uz/api"
+ADMIN_USERNAME = "rimefara_teach"
+ADMIN_PASSWORD = "22100122"
+PLATFORM_GROUP_IDS = [458, 506, 610, 757]
 
 
-async def get_classroom_token() -> str:
-    """Classroom dan token olish"""
-    global _cached_token
-    try:
-        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-            response = await client.post(
-                f"{CLASSROOM_API}/login/",
-                json={
-                    "username": CLASSROOM_USERNAME,
-                    "password": CLASSROOM_PASSWORD
-                },
-                headers={"Content-Type": "application/json"}
-            )
-            if response.status_code == 200:
-                data = response.json()
-                token = data.get("data", {}).get("access_token", "")
-                _cached_token = token
-                return token
-    except Exception as e:
-        print(f"Token olishda xato: {e}")
+async def get_admin_token() -> str:
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.post(
+            f"{ADMIN_API}/base/login",
+            json={"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD}
+        )
+        if response.status_code == 200:
+            return response.json().get("access_token", "")
     return ""
 
 
-async def classroom_get(url: str) -> dict:
-    """Classroom API ga GET so'rov"""
-    token = await get_classroom_token()
-    if not token:
-        raise HTTPException(status_code=500, detail="Classroom token olishda xato")
-
+async def get_group_profile(token: str, group_id: int) -> dict:
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.get(
-            url,
+            f"{ADMIN_API}/group/group_profile/{group_id}",
             headers={"Authorization": f"Bearer {token}"}
         )
-        if response.status_code == 401:
-            raise HTTPException(status_code=401, detail="Classroom autentifikatsiya xatosi")
-        response.raise_for_status()
-        return response.json()
+        if response.status_code == 200:
+            return response.json()
+    return {}
+
+
+async def get_all_admin_students(token: str) -> dict:
+    """Admin dan barcha studentlarni username bo'yicha dict qaytaradi"""
+    all_students = {}
+    for group_id in PLATFORM_GROUP_IDS:
+        profile = await get_group_profile(token, group_id)
+        students_raw = profile.get("data", {}).get("students", [])
+        for s in students_raw:
+            username = s.get("username", "").strip().replace(" ", "_")
+            if username:
+                all_students[username] = s
+    return all_students
+
+
+def parse_students(students_raw: list) -> list:
+    result = []
+    for s in students_raw:
+        result.append({
+            "id": s.get("id"),
+            "name": s.get("name"),
+            "surname": s.get("surname"),
+            "username": s.get("username"),
+            "phone": s.get("phone"),
+            "balance": s.get("money", 0),
+            "moneyType": s.get("moneyType"),
+            "is_debtor": s.get("money", 0) < 0,
+            "age": s.get("age"),
+        })
+    return result
 
 
 @router.get("/groups")
 async def get_classroom_groups(
         current_teacher: Student = Depends(get_current_teacher)
 ):
-    """Classroom dan barcha guruhlarni olish"""
+    """Admin.gennis.uz dan barcha guruhlar va o'quvchilarni olish"""
     try:
-        groups = await classroom_get(f"{CLASSROOM_API}/group/get_groups")
+        token = await get_admin_token()
+        if not token:
+            raise HTTPException(status_code=401, detail="Admin API ga ulanib bo'lmadi")
+
         result = []
-        for group in groups:
-            students = []
-            for student in group.get("students", []):
-                students.append({
-                    "id": student.get("id"),
-                    "name": student.get("name"),
-                    "parent_phone": student.get("parent_phone"),
-                    "balance": student.get("balance"),
-                    "color": student.get("color"),
-                })
+        for group_id in PLATFORM_GROUP_IDS:
+            profile = await get_group_profile(token, group_id)
+            if not profile:
+                continue
+            students_raw = profile.get("data", {}).get("students", [])
             result.append({
-                "id": group.get("id"),
-                "name": group.get("name"),
-                "price": group.get("price"),
-                "students_num": group.get("students_num"),
-                "teacher": group.get("teacher"),
-                "subject": group.get("subject"),
-                "students": students
+                "id": group_id,
+                "name": profile.get("groupName"),
+                "subject": profile.get("groupSubject"),
+                "teacher_id": profile.get("teacher_id"),
+                "students_count": len(students_raw),
+                "students": parse_students(students_raw)
             })
+
         return result
+
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Classroom API xatosi: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Xato: {str(e)}")
 
 
 @router.get("/groups/{group_id}")
@@ -165,34 +106,168 @@ async def get_classroom_group(
         group_id: int,
         current_teacher: Student = Depends(get_current_teacher)
 ):
-    """Classroom dan bitta guruhni olish"""
+    """Bitta guruh ma'lumotlari"""
     try:
-        groups = await classroom_get(f"{CLASSROOM_API}/group/get_groups")
-        group = next((g for g in groups if g.get("id") == group_id), None)
-        if not group:
+        token = await get_admin_token()
+        if not token:
+            raise HTTPException(status_code=401, detail="Admin API ga ulanib bo'lmadi")
+
+        profile = await get_group_profile(token, group_id)
+        if not profile:
             raise HTTPException(status_code=404, detail="Guruh topilmadi")
 
-        students = []
-        for student in group.get("students", []):
-            students.append({
-                "id": student.get("id"),
-                "name": student.get("name"),
-                "parent_phone": student.get("parent_phone"),
-                "balance": student.get("balance"),
-                "color": student.get("color"),
-                "is_debtor": student.get("balance", 0) < 0
-            })
-
+        students_raw = profile.get("data", {}).get("students", [])
         return {
-            "id": group.get("id"),
-            "name": group.get("name"),
-            "price": group.get("price"),
-            "students_num": group.get("students_num"),
-            "teacher": group.get("teacher"),
-            "subject": group.get("subject"),
-            "students": students
+            "id": group_id,
+            "name": profile.get("groupName"),
+            "subject": profile.get("groupSubject"),
+            "teacher_id": profile.get("teacher_id"),
+            "students_count": len(students_raw),
+            "students": parse_students(students_raw)
         }
+
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Classroom API xatosi: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Xato: {str(e)}")
+
+
+@router.post("/sync")
+async def sync_students(
+        current_teacher: Student = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
+    """Admin.gennis.uz dan studentlarni bazaga sync qilish"""
+    try:
+        token = await get_admin_token()
+        if not token:
+            raise HTTPException(status_code=401, detail="Admin API ga ulanib bo'lmadi")
+
+        # Admin dan barcha studentlar
+        admin_students = await get_all_admin_students(token)
+        admin_usernames = set(admin_students.keys())
+
+        created = 0
+        updated = 0
+        deactivated = 0
+        errors = []
+
+        # 1. Yangi studentlarni qo'shish, mavjudlarini yangilash
+        for username, s in admin_students.items():
+            try:
+                existing = await db.execute(
+                    select(Student).where(Student.username == username)
+                )
+                student = existing.scalar_one_or_none()
+
+                if student:
+                    # Mavjud — yangilash
+                    student.full_name = f"{s.get('name', '')} {s.get('surname', '')}".strip()
+                    student.is_active = True  # Qaytib kelgan bo'lsa aktivlashtirish
+                    updated += 1
+                else:
+                    # Yangi — yaratish
+                    new_student = Student(
+                        username=username,
+                        email=f"{username}@gennis.uz",
+                        hashed_password=get_password_hash("12345678"),
+                        full_name=f"{s.get('name', '')} {s.get('surname', '')}".strip(),
+                        role=UserRole.student,
+                        is_active=True,
+                    )
+                    db.add(new_student)
+                    await db.flush()
+
+                    ranking_service = RankingService(db)
+                    await ranking_service.create_ranking(new_student.id)
+                    created += 1
+
+            except Exception as e:
+                errors.append(f"{username}: {str(e)}")
+
+        # 2. Admin da yo'q studentlarni deaktivlashtirish
+        all_our_students = await db.execute(
+            select(Student).where(
+                Student.role == UserRole.student,
+                Student.is_active == True,
+                Student.email.like("%@gennis.uz")  # Faqat classroom dan kelganlar
+            )
+        )
+        our_students = all_our_students.scalars().all()
+
+        for student in our_students:
+            if student.username not in admin_usernames:
+                student.is_active = False
+                deactivated += 1
+
+        await db.commit()
+
+        return {
+            "message": "Sync muvaffaqiyatli bajarildi!",
+            "created": created,
+            "updated": updated,
+            "deactivated": deactivated,
+            "errors": errors[:10]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sync xatosi: {str(e)}")
+
+
+async def sync_students_internal(db: AsyncSession):
+    """Ichki sync — login da chaqiriladi"""
+    try:
+        token = await get_admin_token()
+        if not token:
+            return
+
+        admin_students = await get_all_admin_students(token)
+        admin_usernames = set(admin_students.keys())
+
+        for username, s in admin_students.items():
+            try:
+                existing = await db.execute(
+                    select(Student).where(Student.username == username)
+                )
+                student = existing.scalar_one_or_none()
+
+                if student:
+                    student.is_active = True
+                else:
+                    new_student = Student(
+                        username=username,
+                        email=f"{username}@gennis.uz",
+                        hashed_password=get_password_hash("12345678"),
+                        full_name=f"{s.get('name', '')} {s.get('surname', '')}".strip(),
+                        role=UserRole.student,
+                        is_active=True,
+                    )
+                    db.add(new_student)
+                    await db.flush()
+
+                    ranking_service = RankingService(db)
+                    await ranking_service.create_ranking(new_student.id)
+
+            except Exception:
+                continue
+
+        # Admin da yo'q studentlarni deaktivlashtirish
+        all_our_students = await db.execute(
+            select(Student).where(
+                Student.role == UserRole.student,
+                Student.is_active == True,
+                Student.email.like("%@gennis.uz")
+            )
+        )
+        our_students = all_our_students.scalars().all()
+
+        for student in our_students:
+            if student.username not in admin_usernames:
+                student.is_active = False
+
+        await db.commit()
+
+    except Exception as e:
+        print(f"Sync internal xato: {e}")

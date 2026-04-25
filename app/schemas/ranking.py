@@ -4,7 +4,6 @@ from datetime import datetime
 
 
 class RankingBase(BaseModel):
-    """Ranking base schema"""
     daily_points: int = Field(default=0, ge=0)
     weekly_points: int = Field(default=0, ge=0)
     monthly_points: int = Field(default=0, ge=0)
@@ -13,12 +12,10 @@ class RankingBase(BaseModel):
 
 
 class RankingCreate(BaseModel):
-    """Yangi ranking yaratish"""
-    student_id: int = Field(..., ge=1, description="Student ID")
+    student_id: int = Field(..., ge=1)
 
 
 class RankingUpdate(BaseModel):
-    """Ranking yangilash (barcha fieldlar optional)"""
     daily_points: Optional[int] = Field(None, ge=0)
     weekly_points: Optional[int] = Field(None, ge=0)
     monthly_points: Optional[int] = Field(None, ge=0)
@@ -27,7 +24,6 @@ class RankingUpdate(BaseModel):
 
 
 class RankingRead(BaseModel):
-    """Ranking ma'lumotlarini o'qish"""
     id: int
     student_id: int
     daily_points: int
@@ -35,6 +31,9 @@ class RankingRead(BaseModel):
     monthly_points: int
     total_points: int
     global_rank: int
+    daily_rank: int
+    weekly_rank: int
+    monthly_rank: int
     level_rank: int
     projects_completed: int
     average_grade: float
@@ -46,9 +45,10 @@ class RankingRead(BaseModel):
 
 
 class MyRankingRead(BaseModel):
-    """O'z ranking ma'lumotlari"""
     global_rank: int
-    level_rank: int
+    daily_rank: int     # Yangi
+    weekly_rank: int    # Yangi
+    monthly_rank: int   # Yangi
     daily_points: int
     weekly_points: int
     monthly_points: int
@@ -56,15 +56,13 @@ class MyRankingRead(BaseModel):
     projects_completed: int
     last_calculated_at: Optional[datetime] = None
 
-
 class LeaderboardItem(BaseModel):
-    """Leaderboard item (universal)"""
     rank: int
     student_id: int
     username: str
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
-    points: int  # period ga qarab: daily/weekly/monthly/total
+    points: int
     level: str
     projects_completed: int
 
@@ -128,19 +126,16 @@ class LevelLeaderboardItem(BaseModel):
 
 
 class AddPointsRequest(BaseModel):
-    """Ball qo'shish request"""
     student_id: int = Field(..., ge=1)
     points: int = Field(..., ge=1)
 
 
 class SubtractPointsRequest(BaseModel):
-    """Ball ayirish request"""
     student_id: int = Field(..., ge=1)
     points: int = Field(..., ge=1)
 
 
 class RankingStatsResponse(BaseModel):
-    """Dashboard statistika response"""
     total_points: int
-    global_rank: str  # "#1" yoki "-"
+    global_rank: str
     projects_completed: int

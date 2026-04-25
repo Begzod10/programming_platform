@@ -1,4 +1,4 @@
-﻿import json
+import json
 from datetime import datetime
 from typing import Optional
 
@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 
 from app.models.project import Project
+from app.models.user import Student
 from app.schemas.project import ProjectCreate, ProjectUpdate
 
 
@@ -92,11 +93,23 @@ class ProjectService:
         project = await self.get_project(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+
         project.instructor_feedback = feedback
         project.grade = grade
         project.points_earned = points
         project.status = "Approved"
         project.reviewed_at = datetime.utcnow()
+
+        # Studentga ball qo'shish
+        student_result = await self.db.execute(
+            select(Student).where(Student.id == project.student_id)
+        )
+        student = student_result.scalar_one_or_none()
+        if student and points > 0:
+            from app.services.ranking_service import RankingService
+            ranking_service = RankingService(self.db)
+            await ranking_service.add_points_to_student(student.id, points)
+
         await self.db.commit()
         await self.db.refresh(project)
         return project

@@ -60,12 +60,28 @@ class CourseService:
         return result.scalar_one_or_none()
 
     async def create_course(self, course_data: CourseCreate, instructor_id: int) -> Course:
-        """Yangi kurs yaratish"""
+        """Yangi kurs yaratish va unga mos achievement (sertifikat) qo'shish"""
         data = course_data.model_dump()
         data["instructor_id"] = instructor_id
 
         new_course = Course(**data)
         self.db.add(new_course)
+        await self.db.flush()  # ID olish uchun flash qilamiz, lekin commit emas hali
+        await self.db.refresh(new_course)
+
+        # 🎖 Avtomatik achievement (badge/certificate) yaratish
+        from app.services import achievement_service
+        await achievement_service.create_achievement(
+            self.db,
+            name=f"{new_course.title}",
+            description=f"Tabriklaymiz! Siz '{new_course.title}' kursini muvaffaqiyatli yakunladingiz va sertifikatga ega bo'ldingiz.",
+            badge_image_url="/static/default_badge.png",  # Standart rasm
+            points_reward=100,
+            criteria_type="course_completion",
+            criteria_value=1,
+            course_id=new_course.id
+        )
+
         await self.db.commit()
         await self.db.refresh(new_course)
 
@@ -86,8 +102,22 @@ class CourseService:
         if course.instructor_id != instructor_id:
             raise HTTPException(status_code=403, detail="Faqat o'z kursingizni tahrirlashingiz mumkin")
 
-        for key, value in course_data.model_dump(exclude_unset=True).items():
+        update_data = course_data.model_dump(exclude_unset=True)
+        old_title = course.title
+        new_title = update_data.get("title")
+
+        for key, value in update_data.items():
             setattr(course, key, value)
+
+        # 🔄 Agar kurs nomi o'zgarsa, unga tegishli achievement nomini ham o'zgartiramiz
+        if new_title and new_title != old_title:
+            from app.models.achievement import Achievement
+            from sqlalchemy import update as sqlalchemy_update
+            await self.db.execute(
+                sqlalchemy_update(Achievement)
+                .where(Achievement.course_id == course.id)
+                .values(name=f"{new_title}")
+            )
 
         await self.db.commit()
         await self.db.refresh(course)
@@ -164,6 +194,7 @@ class CourseService:
         result = await self.db.execute(select(func.count(Course.id)))
         return result.scalar()
 
+    @staticmethod
     async def calc_progress(db: AsyncSession, course_id: int, student_id: int) -> int:
         total = await db.execute(
             select(func.count(Lesson.id)).where(Lesson.course_id == course_id, Lesson.is_active == True))
@@ -190,12 +221,10 @@ class CourseService:
             "max_points": course.max_points,
             "image_url": course.image_url,
             "is_active": course.is_active,
+            "is_published": course.is_published,  # ← shu qatorni qo'shing
             "created_at": course.created_at,
             "updated_at": course.updated_at,
-            "instructor_name": None,
-            "progress_percentage": 0,
-            "lessons_count": 0,
-            "students_count": 0
+
         }
 
         # Instructor nomini xavfsiz olish

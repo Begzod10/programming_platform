@@ -1,21 +1,21 @@
 from datetime import datetime
-from typing import TYPE_CHECKING
-from sqlalchemy import Integer, ForeignKey, DateTime, func
+from typing import TYPE_CHECKING, Optional
+from sqlalchemy import Integer, ForeignKey, DateTime, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 
 if TYPE_CHECKING:
     from app.models.user import Student
     from app.models.achievement import Achievement
+    from app.models.course import Course
 
 
 class StudentAchievement(Base):
+    """Talabalar erishgan yutuqlar (Badges/Ballar uchun)"""
     __tablename__ = "student_achievements"
 
-    # Primary key
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
 
-    # Foreign keys
     student_id: Mapped[int] = mapped_column(
         ForeignKey("students.id", ondelete="CASCADE"),
         nullable=False
@@ -25,7 +25,8 @@ class StudentAchievement(Base):
         nullable=False
     )
 
-    # Timestamp
+    course_id: Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id"), nullable=True)
+
     earned_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -41,6 +42,49 @@ class StudentAchievement(Base):
         "Achievement",
         back_populates="student_achievements"
     )
+    course: Mapped[Optional["Course"]] = relationship("Course")
+
+    __table_args__ = (
+        UniqueConstraint("student_id", "achievement_id", name="uq_student_achievement"),
+    )
 
     def __repr__(self) -> str:
-        return f"<StudentAchievement(student_id={self.student_id}, achievement_id={self.achievement_id})>"
+        return f"<StudentAchievement(student={self.student_id}, achievement={self.achievement_id})>"
+
+
+class CourseCertificate(Base):
+    """Kursni tugatganlik uchun rasmiy sertifikatlar"""
+    __tablename__ = "course_certificates"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("courses.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    issued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    # Relationships
+    student: Mapped["Student"] = relationship(
+        "Student",
+        back_populates="certificates"
+    )
+    course: Mapped["Course"] = relationship(
+        "Course",
+        back_populates="certificates"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("student_id", "course_id", name="uq_student_course_cert"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Certificate(student={self.student_id}, course={self.course_id})>"

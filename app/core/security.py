@@ -47,14 +47,26 @@ def create_access_token(subject: Union[str, Any], expires_delta: Optional[timede
 
 
 def decode_access_token(token: str) -> Optional[int]:
-    """Tokendan user_id olish"""
+    """Tokendan user_id olish (robust variant)"""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
+        
+        # 1. 'sub' maydoni (FastAPI/Standard)
+        user_id = payload.get("sub")
+        
+        # 2. Boshqa ehtimoliy maydonlar
+        if user_id is None:
+            user_id = payload.get("id") or payload.get("student_id")
+            
         if user_id is None:
             return None
-        return int(user_id)
-    except (JWTError, ValueError):
+            
+        try:
+            return int(user_id)
+        except (ValueError, TypeError):
+            return None
+            
+    except (JWTError, Exception):
         return None
 
 

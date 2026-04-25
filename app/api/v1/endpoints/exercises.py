@@ -17,11 +17,28 @@ router = APIRouter()
 # to'liq URL: /courses/{course_id}/lessons/{lesson_id}/exercises
 
 @router.get("/{lesson_id}/exercises", response_model=List[ExerciseRead])
-async def get_exercises(lesson_id: int, db: AsyncSession = Depends(get_db)):
-    """Dars mashqlari — GET /courses/{course_id}/lessons/{lesson_id}/exercises"""
-    return await exercise_service.get_exercises_by_lesson(db, lesson_id)
+async def get_exercises(
+        lesson_id: int,
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """Dars mashqlari"""
+    from app.models.user import UserRole
+    from app.models.exercise import Exercise
+    from sqlalchemy import select
 
+    is_teacher = current_student.role == UserRole.teacher
 
+    query = select(Exercise).where(
+        Exercise.lesson_id == lesson_id,
+        Exercise.is_active == True
+    ).order_by(Exercise.order)
+
+    if not is_teacher:
+        query = query.where(Exercise.is_published == True)
+
+    result = await db.execute(query)
+    return result.scalars().all()
 @router.post("/{lesson_id}/exercises", response_model=ExerciseRead)
 async def create_exercise(
         lesson_id: int,

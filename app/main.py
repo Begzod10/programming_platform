@@ -9,32 +9,43 @@ from app.api.v1.router import api_router
 from app.db.database import init_db
 from app.core.exceptions import register_exception_handlers
 from app.scheduler import start_scheduler, scheduler
+from app.utils import certificate as cert_utils
+from app.db import base
 
-
-# Bu yerdagi ortiqcha app = FastAPI(...) qismini o'chirib tashlang,
-# chunki pastda create_application funksiyasi yangi app yaratadi.
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-
+    # Uploads papkasini tekshirish
     if not os.path.exists("uploads"):
         os.makedirs("uploads")
 
-    print(" Student Programming Platform started!")
+    print("🚀 Student Programming Platform started!")
     await init_db()
-
-    # Scheduler ishga tushirish
     start_scheduler()
+
+    # Sertifikat shablonini yuklash
+    path = "app/static/web_certificate.pdf"
+    abs_path = os.path.abspath(path)
+    print(f"📁 Fayl yo'li: {abs_path}")
+    print(f"📁 Mavjudmi: {os.path.exists(abs_path)}")
+    try:
+        if os.path.exists(abs_path):
+            with open(abs_path, "rb") as f:
+                cert_utils._COURSE_TEMPLATE_BYTES = f.read()
+                print(f"✅ Shablon yuklandi: {len(cert_utils._COURSE_TEMPLATE_BYTES)} bytes")
+        else:
+            print(f"⚠️ Ogohlantirish: {abs_path} topilmadi!")
+    except Exception as e:
+        print(f"❌ Shablon yuklanmadi: {e}")
 
     yield
 
     # Shutdown
     scheduler.shutdown()
-    print(" Student Programming Platform suspended...")
+    print("🛑 Student Programming Platform suspended...")
 
 
 def create_application() -> FastAPI:
-    # SHU YERGA QO'SHAMIZ:
     app = FastAPI(
         title=settings.APP_NAME,
         version=settings.APP_VERSION,
@@ -43,7 +54,7 @@ def create_application() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=lifespan,
-        # Mana bu parametr hammasini yopib qo'yadi:
+        # Swagger-da barcha API-larni yopiq holda ko'rsatish
         swagger_ui_parameters={"docExpansion": "none"}
     )
 
@@ -56,13 +67,18 @@ def create_application() -> FastAPI:
     )
 
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
+
+    # Statik fayllar uchun (rasmlar, zip fayllar va h.k.)
+    if not os.path.exists("uploads"):
+        os.makedirs("uploads")
     app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
     register_exception_handlers(app)
 
     return app
 
 
-# Endi bu app obyekti hamma sozlamalarni o'z ichiga oladi
+# Application obyekti
 app = create_application()
 
 

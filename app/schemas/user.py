@@ -2,15 +2,7 @@ from pydantic import BaseModel, EmailStr, ConfigDict, field_validator, Field
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
-
-
-
-
-class UserRole(str, Enum):
-    student = "student"
-    admin = "admin"
-    instructor = "instructor"
-    teacher = "teacher"
+from app.models.user import UserRole
 
 
 # --- ACHIEVEMENT SCHEMAS ---
