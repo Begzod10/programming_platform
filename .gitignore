@@ -1,24 +1,29 @@
-@"
+# Muhit va xavfsizlik
+venv/
+.env
 .idea/
 
+# Kesh fayllar
 __pycache__/
 *.py[cod]
 *.pyc
-venv/
-.env
 
+# Ma'lumotlar bazasi va jurnallar
 *.db
 *.sqlite3
-
 *.postgres
+*.log
 
+# Migratsiyalar
 __alembic__/
 alembic.ini
 
-*.log
-"@ | Set-Content .gitignore -Encoding utf8
-<<<<<<< HEAD
+# Yuklangan fayllar
 uploads/
-=======
-uploads/
->>>>>>> 911e25fecb66a7aafbb48f3d24e30e2a7f6a07f8
+
+# Claude Code
+.claude/
+
+# OS fayllari
+.DS_Store
+Thumbs.db
