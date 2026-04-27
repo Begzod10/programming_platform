@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
     APP_VERSION: str = "1.0.0"
+    GROQ_API_KEY: str = ""
 
     class Config:
         env_file = ".env"
