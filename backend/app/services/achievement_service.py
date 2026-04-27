@@ -130,6 +130,7 @@ async def check_course_completion(db: AsyncSession, student_id: int, course_id: 
     # 2. Student nechta darsni tugatgan
     completed_res = await db.execute(
         select(func.count(LessonCompletion.id))
+        .select_from(LessonCompletion)
         .join(Lesson, LessonCompletion.lesson_id == Lesson.id)
         .where(
             Lesson.course_id == course_id,

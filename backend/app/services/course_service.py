@@ -314,6 +314,7 @@ class CourseService:
 
             completed_ex_stmt = (
                 select(func.count(ExerciseSubmission.exercise_id.distinct()))
+                .select_from(ExerciseSubmission)
                 .join(Exercise, Exercise.id == ExerciseSubmission.exercise_id)
                 .join(Lesson, Lesson.id == Exercise.lesson_id)
                 .where(
