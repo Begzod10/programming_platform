@@ -88,3 +88,45 @@ Baholash mezonlari:
         }
 
     return result
+
+
+async def analyze_project_with_grok(
+        title: str,
+        description: str,
+        github_url: str,
+        technologies: list[str],
+        difficulty_level: str,
+        previous_points: int = 0  # ✅ yangi parametr
+) -> dict:
+    technologies_str = ", ".join(technologies) if technologies else "ko'rsatilmagan"
+
+    previous_info = ""
+    if previous_points > 0:
+        previous_info = f"\nDIQQAT: Bu loyiha avval {previous_points} ball olgan edi. Agar ball oshgan bo'lsa, feedback da nima yaxshilanganini aniq ayt."
+
+    prompt = f"""
+Sen tajribali dasturlash o'qituvchisisiz. Quyidagi o'quvchi proektini baholab ber.
+Proekt ma'lumotlari:
+- Nomi: {title}
+- Tavsifi: {description}
+- GitHub: {github_url}
+- Texnologiyalar: {technologies_str}
+- Qiyinlik darajasi: {difficulty_level}
+{previous_info}
+
+Quyidagi formatda JSON javob ber (boshqa hech narsa yozma, faqat JSON):
+{{
+    "grade": "A yoki B yoki C yoki D yoki F",
+    "points": 0-100 orasida son,
+    "feedback": "O'quvchiga batafsil fikr-mulohaza (o'zbek tilida). Agar avval baholangan bo'lsa, nima yaxshilanganini ayt.",
+    "strengths": ["kuchli tomon 1", "kuchli tomon 2"],
+    "improvements": ["yaxshilash kerak 1", "yaxshilash kerak 2"],
+    "summary": "Qisqa xulosa (1-2 jumla, o'zbek tilida)"
+}}
+Baholash mezonlari:
+- A: 90-100 ball - Ajoyib proekt
+- B: 75-89 ball - Yaxshi proekt
+- C: 60-74 ball - O'rtacha proekt
+- D: 45-59 ball - Qoniqarsiz
+- F: 0-44 ball - Juda zaif
+"""

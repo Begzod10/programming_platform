@@ -59,16 +59,15 @@ async def get_ai_explanation(
         student_answer: str,
         explanation: Optional[str] = None
 ) -> str:
-    """Xato javob uchun AI tushuntirish olish"""
-    prompt = f"""Sen dasturlash o'qituvchisisiz. O'quvchi savolga xato javob berdi. Xatosini tushuntirib ber.
+    prompt = f"""Sen dasturlash o'qituvchisisiz. O'quvchi savolga xato javob berdi.
 
 Savol: {question}
-O'quvchi javobi: {student_answer}
-To'g'ri javob: {correct_answer}
 {"Qo'shimcha tushuntirish: " + explanation if explanation else ""}
 
-O'zbek tilida qisqa va tushunarli tushuntirish yoz (2-3 jumla). Nima uchun o'quvchi javobi xato va to'g'ri javob nima ekanligini ayt."""
-
+Faqat xatoning SABABINI tushuntir (2-3 jumla, o'zbek tilida).
+TO'G'RI JAVOBNI AYTMA, O'QUVCHI JAVOBINI HAM AYTMA.
+Faqat nima uchun xato bo'lishi mumkinligini va qanday o'ylash kerakligini ayt.
+O'quvchi o'zi topishi kerak."""
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(
@@ -199,29 +198,28 @@ Faqat JSON formatda javob ber, boshqa hech narsa yozma:
 
 
 async def submit_exercise(
-    db: AsyncSession,
-    exercise_id: int,
-    student_id: int,
-    data: ExerciseSubmitRequest
+        db: AsyncSession,
+        exercise_id: int,
+        student_id: int,
+        data: ExerciseSubmitRequest
 ) -> ExerciseSubmission:
     from app.services.ranking_service import RankingService
-    from app.models.lesson import Lesson
 
     exercise = await get_exercise_by_id(db, exercise_id)
     if not exercise:
         raise HTTPException(status_code=404, detail="Mashq topilmadi")
 
-    # ✅ Allaqachon bajarilganmi tekshirish
-    already_done = await db.execute(
+    # ✅ Avval to'g'ri javob berganmi tekshirish
+    prev_correct = await db.execute(
         select(ExerciseSubmission).where(
             ExerciseSubmission.exercise_id == exercise_id,
             ExerciseSubmission.student_id == student_id,
             ExerciseSubmission.is_correct == True
         )
     )
-    if already_done.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Bu mashqni allaqachon bajardingiz!")
+    already_solved = prev_correct.first() is not None
 
+    # Tekshiruv
     result = check_answer_locally(exercise, data.student_answer)
 
     if result is None:
@@ -243,12 +241,20 @@ async def submit_exercise(
 
     is_correct = result.get("is_correct", False)
     partial = result.get("partial_score", 0)
-    score = exercise.points if is_correct else int(exercise.points * partial)
 
-    # ✅ Ball qo'shish
-    if score > 0:
+    # ✅ Ball faqat 1-marta to'g'ri javob berganda beriladi
+    if is_correct and not already_solved:
+        score = exercise.points
         ranking_service = RankingService(db)
         await ranking_service.add_points_to_student(student_id, score)
+    else:
+        score = 0  # Qayta yechsa ball yo'q
+
+    # ✅ already_solved bo'lsa maxsus xabar
+    if already_solved and is_correct:
+        result["feedback"] = "✅ Barakalla! Bu mashqni avval ham to'g'ri yechgansiz. Ball bir marta beriladi."
+    elif already_solved and not is_correct:
+        result["feedback"] = result.get("feedback", "") + "\n\n💡 Qayta urinib ko'ring!"
 
     submission = ExerciseSubmission(
         exercise_id=exercise_id,
@@ -262,6 +268,7 @@ async def submit_exercise(
     await db.commit()
     await db.refresh(submission)
     return submission
+
 
 async def get_my_submissions(db: AsyncSession, student_id: int, exercise_id: int) -> List[ExerciseSubmission]:
     result = await db.execute(

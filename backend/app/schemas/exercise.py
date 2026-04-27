@@ -38,6 +38,7 @@ class ExerciseUpdate(BaseModel):
     drag_items: Optional[str] = None
     correct_order: Optional[str] = None
     options: Optional[str] = None
+    is_published: Optional[bool] = None  # ← shu qatorni qo'shing
     is_multiple_select: Optional[bool] = None
     expected_answer: Optional[str] = None
     hint: Optional[str] = None
@@ -61,6 +62,7 @@ class ExerciseRead(BaseModel):
     difficulty_level: str
     points: int
     order: int
+    is_published: bool = False
     is_active: bool
     created_at: datetime
     # correct_answers, expected_answer, correct_order — studentga ko'rsatilmaydi!
