@@ -76,6 +76,9 @@ class UserRead(BaseModel):
     current_level: Optional[str] = Field(default="Beginner")
     total_points: int = Field(default=0)
     is_active: bool = Field(default=True)
+    phone: Optional[str] = Field(default=None)
+    balance: int = Field(default=0)
+    surname: Optional[str] = Field(default=None)
     created_at: datetime
 
     # Yutuqlar: agar relationship yuklanmagan bo'lsa bo'sh list qaytadi

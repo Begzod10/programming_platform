@@ -73,6 +73,12 @@ class Student(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
 
+    # Gennis specific fields
+    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    balance: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    surname: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    gennis_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

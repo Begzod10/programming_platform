@@ -11,6 +11,8 @@ class Group(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     description: Mapped[Optional[str]] = mapped_column(String(500))
+    price: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    gennis_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, unique=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

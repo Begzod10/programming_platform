@@ -32,3 +32,5 @@ alembic.ini
 
 # App specific
 uploads/
+antigravity/
+antigravity-browser-profile/

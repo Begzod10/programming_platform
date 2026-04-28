@@ -23,6 +23,7 @@ class GroupUpdate(BaseModel):
 
 class GroupRead(GroupBase):
     id: int
+    price: int = 0
     created_at: datetime
     students: List[UserRead] = []
 

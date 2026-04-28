@@ -6,6 +6,7 @@ from app.models.user import Student, UserRole
 from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash, verify_password, create_access_token, decode_access_token
 from app.db.session import get_db
+from app.services.gennis_service import GennisService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -108,11 +109,20 @@ async def login(db: AsyncSession, username: str, password: str):
         )
 
     # Token qaytarish
-    return {
+    token_data = {
         "access_token": create_access_token(subject=user.id),
         "token_type": "bearer",
         "user": user
     }
+
+    # ✅ O'qituvchi bo'lsa, Gennis bilan sinxronlash
+    if user.role == UserRole.teacher:
+        gennis_data = await GennisService.login(username, password)
+        if gennis_data:
+            # Sinxronizatsiyani boshlaymiz (hozircha bloklovchi, lekin tez ishlaydi)
+            await GennisService.sync_teacher_data(db, user, gennis_data)
+
+    return token_data
 
 
 async def logout(db: AsyncSession, email: str, password: str):
