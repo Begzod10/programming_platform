@@ -115,7 +115,7 @@ async def login(db: AsyncSession, username: str, password: str):
             user = Student(
                 username=username if role == UserRole.teacher else f"gennis_{gennis_id}",
                 email=user_data.get("email") or f"{username}@gennis.uz",
-                full_name=f"{user_data.get('name', '')} {user_data.get('surname', '')}",
+                full_name=f"{user_data.get('name', '')} {user_data.get('surname', '')}".strip(),
                 hashed_password="external_auth",
                 role=role,
                 is_active=True
@@ -127,6 +127,13 @@ async def login(db: AsyncSession, username: str, password: str):
             # Ranking yaratish (faqat student uchun)
             if user.role == UserRole.student:
                 await create_ranking(db, user.id)
+        else:
+            # Foydalanuvchi mavjud, rolini yangilash kerakmi tekshiramiz
+            correct_role = UserRole.teacher if role_str == 'teacher' else UserRole.student
+            if user.role != correct_role:
+                user.role = correct_role
+                await db.commit()
+                await db.refresh(user)
 
         # Sinxronizatsiyani boshlaymiz
         if user.role == UserRole.teacher:
