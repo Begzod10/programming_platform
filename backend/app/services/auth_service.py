@@ -95,7 +95,16 @@ async def login(db: AsyncSession, username: str, password: str):
         # Gennis login muvaffaqiyatli
         user_data = gennis_data.get("user", {})
         gennis_id = user_data.get("id") or user_data.get("user_id")
-        role_str = user_data.get("role") or gennis_data.get("type_user") # 'teacher' yoki 'student'
+        
+        # role_str ni to'g'ri aniqlash (Gennis API ba'zan dict qaytaradi)
+        raw_role = user_data.get("role")
+        if isinstance(raw_role, dict):
+            role_str = raw_role.get("name")
+        elif isinstance(raw_role, str):
+            role_str = raw_role
+        else:
+            role_str = gennis_data.get("type_user")
+            
         print(f"Gennis ID: {gennis_id}, Role: {role_str}")
         
         # Bizning bazadan foydalanuvchini topamiz (username yoki email orqali)
