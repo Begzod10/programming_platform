@@ -139,8 +139,25 @@ async def login(db: AsyncSession, username: str, password: str):
         else:
             # Foydalanuvchi mavjud, rolini yangilash kerakmi tekshiramiz
             correct_role = UserRole.teacher if role_str == 'teacher' else UserRole.student
+            changed = False
             if user.role != correct_role:
                 user.role = correct_role
+                changed = True
+
+            # O'qituvchi uchun username kiritilgan qiymatga moslashtiramiz
+            # (eski "gennis_{id}" username'ni asl username bilan almashtiramiz)
+            if correct_role == UserRole.teacher and user.username != username:
+                conflict = await db.execute(
+                    select(Student).where(
+                        Student.username == username,
+                        Student.id != user.id,
+                    )
+                )
+                if conflict.scalars().first() is None:
+                    user.username = username
+                    changed = True
+
+            if changed:
                 await db.commit()
                 await db.refresh(user)
 
