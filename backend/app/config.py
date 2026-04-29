@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
     APP_VERSION: str = "1.0.0"
     GROQ_API_KEY: str = ""
-    GENNIS_API_URL: str = "https://tech.gennis.uz/api"
+    GENNIS_API_URL: str = "https://admin.gennis.uz/api"
     GROK_API_URL: str = "https://api.x.ai/v1/chat/completions" # Based on grok_service.py
     GROK_API_KEY: str = ""
     GROK_MODEL: str = "grok-beta"

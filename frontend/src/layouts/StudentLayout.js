@@ -1,5 +1,6 @@
 import {useState, useEffect} from 'react';
 import Sidebar from '../components/sidebar/sidebar';
+import { useTranslation } from '../i18n/useTranslation';
 import StatsCard from '../views/student/stats/StatsCard';
 import MyProjects from '../views/student/projects/MyProjects';
 import Leaderboard from '../views/student/rankings/LeaderBoard';
@@ -10,6 +11,7 @@ import {API_URL, useHttp, headers} from '../api/search/base';
 
 function StudentLayout({user, activeTab, setActiveTab, onLogout}) {
     const {request} = useHttp();
+    const { t } = useTranslation();
     const [stats, setStats] = useState({points: null, rank: null, approved: null});
 
     useEffect(() => {
@@ -35,22 +37,22 @@ function StudentLayout({user, activeTab, setActiveTab, onLogout}) {
             <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={onLogout} role="student"/>
             <main className="content-area">
                 <header className="main-header">
-                    <h1>Добро пожаловать, {user.name || user.username}!</h1>
+                    <h1>{t('welcome')} {user.name || user.username}!</h1>
                 </header>
                 {activeTab !== 'courses' && (
                     <section className="stats-grid">
                         <StatsCard
-                            title="Баллы"
+                            title={t('points')}
                             value={stats.points !== null ? stats.points : '...'}
                             icon="⭐" color="#ffcc00"
                         />
                         <StatsCard
-                            title="Место"
+                            title={t('my_rank')}
                             value={stats.rank !== null ? `${stats.rank}` : '...'}
                             icon="🏆" color="#00c2ff"
                         />
                         <StatsCard
-                            title="Проекты"
+                            title={t('my_projects')}
                             value={stats.approved !== null ? stats.approved : '...'}
                             icon="📁" color="#4caf50"
                         />

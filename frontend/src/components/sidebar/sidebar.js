@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
 import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
+import { useTranslation } from '../../i18n/useTranslation';
 
 function Sidebar({ activeTab, setActiveTab, onLogout, role }) {
     const { request } = useHttp();
+    const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
 
     const menuItems = [
-        { id: 'profile',  label: 'Профиль',      icon: '👤' },
-        { id: 'projects', label: 'Мои Проекты',  icon: '💻' },
-        { id: 'courses',  label: 'Курсы',         icon: '📚' },
-        { id: 'rankings', label: 'Рейтинг',       icon: '🏆' },
-        { id: 'degrees',  label: 'Сертификаты',   icon: '🎓' },
+        { id: 'profile',  label: t('profile'),      icon: '👤' },
+        { id: 'projects', label: t('my_projects'),  icon: '💻' },
+        { id: 'courses',  label: t('courses'),         icon: '📚' },
+        { id: 'rankings', label: t('rankings'),       icon: '🏆' },
+        { id: 'degrees',  label: t('certificates'),   icon: '🎓' },
     ];
 
     // Закрываем при смене вкладки на мобиле
@@ -67,7 +69,7 @@ function Sidebar({ activeTab, setActiveTab, onLogout, role }) {
                     ))}
                 </nav>
                 <button className="logout-btn-side" onClick={handleLogout}>
-                    Выйти 🚪
+                    {t('logout_btn')} 🚪
                 </button>
             </div>
         </>

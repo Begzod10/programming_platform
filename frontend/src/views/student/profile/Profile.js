@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import ReactDOM from 'react-dom';
 import './Profile.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 function Profile({ user: initialUser, onLogout }) {
     const { request } = useHttp();
+    const { t, lang, toggleLang } = useTranslation();
 
     const [profile,     setProfile]     = useState(null);
     const [loading,     setLoading]     = useState(true);
@@ -46,10 +47,10 @@ function Profile({ user: initialUser, onLogout }) {
             .then(updated => {
                 setProfile(p => ({ ...p, ...updated }));
                 setEditMode(false);
-                setSuccess('Профиль обновлён ✅');
+                setSuccess(t('profile_updated'));
                 setTimeout(() => setSuccess(''), 3000);
             })
-            .catch(() => setError('Ошибка при сохранении'))
+            .catch(() => setError(t('save_error')))
             .finally(() => setSaving(false));
     };
 
@@ -61,7 +62,7 @@ function Profile({ user: initialUser, onLogout }) {
                 localStorage.removeItem('user');
                 onLogout && onLogout();
             })
-            .catch(() => setError('Ошибка при удалении'))
+            .catch(() => setError('O\'chirishda xatolik'))
             .finally(() => setDeleting(false));
     };
 
@@ -69,7 +70,7 @@ function Profile({ user: initialUser, onLogout }) {
         return (
             <div className="profile-loading">
                 <div className="profile-spinner" />
-                <p>Загрузка профиля...</p>
+                <p>{t('loading')}</p>
             </div>
         );
     }
@@ -99,7 +100,10 @@ function Profile({ user: initialUser, onLogout }) {
                     <div className="profile-aside-actions">
                         <button className="edit-profile-btn"
                             onClick={() => { setEditMode(true); setError(''); }}>
-                            ✏️ Редактировать
+                            ✏️ {t('edit')}
+                        </button>
+                        <button className="lang-toggle-btn" onClick={toggleLang}>
+                            🌐 {lang === 'uz' ? 'Русский' : "O'zbekcha"}
                         </button>
                     </div>
                 </div>
@@ -111,41 +115,41 @@ function Profile({ user: initialUser, onLogout }) {
 
                     {editMode ? (
                         <div className="profile-edit-form">
-                            <div className="profile-section-title">Редактировать профиль</div>
+                            <div className="profile-section-title">{t('edit_profile')}</div>
                             <div className="profile-edit-grid">
                                 <div className="profile-field">
-                                    <label>Полное имя</label>
-                                    <input value={form.full_name} placeholder="Имя Фамилия"
+                                    <label>{t('full_name')}</label>
+                                    <input value={form.full_name} placeholder="Ism Familiya"
                                         onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}/>
                                 </div>
                                 <div className="profile-field">
-                                    <label>Ссылка на аватар</label>
+                                    <label>{t('avatar_url')}</label>
                                     <input value={form.avatar_url} placeholder="https://..."
                                         onChange={e => setForm(f => ({ ...f, avatar_url: e.target.value }))}/>
                                 </div>
                                 <div className="profile-field" style={{ gridColumn: '1 / -1' }}>
-                                    <label>О себе</label>
-                                    <textarea value={form.bio} rows={3} placeholder="Расскажите о себе..."
+                                    <label>{t('bio')}</label>
+                                    <textarea value={form.bio} rows={3} placeholder="..."
                                         onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}/>
                                 </div>
                             </div>
                             <div className="profile-edit-actions">
                                 <button className="profile-cancel-btn"
                                     onClick={() => { setEditMode(false); setError(''); }}>
-                                    Отмена
+                                    {t('cancel')}
                                 </button>
                                 <button className="profile-save-btn" onClick={handleUpdate} disabled={saving}>
-                                    {saving ? '⏳ Сохранение...' : '💾 Сохранить'}
+                                    {saving ? '⏳ ...' : `💾 ${t('save')}`}
                                 </button>
                             </div>
                         </div>
                     ) : (
                         <>
-                            <div className="profile-section-title">Ваш прогресс</div>
+                            <div className="profile-section-title">Sizning natijangiz</div>
                             <div className="progress-container">
                                 <div className="progress-info">
-                                    <span>Уровень: <strong>{displayLevel}</strong></span>
-                                    <span>{displayPoints} очков</span>
+                                    <span>Daraja: <strong>{displayLevel}</strong></span>
+                                    <span>{displayPoints} ball</span>
                                 </div>
                                 <div className="progress-bar-bg">
                                     <div className="progress-bar-fill"
@@ -159,24 +163,24 @@ function Profile({ user: initialUser, onLogout }) {
                                     <span className="stat-value">{profile?.username || '—'}</span>
                                 </div>
                                 <div className="mini-stat">
-                                    <span className="stat-label">Очки</span>
+                                    <span className="stat-label">Ballar</span>
                                     <span className="stat-value">{displayPoints} 🔥</span>
                                 </div>
                                 <div className="mini-stat">
-                                    <span className="stat-label">Статус</span>
-                                    <span className="stat-value">{profile?.is_active ? '✅ Активен' : '❌'}</span>
+                                    <span className="stat-label">Holat</span>
+                                    <span className="stat-value">{profile?.is_active ? '✅ Faol' : '❌'}</span>
                                 </div>
                             </div>
 
                             <div className="recent-activity">
-                                <div className="profile-section-title">Информация</div>
+                                <div className="profile-section-title">{t('profile')}</div>
                                 <ul className="activity-list">
-                                    <li><span>📧</span> Email: <strong>{displayEmail}</strong></li>
-                                    <li><span>🎓</span> Уровень: <strong>{displayLevel}</strong></li>
-                                    {displayBio && <li><span>📝</span> О себе: <strong>{displayBio}</strong></li>}
-                                    <li><span>📅</span> Зарегистрирован: <strong>
+                                    <li><span>📧</span> {t('email')}: <strong>{displayEmail}</strong></li>
+                                    <li><span>🎓</span> {t('level')}: <strong>{displayLevel}</strong></li>
+                                    {displayBio && <li><span>📝</span> {t('bio')}: <strong>{displayBio}</strong></li>}
+                                    <li><span>📅</span> {t('reg_year')}: <strong>
                                         {profile?.created_at
-                                            ? new Date(profile.created_at).toLocaleDateString('ru-RU')
+                                            ? new Date(profile.created_at).toLocaleDateString(lang === 'uz' ? 'uz-UZ' : 'ru-RU')
                                             : '—'}
                                     </strong></li>
                                 </ul>

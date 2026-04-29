@@ -24,10 +24,13 @@ async def create_new_group(
 
 
 @router.get("/", response_model=List[GroupRead])
-async def get_groups(db: AsyncSession = Depends(get_db)):
-    """Barcha guruhlar"""
+async def get_groups(
+    db: AsyncSession = Depends(get_db),
+    current_user: Student = Depends(get_current_teacher)
+):
+    """Faqat o'qituvchiga tegishli guruhlar"""
     service = GroupService(db)
-    return await service.get_all_groups()
+    return await service.get_all_groups(teacher_id=current_user.id)
 
 
 @router.get("/{group_id}", response_model=GroupRead)

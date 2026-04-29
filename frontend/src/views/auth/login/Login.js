@@ -14,7 +14,7 @@ function Login({ onLogin, onGoRegister }) {
 
     const handleLogin = () => {
         if (!username.trim() || !password.trim()) {
-            setError('Введите логин и пароль');
+            setError('Login va parolni kiriting');
             return;
         }
         setError('');
@@ -27,7 +27,7 @@ function Login({ onLogin, onGoRegister }) {
                 localStorage.setItem('user', JSON.stringify(userData));
                 onLogin(res);
             })
-            .catch(() => setError('Неверный логин или пароль'))
+            .catch(() => setError('Login yoki parol noto\'g\'ri'))
             .finally(() => setLoading(false));
     };
 
@@ -42,13 +42,13 @@ function Login({ onLogin, onGoRegister }) {
                 />
             </div>
 
-            <h1>Добро пожаловать!</h1>
-            <p className="subtitle">Войдите в свой аккаунт</p>
+            <h1>Xush kelibsiz!</h1>
+            <p className="subtitle">Hisobingizga kiring</p>
 
             <div className="login-field">
                 <input
                     type="text"
-                    placeholder="Логин"
+                    placeholder="Login"
                     value={username}
                     onChange={e => { setUsername(e.target.value); setError(''); }}
                     onKeyDown={handleKeyDown}
@@ -60,7 +60,7 @@ function Login({ onLogin, onGoRegister }) {
             <div className="login-field password-field-wrapper">
                 <input
                     type={showPassword ? "text" : "password"}
-                    placeholder="Пароль"
+                    placeholder="Parol"
                     value={password}
                     onChange={e => { setPassword(e.target.value); setError(''); }}
                     onKeyDown={handleKeyDown}
@@ -75,14 +75,14 @@ function Login({ onLogin, onGoRegister }) {
             {error && <p className="login-error">{error}</p>}
 
             <button className="login-btn" onClick={handleLogin} disabled={loading}>
-                {loading ? '⏳ Вход...' : 'Войти'}
+                {loading ? '⏳ Kirilmoqda...' : 'Kirish'}
             </button>
 
             {onGoRegister && (
                 <>
-                    <div className="login-divider">или</div>
+                    <div className="login-divider">yoki</div>
                     <div className="toggle-text" onClick={onGoRegister}>
-                        Нет аккаунта? <span>Зарегистрироваться</span>
+                        Hisobingiz yo'qmi? <span>Ro'yxatdan o'tish</span>
                     </div>
                 </>
             )}

@@ -21,21 +21,21 @@ async def lifespan(app: FastAPI):
     if not os.path.exists("uploads"):
         os.makedirs("uploads")
 
-    print(" Student Programming Platform started!")
+    print("Student Programming Platform started!")
     await init_db()
     start_scheduler()
 
     # Shablon faylni xotiraga olish
     path = "app/static/web_certificate.pdf"
     abs_path = os.path.abspath(path)
-    print(f"📁 Fayl yo'li: {abs_path}")
-    print(f"📁 Mavjudmi: {os.path.exists(abs_path)}")
+    print(f"File path: {abs_path}")
+    print(f"Exists: {os.path.exists(abs_path)}")
     try:
         with open(abs_path, "rb") as f:
             cert_utils._COURSE_TEMPLATE_BYTES = f.read()
-            print(f"✅ Shablon yuklandi: {len(cert_utils._COURSE_TEMPLATE_BYTES)} bytes")
+            print(f"Template loaded: {len(cert_utils._COURSE_TEMPLATE_BYTES)} bytes")
     except Exception as e:
-        print(f"❌ Shablon yuklanmadi: {e}")
+        print(f"Template not loaded: {e}")
 
     yield
 

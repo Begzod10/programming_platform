@@ -130,7 +130,8 @@ class Student(Base):
 
     group: Mapped[Optional["Group"]] = relationship(
         "Group",
-        back_populates="students"
+        back_populates="students",
+        foreign_keys="Student.group_id"
     )
 
     lesson_completions: Mapped[List["LessonCompletion"]] = relationship(
@@ -148,6 +149,12 @@ class Student(Base):
         "CourseCertificate",
         back_populates="student",
         cascade="all, delete-orphan"
+    )
+
+    managed_groups: Mapped[List["Group"]] = relationship(
+        "Group",
+        back_populates="teacher",
+        foreign_keys="Group.teacher_id"
     )
 
     @validates('total_points')

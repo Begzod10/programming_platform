@@ -1,5 +1,6 @@
 from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 from sqlalchemy.orm import selectinload
 from app.models.group import Group
 from app.schemas.group import GroupCreate, GroupUpdate
@@ -17,9 +18,11 @@ class GroupService:
         await self.db.refresh(new_group)
         return new_group
 
-    async def get_all_groups(self):
-        """Barcha guruhlarni ichidagi talabalari bilan birga olish"""
+    async def get_all_groups(self, teacher_id: Optional[int] = None):
+        """Guruhlarni (ixtiyoriy o'qituvchi bo'yicha) ichidagi talabalari bilan birga olish"""
         query = select(Group).options(selectinload(Group.students))
+        if teacher_id:
+            query = query.where(Group.teacher_id == teacher_id)
         result = await self.db.execute(query)
         return result.scalars().all()
 
