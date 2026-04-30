@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './TeacherStatistics.css';
-
-const API_URL = 'http://100.67.61.71:8000/api/v1/teacher/statistics';
+import { API_URL, useHttp, headers } from '../../../api/search/base';
 
 const DAYS_ORDER = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 const DAY_FULL = {
@@ -39,7 +38,7 @@ function ActivityChart({ weeklyActivity }) {
     const todayShort = JS_DAY_TO_SHORT[new Date().getDay()];
 
     const dataMap = Object.fromEntries(
-        weeklyActivity.map((i) => [i.day, i.value])
+        (weeklyActivity || []).map((i) => [i.day, i.value])
     );
 
     const ordered = DAYS_ORDER.map((d) => ({
@@ -87,32 +86,17 @@ function ActivityChart({ weeklyActivity }) {
 }
 
 function TeacherStatistics() {
+    const { request } = useHttp();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            setError('Token topilmadi. Qayta kiring.');
-            setLoading(false);
-            return;
-        }
-
-        fetch(API_URL, {
-            headers: {
-                accept: 'application/json',
-                Authorization: `Bearer ${token}`,
-            },
-        })
-            .then((res) => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return res.json();
-            })
+        request(`${API_URL}v1/teacher/statistics`, 'GET', null, headers())
             .then(setData)
             .catch((err) => setError(err.message))
             .finally(() => setLoading(false));
-    }, []);
+    }, [request]);
 
     if (loading) return <div className="stats-loading">Загрузка статистики...</div>;
     if (error) return <div className="stats-error">Ошибка: {error}</div>;
@@ -141,7 +125,7 @@ function TeacherStatistics() {
                     </li>
                     <li>
                         <span>Средний балл</span>
-                        <b>{data.average_points.toFixed(1)}</b>
+                        <b>{(data.average_points || 0).toFixed(1)}</b>
                     </li>
                     <li>
                         <span>Проверено работ</span>
@@ -157,12 +141,12 @@ function TeacherStatistics() {
             <article className="stats-block">
                 <h4>Динамика</h4>
                 <ul className="stats-list compact">
-                    {data.dynamics.map((item, i) => (
+                    {(data.dynamics || []).map((item, i) => (
                         <li key={i}>
                             <span>{item.label}</span>
                             <b
                                 className={
-                                    item.value.startsWith('-')
+                                    (item.value || '').startsWith('-')
                                         ? 'negative'
                                         : 'positive'
                                 }
