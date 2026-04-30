@@ -58,6 +58,7 @@ class GennisService:
         teacher_info = user_data.get("teacher", {})
         groups_data = teacher_info.get("groups", [])
 
+        print(f"  - 1. Syncing teacher {teacher.username} info...")
         # 1. O'qituvchining Gennis tokenini saqlash
         teacher.gennis_token = token
         # Agar familiyasi bo'lsa
@@ -67,10 +68,12 @@ class GennisService:
         await db.commit()
 
         # 2. Guruhlarni sinxronlash
+        print(f"  - 2. Syncing {len(groups_data)} groups...")
         for g_data in groups_data:
             g_id = g_data.get("id")
             g_name = g_data.get("name")
             g_price = g_data.get("price", 0)
+            print(f"    - Processing group: {g_name} (ID: {g_id})")
 
             # Guruh mavjudligini tekshirish
             stmt = select(Group).where(Group.gennis_id == g_id)
@@ -78,6 +81,7 @@ class GennisService:
             group = result.scalar_one_or_none()
 
             if not group:
+                print(f"      - Creating new group: {g_name}")
                 group = Group(
                     name=g_name,
                     gennis_id=g_id,
@@ -87,12 +91,15 @@ class GennisService:
                 await db.commit()
                 await db.refresh(group)
             else:
+                print(f"      - Updating existing group: {g_name}")
                 group.name = g_name
                 group.price = g_price
                 await db.commit()
 
             # 3. Talabalarni sinxronlash
+            print(f"    - 3. Fetching students for group {g_id}...")
             students_list = await cls.fetch_group_students(g_id, token)
+            print(f"      - Found {len(students_list)} students in Gennis.")
             for s_data in students_list:
                 s_id = s_data.get("id")
                 s_name = s_data.get("name")
@@ -100,9 +107,6 @@ class GennisService:
                 s_phone = s_data.get("phone")
                 s_balance = s_data.get("balance", 0)
                 
-                # Talaba mavjudligini tekshirish (username yoki gennis_id yo'qligi sababli phone/name bilan)
-                # Haqiqiy loyihada gennis_student_id bo'lgani yaxshi, hozircha phone ishlatamiz
-                # Lekin Student modelida gennis_id yo'q edi, uni username sifatida ishlatsak bo'ladi
                 s_username = f"gennis_{s_id}"
                 
                 stmt = select(Student).where(Student.username == s_username)
@@ -110,6 +114,7 @@ class GennisService:
                 student = result.scalar_one_or_none()
 
                 if not student:
+                    print(f"      - Creating new student: {s_name} {s_surname} ({s_username})")
                     student = Student(
                         username=s_username,
                         email=f"{s_username}@gennis.uz",
@@ -123,6 +128,7 @@ class GennisService:
                     )
                     db.add(student)
                 else:
+                    print(f"      - Updating student: {s_name} {s_surname}")
                     student.full_name = f"{s_name} {s_surname}"
                     student.phone = s_phone
                     student.balance = s_balance
@@ -131,4 +137,4 @@ class GennisService:
                 
             await db.commit()
 
-        logger.info(f"Sync completed for teacher {teacher.username}")
+        print(f"✅ Sync completed for teacher {teacher.username}")

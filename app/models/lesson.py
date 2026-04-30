@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from app.models.course import Course
     from app.models.project import Project
     from app.models.user import Student
+    from app.models.exercise import Exercise
 
 
 class Lesson(Base):
@@ -63,7 +64,6 @@ class Lesson(Base):
         back_populates="lessons"
     )
 
-    from typing import List
     exercises: Mapped[List["Exercise"]] = relationship(
         "Exercise", back_populates="lesson", cascade="all, delete-orphan"
     )

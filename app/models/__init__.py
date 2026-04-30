@@ -9,6 +9,7 @@ from app.models.course import Course
 from app.models.degree import Degree
 from app.models.lesson import Lesson
 from app.models.group import Group
+from app.models.exercise import Exercise
 
 
 def certificate():
