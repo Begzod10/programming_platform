@@ -350,15 +350,30 @@ async def get_achievement_progress(db: AsyncSession, student_id: int) -> List[di
 
     progress_list = []
     for ach in achievements:
+        current = 0
+        target = ach.criteria_value or 1
+        pct = 0
+
         if ach.criteria_type == "project_count":
             current = completed_projects
-        elif ach.criteria_type == "course_completion" and ach.course_id:
-            # Kurs progressini hisoblaymiz
-            current = 1 if await check_course_completion(db, student_id, ach.course_id) else 0
-        else:
+            pct = min(100, int((current / target) * 100))
+        elif ach.criteria_type == "course_completion":
+            if ach.course_id:
+                # Kurs progressini foizda olamiz
+                from app.services.course_service import CourseService
+                pct = await CourseService.calc_progress(db, ach.course_id, student_id)
+                current = 1 if pct >= 100 else 0
+            else:
+                # Agar course_id yo'q bo'lsa, progress 0 bo'lishi kerak
+                current = 0
+                pct = 0
+        elif ach.criteria_type == "points_threshold":
             current = student.total_points
-
-        progress = min(100, int((current / max(ach.criteria_value, 1)) * 100))
+            pct = min(100, int((current / target) * 100))
+        else:
+            # Boshqa turlar uchun progress hozircha 0
+            current = 0
+            pct = 0
 
         progress_list.append({
             "achievement_id": ach.id,
@@ -367,9 +382,9 @@ async def get_achievement_progress(db: AsyncSession, student_id: int) -> List[di
             "badge_image_url": ach.badge_image_url,
             "points_reward": ach.points_reward,
             "criteria_type": ach.criteria_type,
-            "criteria_value": ach.criteria_value,
+            "criteria_value": target,
             "current_value": current,
-            "progress": progress,
+            "progress": pct,
             "is_earned": ach.id in earned_ids,
         })
     return progress_list
