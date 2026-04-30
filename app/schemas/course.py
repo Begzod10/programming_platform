@@ -36,6 +36,8 @@ class CourseUpdate(BaseModel):
     max_points: Optional[int] = None
     is_active: Optional[bool] = None
     prerequisite_course_id: Optional[int] = None
+    image_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
 
 
 class CourseRead(CourseBase):
