@@ -120,6 +120,35 @@
     box-shadow: 0 4px 14px rgba(108,92,231,0.2);
 }
 
+.lang-toggle-btn-tp {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.6));
+    border: 1px solid rgba(108, 92, 231, 0.2);
+    color: #6c5ce7;
+    padding: 6px 14px;
+    border-radius: 16px; /* Pill shape */
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    backdrop-filter: blur(5px);
+    margin-left: auto;
+}
+
+.lang-toggle-btn-tp:hover {
+    background: linear-gradient(135deg, #ffffff, rgba(255, 255, 255, 0.8));
+    border-color: rgba(108, 92, 231, 0.4);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(108, 92, 231, 0.15);
+}
+
+.lang-toggle-btn-tp:active {
+    transform: translateY(0);
+}
+
 /* Success / Error */
 .tp-success {
     background: rgba(0,184,148,0.1);

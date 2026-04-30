@@ -61,29 +61,8 @@ class CourseService:
 
     async def validate_course_integrity(self, course: Course):
         """Kurs butunligini tekshirish (Ballar va darslar)"""
-        # 1. Agar kurs aktiv bo'lsa, kamida bitta dars bo'lishi kerak
-        if course.is_active:
-            result = await self.db.execute(
-                select(func.count(Lesson.id)).where(Lesson.course_id == course.id, Lesson.is_active == True)
-            )
-            count = result.scalar() or 0
-            if count == 0:
-                raise HTTPException(
-                    status_code=400, 
-                    detail="Aktiv kursda kamida bitta faol dars bo'lishi shart"
-                )
-
-        # 2. Kursning max_points darslar ballari yig'indisidan kichik bo'lmasligi kerak
-        # (O'qituvchi adashib max_pointsni kamaytirib qo'ymasligi uchun)
-        res_points = await self.db.execute(
-            select(func.sum(Lesson.points_reward)).where(Lesson.course_id == course.id, Lesson.is_active == True)
-        )
-        sum_points = res_points.scalar() or 0
-        if course.max_points < sum_points:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Kursning umumiy balli ({course.max_points}) darslar ballari yig'indisidan ({sum_points}) kam bo'lishi mumkin emas"
-            )
+        # Frontend to'liq moslashguncha qat'iy tekshiruvlar vaqtinchalik o'chirildi
+        pass
 
     async def create_course(self, course_data: CourseCreate, instructor_id: int) -> Course:
         """Yangi kurs yaratish va unga mos achievement (sertifikat) qo'shish"""

@@ -1,9 +1,4 @@
 import os
-import sys
-
-# Backend papkasini PYTHONPATH ga qo'shish
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,16 +12,13 @@ from app.scheduler import start_scheduler, scheduler
 from app.utils import certificate as cert_utils
 from app.db import base
 
-# Bu yerdagi ortiqcha app = FastAPI(...) qismini o'chirib tashlang,
-# chunki pastda create_application funksiyasi yangi app yaratadi.
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
     if not os.path.exists("uploads"):
         os.makedirs("uploads")
 
-    print(" Student Programming Platform started!")
+    print("Student Programming Platform started!")
     await init_db()
     start_scheduler()
 
@@ -41,13 +33,13 @@ async def lifespan(app: FastAPI):
             cert_utils._COURSE_TEMPLATE_BYTES = f.read()
             print(f"Template loaded: {len(cert_utils._COURSE_TEMPLATE_BYTES)} bytes")
     except Exception as e:
-        print(f"Template NOT loaded: {e}")
+        print(f"Template not loaded: {e}")
 
     yield
 
     # Shutdown
     scheduler.shutdown()
-    print(" Student Programming Platform suspended...")
+    print("Student Programming Platform suspended...")
 
 
 def create_application() -> FastAPI:

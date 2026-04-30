@@ -3,10 +3,10 @@ import './LeaderBoard.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 
 const TABS = [
-    { key: 'all',     label: 'Все время' },
-    { key: 'monthly', label: 'Месяц'     },
-    { key: 'weekly',  label: 'Неделя'    },
-    { key: 'daily',   label: 'Сегодня'   },
+    { key: 'all',     label: 'Barcha vaqt' },
+    { key: 'monthly', label: 'Oy'          },
+    { key: 'weekly',  label: 'Hafta'       },
+    { key: 'daily',   label: 'Bugun'       },
 ];
 
 function Leaderboard() {
@@ -22,7 +22,7 @@ function Leaderboard() {
         setError('');
         request(`${API_URL}v1/rankings/leaderboard?period=${period}&limit=50`, 'GET', null, headers())
             .then(res => setData(Array.isArray(res) ? res : []))
-            .catch(() => setError('Не удалось загрузить рейтинг'))
+            .catch(() => setError('Reytingni yuklab bo\'lmadi'))
             .finally(() => setLoading(false));
     };
 
@@ -80,7 +80,7 @@ function Leaderboard() {
 
             {/* Header */}
             <div className="leaderboard-header">
-                <h2>Рейтинг</h2>
+                <h2>Reyting</h2>
                 <div className="filter-tabs">
                     {TABS.map(t => (
                         <span
@@ -98,7 +98,7 @@ function Leaderboard() {
             {myRank && (
                 <div className="lb-my-rank">
                     <div className="lb-my-rank-left">
-                        <span className="lb-my-label">Моя позиция</span>
+                        <span className="lb-my-label">Mening o'rnim</span>
                         <span className="lb-my-pos">{getMyRankValue()}</span>
                     </div>
                     <div className="lb-my-rank-right">
@@ -113,18 +113,18 @@ function Leaderboard() {
                 {loading ? (
                     <div className="lb-loading">
                         <div className="lb-spinner"/>
-                        <p>Загрузка...</p>
+                        <p>Yuklanmoqda...</p>
                     </div>
                 ) : error ? (
                     <div className="lb-error">
                         <p>{error}</p>
-                        <button onClick={() => fetchRanking(activeTab)}>Повторить</button>
+                        <button onClick={() => fetchRanking(activeTab)}>Qayta urinish</button>
                     </div>
                 ) : data.length === 0 ? (
-                    <div className="lb-empty">Данных пока нет</div>
+                    <div className="lb-empty">Hozircha ma'lumot yo'q</div>
                 ) : data.map((student, idx) => {
                     const rank = student.rank ?? idx + 1;
-                    const name = student.full_name || student.username || 'Студент';
+                    const name = student.full_name || student.username || 'Talaba';
                     const pts  = getPoints(student);
 
                     return (

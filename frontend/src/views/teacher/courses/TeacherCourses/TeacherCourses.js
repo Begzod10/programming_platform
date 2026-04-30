@@ -345,7 +345,8 @@ const TeacherCourses = () => {
 
     const doDeleteCourse = (id) => {
         fetch(`${API_URL}v1/courses/${id}`, { method: 'DELETE', mode: 'cors', headers: headers() })
-            .then(() => {
+            .then((res) => {
+                if (!res.ok) throw new Error("Delete failed");
                 setCourses(cs => cs.filter(c => c.id !== id));
                 setConfirmCourse(null);
                 if (activeCourseId === id) { setView('courses'); setActiveCourseId(null); }

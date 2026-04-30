@@ -1,18 +1,20 @@
 import { useState, useEffect } from 'react';
 import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
+import { useTranslation } from '../../i18n/useTranslation';
 
 function TeacherSidebar({ activeTab, setActiveTab, onLogout }) {
     const { request } = useHttp();
+    const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
 
     const teacherMenuItems = [
-        { id: 'profile',       label: 'Профиль',         icon: '👨‍🏫' },
-        { id: 'review',        label: 'Проверка работ',  icon: '📥' },
-        { id: 'students_list', label: 'Мои Студенты',    icon: '👥' },
-        { id: 'courses',       label: 'Курсы',           icon: '📚' },
-        { id: 'certificates',  label: 'Сертификаты',     icon: '🏅' },
-        { id: 'statistics',    label: 'Статистика',      icon: '📈' },
+        { id: 'profile',       label: t('profile'),         icon: '👨‍🏫' },
+        { id: 'review',        label: t('review'),  icon: '📥' },
+        { id: 'students_list', label: t('my_students'),    icon: '👥' },
+        { id: 'courses',       label: t('courses'),           icon: '📚' },
+        { id: 'certificates',  label: t('certificates'),     icon: '🏅' },
+        { id: 'statistics',    label: t('statistics'),      icon: '📈' },
     ];
 
     const handleTabClick = (id) => {
@@ -63,7 +65,7 @@ function TeacherSidebar({ activeTab, setActiveTab, onLogout }) {
                     ))}
                 </nav>
                 <button className="logout-btn-side" onClick={handleLogout}>
-                    Выйти 🚪
+                    {t('logout_btn')} 🚪
                 </button>
             </div>
         </>

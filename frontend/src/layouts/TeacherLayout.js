@@ -1,5 +1,6 @@
 import React from 'react';
 import TeacherSidebar from '../components/sidebar/TeacherSidebar';
+import { useTranslation } from '../i18n/useTranslation';
 import TeacherProfile from '../views/teacher/profile/TeacherProfile';
 import TeacherReview from '../views/teacher/teacherreview/TeacherReview';
 import MyStudents from '../views/teacher/mystudents/MyStudents';
@@ -11,6 +12,7 @@ const SCROLLABLE_TABS = ['students_list', 'groups', 'review', 'statistics', 'cou
 
 function TeacherLayout({ user, activeTab, setActiveTab, onLogout }) {
     const isScrollable = SCROLLABLE_TABS.includes(activeTab);
+    const { t } = useTranslation();
 
     return (
         <div className="main-layout">
@@ -21,7 +23,7 @@ function TeacherLayout({ user, activeTab, setActiveTab, onLogout }) {
             />
             <main className="content-area">
                 <header className="main-header">
-                    <h1>Добро пожаловать, {user.name || user.username}!</h1>
+                    <h1>{t('welcome')} {user.name || user.username}!</h1>
                 </header>
                 <div className={`page-container ${isScrollable ? 'scrollable' : ''}`}>
                     {activeTab === 'profile'       && <TeacherProfile user={user} />}

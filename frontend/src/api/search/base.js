@@ -1,3 +1,5 @@
+import { useCallback } from 'react';
+
 export const API_URL_DOC = process.env.REACT_APP_API_URL || `http://localhost:8000/`
 export const API_URL = `${API_URL_DOC}api/`
 
@@ -32,7 +34,7 @@ export const branchQueryId = () => {
 }
 
 export const useHttp = () => {
-    const request = async (url, method = 'GET', body = null, headers = {'Content-Type': 'application/json'}) => {
+    const request = useCallback(async (url, method = 'GET', body = null, headers = {'Content-Type': 'application/json'}) => {
         try {
             const response = await fetch(url, {method, mode: 'cors', body, headers});
             if (!response.ok) {
@@ -42,7 +44,7 @@ export const useHttp = () => {
         } catch (e) {
             throw e;
         }
-    }
+    }, []);
     return {request}
 }
 

@@ -83,9 +83,97 @@ async def register_new_student(db: AsyncSession, user_data: UserCreate):
 
 
 async def login(db: AsyncSession, username: str, password: str):
-    """Login - username YOKI email bilan"""
-    # Username yoki email bilan topish
+    """Login - Gennis birinchi, keyin lokal"""
     username = username.strip()
+    
+    # 1. Gennis bilan login qilib ko'ramiz
+    print(f"Attempting Gennis login for: {username}")
+    gennis_data = await GennisService.login(username, password)
+    
+    if gennis_data:
+        print("Gennis data received, syncing...")
+        # Gennis login muvaffaqiyatli
+        user_data = gennis_data.get("user", {})
+        gennis_id = user_data.get("id") or user_data.get("user_id")
+        
+        # role_str ni to'g'ri aniqlash (Gennis API ba'zan dict qaytaradi)
+        raw_role = user_data.get("role")
+        if isinstance(raw_role, dict):
+            role_str = raw_role.get("name")
+        elif isinstance(raw_role, str):
+            role_str = raw_role
+        else:
+            role_str = gennis_data.get("type_user")
+            
+        print(f"Gennis ID: {gennis_id}, Role: {role_str}")
+        
+        # Bizning bazadan foydalanuvchini topamiz (username yoki email orqali)
+        # Gennis foydalanuvchilari uchun username ko'pincha 'gennis_{id}' bo'ladi
+        # Lekin o'qituvchilar o'z username'lari bilan kirishadi
+        stmt = select(Student).where(
+            (Student.username == username) | 
+            (Student.email == username) |
+            (Student.username == f"gennis_{gennis_id}")
+        )
+        result = await db.execute(stmt)
+        user = result.scalars().first()
+        
+        if not user:
+            # Yangi foydalanuvchi yaratamiz
+            role = UserRole.teacher if role_str == 'teacher' else UserRole.student
+            user = Student(
+                username=username if role == UserRole.teacher else f"gennis_{gennis_id}",
+                email=user_data.get("email") or f"{username}@gennis.uz",
+                full_name=f"{user_data.get('name', '')} {user_data.get('surname', '')}".strip(),
+                hashed_password="external_auth",
+                role=role,
+                is_active=True
+            )
+            db.add(user)
+            await db.commit()
+            await db.refresh(user)
+            
+            # Ranking yaratish (faqat student uchun)
+            if user.role == UserRole.student:
+                await create_ranking(db, user.id)
+        else:
+            # Foydalanuvchi mavjud, rolini yangilash kerakmi tekshiramiz
+            correct_role = UserRole.teacher if role_str == 'teacher' else UserRole.student
+            changed = False
+            if user.role != correct_role:
+                user.role = correct_role
+                changed = True
+
+            # O'qituvchi uchun username kiritilgan qiymatga moslashtiramiz
+            # (eski "gennis_{id}" username'ni asl username bilan almashtiramiz)
+            if correct_role == UserRole.teacher and user.username != username:
+                conflict = await db.execute(
+                    select(Student).where(
+                        Student.username == username,
+                        Student.id != user.id,
+                    )
+                )
+                if conflict.scalars().first() is None:
+                    user.username = username
+                    changed = True
+
+            if changed:
+                await db.commit()
+                await db.refresh(user)
+
+        # Sinxronizatsiyani boshlaymiz
+        if user.role == UserRole.teacher:
+            await GennisService.sync_teacher_data(db, user, gennis_data)
+        elif user.role == UserRole.student:
+            await GennisService.sync_student_data(db, user, gennis_data)
+            
+        return {
+            "access_token": create_access_token(subject=user.id),
+            "token_type": "bearer",
+            "user": user
+        }
+
+    # 2. Gennis o'xshasa (yoki admin bo'lsa), lokal bazadan tekshiramiz
     result = await db.execute(
         select(Student).where(
             (Student.username == username) |
@@ -108,34 +196,11 @@ async def login(db: AsyncSession, username: str, password: str):
             detail="Foydalanuvchi faol emas"
         )
 
-    # Token qaytarish
-    token_data = {
+    return {
         "access_token": create_access_token(subject=user.id),
         "token_type": "bearer",
         "user": user
     }
-
-    # ✅ O'qituvchi bo'lsa, Gennis bilan sinxronlash
-    if user.role == UserRole.teacher:
-        print(f"🔄 Teacher login detected: {user.username}. Starting Gennis sync...")
-        try:
-            gennis_data = await GennisService.login(username, password)
-            if gennis_data:
-                print("✅ Gennis login success. Syncing data...")
-                # Sinxronizatsiyani boshlaymiz (hozircha bloklovchi, lekin tez ishlaydi)
-                await GennisService.sync_teacher_data(db, user, gennis_data)
-                print("✅ Sync completed successfully.")
-            else:
-                print("⚠️ Gennis login failed (None returned).")
-        except Exception as e:
-            print(f"❌ ERROR inside teacher sync: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            # Still return token_data if sync fails? Or let it raise?
-            # For now let it continue so user can at least login
-            pass
-
-    return token_data
 
 
 async def logout(db: AsyncSession, email: str, password: str):
@@ -180,5 +245,3 @@ async def update_user(user_id: int, user_data: UserUpdate, db: AsyncSession):
     await db.refresh(user)
 
     return user
-
-

@@ -7,7 +7,7 @@ from app.models.achievement import Achievement
 from app.models.student_achievement import StudentAchievement
 from app.models.course import Course
 from app.models.degree import Degree
-from app.models.lesson import Lesson
+from app.models.lesson import Lesson, LessonCompletion
 from app.models.group import Group
 from app.models.exercise import Exercise
 

@@ -161,6 +161,20 @@ async def update_course(
     return await CourseService.build_dto(db, updated_course, current_teacher.id)
 
 
+@router.delete("/{course_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_course(
+        course_id: int,
+        current_teacher: Student = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db),
+):
+    """Kursni o'chirish"""
+    course_service = CourseService(db)
+    deleted = await course_service.delete_course(course_id, current_teacher.id)
+    if not deleted:
+        raise HTTPException(404, "Kurs topilmadi yoki sizga tegishli emas")
+    return None
+
+
 @router.post("/{course_id}/enroll")
 async def enroll_course(
         course_id: int,

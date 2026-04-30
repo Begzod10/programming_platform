@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import './TeacherProfile.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 function TeacherProfile({ user: initialUser }) {
     const { request } = useHttp();
+    const { t, lang, toggleLang } = useTranslation();
 
     const [profile,  setProfile]  = useState(null);
     const [loading,  setLoading]  = useState(true);
@@ -52,10 +54,10 @@ function TeacherProfile({ user: initialUser }) {
             .then(updated => {
                 setProfile(p => ({ ...p, ...updated }));
                 closeEdit();
-                setSuccess('Профиль обновлён ✅');
+                setSuccess(t('profile_updated'));
                 setTimeout(() => setSuccess(''), 3000);
             })
-            .catch(() => setError('Ошибка при сохранении'))
+            .catch(() => setError(t('save_error')))
             .finally(() => setSaving(false));
     };
 
@@ -63,7 +65,7 @@ function TeacherProfile({ user: initialUser }) {
         return (
             <div className="tp-loading">
                 <div className="tp-spinner" />
-                <p>Загрузка профиля...</p>
+                <p>{t('loading')}</p>
             </div>
         );
     }
@@ -90,13 +92,16 @@ function TeacherProfile({ user: initialUser }) {
                     <p className="tp-email">{displayEmail}</p>
                     {displayBio && <p className="tp-bio">{displayBio}</p>}
                     <div className="tp-tags">
-                        <span className="tag-pro">Teacher</span>
+                        <span className="tag-pro">{t('teacher')}</span>
                         <span className="tag-group">Mentor</span>
-                        {profile?.is_active && <span className="tag-active">Активен</span>}
+                        {profile?.is_active && <span className="tag-active">Faol</span>}
+                        <button className="lang-toggle-btn-tp" onClick={toggleLang}>
+                             {lang === 'uz' ? 'Русский' : "O'zbekcha"}
+                        </button>
                     </div>
                 </div>
                 <button className="tp-edit-btn" onClick={() => { editMode ? closeEdit() : setEditMode(true); setError(''); }}>
-                    {editMode ? '✕ Отмена' : '✏️ Редактировать'}
+                    {editMode ? `✕ ${t('cancel')}` : `✏️ ${t('edit')}`}
                 </button>
             </div>
 
@@ -107,28 +112,28 @@ function TeacherProfile({ user: initialUser }) {
             {/* Edit form */}
             {editMode && (
                 <div className={`tp-edit-form ${editClose ? 'tp-edit-closing' : ''}`}>
-                    <h3>Редактировать профиль</h3>
+                    <h3>{t('edit_profile')}</h3>
                     <div className="tp-edit-grid">
                         <div className="tp-field">
-                            <label>Полное имя</label>
-                            <input placeholder="Имя Фамилия" value={form.full_name}
+                            <label>{t('full_name')}</label>
+                            <input placeholder="..." value={form.full_name}
                                 onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))} />
                         </div>
                         <div className="tp-field">
-                            <label>Ссылка на аватар</label>
-                            <input placeholder="https://example.com/avatar.jpg" value={form.avatar_url}
+                            <label>{t('avatar_url')}</label>
+                            <input placeholder="https://..." value={form.avatar_url}
                                 onChange={e => setForm(f => ({ ...f, avatar_url: e.target.value }))} />
                         </div>
                         <div className="tp-field tp-field-full">
-                            <label>О себе</label>
-                            <textarea rows={3} placeholder="Расскажите о себе..." value={form.bio}
+                            <label>{t('bio')}</label>
+                            <textarea rows={3} placeholder="..." value={form.bio}
                                 onChange={e => setForm(f => ({ ...f, bio: e.target.value }))} />
                         </div>
                     </div>
                     <div className="tp-edit-actions">
-                        <button className="tp-cancel-btn" onClick={closeEdit}>Отмена</button>
+                        <button className="tp-cancel-btn" onClick={closeEdit}>{t('cancel')}</button>
                         <button className="tp-save-btn" onClick={handleUpdate} disabled={saving}>
-                            {saving ? '⏳ Сохранение...' : '💾 Сохранить'}
+                            {saving ? '⏳ ...' : `💾 ${t('save')}`}
                         </button>
                     </div>
                 </div>
@@ -138,43 +143,43 @@ function TeacherProfile({ user: initialUser }) {
             <div className="tp-stats-grid">
                 <div className="tp-stat-card">
                     <h3>{profile?.total_points ?? 0}</h3>
-                    <p>Всего баллов</p>
+                    <p>{t('points')}</p>
                 </div>
                 <div className="tp-stat-card">
                     <h3>{profile?.current_level || '—'}</h3>
-                    <p>Уровень</p>
+                    <p>{t('level')}</p>
                 </div>
                 <div className="tp-stat-card">
                     <h3>{profile?.created_at ? new Date(profile.created_at).getFullYear() : '—'}</h3>
-                    <p>Год регистрации</p>
+                    <p>{t('reg_year')}</p>
                 </div>
             </div>
 
             {/* Info section */}
             <div className="tp-info-section">
-                <h3>Информация</h3>
+                <h3>{t('profile')}</h3>
                 <div className="tp-info-list">
                     <div className="tp-info-row">
-                        <span className="tp-info-label">📧 Email</span>
+                        <span className="tp-info-label">📧 {t('email')}</span>
                         <span className="tp-info-value">{displayEmail}</span>
                     </div>
                     <div className="tp-info-row">
-                        <span className="tp-info-label">👤 Username</span>
+                        <span className="tp-info-label">👤 {t('username')}</span>
                         <span className="tp-info-value">{profile?.username || '—'}</span>
                     </div>
                     <div className="tp-info-row">
-                        <span className="tp-info-label">🎓 Роль</span>
-                        <span className="tp-info-value">Teacher</span>
+                        <span className="tp-info-label">🎓 {t('role')}</span>
+                        <span className="tp-info-value">{t('teacher')}</span>
                     </div>
                     <div className="tp-info-row">
-                        <span className="tp-info-label">📅 Зарегистрирован</span>
+                        <span className="tp-info-label">📅 {t('reg_year')}</span>
                         <span className="tp-info-value">
-                            {profile?.created_at ? new Date(profile.created_at).toLocaleDateString('ru-RU') : '—'}
+                            {profile?.created_at ? new Date(profile.created_at).toLocaleDateString(lang === 'uz' ? 'uz-UZ' : 'ru-RU') : '—'}
                         </span>
                     </div>
                     {displayBio && (
                         <div className="tp-info-row">
-                            <span className="tp-info-label">📝 О себе</span>
+                            <span className="tp-info-label">📝 {t('bio')}</span>
                             <span className="tp-info-value">{displayBio}</span>
                         </div>
                     )}

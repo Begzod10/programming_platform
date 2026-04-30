@@ -9,7 +9,7 @@ const balanceColor = (b) => {
   return 'pos';
 };
 const fmt = (n) =>
-  new Intl.NumberFormat('ru-RU').format(n) + ' сум';
+  new Intl.NumberFormat('uz-UZ').format(n) + ' so\'m';
 
 /* ─── StudentRow ─── */
 const StudentRow = ({ student }) => {
@@ -53,7 +53,7 @@ const GroupCard = ({ group }) => {
           <div className="ms-group-meta">
             <span className="ms-group-name">{group.name}</span>
             <span className="ms-group-sub">
-              👥 {students.length} студентов · 💰 {fmt(group.price)}
+              👥 {students.length} talaba · 💰 {fmt(group.price)}
             </span>
           </div>
         </div>
@@ -72,7 +72,7 @@ const GroupCard = ({ group }) => {
               <span className="ms-search-icon">🔍</span>
               <input
                 className="ms-group-search"
-                placeholder="Поиск студента..."
+                placeholder="Talabani qidirish..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 onClick={e => e.stopPropagation()}
@@ -84,7 +84,7 @@ const GroupCard = ({ group }) => {
           )}
 
           {filtered.length === 0 ? (
-            <div className="ms-no-students">Студенты не найдены</div>
+            <div className="ms-no-students">Talabalar topilmadi</div>
           ) : (
             <div className="ms-students-list">
               {filtered.map(s => (
@@ -109,28 +109,16 @@ const MyStudents = () => {
 
   const loadData = useCallback(() => {
     setLoading(true);
-    request(`${API_URL}v1/classroom/groups`, 'GET', null, headers())
+    request(`${API_URL}v1/groups/`, 'GET', null, headers())
       .then(data => setGroups(Array.isArray(data) ? data : []))
       .catch(() => setGroups([]))
       .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [request]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const handleSync = () => {
-    if (syncing) return;
-    setSyncing(true);
-    request(`${API_URL}v1/classroom/sync`, 'POST', JSON.stringify({}), headers())
-      .then(() => loadData())
-      .catch((err) => {
-        console.error('Sync error:', err);
-        alert('Ошибка при синхронизации');
-      })
-      .finally(() => setSyncing(false));
-  };
 
   const filteredGroups = groups.filter(g =>
     (g.name || '').toLowerCase().includes(search.toLowerCase())
@@ -142,17 +130,9 @@ const MyStudents = () => {
     <div className="ms-container">
       <div className="ms-header">
         <div>
-          <h2>Мои Студенты</h2>
-          <p className="ms-subtitle">Группы и студенты из Classroom</p>
+          <h2>Mening talabalarim</h2>
+          <p className="ms-subtitle">Gennis'dagi guruhlar va talabalar</p>
         </div>
-        <button
-          className={`ms-sync-btn ${syncing ? 'loading' : ''}`}
-          onClick={handleSync}
-          disabled={syncing || loading}
-          style={{ padding: '8px 16px', borderRadius: '8px', cursor: 'pointer' }}
-        >
-          {syncing ? '🔄 Синхронизация...' : '🔄 Синхронизировать с Classroom'}
-        </button>
       </div>
 
       <div className="ms-filters">
@@ -160,7 +140,7 @@ const MyStudents = () => {
           <span className="ms-search-icon">🔍</span>
           <input
             className="ms-search"
-            placeholder="Поиск по названию группы..."
+            placeholder="Guruh nomi bo'yicha qidirish..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -171,17 +151,17 @@ const MyStudents = () => {
       </div>
 
       <div className="ms-stats-row">
-        <div className="ms-stat-chip">🏫 Групп: {groups.length}</div>
-        <div className="ms-stat-chip">👥 Студентов: {totalStudents}</div>
+        <div className="ms-stat-chip">🏫 Guruhlar: {groups.length}</div>
+        <div className="ms-stat-chip">👥 Talabalar: {totalStudents}</div>
       </div>
 
       {loading && !syncing ? (
         <div className="ms-loading">
           <div className="ms-spinner" />
-          <span>Загрузка данных...</span>
+          <span>Ma'lumotlar yuklanmoqda...</span>
         </div>
       ) : filteredGroups.length === 0 ? (
-        <div className="ms-empty-row">Группы не найдены</div>
+        <div className="ms-empty-row">Guruhlar topilmadi</div>
       ) : (
         <div className="ms-groups-list">
           {filteredGroups.map(g => (
