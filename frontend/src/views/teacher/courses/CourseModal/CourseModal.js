@@ -1,5 +1,6 @@
 import React from 'react';
 import './CourseModal.css';
+import { API_URL_DOC } from '../../../../api/search/base';
 
 const CourseDetailPage = ({ course, onBack, onOpenLesson, onAddLesson, onEditLesson, onDeleteLesson, onToggleLessonPublish }) => {
     const groupedLessons = () => {
@@ -34,7 +35,7 @@ const CourseDetailPage = ({ course, onBack, onOpenLesson, onAddLesson, onEditLes
             </div>
 
             <div className="cdp-banner">
-                <img src={course.image} alt={course.title} className="cdp-banner-img"/>
+                <img src={course.image ? (course.image.startsWith('http') ? course.image : API_URL_DOC + course.image.replace(/^\//, '')) : ''} alt={course.title} className="cdp-banner-img"/>
                 <div className="cdp-banner-overlay">
                     <div className="cdp-banner-content">
                         <h1>{course.title}</h1>
@@ -115,7 +116,7 @@ const LessonCard = ({ lesson, index, onOpen, onEdit, onDelete, onTogglePublish }
         <div className="cdp-lesson-card" onClick={onOpen}>
             <div className="cdp-lesson-preview">
                 {lesson.image
-                    ? <img src={lesson.image} alt={lesson.title}/>
+                    ? <img src={lesson.image.startsWith('http') ? lesson.image : API_URL_DOC + lesson.image.replace(/^\//, '')} alt={lesson.title}/>
                     : <div className="cdp-lesson-no-img">📹</div>
                 }
                 <span className="cdp-lesson-num-badge">Урок {index}</span>

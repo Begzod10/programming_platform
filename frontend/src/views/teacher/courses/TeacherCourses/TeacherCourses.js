@@ -4,7 +4,7 @@ import './TeacherCourses.css';
 import LessonModal from '../LessonModal/LessonModal';
 import CourseDetailPage from '../CourseModal/CourseModal';
 import LessonPage from '../LessonPage/LessonPage';
-import { API_URL, useHttp, headers } from '../../../../api/search/base';
+import { API_URL, API_URL_DOC, useHttp, headers } from '../../../../api/search/base';
 
 const INITIAL_CHAPTERS = ['Basic', 'Advanced', 'Test'];
 
@@ -219,7 +219,7 @@ const TeacherCourses = () => {
     const [editingCourse,    setEditingCourse]    = useState(null);
     const [editingLesson,    setEditingLesson]    = useState(null);
     const [newCourse,        setNewCourse]        = useState({
-        title: '', description: '', image: '',
+        title: '', description: '', image: '', imageFile: null,
         difficulty_level: 'Beginner', duration_weeks: '4', max_points: '100',
     });
 
@@ -284,7 +284,7 @@ const TeacherCourses = () => {
     /* ── Course CRUD ── */
     const openAddCourse = () => {
         setEditingCourse(null);
-        setNewCourse({ title: '', description: '', image: '', difficulty_level: 'Beginner', duration_weeks: '4', max_points: '100' });
+        setNewCourse({ title: '', description: '', image: '', imageFile: null, difficulty_level: 'Beginner', duration_weeks: '4', max_points: '100' });
         setShowCourseModal(true);
     };
 
@@ -292,7 +292,7 @@ const TeacherCourses = () => {
         e.stopPropagation();
         setEditingCourse(course);
         setNewCourse({
-            title: course.title, description: course.description, image: course.image,
+            title: course.title, description: course.description, image: course.image, imageFile: null,
             difficulty_level: course.difficulty_level || 'Beginner',
             duration_weeks:   course.duration_weeks   || '4',
             max_points:       course.max_points       || '100',
@@ -300,31 +300,59 @@ const TeacherCourses = () => {
         setShowCourseModal(true);
     };
 
-    const saveCourse = () => {
+    const saveCourse = async () => {
         if (!newCourse.title.trim() || !newCourse.description.trim()) return;
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         const body = {
             title:            newCourse.title,
             description:      newCourse.description,
-            image_url:        newCourse.image,
             instructor_id:    user.id,
             difficulty_level: newCourse.difficulty_level || 'Beginner',
             duration_weeks:   Number(newCourse.duration_weeks) || 4,
             max_points:       Number(newCourse.max_points) || 100,
             is_active:        true,
         };
-        if (editingCourse) {
-            request(`${API_URL}v1/courses/${editingCourse.id}`, 'PUT', JSON.stringify(body), headers())
-                .then(res => {
-                    setCourses(cs => cs.map(c => c.id === editingCourse.id ? { ...c, ...res, image: res.image_url || '' } : c));
-                    setShowCourseModal(false);
-                }).catch(() => {});
-        } else {
-            request(`${API_URL}v1/courses/`, 'POST', JSON.stringify(body), headers())
-                .then(res => {
-                    setCourses(cs => [...cs, { ...res, image: res.image_url || '', studentsCount: 0, lessons: [] }]);
-                    setShowCourseModal(false);
-                }).catch(() => {});
+        // If there's an existing image url but no new file, preserve it
+        if (!newCourse.imageFile && newCourse.image) {
+            body.image_url = newCourse.image;
+        }
+
+        try {
+            let savedCourse;
+            if (editingCourse) {
+                savedCourse = await request(`${API_URL}v1/courses/${editingCourse.id}`, 'PUT', JSON.stringify(body), headers());
+            } else {
+                savedCourse = await request(`${API_URL}v1/courses/`, 'POST', JSON.stringify(body), headers());
+            }
+
+            if (newCourse.imageFile && savedCourse?.id) {
+                const formData = new FormData();
+                formData.append('file', newCourse.imageFile);
+                
+                const imgHeaders = { ...headers() };
+                delete imgHeaders['Content-Type']; // Let browser set boundary
+
+                const imgRes = await fetch(`${API_URL}v1/courses/${savedCourse.id}/upload-image`, {
+                    method: 'POST',
+                    headers: imgHeaders,
+                    body: formData
+                });
+                if (imgRes.ok) {
+                    const imgData = await imgRes.json();
+                    savedCourse.image_url = imgData.image_url;
+                }
+            }
+
+            setCourses(cs => {
+                if (editingCourse) {
+                    return cs.map(c => c.id === editingCourse.id ? { ...c, ...savedCourse, image: savedCourse.image_url || '' } : c);
+                } else {
+                    return [...cs, { ...savedCourse, image: savedCourse.image_url || '', studentsCount: 0, lessons: [] }];
+                }
+            });
+            setShowCourseModal(false);
+        } catch (error) {
+            console.error("Error saving course:", error);
         }
     };
 
@@ -543,7 +571,7 @@ const TeacherCourses = () => {
                     {filteredCourses.map(course => (
                         <div key={course.id} className="tc-course-card" onClick={() => openCoursePage(course)}>
                             <div className="tc-course-preview">
-                                <img src={course.image} alt={course.title} />
+                                <img src={course.image ? (course.image.startsWith('http') ? course.image : API_URL_DOC + course.image.replace(/^\//, '')) : ''} alt={course.title} />
                                 <div className="tc-course-overlay">
                                     <span className="tc-view-label">👁️ Открыть курс</span>
                                 </div>
@@ -587,8 +615,13 @@ const TeacherCourses = () => {
                             onChange={e => setNewCourse(p => ({ ...p, title: e.target.value }))} />
                         <textarea placeholder="Описание курса *" value={newCourse.description}
                             onChange={e => setNewCourse(p => ({ ...p, description: e.target.value }))} />
-                        <input placeholder="URL изображения" value={newCourse.image}
-                            onChange={e => setNewCourse(p => ({ ...p, image: e.target.value }))} />
+                        <input type="file" accept="image/*" 
+                            onChange={e => {
+                                if (e.target.files && e.target.files[0]) {
+                                    setNewCourse(p => ({ ...p, imageFile: e.target.files[0] }));
+                                }
+                            }} />
+                        {newCourse.image && !newCourse.imageFile && <span style={{fontSize: '12px', color: '#666', marginTop: '-10px', marginBottom: '10px', display: 'block'}}>Joriy rasm mavjud. Yangisini yuklasangiz almashadi.</span>}
                         <select value={newCourse.difficulty_level}
                             onChange={e => setNewCourse(p => ({ ...p, difficulty_level: e.target.value }))}>
                             <option>Beginner</option>
