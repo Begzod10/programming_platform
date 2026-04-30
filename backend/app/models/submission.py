@@ -9,9 +9,9 @@ class Submission(Base):
     __tablename__ = "submissions"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
-    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False)
-    lesson_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lessons.id"), nullable=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    lesson_id: Mapped[Optional[int]] = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=True)
 
     github_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     live_demo_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)

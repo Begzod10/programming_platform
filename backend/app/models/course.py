@@ -74,7 +74,11 @@ class Course(Base):
         cascade="all, delete-orphan"
     )
 
-    achievements: Mapped[List["Achievement"]] = relationship("Achievement", back_populates="course")
+    achievements: Mapped[List["Achievement"]] = relationship(
+        "Achievement", 
+        back_populates="course",
+        cascade="all, delete-orphan"
+    )
 
     # Self-referential: ushbu kursning oldindan talab qilinadigan kursi
     prerequisite_course: Mapped[Optional["Course"]] = relationship(

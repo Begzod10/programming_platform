@@ -13,8 +13,8 @@ class StudentDegree(Base):
     __tablename__ = "student_degrees"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False)
-    degree_id: Mapped[int] = mapped_column(ForeignKey("degrees.id"), nullable=False)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
+    degree_id: Mapped[int] = mapped_column(ForeignKey("degrees.id", ondelete="CASCADE"), nullable=False)
 
     earned_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     certificate_url: Mapped[str] = mapped_column(String(255), nullable=True)

@@ -11,7 +11,7 @@ async def delete_test():
     SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with SessionLocal() as db:
         try:
-            course = await db.execute(select(Course).where(Course.id == 3))
+            course = await db.execute(select(Course).where(Course.id == 2))
             c = course.scalar_one_or_none()
             if c:
                 await db.delete(c)
