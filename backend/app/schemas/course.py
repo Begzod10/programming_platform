@@ -35,7 +35,12 @@ class CourseUpdate(BaseModel):
     duration_weeks: Optional[int] = None
     max_points: Optional[int] = None
     is_active: Optional[bool] = None
+    is_published: Optional[bool] = None
     prerequisite_course_id: Optional[int] = None
+    image_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    video_intro_url: Optional[str] = None
+    syllabus_url: Optional[str] = None
 
 
 class CourseRead(CourseBase):
@@ -43,6 +48,7 @@ class CourseRead(CourseBase):
     instructor_id: int
     instructor_name: Optional[str] = None
     is_active: bool
+    is_published: bool
     created_at: datetime
     updated_at: datetime
     progress_percentage: int = 0

@@ -1,0 +1,26 @@
+import asyncio
+from sqlalchemy import text
+from app.db.database import engine
+from app.config import settings
+
+async def check_students():
+    print(f"Connecting to: {settings.DATABASE_URL}")
+    async with engine.connect() as conn:
+        result = await conn.execute(text("SELECT id, username, full_name, role FROM students WHERE username LIKE 'gennis_%'"))
+        gennis_students = result.fetchall()
+        
+        if not gennis_students:
+            print("No gennis_ users found yet.")
+            # Let's list all students to see who is there
+            result_all = await conn.execute(text("SELECT id, username, role FROM students LIMIT 10"))
+            all_students = result_all.fetchall()
+            print("\nLatest students in DB:")
+            for s in all_students:
+                print(f"ID: {s[0]}, Username: {s[1]}, Role: {s[2]}")
+        else:
+            print(f"\nFound {len(gennis_students)} Gennis synchronized students:")
+            for s in gennis_students:
+                print(f"ID: {s[0]}, Username: {s[1]}, Name: {s[2]}, Role: {s[3]}")
+
+if __name__ == "__main__":
+    asyncio.run(check_students())

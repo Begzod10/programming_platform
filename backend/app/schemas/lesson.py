@@ -7,6 +7,7 @@ from datetime import datetime
 class LessonBase(BaseModel):
     """Lesson base schema"""
     title: str = Field(..., min_length=1, max_length=200, description="Dars nomi")
+    chapter: Optional[str] = Field(None, max_length=200, description="Bo'lim nomi")
     order: int = Field(default=0, ge=0, description="Dars tartibi")
     points_reward: int = Field(default=10, ge=0, description="Darsni tugatganda beriladigan ball")
 
@@ -49,6 +50,7 @@ class LessonCreate(LessonBase):
 class LessonUpdate(BaseModel):
     """Darsni yangilash (barcha fieldlar optional)"""
     title: Optional[str] = Field(None, min_length=1, max_length=200)
+    chapter: Optional[str] = Field(None, max_length=200)
     order: Optional[int] = Field(None, ge=0)
     points_reward: Optional[int] = Field(None, ge=0, description="Darsni tugatganda beriladigan ball")
 
@@ -68,6 +70,7 @@ class LessonUpdate(BaseModel):
     file_url: Optional[str] = Field(None, max_length=500)
     project_id: Optional[int] = Field(None, ge=1)
     is_active: Optional[bool] = None
+    is_published: Optional[bool] = None
 
 
 from typing import TYPE_CHECKING, List
@@ -80,6 +83,7 @@ class LessonRead(LessonBase):
     id: int
     course_id: int
     is_active: bool
+    is_published: bool = False
     is_completed: bool = False  # ✅ Talaba uchun tugatilganlik holati
     completed: bool = False     # Alias for frontend
     created_at: datetime

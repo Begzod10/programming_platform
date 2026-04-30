@@ -21,6 +21,7 @@ class Lesson(Base):
         nullable=False
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    chapter: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     order: Mapped[int] = mapped_column(Integer, default=0)
     points_reward: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
 
@@ -47,6 +48,7 @@ class Lesson(Base):
     )
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now()

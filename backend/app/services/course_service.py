@@ -233,6 +233,7 @@ class CourseService:
             "max_points": course.max_points,
             "image_url": course.image_url,
             "is_active": course.is_active,
+            "is_published": course.is_published,
             "created_at": course.created_at,
             "updated_at": course.updated_at,
             "instructor_name": None,
