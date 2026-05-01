@@ -63,6 +63,13 @@ class UserRead(BaseModel):
     username: str
     email: EmailStr
 
+    @field_validator("email", mode="before")
+    @classmethod
+    def clean_email(cls, v):
+        if isinstance(v, str):
+            return v.replace(" ", "")
+        return v
+
     # Optional maydonlar: bazada null bo'lsa default qiymat oladi
     full_name: Optional[str] = Field(default=None)
     bio: Optional[str] = Field(default=None)
