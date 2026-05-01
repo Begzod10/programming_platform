@@ -3,7 +3,7 @@ import './StudentCourses.css';
 import './Student exercise.css'
 import StudentCoursePage from "../CoursePage/StudentCoursePage";
 import StudentLessonPage from "../LessonPage/StudentLessonPage";
-import {API_URL, useHttp, headers} from '../../../../api/search/base';
+import {API_URL, useHttp, headers, resolveImageUrl} from '../../../../api/search/base';
 
 const parseListField = (val) => {
     if (!val) return [];
@@ -251,7 +251,7 @@ const StudentCourses = () => {
                                     }
                                 }}>
                                 <div className="sc-course-preview">
-                                    <img src={course.image} alt={course.title}/>
+                                    <img src={resolveImageUrl(course.image)} alt={course.title}/>
                                     {course.enrolled && (
                                         <div className="sc-progress-badge">
                                             <div className="sc-progress-circle">
