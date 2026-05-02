@@ -1,6 +1,5 @@
 import React from 'react';
 import './StudentCoursePage.css';
-import { resolveImageUrl } from '../../../../api/search/base';
 
 const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
   const lessonsArray = (course.lessons || []).filter(l => l.is_published !== false);
@@ -33,7 +32,7 @@ const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
       </div>
 
       <div className="scp-banner">
-        <img src={resolveImageUrl(course.image)} alt={course.title} className="scp-banner-img" />
+        <img src={course.image} alt={course.title} className="scp-banner-img" />
         <div className="scp-banner-overlay">
           <div className="scp-banner-content">
             <h1>{course.title}</h1>
@@ -133,7 +132,7 @@ const LessonCard = ({ lesson, index, onOpen }) => {
     <div className={`scp-lesson-card ${lesson.completed ? 'done' : ''}`} onClick={onOpen}>
       <div className="scp-lesson-preview">
         {lesson.image
-          ? <img src={resolveImageUrl(lesson.image)} alt={lesson.title} />
+          ? <img src={lesson.image} alt={lesson.title} />
           : <div className="scp-lesson-no-img">📹</div>
         }
         <span className="scp-lesson-num">{index}</span>

@@ -3,7 +3,7 @@ import './StudentCourses.css';
 import './Student exercise.css'
 import StudentCoursePage from "../CoursePage/StudentCoursePage";
 import StudentLessonPage from "../LessonPage/StudentLessonPage";
-import {API_URL, useHttp, headers, resolveImageUrl} from '../../../../api/search/base';
+import {API_URL, useHttp, headers} from '../../../../api/search/base';
 
 const parseListField = (val) => {
     if (!val) return [];
@@ -84,22 +84,46 @@ const getCourseProgress = (course) => {
     return Math.round(course.progress_percentage || 0);
 };
 
+// ✅ Хелперы для localStorage навигации
+const NAV_KEY = 'student_nav';
+
+const saveNav = (view, courseId = null, lessonId = null) => {
+    localStorage.setItem(NAV_KEY, JSON.stringify({ view, courseId, lessonId }));
+};
+
+const loadNav = () => {
+    try {
+        const raw = localStorage.getItem(NAV_KEY);
+        return raw ? JSON.parse(raw) : { view: 'courses', courseId: null, lessonId: null };
+    } catch {
+        return { view: 'courses', courseId: null, lessonId: null };
+    }
+};
+
+const clearNav = () => localStorage.removeItem(NAV_KEY);
+
 const StudentCourses = () => {
     const {request} = useHttp();
-    const [courses,       setCourses]      = useState([]);
-    const [loading,       setLoading]      = useState(true);
-    const [filter,        setFilter]       = useState('all');
-    const [view,          setView]         = useState('courses');
-    const [activeCourse,  setActiveCourse] = useState(null);
-    const [activeLesson,  setActiveLesson] = useState(null);
+    const [courses,      setCourses]     = useState([]);
+    const [loading,      setLoading]     = useState(true);
+    const [filter,       setFilter]      = useState('all');
+
+    // ✅ Восстанавливаем навигацию из localStorage
+    const savedNav = loadNav();
+    const [view,         setView]        = useState(savedNav.view);
+    const [activeCourse, setActiveCourse]= useState(null); // объект загрузим после fetch
+    const [activeLesson, setActiveLesson]= useState(null); // объект найдём после загрузки уроков
+
+    // ✅ ID для восстановления
+    const [pendingCourseId, setPendingCourseId] = useState(savedNav.courseId);
+    const [pendingLessonId, setPendingLessonId] = useState(savedNav.lessonId);
 
     const fetchCourses = () => {
         setLoading(true);
         request(`${API_URL}v1/courses/?t=${Date.now()}`, 'GET', null, headers())
             .then(data => {
                 const list = Array.isArray(data) ? data : [];
-                setCourses(list
-                    // Фильтруем неопубликованные курсы
+                const mapped = list
                     .filter(c => c.is_published !== false)
                     .map(c => ({
                         ...c,
@@ -110,7 +134,20 @@ const StudentCourses = () => {
                         progress_percentage: c.progress_percentage || 0,
                         enrolled:            true,
                         lessons:             [],
-                    })));
+                    }));
+                setCourses(mapped);
+
+                // ✅ Восстанавливаем activeCourse по сохранённому ID
+                if (pendingCourseId) {
+                    const found = mapped.find(c => c.id === pendingCourseId);
+                    if (found) {
+                        setActiveCourse(found);
+                    } else {
+                        // Курс не найден — сбрасываем на список
+                        setView('courses');
+                        clearNav();
+                    }
+                }
             })
             .catch(err => console.error('Courses load error:', err))
             .finally(() => setLoading(false));
@@ -124,8 +161,6 @@ const StudentCourses = () => {
         try {
             const data = await request(`${API_URL}v1/courses/${courseId}/lessons?t=${Date.now()}`, 'GET', null, headers());
             const list = Array.isArray(data) ? data : [];
-
-            // Фильтруем неопубликованные уроки сразу
             const publishedList = list.filter(l => l.is_published !== false);
 
             const lessonsBuilt = await Promise.all(publishedList.map(async (lesson) => {
@@ -141,9 +176,7 @@ const StudentCourses = () => {
                         `${API_URL}v1/courses/${courseId}/lessons/${lesson.id}/exercises?t=${Date.now()}`,
                         'GET', null, headers()
                     );
-                    exList = Array.isArray(exData)
-                        ? exData.filter(e => e.is_active !== false)
-                        : [];
+                    exList = Array.isArray(exData) ? exData.filter(e => e.is_active !== false) : [];
                 } catch {}
 
                 return apiToLesson(lesson, isDone, exList);
@@ -151,10 +184,30 @@ const StudentCourses = () => {
 
             const sorted = lessonsBuilt.sort((a, b) => (a.order || 0) - (b.order || 0));
             setCourses(cs => cs.map(c => c.id === courseId ? {...c, lessons: sorted} : c));
+
+            // ✅ Восстанавливаем activeLesson по сохранённому ID
+            if (pendingLessonId) {
+                const foundLesson = sorted.find(l => l.id === pendingLessonId);
+                if (foundLesson) {
+                    setActiveLesson(foundLesson);
+                } else {
+                    // Урок не найден — откатываемся к курсу
+                    setView('course');
+                    saveNav('course', courseId, null);
+                }
+                setPendingLessonId(null); // сбросили — больше не нужен
+            }
         } catch (e) {
             console.error('Lessons load error:', e);
         }
     };
+
+    // ✅ Как только activeCourse появился и есть pendingCourseId — загружаем уроки
+    useEffect(() => {
+        if (activeCourse && (view === 'course' || view === 'lesson')) {
+            loadLessons(activeCourse.id);
+        }
+    }, [activeCourse?.id]);
 
     const markComplete = (lessonId) => {
         request(`${API_URL}v1/lessons/${lessonId}/complete`, 'POST', null, headers())
@@ -177,24 +230,56 @@ const StudentCourses = () => {
         return true;
     });
 
+    // ✅ Обёртки навигации с сохранением в localStorage
+    const goToLesson = (lesson) => {
+        setActiveLesson(lesson);
+        setView('lesson');
+        saveNav('lesson', activeCourse?.id || currentCourse?.id, lesson.id);
+    };
+
+    const goToCourse = (course) => {
+        setActiveCourse(course);
+        setView('course');
+        setPendingCourseId(null);
+        saveNav('course', course.id, null);
+        loadLessons(course.id);
+    };
+
+    const goToCourses = () => {
+        setView('courses');
+        setActiveCourse(null);
+        setActiveLesson(null);
+        setPendingCourseId(null);
+        setPendingLessonId(null);
+        clearNav();
+        fetchCourses();
+    };
+
     /* ── Lesson view ── */
-    if (view === 'lesson' && activeLesson && currentCourse) {
-        const freshLesson = currentCourse.lessons.find(l => l.id === activeLesson.id) || activeLesson;
+    if (view === 'lesson' && (activeLesson || pendingLessonId) && currentCourse) {
+        const freshLesson = activeLesson
+            ? (currentCourse.lessons.find(l => l.id === activeLesson.id) || activeLesson)
+            : null;
+
+        if (!freshLesson) {
+            // Уроки ещё грузятся — показываем лоадер
+            return <div style={{textAlign:'center', padding:'60px', color:'rgba(26,26,46,0.4)'}}>Загрузка урока...</div>;
+        }
+
         return (
             <StudentLessonPage
                 lesson={freshLesson}
                 course={currentCourse}
                 allLessons={currentCourse.lessons}
                 onBack={(target) => {
-                    if (target === 'courses') {
-                        setView('courses');
-                        setActiveCourse(null);
-                        fetchCourses();
+                    if (target === 'courses') goToCourses();
+                    else {
+                        setView('course');
+                        setActiveLesson(null);
+                        saveNav('course', currentCourse.id, null);
                     }
-                    else setView('course');
-                    setActiveLesson(null);
                 }}
-                onNavigate={(l) => setActiveLesson(l)}
+                onNavigate={(l) => goToLesson(l)}
                 onComplete={() => markComplete(freshLesson.id)}
             />
         );
@@ -205,14 +290,15 @@ const StudentCourses = () => {
         return (
             <StudentCoursePage
                 course={currentCourse}
-                onBack={() => {
-                    setView('courses');
-                    setActiveCourse(null);
-                    fetchCourses();
-                }}
-                onOpenLesson={(lesson) => { setActiveLesson(lesson); setView('lesson'); }}
+                onBack={goToCourses}
+                onOpenLesson={goToLesson}
             />
         );
+    }
+
+    /* ── Loading state for restored navigation ── */
+    if ((view === 'course' || view === 'lesson') && loading) {
+        return <div style={{textAlign:'center', padding:'60px', color:'rgba(26,26,46,0.4)'}}>Загрузка...</div>;
     }
 
     /* ── Courses list ── */
@@ -243,15 +329,9 @@ const StudentCourses = () => {
 
                         return (
                             <div key={course.id} className={`sc-course-card ${course.enrolled ? 'enrolled' : ''}`}
-                                onClick={() => {
-                                    if (course.enrolled) {
-                                        setActiveCourse(course);
-                                        setView('course');
-                                        loadLessons(course.id);
-                                    }
-                                }}>
+                                onClick={() => { if (course.enrolled) goToCourse(course); }}>
                                 <div className="sc-course-preview">
-                                    <img src={resolveImageUrl(course.image)} alt={course.title}/>
+                                    <img src={course.image} alt={course.title}/>
                                     {course.enrolled && (
                                         <div className="sc-progress-badge">
                                             <div className="sc-progress-circle">
@@ -282,12 +362,7 @@ const StudentCourses = () => {
                                                 <div className="sc-progress-fill" style={{width: `${progress}%`}}/>
                                             </div>
                                         </div>
-                                        <button className="sc-open-btn" onClick={e => {
-                                            e.stopPropagation();
-                                            setActiveCourse(course);
-                                            setView('course');
-                                            loadLessons(course.id);
-                                        }}>
+                                        <button className="sc-open-btn" onClick={e => { e.stopPropagation(); goToCourse(course); }}>
                                             {progress === 100 ? '✓ Пересмотреть' : 'Продолжить →'}
                                         </button>
                                     </>) : (
