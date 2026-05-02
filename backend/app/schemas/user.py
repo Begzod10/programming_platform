@@ -63,14 +63,27 @@ class UserRead(BaseModel):
     username: str
     email: EmailStr
 
+    @field_validator("email", mode="before")
+    @classmethod
+    def clean_email(cls, v):
+        if isinstance(v, str):
+            return v.replace(" ", "")
+        return v
+
     # Optional maydonlar: bazada null bo'lsa default qiymat oladi
     full_name: Optional[str] = Field(default=None)
     bio: Optional[str] = Field(default=None)
     avatar_url: Optional[str] = Field(default=None)
 
-    # Role: Agar bazada kutilmagan rol (masalan 'teacher') bo'lsa xato bermasligi uchun
-    # UserRole enumidan foydalaniladi.
+    # Role: Agar bazada kutilmagan rol yoki bo'sh (NULL) bo'lsa xato bermasligi uchun
     role: UserRole
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def set_default_role(cls, v):
+        if v == UserRole.teacher or v == "teacher":
+            return UserRole.teacher
+        return UserRole.student
 
     # Default qiymatlar bilan himoyalash
     current_level: Optional[str] = Field(default="Beginner")
