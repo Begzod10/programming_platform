@@ -17,7 +17,6 @@ from app.models.course import Course
 router = APIRouter()
 
 
-# ============ LESSON ENDPOINTS ============
 
 async def _calc_course_progress(db: AsyncSession, course_id: int, student_id: int) -> dict:
     total_query = await db.execute(
