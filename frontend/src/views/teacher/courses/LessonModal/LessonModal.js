@@ -53,6 +53,8 @@ const RichTextEditor = ({value, onChange}) => {
             editorRef.current.innerHTML = value || '';
     }, []);
 
+    const prevent = e => e.preventDefault();
+
     const save = () => {
         const s = window.getSelection();
         if (s && s.rangeCount > 0) savedRange.current = s.getRangeAt(0).cloneRange();
