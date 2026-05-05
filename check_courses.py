@@ -1,6 +1,6 @@
 import asyncio
-from app.db.database import AsyncSessionLocal as SessionLocal
-from app.models.course import Course
+from app import AsyncSessionLocal as SessionLocal
+from app import Course
 from sqlalchemy import select
 
 async def check():

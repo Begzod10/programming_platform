@@ -1,8 +1,6 @@
 import asyncio
-import json
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.database import AsyncSessionLocal
-from app.services.auth_service import login
+from app import AsyncSessionLocal
+from app import login
 
 async def main():
     async with AsyncSessionLocal() as db:

@@ -1,7 +1,7 @@
 import asyncio
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
-from app import settings
+from app.config import settings
 
 async def inspect_db():
     engine = create_async_engine(settings.DATABASE_URL)

@@ -1,10 +1,7 @@
 import asyncio
-import json
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.db.database import AsyncSessionLocal
-from app.services.auth_service import login
-from app.models.user import Student
-from sqlalchemy import select
+from app import AsyncSessionLocal
+from app import login
+
 
 async def run_test(username, password, label):
     print(f"\n--- Testing {label}: {username} ---")

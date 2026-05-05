@@ -1,5 +1,5 @@
 import psycopg2
-from app import settings
+from app.config import settings
 
 
 def inspect():

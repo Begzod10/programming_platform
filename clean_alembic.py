@@ -1,7 +1,7 @@
 import asyncio
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
-from app.config import settings
+from app import settings
 
 async def reset_database():
     engine = create_async_engine(settings.DATABASE_URL)

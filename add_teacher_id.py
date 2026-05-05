@@ -1,6 +1,6 @@
 import asyncio
 from sqlalchemy import text
-from app.db.database import engine
+from app import engine
 
 async def add_teacher_id_column():
     async with engine.begin() as conn:

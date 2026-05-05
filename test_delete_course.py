@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.config import settings
-from app.models.course import Course
+from app import settings
+from app import Course
 
 async def delete_test():
     engine = create_async_engine(settings.DATABASE_URL)

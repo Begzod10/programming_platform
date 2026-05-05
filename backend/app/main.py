@@ -12,11 +12,11 @@ from app.scheduler import start_scheduler, scheduler
 from app.utils import certificate as cert_utils
 from app.db import base
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-
-    if not os.path.exists("uploads"):
-        os.makedirs("uploads")
+    if not os.path.exists("../uploads"):
+        os.makedirs("../uploads")
 
     print("Student Programming Platform started!")
     await init_db()
@@ -65,13 +65,12 @@ def create_application() -> FastAPI:
     )
 
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
-    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+    app.mount("/uploads", StaticFiles(directory="../uploads"), name="uploads")
     register_exception_handlers(app)
 
     return app
 
 
-# Endi bu app obyekti hamma sozlamalarni o'z ichiga oladi
 app = create_application()
 
 
@@ -86,4 +85,5 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

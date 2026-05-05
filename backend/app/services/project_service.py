@@ -168,7 +168,7 @@ class ProjectService:
         await self.db.refresh(project)
         return project
 
-    async def like_project(self, project_id: int) -> Project:
+    async def like_project(self, project_id: int, student_id: int = None) -> Project:
         project = await self.get_project(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")
