@@ -19,9 +19,15 @@ class ProjectService:
 
     async def create_project(self, student_id: int, data: ProjectCreate) -> Project:
         data_dict = data.dict()
-        if data_dict.get("technologies_used"):
-            if isinstance(data_dict["technologies_used"], list):
-                data_dict["technologies_used"] = ",".join(data_dict["technologies_used"])
+        
+        techs = data_dict.get("technologies_used")
+        if techs is not None:
+            if isinstance(techs, list):
+                data_dict["technologies_used"] = ",".join(techs)
+        
+        if "difficulty_level" in data_dict and hasattr(data_dict["difficulty_level"], "value"):
+            data_dict["difficulty_level"] = data_dict["difficulty_level"].value
+            
         new_project = Project(**data_dict, student_id=student_id)
         self.db.add(new_project)
         await self.db.commit()
