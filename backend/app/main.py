@@ -15,8 +15,6 @@ from app.db import base
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if not os.path.exists("../uploads"):
-        os.makedirs("../uploads")
 
     print("Student Programming Platform started!")
     await init_db()
@@ -43,6 +41,11 @@ async def lifespan(app: FastAPI):
 
 
 def create_application() -> FastAPI:
+    # Ensure upload directories exist before mounting StaticFiles
+    os.makedirs("../uploads", exist_ok=True)
+    os.makedirs("../uploads/courses", exist_ok=True)
+    os.makedirs("../uploads/projects", exist_ok=True)
+
     # SHU YERGA QO'SHAMIZ:
     app = FastAPI(
         title=settings.APP_NAME,
