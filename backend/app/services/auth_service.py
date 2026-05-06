@@ -112,20 +112,29 @@ async def login(db: AsyncSession, username: str, password: str):
         # Gennis foydalanuvchilari uchun username ko'pincha 'gennis_{id}' bo'ladi
         # Lekin o'qituvchilar o'z username'lari bilan kirishadi
         gennis_email = user_data.get("email")
-        print(f"DEBUG: Searching for user: username={username}, gennis_id={gennis_id}, gennis_email={gennis_email}")
+        if gennis_email:
+            gennis_email = gennis_email.strip()
+
+        print(f"DEBUG: Login attempt - username: {username}, gennis_id: {gennis_id}, gennis_email: {gennis_email}")
         
         conditions = [
-            Student.username == username,
-            Student.email == username,
+            func.lower(Student.username) == username.lower(),
+            func.lower(Student.email) == username.lower(),
             Student.username == f"gennis_{gennis_id}"
         ]
         if gennis_email:
-            conditions.append(func.lower(Student.email) == gennis_email.strip().lower())
+            conditions.append(func.lower(Student.email) == gennis_email.lower())
             
         stmt = select(Student).where(or_(*conditions))
         result = await db.execute(stmt)
-        user = result.scalars().first()
-        print(f"DEBUG: User found: {user.username if user else 'None'}")
+        users = result.scalars().all()
+        
+        print(f"DEBUG: Users found count: {len(users)}")
+        for u in users:
+            print(f"DEBUG: Found User - ID: {u.id}, Username: {u.username}, Email: {u.email}")
+            
+        user = users[0] if users else None
+
 
         
         if not user:
