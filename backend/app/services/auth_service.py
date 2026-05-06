@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_, func
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 from app.models.user import Student, UserRole
@@ -149,12 +150,28 @@ async def login(db: AsyncSession, username: str, password: str):
                 is_active=True
             )
             db.add(user)
-            await db.commit()
-            await db.refresh(user)
+            try:
+                await db.commit()
+                await db.refresh(user)
+            except IntegrityError:
+                await db.rollback()
+                print("DEBUG: IntegrityError during creation, trying to find user one more time...")
+                # Bir marta yana qidirib ko'ramiz (balki email yoki username banddir)
+                stmt = select(Student).where(
+                    (Student.username == user.username) | 
+                    (Student.email == user.email)
+                )
+                result = await db.execute(stmt)
+                user = result.scalars().first()
+                if not user:
+                    print("DEBUG: Still no user found after IntegrityError. Raising exception.")
+                    raise # Qayta tashlaymiz agar baribir topilmasa
+                print(f"DEBUG: Found user {user.username} after IntegrityError fallback.")
             
             # Ranking yaratish (faqat student uchun)
             if user.role == UserRole.student:
                 await create_ranking(db, user.id)
+
         else:
             # Foydalanuvchi mavjud, rolini yangilash kerakmi tekshiramiz
             correct_role = UserRole.teacher if role_str == 'teacher' else UserRole.student
