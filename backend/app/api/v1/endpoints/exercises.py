@@ -7,15 +7,13 @@ from app.dependencies import get_db, get_current_student
 from app.services import exercise_service
 from app.schemas.exercise import (
     ExerciseCreate, ExerciseUpdate, ExerciseRead,
-    ExerciseSubmitRequest, ExerciseSubmissionRead
+    ExerciseSubmitRequest, ExerciseSubmissionRead,
+    ExerciseReorderRequest
 )
 from app.models.user import Student
 
 router = APIRouter()
 
-
-# prefix: /courses/{course_id}/lessons
-# to'liq URL: /courses/{course_id}/lessons/{lesson_id}/exercises
 
 @router.get("/{lesson_id}/exercises", response_model=List[ExerciseRead])
 async def get_exercises(lesson_id: int, db: AsyncSession = Depends(get_db)):
@@ -33,6 +31,70 @@ async def create_exercise(
     return await exercise_service.create_exercise(db, lesson_id, data)
 
 
+# ⚠️ MUHIM: /reorder static route {exercise_id} dan OLDIN turishi SHART
+@router.patch("/{lesson_id}/exercises/reorder")
+async def reorder_exercises(
+        lesson_id: int,
+        data: ExerciseReorderRequest,
+        db: AsyncSession = Depends(get_db)
+):
+    """
+    Ikkita mashqning tartib raqamini (order) almashtirish.
+    PATCH /courses/{course_id}/lessons/{lesson_id}/exercises/reorder
+    Body: { "exercise_id_1": 3, "exercise_id_2": 5 }
+    """
+    success = await exercise_service.reorder_exercises(
+        db, lesson_id, data.exercise_id_1, data.exercise_id_2
+    )
+    if not success:
+        raise HTTPException(
+            status_code=404,
+            detail="Mashqlar topilmadi yoki ikkalasi ham shu darsga tegishli emas"
+        )
+    return {"message": "Tartib muvaffaqiyatli almashtirildi"}
+
+
+@router.get("/{lesson_id}/exercises/progress")
+async def get_course_progress(
+        lesson_id: int,
+        course_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_student: Student = Depends(get_current_student)
+):
+    """Course progress foizi"""
+    from sqlalchemy import func
+    from app.models.lesson import Lesson
+    from app.models.exercise import Exercise, ExerciseSubmission
+
+    total = await db.execute(
+        select(func.count(Exercise.id))
+        .join(Lesson, Lesson.id == Exercise.lesson_id)
+        .where(Lesson.course_id == course_id, Exercise.is_active == True)
+    )
+    total_count = total.scalar() or 0
+
+    completed = await db.execute(
+        select(func.count(ExerciseSubmission.exercise_id.distinct()))
+        .join(Exercise, Exercise.id == ExerciseSubmission.exercise_id)
+        .join(Lesson, Lesson.id == Exercise.lesson_id)
+        .where(
+            Lesson.course_id == course_id,
+            ExerciseSubmission.student_id == current_student.id,
+            ExerciseSubmission.is_correct == True
+        )
+    )
+    completed_count = completed.scalar() or 0
+
+    progress = round((completed_count / total_count * 100), 1) if total_count > 0 else 0
+    return {
+        "course_id": course_id,
+        "total_exercises": total_count,
+        "completed_exercises": completed_count,
+        "progress_percent": progress
+    }
+
+
+# ⚠️ {exercise_id} li routelar REORDER dan KEYIN keladi
 @router.get("/{lesson_id}/exercises/{exercise_id}", response_model=ExerciseRead)
 async def get_exercise(lesson_id: int, exercise_id: int, db: AsyncSession = Depends(get_db)):
     """Bitta mashq — GET /courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}"""
@@ -83,45 +145,3 @@ async def my_submissions(
 ):
     """Mening javoblarim — GET /courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}/my-submissions"""
     return await exercise_service.get_my_submissions(db, current_student.id, exercise_id)
-
-
-@router.get("/{lesson_id}/exercises/progress")
-async def get_course_progress(
-        course_id: int,
-        db: AsyncSession = Depends(get_db),
-        current_student: Student = Depends(get_current_student)
-):
-    """Course progress foizi"""
-    from sqlalchemy import func
-    from app.models.lesson import Lesson
-    from app.models.exercise import Exercise, ExerciseSubmission
-
-    # Coursedagi jami exerciselar
-    total = await db.execute(
-        select(func.count(Exercise.id))
-        .join(Lesson, Lesson.id == Exercise.lesson_id)
-        .where(Lesson.course_id == course_id, Exercise.is_active == True)
-    )
-    total_count = total.scalar() or 0
-
-    # Bajarilgan exerciselar
-    completed = await db.execute(
-        select(func.count(ExerciseSubmission.exercise_id.distinct()))
-        .join(Exercise, Exercise.id == ExerciseSubmission.exercise_id)
-        .join(Lesson, Lesson.id == Exercise.lesson_id)
-        .where(
-            Lesson.course_id == course_id,
-            ExerciseSubmission.student_id == current_student.id,
-            ExerciseSubmission.is_correct == True
-        )
-    )
-    completed_count = completed.scalar() or 0
-
-    progress = round((completed_count / total_count * 100), 1) if total_count > 0 else 0
-
-    return {
-        "course_id": course_id,
-        "total_exercises": total_count,
-        "completed_exercises": completed_count,
-        "progress_percent": progress
-    }

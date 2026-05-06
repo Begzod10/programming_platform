@@ -24,7 +24,7 @@ from app.schemas.course import (
 
 router = APIRouter()
 
-UPLOAD_DIR = Path("uploads/courses")
+UPLOAD_DIR = Path("../../../../uploads/courses")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -225,7 +225,7 @@ async def upload_course_image(
 
     # Eski rasmni o'chirish
     if course.image_url:
-        old_path = Path(".") / course.image_url.lstrip("/")
+        old_path = Path("") / course.image_url.lstrip("/")
         if old_path.exists():
             try:
                 os.remove(old_path)

@@ -83,3 +83,10 @@ class ExerciseSubmissionRead(BaseModel):
     ai_feedback: Optional[str] = None
     submitted_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+
+
+class ExerciseReorderRequest(BaseModel):
+    exercise_id_1: int
+    exercise_id_2: int

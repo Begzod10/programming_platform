@@ -3,6 +3,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.models.user import Student, UserRole
@@ -34,7 +35,6 @@ class GennisService:
     @classmethod
     async def fetch_group_students(cls, group_id: int, token: str) -> List[Dict[str, Any]]:
         """Guruhdagi talabalarni olish"""
-        # Tajribadan ma'lumki, endpoint /group/students/{id} bo'lishi mumkin
         url = f"{cls.BASE_URL}/group/students/{group_id}"
         headers = {"Authorization": f"Bearer {token}"}
         try:
@@ -42,7 +42,6 @@ class GennisService:
                 resp = await client.get(url, headers=headers)
                 if resp.status_code == 200:
                     data = resp.json()
-                    # Ba'zan data['students'] ko'rinishida keladi
                     if isinstance(data, dict):
                         return data.get("students", [])
                     return data
@@ -60,7 +59,7 @@ class GennisService:
 
         user_info = login_data.get("user", {})
         teacher_info = user_info.get("teacher", {})
-        groups_data = teacher_info.get("group", []) # API structure shows 'group' list inside 'teacher'
+        groups_data = teacher_info.get("group", [])
 
         # 1. O'qituvchi ma'lumotlarini yangilash
         teacher.gennis_token = token
@@ -81,7 +80,7 @@ class GennisService:
         for g_data in groups_data:
             group = await cls._sync_group(db, g_data, teacher.id)
             
-            # 3. Talabalarni sinxronlash (O'qituvchi guruhidagi hamma talabalarni tortib kelamiz)
+            # 3. Talabalarni sinxronlash
             students_list = await cls.fetch_group_students(group.gennis_id, token)
             for s_data in students_list:
                 await cls._sync_student(db, s_data, group.id)
@@ -97,7 +96,7 @@ class GennisService:
 
         user_info = login_data.get("user", {})
         student_info = user_info.get("student", {})
-        groups_data = student_info.get("group", []) # API structure shows 'group' list inside 'student'
+        groups_data = student_info.get("group", [])
 
         # 1. Talaba ma'lumotlarini yangilash
         student.gennis_token = token
@@ -122,10 +121,19 @@ class GennisService:
         await db.commit()
 
         # 2. Guruhlarni sinxronlash
+        # Reload student with groups
+        result = await db.execute(select(Student).filter(Student.id == student.id).options(selectinload(Student.groups)))
+        student = result.scalar_one()
+
         for g_data in groups_data:
             group = await cls._sync_group(db, g_data)
             # Talabani shu guruhga biriktirish
+            if group.id not in [g.id for g in student.groups]:
+                student.groups.append(group)
+            
+            # Eski group_id ni ham moslik uchun yangilab qo'yamiz
             student.group_id = group.id
+
         
         await db.commit()
         logger.info(f"Sync completed for student {student.username}")
@@ -149,14 +157,14 @@ class GennisService:
                 teacher_id=teacher_id
             )
             db.add(group)
-            await db.commit()
-            await db.refresh(group)
         else:
             group.name = g_name
             group.price = g_price
             if teacher_id:
                 group.teacher_id = teacher_id
-            await db.commit()
+        
+        await db.commit()
+        await db.refresh(group)
         return group
 
     @classmethod
@@ -170,7 +178,7 @@ class GennisService:
         
         s_username = f"gennis_{s_id}"
         
-        stmt = select(Student).where(Student.username == s_username)
+        stmt = select(Student).where(Student.username == s_username).options(selectinload(Student.groups))
         result = await db.execute(stmt)
         student = result.scalar_one_or_none()
 
@@ -187,12 +195,21 @@ class GennisService:
                 group_id=group_id
             )
             db.add(student)
+            # Guruhlar ro'yxatiga qo'shish
+            student.groups = [await db.get(Group, group_id)]
         else:
             student.full_name = f"{s_name} {s_surname}"
             student.phone = s_phone
             student.balance = s_balance
             student.surname = s_surname
             student.group_id = group_id
+            
+            # Guruhlar ro'yxatiga qo'shish (agar yo'q bo'lsa)
+            group = await db.get(Group, group_id)
+            if group and group.id not in [g.id for g in student.groups]:
+                student.groups.append(group)
+
+
         
         await db.commit()
         return student

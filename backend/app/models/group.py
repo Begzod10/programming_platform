@@ -1,8 +1,17 @@
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import String, DateTime, func, Integer, ForeignKey
+from sqlalchemy import String, DateTime, func, Integer, ForeignKey, Table, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
+
+
+student_groups = Table(
+    "student_groups",
+    Base.metadata,
+    Column("student_id", ForeignKey("students.id", ondelete="CASCADE"), primary_key=True),
+    Column("group_id", ForeignKey("groups.id", ondelete="CASCADE"), primary_key=True),
+    extend_existing=True
+)
 
 
 class Group(Base):
@@ -24,13 +33,13 @@ class Group(Base):
 
     students: Mapped[List["Student"]] = relationship(
         "Student",
-        back_populates="group",
-        cascade="all, delete-orphan",
-        foreign_keys="Student.group_id"
+        secondary=student_groups,
+        back_populates="groups",
+        lazy="selectin"
     )
 
     teacher: Mapped[Optional["Student"]] = relationship(
         "Student",
         back_populates="managed_groups",
         foreign_keys="Group.teacher_id"
-    )
+    )

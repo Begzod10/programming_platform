@@ -1,5 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import or_, func
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 from app.models.user import Student, UserRole
@@ -94,7 +96,8 @@ async def login(db: AsyncSession, username: str, password: str):
         print("Gennis data received, syncing...")
         # Gennis login muvaffaqiyatli
         user_data = gennis_data.get("user", {})
-        gennis_id = user_data.get("id") or user_data.get("user_id")
+        gennis_id = user_data.get("id") or user_data.get("user_id") or gennis_data.get("id")
+
         
         # role_str ni to'g'ri aniqlash (Gennis API ba'zan dict qaytaradi)
         raw_role = user_data.get("role")
@@ -110,13 +113,31 @@ async def login(db: AsyncSession, username: str, password: str):
         # Bizning bazadan foydalanuvchini topamiz (username yoki email orqali)
         # Gennis foydalanuvchilari uchun username ko'pincha 'gennis_{id}' bo'ladi
         # Lekin o'qituvchilar o'z username'lari bilan kirishadi
-        stmt = select(Student).where(
-            (Student.username == username) | 
-            (Student.email == username) |
-            (Student.username == f"gennis_{gennis_id}")
-        )
+        gennis_email = user_data.get("email")
+        if gennis_email:
+            gennis_email = gennis_email.strip()
+
+        print(f"DEBUG: Login attempt - username: {username}, gennis_id: {gennis_id}, gennis_email: {gennis_email}")
+        
+        conditions = [
+            func.lower(Student.username) == username.lower(),
+            func.lower(Student.email) == username.lower(),
+            Student.username == f"gennis_{gennis_id}"
+        ]
+        if gennis_email:
+            conditions.append(func.lower(Student.email) == gennis_email.lower())
+            
+        stmt = select(Student).where(or_(*conditions))
         result = await db.execute(stmt)
-        user = result.scalars().first()
+        users = result.scalars().all()
+        
+        print(f"DEBUG: Users found count: {len(users)}")
+        for u in users:
+            print(f"DEBUG: Found User - ID: {u.id}, Username: {u.username}, Email: {u.email}")
+            
+        user = users[0] if users else None
+
+
         
         if not user:
             # Yangi foydalanuvchi yaratamiz
@@ -130,18 +151,39 @@ async def login(db: AsyncSession, username: str, password: str):
                 is_active=True
             )
             db.add(user)
-            await db.commit()
-            await db.refresh(user)
+            try:
+                await db.commit()
+                await db.refresh(user)
+            except IntegrityError:
+                await db.rollback()
+                print("DEBUG: IntegrityError during creation, trying to find user one more time...")
+                # Bir marta yana qidirib ko'ramiz (balki email yoki username banddir)
+                stmt = select(Student).where(
+                    (Student.username == user.username) | 
+                    (Student.email == user.email)
+                )
+                result = await db.execute(stmt)
+                user = result.scalars().first()
+                if not user:
+                    print("DEBUG: Still no user found after IntegrityError. Raising exception.")
+                    raise # Qayta tashlaymiz agar baribir topilmasa
+                print(f"DEBUG: Found user {user.username} after IntegrityError fallback.")
             
             # Ranking yaratish (faqat student uchun)
             if user.role == UserRole.student:
                 await create_ranking(db, user.id)
-        else:
-            # Foydalanuvchi mavjud, rolini yangilash kerakmi tekshiramiz
+
+        # Foydalanuvchi mavjud, rolini yangilash kerakmi tekshiramiz
+        if user:
             correct_role = UserRole.teacher if role_str == 'teacher' else UserRole.student
             changed = False
             if user.role != correct_role:
                 user.role = correct_role
+                changed = True
+
+            # Student uchun "gennis_None" username'ni to'g'irlash
+            if correct_role == UserRole.student and (user.username == "gennis_None" or not user.username) and gennis_id:
+                user.username = f"gennis_{gennis_id}"
                 changed = True
 
             # O'qituvchi uchun username kiritilgan qiymatga moslashtiramiz
@@ -160,6 +202,7 @@ async def login(db: AsyncSession, username: str, password: str):
             if changed:
                 await db.commit()
                 await db.refresh(user)
+
 
         # Sinxronizatsiyani boshlaymiz
         if user.role == UserRole.teacher:
@@ -182,12 +225,14 @@ async def login(db: AsyncSession, username: str, password: str):
     )
     user = result.scalars().first()
 
+    # Foydalanuvchi yoki parol noto'g'ri
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Username yoki parol noto'g'ri"
         )
 
+    # Faol emasligini tekshirish
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -243,29 +288,3 @@ async def update_user(user_id: int, user_data: UserUpdate, db: AsyncSession):
     await db.refresh(user)
 
     return user
-
-
-async def get_current_student(
-        token: str = Depends(oauth2_scheme),
-        db: AsyncSession = Depends(get_db)
-):
-    """Token'dan foydalanuvchini olish"""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Token yaroqsiz yoki muddati o'tgan",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    # Token'ni decode qilish
-    user_id = decode_access_token(token)
-    if user_id is None:
-        raise credentials_exception
-
-    # Foydalanuvchini topish
-    result = await db.execute(select(Student).where(Student.id == user_id))
-    student = result.scalars().first()
-
-    if student is None:
-        raise credentials_exception
-
-    return student

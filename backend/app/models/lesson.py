@@ -66,7 +66,6 @@ class Lesson(Base):
         back_populates="lessons"
     )
 
-    from typing import List
     exercises: Mapped[List["Exercise"]] = relationship(
         "Exercise", back_populates="lesson", cascade="all, delete-orphan"
     )

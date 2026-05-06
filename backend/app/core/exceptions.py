@@ -1,7 +1,9 @@
-﻿from fastapi import Request, HTTPException
+from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
+from app.config import settings
+
 
 
 def register_exception_handlers(app):
@@ -42,13 +44,24 @@ def register_exception_handlers(app):
 
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
+        import traceback
+        import sys
+        print(f"UNHANDLED EXCEPTION on {request.method} {request.url}:", file=sys.stderr)
+        traceback.print_exc()
+        
+        error_data = {
+            "code": 500,
+            "message": "Internal server error"
+        }
+        
+        if settings.DEBUG:
+            error_data["message"] = str(exc)
+            error_data["traceback"] = traceback.format_exc()
+            
         return JSONResponse(
             status_code=HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "success": False,
-                "error": {
-                    "code": 500,
-                    "message": "Internal server error"
-                }
+                "error": error_data
             }
-        )
+        )

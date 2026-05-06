@@ -53,6 +53,36 @@ async def delete_exercise(db: AsyncSession, exercise_id: int) -> bool:
     return True
 
 
+async def reorder_exercises(
+        db: AsyncSession,
+        lesson_id: int,
+        exercise_id_1: int,
+        exercise_id_2: int
+) -> bool:
+    """
+    Ikkita mashqning `order` qiymatini almashtiradi.
+    Ikkalasi ham lesson_id ga tegishli bo'lishi shart.
+    """
+    ex1 = await get_exercise_by_id(db, exercise_id_1)
+    ex2 = await get_exercise_by_id(db, exercise_id_2)
+
+    # Topilmasa yoki boshqa darsga tegishli bo'lsa — False
+    if not ex1 or not ex2:
+        return False
+    if ex1.lesson_id != lesson_id or ex2.lesson_id != lesson_id:
+        return False
+
+    # Order qiymatlarini almashtiramiz
+    ex1.order, ex2.order = ex2.order, ex1.order
+
+    await db.commit()
+    return True
+
+
+# ──────────────────────────────────────────────────────
+#  AI va submit logikasi (o'zgarishsiz qoldirildi)
+# ──────────────────────────────────────────────────────
+
 async def get_ai_explanation(
         question: str,
         correct_answer: str,
@@ -69,6 +99,9 @@ TO'G'RI JAVOBNI AYTMA, O'QUVCHI JAVOBINI HAM AYTMA.
 Faqat nima uchun xato bo'lishi mumkinligini va qanday o'ylash kerakligini ayt.
 O'quvchi o'zi topishi kerak."""
     try:
+        if not settings.GROK_API_KEY:
+            return "AI xizmati vaqtincha ishlamayapti (API kalit ulanmagan)."
+
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(
                 settings.GROK_API_URL,
@@ -91,7 +124,6 @@ O'quvchi o'zi topishi kerak."""
 
 
 def check_answer_locally(exercise: Exercise, student_answer: str) -> dict:
-    """AI siz oddiy tekshiruv"""
     exercise_type = exercise.exercise_type
 
     if exercise_type == "fill_in_blank":
@@ -139,7 +171,6 @@ def check_answer_locally(exercise: Exercise, student_answer: str) -> dict:
         }
 
     else:
-        # text_input — Grok AI tekshiradi
         return None
 
 
@@ -166,6 +197,9 @@ Faqat JSON formatda javob ber, boshqa hech narsa yozma:
 }}"""
 
     try:
+        if not settings.GROK_API_KEY:
+            return {"is_correct": False, "partial_score": 0, "feedback": "AI xizmati vaqtincha ishlamayapti (API kalit ulanmagan)."}
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 settings.GROK_API_URL,
@@ -209,7 +243,6 @@ async def submit_exercise(
     if not exercise:
         raise HTTPException(status_code=404, detail="Mashq topilmadi")
 
-    # ✅ Avval to'g'ri javob berganmi tekshirish
     prev_correct = await db.execute(
         select(ExerciseSubmission).where(
             ExerciseSubmission.exercise_id == exercise_id,
@@ -219,7 +252,6 @@ async def submit_exercise(
     )
     already_solved = prev_correct.first() is not None
 
-    # Tekshiruv
     result = check_answer_locally(exercise, data.student_answer)
 
     if result is None:
@@ -242,15 +274,13 @@ async def submit_exercise(
     is_correct = result.get("is_correct", False)
     partial = result.get("partial_score", 0)
 
-    # ✅ Ball faqat 1-marta to'g'ri javob berganda beriladi
     if is_correct and not already_solved:
         score = exercise.points
         ranking_service = RankingService(db)
         await ranking_service.add_points_to_student(student_id, score)
     else:
-        score = 0  # Qayta yechsa ball yo'q
+        score = 0
 
-    # ✅ already_solved bo'lsa maxsus xabar
     if already_solved and is_correct:
         result["feedback"] = "✅ Barakalla! Bu mashqni avval ham to'g'ri yechgansiz. Ball bir marta beriladi."
     elif already_solved and not is_correct:

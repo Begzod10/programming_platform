@@ -1,6 +1,6 @@
 import asyncio
 from sqlalchemy import text
-from app.db.database import engine
+from app import engine
 
 async def check_duplicate():
     async with engine.connect() as conn:
