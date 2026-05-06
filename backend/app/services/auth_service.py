@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import or_, func
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 from app.models.user import Student, UserRole
@@ -111,14 +112,20 @@ async def login(db: AsyncSession, username: str, password: str):
         # Gennis foydalanuvchilari uchun username ko'pincha 'gennis_{id}' bo'ladi
         # Lekin o'qituvchilar o'z username'lari bilan kirishadi
         gennis_email = user_data.get("email")
-        stmt = select(Student).where(
-            (Student.username == username) | 
-            (Student.email == username) |
-            (Student.username == f"gennis_{gennis_id}") |
-            (Student.email == gennis_email)
-        )
+        print(f"DEBUG: Searching for user: username={username}, gennis_id={gennis_id}, gennis_email={gennis_email}")
+        
+        conditions = [
+            Student.username == username,
+            Student.email == username,
+            Student.username == f"gennis_{gennis_id}"
+        ]
+        if gennis_email:
+            conditions.append(func.lower(Student.email) == gennis_email.strip().lower())
+            
+        stmt = select(Student).where(or_(*conditions))
         result = await db.execute(stmt)
         user = result.scalars().first()
+        print(f"DEBUG: User found: {user.username if user else 'None'}")
 
         
         if not user:
