@@ -4,7 +4,7 @@ ALLOWED_EXTENSIONS = {".py", ".js", ".ts", ".html", ".css"}
 
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
-UPLOAD_DIR = "./uploads"
+UPLOAD_DIR = "../../uploads"
 
 POINTS_MAP = {
     "Easy":   (10,  30),

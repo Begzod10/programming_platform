@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Depends, status, Query
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, get_current_student
 from app.schemas.user import UserCreate, UserRead, TokenResponse, UserUpdate, UserLogin

@@ -32,12 +32,12 @@ class Grade(str, Enum):
 # --- Base
 
 class ProjectBase(BaseModel):
-    title: str
-    description: str
+    title: str = "Loyiha"           # ← default qo'shing
+    description: str = "—"          # ← default qo'shing
     github_url: Optional[str] = None
     live_demo_url: Optional[str] = None
     technologies_used: Optional[list[str]] = None
-    difficulty_level: DifficultyLevel
+    difficulty_level: DifficultyLevel = DifficultyLevel.easy  # ← default
 
     @field_validator("github_url", "live_demo_url", mode="before")
     @classmethod

@@ -19,9 +19,15 @@ class ProjectService:
 
     async def create_project(self, student_id: int, data: ProjectCreate) -> Project:
         data_dict = data.dict()
-        if data_dict.get("technologies_used"):
-            if isinstance(data_dict["technologies_used"], list):
-                data_dict["technologies_used"] = ",".join(data_dict["technologies_used"])
+        
+        techs = data_dict.get("technologies_used")
+        if techs is not None:
+            if isinstance(techs, list):
+                data_dict["technologies_used"] = ",".join(techs)
+        
+        if "difficulty_level" in data_dict and hasattr(data_dict["difficulty_level"], "value"):
+            data_dict["difficulty_level"] = data_dict["difficulty_level"].value
+            
         new_project = Project(**data_dict, student_id=student_id)
         self.db.add(new_project)
         await self.db.commit()
@@ -168,7 +174,7 @@ class ProjectService:
         await self.db.refresh(project)
         return project
 
-    async def like_project(self, project_id: int) -> Project:
+    async def like_project(self, project_id: int, student_id: int = None) -> Project:
         project = await self.get_project(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")

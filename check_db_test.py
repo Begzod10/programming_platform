@@ -1,7 +1,7 @@
 import asyncio
 from sqlalchemy import text
-from app.db.database import engine
-from app.config import settings
+from app import engine
+from app import settings
 
 async def check_students():
     print(f"Connecting to: {settings.DATABASE_URL}")

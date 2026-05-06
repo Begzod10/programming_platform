@@ -1,0 +1,25 @@
+import psycopg2
+from app import settings
+
+
+def inspect():
+    # Parse asyncpg URL to standard postgres URL
+    url = settings.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+    print(f"Connecting to: {url}")
+    
+    conn = psycopg2.connect(url)
+    cur = conn.cursor()
+    
+    cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name = 'students';")
+    cols = [c[0] for c in cur.fetchall()]
+    print(f"Columns in 'students' table: {cols}")
+    
+    cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public';")
+    tables = [t[0] for t in cur.fetchall()]
+    print(f"Tables in 'public' schema: {tables}")
+    
+    cur.close()
+    conn.close()
+
+if __name__ == "__main__":
+    inspect()

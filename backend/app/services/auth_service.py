@@ -182,12 +182,14 @@ async def login(db: AsyncSession, username: str, password: str):
     )
     user = result.scalars().first()
 
+    # Foydalanuvchi yoki parol noto'g'ri
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Username yoki parol noto'g'ri"
         )
 
+    # Faol emasligini tekshirish
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -243,29 +245,3 @@ async def update_user(user_id: int, user_data: UserUpdate, db: AsyncSession):
     await db.refresh(user)
 
     return user
-
-
-async def get_current_student(
-        token: str = Depends(oauth2_scheme),
-        db: AsyncSession = Depends(get_db)
-):
-    """Token'dan foydalanuvchini olish"""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Token yaroqsiz yoki muddati o'tgan",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    # Token'ni decode qilish
-    user_id = decode_access_token(token)
-    if user_id is None:
-        raise credentials_exception
-
-    # Foydalanuvchini topish
-    result = await db.execute(select(Student).where(Student.id == user_id))
-    student = result.scalars().first()
-
-    if student is None:
-        raise credentials_exception
-
-    return student

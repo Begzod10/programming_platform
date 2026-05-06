@@ -220,7 +220,7 @@ const StudentCourses = () => {
         <div className="sc-container item-fade-in">
             <div className="sc-header">
                 <div>
-                    <h2>Mening kurslarim</h2>
+                    <h2>Mening kurslarim (deploy test)</h2>
                     <p className="sc-subtitle">Kurslarni o'rganing va bilimingizni oshiring</p>
                 </div>
                 <div className="sc-filters">

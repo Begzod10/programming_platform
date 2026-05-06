@@ -12,21 +12,17 @@ from app.scheduler import start_scheduler, scheduler
 from app.utils import certificate as cert_utils
 from app.db import base
 
-# Bu yerdagi ortiqcha app = FastAPI(...) qismini o'chirib tashlang,
-# chunki pastda create_application funksiyasi yangi app yaratadi.
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-
-    if not os.path.exists("uploads"):
-        os.makedirs("uploads")
 
     print("Student Programming Platform started!")
     await init_db()
     start_scheduler()
 
     # Shablon faylni xotiraga olish
-    path = "app/static/web_certificate.pdf"
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(base_dir, "static", "web_certificate.pdf")
     abs_path = os.path.abspath(path)
     print(f"File path: {abs_path}")
     print(f"Exists: {os.path.exists(abs_path)}")
@@ -41,10 +37,15 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     scheduler.shutdown()
-    print(" Student Programming Platform suspended...")
+    print("Student Programming Platform suspended...")
 
 
 def create_application() -> FastAPI:
+    # Ensure upload directories exist before mounting StaticFiles
+    os.makedirs("../uploads", exist_ok=True)
+    os.makedirs("../uploads/courses", exist_ok=True)
+    os.makedirs("../uploads/projects", exist_ok=True)
+
     # SHU YERGA QO'SHAMIZ:
     app = FastAPI(
         title=settings.APP_NAME,
@@ -67,13 +68,12 @@ def create_application() -> FastAPI:
     )
 
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
-    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+    app.mount("/uploads", StaticFiles(directory="../uploads"), name="uploads")
     register_exception_handlers(app)
 
     return app
 
 
-# Endi bu app obyekti hamma sozlamalarni o'z ichiga oladi
 app = create_application()
 
 
@@ -88,4 +88,5 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

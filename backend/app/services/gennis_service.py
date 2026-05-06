@@ -34,7 +34,6 @@ class GennisService:
     @classmethod
     async def fetch_group_students(cls, group_id: int, token: str) -> List[Dict[str, Any]]:
         """Guruhdagi talabalarni olish"""
-        # Tajribadan ma'lumki, endpoint /group/students/{id} bo'lishi mumkin
         url = f"{cls.BASE_URL}/group/students/{group_id}"
         headers = {"Authorization": f"Bearer {token}"}
         try:
@@ -42,7 +41,6 @@ class GennisService:
                 resp = await client.get(url, headers=headers)
                 if resp.status_code == 200:
                     data = resp.json()
-                    # Ba'zan data['students'] ko'rinishida keladi
                     if isinstance(data, dict):
                         return data.get("students", [])
                     return data
@@ -60,7 +58,7 @@ class GennisService:
 
         user_info = login_data.get("user", {})
         teacher_info = user_info.get("teacher", {})
-        groups_data = teacher_info.get("group", []) # API structure shows 'group' list inside 'teacher'
+        groups_data = teacher_info.get("group", [])
 
         # 1. O'qituvchi ma'lumotlarini yangilash
         teacher.gennis_token = token
@@ -81,7 +79,7 @@ class GennisService:
         for g_data in groups_data:
             group = await cls._sync_group(db, g_data, teacher.id)
             
-            # 3. Talabalarni sinxronlash (O'qituvchi guruhidagi hamma talabalarni tortib kelamiz)
+            # 3. Talabalarni sinxronlash
             students_list = await cls.fetch_group_students(group.gennis_id, token)
             for s_data in students_list:
                 await cls._sync_student(db, s_data, group.id)
@@ -97,7 +95,7 @@ class GennisService:
 
         user_info = login_data.get("user", {})
         student_info = user_info.get("student", {})
-        groups_data = student_info.get("group", []) # API structure shows 'group' list inside 'student'
+        groups_data = student_info.get("group", [])
 
         # 1. Talaba ma'lumotlarini yangilash
         student.gennis_token = token
@@ -149,14 +147,14 @@ class GennisService:
                 teacher_id=teacher_id
             )
             db.add(group)
-            await db.commit()
-            await db.refresh(group)
         else:
             group.name = g_name
             group.price = g_price
             if teacher_id:
                 group.teacher_id = teacher_id
-            await db.commit()
+        
+        await db.commit()
+        await db.refresh(group)
         return group
 
     @classmethod

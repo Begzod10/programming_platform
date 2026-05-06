@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 from app.models.course import Course
 from app.models.user import Student
-from app.schemas.course import CourseCreate, CourseUpdate, CourseRead
+from app.schemas.course import CourseCreate, CourseUpdate
 from app.models.lesson import Lesson, LessonCompletion
 
 

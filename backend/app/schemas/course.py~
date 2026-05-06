@@ -39,10 +39,11 @@ class CourseUpdate(BaseModel):
     prerequisite_course_id: Optional[int] = None
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
-
+<<<<<<< HEAD:app/schemas/course.py
+=======
     video_intro_url: Optional[str] = None
     syllabus_url: Optional[str] = None
-
+>>>>>>> 6302b1b38cd53ccc73e4ac391c43b986a66e6d1d:backend/app/schemas/course.py
 
 
 class CourseRead(CourseBase):
