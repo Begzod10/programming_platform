@@ -96,7 +96,8 @@ async def login(db: AsyncSession, username: str, password: str):
         print("Gennis data received, syncing...")
         # Gennis login muvaffaqiyatli
         user_data = gennis_data.get("user", {})
-        gennis_id = user_data.get("id") or user_data.get("user_id")
+        gennis_id = user_data.get("id") or user_data.get("user_id") or gennis_data.get("id")
+
         
         # role_str ni to'g'ri aniqlash (Gennis API ba'zan dict qaytaradi)
         raw_role = user_data.get("role")
@@ -172,12 +173,17 @@ async def login(db: AsyncSession, username: str, password: str):
             if user.role == UserRole.student:
                 await create_ranking(db, user.id)
 
-        else:
-            # Foydalanuvchi mavjud, rolini yangilash kerakmi tekshiramiz
+        # Foydalanuvchi mavjud, rolini yangilash kerakmi tekshiramiz
+        if user:
             correct_role = UserRole.teacher if role_str == 'teacher' else UserRole.student
             changed = False
             if user.role != correct_role:
                 user.role = correct_role
+                changed = True
+
+            # Student uchun "gennis_None" username'ni to'g'irlash
+            if correct_role == UserRole.student and (user.username == "gennis_None" or not user.username) and gennis_id:
+                user.username = f"gennis_{gennis_id}"
                 changed = True
 
             # O'qituvchi uchun username kiritilgan qiymatga moslashtiramiz
@@ -196,6 +202,7 @@ async def login(db: AsyncSession, username: str, password: str):
             if changed:
                 await db.commit()
                 await db.refresh(user)
+
 
         # Sinxronizatsiyani boshlaymiz
         if user.role == UserRole.teacher:
