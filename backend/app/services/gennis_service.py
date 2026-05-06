@@ -123,7 +123,12 @@ class GennisService:
         for g_data in groups_data:
             group = await cls._sync_group(db, g_data)
             # Talabani shu guruhga biriktirish
+            if group not in student.groups:
+                student.groups.append(group)
+            
+            # Eski group_id ni ham moslik uchun yangilab qo'yamiz
             student.group_id = group.id
+
         
         await db.commit()
         logger.info(f"Sync completed for student {student.username}")
@@ -185,12 +190,20 @@ class GennisService:
                 group_id=group_id
             )
             db.add(student)
+            # Guruhlar ro'yxatiga qo'shish
+            student.groups = [await db.get(Group, group_id)]
         else:
             student.full_name = f"{s_name} {s_surname}"
             student.phone = s_phone
             student.balance = s_balance
             student.surname = s_surname
             student.group_id = group_id
+            
+            # Guruhlar ro'yxatiga qo'shish (agar yo'q bo'lsa)
+            group = await db.get(Group, group_id)
+            if group and group not in student.groups:
+                student.groups.append(group)
+
         
         await db.commit()
         return student

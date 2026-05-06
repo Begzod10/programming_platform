@@ -97,6 +97,13 @@ class Student(Base):
     )
 
     # Relationships
+    groups: Mapped[List["Group"]] = relationship(
+        "Group",
+        secondary="student_groups",
+        back_populates="students",
+        lazy="selectin"
+    )
+
     projects: Mapped[List["Project"]] = relationship(
         "Project",
         back_populates="student",
@@ -118,7 +125,8 @@ class Student(Base):
     enrolled_courses: Mapped[List["Course"]] = relationship(
         "Course",
         secondary="student_courses",
-        back_populates="students"
+        back_populates="students",
+        lazy="selectin"
     )
 
     ranking: Mapped[Optional["Ranking"]] = relationship(
@@ -131,8 +139,10 @@ class Student(Base):
     group: Mapped[Optional["Group"]] = relationship(
         "Group",
         back_populates="students",
-        foreign_keys="Student.group_id"
+        foreign_keys="Student.group_id",
+        overlaps="groups" # Added overlaps to avoid warning
     )
+
 
     lesson_completions: Mapped[List["LessonCompletion"]] = relationship(
         "LessonCompletion",
