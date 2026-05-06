@@ -3,6 +3,7 @@ import logging
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.models.user import Student, UserRole
@@ -120,10 +121,14 @@ class GennisService:
         await db.commit()
 
         # 2. Guruhlarni sinxronlash
+        # Reload student with groups
+        result = await db.execute(select(Student).filter(Student.id == student.id).options(selectinload(Student.groups)))
+        student = result.scalar_one()
+
         for g_data in groups_data:
             group = await cls._sync_group(db, g_data)
             # Talabani shu guruhga biriktirish
-            if group not in student.groups:
+            if group.id not in [g.id for g in student.groups]:
                 student.groups.append(group)
             
             # Eski group_id ni ham moslik uchun yangilab qo'yamiz
@@ -173,7 +178,7 @@ class GennisService:
         
         s_username = f"gennis_{s_id}"
         
-        stmt = select(Student).where(Student.username == s_username)
+        stmt = select(Student).where(Student.username == s_username).options(selectinload(Student.groups))
         result = await db.execute(stmt)
         student = result.scalar_one_or_none()
 
@@ -201,8 +206,9 @@ class GennisService:
             
             # Guruhlar ro'yxatiga qo'shish (agar yo'q bo'lsa)
             group = await db.get(Group, group_id)
-            if group and group not in student.groups:
+            if group and group.id not in [g.id for g in student.groups]:
                 student.groups.append(group)
+
 
         
         await db.commit()
