@@ -110,13 +110,16 @@ async def login(db: AsyncSession, username: str, password: str):
         # Bizning bazadan foydalanuvchini topamiz (username yoki email orqali)
         # Gennis foydalanuvchilari uchun username ko'pincha 'gennis_{id}' bo'ladi
         # Lekin o'qituvchilar o'z username'lari bilan kirishadi
+        gennis_email = user_data.get("email")
         stmt = select(Student).where(
             (Student.username == username) | 
             (Student.email == username) |
-            (Student.username == f"gennis_{gennis_id}")
+            (Student.username == f"gennis_{gennis_id}") |
+            (Student.email == gennis_email)
         )
         result = await db.execute(stmt)
         user = result.scalars().first()
+
         
         if not user:
             # Yangi foydalanuvchi yaratamiz
