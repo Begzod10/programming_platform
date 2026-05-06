@@ -69,6 +69,9 @@ TO'G'RI JAVOBNI AYTMA, O'QUVCHI JAVOBINI HAM AYTMA.
 Faqat nima uchun xato bo'lishi mumkinligini va qanday o'ylash kerakligini ayt.
 O'quvchi o'zi topishi kerak."""
     try:
+        if not settings.GROK_API_KEY:
+            return "AI xizmati vaqtincha ishlamayapti (API kalit ulanmagan)."
+
         async with httpx.AsyncClient(timeout=20.0) as client:
             response = await client.post(
                 settings.GROK_API_URL,
@@ -166,6 +169,9 @@ Faqat JSON formatda javob ber, boshqa hech narsa yozma:
 }}"""
 
     try:
+        if not settings.GROK_API_KEY:
+            return {"is_correct": False, "partial_score": 0, "feedback": "AI xizmati vaqtincha ishlamayapti (API kalit ulanmagan)."}
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 settings.GROK_API_URL,
