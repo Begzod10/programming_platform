@@ -1,0 +1,31 @@
+# Nanomed - AI-Translator (Walkthrough)
+
+Shifokorlar va Adminlar uchun ma'lumot kiritish jarayoni to'liq avtomatlashtirildi. Endi bot o'zbek tilidagi matnlarni tushunadi va ularni avtomatik ravishda rus tiliga tarjima qilib bazaga joylaydi.
+
+## Nimalar o'zgardi?
+
+### ⚡ Tezkor Registratsiya
+- Oldin mutaxassislikni 2 tilda yozish kerak edi.
+- Endi shunchaki **"Kardiolog"** deb yozasiz, bot esa uni **"Кардиолог"** deb o'zi tarjima qilib oladi.
+
+### 🍱 Soddalashgan Xizmat Qo'shish
+- Xizmat nomini ham endi faqat O'zbek tilida yozasiz.
+- Ruscha nomini so'rash qadami butunlay olib tashlandi.
+
+### 🏢 Admin Paneli
+- Filial qo'shishda ham ruscha nomni so'rash to'xtatildi.
+
+## Qanday ishlaydi?
+
+1.  Botda biron bir narsa (Soha yoki Xizmat) qo'shayotganingizda O'zbekcha nomini yuboring.
+2.  Bot **"🔄 Tarjima qilinmoqda..."** xabarini chiqaradi.
+3.  1-2 soniyadan so'ng tarjima tayyor bo'ladi va bot keyingi qadamga (Narxni so'rashga) o'tib ketadi.
+
+## Yakuniy Tekshirish
+
+- Barcha handlerlar yangilandi.
+- `deep-translator` kutubxonasi serverga o'rnatildi.
+- FSM holatlari (states) qisqartirildi.
+
+> [!TIP]
+> Agar tarjima natijasini ko'rmoqchi bo'lsangiz, shifokor profiliga kirib "Xizmatlarim ro'yxati"ni bosing, u yerda ruscha variantlari ham bazada to'g'ri saqlanganini ko'rasiz.

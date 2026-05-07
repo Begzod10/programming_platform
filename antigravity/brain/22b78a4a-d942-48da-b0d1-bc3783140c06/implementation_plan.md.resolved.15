@@ -1,0 +1,41 @@
+# Telegram WebApp va Eslatmalar tizimi rejasi
+
+Ushbu reja shifokorlar uchun interaktiv WebApp kalendar yaratish va mavjud eslatmalar tizimini yanada barqaror qilishni o'z ichiga oladi.
+
+## Proposed Changes
+
+### 1. 🌐 Doctor WebApp (Kalendar)
+- **Backend (API)**: `web_server.py` fayli yaratiladi (FastAPI ishlatish tavsiya etiladi). U quyidagi endpointlarga ega bo'ladi:
+  - `GET /api/schedule/{doctor_id}`: Shifokorning joriy haftadagi vaqtlarini olish.
+  - `POST /api/schedule/update`: Vaqtlarni qo'shish yoki o'chirish.
+- **Frontend (UI)**: `web/` papkasida NanoMed brendi uslubidagi interfeys yaratiladi:
+  - **Dizayn**: NanoMed logotipidagi **To'q sariq (#F28C28)** va **To'q kulrang/Qora (#1A1A1A)** ranglar palitrasidan foydalaniladi. Premium "Glassmorphism" va silliq UI elementlari.
+  - **Funksiya**: Shifokor kalendarda bo'sh vaqtlarini bosish orqali band qila oladi yoki bo'shata oladi. Google Calendar kabi haftalik ko'rinish.
+- **Bot Integratsiyasi**: Shifokor profiliga yangi "📅 Kalendar (WebApp)" tugmasi qo'shiladi.
+
+### 2. ⏰ Eslatmalar tizimini tekshirish
+- **Mantiq**: Hozirgi 1 kun oldin va 2 soat oldin (har 30 minutda) eslatish tizimi saqlab qolinadi va xabarlar matni NanoMed nomidan rasmiy uslubda yoziladi.
+- **Xabarlar**: "Hurmatli bemor, NanoMed klinikasi eslatib o'tadi..." kabi premium matnlar.
+
+### 3. 🚀 Main Integratsiya
+- `main.py` fayli `aiogram` va `fastapi`ni parallel ravishda ishga tushiradigan qilinadi (asyncio gather yordamida).
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]  
+> WebApp ishlashi uchun serverda ochiq port (masalan 8000) bo'lishi kerak. Mahalliy kompyuterda sinash uchun `ngrok` yoki shunga o'xshash tunnel kerak bo'lishi mumkin (Telegram WebApp faqat HTTPS manzillarni qabul qiladi).
+
+> [!NOTE]  
+> FastAPI o'rnatilmagan bo'lsa, uni `pip install fastapi uvicorn` orqali o'rnatish kerak bo'ladi.
+
+## Verification Plan
+
+### Automated Tests
+- API endpointlarni `curl` yoki `Postman` orqali tekshirish.
+
+### Manual Verification
+1. Shifokor sifatida botga kirib, "Kalendar" tugmasini bosish.
+2. Ochilgan WebApp interfeysida yangi vaqtlarni belgilash.
+3. Baza (`nanomed.db`) bilan sinxronizatsiyani tekshirish.

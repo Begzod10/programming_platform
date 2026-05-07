@@ -1,0 +1,30 @@
+# Nanomed - Aqlli Eslatmalar (Walkthrough)
+
+Bemorlarni qabulga tayyorlash va ularni kuzatib borish uchun mo'ljallangan yirik eslatma tizimi ishga tushirildi.
+
+## Tizim Qanday Ishlaydi?
+
+### 1. Ko'p Bosqichli Ogohlantirishlar
+Bot har 5 minutda bazadagi tasdiqlangan qabullarni tekshiradi va quyidagi vaqtlarda xabar yuboradi:
+- **📅 1 kun qolganda**: "Ertaga qabulingiz bor" deb eslatadi.
+- **⏳ 2 soatdan boshlab (har 30 daqiqada)**: "Qabulga X daqiqa qoldi" deb takrorlab turadi.
+- **⚠️ 15 va 5 daqiqa qolganda**: Shoshiltiruvchi so'nggi ogohlantirishlar.
+
+### 2. "Yetib Keldingizmi?" Tekshiruvi
+Qabulga 5 daqiqa qolganda bot bemordan so'raydi:
+- **✅ Ha, yetib keldim**: Bemor klinikadaligini tasdiqlaydi va eslatmalar to'xtaydi.
+- **❌ Yo'q, ko'chirish**: Bemor kela olmasligini bildiradi.
+
+### 3. Qabulni Ko'chirish Funksiyasi
+Agar bemor "Yo'q, ko'chirish" tugmasini bossa:
+- Amaldagi qabul bekor qilinadi.
+- Shifokorning o'sha vaqti bazada yana "Bo'sh" holatiga qaytadi.
+- Bemorga darhol o'sha shifokorning boshqa bo'sh kunlari va vaqtlari ko'rsatiladi.
+
+## Texnik Tafsilotlar
+- **APScheduler**: Fon topshiriqlarini boshqarish uchun o'rnatildi.
+- **Database**: `reminded_24h`, `last_reminded_at` kabi ustunlar orqali eslatmalar ketma-ketligi nazorat qilinadi.
+- **Multi-lang**: Barcha xabarlar bemor tanlagan tilda (UZ/RU) yuboriladi.
+
+> [!IMPORTANT]
+> Tizimni tekshirish uchun botni terminalda qayta ishga tushiring (`py main.py`). Test qilish uchun bitta qabul yaratib, uning vaqtini bazada (SQLite) o'zgartirib ko'rsangiz bo'ladi.

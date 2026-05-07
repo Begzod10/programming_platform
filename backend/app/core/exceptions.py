@@ -48,20 +48,13 @@ def register_exception_handlers(app):
         import sys
         print(f"UNHANDLED EXCEPTION on {request.method} {request.url}:", file=sys.stderr)
         traceback.print_exc()
-        
-        error_data = {
-            "code": 500,
-            "message": "Internal server error"
-        }
-        
-        if settings.DEBUG:
-            error_data["message"] = str(exc)
-            error_data["traceback"] = traceback.format_exc()
-            
         return JSONResponse(
             status_code=HTTP_500_INTERNAL_SERVER_ERROR,
             content={
                 "success": False,
-                "error": error_data
+                "error": {
+                    "code": 500,
+                    "message": "Internal server error"
+                }
             }
-        )
+        )

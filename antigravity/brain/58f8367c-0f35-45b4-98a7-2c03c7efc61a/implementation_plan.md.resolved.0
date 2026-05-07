@@ -1,0 +1,56 @@
+# Implementation Plan - NanoMed Professional Features
+
+This plan outlines the steps to integrate Telegram Mini App (TMA), an Analytics Engine, Smart Notifications for feedback, and Encrypted E-Health record storage into the existing NanoMed Clinic Management Bot.
+
+## User Review Required
+
+> [!IMPORTANT]
+> **TMA Frontend**: This plan focuses on the backend integration and architecture. A separate frontend (React/Vue) is required to fully implement the visual calendar.
+> **Database Changes**: We will add a few columns and a new table. This requires a database migration or a reset since we are using SQLite.
+
+## Proposed Changes
+
+### 1. Database Schema Updates
+Add necessary fields for analytics and e-health records.
+
+#### [MODIFY] [models.py](file:///c:/Users/sunna/.antigravity/Nanomed/database/models.py)
+- Add `referral_source` and `created_at` to `User` model.
+- Add `HealthRecord` model:
+    - `id`, `patient_id`, `doctor_id`, `file_path`, `encrypted_key`, `created_at`.
+- Add `is_feedback_sent` to `Appointment` model.
+
+### 2. Analytics Engine
+Create a module to calculate KPIs.
+
+#### [NEW] [analytics.py](file:///c:/Users/sunna/.antigravity/Nanomed/utils/analytics.py)
+- `get_doctor_retention_rate(doctor_id)`: Logic to find % of patients with >1 appointment.
+- `get_referral_stats()`: Distribution of `referral_source`.
+
+### 3. Smart Notifications (Feedback System)
+Enhance the scheduler to handle delayed feedback.
+
+#### [MODIFY] [scheduler.py](file:///c:/Users/sunna/.antigravity/Nanomed/utils/scheduler.py)
+- Add `schedule_feedback_request(bot, patient_id, appointment_id)`: Uses `scheduler.add_job` with a `run_date` (e.g., 2 hours after arrival).
+
+### 4. E-Health Record Storage (Security)
+Implement encryption for medical documents.
+
+#### [NEW] [security.py](file:///c:/Users/sunna/.antigravity/Nanomed/utils/security.py)
+- `encrypt_file(file_path)`: Uses `cryptography.fernet` to encrypt the PDF.
+- `decrypt_file(file_path, key)`: Decrypts for viewing.
+
+### 5. TMA Bridge (Architecture)
+Since this is a bot, we need an endpoint to serve data to the Mini App.
+
+#### [NEW] [tma_api.py](file:///c:/Users/sunna/.antigravity/Nanomed/bot/tma_api.py)
+- Provide a FastAPI-based bridge (optional) or explain the `WebAppInitData` validation logic within an Aiogram middleware/handler.
+
+## Verification Plan
+
+### Automated Tests
+- Test encryption/decryption cycle.
+- Test analytics queries with mock data.
+
+### Manual Verification
+- Book an appointment and verify the feedback notification arrives after the delay.
+- Upload a PDF and verify it's encrypted on disk and only accessible via the bot with the correct ID.

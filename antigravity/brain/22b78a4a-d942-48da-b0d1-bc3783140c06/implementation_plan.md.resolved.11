@@ -1,0 +1,41 @@
+# Premium Funksiyalar: To'lov, AI, Statistika va Kutish Ro'yxati
+
+Ushbu loyiha botni haqiqiy biznes darajasiga olib chiqadi.
+
+## Proposed Changes
+
+### 1. 💳 To'lov Tizimlari (Payment Integration)
+**Maqsad**: Boshlang'ich to'lovlarni qabul qilish.
+- **Yechim**: `bot.send_invoice` (Telegram Native Payments) orqali Click/Payme integratsiyasi.
+- **Harakat**: Bemor qabulni tanlagach, "To'lov qilish" tugmasi chiqadi. To'lov muvaffaqiyatli o'tsa, `Appointment` holati `paid` ga o'zgaradi.
+
+### 2. 🤖 AI Simptom Tahlilchisi (Gemini AI)
+**Maqsad**: Bemorlarga qaysi shifokorga borishni maslahat berish.
+- **Yechim**: `google-generativeai` kutubxonasi yordamida Gemini 1.5 Flash modeli ulanadi.
+- **Mantiq**: Bemor o'z shikoyatlarini yozadi -> AI tahlil qiladi -> Klinikadagi mavjud shifokorlardan birini tavsiya qiladi.
+
+### 3. 📈 Admin uchun Moliyaviy Grafiklar
+**Maqsad**: Daromadni vizual ko'rish.
+- **Yechim**: `matplotlib` kutubxonasi yordamida oylik/haftalik tushum grafiklari (PNG shaklida) generatsiya qilinadi.
+- **Harakat**: Admin panelida "📈 Statistik grafik" tugmasi qo'shiladi.
+
+### 4. 🕒 Avtomatik Kutish Ro'yxati (Waitlist)
+**Maqsad**: Bo'sh qolgan vaqtlarni to'ldirish.
+- **Model**: `Waitlist` jadvali qo'shiladi (`patient_id`, `doctor_id`, `date`).
+- **Mantiq**: Shifokorning vaqti band bo'lsa, bemor "Kutish ro'yxati"ga yoziladi. Agar kimdir qabulni bekor qilsa, bot navbatdagi bemorga "Vaqt ochildi!" deb xabar yuboradi.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]  
+> 1. **Gemini AI**: AI ishlashi uchun **Google AI Studio**'dan bepul `API KEY` olish kerak. Sizda kalit bormi yoki men vaqtinchalik "mock" (soxta) javob beradigan qilib turaymi?
+> 2. **To'lov**: Click/Payme ning haqiqiy `Provider Token`i bormi (@BotFather dan olinadi)? Agar bo'lmasa, **Test rejimida** (haqiqiy pul yechmaydigan) ishlatib ko'rsatib beraman.
+
+## Verification Plan
+
+### Manual Verification
+1. Gemini AI'ga "Boshim og'riyapti" deb yozib, tavsiya olishni tekshirish.
+2. Test to'lovni amalga oshirish va bazada qabulni "To'langan" bo'lishini ko'rish.
+3. Grafik generatsiya qilish va Admin panelidan rasm kelishini tekshirish.
+4. Bir bemorni bekor qilib, kutish ro'yxatidagiga xabar borishini sinash.

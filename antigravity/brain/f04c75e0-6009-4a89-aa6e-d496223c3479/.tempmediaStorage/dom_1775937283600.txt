@@ -1,0 +1,29 @@
+<current_dom_explanation>
+This is a temporary snapshot of the current page's DOM structure. The DOM will change if you navigate to or interact with another page. Use a tool like browser_get_dom to capture and preserve the DOM in your trajectory if needed for later reference.
+</current_dom_explanation>
+<current_dom>
+[0] (500,235)<div  />
+	Salom,
+	Mehmon
+	!
+	NanoMed xizmatiga xush kelibsiz
+	[1] (726,50)<button  />
+	ID:
+	📞
+	+998 90 123 45 67
+	📍 Toshkent, Yunusobod
+	[2] (153,940)<div  />
+		[3] (153,931)<div  />
+		[4] (153,957)<span >Band qilish />
+	[5] (400,940)<div >Qabullarim />
+		[6] (400,931)<div  />
+		Qabullarim
+	[7] (638,940)<div  />
+		[8] (638,931)<div  />
+		[9] (638,957)<span >Tahlillar />
+	[10] (862,940)<div  />
+		[11] (862,925)<div  />
+		[12] (862,952)<span >Profil />
+		[13] (164,968)<div  />
+
+</current_dom>

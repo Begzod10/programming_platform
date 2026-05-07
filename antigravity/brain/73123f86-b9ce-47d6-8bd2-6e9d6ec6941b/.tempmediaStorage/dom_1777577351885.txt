@@ -1,0 +1,97 @@
+[0] (500,500)<div  />
+	Gennis IT Platform
+	[1] (71,121)<div  />
+		[2] (30,121)<span >👤 />
+		[3] (50,121)<span >Profil />
+	[4] (71,175)<div  />
+		[5] (30,175)<span >💻 />
+		[6] (73,175)<span >Mening loyihalarim />
+	[7] (71,229)<div  />
+		[8] (30,229)<span >📚 />
+		[9] (53,229)<span >Kurslar />
+	[10] (71,283)<div  />
+		[11] (30,283)<span >🏆 />
+		[12] (54,283)<span >Reyting />
+	[13] (71,337)<div  />
+		[14] (30,337)<span >🎓 />
+		[15] (61,337)<span >Sertifikatlar />
+	[16] (71,951)<button class='logout-btn-side'>Chiqish
+🚪 />
+	Xush kelibsiz!
+	Begzod
+	!
+	⭐
+	0
+	Ballar
+	🏆
+	#2
+	Mening o'rnim
+	📁
+	0
+	Mening loyihalarim
+	[17] (564,585)<div class='page-container scrollable' scrollable='true' />
+		Reyting
+		[18] (823,266)<span >Barcha vaqt />
+		[19] (865,266)<span >Oy />
+		[20] (896,266)<span >Hafta />
+		[21] (933,266)<span >Bugun />
+		Mening o'rnim
+		#2
+		0
+		PTS
+		🥇
+		👤
+		Aziz Solmatov
+		Intermediate
+		📁
+		1
+		1080
+		PTS
+		🥈
+		👤
+		Begzod
+		Beginner
+		0
+		PTS
+		🥉
+		👤
+		Sobirov
+		Beginner
+		0
+		PTS
+		4
+		👤
+		shoxruz
+		Beginner
+		0
+		PTS
+		5
+		👤
+		Miraziz
+		Beginner
+		0
+		PTS
+		6
+		👤
+		Javohir
+		Beginner
+		0
+		PTS
+		7
+		👤
+		Shoxjaxon
+		Beginner
+		0
+		PTS
+		8
+		👤
+		Bexruz
+		Beginner
+		0
+		PTS
+		9
+		👤
+		Amir
+		Beginner
+		0
+		PTS

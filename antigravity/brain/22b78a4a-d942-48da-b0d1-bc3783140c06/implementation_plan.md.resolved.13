@@ -1,0 +1,32 @@
+# Qabulga yozilish tizimidagi xatoliklarni tuzatish
+
+Ushbu reja foydalanuvchilar qabulga yozilishda duch kelayotgan muammolarni bartaraf etishga qaratilgan.
+
+## Proposed Changes
+
+### 1. 🤖 'Bot' obyektidan to'g'ri foydalanish
+- **Muammo**: Handlerlar ichida global `bot` obyektidan foydalanish ba'zida kutilmagan xatoliklarga (masalan, sessiya yopilishi yoki noto'g'ri instansiya) olib kelishi mumkin.
+- **Yechim**: Barcha handlerlarga `bot: Bot` argumentini qo'shish va aiogram tomonidan taqdim etilgan bot obyektidan foydalanish.
+- **Fayllar**: `handlers/patient_booking.py`, `handlers/patient_notifications.py` va boshqalar.
+
+### 2. 🛡 Ma'lumotlar bazasi so'rovlarini himoyalash
+- **Muammo**: Agar ma'lumotlar bazasidan kerakli slot yoki shifokor topilmasa, bot xato bilan to'xtab qolishi mumkin (`NoneType` error).
+- **Yechim**: `if not sched:` kabi tekshiruvlarni qo'shish va foydalanuvchiga tushunarli xabar yuborish.
+
+### 3. ⌨️ Callback Data formatlarini to'g'rilash
+- **Muammo**: Ba'zi joylarda `callback_data.split("_")` natijalari noto'g'ri bo'lishi mumkinligi tekshiriladi.
+- **Yechim**: Callback data formatlarini standartlashtirish va tekshiruvchi mantiq qo'shish.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]  
+> Hozirda botda bir nechta kichik "Import" va "Logic" xatolar borligi aniqlandi. Men ushbu fayllarni (ayniqsa `handlers/patient_booking.py`) to'liq ko'rib chiqib, ularni eng xavfsiz holatga keltiraman.
+
+## Verification Plan
+
+### Manual Verification
+1. Bosh menyudan "Shifokorlar" -> Filial -> Shifokor -> Kun -> Vaqt -> Xizmat zanjirini to'liq bosib o'tish.
+2. Shifokorga xabar borishini va u tasdiqlaganida bemorga javob borishini tekshirish.
+3. Rad etish (Reject) jarayonini sinab ko'rish.

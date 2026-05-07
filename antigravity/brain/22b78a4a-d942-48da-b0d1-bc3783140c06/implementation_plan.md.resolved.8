@@ -1,0 +1,47 @@
+# Aqlli Eslatmalar va Qabulni Boshqarish Tizimi
+
+Ushbu tizim bemorni qabulgacha bo'lgan barcha jarayonlarda kuzatib boradi va kechikishlarning oldini oladi.
+
+## Proposed Changes
+
+### 1. Ma'lumotlar Bazasi (Database)
+#### [MODIFY] [models.py](file:///C:/Users/sunna/.antigravity/Nanomed/database/models.py)
+`Appointment` jadvaliga quyidagi ustunlar qo'shiladi:
+- `reminded_24h` (bool): 1 kun oldingi eslatma yuborilgani.
+- `last_reminded_at` (DateTime): Oxirgi eslatma yuborilgan vaqt (har 30 minutda yuborishni nazorat qilish uchun).
+- `reminded_15m` (bool): 15 daqiqa qolgandagi eslatma.
+- `reminded_5m` (bool): 5 daqiqa qolgandagi eslatma.
+- `is_arrived` (bool): Bemor yetib kelganmi yoki yo'q.
+
+### 2. Eslatma Utilitasi (Scheduler Logic)
+#### [MODIFY] [scheduler.py](file:///C:/Users/sunna/.antigravity/Nanomed/utils/scheduler.py)
+Fon rejimidagi vazifa har 5 minutda ishlaydi va quyidagilarni tekshiradi:
+1. **24 soat qolganda**: Agar `reminded_24h` False bo'lsa, xabar yuboriladi.
+2. **2 soatdan boshlab (har 30 daqiqada)**: Agar hozirgi vaqt qabulga 2 soatdan kam qolgan bo'lsa va oxirgi eslatmadan 30 minut o'tgan bo'lsa, xabar yuboriladi.
+3. **15 va 5 daqiqa qolganda**: Maxsus ogohlantirishlar.
+4. **Qabul vaqtida**: "Yetib bordingizmi?" savolini va "Ha" / "Yo'q, ko'chirish" tugmalarini yuborish.
+
+### 3. Handlerlar (User Interaction)
+#### [NEW] [patient_notifications.py](file:///C:/Users/sunna/.antigravity/Nanomed/handlers/patient_notifications.py)
+- **"Ha (Yetib keldim)"**: `is_arrived` ni True qiladi va eslatmalarni to'xtatadi.
+- **"Yo'q (Ko'chirish)"**: Amaldagi qabulni bekor qiladi va bemorni qaytadan shifokor vaqtini tanlash darchasiga (booking) yo'naltiradi.
+
+---
+
+## User Review Required
+
+> [!WARNING]  
+> Har 30 daqiqada xabar yuborish bemorni biroz bezovta qilishi mumkin. Ushbu intensivlik faqat **tasdiqlangan** (doctor tomonidan confirmed bo'lgan) qabullar uchun ishlaydi. 
+> 
+> [!IMPORTANT]
+> "Ko'chirish" tugmasi bosilganda, eski vaqt bazada yana "Bo'sh" holatiga qaytadi va boshqa bemorlar yozilishi mumkin bo'ladi.
+
+## Verification Plan
+
+### Automated Tests
+- Scheduler dagi vaqt hisoblash mantiqini (time delta) turli ssenariylar uchun tekshirish.
+
+### Manual Verification
+1. Test appointment yaratish.
+2. Kompyuter vaqtini o'zgartirib yoki kodda `delta`larni kichraytirib, xabarlar ketma-ketligini tekshirish.
+3. "Ko'chirish" tugmasini bosib, yangi vaqt tanlash jarayonini sinab ko'rish.

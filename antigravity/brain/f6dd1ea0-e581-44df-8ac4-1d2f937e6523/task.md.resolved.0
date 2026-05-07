@@ -1,0 +1,3 @@
+- [ ] Update `StudentService` in `app/services/student_service.py`
+- [ ] Update `get_all_students` endpoint in `app/api/v1/endpoints/teacher/students.py`
+- [ ] Verify the changes

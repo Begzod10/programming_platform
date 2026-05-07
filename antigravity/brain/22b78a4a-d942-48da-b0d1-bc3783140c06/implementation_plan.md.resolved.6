@@ -1,0 +1,43 @@
+# Avtomatik Tarjima Tizimi (AI-Translator)
+
+Shifokorlar va Adminlar uchun ma'lumot kiritishni osonlashtirish maqsadida, O'zbek tilida yozilgan matnlarni avtomatik ravishda Rus tiliga tarjima qiluvchi tizimni joriy etamiz.
+
+## Proposed Changes
+
+### 1. Yangi Kutubxona (Dependency)
+#### [MODIFY] [requirements.txt](file:///C:/Users/sunna/.antigravity/Nanomed/requirements.txt)
+- `deep-translator` kutubxonasi qo'shiladi.
+
+### 2. Tarjima Utilita (Utility)
+#### [NEW] [translator.py](file:///C:/Users/sunna/.antigravity/Nanomed/utils/translator.py)
+- `GoogleTranslator` asosida O'zbekchadan Ruschaga tarjima qiluvchi `translate_uz_to_ru(text)` funksiyasi yaratiladi.
+- Bu funksiya I/O blocking bo'lmasligi uchun `asyncio.to_thread` orqali ishlatiladi.
+
+### 3. Handlerlarni Soddalashtirish (Simplify Flow)
+
+#### [MODIFY] [doctor_auth.py](file:///C:/Users/sunna/.antigravity/Nanomed/handlers/doctor_auth.py)
+- **Qadam o'zgarishi**: Mutaxassislikni O'zbekcha kiritgandan so'ng, ruscha so'rash qadami olib tashlanadi.
+- Bot orqa fonda tarjima qilib, to'g'ridan-to'g'ri Filial tanlashga o'tib ketadi.
+
+#### [MODIFY] [doctor_profile.py](file:///C:/Users/sunna/.antigravity/Nanomed/handlers/doctor_profile.py)
+- **Qadam o'zgarishi**: Xizmat nomini O'zbekcha kiritgandan so'ng, ruschasini so'ramasdan darhol Narxni so'rashga o'tadi.
+- Tarjima avtomatlashtiriladi.
+
+#### [MODIFY] [admin_panel.py](file:///C:/Users/sunna/.antigravity/Nanomed/handlers/admin_panel.py)
+- Filial qo'shishda ham faqat O'zbekcha nom so'raladi va ruscha nom avto-yoziladi.
+
+### 4. Holatlarni O'zgartirish (FSM States)
+#### [MODIFY] States Fayllari
+- `DoctorReg`, `DoctorServiceState` va `AdminBranchState` ichidagi `name_ru` yoki `specialty_ru` qadamlari (state) o'chirib tashlanadi (chunki ularga endi `message_handler` kerak emas).
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]  
+> Avtomatik tarjima (Google Translate asosida) 95% holatda to'g'ri tarjima qiladi. Agar shifokor juda murakkab tibbiy atama yozsa, ruscha varianti biroz noaniq bo'lishi mumkin. Sizga shunday **to'liq avtomatik** holat ma'qulmi yoki baribir "Tarjima to'g'rimi?" deb tasdiqlash tugmasini chiqarib qo'yaymi? (Hozircha siz so'raganingizdek to'liq avtomatik qilyapman).
+
+## Verification Plan
+1. `pip install deep-translator` orqali kutubxonani o'rnatish.
+2. `/register` buyrug'ida faqat O'zbekcha sohani yozib ko'rish.
+3. Bazada ruscha variant paydo bo'lganini tekshirish.

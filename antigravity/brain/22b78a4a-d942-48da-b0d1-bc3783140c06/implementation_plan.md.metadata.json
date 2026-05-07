@@ -1,0 +1,7 @@
+{
+  "artifactType": "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary": "NanoMed brend ranglaridagi shifokor WebApp va eslatmalar tizimi rejasi.\nWebApp FastAPI bazasida ishlaydi va NanoMed logotipidagi to'q sariq/qora ranglar bilan bezatiladi.\nEslatmalar tizimi (1 kun va 2 soat) yanada takomillashtiriladi.",
+  "updatedAt": "2026-04-10T20:49:57.700601800Z",
+  "version": "16",
+  "requestFeedback": true
+}

@@ -1,0 +1,7 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary":  "Fixing the achievement progress calculation logic to prevent false 100% progress reports and ensure certificates are only unlocked when requirements are met.",
+  "updatedAt":  "2026-04-30T19:21:44.438411300Z",
+  "version":  "1",
+  "requestFeedback":  true
+}

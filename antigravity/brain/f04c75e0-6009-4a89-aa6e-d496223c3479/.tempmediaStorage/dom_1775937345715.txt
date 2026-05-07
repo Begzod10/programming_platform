@@ -1,0 +1,19 @@
+[0] (500,135)<div  />
+	Salom,
+	Mehmon
+	!
+	NanoMed xizmatiga xush kelibsiz
+	[1] (920,65)<button  />
+	[2] (177,922)<div  />
+		[3] (177,903)<div  />
+		[4] (177,938)<span >Band qilish />
+		[5] (177,958)<div  />
+	[6] (422,922)<div >Qabullarim />
+		[7] (422,910)<div  />
+		Qabullarim
+	[8] (651,922)<div >Tahlillar />
+		[9] (651,910)<div  />
+		Tahlillar
+	[10] (852,922)<div  />
+		[11] (852,910)<div  />
+		[12] (852,945)<span >Profil />

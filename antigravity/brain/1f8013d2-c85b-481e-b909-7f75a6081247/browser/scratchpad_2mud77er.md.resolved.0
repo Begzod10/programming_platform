@@ -1,0 +1,13 @@
+# Task: Investigate https://admin.gennis.uz/ login mechanism and API endpoints.
+
+## Plan
+1. [x] Open https://admin.gennis.uz/
+2. [ ] Inspect the page for login forms and API endpoints.
+3. [ ] Monitor network requests.
+4. [ ] Check localStorage and cookies.
+5. [ ] Summarize findings.
+
+## Findings
+- Opened https://admin.gennis.uz/.
+- Page shows a "Login Admin" form with Username and Password fields.
+- There is a "Register" link.

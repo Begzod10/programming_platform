@@ -1,0 +1,19 @@
+# Task List: NanoMed React TMA Implementation
+
+- [x] 1. Front-end loyihasini sozlash (Project Setup)
+    - [x] `frontend` papkasida kutubxonalarni o'rnatish (`framer-motion`, `lucide-react`, `axios`)
+    - [x] Loyiha strukturasini tuzish
+- [x] 2. Dizayn tizimi va Estetika (Modern Design & CSS)
+    - [x] `App.css` - Deep Glassmorphism va Ranglar palitrasini sozlash
+    - [x] Global animatsiya variantlarini yaratish
+- [x] 3. Komponentlarni yaratish (React Components)
+    - [x] `Header` - Foydalanuvchi ma'lumotlari bilan
+    - [x] `BookingCalendar` - Interaktiv va animatsion kalendar
+    - [x] `TimeSlotPicker` - Vaqtni tanlash paneli
+    - [x] `BookingButton` - Animatsion tasdiqlash tugmasi
+- [x] 4. TMA va Backend integratsiyasi
+    - [x] `WebApp.initData` orqali login va ma'lumotlarni yuborish
+    - [x] `tma_api.py` bilan aloqa
+- [x] 5. Yakuniy jilo berish (Polishing)
+    - [x] Silliq o'tishlar (Page transitions)
+    - [x] Responsive dizaynni tekshirish

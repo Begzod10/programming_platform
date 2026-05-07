@@ -13,6 +13,31 @@ class StudentService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def get_students_by_teacher(
+            self,
+            teacher_id: int,
+            skip: int = 0,
+            limit: int = 10,
+            search: Optional[str] = None,
+    ) -> List[Student]:
+        from app.models.group import Group
+        
+        query = select(Student).join(Student.groups).where(Group.teacher_id == teacher_id).distinct()
+        
+        if search:
+            query = query.where(
+                or_(
+                    Student.username.ilike(f"%{search}%"),
+                    Student.full_name.ilike(f"%{search}%"),
+                    Student.email.ilike(f"%{search}%"),
+                    Student.phone.ilike(f"%{search}%"),
+                    Student.surname.ilike(f"%{search}%"),
+                )
+            )
+            
+        result = await self.db.execute(query.offset(skip).limit(limit).order_by(Student.id.desc()))
+        return list(result.scalars().all())
+
     async def get_all_students(
             self,
             skip: int = 0,

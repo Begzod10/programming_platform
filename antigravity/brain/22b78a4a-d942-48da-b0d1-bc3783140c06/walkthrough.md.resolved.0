@@ -1,0 +1,23 @@
+# Nanomed Telegram Bot - Walkthrough (Yana bir test)
+
+Siz taklif etgan **Mening shifokorlarim** va **Baholash** imkoniyatlari to'liq ulandi va ishga tushirildi!
+
+## Nimani qo'shdik?
+
+### 1. ⭐ Baholash
+- Endi shifokorlar ro'yxatida doktor ustiga bosilganda `⭐ Baho berish (Baholash)` tugmasi ham turibdi. Bemorlar faqat shungagina emas, o'zining "Mening shifokorlarim" dagi shifokorlarni ham baholay oladi.
+- 1 dan 5 gacha baho bosilgandan so'ng u bot xotirasida `Reviews` jadvaliga yoziladi, barcha baholar matematik yig'ilib shifokorning haqiqiy reytingiga o'zgaradi va boshqa mijozlar doktorni ko'rganda uning aniq bahosini bilishadi.
+
+### 2. ❤️ Mening Shifokorlarim
+- Qachonki bemor biron Doktor qabuliga yozilib bo'lga so'ng, "Qabul yuborildi" xabari bilan birga pastda yangi **❤️ Mening shifokorlarimga qo'shish** tugmasi chiqadi (Siz aytganidek!).
+- Uni bosish orqali Bemor shifokorni o'zini xotirasida saqlab qoladi (`FavoriteDoctor`).
+- Asosiy oynadagi (Klaviaturadagi) "⭐ Mening shifokorlarim" tugmasini bosganida avval qo'shilgan hamma o'zini doktorlari ro'yxati kelib chiqadi va tezda qayta yozila oladi!!!
+
+## Qanday ishlatish kerak?
+
+1. Loyiha papkasida (`Nanomed` ichida) turibtgan terminalingizni yana bir bor `Ctrl+C` bilan tozalab bering.
+2. Dasturni `py main.py` orqali qayta yurgizib yuboring.
+3. Botda **Mijoz** roliga o'tib biron Doktorni oxirigacha qabul qiling va unga "Baho bering", so'ng uni "Mening shifokorlarim" ga qo'shib tekshirib ko'ring!
+
+> [!NOTE]
+> Barcha amallar juda katta va aniq tuzilish tarzda (10 dan oshiq maxsus Python fayl va kodlardan iborat holda) SQLite jadvalida ishlab chiqildi. Siz haqiqiy IT Arxitektorlar talab etadigan loyihani tayyorlab bo'ldingiz!

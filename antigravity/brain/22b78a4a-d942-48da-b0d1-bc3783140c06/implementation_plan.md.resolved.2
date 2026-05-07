@@ -1,0 +1,67 @@
+# Shifokorlar Moliya va Hisobot Tizimi
+
+Ushbu reja shifokorlarning qabul qilingan bemorlaridan tushadigan avtomatik daromadlarini kunga, haftaga va oyga bo'lib hisoblashi hamda ularning o'z shaxsiy xarajatlarini (rasxodlarini) hisobga olib boradigan "Moliya Darchasi"ni yaratishga bag'ishlanadi.
+
+## User Review Required
+
+> [!IMPORTANT]  
+> Yangi moliyaviy tizim qo'shilayotganligi sababli ma'lumotlar bazasida yangi `Expense` (Xarajatlar) jadvalini yarataman. Buning uchun tizim qotmasligi uchun bazaga `metadata.create_all()` buyrug'ini 1 marta berish yetarli bo'ladi, avvalgi ma'lumotlaringiz xatto o'chib ketmaydi. Iltimos buni tasdiqlang!
+
+## Proposed Changes
+
+---
+
+### Moliya va Xarajat - Ma'lumotlar bazasi (Database)
+
+Tizimda pul aylanmasini to'liq nazorat qilish yuzasidan yangi model qo'shiladi va Daromad eski Tasdiqlangan(Confirmed) qabullardan avto-tortib olinadi.
+
+#### [MODIFY] [models.py](file:///C:/Users/sunna/.antigravity/Nanomed/database/models.py)
+Yangi model kiritiladi:
+- **`Expense`**: Xarajatlarni saqlovchi jadval. 
+  - `doctor_id` (Shifokor raqami, Foreign Key)
+  - `amount` (Xarajat miqdori, son formati)
+  - `description` (Xarajat izohi, masalan: "Arenda" yoki "Klinikaga to'lov")
+  - `created_at` (Qachon qilingani, Avto-sana)
+
+---
+
+### Tugmalar va Klaviaturalar (Keyboards)
+
+#### [MODIFY] [doctor_profile.py](file:///C:/Users/sunna/.antigravity/Nanomed/handlers/doctor_profile.py)
+Shifokorning shaxsiy kabinetida (`/profile`) yangi tugma paydo bo'ladi:
+- `💰 Moliyam (Hisobot)` 
+
+#### [NEW] Moliya Klaviaturasi
+Shifokor Moliyaga kirgach paydo bo'ladigan menyu:
+- 📊 `Hisobotni ko'rish (Kun/Hafta/Oy)`
+- ➖ `Xarajat (Rasxod) qo'shish`
+- 🔙 `Orqaga`
+
+---
+
+### Mantiqiy Qismlar (Handlers)
+
+#### [NEW] [doctor_finance.py](file:///C:/Users/sunna/.antigravity/Nanomed/handlers/doctor_finance.py)
+Bu yerda moliyani hisoblash matematikalari turadi:
+- **Daromadni hisoblash funksiyasi**: 
+  1. `Appointment` jadvalidan `status == confirmed` bo'lgan qabullarni oladi.
+  2. Bunga ulangan `Schedule` orqali sanani aniqlaydi va `Service` orqali narxini solishtirib chiqadi.
+  3. Vaqt filtrlari (Bugun, Shu hafta (oxirgi 7 kun), Shu oy) orqali pullarni jamlab beradi.
+- **Xarajat qo'shish funksiyasi**:
+  1. `ExpenseState` yordamida shifokordan rasxod pulini so'raydi. (Masalan: 50000).
+  2. Nima maqsadda ishlatilganini so'raydi. (Masalan: Lanch uchun).
+  3. Xarajat tezkor bazaga uzatiladi va Reyting/Xisobotdan ayirib ko'rsatiladi.
+
+---
+
+## Open Questions
+
+> [!WARNING]  
+> Xisobotlarda Sof foyda tushunchasi (Ya'ni Daromaddan - Rasxodni chegirib tashlash yig'indisi) ham shifokorga ko'rsatilsinmi?
+
+## Verification Plan
+
+### Automated Tests
+1. Shaxsiy Xarajat modelini yaratamiz va `db_init` orqali yangilaymiz. (sqlite xavfsiz).
+2. Xisobotlar aniq vaqt zonasiga nisbatan jamlangani tekshiriladi.
+3. Yangi funksiyalarning telegram interfeysi orqali ishlashi sinovdan o'tkaziladi.

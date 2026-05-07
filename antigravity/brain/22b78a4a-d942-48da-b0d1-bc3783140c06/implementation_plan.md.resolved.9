@@ -1,0 +1,48 @@
+# Loyihani Rivojlantirish: 5 ta Innovatsion Funksiya
+
+Ushbu reja botni oddiy registrator darajasidan to'liq avtomatlashgan klinika boshqaruv tizimi darajasiga olib chiqadi.
+
+## Proposed Changes
+
+### 1. 📢 Admin uchun Marketing (Broadcast)
+**Maqsad**: Barcha bemorlarga yangilik va aksiyalar yuborish.
+- **Texnik Yechim**: Har bir xabardan so'ng 0.05 soniya pauza qilib (FloodLimit bo'lmasligi uchun) barcha `User`larga habar tarqatuvchi handler.
+- **Imkoniyat**: Matn va Rasm yuborishni qo'llab-quvvatlaydi.
+
+### 2. 🧾 PDF va Excel Hisobotlar
+**Maqsad**: Shifokor va Admin uchun moliyaviy hisobotlarni fayl ko'rinishida berish.
+- **Kutubxonalar**: `reportlab` (PDF) va `pandas` (Excel).
+- **Format**: Oylik tushum, xarajat va foyda jadval ko'rinishida generatsiya qilinadi.
+
+### 3. 📝 Tashriflar Tarixi va Shifokor Xulosasi
+**Maqsad**: Bemor o'z kasallik tarixi va shifokor tavsiyalarini ko'ra olishi.
+- **Model O'zgarishi**: `Appointment` jadvaliga `conclusion` (tashxis) va `prescription` (retsept) ustunlari qo'shiladi.
+- **Handler**: Shifokor qabulni yakunlaganda ushbu ma'lumotlarni kiritadi. Bemor esa "Mening tashriflarim" bo'limida ularni ko'radi.
+
+### 4. 📈 Admin Statistikasi (Analytics)
+**Maqsad**: Klinika faoliyatini raqamlarda ko'rish.
+- **Ko'rsatkichlar**: Eng ko'p daromad keltirgan shifokor, eng ko'p mijoz borgan filial, oylik dinamika.
+
+### 5. 🗺 Masofani Hisoblash (Smart-Location)
+**Maqsad**: Bemorga eng yaqin filialni ko'rsatish.
+- **Texnik Yechim**: `geopy` kutubxonasi yordamida bemor yuborgan lokatsiya va filial lokatsiyalari orasidagi masofani (km) hisoblash.
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]  
+> 1. **Broadcast**: Reklama xabarlariga rasmlar ham qo'shish imkoniyati bo'lsinmi?
+> 2. **Tashriflar Tarixi**: Shifokor har bir bemorga tashxis (xulosa) yozishini majburiy qilib qo'yaylikmi yoki ixtiyoriy?
+> 3. **Hisobotlar**: PDF hisobot haftalik bo'lsinmi yoki faqat oylik?
+
+## Verification Plan
+
+### Automated Tests
+- Masofa hisoblash (haversine formula) formulasini test koordinatalar bilan tekshirish.
+- PDF generatsiya qilishda o'zbek tili harflari (o', g') to'g'ri chiqishini tekshirish.
+
+### Manual Verification
+- Admin panelidan rasm bilan broadcast yuborish.
+- Bemor profilidan o'z tarixini ko'rish.
+- Shifokor sifatida xizmatdan so'ng xulosa yozish.

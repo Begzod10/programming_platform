@@ -1,0 +1,6 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary":  "Fixing course deletion issues by updating models and database constraints to use ON DELETE CASCADE where appropriate, and ensuring all required tables and columns exist.",
+  "updatedAt":  "2026-04-30T18:36:18.961193200Z",
+  "requestFeedback":  true
+}

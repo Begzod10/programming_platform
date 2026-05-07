@@ -1,0 +1,222 @@
+import { createHotContext as __vite__createHotContext } from "/@vite/client";import.meta.hot = __vite__createHotContext("/src/components/Dashboard.jsx");import __vite__cjsImport0_react_jsxDevRuntime from "/node_modules/.vite/deps/react_jsx-dev-runtime.js?v=9942ba7d"; const jsxDEV = __vite__cjsImport0_react_jsxDevRuntime["jsxDEV"];
+import * as RefreshRuntime from "/@react-refresh";
+const inWebWorker = typeof WorkerGlobalScope !== "undefined" && self instanceof WorkerGlobalScope;
+let prevRefreshReg;
+let prevRefreshSig;
+if (import.meta.hot && !inWebWorker) {
+  if (!window.$RefreshReg$) {
+    throw new Error(
+      "@vitejs/plugin-react can't detect preamble. Something is wrong."
+    );
+  }
+  prevRefreshReg = window.$RefreshReg$;
+  prevRefreshSig = window.$RefreshSig$;
+  window.$RefreshReg$ = RefreshRuntime.getRefreshReg("C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx");
+  window.$RefreshSig$ = RefreshRuntime.createSignatureFunctionForTransform;
+}
+import __vite__cjsImport3_react from "/node_modules/.vite/deps/react.js?v=9942ba7d"; const React = __vite__cjsImport3_react.__esModule ? __vite__cjsImport3_react.default : __vite__cjsImport3_react;
+import { motion } from "/node_modules/.vite/deps/framer-motion.js?v=9942ba7d";
+import { Calendar, FileText, ChevronRight, MapPin } from "/node_modules/.vite/deps/lucide-react.js?v=9942ba7d";
+const Dashboard = ({ appointments, records }) => {
+  return /* @__PURE__ */ jsxDEV("div", { className: "app-container", style: { paddingBottom: "100px" }, children: [
+    /* @__PURE__ */ jsxDEV("section", { children: [
+      /* @__PURE__ */ jsxDEV("h2", { style: { fontSize: "1.2rem", marginBottom: "16px" }, children: "Mening qabullarim" }, void 0, false, {
+        fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+        lineNumber: 28,
+        columnNumber: 9
+      }, this),
+      appointments.length === 0 ? /* @__PURE__ */ jsxDEV("div", { className: "glass-card", style: { padding: "30px", textAlign: "center", color: "var(--text-muted)" }, children: "Hozircha faol qabullar yo'q." }, void 0, false, {
+        fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+        lineNumber: 30,
+        columnNumber: 9
+      }, this) : /* @__PURE__ */ jsxDEV("div", { style: { display: "flex", flexDirection: "column", gap: "12px" }, children: appointments.map(
+        (app, i) => /* @__PURE__ */ jsxDEV(
+          motion.div,
+          {
+            className: "glass-card",
+            initial: { opacity: 0, x: -20 },
+            animate: { opacity: 1, x: 0 },
+            transition: { delay: i * 0.1 },
+            style: { padding: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" },
+            children: [
+              /* @__PURE__ */ jsxDEV("div", { children: [
+                /* @__PURE__ */ jsxDEV("h3", { style: { fontSize: "1rem" }, children: app.doctor }, void 0, false, {
+                  fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                  lineNumber: 45,
+                  columnNumber: 19
+                }, this),
+                /* @__PURE__ */ jsxDEV("p", { style: { fontSize: "0.8rem", color: "var(--primary)", fontWeight: "600" }, children: app.service }, void 0, false, {
+                  fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                  lineNumber: 46,
+                  columnNumber: 19
+                }, this),
+                /* @__PURE__ */ jsxDEV("div", { style: { display: "flex", gap: "12px", marginTop: "8px", color: "var(--text-muted)", fontSize: "0.75rem" }, children: [
+                  /* @__PURE__ */ jsxDEV("span", { style: { display: "flex", alignItems: "center", gap: "4px" }, children: [
+                    /* @__PURE__ */ jsxDEV(Calendar, { size: 14 }, void 0, false, {
+                      fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                      lineNumber: 49,
+                      columnNumber: 23
+                    }, this),
+                    " ",
+                    app.date
+                  ] }, void 0, true, {
+                    fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                    lineNumber: 48,
+                    columnNumber: 21
+                  }, this),
+                  /* @__PURE__ */ jsxDEV("span", { style: { display: "flex", alignItems: "center", gap: "4px" }, children: [
+                    /* @__PURE__ */ jsxDEV(MapPin, { size: 14 }, void 0, false, {
+                      fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                      lineNumber: 52,
+                      columnNumber: 23
+                    }, this),
+                    " ",
+                    app.time
+                  ] }, void 0, true, {
+                    fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                    lineNumber: 51,
+                    columnNumber: 21
+                  }, this)
+                ] }, void 0, true, {
+                  fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                  lineNumber: 47,
+                  columnNumber: 19
+                }, this)
+              ] }, void 0, true, {
+                fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                lineNumber: 44,
+                columnNumber: 17
+              }, this),
+              app.is_arrived ? /* @__PURE__ */ jsxDEV("div", { style: { textAlign: "right" }, children: /* @__PURE__ */ jsxDEV("span", { style: { fontSize: "0.7rem", color: "var(--primary-dark)", background: "#ccfbf1", padding: "4px 8px", borderRadius: "8px" }, children: [
+                "Navbatda: ",
+                app.queue_pos,
+                "-o'rin"
+              ] }, void 0, true, {
+                fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                lineNumber: 58,
+                columnNumber: 23
+              }, this) }, void 0, false, {
+                fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                lineNumber: 57,
+                columnNumber: 13
+              }, this) : /* @__PURE__ */ jsxDEV(ChevronRight, { size: 20, color: "var(--text-muted)" }, void 0, false, {
+                fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                lineNumber: 61,
+                columnNumber: 13
+              }, this)
+            ]
+          },
+          app.id,
+          true,
+          {
+            fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+            lineNumber: 36,
+            columnNumber: 11
+          },
+          this
+        )
+      ) }, void 0, false, {
+        fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+        lineNumber: 34,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+      lineNumber: 27,
+      columnNumber: 7
+    }, this),
+    /* @__PURE__ */ jsxDEV("section", { style: { marginTop: "24px" }, children: [
+      /* @__PURE__ */ jsxDEV("h2", { style: { fontSize: "1.2rem", marginBottom: "16px" }, children: "So'nggi tahlillar" }, void 0, false, {
+        fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+        lineNumber: 70,
+        columnNumber: 9
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { style: { display: "flex", flexDirection: "column", gap: "12px" }, children: records.map(
+        (record, i) => /* @__PURE__ */ jsxDEV(
+          motion.div,
+          {
+            className: "glass-card",
+            initial: { opacity: 0, y: 10 },
+            animate: { opacity: 1, y: 0 },
+            transition: { delay: 0.3 + i * 0.1 },
+            style: { padding: "16px", display: "flex", gap: "16px", alignItems: "center" },
+            children: [
+              /* @__PURE__ */ jsxDEV("div", { style: { width: "40px", height: "40px", background: "#dcfce7", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center" }, children: /* @__PURE__ */ jsxDEV(FileText, { size: 20, color: "#16a34a" }, void 0, false, {
+                fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                lineNumber: 82,
+                columnNumber: 17
+              }, this) }, void 0, false, {
+                fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                lineNumber: 81,
+                columnNumber: 15
+              }, this),
+              /* @__PURE__ */ jsxDEV("div", { style: { flex: 1 }, children: [
+                /* @__PURE__ */ jsxDEV("h4", { style: { fontSize: "0.9rem" }, children: record.name }, void 0, false, {
+                  fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                  lineNumber: 85,
+                  columnNumber: 17
+                }, this),
+                /* @__PURE__ */ jsxDEV("p", { style: { fontSize: "0.75rem", color: "var(--text-muted)" }, children: record.date }, void 0, false, {
+                  fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                  lineNumber: 86,
+                  columnNumber: 17
+                }, this)
+              ] }, void 0, true, {
+                fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                lineNumber: 84,
+                columnNumber: 15
+              }, this),
+              /* @__PURE__ */ jsxDEV("button", { style: { background: "none", border: "none", color: "var(--primary)", fontWeight: "600", fontSize: "0.8rem" }, children: "Yuklash" }, void 0, false, {
+                fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+                lineNumber: 88,
+                columnNumber: 15
+              }, this)
+            ]
+          },
+          record.id,
+          true,
+          {
+            fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+            lineNumber: 73,
+            columnNumber: 11
+          },
+          this
+        )
+      ) }, void 0, false, {
+        fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+        lineNumber: 71,
+        columnNumber: 9
+      }, this)
+    ] }, void 0, true, {
+      fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+      lineNumber: 69,
+      columnNumber: 7
+    }, this)
+  ] }, void 0, true, {
+    fileName: "C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx",
+    lineNumber: 26,
+    columnNumber: 5
+  }, this);
+};
+_c = Dashboard;
+export default Dashboard;
+var _c;
+$RefreshReg$(_c, "Dashboard");
+if (import.meta.hot && !inWebWorker) {
+  window.$RefreshReg$ = prevRefreshReg;
+  window.$RefreshSig$ = prevRefreshSig;
+}
+if (import.meta.hot && !inWebWorker) {
+  RefreshRuntime.__hmr_import(import.meta.url).then((currentExports) => {
+    RefreshRuntime.registerExportsForReactRefresh("C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx", currentExports);
+    import.meta.hot.accept((nextExports) => {
+      if (!nextExports)
+        return;
+      const invalidateMessage = RefreshRuntime.validateRefreshBoundaryAndEnqueueUpdate("C:/Users/sunna/.antigravity/Nanomed/frontend/src/components/Dashboard.jsx", currentExports, nextExports);
+      if (invalidateMessage)
+        import.meta.hot.invalidate(invalidateMessage);
+    });
+  });
+}
+
+//# sourceMappingURL=data:application/json;base64,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QUFtQyxLQURyQztBQUFBO0FBQUE7QUFBQTtBQUFBLHFCQUVBO0FBQUEsY0FDQSx1QkFBQyxTQUFJLE9BQU8sRUFBRWlCLE1BQU0sRUFBRSxHQUNwQjtBQUFBLHVDQUFDLFFBQUcsT0FBTyxFQUFFaEMsVUFBVSxTQUFTLEdBQUk0QixpQkFBT0ssUUFBM0M7QUFBQTtBQUFBO0FBQUE7QUFBQSx1QkFBZ0Q7QUFBQSxnQkFDaEQsdUJBQUMsT0FBRSxPQUFPLEVBQUVqQyxVQUFVLFdBQVdLLE9BQU8sb0JBQW9CLEdBQUl1QixpQkFBT1AsUUFBdkU7QUFBQTtBQUFBO0FBQUE7QUFBQSx1QkFBNEU7QUFBQSxtQkFGOUU7QUFBQTtBQUFBO0FBQUE7QUFBQSxxQkFHQTtBQUFBLGNBQ0EsdUJBQUMsWUFBTyxPQUFPLEVBQUVHLFlBQVksUUFBUVUsUUFBUSxRQUFRN0IsT0FBTyxrQkFBa0JhLFlBQVksT0FBT2xCLFVBQVUsU0FBUyxHQUFFLHVCQUF0SDtBQUFBO0FBQUE7QUFBQTtBQUFBLHFCQUVBO0FBQUE7QUFBQTtBQUFBLFVBaEJLNEIsT0FBT0Q7QUFBQUEsVUFEZDtBQUFBO0FBQUE7QUFBQTtBQUFBO0FBQUE7QUFBQTtBQUFBLFFBa0JBO0FBQUEsTUFDRCxLQXJCSDtBQUFBO0FBQUE7QUFBQTtBQUFBLGFBc0JBO0FBQUEsU0F4QkY7QUFBQTtBQUFBO0FBQUE7QUFBQSxXQXlCQTtBQUFBLE9BcEVGO0FBQUE7QUFBQTtBQUFBO0FBQUEsU0FxRUE7QUFFSjtBQUFFUSxLQXpFSXZDO0FBMkVOLGVBQWVBO0FBQVUsSUFBQXVDO0FBQUEsYUFBQUEsSUFBQSIsIm5hbWVzIjpbIlJlYWN0IiwibW90aW9uIiwiQ2FsZW5kYXIiLCJGaWxlVGV4dCIsIkNoZXZyb25SaWdodCIsIk1hcFBpbiIsIkRhc2hib2FyZCIsImFwcG9pbnRtZW50cyIsInJlY29yZHMiLCJwYWRkaW5nQm90dG9tIiwiZm9udFNpemUiLCJtYXJnaW5Cb3R0b20iLCJsZW5ndGgiLCJwYWRkaW5nIiwidGV4dEFsaWduIiwiY29sb3IiLCJkaXNwbGF5IiwiZmxleERpcmVjdGlvbiIsImdhcCIsIm1hcCIsImFwcCIsImkiLCJvcGFjaXR5IiwieCIsImRlbGF5IiwianVzdGlmeUNvbnRlbnQiLCJhbGlnbkl0ZW1zIiwiZG9jdG9yIiwiZm9udFdlaWdodCIsInNlcnZpY2UiLCJtYXJnaW5Ub3AiLCJkYXRlIiwidGltZSIsImlzX2Fycml2ZWQiLCJiYWNrZ3JvdW5kIiwiYm9yZGVyUmFkaXVzIiwicXVldWVfcG9zIiwiaWQiLCJyZWNvcmQiLCJ5Iiwid2lkdGgiLCJoZWlnaHQiLCJmbGV4IiwibmFtZSIsImJvcmRlciIsIl9jIl0sInNvdXJjZXMiOlsiRGFzaGJvYXJkLmpzeCJdLCJzb3VyY2VzQ29udGVudCI6WyJpbXBvcnQgUmVhY3QgZnJvbSAncmVhY3QnO1xuaW1wb3J0IHsgbW90aW9uIH0gZnJvbSAnZnJhbWVyLW1vdGlvbic7XG5pbXBvcnQgeyBDYWxlbmRhciwgRmlsZVRleHQsIENoZXZyb25SaWdodCwgTWFwUGluIH0gZnJvbSAnbHVjaWRlLXJlYWN0JztcblxuY29uc3QgRGFzaGJvYXJkID0gKHsgYXBwb2ludG1lbnRzLCByZWNvcmRzIH0pID0+IHtcbiAgcmV0dXJuIChcbiAgICA8ZGl2IGNsYXNzTmFtZT1cImFwcC1jb250YWluZXJcIiBzdHlsZT17eyBwYWRkaW5nQm90dG9tOiAnMTAwcHgnIH19PlxuICAgICAgPHNlY3Rpb24+XG4gICAgICAgIDxoMiBzdHlsZT17eyBmb250U2l6ZTogJzEuMnJlbScsIG1hcmdpbkJvdHRvbTogJzE2cHgnIH19Pk1lbmluZyBxYWJ1bGxhcmltPC9oMj5cbiAgICAgICAge2FwcG9pbnRtZW50cy5sZW5ndGggPT09IDAgPyAoXG4gICAgICAgICAgPGRpdiBjbGFzc05hbWU9XCJnbGFzcy1jYXJkXCIgc3R5bGU9e3sgcGFkZGluZzogJzMwcHgnLCB0ZXh0QWxpZ246ICdjZW50ZXInLCBjb2xvcjogJ3ZhcigtLXRleHQtbXV0ZWQpJyB9fT5cbiAgICAgICAgICAgIEhvemlyY2hhIGZhb2wgcWFidWxsYXIgeW8ncS5cbiAgICAgICAgICA8L2Rpdj5cbiAgICAgICAgKSA6IChcbiAgICAgICAgICA8ZGl2IHN0eWxlPXt7IGRpc3BsYXk6ICdmbGV4JywgZmxleERpcmVjdGlvbjogJ2NvbHVtbicsIGdhcDogJzEycHgnIH19PlxuICAgICAgICAgICAge2FwcG9pbnRtZW50cy5tYXAoKGFwcCwgaSkgPT4gKFxuICAgICAgICAgICAgICA8bW90aW9uLmRpdiBcbiAgICAgICAgICAgICAgICBrZXk9e2FwcC5pZH1cbiAgICAgICAgICAgICAgICBjbGFzc05hbWU9XCJnbGFzcy1jYXJkXCJcbiAgICAgICAgICAgICAgICBpbml0aWFsPXt7IG9wYWNpdHk6IDAsIHg6IC0yMCB9fVxuICAgICAgICAgICAgICAgIGFuaW1hdGU9e3sgb3BhY2l0eTogMSwgeDogMCB9fVxuICAgICAgICAgICAgICAgIHRyYW5zaXRpb249e3sgZGVsYXk6IGkgKiAwLjEgfX1cbiAgICAgICAgICAgICAgICBzdHlsZT17eyBwYWRkaW5nOiAnMTZweCcsIGRpc3BsYXk6ICdmbGV4JywganVzdGlmeUNvbnRlbnQ6ICdzcGFjZS1iZXR3ZWVuJywgYWxpZ25JdGVtczogJ2NlbnRlcicgfX1cbiAgICAgICAgICAgICAgPlxuICAgICAgICAgICAgICAgIDxkaXY+XG4gICAgICAgICAgICAgICAgICA8aDMgc3R5bGU9e3sgZm9udFNpemU6ICcxcmVtJyB9fT57YXBwLmRvY3Rvcn08L2gzPlxuICAgICAgICAgICAgICAgICAgPHAgc3R5bGU9e3sgZm9udFNpemU6ICcwLjhyZW0nLCBjb2xvcjogJ3ZhcigtLXByaW1hcnkpJywgZm9udFdlaWdodDogJzYwMCcgfX0+e2FwcC5zZXJ2aWNlfTwvcD5cbiAgICAgICAgICAgICAgICAgIDxkaXYgc3R5bGU9e3sgZGlzcGxheTogJ2ZsZXgnLCBnYXA6ICcxMnB4JywgbWFyZ2luVG9wOiAnOHB4JywgY29sb3I6ICd2YXIoLS10ZXh0LW11dGVkKScsIGZvbnRTaXplOiAnMC43NXJlbScgfX0+XG4gICAgICAgICAgICAgICAgICAgIDxzcGFuIHN0eWxlPXt7IGRpc3BsYXk6ICdmbGV4JywgYWxpZ25JdGVtczogJ2NlbnRlcicsIGdhcDogJzRweCcgfX0+XG4gICAgICAgICAgICAgICAgICAgICAgPENhbGVuZGFyIHNpemU9ezE0fSAvPiB7YXBwLmRhdGV9XG4gICAgICAgICAgICAgICAgICAgIDwvc3Bhbj5cbiAgICAgICAgICAgICAgICAgICAgPHNwYW4gc3R5bGU9e3sgZGlzcGxheTogJ2ZsZXgnLCBhbGlnbkl0ZW1zOiAnY2VudGVyJywgZ2FwOiAnNHB4JyB9fT5cbiAgICAgICAgICAgICAgICAgICAgICA8TWFwUGluIHNpemU9ezE0fSAvPiB7YXBwLnRpbWV9XG4gICAgICAgICAgICAgICAgICAgIDwvc3Bhbj5cbiAgICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICAgIHthcHAuaXNfYXJyaXZlZCA/IChcbiAgICAgICAgICAgICAgICAgICA8ZGl2IHN0eWxlPXt7IHRleHRBbGlnbjogJ3JpZ2h0JyB9fT5cbiAgICAgICAgICAgICAgICAgICAgICA8c3BhbiBzdHlsZT17eyBmb250U2l6ZTogJzAuN3JlbScsIGNvbG9yOiAndmFyKC0tcHJpbWFyeS1kYXJrKScsIGJhY2tncm91bmQ6ICcjY2NmYmYxJywgcGFkZGluZzogJzRweCA4cHgnLCBib3JkZXJSYWRpdXM6ICc4cHgnIH19Pk5hdmJhdGRhOiB7YXBwLnF1ZXVlX3Bvc30tbydyaW48L3NwYW4+XG4gICAgICAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgICAgKSA6IChcbiAgICAgICAgICAgICAgICAgIDxDaGV2cm9uUmlnaHQgc2l6ZT17MjB9IGNvbG9yPVwidmFyKC0tdGV4dC1tdXRlZClcIiAvPlxuICAgICAgICAgICAgICAgICl9XG4gICAgICAgICAgICAgIDwvbW90aW9uLmRpdj5cbiAgICAgICAgICAgICkpfVxuICAgICAgICAgIDwvZGl2PlxuICAgICAgICApfVxuICAgICAgPC9zZWN0aW9uPlxuXG4gICAgICA8c2VjdGlvbiBzdHlsZT17eyBtYXJnaW5Ub3A6ICcyNHB4JyB9fT5cbiAgICAgICAgPGgyIHN0eWxlPXt7IGZvbnRTaXplOiAnMS4ycmVtJywgbWFyZ2luQm90dG9tOiAnMTZweCcgfX0+U28nbmdnaSB0YWhsaWxsYXI8L2gyPlxuICAgICAgICA8ZGl2IHN0eWxlPXt7IGRpc3BsYXk6ICdmbGV4JywgZmxleERpcmVjdGlvbjogJ2NvbHVtbicsIGdhcDogJzEycHgnIH19PlxuICAgICAgICAgIHtyZWNvcmRzLm1hcCgocmVjb3JkLCBpKSA9PiAoXG4gICAgICAgICAgICA8bW90aW9uLmRpdiBcbiAgICAgICAgICAgICAga2V5PXtyZWNvcmQuaWR9XG4gICAgICAgICAgICAgIGNsYXNzTmFtZT1cImdsYXNzLWNhcmRcIlxuICAgICAgICAgICAgICBpbml0aWFsPXt7IG9wYWNpdHk6IDAsIHk6IDEwIH19XG4gICAgICAgICAgICAgIGFuaW1hdGU9e3sgb3BhY2l0eTogMSwgeTogMCB9fVxuICAgICAgICAgICAgICB0cmFuc2l0aW9uPXt7IGRlbGF5OiAwLjMgKyBpICogMC4xIH19XG4gICAgICAgICAgICAgIHN0eWxlPXt7IHBhZGRpbmc6ICcxNnB4JywgZGlzcGxheTogJ2ZsZXgnLCBnYXA6ICcxNnB4JywgYWxpZ25JdGVtczogJ2NlbnRlcicgfX1cbiAgICAgICAgICAgID5cbiAgICAgICAgICAgICAgPGRpdiBzdHlsZT17eyB3aWR0aDogJzQwcHgnLCBoZWlnaHQ6ICc0MHB4JywgYmFja2dyb3VuZDogJyNkY2ZjZTcnLCBib3JkZXJSYWRpdXM6ICcxMnB4JywgZGlzcGxheTogJ2ZsZXgnLCBhbGlnbkl0ZW1zOiAnY2VudGVyJywganVzdGlmeUNvbnRlbnQ6ICdjZW50ZXInIH19PlxuICAgICAgICAgICAgICAgIDxGaWxlVGV4dCBzaXplPXsyMH0gY29sb3I9XCIjMTZhMzRhXCIgLz5cbiAgICAgICAgICAgICAgPC9kaXY+XG4gICAgICAgICAgICAgIDxkaXYgc3R5bGU9e3sgZmxleDogMSB9fT5cbiAgICAgICAgICAgICAgICA8aDQgc3R5bGU9e3sgZm9udFNpemU6ICcwLjlyZW0nIH19PntyZWNvcmQubmFtZX08L2g0PlxuICAgICAgICAgICAgICAgIDxwIHN0eWxlPXt7IGZvbnRTaXplOiAnMC43NXJlbScsIGNvbG9yOiAndmFyKC0tdGV4dC1tdXRlZCknIH19PntyZWNvcmQuZGF0ZX08L3A+XG4gICAgICAgICAgICAgIDwvZGl2PlxuICAgICAgICAgICAgICA8YnV0dG9uIHN0eWxlPXt7IGJhY2tncm91bmQ6ICdub25lJywgYm9yZGVyOiAnbm9uZScsIGNvbG9yOiAndmFyKC0tcHJpbWFyeSknLCBmb250V2VpZ2h0OiAnNjAwJywgZm9udFNpemU6ICcwLjhyZW0nIH19PlxuICAgICAgICAgICAgICAgIFl1a2xhc2hcbiAgICAgICAgICAgICAgPC9idXR0b24+XG4gICAgICAgICAgICA8L21vdGlvbi5kaXY+XG4gICAgICAgICAgKSl9XG4gICAgICAgIDwvZGl2PlxuICAgICAgPC9zZWN0aW9uPlxuICAgIDwvZGl2PlxuICApO1xufTtcblxuZXhwb3J0IGRlZmF1bHQgRGFzaGJvYXJkO1xuIl0sImZpbGUiOiJDOi9Vc2Vycy9zdW5uYS8uYW50aWdyYXZpdHkvTmFub21lZC9mcm9udGVuZC9zcmMvY29tcG9uZW50cy9EYXNoYm9hcmQuanN4In0=

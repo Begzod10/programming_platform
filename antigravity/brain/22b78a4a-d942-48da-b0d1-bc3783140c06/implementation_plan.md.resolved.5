@@ -1,0 +1,66 @@
+# Shifokorlar Moliya va Hisobot Tizimi
+
+Ushbu reja shifokorlarning qabul qilingan bemorlaridan tushadigan avtomatik daromadlarini kunga, haftaga va oyga bo'lib hisoblashi hamda ularning o'z shaxsiy xarajatlarini (rasxodlarini) hisobga olib boradigan "Moliya Darchasi"ni yaratishga bag'ishlanadi.
+
+## User Review Required
+
+> [!IMPORTANT]  
+> Yangi moliyaviy tizim qo'shilayotganligi sababli ma'lumotlar bazasida yangi `Expense` (Xarajatlar) jadvalini yarataman. Buning uchun tizim qotmasligi uchun bazaga `metadata.create_all()` buyrug'ini 1 marta berish yetarli bo'ladi, avvalgi ma'lumotlaringiz xatto o'chib ketmaydi. Iltimos buni tasdiqlang!
+
+## Proposed Changes
+
+---
+
+### Avtomatlashtirilgan Buxgalteriya - Ma'lumotlar bazasi (Database)
+
+Tizim har bir xizmatdan tushadigan sof foydani avtomatik hisoblaydi. Buning uchun xizmatning o'ziga "Xarajat" maydoni qo'shiladi.
+
+#### [MODIFY] [models.py](file:///C:/Users/sunna/.antigravity/Nanomed/database/models.py)
+1. **`Service`** modeliga o'zgartirish:
+   - `cost`: Mapped[int] (Xizmat uchun sarflanadigan xarajat miqdori).
+2. **`Expense`** (Ixtiyoriy xarajatlar uchun):
+   - Shifokorning xizmatdan tashqari boshqa (ijara, kadr va h.k.) xarajatlari uchun jadval saqlanadi.
+
+---
+
+### Xizmatlarni boshqarish (Services)
+
+#### [MODIFY] [doctor_profile.py](file:///C:/Users/sunna/.antigravity/Nanomed/handlers/doctor_profile.py)
+Xizmat qo'shish jarayonida:
+1. Narxi so'ralgandan so'ng, yangi qadam: **"Ushbu xizmat uchun xarajatingiz qancha? (Tannarxi)"** so'raladi.
+2. Bu ma'lumot bazaga saqlanadi.
+
+---
+
+### Moliya va Hisobot (Finance & Reporting)
+
+#### [NEW] [doctor_finance.py](file:///C:/Users/sunna/.antigravity/Nanomed/handlers/doctor_finance.py)
+Buxgalteriya hisoblash algoritmi:
+- **Tushum (Revenue)**: Tasdiqlangan qabullardagi xizmat narxlari yig'indisi.
+- **Xarajat (Total Cost)**: Tasdiqlangan qabullardagi xizmatlarning tannarxlari + Qo'shimcha xarajatlar.
+- **Sof Foyda (Net Profit)**: Tushum - Jami Xarajat.
+
+Filtrlar:
+- `Bugun`, `Shu hafta`, `Shu oy` uchun aniq statistika (tizimli jamlash).
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]  
+> Endi xizmat qo'shishda ikkita raqam so'raladi: 
+> 1. Mijozga aytiladigan narx.
+> 2. Sizning xarajatingiz (masalan, probirka narxi). 
+> Shunda bot har safar bemor kelganida sizga avtomatik foydani hisoblab beradi.
+
+## Open Questions
+
+Hozircha hamma narsa tushunarli. Tasdiqlasangiz ishni boshlayman.
+
+
+## Verification Plan
+
+### Automated Tests
+1. Shaxsiy Xarajat modelini yaratamiz va `db_init` orqali yangilaymiz. (sqlite xavfsiz).
+2. Xisobotlar aniq vaqt zonasiga nisbatan jamlangani tekshiriladi.
+3. Yangi funksiyalarning telegram interfeysi orqali ishlashi sinovdan o'tkaziladi.

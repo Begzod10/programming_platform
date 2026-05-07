@@ -1,0 +1,17 @@
+# NanoMed TMA Browser Task
+
+## Tasks
+- [x] Open http://localhost:5173/
+- [x] Verify backend connectivity (data in Booking/Dashboard) - **Backend is ALIVE and has data, but frontend is not displaying it.**
+- [ ] Navigate to Doctor Profile and capture screenshot
+- [ ] Navigate to Service Selection and capture screenshot
+- [ ] Check Dashboard section
+- [ ] Report findings
+
+## Findings
+- Backend is running on `http://localhost:8000`.
+- API `GET /api/doctors/1` returns valid data for "Dr. Alisher Narzullaev".
+- Frontend `http://localhost:5173/` is mostly blank despite tabs being interactive.
+- "Profil" tab shows a placeholder phone and address but "ID:" is empty.
+- Suspect frontend fails to load doctor data due to missing Telegram context (user ID) or a routing issue.
+- Tried scrolling and clicking various elements, but no data appeared in the main view.

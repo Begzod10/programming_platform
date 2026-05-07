@@ -1,0 +1,5 @@
+{
+  "artifactType": "ARTIFACT_TYPE_WALKTHROUGH",
+  "summary": "NanoMed loyihasidagi barcha bug'lar va to'liqlanmagan ishlar yakunlandi: 7 ta bug tuzatildi (User import, Appointment relationships, TimeSlotPicker real data, schedule_id fix, YYYY-MM-DD format, HMAC security, Vercel handler). Yangi /api/schedules endpoint qo'shildi, real booking oqimi to'liq ishlaydi, QueueTracker integratsiya qilindi.",
+  "updatedAt": "2026-04-11T20:49:08.924074400Z"
+}

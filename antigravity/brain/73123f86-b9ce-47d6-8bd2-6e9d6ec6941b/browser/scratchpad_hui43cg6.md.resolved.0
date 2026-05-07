@@ -1,0 +1,9 @@
+# Task Checklist
+- [ ] Navigate to 'Sertifikatlar' (Certificates) section
+- [ ] Take screenshot of certificate list (expecting 0% for unearned courses)
+- [ ] Navigate to 'Kurslar' (Courses) section
+- [ ] Take screenshot of 'Kurslar' section
+- [ ] Final report with screenshot paths
+
+# Findings
+- Current page: http://localhost:3000/student/degrees

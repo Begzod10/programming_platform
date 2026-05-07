@@ -1,0 +1,8 @@
+[0] (500,500)<div  />
+	[1] (500,160)<a href='/' />
+		[2] (500,158)<img  />
+	Birinchi darsimizga yoziling!
+	[3] (500,548)<input class='style_input__X8ULK' placeholder='Ism' />
+	[4] (500,656)<input class='style_input__X8ULK' placeholder='+998 (__) ___ __ __' />
+	[5] (500,764)<select class='style_input__X8ULK' />
+	[6] (500,870)<button class='style_button__4yvsK'>Register />

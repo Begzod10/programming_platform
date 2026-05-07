@@ -1,0 +1,15 @@
+# Task List: Production Readiness (PostgreSQL & Vercel)
+
+- [ ] 1. Muhit parametrlarini sozlash (.env)
+    - [ ] `python-dotenv` o'rnatish
+    - [ ] `.env` faylini yaratish va tokenlarni ko'chirish
+- [ ] 2. Ma'lumotlar bazasini PostgreSQL ga moslashtirish
+    - [ ] `database/database.py` ni dinamik URL ga o'tkazish
+    - [ ] `requirements.txt` ga `asyncpg` va `psycopg2-binary` qo'shish
+- [ ] 3. Vercel Serverless Function (Backend)
+    - [ ] `api/index.py` yaratish (Vercel uchun entry point)
+    - [ ] `tma_server.py` ni importga moslashtirish
+- [ ] 4. Vercel Routing va Frontend
+    - [ ] Root `vercel.json` yaratish
+    - [ ] `frontend/src/utils/api.js` ni dinamik URL ga o'tkazish
+- [ ] 5. Yakuniy tekshiruv va Walkthrough

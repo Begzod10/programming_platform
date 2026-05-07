@@ -1,0 +1,6 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary":  "Implementation plan to fix the course and lesson image functionality and status management. This involves updating models and schemas to ensure all relevant fields are correctly handled by the backend.",
+  "updatedAt":  "2026-04-30T16:53:05.365408Z",
+  "requestFeedback":  true
+}
