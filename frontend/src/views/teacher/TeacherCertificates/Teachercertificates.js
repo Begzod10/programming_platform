@@ -1,7 +1,7 @@
 import React, {useState, useEffect, useCallback} from 'react';
 import ReactDOM from 'react-dom';
 import './Teachercertificates.css';
-import {API_URL, useHttp, headers} from '../../../api/search/base';
+import {API_URL, useHttp, headers, resolveImageUrl} from '../../../api/search/base';
 
 const CRITERIA_TYPES = [
     {value: 'project_count',    label: '📁 Количество проектов'},
@@ -238,7 +238,7 @@ const AwardModal = ({cert, onClose, onAwardSuccess, showToast}) => {
                     <div className="tc-award-cert-card">
                         <div className="tc-award-cert-icon">
                             {cert.badge_image_url
-                                ? <img src={cert.badge_image_url} alt=""/>
+                                ? <img src={resolveImageUrl(cert.badge_image_url)} alt=""/>
                                 : <span>🏆</span>}
                         </div>
                         <div className="tc-award-cert-info">
@@ -565,7 +565,7 @@ const TeacherCertificates = () => {
                             <div key={cert.id} className="tc-row" style={{animationDelay: `${i * 0.05}s`}}>
                                 <div className="tc-row-icon">
                                     {cert.badge_image_url
-                                        ? <img src={cert.badge_image_url} alt=""/>
+                                        ? <img src={resolveImageUrl(cert.badge_image_url)} alt=""/>
                                         : <span>🏆</span>}
                                 </div>
                                 <div className="tc-row-info">

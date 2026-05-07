@@ -3,6 +3,15 @@ import { useCallback } from 'react';
 export const API_URL_DOC = process.env.REACT_APP_API_URL || `http://localhost:8000/`
 export const API_URL = `${API_URL_DOC}api/`
 
+// Backend stores uploaded files as "/uploads/..." paths.
+// External images may be stored as full URLs (http/https/data:).
+// This helper resolves either form into an absolute URL the browser can load.
+export const resolveImageUrl = (src) => {
+    if (!src) return '';
+    if (/^(https?:|data:|blob:)/.test(src)) return src;
+    return API_URL_DOC + src.replace(/^\//, '');
+};
+
 export const headers = () => {
     const token = localStorage.getItem("token")
     return {

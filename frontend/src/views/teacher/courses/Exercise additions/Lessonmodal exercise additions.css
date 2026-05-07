@@ -49,20 +49,40 @@
 .ex-item-head {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 10px;
-    padding: 13px 16px;
-    background: linear-gradient(135deg, rgba(108,92,231,0.05), rgba(162,155,254,0.08));
+    padding: 12px 16px;
+    background: linear-gradient(135deg, rgba(108, 92, 231, 0.05), rgba(162, 155, 254, 0.08));
     border-bottom: 1.5px solid rgba(108, 92, 231, 0.09);
     flex-wrap: wrap;
 }
 
+/* Left part: number + type label + title preview */
+.ex-item-head-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* Right part: action buttons */
+.ex-item-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Exercise number badge */
 .ex-item-num {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
     background: linear-gradient(135deg, #6c5ce7, #a29bfe);
     color: white;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 800;
     display: flex;
     align-items: center;
@@ -70,12 +90,99 @@
     flex-shrink: 0;
 }
 
+/* Type label (icon + name) shown in header */
+.ex-item-type-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(108, 92, 231, 0.75);
+    background: rgba(108, 92, 231, 0.08);
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(108, 92, 231, 0.15);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Title preview text in header */
+.ex-item-title-preview {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(26, 26, 46, 0.55);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+}
+
+/* ── Move up/down buttons ── */
+.ex-move-btn {
+    background: none;
+    border: 1px solid rgba(26, 26, 46, 0.1);
+    color: rgba(26, 26, 46, 0.35);
+    cursor: pointer;
+    font-size: 13px;
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.18s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.ex-move-btn:hover:not(:disabled) {
+    background: rgba(108, 92, 231, 0.08);
+    border-color: rgba(108, 92, 231, 0.25);
+    color: #6c5ce7;
+}
+.ex-move-btn:disabled {
+    opacity: 0.2;
+    cursor: default;
+}
+
+/* ── Collapse button ── */
+.ex-collapse-btn {
+    background: none;
+    border: 1px solid rgba(26, 26, 46, 0.1);
+    color: rgba(26, 26, 46, 0.38);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 7px;
+    transition: all 0.18s;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.ex-collapse-btn:hover {
+    background: rgba(26, 26, 46, 0.05);
+    border-color: rgba(26, 26, 46, 0.2);
+    color: #1a1a2e;
+}
+
+/* ── Delete button ── */
+.ex-delete-btn {
+    background: none;
+    border: none;
+    color: rgba(26, 26, 46, 0.25);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: all 0.18s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.ex-delete-btn:hover { color: #ff7675; background: rgba(255, 118, 117, 0.1); }
+
 /* ── Type pill buttons ── */
 .ex-type-pills {
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
-    flex: 1;
+    padding: 10px 16px 0;
 }
 
 .ex-type-pill {
@@ -103,21 +210,6 @@
     box-shadow: 0 3px 10px rgba(108, 92, 231, 0.3);
 }
 
-.ex-delete-btn {
-    background: none;
-    border: none;
-    color: rgba(26, 26, 46, 0.28);
-    cursor: pointer;
-    font-size: 16px;
-    padding: 4px 8px;
-    border-radius: 8px;
-    transition: all 0.18s;
-    line-height: 1;
-    flex-shrink: 0;
-    margin-left: auto;
-}
-.ex-delete-btn:hover { color: #ff7675; background: rgba(255, 118, 117, 0.1); }
-
 /* ── Type description ── */
 .ex-type-desc {
     padding: 8px 16px;
@@ -127,6 +219,7 @@
     border-bottom: 1px solid rgba(108, 92, 231, 0.07);
     font-style: italic;
     font-weight: 500;
+    margin-top: 8px;
 }
 
 /* ── Card body ── */
@@ -454,12 +547,16 @@
 
 /* ── Responsive ── */
 @media (max-width: 600px) {
-    .ex-type-pills    { gap: 4px; }
-    .ex-type-pill     { padding: 5px 10px; font-size: 11px; }
-    .ex-meta-row      { gap: 12px; }
-    .ex-diff-pills    { gap: 4px; }
-    .ex-diff-pill     { padding: 4px 10px; font-size: 11px; }
-    .ex-hint-row      { grid-template-columns: 1fr; }
-    .ex-item-body     { padding: 14px; gap: 12px; }
-    .ex-item-head     { gap: 6px; padding: 10px 12px; }
+    .ex-type-pills      { gap: 4px; padding: 8px 12px 0; }
+    .ex-type-pill       { padding: 5px 10px; font-size: 11px; }
+    .ex-meta-row        { gap: 12px; }
+    .ex-diff-pills      { gap: 4px; }
+    .ex-diff-pill       { padding: 4px 10px; font-size: 11px; }
+    .ex-hint-row        { grid-template-columns: 1fr; }
+    .ex-item-body       { padding: 12px; gap: 12px; }
+    .ex-item-head       { gap: 6px; padding: 10px 12px; }
+    .ex-item-head-left  { gap: 6px; }
+    .ex-item-type-label { display: none; } /* скрываем на малых экранах, остаётся только номер */
+    .ex-collapse-btn    { padding: 4px 7px; font-size: 10px; }
+    .ex-move-btn        { width: 22px; height: 22px; font-size: 11px; }
 }
