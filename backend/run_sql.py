@@ -1,33 +1,31 @@
 import asyncio
+import os
+import sys
+
+# Loyiha papkasini tanitish
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from app.db.database import engine
 from sqlalchemy import text
 
-async def run_migration():
-    sql1 = """
-    CREATE TABLE IF NOT EXISTS student_groups (
-        student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
-        group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
-        PRIMARY KEY (student_id, group_id)
-    );
-    """
-    
-    sql2 = """
-    INSERT INTO student_groups (student_id, group_id)
-    SELECT id, group_id FROM students 
-    WHERE group_id IS NOT NULL
-    ON CONFLICT (student_id, group_id) DO NOTHING;
-    """
-    
-    try:
-        async with engine.begin() as conn:
-            await conn.execute(text(sql1))
-            print("Table `student_groups` created or already exists.")
+async def fix_columns():
+    async with engine.begin() as conn:
+        try:
+            # 1. Telefon raqami uchun joyni 50 tagacha oshirish
+            await conn.execute(text("ALTER TABLE students ALTER COLUMN phone TYPE VARCHAR(50);"))
             
-            result = await conn.execute(text(sql2))
-            print(f"Data copied successfully. Inserted/Ignored rows.")
+            # 2. Token juda uzun bo'lgani uchun uni TEXT turiga o'tkazish
+            await conn.execute(text("ALTER TABLE students ALTER COLUMN gennis_token TYPE TEXT;"))
             
-    except Exception as e:
-        print(f"Error during migration: {e}")
+            # 3. Ism-sharif ba'zan uzun bo'lishi mumkin, uni 255 tagacha oshiramiz
+            await conn.execute(text("ALTER TABLE students ALTER COLUMN full_name TYPE VARCHAR(255);"))
+            
+            print("✅ Ustunlar hajmi muvaffaqiyatli oshirildi!")
+        except Exception as e:
+            print(f"❌ Xatolik yuz berdi: {e}")
+    
+    # Engine-ni yopish
+    await engine.dispose()
 
 if __name__ == "__main__":
-    asyncio.run(run_migration())
+    asyncio.run(fix_columns())
