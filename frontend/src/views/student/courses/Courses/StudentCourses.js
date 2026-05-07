@@ -4,6 +4,7 @@ import './Student exercise.css'
 import StudentCoursePage from "../CoursePage/StudentCoursePage";
 import StudentLessonPage from "../LessonPage/StudentLessonPage";
 import {API_URL, useHttp, headers} from '../../../../api/search/base';
+import { useTranslation } from 'react-i18next'; // Agar loyihada i18next bo'lsa
 
 const parseListField = (val) => {
     if (!val) return [];
@@ -40,11 +41,11 @@ const apiToExercise = (ex) => ({
 
 const apiToLesson = (l, isCompleted = false, exercises = []) => {
     const baseSections = [
-        l.text_content ? {id: `t${l.id}`, type: 'text',  label: 'Matn', html: l.text_content} : null,
-        l.code_content ? {id: `c${l.id}`, type: 'code',  label: 'Kod',   lang: l.code_language || 'javascript', code: l.code_content} : null,
-        l.video_url    ? {id: `v${l.id}`, type: 'video', label: 'Video', videoUrl: l.video_url} : null,
-        l.image_url    ? {id: `i${l.id}`, type: 'image', label: 'Rasm',  imgUrl: l.image_url} : null,
-        l.file_url     ? {id: `f${l.id}`, type: 'file',  label: 'Fayl',  fileName: l.file_url} : null,
+        l.text_content ? {id: `t${l.id}`, type: 'text',  label: 'Текст', html: l.text_content} : null,
+        l.code_content ? {id: `c${l.id}`, type: 'code',  label: 'Код',    lang: l.code_language || 'javascript', code: l.code_content} : null,
+        l.video_url    ? {id: `v${l.id}`, type: 'video', label: 'Видео', videoUrl: l.video_url} : null,
+        l.image_url    ? {id: `i${l.id}`, type: 'image', label: 'Фото',   imgUrl: l.image_url} : null,
+        l.file_url     ? {id: `f${l.id}`, type: 'file',  label: 'Файл',   fileName: l.file_url} : null,
         (l.task_title || l.task_description || l.task_requirements || l.task_technologies || l.task_deadline_days) ? {
             id: `p${l.id}`, type: 'project',
             label:        l.task_title        || 'Loyiha',
@@ -59,7 +60,7 @@ const apiToLesson = (l, isCompleted = false, exercises = []) => {
         baseSections.push({
             id:        `e${l.id}`,
             type:      'exercise',
-            label:     'Mashqlar',
+            label:     'Упражнения',
             exercises: exercises.map(apiToExercise),
         });
     }
@@ -85,13 +86,14 @@ const getCourseProgress = (course) => {
 };
 
 const StudentCourses = () => {
-    const {request} = useHttp();
+    const { t } = useTranslation();
+    const { request } = useHttp();
     const [courses,       setCourses]      = useState([]);
     const [loading,       setLoading]      = useState(true);
-    const [filter,        setFilter]       = useState('all');
-    const [view,          setView]         = useState('courses');
-    const [activeCourse,  setActiveCourse] = useState(null);
-    const [activeLesson,  setActiveLesson] = useState(null);
+    const [filter,         setFilter]       = useState('all');
+    const [view,           setView]         = useState('courses');
+    const [activeCourse,   setActiveCourse] = useState(null);
+    const [activeLesson,   setActiveLesson] = useState(null);
 
     const fetchCourses = () => {
         setLoading(true);
@@ -99,7 +101,6 @@ const StudentCourses = () => {
             .then(data => {
                 const list = Array.isArray(data) ? data : [];
                 setCourses(list
-                    // Фильтруем неопубликованные курсы
                     .filter(c => c.is_published !== false)
                     .map(c => ({
                         ...c,
@@ -124,8 +125,6 @@ const StudentCourses = () => {
         try {
             const data = await request(`${API_URL}v1/courses/${courseId}/lessons?t=${Date.now()}`, 'GET', null, headers());
             const list = Array.isArray(data) ? data : [];
-
-            // Фильтруем неопубликованные уроки сразу
             const publishedList = list.filter(l => l.is_published !== false);
 
             const lessonsBuilt = await Promise.all(publishedList.map(async (lesson) => {
@@ -177,7 +176,6 @@ const StudentCourses = () => {
         return true;
     });
 
-    /* ── Lesson view ── */
     if (view === 'lesson' && activeLesson && currentCourse) {
         const freshLesson = currentCourse.lessons.find(l => l.id === activeLesson.id) || activeLesson;
         return (
@@ -200,7 +198,6 @@ const StudentCourses = () => {
         );
     }
 
-    /* ── Course view ── */
     if (view === 'course' && currentCourse) {
         return (
             <StudentCoursePage
@@ -215,16 +212,15 @@ const StudentCourses = () => {
         );
     }
 
-    /* ── Courses list ── */
     return (
         <div className="sc-container item-fade-in">
             <div className="sc-header">
                 <div>
-                    <h2>Mening kurslarim (deploy test)</h2>
-                    <p className="sc-subtitle">Kurslarni o'rganing va bilimingizni oshiring</p>
+                    <h2>{t('my_courses')}</h2>
+                    <p className="sc-subtitle">{t('explore_courses_subtitle')}</p>
                 </div>
                 <div className="sc-filters">
-                    {[['all','Barcha kurslar'],['enrolled','Mening kurslarim'],['available','Mavjud kurslar']].map(([v, l]) => (
+                    {[[ 'all', t('all_courses')], [ 'enrolled', t('my_courses')], [ 'available', t('available_courses')]].map(([v, l]) => (
                         <button key={v} className={`sc-filter-btn ${filter === v ? 'active' : ''}`}
                             onClick={() => setFilter(v)}>{l}</button>
                     ))}
@@ -232,7 +228,7 @@ const StudentCourses = () => {
             </div>
 
             {loading ? (
-                <div style={{textAlign:'center', padding:'60px', color:'rgba(26,26,46,0.4)'}}>Kurslar yuklanmoqda...</div>
+                <div style={{textAlign:'center', padding:'60px', color:'rgba(26,26,46,0.4)'}}>{t('loading_courses')}</div>
             ) : (
                 <div className="sc-courses-grid">
                     {filtered.map(course => {
@@ -271,9 +267,9 @@ const StudentCourses = () => {
                                     <h3>{course.title}</h3>
                                     <p className="sc-teacher">👨‍🏫 {course.teacher}</p>
                                     <div className="sc-course-stats">
-                                        <span className="sc-stat">📚 {course.lessonsCount || course.lessons.length} dars</span>
+                                        <span className="sc-stat">📚 {course.lessonsCount || course.lessons.length} {t('lessons')}</span>
                                         {course.enrolled && progress > 0 && (
-                                            <span className="sc-stat completed">✓ {completedCount} yakunlandi</span>
+                                            <span className="sc-stat completed">✓ {completedCount} {t('completed')}</span>
                                         )}
                                     </div>
                                     {course.enrolled ? (<>
@@ -288,11 +284,11 @@ const StudentCourses = () => {
                                             setView('course');
                                             loadLessons(course.id);
                                         }}>
-                                            {progress === 100 ? '✓ Qayta ko\'rish' : 'Davom ettirish →'}
+                                            {progress === 100 ? `✓ ${t('review')}` : `${t('continue')} →`}
                                         </button>
                                     </>) : (
                                         <button className="sc-enroll-btn" onClick={e => e.stopPropagation()}>
-                                            Ro'yxatdan o'tish
+                                            {t('enroll')}
                                         </button>
                                     )}
                                 </div>

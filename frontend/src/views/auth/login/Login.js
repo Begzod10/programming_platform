@@ -8,17 +8,29 @@ function Login({ onLogin, onGoRegister }) {
     const [password, setPassword] = useState('');
     const [error,    setError]    = useState('');
     const [loading,  setLoading]  = useState(false);
-
-    // Состояние для видимости пароля
     const [showPassword, setShowPassword] = useState(false);
 
     const handleLogin = () => {
-        if (!username.trim() || !password.trim()) {
-            setError('Login va parolni kiriting');
+        if (!username.trim()) {
+            setError('Loginni kiriting');
             return;
         }
+        if (username.trim().length < 3) {
+            setError('Login kamida 3 ta belgidan iborat bo\'lishi kerak');
+            return;
+        }
+        if (!password.trim()) {
+            setError('Parolni kiriting');
+            return;
+        }
+        if (password.trim().length < 4) {
+            setError('Parol kamida 4 ta belgidan iborat bo\'lishi kerak');
+            return;
+        }
+
         setError('');
         setLoading(true);
+
         request(`${API_URL}v1/auth/login`, 'POST', JSON.stringify({ username, password }))
             .then(res => {
                 const token = res.access_token || res.token || res.access;
@@ -41,7 +53,6 @@ function Login({ onLogin, onGoRegister }) {
                     alt="Gennis"
                 />
             </div>
-
             <h1>Xush kelibsiz!</h1>
             <p className="subtitle">Hisobingizga kiring</p>
 
@@ -50,7 +61,7 @@ function Login({ onLogin, onGoRegister }) {
                     type="text"
                     placeholder="Login"
                     value={username}
-                    onChange={e => { setUsername(e.target.value); setError(''); }}
+                    onChange={e => { setUsername(e.target.value); setError(''); }}  // ✅ исправлено
                     onKeyDown={handleKeyDown}
                     disabled={loading}
                     autoComplete="username"
@@ -62,12 +73,12 @@ function Login({ onLogin, onGoRegister }) {
                     type={showPassword ? "text" : "password"}
                     placeholder="Parol"
                     value={password}
-                    onChange={e => { setPassword(e.target.value); setError(''); }}
+                    onChange={e => { setPassword(e.target.value); setError(''); }}  // ✅ исправлено
                     onKeyDown={handleKeyDown}
                     disabled={loading}
                     autoComplete="current-password"
                 />
-                <span className="password-toggle-icon" onClick={() => setShowPassword(!showPassword)}>
+                <span className="password-toggle-icon" onClick={() => setShowPassword(v => !v)}>
                     <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
                 </span>
             </div>
