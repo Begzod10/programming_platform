@@ -1,0 +1,37 @@
+# Klinika uchun Telegram Bot
+
+Ushbu reja klinika mijozlariga xizmat ko'rsatish uchun mo'ljallangan Telegram botni yaratishni o'z ichiga oladi.
+
+## User Review Required
+
+> [!IMPORTANT]
+> Botni ishga tushirish uchun sizdan quyidagi tanlovlarni tasdiqlashingiz va ba'zi ma'lumotlarni berishingiz kerak:
+> 1. Dasturlash tili: **Python** (aiogram kutubxonasi bilan) yoki **Node.js** (telegraf yoki node-telegram-bot-api). Qaysi birini afzal ko'rasiz?
+> 2. Botning asosiy menyusida nimalar bo'lishi kerak? (Masalan: Xizmatlar, Qabulga yozilish, Manzil, Biz haqimizda).
+> 3. Bot Token. (BotFather dan olingan maxfiy token kerak bo'ladi, buni keyinroq kiritasiz).
+
+## Proposed Changes
+
+Loyihani tashkil qilish uchun quyidagi struktura taklif etiladi (Node.js misolida):
+
+### Loyiha strukturasi
+- `package.json` / `requirements.txt` - Kutubxonalar ro'yxati
+- `bot.js` / `bot.py` - Botning asosiy ishga tushiruvchi fayli
+- `keyboards` - Tugmalar (menyular) joylashgan qism
+- `handlers` - Xabarlar va buyruqlarni qayta ishlovchi qism
+
+#### [NEW] Loyiha papkasi yaratiladi
+Dastlabki kerakli muhit sozlanadi (qaysi til tanlanishiga qarab). Siz aytgan papkada kod yoziladi.
+
+## Open Questions
+
+> [!WARNING]  
+> 1. Qabulga yozilish jarayoni qanday bo'ladi? (Mijoz o'z ismini, telefon raqamini jo'natadimi va u adminlarga yoki guruhga xabar shaklida boradimi?)
+> 2. Ma'lumotlar bazasi kerakmi (masalan, SQLite/PostgreSQL) yoki shunchaki buyurtmalarni Telegram guruhga jo'natsa yetarlimi? Yorqin dizayn kerak emasmi bu yerda (bu faqat bot)?
+> 3. Ishni bajaradigan papka sifatida yangi bitta papka (Masalan `C:\Users\sunna\.antigravity\clinic_bot`) ochaylikmi?
+
+## Verification Plan
+
+### Manual Verification
+- Botga `/start` buyrug'i beriladi va menyular to'liq ishlashi tekshiriladi.
+- Qabulga yozilish orqali tugmalarni bosib ko'rish va adminga xabar yetib borishi tekshiriladi.

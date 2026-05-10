@@ -1,0 +1,29 @@
+# 5 Innovatsion Funksiya: Amalga oshirish bosqichlari
+
+## 📢 1-qism: Marketing (Broadcast) [x]
+- [x] Admin paneliga "Xabar tarqatish" tugmasini qo'shish
+- [x] `BroadcastState` holatini yaratish
+- [x] Matn va Rasm tarqatish mantig'ini yozish (FloodLimit himoyasi bilan)
+
+## 🧾 2-qism: PDF va Excel Hisobotlar [x]
+- [x] Kerakli kutubxonalarni o'rnatish (`reportlab`, `pandas`, `openpyxl`)
+- [x] Hisobot generatsiya qiluvchi utilitani yaratish
+- [x] Shifokor va Admin panellariga "Hisobot yuklash" tugmasini qo'shish
+
+## 📝 3-qism: Tashriflar Tarixi [x]
+- [x] `Appointment` modeliga `conclusion` va `prescription` ustunlarini qo'shish
+- [x] Qabulni yakunlashda xulosa yozish darchasini yaratish
+- [x] Bemor menyusiga "Mening tashriflarim" bo'limini qo'shish
+
+## 📈 4-qism: Admin Analitikasi [x]
+- [x] Admin panelida "Statistika" bo'limini yaratish
+- [x] Eng yuqori daromadli shifokorlar va oylik tushum algoritmini yozish
+
+## 🗺 5-qism: Smart-Location [x]
+- [x] `geopy` kutubxonasini o'rnatish
+- [x] Bemor lokatsiya yuborganda eng yaqin filialni km da hisoblab berish
+
+## 💎 6-qism: Premium Funksiyalar (V2) [x]
+- [x] **AI Tavsiya (Mockup)**: Bemor simptomlari uchun aqlli tavsiya tizimi.
+- [x] **Grafik Statistika**: Admin panel uchun daromad grafiklari (Matplotlib).
+- [x] **Waitlist (Navbat)**: Bo'shagan vaqtlar haqida avtomatik xabar berish.

@@ -1,0 +1,12 @@
+# NanoMed TMA Browser Task
+
+## Tasks
+- [ ] Open http://localhost:5173/
+- [ ] Verify backend connectivity (data in Booking/Dashboard)
+- [ ] Navigate to Doctor Profile and capture screenshot
+- [ ] Navigate to Service Selection and capture screenshot
+- [ ] Check Dashboard section
+- [ ] Report findings
+
+## Findings
+- (Empty)

@@ -1,0 +1,93 @@
+[0] (500,500)<div  />
+	Gennis IT Platform
+	[1] (71,121)<div  />
+		[2] (30,121)<span >👤 />
+		[3] (50,121)<span >Profil />
+	[4] (71,175)<div  />
+		[5] (30,175)<span >💻 />
+		[6] (73,175)<span >Mening loyihalarim />
+	[7] (71,229)<div  />
+		[8] (30,229)<span >📚 />
+		[9] (53,229)<span >Kurslar />
+	[10] (71,283)<div  />
+		[11] (30,283)<span >🏆 />
+		[12] (54,283)<span >Reyting />
+	[13] (71,337)<div  />
+		[14] (30,337)<span >🎓 />
+		[15] (61,337)<span >Sertifikatlar />
+	[16] (71,951)<button class='logout-btn-side'>Chiqish
+🚪 />
+	Xush kelibsiz!
+	Begzod
+	!
+	⭐
+	0
+	Ballar
+	🏆
+	#2
+	Mening o'rnim
+	📁
+	0
+	Mening loyihalarim
+	Мои Сертификаты
+	Получено
+	0
+	из
+	4
+	сертификатов
+	🔒
+	sobirovshohsdsadasdsa
+	Tabriklaymiz! Siz 'sobirov' kursini muvaffaqiyatli yakunladingiz va sertifikatga ega bo'ldingiz.
+	+
+	100
+	pts
+	Прогресс:
+	0
+	/
+	1
+	0
+	%
+	0
+	% выполнено
+	🔒
+	fsdfsf
+	Tabriklaymiz! Siz 'fsdfsf' kursini muvaffaqiyatli yakunladingiz va sertifikatga ega bo'ldingiz.
+	+
+	100
+	pts
+	Прогресс:
+	0
+	/
+	1
+	0
+	%
+	0
+	% выполнено
+	🔒
+	fsdfsf
+	Tabriklaymiz! Siz 'fsdfsf' kursini muvaffaqiyatli yakunladingiz va sertifikatga ega bo'ldingiz.
+	+
+	100
+	pts
+	Прогресс:
+	0
+	/
+	1
+	0
+	%
+	0
+	% выполнено
+	🔒
+	dfgdgd
+	Tabriklaymiz! Siz 'dfgdgd' kursini muvaffaqiyatli yakunladingiz va sertifikatga ega bo'ldingiz.
+	+
+	100
+	pts
+	Прогресс:
+	0
+	/
+	1
+	0
+	%
+	0
+	% выполнено

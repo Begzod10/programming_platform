@@ -1,0 +1,11 @@
+# Task List: Bot & Mini App Connectivity
+
+- [ ] 1. Backend Serverni sozlash (FastAPI)
+    - [ ] `fastapi` va `uvicorn` o'rnatish
+    - [ ] `tma_server.py` yaratish (API endpointlari bilan)
+- [x] 2. Bot interfeysini yangilash
+    - [x] `keyboards/patient_kb.py` ga Mini App tugmasini qo'shish
+- [x] 3. Front-end API ulanishi
+    - [x] `frontend/src/utils/api.js` - Axios sozlamalari
+    - [x] `frontend/src/App.jsx` - Real API ma'lumotlarini olish va yuborish logikasi
+- [x] 4. Yakuniy tekshiruv (End-to-end test)

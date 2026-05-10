@@ -1,0 +1,41 @@
+# Telegram WebApp va Eslatmalar tizimi rejasi
+
+Ushbu reja shifokorlar uchun interaktiv WebApp kalendar yaratish va mavjud eslatmalar tizimini yanada barqaror qilishni o'z ichiga oladi.
+
+## Proposed Changes
+
+### 1. 🌐 Doctor WebApp (Kalendar)
+- **Backend (API)**: `web_server.py` fayli yaratiladi (FastAPI ishlatish tavsiya etiladi). U quyidagi endpointlarga ega bo'ladi:
+  - `GET /api/schedule/{doctor_id}`: Shifokorning joriy haftadagi vaqtlarini olish.
+  - `POST /api/schedule/update`: Vaqtlarni qo'shish yoki o'chirish.
+- **Frontend (UI)**: `web/` papkasida premium dizayndagi interfeys yaratiladi:
+  - **Dizayn**: Dark mode, Glassmorphism effektlari, silliq animatsiyalar.
+  - **Funksiya**: Shifokor kalendarda bo'sh vaqtlarini bosish orqali band qila oladi yoki bo'shata oladi.
+- **Bot Integratsiyasi**: Shifokor profiliga yangi "📅 Kalendar (WebApp)" tugmasi qo'shiladi.
+
+### 2. ⏰ Eslatmalar tizimini tekshirish
+- **Poliş**: `utils/scheduler.py` dagi mantiqni qayta tekshirib, foydalanuvchi so'ragan "1 kun va 2 soat" intervallarini yanada aniqroq sozlash.
+- **Xabarlar**: Eslatma xabarlarini yanada chiroyli va tushunarli qilish.
+
+### 3. 🚀 Main Integratsiya
+- `main.py` fayli `aiogram` va `fastapi`ni parallel ravishda ishga tushiradigan qilinadi (asyncio gather yordamida).
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]  
+> WebApp ishlashi uchun serverda ochiq port (masalan 8000) bo'lishi kerak. Mahalliy kompyuterda sinash uchun `ngrok` yoki shunga o'xshash tunnel kerak bo'lishi mumkin (Telegram WebApp faqat HTTPS manzillarni qabul qiladi).
+
+> [!NOTE]  
+> FastAPI o'rnatilmagan bo'lsa, uni `pip install fastapi uvicorn` orqali o'rnatish kerak bo'ladi.
+
+## Verification Plan
+
+### Automated Tests
+- API endpointlarni `curl` yoki `Postman` orqali tekshirish.
+
+### Manual Verification
+1. Shifokor sifatida botga kirib, "Kalendar" tugmasini bosish.
+2. Ochilgan WebApp interfeysida yangi vaqtlarni belgilash.
+3. Baza (`nanomed.db`) bilan sinxronizatsiyani tekshirish.

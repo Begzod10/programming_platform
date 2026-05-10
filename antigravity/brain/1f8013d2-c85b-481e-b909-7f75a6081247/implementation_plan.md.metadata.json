@@ -1,0 +1,6 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_IMPLEMENTATION_PLAN",
+  "summary":  "Plan to automate Gennis token retrieval and student synchronization for teachers.\nIncludes:\n1. Updating Student model to store Gennis token and additional profile fields (phone, balance).\n2. Creating GennisService for automated login and data fetching.\n3. Integrating Gennis login into the local auth flow.\n4. Implementing the sync logic in the classroom endpoint.",
+  "updatedAt":  "2026-04-27T17:30:59.696910900Z",
+  "requestFeedback":  true
+}

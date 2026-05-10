@@ -1,0 +1,8 @@
+- [ ] Update `Student` model with Gennis-specific fields (phone, balance, surname, gennis_token)
+- [ ] Update `Group` model with `price` and `gennis_id`
+- [ ] Create `GennisService` for API interaction
+- [ ] Implement `GennisService.login` and verify with provided credentials
+- [ ] Implement `GennisService.sync_teacher_data`
+- [ ] Integrate Gennis login into `auth_service.py`
+- [ ] Update `sync_classroom` endpoint in `classroom.py`
+- [ ] Verify frontend displays synced data

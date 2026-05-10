@@ -1,0 +1,18 @@
+# Task List: NanoMed TMA Premium Upgrades
+
+- [ ] 1. Ma'lumotlar bazasi modellarini kengaytirish
+    - [ ] `DoctorProfile` modeliga bio va rasm ustunlarini qo'shish
+    - [ ] `Service` modeliga tavsif qo'shish
+- [ ] 2. Backend API (TMA Bridge) yangilash
+    - [ ] `get_doctor_full_info` endpointini yaratish
+    - [ ] `get_patient_dashboard` (qabullar va navbat uchun)
+    - [ ] Navbatni (Queue) hisoblash logikasini yozish
+- [ ] 3. Frontend: Navigatsiya va Dashboard
+    - [ ] `Navbar.jsx` - Bottom navigation yaratish
+    - [ ] `Dashboard.jsx` - Foydallanuvchi asosiy ekrani (qabullar va tahlillar)
+- [ ] 4. Frontend: Shifokor profili va Xizmatlar
+    - [ ] `DoctorCard.jsx` - Reyting va tajriba bilan
+    - [ ] `ServiceSelector.jsx` - Narxlar bilan xizmat tanlash
+- [ ] 5. Frontend: Jonli Navbat (Live Queue)
+    - [ ] `QueueTracker.jsx` - Visual progress bar komponenti
+- [ ] 6. Yakuniy tekshiruv va Walkthrough

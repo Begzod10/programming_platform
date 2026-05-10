@@ -1,0 +1,68 @@
+# Nanomed Telegram Bot - Texnik Loyiha (Implementation Plan)
+
+Ushbu plan sizning bergan texnik topshirig'ingiz asosida Nanomed klinikasi uchun tuzildi. Bot asosan bemorlar va shifokorlar uchun ikkiga bo'linadi.
+
+## 🛠 Texnologiyalar
+* **Dasturlash tili**: Python 3
+* **Kutubxona**: Aiogram 3.x (Eng so'nggi zamonaviy versiyasi)
+* **Ma'lumotlar bazasi**: PostgreSQL
+* **ORM**: SQLAlchemy (Baza bilan ishlash uchun qulay usul)
+* **Ko'p tillilik (i18n)**: UZ va RU tillarini qo'llab-quvvatlash uchun alohida lug'at tizimi.
+
+---
+
+## 👥 Foydalanuvchilar va rollar
+
+### 1. Bemor (Mijoz)
+* **Til tanlash**: `/start` da O'zbek yoki Rus tilini tanlash. (Menyudan tahrirlash imkoniyati).
+* **Asosiy qism**:
+    * **Lokatsiya yuborish / Filiallar**: Klinikaning qaysi filiali yoki qaysi joylashuv qulayligiga qarab doktorlarni ko'rish.
+    * **Doktorlarni izlash**: Filial ichidagi doktorlar ro'yxati, ularning mutaxassisligi (sohasi) va reytingi.
+    * **Mening doktorlarim**: Yoqqan doktorlarni `+` qilib "Saqlanganlar" (favorites) ro'yxatiga qo'shish.
+    * **Doktor baholash**: Qabuldan so'ng, yoki profilga kirganda 1-5 gacha baho va izoh (komment) qoldirish.
+* **Qabulga yozilish jarayoni**:
+    1. Doktor tanlanadi.
+    2. 1 haftalik jadvaldan **Sana** tanlanadi.
+    3. Doktor kiritgan bo'sh **Vaqt** tanlanadi (band bo'lsa xabar beriladi yoki tugma chiqmaydi).
+    4. **Xizmat turi / Lichenya** va ularning narxi tanlanadi.
+    5. So'rov doktorga yuboriladi va uning tasdig'i yoki bekor qilinishi kutiladi.
+
+### 2. Shifokor
+* **Login/Registratsiya**: Maxsus tasdiq kodi yoki admin orqali doktor botdan ro'yxatdan o'tadi. Uning roli botda shifokor bo'ladi.
+* **Sozlamalar (Settings)**: Ish jadvalini (qaysi kun, qaysi vaqtda ishlashi) kiritishi va boshqarishi. Qabul turlari narxini kiritish (yoki ro'yxatdan tanlash).
+* **Qabul tasdig'i**: Mijoz qabulga yozilgach doktorga bildirishnoma boradi.
+    * `[Tasdiqlash]` tugmasi -> Mijozga "Tasdiqlandi" xabari boradi.
+    * `[Rad etish]` tugmasi -> Bot doktordan sababini so'raydi. Sabab kiritilgach mijozga "Rad etildi: (sabab)" shaklida xabar boradi.
+
+---
+
+## 🗄 Ma'lumotlar Bazasi (PostgreSQL) Qurilmasi
+Bazadagi jadvallar (Tables):
+1. **Users** (Foydalanuvchilar: user_id, til, role [patient, doctor], ism_familiya)
+2. **Branches** (Klinika filiallari)
+3. **Doctors** (Doktorlar profil: user_id, filial_id, reyting, mutaxassislik)
+4. **FavoriteDoctors** (Mijoz saqlagan doktorlar)
+5. **Services** (Lichenya/xizmat turlari va narxlari)
+6. **Schedules(Jadval)** (Doktor ish vaqtlari, bandligi, qaysi sana/vaqt)
+7. **Appointments** (Qabullar: mijoz, doktor, sana, vaqt, xizmat_turi, status [kutilmoqda, tasdiqlandi, rad_etildi])
+8. **Reviews** (Izohlar va 1-5 baholar)
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]
+> Loyihani boshlashdan oldin quyidagilarni tasdiqlang:
+> 1. **Fayl strukturasi**: Ushbu proyekt uchun yangi papska ochib (`Nanomed_Bot`), o'sha papka ichida Python muhitini sozlaysizmi? Men barcha kodni o'sha yerda yozaman.
+> 2. **PostgreSQL**: Kompyuteringizda PostgreSQL (pgAdmin4 orqali) o'rnatilgan deb aytdingiz. Men Python fayllar ichida bazani avtomat yaratadigan kod (`db_init.py`) beraman. Buning uchun menga kompyuteringizdagi Postgres parolini berishingiz yoki men `db_url` sozlamasini ochiq qoldiraman, o'zingiz kirgazasizmi? (Masalan `postgresql://postgres:PAROL@localhost:5432/nanomed`)
+
+## Open Questions
+
+> [!WARNING]  
+> - Doktor "Login/Registratsiya" qilib qanday kiradi? Har kim "Men doktorman" deb kirolmaydi-ku. Dastlabki 1-2 ta doktorni to'g'ridan to'g'ri bazaga kiritib qo'yamizmi yoki maxsus, masalan `123123` pin-kod tergan odam doktor bo'lib ruyxatdan o'tadimi?
+> - Hozir bularni yozish xanjmi katta loyiha ekan, ishlarni ketma-ketlikda papkalarda tartibli yozishni boshlashimga ijozat berasizmi?
+
+## Verification Plan
+1. `models.py` yaratilib baza PostgreSQL serverida shakllantiriladi.
+2. Botning `/start` qismi va tillarni tanlash mantiqi tekshiriladi.
+3. Doktor va Mijoz rolining mantiqi oxiriga qadar kiritilib, qabul jarayonlari test qilinadi.

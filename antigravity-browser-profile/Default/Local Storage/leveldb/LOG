@@ -1,0 +1,9 @@
+2026/04/30-23:59:58.143 b88 Reusing MANIFEST C:\Users\sunna\.gemini\antigravity-browser-profile\Default\Local Storage\leveldb/MANIFEST-000001
+2026/04/30-23:59:58.149 b88 Recovering log #3
+2026/04/30-23:59:58.153 b88 Reusing old log C:\Users\sunna\.gemini\antigravity-browser-profile\Default\Local Storage\leveldb/000003.log 
+2026/05/01-00:08:58.644 b88 Level-0 table #5: started
+2026/05/01-00:08:58.652 b88 Level-0 table #5: 39114 bytes OK
+2026/05/01-00:08:58.656 b88 Delete type=0 #3
+2026/05/01-00:10:43.568 4a54 Level-0 table #7: started
+2026/05/01-00:10:43.575 4a54 Level-0 table #7: 16880 bytes OK
+2026/05/01-00:10:43.578 4a54 Delete type=0 #4

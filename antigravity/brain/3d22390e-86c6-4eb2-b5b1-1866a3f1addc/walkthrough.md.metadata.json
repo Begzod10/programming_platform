@@ -1,0 +1,5 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_WALKTHROUGH",
+  "summary":  "Walkthrough of student Gennis integration.\n1. Implemented student-specific synchronization in GennisService.\n2. Refactored GennisService to use reusable helper methods for groups and students.\n3. Overhauled the login flow in auth_service.py to prioritize Gennis authentication.\n4. Added automatic user creation and ranking initialization for new Gennis students.",
+  "updatedAt":  "2026-04-28T13:47:29.997790900Z"
+}

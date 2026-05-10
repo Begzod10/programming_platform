@@ -1,0 +1,4 @@
+- [x] Update `GennisService` with `sync_student_data` method
+- [x] Update `auth_service.py` login logic to try Gennis first
+- [x] Implement user auto-creation/update in `auth_service.py`
+- [x] Verify the integration with a mock test or explanation

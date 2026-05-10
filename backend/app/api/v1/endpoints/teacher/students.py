@@ -19,7 +19,7 @@ async def get_all_students(
         db: AsyncSession = Depends(get_db)
 ):
     service = StudentService(db)
-    return await service.get_all_students(skip, limit, search)
+    return await service.get_students_by_teacher(current_teacher.id, skip, limit, search)
 
 
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)

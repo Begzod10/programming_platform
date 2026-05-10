@@ -1,0 +1,26 @@
+# AI Review Fix and Verification
+
+The AI Review functionality was partially broken due to a truncated `grok_service.py` file in the previous session. This plan aims to restore the missing logic and verify if the AI review is working as expected.
+
+## User Review Required
+
+> [!IMPORTANT]
+> The `GROK_API_KEY` is currently empty in `config.py` and no `.env` file was found in the backend directory. AI reviews will fail with a "401 Unauthorized" error unless a valid API key is provided.
+
+## Proposed Changes
+
+### [Backend]
+
+#### [MODIFY] [grok_service.py](file:///c:/Users/sunna/.gemini/backend/app/services/grok_service.py)
+- Restore the `analyze_project_with_grok` function implementation, including the `httpx` call and JSON parsing logic.
+- Add robust error handling and JSON extraction from the AI response.
+
+#### [MODIFY] [ai_review.py](file:///c:/Users/sunna/.gemini/backend/app/api/v1/endpoints/ai_review.py)
+- (Already fixed imports, but will double-check for any remaining issues).
+
+## Verification Plan
+
+### Manual Verification
+1.  **Test Script**: Create a scratch script to call `analyze_project_with_grok` with dummy data to see if it makes the request and handles the response correctly.
+2.  **API Verification**: Use `curl` or a test script to trigger the `{project_id}/ai-review` endpoint if a test project exists.
+3.  **Logs**: Monitor backend logs for any `httpx` errors or JSON parsing failures.

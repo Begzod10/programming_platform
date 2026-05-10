@@ -1,0 +1,70 @@
+<current_dom_explanation>
+This is a temporary snapshot of the current page's DOM structure. The DOM will change if you navigate to or interact with another page. Use a tool like browser_get_dom to capture and preserve the DOM in your trajectory if needed for later reference.
+</current_dom_explanation>
+<current_dom>
+[0] (485,537)<div  />
+	NanoMed TMA API
+	0.1.0
+	OAS
+	3.1
+	[1] (127,216)<a class='link' href='/openapi.json' />
+		[2] (127,216)<span >/openapi.json />
+	[3] (485,334)<h3  />
+		[4] (155,333)<a class='nostyle' href='#/default' />
+			[5] (155,332)<span >default />
+		[6] (842,333)<button class='expand-operation' title='Collapse operation' />
+	[7] (485,406)<div  />
+		[8] (453,406)<button class='opblock-summary-control' />
+			[9] (148,406)<span >GET />
+			[10] (533,406)<div  />
+				[11] (406,395)<span  />
+					[12] (406,395)<a class='nostyle' href='#/default/doctor_info_api_doctors__doctor_id__get' />
+						[13] (406,395)<span >/api
+/doctors
+/{doctor_id} />
+				[14] (312,416)<div >Doctor Info />
+		[15] (870,406)<button aria-label='get ​/api​/doctors​/{doctor_id}' class='opblock-control-arrow' />
+	[16] (485,485)<div  />
+		[17] (453,485)<button class='opblock-summary-control' />
+			[18] (148,485)<span >GET />
+			[19] (533,485)<div  />
+				[20] (433,475)<span  />
+					[21] (433,475)<a class='nostyle' href='#/default/dashboard_api_dashboard__telegram_id__get' />
+						[22] (433,475)<span >/api
+/dashboard
+/{telegram_id} />
+				[23] (312,495)<div >Dashboard />
+		[24] (870,485)<button aria-label='get ​/api​/dashboard​/{telegram_id}' class='opblock-control-arrow' />
+	[25] (485,565)<div  />
+		[26] (453,565)<button class='opblock-summary-control' />
+			[27] (148,565)<span >POST />
+			[28] (533,565)<div  />
+				[29] (307,554)<span  />
+					[30] (307,554)<a class='nostyle' href='#/default/book_appointment_api_book_post' />
+						[31] (307,554)<span >/api
+/book />
+				[32] (354,575)<div >Book Appointment />
+		[33] (870,565)<button aria-label='post ​/api​/book' class='opblock-control-arrow' />
+	[34] (485,692)<h4  />
+		[35] (475,687)<button class='models-control' />
+			[36] (455,687)<span >Schemas />
+	[37] (289,784)<button class='json-schema-2020-12-accordion' />
+		[38] (265,784)<div  />
+			[39] (265,784)<div >BookingRequest />
+		[40] (410,784)<span  />
+	[41] (502,787)<button class='json-schema-2020-12-expand-deep-button'>Expand all />
+	object
+	[42] (318,875)<button class='json-schema-2020-12-accordion' />
+		[43] (294,875)<div  />
+			[44] (294,875)<div >HTTPValidationError />
+		[45] (469,876)<span  />
+	[46] (561,878)<button class='json-schema-2020-12-expand-deep-button'>Expand all />
+	object
+	[47] (277,960)<button class='json-schema-2020-12-accordion' />
+		[48] (253,960)<div  />
+			[49] (253,959)<div >ValidationError />
+		[50] (385,960)<span  />
+	[51] (477,962)<button class='json-schema-2020-12-expand-deep-button'>Expand all />
+	object
+
+</current_dom>

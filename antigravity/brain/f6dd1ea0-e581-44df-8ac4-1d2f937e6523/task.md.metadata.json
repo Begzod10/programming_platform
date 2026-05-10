@@ -1,0 +1,5 @@
+{
+  "artifactType":  "ARTIFACT_TYPE_TASK",
+  "summary":  "Filtering students by teacher.\n- Update StudentService with get_students_by_teacher method.\n- Update teacher students API endpoint.",
+  "updatedAt":  "2026-05-06T11:55:36.110495800Z"
+}

@@ -1,0 +1,37 @@
+# Eslatmalar (Notifications) Tizimi
+
+Bemorlar o'z qabullarini unutib qo'ymasliklari uchun, bot ularga qabuldan ma'lum vaqt oldin (masalan, 2 soat oldin) avtomatik ravishda eslatma yuboradi.
+
+## Proposed Changes
+
+### 1. Ma'lumotlar Bazasi (Database)
+#### [MODIFY] [models.py](file:///C:/Users/sunna/.antigravity/Nanomed/database/models.py)
+- `Appointment` modeliga `is_reminded_2h: Mapped[bool] = mapped_column(Boolean, default=False)` ustuni qo'shiladi. Bu bemorga 2 marta eslatma bormasligini ta'minlaydi.
+
+### 2. Yangi Kutubxona (Dependency)
+#### [MODIFY] [requirements.txt](file:///C:/Users/sunna/.antigravity/Nanomed/requirements.txt)
+- `apscheduler` kutubxonasi qo'shiladi.
+
+### 3. Eslatma Utilitasi (Scheduler Utility)
+#### [NEW] [scheduler.py](file:///C:/Users/sunna/.antigravity/Nanomed/utils/scheduler.py)
+- `AsyncIOScheduler` yordamida har 10-15 minutda ishlaydigan fon topshirig'i yaratiladi.
+- Bu topshiriq bazadan yaqin 2 soat ichida (va hali eslatma yuborilmagan) tasdiqlangan qabullarni qidiradi.
+- Topilgan bemorlarga o'z tillarida (UZ/RU) "Sizning qabulungizga 2 soat qoldi" mazmunidagi xabarni yuboradi.
+
+### 4. Botga Integratsiya
+#### [MODIFY] [main.py](file:///C:/Users/sunna/.antigravity/Nanomed/main.py)
+- Bot ishga tushganda scheduler ham ishga tushiriladi (`scheduler.start()`).
+
+---
+
+## User Review Required
+
+> [!IMPORTANT]  
+> Eslatmani qancha vaqt oldin yuborganimiz ma'qul deb o'ylaysiz? Hozircha **2 soat oldin** deb rejalashtiryapman. Agar boshqa vaqt (masalan, 1 kun oldin yoki 1 soat oldin) kerak bo'lsa, ayting.
+
+## Verification Plan
+
+### Manual Verification
+1. `appointments` jadvaliga bugungi vaqtga +2 soat bo'lgan test qabulni kiritish.
+2. Schedulerni ishga tushirish.
+3. Botdan bemorga xabar kelishini va bazada `is_reminded_2h` bayrog'i `True` bo'lishini tekshirish.

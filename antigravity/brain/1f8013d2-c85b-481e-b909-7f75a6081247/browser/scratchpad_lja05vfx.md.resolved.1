@@ -1,0 +1,29 @@
+# Gennis API Investigation Scratchpad
+
+## Tasks:
+- [x] Go to 'Groups' or 'My Groups' page (e.g., `https://admin.gennis.uz/platform/myGroups/6`).
+- [ ] Capture network requests to identify API endpoints.
+- [ ] Identify the endpoint for:
+    - [ ] Login (infer from context or previous steps if possible).
+    - [ ] Get Groups.
+    - [ ] Get Students in a group.
+- [ ] Find the 'Authorization' header value and format.
+- [ ] Determine the API base URL.
+
+## Findings:
+- Current URL: `https://admin.gennis.uz/platform/myGroups/6`
+- Groups found:
+    - Spsh14:00 (ID 458)
+    - Spsh16:00 (ID 506)
+    - Dchj16:00 (ID 610)
+    - Dchj10:00 (ID 757)
+- Teacher ID: 6
+- Students in Group 458:
+    - Bexruz Zakirov (498984)
+    - Shoxruz Mirxamidov (274609)
+    - Shoxjaxon Abdurasulo (229609)
+    - Miraziz Mirfayziye (324763)
+    - Javohir Xalbayev (-186908)
+    - Samir Sharipov (-151669)
+- JWT Token found in console logs.
+- Login Response: `{access_token: "...", class: false, data: Object, ...} login`

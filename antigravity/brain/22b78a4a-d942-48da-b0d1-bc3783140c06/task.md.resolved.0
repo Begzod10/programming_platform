@@ -1,0 +1,20 @@
+# Nanomed Telegram Bot - Task List
+
+- [/] 1-qadam: Loyiha strukturasini yaratish
+    - [ ] `Nanomed` papkasi
+    - [ ] `requirements.txt`
+- [ ] 2-qadam: Ma'lumotlar bazasini ulanishi va modellar (SQLAlchemy + PostgreSQL)
+    - [ ] `database.py` (ulanadigan qism, paroli bilan kiritilgan)
+    - [ ] `models.py` (Users, Doctors, Branches, Appointments, vs.)
+- [ ] 3-qadam: Bot konfiguratsiya va asosiy ishga tushirish qismi
+    - [ ] `config.py`
+    - [ ] `bot.py`
+- [ ] 4-qadam: Lokallar (Til tanlovi va xabarlar)
+    - [ ] `locales.py` yoki shunga o'xshash lug'at tizimi
+- [ ] 5-qadam: Holatlar (FSM States) va Keyboardlar (Tugmalar)
+    - [ ] Bemor state va tugmalari
+    - [ ] Shifokor state va tugmalari
+- [ ] 6-qadam: Handlers (Xabarlarni qayta ishlovchi komponentlar)
+    - [ ] Bemor mantiqi (til, lokatsiya, doktorlar, jadwal)
+    - [ ] Shifokor mantiqi (registratsiya, jadwal, qabulni tasdiqlash)
+- [ ] 7-qadam: Bazani yig'ish va ishga tushirish (Test qismi)

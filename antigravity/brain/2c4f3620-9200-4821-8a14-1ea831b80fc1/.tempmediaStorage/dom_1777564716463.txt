@@ -1,0 +1,11 @@
+[0] (500,500)<div  />
+	Xush kelibsiz!
+	Hisobingizga kiring
+	[1] (500,483)<input placeholder='Login' />
+	[2] (500,549)<input placeholder='Parol' />
+	[3] (585,548)<span  />
+		[4] (585,548)<i  />
+	[5] (500,629)<button class='login-btn'>Kirish />
+	yoki
+	[6] (500,730)<div >Hisobingiz yo'qmi? />
+		[7] (535,730)<span >Ro'yxatdan o'tish />

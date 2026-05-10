@@ -1,0 +1,34 @@
+<current_dom_explanation>
+This is a temporary snapshot of the current page's DOM structure. The DOM will change if you navigate to or interact with another page. Use a tool like browser_get_dom to capture and preserve the DOM in your trajectory if needed for later reference.
+</current_dom_explanation>
+<current_dom>
+[0] (500,500)<div  />
+	Gennis IT Platform
+	[1] (71,121)<div  />
+		[2] (30,121)<span >👤 />
+		[3] (50,121)<span >Profil />
+	[4] (71,175)<div  />
+		[5] (30,175)<span >💻 />
+		[6] (73,175)<span >Mening loyihalarim />
+	[7] (71,229)<div  />
+		[8] (30,229)<span >📚 />
+		[9] (54,229)<span >Kurslar />
+	[10] (71,283)<div  />
+		[11] (30,283)<span >🏆 />
+		[12] (54,283)<span >Reyting />
+	[13] (71,337)<div  />
+		[14] (30,337)<span >🎓 />
+		[15] (61,337)<span >Sertifikatlar />
+	[16] (71,951)<button class='logout-btn-side'>Chiqish
+🚪 />
+	Xush kelibsiz!
+	Begzod
+	!
+	Mening kurslarim
+	Kurslarni o'rganing va bilimingizni oshiring
+	[17] (786,162)<button class='sc-filter-btn active'>Barcha kurslar />
+	[18] (861,162)<button class='sc-filter-btn '>Mening kurslarim />
+	[19] (937,162)<button class='sc-filter-btn '>Mavjud kurslar />
+	Kurslar yuklanmoqda...
+
+</current_dom>
