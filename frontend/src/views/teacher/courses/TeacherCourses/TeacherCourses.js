@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import './TeacherCourses.css';
-import LessonModal from '../LessonModal/LessonModal';
+import LessonEditorPage from '../LessonEditor/LessonEditor'; // ← новый импорт
 import CourseDetailPage from '../CourseModal/CourseModal';
 import LessonPage from '../LessonPage/LessonPage';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
@@ -50,26 +50,43 @@ const exerciseToApi = (ex) => ({
     hint: ex.hint || null, explanation: ex.explanation || null,
     difficulty_level: ex.difficulty_level || 'Easy', points: ex.points || 10, order: ex.order || 0,
 });
-const apiToLesson = (l) => ({
-    id: l.id, title: l.title, chapter: l.chapter || '', image: l.image_url || '',
-    completed: false, order: l.order || 0, is_published: l.is_published || false,
-    sections: [
-        l.text_content ? { id: `t${l.id}`, type: 'text',  label: 'Текст', html: l.text_content } : null,
-        l.code_content ? { id: `c${l.id}`, type: 'code',  label: 'Код',   lang: l.code_language || 'javascript', code: l.code_content } : null,
-        l.video_url    ? { id: `v${l.id}`, type: 'video', label: 'Видео', videoUrl: l.video_url } : null,
-        l.image_url    ? { id: `i${l.id}`, type: 'image', label: 'Фото',  imgUrl: l.image_url } : null,
-        l.file_url     ? { id: `f${l.id}`, type: 'file',  label: 'Файл',  fileName: l.file_url } : null,
-        l.mashq_type ? { id: `m${l.id}`, type: 'mashq', label: 'Mashq', mashqType: l.mashq_type || 'textarea', question: l.mashq_question || '', answer: l.mashq_answer || '', words: l.mashq_words ? (Array.isArray(l.mashq_words) ? l.mashq_words : l.mashq_words.split(',').map(w => w.trim())) : [] } : null,
-        (l.task_title || l.task_description || l.task_requirements || l.task_technologies || l.task_deadline_days) ? { id: `p${l.id}`, type: 'project', label: l.task_title || 'Loyiha', description: l.task_description || '', requirements: l.task_requirements || '', techStack: l.task_technologies || '', deadline: l.task_deadline_days || '' } : null,
-        Array.isArray(l.exercises) ? { id: `e${l.id}`, type: 'exercise', label: 'Упражнения', exercises: l.exercises.map(apiToExercise) } : null,
-    ].filter(Boolean),
-});
+
+const apiToLesson = (l) => {
+    if (l.sections_json) {
+        try {
+            const sections = JSON.parse(l.sections_json);
+            return {
+                id: l.id, title: l.title, chapter: l.chapter || '',
+                image: l.image_url || '', completed: false,
+                order: l.order || 0, is_published: l.is_published || false,
+                sections,
+            };
+        } catch (_) {}
+    }
+    return {
+        id: l.id, title: l.title, chapter: l.chapter || '',
+        image: l.image_url || '', completed: false,
+        order: l.order || 0, is_published: l.is_published || false,
+        sections: [
+            l.text_content ? { id: `t${l.id}`, type: 'text',  label: 'Текст', html: l.text_content } : null,
+            l.code_content ? { id: `c${l.id}`, type: 'code',  label: 'Код',   lang: l.code_language || 'javascript', code: l.code_content } : null,
+            l.video_url    ? { id: `v${l.id}`, type: 'video', label: 'Видео', videoUrl: l.video_url } : null,
+            l.image_url    ? { id: `i${l.id}`, type: 'image', label: 'Фото',  imgUrl: l.image_url } : null,
+            l.file_url     ? { id: `f${l.id}`, type: 'file',  label: 'Файл',  fileName: l.file_url } : null,
+            l.mashq_type ? { id: `m${l.id}`, type: 'mashq', label: 'Mashq', mashqType: l.mashq_type || 'textarea', question: l.mashq_question || '', answer: l.mashq_answer || '', words: l.mashq_words ? (Array.isArray(l.mashq_words) ? l.mashq_words : l.mashq_words.split(',').map(w => w.trim())) : [] } : null,
+            (l.task_title || l.task_description || l.task_requirements || l.task_technologies || l.task_deadline_days) ? { id: `p${l.id}`, type: 'project', label: l.task_title || 'Loyiha', description: l.task_description || '', requirements: l.task_requirements || '', techStack: l.task_technologies || '', deadline: l.task_deadline_days || '' } : null,
+            Array.isArray(l.exercises) ? { id: `e${l.id}`, type: 'exercise', label: 'Упражнения', exercises: l.exercises.map(apiToExercise) } : null,
+        ].filter(Boolean),
+    };
+};
+
 const lessonToApi = (form) => {
     const project = form.sections?.find(s => s.type === 'project');
     const mashq   = form.sections?.find(s => s.type === 'mashq');
     return {
         title: form.title, order: Number(form.order) || 0, chapter: form.chapter || '',
         image_url: form.image || '',
+        sections_json: JSON.stringify(form.sections || []),
         text_content: form.sections?.find(s => s.type === 'text')?.html || '',
         code_content: form.sections?.find(s => s.type === 'code')?.code || '',
         code_language: form.sections?.find(s => s.type === 'code')?.lang || '',
@@ -133,7 +150,6 @@ const ChaptersModal = ({ chapters, onSave, onClose }) => {
 const TeacherCourses = () => {
     const { request } = useHttp();
 
-    // ✅ Восстанавливаем навигацию
     const savedNav = loadTeacherNav();
     const [courses,          setCourses]          = useState([]);
     const [chapters,         setChapters]         = useState(INITIAL_CHAPTERS);
@@ -147,14 +163,15 @@ const TeacherCourses = () => {
     const [confirmLesson,    setConfirmLesson]    = useState(null);
     const [showCourseModal,  setShowCourseModal]  = useState(false);
     const [showChapterModal, setShowChapterModal] = useState(false);
-    const [showLessonModal,  setShowLessonModal]  = useState(false);
     const [editingCourse,    setEditingCourse]    = useState(null);
     const [editingLesson,    setEditingLesson]    = useState(null);
+    // ← убрали showLessonModal, теперь используем view === 'lessonEditor'
+    // prevView хранит откуда зашли в редактор (чтобы вернуться туда)
+    const [prevView,         setPrevView]         = useState('course');
     const [newCourse,        setNewCourse]        = useState({ title: '', description: '', image: '', difficulty_level: 'Beginner', duration_weeks: '4', max_points: '100' });
 
     const activeCourse = activeCourseId ? courses.find(c => c.id === activeCourseId) || null : null;
 
-    // ✅ Загружаем курсы и восстанавливаем activeCourse по ID
     useEffect(() => {
         request(`${API_URL}v1/courses/my`, 'GET', null, headers())
             .then(data => {
@@ -162,7 +179,6 @@ const TeacherCourses = () => {
                     ...c, image: c.image_url || '', studentsCount: c.students_count || 0, lessons: [],
                 }));
                 setCourses(mapped);
-                // Если был сохранён courseId — активируем его
                 if (savedNav.courseId) {
                     const found = mapped.find(c => c.id === savedNav.courseId);
                     if (!found) { setView('courses'); clearTeacherNav(); }
@@ -179,8 +195,6 @@ const TeacherCourses = () => {
                     .sort((a, b) => (a.order || 0) - (b.order || 0))
                     .map(apiToLesson);
                 setCourses(cs => cs.map(c => c.id === courseId ? { ...c, lessons } : c));
-
-                // ✅ Восстанавливаем activeLesson по ID
                 if (pendingLessonId) {
                     const found = lessons.find(l => l.id === pendingLessonId);
                     if (found) setActiveLesson(found);
@@ -191,9 +205,8 @@ const TeacherCourses = () => {
             .catch(() => {});
     };
 
-    // ✅ Как только курс найден в списке — грузим его уроки
     useEffect(() => {
-        if (activeCourseId && (view === 'course' || view === 'lesson')) {
+        if (activeCourseId && (view === 'course' || view === 'lesson' || view === 'lessonEditor')) {
             loadLessons(activeCourseId);
         }
     }, [activeCourseId]);
@@ -216,7 +229,7 @@ const TeacherCourses = () => {
 
     const filteredCourses = courses.filter(c => activeFilter === 'all' || c.lessons.some(l => l.chapter === activeFilter));
 
-    const openAddCourse = () => { setEditingCourse(null); setNewCourse({ title: '', description: '', image: '', difficulty_level: 'Beginner', duration_weeks: '4', max_points: '100' }); setShowCourseModal(true); };
+    const openAddCourse  = () => { setEditingCourse(null); setNewCourse({ title: '', description: '', image: '', difficulty_level: 'Beginner', duration_weeks: '4', max_points: '100' }); setShowCourseModal(true); };
     const openEditCourse = (course, e) => { e.stopPropagation(); setEditingCourse(course); setNewCourse({ title: course.title, description: course.description, image: course.image, difficulty_level: course.difficulty_level || 'Beginner', duration_weeks: course.duration_weeks || '4', max_points: course.max_points || '100' }); setShowCourseModal(true); };
 
     const saveCourse = () => {
@@ -246,7 +259,6 @@ const TeacherCourses = () => {
             .catch(() => setConfirmCourse(null));
     };
 
-    // ✅ Обёртки навигации с сохранением
     const openCoursePage = (course) => {
         setActiveCourseId(course.id);
         setView('course');
@@ -266,14 +278,31 @@ const TeacherCourses = () => {
         setActiveLesson(null);
     };
 
-    const openAddLesson  = () => { setEditingLesson(null); setShowLessonModal(true); };
-    const openEditLesson = (lesson) => { setEditingLesson(lesson); setShowLessonModal(true); };
+    // ── Открытие редактора урока как отдельной страницы ──
+    const openAddLesson = () => {
+        setEditingLesson(null);
+        setPrevView(view); // запоминаем откуда пришли
+        setView('lessonEditor');
+    };
+
+    const openEditLesson = (lesson) => {
+        setEditingLesson(lesson);
+        setPrevView(view);
+        setView('lessonEditor');
+    };
+
+    const closeLessonEditor = () => {
+        setEditingLesson(null);
+        setView(prevView); // возвращаемся туда откуда зашли
+    };
 
     const saveLesson = async (formData) => {
         if (!activeCourse) return;
         const body = lessonToApi(formData);
         const method = editingLesson ? 'PUT' : 'POST';
-        const url = editingLesson ? `${API_URL}v1/courses/${activeCourse.id}/lessons/${editingLesson.id}` : `${API_URL}v1/courses/${activeCourse.id}/lessons`;
+        const url = editingLesson
+            ? `${API_URL}v1/courses/${activeCourse.id}/lessons/${editingLesson.id}`
+            : `${API_URL}v1/courses/${activeCourse.id}/lessons`;
         try {
             const savedLesson = await request(url, method, JSON.stringify({ ...body, is_active: true }), headers());
             const lessonId = savedLesson?.id || editingLesson?.id;
@@ -289,8 +318,11 @@ const TeacherCourses = () => {
                 return { ...c, lessons: [...c.lessons, patchedLesson] };
             }));
             loadLessons(activeCourse.id);
-            setShowLessonModal(false);
-            setEditingLesson(null);
+            // Обновляем activeLesson если редактировали его
+            if (editingLesson && activeLesson?.id === editingLesson.id) {
+                setActiveLesson(p => ({ ...p, ...formData }));
+            }
+            closeLessonEditor();
         } catch (err) { console.error('saveLesson error:', err); }
     };
 
@@ -310,12 +342,30 @@ const TeacherCourses = () => {
     };
 
     /* ── Views ── */
-    if ((view === 'course' || view === 'lesson') && loading) {
+    if ((view === 'course' || view === 'lesson' || view === 'lessonEditor') && loading) {
         return <div style={{ textAlign: 'center', padding: '60px', color: 'rgba(26,26,46,0.4)' }}>Загрузка...</div>;
     }
 
+    // ── LESSON EDITOR PAGE ── (полноценная страница вместо модалки)
+    if (view === 'lessonEditor' && activeCourse) {
+        return (
+            <>
+                <LessonEditorPage
+                    course={activeCourse}
+                    lesson={editingLesson}
+                    chapters={chapters}
+                    onSave={saveLesson}
+                    onClose={closeLessonEditor}
+                />
+                {confirmLesson && (
+                    <ConfirmModal title="Удалить урок?" text="Это действие нельзя отменить."
+                        onConfirm={() => doDeleteLesson(confirmLesson)} onClose={() => setConfirmLesson(null)} />
+                )}
+            </>
+        );
+    }
+
     if (view === 'lesson' && activeCourse) {
-        // Уроки ещё грузятся
         if (!activeLesson && pendingLessonId) {
             return <div style={{ textAlign: 'center', padding: '60px', color: 'rgba(26,26,46,0.4)' }}>Загрузка урока...</div>;
         }
@@ -324,14 +374,10 @@ const TeacherCourses = () => {
         return (
             <>
                 <LessonPage lesson={fresh} course={activeCourse} allLessons={activeCourse.lessons}
-                    onBack={handleLessonBack} onNavigate={l => { setActiveLesson(l); saveTeacherNav('lesson', activeCourseId, l.id); }}
-                    onEdit={() => { setEditingLesson(fresh); setShowLessonModal(true); }}
+                    onBack={handleLessonBack}
+                    onNavigate={l => { setActiveLesson(l); saveTeacherNav('lesson', activeCourseId, l.id); }}
+                    onEdit={() => openEditLesson(fresh)}
                     onDelete={() => setConfirmLesson(fresh.id)} />
-                {showLessonModal && (
-                    <LessonModal course={activeCourse} lesson={editingLesson} chapters={chapters}
-                        onSave={fd => { saveLesson(fd); setActiveLesson(p => ({ ...p, ...fd })); }}
-                        onClose={() => { setShowLessonModal(false); setEditingLesson(null); }} />
-                )}
                 {confirmLesson && (
                     <ConfirmModal title="Удалить урок?" text="Это действие нельзя отменить."
                         onConfirm={() => { doDeleteLesson(confirmLesson); setView('course'); setActiveLesson(null); saveTeacherNav('course', activeCourseId, null); }}
@@ -346,13 +392,11 @@ const TeacherCourses = () => {
             <>
                 <CourseDetailPage course={activeCourse}
                     onBack={() => { setView('courses'); setActiveCourseId(null); clearTeacherNav(); }}
-                    onOpenLesson={openLessonPage} onAddLesson={openAddLesson}
-                    onEditLesson={openEditLesson} onDeleteLesson={id => setConfirmLesson(id)}
+                    onOpenLesson={openLessonPage}
+                    onAddLesson={openAddLesson}
+                    onEditLesson={openEditLesson}
+                    onDeleteLesson={id => setConfirmLesson(id)}
                     onToggleLessonPublish={toggleLessonPublish} />
-                {showLessonModal && (
-                    <LessonModal course={activeCourse} lesson={editingLesson} chapters={chapters}
-                        onSave={saveLesson} onClose={() => { setShowLessonModal(false); setEditingLesson(null); }} />
-                )}
                 {confirmLesson && (
                     <ConfirmModal title="Удалить урок?" text="Это действие нельзя отменить."
                         onConfirm={() => doDeleteLesson(confirmLesson)} onClose={() => setConfirmLesson(null)} />
