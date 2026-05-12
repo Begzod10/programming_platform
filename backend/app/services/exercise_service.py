@@ -211,7 +211,8 @@ Faqat JSON formatda javob ber, boshqa hech narsa yozma:
                     "model": settings.GROK_MODEL,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.3,
-                    "max_tokens": 500
+                    "max_tokens": 500,
+                    "response_format": {"type": "json_object"}
                 }
             )
             response.raise_for_status()

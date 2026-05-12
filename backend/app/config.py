@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     GENNIS_API_URL: str = "https://admin.gennis.uz/api"
     GROK_API_URL: str = "https://api.x.ai/v1/chat/completions" # Based on grok_service.py
     GROK_API_KEY: str = ""
-    GROK_MODEL: str = "grok-beta"
+    GROK_MODEL: str = "grok-code-fast-1"
 
     class Config:
         env_file = ".env"
