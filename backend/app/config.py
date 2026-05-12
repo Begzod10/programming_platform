@@ -20,11 +20,13 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
     APP_VERSION: str = "1.0.0"
-    GROQ_API_KEY: str = ""
     GENNIS_API_URL: str = "https://admin.gennis.uz/api"
-    GROK_API_URL: str = "https://api.x.ai/v1/chat/completions" # Based on grok_service.py
+    # Naming kept as GROK_* for backwards compatibility, but we now call
+    # Groq Cloud (api.groq.com) — different company than xAI's Grok.
+    # Set GROK_API_KEY to a gsk_... key from console.groq.com.
+    GROK_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
     GROK_API_KEY: str = ""
-    GROK_MODEL: str = "grok-code-fast-1"
+    GROK_MODEL: str = "llama-3.3-70b-versatile"
 
     class Config:
         env_file = ".env"
