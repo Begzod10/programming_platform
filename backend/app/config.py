@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        # Tolerate unknown vars in .env so the backend doesn't crash when
+        # someone adds a new entry (e.g. legacy GROQ_API_KEY) without
+        # updating this class.
+        extra = "ignore"
 
 
 settings = Settings()
