@@ -51,3 +51,6 @@ fix_*.py
 list_*.py
 create_tables.py
 test_api.py
+
+# Browser profile data — should never be committed
+antigravity-browser-profile/
