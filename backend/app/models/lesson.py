@@ -39,7 +39,7 @@ class Lesson(Base):
     video_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     file_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-
+    sections_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Project relationship
     project_id: Mapped[Optional[int]] = mapped_column(
         Integer,

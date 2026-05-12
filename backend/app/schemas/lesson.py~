@@ -28,7 +28,6 @@ class LessonBase(BaseModel):
     project_id: Optional[int] = Field(None, ge=1, description="Proyekt ID")
     sections_json: Optional[str] = Field(None, description="Sections JSON")
 
-
 class LessonCreate(LessonBase):
     """Yangi dars yaratish"""
 
@@ -74,7 +73,6 @@ class LessonUpdate(BaseModel):
     is_published: Optional[bool] = None
     sections_json: Optional[str] = None
 
-
 from typing import TYPE_CHECKING, List
 
 if TYPE_CHECKING:
@@ -87,14 +85,12 @@ class LessonRead(LessonBase):
     is_active: bool
     is_published: bool = False
     is_completed: bool = False  # ✅ Talaba uchun tugatilganlik holati
-    completed: bool = False  # Alias for frontend
+    completed: bool = False     # Alias for frontend
     created_at: datetime
     updated_at: datetime
     exercises: List["ExerciseRead"] = []
     is_completed: bool = False  # ✅ qo'shildi
     model_config = ConfigDict(from_attributes=True)
-
-    sections_json: Optional[str] = None
 
 
 class LessonListResponse(BaseModel):

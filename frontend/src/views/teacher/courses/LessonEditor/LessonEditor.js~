@@ -633,11 +633,7 @@ const LessonEditorPage = ({course, lesson, chapters, onSave, onClose}) => {
         title: lesson?.title || '',
         chapter: lesson?.chapter || '',
         image: lesson?.image || '',
-        sections: lesson?.sections
-            ? [...lesson.sections]
-                .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-                .map(s => ({...s}))
-            : [],
+        sections: lesson?.sections ? lesson.sections.map(s => ({...s})) : [],
     });
     const [saving, setSaving] = useState(false);
 
