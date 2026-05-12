@@ -48,7 +48,7 @@ Baholash mezonlari:
 """
 
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=60.0, proxy=settings.HTTP_PROXY or None) as client:
             response = await client.post(
                 settings.GROK_API_URL,
                 headers={
