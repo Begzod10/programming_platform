@@ -1,0 +1,228 @@
+.stats {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    color: #1a1a2e;
+}
+
+/* LOADING / ERROR */
+.stats-loading,
+.stats-error {
+    padding: 32px;
+    text-align: center;
+    font-size: 14px;
+    color: rgba(26, 26, 46, 0.5);
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.stats-error {
+    color: #d63031;
+}
+
+/* FADE-IN */
+.item-fade-in {
+    animation: fadeIn 0.4s ease forwards;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* HEADER */
+.stats-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.stats-header h3 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a1a2e;
+}
+.stats-header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+.stats-week-range {
+    font-size: 12px;
+    color: rgba(26, 26, 46, 0.45);
+    letter-spacing: 0.02em;
+}
+.stats-period {
+    font-size: 13px;
+    color: rgba(26, 26, 46, 0.6);
+}
+
+/* BLOCK */
+.stats-block {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(22px);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 22px;
+    padding: 22px 24px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+}
+.stats-block h4 {
+    margin: 0 0 14px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a1a2e;
+}
+
+/* LIST */
+.stats-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px 24px;
+}
+.stats-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 6px;
+    border-bottom: 1px dashed rgba(26, 26, 46, 0.15);
+}
+.stats-list span {
+    font-size: 13px;
+    color: rgba(26, 26, 46, 0.6);
+}
+.stats-list b {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a2e;
+}
+.stats-list.compact {
+    grid-template-columns: 1fr;
+}
+.positive { color: #00b894; }
+.negative { color: #d63031; }
+
+/* CHART HEADER */
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+.chart-header h4 {
+    margin: 0;
+}
+.peak-badge {
+    font-size: 11px;
+    font-weight: 600;
+    background: #EEEDFE;
+    color: #3C3489;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.01em;
+}
+
+/* CHART */
+.chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    height: clamp(160px, 30vh, 260px);
+    padding-top: 24px;
+}
+
+.chart-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    height: 100%;
+    position: relative;
+    cursor: default;
+}
+
+/* value tooltip above bar */
+.bar-wrap {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.chart-bar {
+    width: 65%;
+    min-height: 4px;
+    background: linear-gradient(180deg, #a29bfe 0%, #6c5ce7 100%);
+    border-radius: 8px 8px 4px 4px;
+    transition: height 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.18s ease;
+    animation: growUp 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 6px;
+}
+.chart-column:hover .chart-bar {
+    filter: brightness(1.14);
+}
+
+.bar-value {
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.01em;
+    line-height: 1;
+    position: relative;
+    z-index: 1;
+}
+
+/* для маленьких баров — число над баром */
+.chart-bar.small-bar {
+    overflow: visible;
+    padding-top: 0;
+}
+.chart-bar.small-bar .bar-value {
+    position: absolute;
+    top: -20px;
+    color: #6c5ce7;
+}
+.chart-column:hover .chart-bar {
+    filter: brightness(1.14);
+}
+
+/* Today styles */
+.chart-column.today .chart-bar {
+    background: linear-gradient(180deg, #8f85f5 0%, #5b4fd4 100%);
+    box-shadow: 0 4px 16px rgba(91, 79, 212, 0.35);
+}
+.chart-column.today .chart-label {
+    color: #1a1a2e;
+    font-weight: 700;
+}
+
+.today-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #6c5ce7;
+    flex-shrink: 0;
+}
+
+@keyframes growUp {
+    from { transform: scaleY(0); transform-origin: bottom; }
+    to   { transform: scaleY(1); transform-origin: bottom; }
+}
+
+.chart-label {
+    font-size: 11px;
+    color: rgba(26, 26, 46, 0.55);
+    flex-shrink: 0;
+}
