@@ -1,6 +1,6 @@
 import asyncio
 from app import AsyncSessionLocal
-from app import login
+from backend.app import login
 
 
 async def run_test(username, password, label):

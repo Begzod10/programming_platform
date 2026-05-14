@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy import text
 from app import settings
 
+
 async def reset_database():
     engine = create_async_engine(settings.DATABASE_URL)
     async with engine.begin() as conn:
@@ -13,6 +14,7 @@ async def reset_database():
         await conn.execute(text("GRANT ALL ON SCHEMA public TO public;"))
         print("Baza toliq tozalandi!")
     await engine.dispose()
+
 
 if __name__ == "__main__":
     asyncio.run(reset_database())

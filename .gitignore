@@ -30,6 +30,8 @@ uploads/
 # Logs & debug output
 *.log
 output.txt
+debug_output.txt
+debug_sync.txt
 
 # Test cache
 .pytest_cache/
@@ -46,11 +48,31 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Temporary scripts (one-off fixes, not part of app)
+# Browser profile
+antigravity-browser-profile/
+
+# Temporary & test scripts (one-off fixes, not part of app)
 fix_*.py
 list_*.py
 create_tables.py
 test_api.py
-
-# Browser profile data — should never be committed
-antigravity-browser-profile/
+add_teacher_id.py
+check_achievements.py
+check_courses.py
+check_db_test.py
+check_duplicate.py
+clean_alembic.py
+debug_progress.py
+direct_inspect.py
+fix_content_blocks.py
+inspect_db.py
+migrate_imports.py
+run_sql.py
+test.py
+test_db_conn.py
+test_delete_course.py
+test_model.py
+test_real_sync.py
+test_role.py
+test_teacher_only.py
+test_upload.py
