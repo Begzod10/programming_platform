@@ -1,5 +1,0 @@
-- [ ] Update `Submission` model with CASCADE
-- [ ] Update `StudentDegree` model with CASCADE
-- [ ] Update `Course` model relationships with CASCADE
-- [ ] Create and run `fix_db_deletion_final.py` to update DB constraints
-- [ ] Verify course deletion with `test_delete_course.py`
