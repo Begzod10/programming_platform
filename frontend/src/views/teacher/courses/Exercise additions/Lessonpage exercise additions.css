@@ -1,0 +1,311 @@
+/* ============================================================
+   EXERCISE BLOCK — LessonPage (Teacher View)
+   /teacher/courses/Exercise additions/Lessonpage exercise additions.css
+   ============================================================ */
+
+/* ── Wrapper ── */
+.lp-exercise-block {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ── Stats bar ── */
+.lp-exercise-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.lp-exercise-bar-count,
+.lp-exercise-bar-pts {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.lp-exercise-bar-count {
+    background: rgba(108, 92, 231, 0.08);
+    border: 1.5px solid rgba(108, 92, 231, 0.2);
+    color: #6c5ce7;
+}
+
+.lp-exercise-bar-pts {
+    background: rgba(0, 184, 148, 0.08);
+    border: 1.5px solid rgba(0, 184, 148, 0.22);
+    color: #00b894;
+}
+
+/* ── Empty ── */
+.lp-exercise-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 32px;
+    border: 2px dashed rgba(26, 26, 46, 0.1);
+    border-radius: 14px;
+    text-align: center;
+    color: rgba(26, 26, 46, 0.35);
+    font-size: 13px;
+}
+.lp-exercise-empty span { font-size: 30px; opacity: 0.4; }
+.lp-exercise-empty p    { margin: 0; }
+
+/* ── List ── */
+.lp-exercise-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* ══════════════════════════════════════
+   EXERCISE CARD
+══════════════════════════════════════ */
+.lp-ex-card {
+    background: white;
+    border: 1.5px solid rgba(108, 92, 231, 0.13);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(108, 92, 231, 0.06);
+}
+
+/* ── Card header ── */
+.lp-ex-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, rgba(108,92,231,0.05), rgba(162,155,254,0.07));
+    border-bottom: 1.5px solid rgba(108, 92, 231, 0.09);
+}
+
+.lp-ex-num {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    color: white;
+    font-size: 12px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.lp-ex-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #6c5ce7;
+    background: rgba(108, 92, 231, 0.1);
+    border: 1px solid rgba(108, 92, 231, 0.2);
+}
+
+.lp-ex-head-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.lp-ex-diff {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.lp-ex-pts {
+    padding: 4px 11px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #00b894;
+    background: rgba(0, 184, 148, 0.08);
+    border: 1px solid rgba(0, 184, 148, 0.2);
+}
+
+/* ── Card body ── */
+.lp-ex-card-body {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.lp-ex-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a2e;
+    line-height: 1.4;
+}
+
+.lp-ex-question {
+    font-size: 14px;
+    color: rgba(26, 26, 46, 0.65);
+    line-height: 1.6;
+    padding: 10px 14px;
+    background: rgba(26, 26, 46, 0.025);
+    border-radius: 10px;
+    border-left: 3px solid rgba(108, 92, 231, 0.3);
+}
+
+/* ── text_input ── */
+.lp-ex-textarea {
+    width: 100%;
+    min-height: 70px;
+    border: 1.5px solid rgba(26, 26, 46, 0.08);
+    border-radius: 10px;
+    padding: 10px 13px;
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    resize: none;
+    background: #f8f8fc;
+    color: rgba(26, 26, 46, 0.3);
+    cursor: not-allowed;
+    box-sizing: border-box;
+}
+
+.lp-ex-ai-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 13px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6c5ce7;
+    background: rgba(108, 92, 231, 0.06);
+    border: 1px solid rgba(108, 92, 231, 0.15);
+    align-self: flex-start;
+}
+
+/* ── multiple_choice ── */
+.lp-ex-options {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.lp-ex-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(26, 26, 46, 0.022);
+    border: 1.5px solid rgba(26, 26, 46, 0.07);
+    border-radius: 10px;
+    font-size: 13px;
+    color: #1a1a2e;
+    font-weight: 500;
+    transition: border-color 0.15s;
+}
+.lp-ex-option:hover { border-color: rgba(108, 92, 231, 0.2); }
+
+.lp-ex-option-letter {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(108, 92, 231, 0.09);
+    color: #6c5ce7;
+    font-size: 11px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+/* ── drag_and_drop ── */
+.lp-ex-drag-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.lp-ex-drag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 10px;
+    background: white;
+    border: 1.5px solid rgba(108, 92, 231, 0.25);
+    color: #6c5ce7;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(108, 92, 231, 0.08);
+    cursor: default;
+}
+
+/* ── fill_in_blank ── */
+.lp-ex-blank-text {
+    font-size: 15px;
+    color: #1a1a2e;
+    line-height: 2.4;
+    padding: 14px 16px;
+    background: rgba(108, 92, 231, 0.03);
+    border: 1.5px solid rgba(108, 92, 231, 0.1);
+    border-radius: 12px;
+}
+
+.lp-ex-blank-slot {
+    display: inline-block;
+    width: 80px;
+    height: 28px;
+    background: white;
+    border: 2px solid rgba(108, 92, 231, 0.5);
+    border-radius: 6px;
+    margin: 0 4px;
+    vertical-align: middle;
+}
+
+/* ── Note ── */
+.lp-ex-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(108, 92, 231, 0.6);
+    font-style: italic;
+}
+
+/* ── Hint ── */
+.lp-ex-hint {
+    font-size: 13px;
+    color: rgba(26, 26, 46, 0.6);
+    background: rgba(253, 203, 110, 0.12);
+    border: 1px solid rgba(253, 203, 110, 0.35);
+    border-radius: 10px;
+    padding: 10px 14px;
+    line-height: 1.5;
+}
+
+.lp-ex-no-content {
+    font-size: 12px;
+    color: rgba(26, 26, 46, 0.3);
+    font-style: italic;
+    padding: 6px 0;
+}
+
+/* ── Responsive ── */
+@media (max-width: 480px) {
+    .lp-ex-card-head  { flex-wrap: wrap; gap: 6px; padding: 10px 12px; }
+    .lp-ex-head-right { margin-left: 0; }
+    .lp-ex-card-body  { padding: 14px; gap: 10px; }
+    .lp-ex-drag-chip  { padding: 6px 12px; font-size: 12px; }
+    .lp-ex-blank-text { font-size: 14px; }
+    .lp-ex-blank-slot { width: 60px; }
+}
