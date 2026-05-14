@@ -34,19 +34,15 @@ class CourseService:
                 Course.title.ilike(f"%{search}%"),
                 Course.description.ilike(f"%{search}%")
             ))
-
         if difficulty_level:
             query = query.where(Course.difficulty_level == difficulty_level)
-
         if is_active is not None:
             query = query.where(Course.is_active == is_active)
-
         if instructor_id:
             query = query.where(Course.instructor_id == instructor_id)
 
         query = query.order_by(Course.created_at.desc()).offset(skip).limit(limit)
         result = await self.db.execute(query)
-
         return result.scalars().all()
 
     async def get_course_by_id(self, course_id: int) -> Optional[Course]:
@@ -60,8 +56,7 @@ class CourseService:
         return result.scalar_one_or_none()
 
     async def validate_course_integrity(self, course: Course):
-        """Kurs butunligini tekshirish (Ballar va darslar)"""
-        # Frontend to'liq moslashguncha qat'iy tekshiruvlar vaqtinchalik o'chirildi
+        """Kurs butunligini tekshirish"""
         pass
 
     async def create_course(self, course_data: CourseCreate, instructor_id: int) -> Course:
@@ -69,22 +64,26 @@ class CourseService:
         data = course_data.model_dump()
         data["instructor_id"] = instructor_id
 
-        # Yangi kursda max_points 0 bo'lmasligi kerak (ixtiyoriy check)
         if data.get("max_points", 0) <= 0:
-            raise HTTPException(status_code=400, detail="Kursning maksimal balli 0 dan katta bo'lishi kerak")
+            raise HTTPException(
+                status_code=400,
+                detail="Kursning maksimal balli 0 dan katta bo'lishi kerak"
+            )
 
         new_course = Course(**data)
         self.db.add(new_course)
-        await self.db.flush()  # ID olish uchun flash qilamiz, lekin commit emas hali
+        await self.db.flush()
         await self.db.refresh(new_course)
 
-        # 🎖 Avtomatik achievement (badge/certificate) yaratish
         from app.services import achievement_service
         await achievement_service.create_achievement(
             self.db,
             name=f"{new_course.title}",
-            description=f"Tabriklaymiz! Siz '{new_course.title}' kursini muvaffaqiyatli yakunladingiz va sertifikatga ega bo'ldingiz.",
-            badge_image_url="/static/default_badge.png", # Standart rasm
+            description=(
+                f"Tabriklaymiz! Siz '{new_course.title}' kursini "
+                f"muvaffaqiyatli yakunladingiz va sertifikatga ega bo'ldingiz."
+            ),
+            badge_image_url="/static/default_badge.png",
             points_reward=100,
             criteria_type="course_completion",
             criteria_value=1,
@@ -93,7 +92,6 @@ class CourseService:
 
         await self.db.commit()
         await self.db.refresh(new_course)
-
         return new_course
 
     async def update_course(
@@ -104,12 +102,13 @@ class CourseService:
     ) -> Optional[Course]:
         """Kursni yangilash"""
         course = await self.get_course_by_id(course_id)
-
         if not course:
             return None
-
         if course.instructor_id != instructor_id:
-            raise HTTPException(status_code=403, detail="Faqat o'z kursingizni tahrirlashingiz mumkin")
+            raise HTTPException(
+                status_code=403,
+                detail="Faqat o'z kursingizni tahrirlashingiz mumkin"
+            )
 
         update_data = course_data.model_dump(exclude_unset=True)
         old_title = course.title
@@ -118,10 +117,8 @@ class CourseService:
         for key, value in update_data.items():
             setattr(course, key, value)
 
-        # Integrity check: Ballar va darslar sonini tekshiramiz
         await self.validate_course_integrity(course)
 
-        # 🔄 Agar kurs nomi o'zgarsa, unga tegishli achievement nomini ham o'zgartiramiz
         if new_title and new_title != old_title:
             from app.models.achievement import Achievement
             from sqlalchemy import update as sqlalchemy_update
@@ -133,28 +130,25 @@ class CourseService:
 
         await self.db.commit()
         await self.db.refresh(course)
-
         return course
 
     async def delete_course(self, course_id: int, instructor_id: int) -> bool:
         """Kursni o'chirish"""
         course = await self.get_course_by_id(course_id)
-
         if not course:
             return False
-
         if course.instructor_id != instructor_id:
-            raise HTTPException(status_code=403, detail="Faqat o'z kursingizni o'chirishingiz mumkin")
-
+            raise HTTPException(
+                status_code=403,
+                detail="Faqat o'z kursingizni o'chirishingiz mumkin"
+            )
         await self.db.delete(course)
         await self.db.commit()
-
         return True
 
     async def enroll_student(self, course_id: int, student_id: int) -> bool:
         """Studentni kursga yozish"""
         course = await self.get_course_by_id(course_id)
-
         if not course or not course.is_active:
             raise HTTPException(status_code=404, detail="Kurs topilmadi yoki faol emas")
 
@@ -164,22 +158,18 @@ class CourseService:
             .where(Student.id == student_id)
         )
         student = student_result.scalar_one_or_none()
-
         if not student:
             raise HTTPException(status_code=404, detail="Student topilmadi")
-
         if course in student.enrolled_courses:
             raise HTTPException(status_code=400, detail="Allaqachon yozilgansiz")
 
         student.enrolled_courses.append(course)
         await self.db.commit()
-
         return True
 
     async def unenroll_student(self, course_id: int, student_id: int) -> bool:
         """Studentni kursdan chiqarish"""
         course = await self.get_course_by_id(course_id)
-
         if not course:
             raise HTTPException(status_code=404, detail="Kurs topilmadi")
 
@@ -189,16 +179,13 @@ class CourseService:
             .where(Student.id == student_id)
         )
         student = student_result.scalar_one_or_none()
-
         if not student:
             raise HTTPException(status_code=404, detail="Student topilmadi")
-
         if course not in student.enrolled_courses:
             raise HTTPException(status_code=400, detail="Bu kursga yozilmagansiz")
 
         student.enrolled_courses.remove(course)
         await self.db.commit()
-
         return True
 
     async def get_course_count(self) -> int:
@@ -206,23 +193,66 @@ class CourseService:
         result = await self.db.execute(select(func.count(Course.id)))
         return result.scalar()
 
+    # ─────────────────────────────────────────────────────────────────────────
+    #  KURS PROGRESS HISOBLASH
+    #
+    #  Qoida (oddiy va to'g'ri):
+    #    course_progress = tugatilgan_lesson_soni / jami_faol_lesson_soni × 100
+    #
+    #  Misol — 2 ta lesson:
+    #    0 tugatilgan → 0/2 × 100 = 0%
+    #    1 tugatilgan → 1/2 × 100 = 50%
+    #    2 tugatilgan → 2/2 × 100 = 100%
+    #
+    #  Misol — 4 ta lesson:
+    #    1 tugatilgan → 1/4 × 100 = 25%
+    #    3 tugatilgan → 3/4 × 100 = 75%
+    #
+    #  ESLATMA: exercises (mashqlar) progress ga QO'SHILMAYDI.
+    #  Exercises alohida endpoint orqali ko'rsatiladi.
+    # ─────────────────────────────────────────────────────────────────────────
+
     @staticmethod
     async def calc_progress(db: AsyncSession, course_id: int, student_id: int) -> int:
-        total = await db.execute(
-            select(func.count(Lesson.id)).where(Lesson.course_id == course_id, Lesson.is_active == True))
-        total_count = total.scalar() or 0
-        if total_count == 0: return 0
+        """
+        Kurs progressini hisoblash va int (0-100) qaytarish.
+        Faqat faol (is_active=True) lessonlar hisobga olinadi.
+        """
+        # Jami faol lessonlar
+        total_res = await db.execute(
+            select(func.count(Lesson.id)).where(
+                Lesson.course_id == course_id,
+                Lesson.is_active == True
+            )
+        )
+        total = total_res.scalar() or 0
+        if total == 0:
+            return 0
 
-        completed = await db.execute(
+        # Tugatilgan lessonlar (LessonCompletion jadvalidan)
+        completed_res = await db.execute(
             select(func.count(LessonCompletion.id))
             .join(Lesson, LessonCompletion.lesson_id == Lesson.id)
-            .where(Lesson.course_id == course_id, LessonCompletion.student_id == student_id)
+            .where(
+                Lesson.course_id == course_id,
+                Lesson.is_active == True,
+                LessonCompletion.student_id == student_id
+            )
         )
-        return int((completed.scalar() or 0) / total_count * 100)
+        completed = completed_res.scalar() or 0
+
+        # min() — completed hech qachon total dan oshmaydi (xavfsizlik uchun)
+        return int(min(completed, total) / total * 100)
 
     @staticmethod
     async def build_dto(db: AsyncSession, course: Course, student_id: Optional[int] = None):
-        # 1. Asosiy ma'lumotlarni yig'amiz
+        """
+        Kurs DTO (Data Transfer Object) ni quramiz.
+
+        progress_percentage:
+          - student_id berilgan → calc_progress() — faqat lesson completions
+          - student_id yo'q (teacher/anonymous) → 0
+        """
         data = {
             "id": course.id,
             "title": course.title,
@@ -232,6 +262,10 @@ class CourseService:
             "duration_weeks": course.duration_weeks,
             "max_points": course.max_points,
             "image_url": course.image_url,
+            "thumbnail_url": getattr(course, "thumbnail_url", None),
+            "video_intro_url": getattr(course, "video_intro_url", None),
+            "syllabus_url": getattr(course, "syllabus_url", None),
+            "prerequisite_course_id": getattr(course, "prerequisite_course_id", None),
             "is_active": course.is_active,
             "is_published": course.is_published,
             "created_at": course.created_at,
@@ -239,78 +273,41 @@ class CourseService:
             "instructor_name": None,
             "progress_percentage": 0,
             "lessons_count": 0,
-            "students_count": 0
+            "students_count": 0,
         }
 
-        # Instructor nomini xavfsiz olish
+        # Instructor nomi (xavfsiz)
         try:
             if course.instructor:
-                data["instructor_name"] = course.instructor.full_name or course.instructor.username
-        except:
+                data["instructor_name"] = (
+                        course.instructor.full_name or course.instructor.username
+                )
+        except Exception:
             pass
 
-        # 2. Jami faol darslar soni
-        total_stmt = select(func.count(Lesson.id)).where(
-            Lesson.course_id == course.id,
-            Lesson.is_active == True
+        # Jami faol lessonlar soni
+        total_res = await db.execute(
+            select(func.count(Lesson.id)).where(
+                Lesson.course_id == course.id,
+                Lesson.is_active == True
+            )
         )
-        total_res = await db.execute(total_stmt)
-        total_count = total_res.scalar() or 0
-        data["lessons_count"] = total_count
+        total_lessons = total_res.scalar() or 0
+        data["lessons_count"] = total_lessons
 
-        # 3. Talabalar soni
-        from app.models.course import student_courses
-        st_count_stmt = select(func.count()).select_from(student_courses).where(
-            student_courses.c.course_id == course.id
+        # Talabalar soni
+        from app.models.course import student_courses as sc_table
+        st_res = await db.execute(
+            select(func.count()).select_from(sc_table).where(
+                sc_table.c.course_id == course.id
+            )
         )
-        st_count_res = await db.execute(st_count_stmt)
-        data["students_count"] = st_count_res.scalar() or 0
+        data["students_count"] = st_res.scalar() or 0
 
-        if student_id and total_count > 0:
-            comp_stmt = (
-                select(func.count(LessonCompletion.id))
-                .join(Lesson, LessonCompletion.lesson_id == Lesson.id)
-                .where(
-                    Lesson.course_id == course.id,
-                    Lesson.is_active == True,
-                    LessonCompletion.student_id == student_id
-                )
+        # Kurs progressi — FAQAT lesson completions asosida
+        if student_id and total_lessons > 0:
+            data["progress_percentage"] = await CourseService.calc_progress(
+                db, course.id, student_id
             )
-            comp_res = await db.execute(comp_stmt)
-            lesson_completed = comp_res.scalar() or 0
-
-            from app.models.exercise import Exercise, ExerciseSubmission
-
-            total_exercises_stmt = (
-                select(func.count(Exercise.id))
-                .join(Lesson, Exercise.lesson_id == Lesson.id)
-                .where(
-                    Lesson.course_id == course.id,
-                    Exercise.is_active == True
-                )
-            )
-            total_ex_res = await db.execute(total_exercises_stmt)
-            total_exercises = total_ex_res.scalar() or 0
-
-            completed_ex_stmt = (
-                select(func.count(ExerciseSubmission.exercise_id.distinct()))
-                .select_from(ExerciseSubmission)
-                .join(Exercise, Exercise.id == ExerciseSubmission.exercise_id)
-                .join(Lesson, Lesson.id == Exercise.lesson_id)
-                .where(
-                    Lesson.course_id == course.id,
-                    ExerciseSubmission.student_id == student_id,
-                    ExerciseSubmission.is_correct == True
-                )
-            )
-            completed_ex_res = await db.execute(completed_ex_stmt)
-            completed_exercises = completed_ex_res.scalar() or 0
-
-            total_all = total_count + total_exercises
-            completed_all = lesson_completed + completed_exercises
-
-            data["progress_percentage"] = int((completed_all / total_all) * 100) if total_all > 0 else 0
-        else:
-            data["progress_percentage"] = 0
 
         return data

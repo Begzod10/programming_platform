@@ -397,6 +397,10 @@ async def mark_video_watched(
     }
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  SUBMISSION
+# ─────────────────────────────────────────────────────────────────────────────
+
 class LessonSubmitRequest(BaseModel):
     github_url: Optional[str] = None
     live_demo_url: Optional[str] = None

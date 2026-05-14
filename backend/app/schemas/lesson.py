@@ -91,8 +91,9 @@ class LessonRead(LessonBase):
     created_at: datetime
     updated_at: datetime
     exercises: List["ExerciseRead"] = []
-    is_completed: bool = False  # ✅ qo'shildi
+    is_completed: bool = False
     model_config = ConfigDict(from_attributes=True)
+    progress_percentage: Optional[int] = 0
 
     sections_json: Optional[str] = None
 

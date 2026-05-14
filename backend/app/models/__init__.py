@@ -10,6 +10,7 @@ from app.models.degree import Degree
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.group import Group
 from app.models.exercise import Exercise
+from app.models.video_watch import VideoWatch
 
 
 def certificate():

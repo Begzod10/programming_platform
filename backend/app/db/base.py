@@ -33,5 +33,5 @@ __all__ = [
     "Group",
     "Quiz",
     "Question",
-    "StudentQuizResult"
+    "StudentQuizResult",
 ]
