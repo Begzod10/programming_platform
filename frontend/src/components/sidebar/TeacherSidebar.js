@@ -1,24 +1,24 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
-import { useTranslation } from '../../i18n/useTranslation';
 
-function TeacherSidebar({ activeTab, setActiveTab, onLogout }) {
+function TeacherSidebar({ activeTab, onLogout }) {
+    const navigate = useNavigate();
     const { request } = useHttp();
-    const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
 
     const teacherMenuItems = [
-        { id: 'profile',       label: t('profile'),         icon: '👨‍🏫' },
-        { id: 'review',        label: t('review'),  icon: '📥' },
-        { id: 'students_list', label: t('my_students'),    icon: '👥' },
-        { id: 'courses',       label: t('courses'),           icon: '📚' },
-        { id: 'certificates',  label: t('certificates'),     icon: '🏅' },
-        { id: 'statistics',    label: t('statistics'),      icon: '📈' },
+        { id: 'profile',      label: 'Профиль',         icon: '👨‍🏫' },
+        { id: 'review',       label: 'Проверка работ',  icon: '📥' },
+        { id: 'students',     label: 'Мои Студенты',    icon: '👥' },
+        { id: 'courses',      label: 'Курсы',            icon: '📚' },
+        { id: 'certificates', label: 'Сертификаты',      icon: '🏅' },
+        { id: 'statistics',   label: 'Статистика',       icon: '📈' },
     ];
 
     const handleTabClick = (id) => {
-        setActiveTab(id);
+        navigate(`/teacher/${id}`);
         setIsOpen(false);
     };
 
@@ -33,21 +33,21 @@ function TeacherSidebar({ activeTab, setActiveTab, onLogout }) {
             .catch(() => {})
             .finally(() => {
                 localStorage.removeItem('token');
+                localStorage.removeItem('refresh_token');
                 localStorage.removeItem('user');
                 onLogout();
+                navigate('/login');
             });
     };
 
     return (
         <>
             <div className="sidebar-hamburger" onClick={() => setIsOpen(o => !o)}>
-                <span style={{ transform: isOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none' }}/>
-                <span style={{ opacity: isOpen ? 0 : 1 }}/>
-                <span style={{ transform: isOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none' }}/>
+                <span style={{ transform: isOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none' }} />
+                <span style={{ opacity: isOpen ? 0 : 1 }} />
+                <span style={{ transform: isOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none' }} />
             </div>
-
-            <div className={`sidebar-overlay ${isOpen ? 'open' : ''}`} onClick={() => setIsOpen(false)}/>
-
+            <div className={`sidebar-overlay ${isOpen ? 'open' : ''}`} onClick={() => setIsOpen(false)} />
             <div className={`sidebar ${isOpen ? 'open' : ''}`}>
                 <div className="sidebar-logo">
                     <h2>Gennis IT Platform</h2>
@@ -65,7 +65,7 @@ function TeacherSidebar({ activeTab, setActiveTab, onLogout }) {
                     ))}
                 </nav>
                 <button className="logout-btn-side" onClick={handleLogout}>
-                    {t('logout_btn')} 🚪
+                    Выйти 🚪
                 </button>
             </div>
         </>

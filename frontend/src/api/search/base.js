@@ -1,6 +1,14 @@
-import { useCallback } from 'react';
+import {useCallback} from 'react';
 
+// ── API URL ──
+// Используй нужную строку, остальные закомментируй
 export const API_URL_DOC = process.env.REACT_APP_API_URL || `http://localhost:8000/`
+// export const API_URL_DOC = `http://192.168.43.70:8000/`
+// export const API_URL_DOC = `http://100.67.61.71:8000/`
+// export const API_URL_DOC = `http://100.68.60.126:8000/`
+// export const API_URL_DOC = `http://192.168.1.40:8000/`
+// export const API_URL_DOC = `http://100.109.36.66:8000/`
+
 export const API_URL = `${API_URL_DOC}api/`
 
 // Backend stores uploaded files as "/uploads/..." paths.
@@ -12,36 +20,39 @@ export const resolveImageUrl = (src) => {
     return API_URL_DOC + src.replace(/^\//, '');
 };
 
+// ── Headers ──
 export const headers = () => {
-    const token = localStorage.getItem("token")
+    const token = localStorage.getItem('token');
     return {
-        "Authorization": "Bearer " + token,
-        'Content-Type': 'application/json'
-    }
-}
+        'Authorization': 'Bearer ' + token,
+        'Content-Type': 'application/json',
+    };
+};
 
 export const header = () => {
-    return {'Content-Type': 'application/json'}
-}
+    return {'Content-Type': 'application/json'};
+};
 
 export const headersImg = () => {
-    const token = localStorage.getItem("token")
-    return {"Authorization": "Bearer " + token}
-}
+    const token = localStorage.getItem('token');
+    return {'Authorization': 'Bearer ' + token};
+};
 
 export const headerImg = () => {
-    return {"Authorization": ""}
-}
+    return {'Authorization': ''};
+};
 
+// ── Branch helpers ──
 export const branchQuery = () => {
-    const branch = localStorage.getItem("selectedBranch")
-    return `branch=${branch}`
-}
+    const branch = localStorage.getItem('selectedBranch');
+    return `branch=${branch}`;
+};
 
 export const branchQueryId = () => {
-    return localStorage.getItem("selectedBranch")
-}
+    return localStorage.getItem('selectedBranch');
+};
 
+// ── HTTP hook ──
 export const useHttp = () => {
     const request = useCallback(async (url, method = 'GET', body = null, headers = {'Content-Type': 'application/json'}) => {
         try {
@@ -54,15 +65,30 @@ export const useHttp = () => {
             throw e;
         }
     }, []);
-    return {request}
-}
+    return {request};
+};
 
+// ── URL params builder ──
 export const ParamUrl = (params = {}) => {
     return Object.entries(params)
-        .filter(([_, value]) => value !== undefined && value !== null && value !== "all" && value !== "")
+        .filter(([_, value]) => value !== undefined && value !== null && value !== 'all' && value !== '')
         .map(([key, value]) => {
-            if (Array.isArray(value)) return `${encodeURIComponent(key)}=${value.join(",")}`;
+            if (Array.isArray(value)) return `${encodeURIComponent(key)}=${value.join(',')}`;
             return `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`;
         })
-        .join("&");
+        .join('&');
+};
+
+// ── Token helpers (refresh token flow) ──
+export const getRefreshToken = () => localStorage.getItem('refresh_token');
+
+export const setTokens = (accessToken, refreshToken) => {
+    if (accessToken) localStorage.setItem('token', accessToken);
+    if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
+};
+
+export const clearTokens = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
 };

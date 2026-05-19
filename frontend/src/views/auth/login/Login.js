@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import './Login.css';
 import { API_URL, useHttp } from '../../../api/search/base';
 
 function Login({ onLogin, onGoRegister }) {
+    const navigate = useNavigate();
     const { request } = useHttp();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -35,9 +37,14 @@ function Login({ onLogin, onGoRegister }) {
             .then(res => {
                 const token = res.access_token || res.token || res.access;
                 if (token) localStorage.setItem('token', token);
+                // [REFACTOR] Store refresh token if present
+                if (res.refresh_token) localStorage.setItem('refresh_token', res.refresh_token);
                 const userData = res.user || res;
                 localStorage.setItem('user', JSON.stringify(userData));
                 onLogin(res);
+                // [REFACTOR] Navigate to appropriate dashboard
+                const role = userData.role || 'student';
+                navigate(role === 'teacher' ? '/teacher' : '/student');
             })
             .catch(() => setError('Login yoki parol noto\'g\'ri'))
             .finally(() => setLoading(false));
@@ -89,12 +96,20 @@ function Login({ onLogin, onGoRegister }) {
                 {loading ? '⏳ Kirilmoqda...' : 'Kirish'}
             </button>
 
-            {onGoRegister && (
+            {onGoRegister ? (
                 <>
                     <div className="login-divider">yoki</div>
                     <div className="toggle-text" onClick={onGoRegister}>
                         Hisobingiz yo'qmi? <span>Ro'yxatdan o'tish</span>
                     </div>
+                </>
+            ) : (
+                /* [REFACTOR] Router-based navigation fallback */
+                <>
+                    <div className="login-divider">yoki</div>
+                    <Link to="/register" className="toggle-text" style={{ textDecoration: 'none', color: 'inherit' }}>
+                        Hisobingiz yo'qmi? <span>Ro'yxatdan o'tish</span>
+                    </Link>
                 </>
             )}
         </div>

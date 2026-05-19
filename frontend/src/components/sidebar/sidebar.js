@@ -1,28 +1,26 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
-import { useTranslation } from '../../i18n/useTranslation';
 
-function Sidebar({ activeTab, setActiveTab, onLogout, role }) {
+function Sidebar({ activeTab, onLogout, role }) {
+    const navigate = useNavigate();
     const { request } = useHttp();
-    const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
 
     const menuItems = [
-        { id: 'profile',  label: t('profile'),      icon: '👤' },
-        { id: 'projects', label: t('my_projects'),  icon: '💻' },
-        { id: 'courses',  label: t('courses'),         icon: '📚' },
-        { id: 'rankings', label: t('rankings'),       icon: '🏆' },
-        { id: 'degrees',  label: t('certificates'),   icon: '🎓' },
+        { id: 'profile',  label: 'Профиль',      icon: '👤' },
+        { id: 'projects', label: 'Мои Проекты',  icon: '💻' },
+        { id: 'courses',  label: 'Курсы',         icon: '📚' },
+        { id: 'rankings', label: 'Рейтинг',       icon: '🏆' },
+        { id: 'degrees',  label: 'Сертификаты',   icon: '🎓' },
     ];
 
-    // Закрываем при смене вкладки на мобиле
     const handleTabClick = (id) => {
-        setActiveTab(id);
+        navigate(`/student/${id}`);
         setIsOpen(false);
     };
 
-    // Закрываем при ресайзе выше 600px
     useEffect(() => {
         const onResize = () => { if (window.innerWidth > 600) setIsOpen(false); };
         window.addEventListener('resize', onResize);
@@ -34,24 +32,21 @@ function Sidebar({ activeTab, setActiveTab, onLogout, role }) {
             .catch(() => {})
             .finally(() => {
                 localStorage.removeItem('token');
+                localStorage.removeItem('refresh_token');
                 localStorage.removeItem('user');
                 onLogout();
+                navigate('/login');
             });
     };
 
     return (
         <>
-            {/* Hamburger button — только на мобиле */}
             <div className="sidebar-hamburger" onClick={() => setIsOpen(o => !o)}>
-                <span style={{ transform: isOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none' }}/>
-                <span style={{ opacity: isOpen ? 0 : 1 }}/>
-                <span style={{ transform: isOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none' }}/>
+                <span style={{ transform: isOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none' }} />
+                <span style={{ opacity: isOpen ? 0 : 1 }} />
+                <span style={{ transform: isOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none' }} />
             </div>
-
-            {/* Overlay */}
-            <div className={`sidebar-overlay ${isOpen ? 'open' : ''}`} onClick={() => setIsOpen(false)}/>
-
-            {/* Sidebar */}
+            <div className={`sidebar-overlay ${isOpen ? 'open' : ''}`} onClick={() => setIsOpen(false)} />
             <div className={`sidebar ${isOpen ? 'open' : ''}`}>
                 <div className="sidebar-logo">
                     <h2>Gennis IT Platform</h2>
@@ -69,7 +64,7 @@ function Sidebar({ activeTab, setActiveTab, onLogout, role }) {
                     ))}
                 </nav>
                 <button className="logout-btn-side" onClick={handleLogout}>
-                    {t('logout_btn')} 🚪
+                    Выйти 🚪
                 </button>
             </div>
         </>

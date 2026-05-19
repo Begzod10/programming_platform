@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import './Register.css';
 import { API_URL, useHttp } from '../../../api/search/base';
 
 function Register({ onLogin, onGoLogin }) {
+    const navigate = useNavigate();
     const { request } = useHttp();
 
     const [form, setForm] = useState({
@@ -53,9 +55,14 @@ function Register({ onLogin, onGoLogin }) {
             .then(res => {
                 const token = res.access_token || res.token || res.access;
                 if (token) localStorage.setItem('token', token);
+                // [REFACTOR] Store refresh token if present
+                if (res.refresh_token) localStorage.setItem('refresh_token', res.refresh_token);
                 const userData = res.user || res;
                 localStorage.setItem('user', JSON.stringify(userData));
                 onLogin(res);
+                // [REFACTOR] Navigate to appropriate dashboard
+                const role = userData.role || 'student';
+                navigate(role === 'teacher' ? '/teacher' : '/student');
             })
             .catch(() => setApiError('Ошибка регистрации. Возможно, такой пользователь уже существует.'))
             .finally(() => setLoading(false));
@@ -138,10 +145,15 @@ function Register({ onLogin, onGoLogin }) {
                 {loading ? '⏳ Регистрация...' : 'Зарегистрироваться'}
             </button>
 
-            {onGoLogin && (
+            {onGoLogin ? (
                 <div className="toggle-text" onClick={onGoLogin}>
                     Уже есть аккаунт? <span>Войти</span>
                 </div>
+            ) : (
+                /* [REFACTOR] Router-based navigation fallback */
+                <Link to="/login" className="toggle-text" style={{ textDecoration: 'none', color: 'inherit' }}>
+                    Уже есть аккаунт? <span>Войти</span>
+                </Link>
             )}
         </div>
     );
