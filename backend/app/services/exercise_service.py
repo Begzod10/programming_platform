@@ -104,7 +104,7 @@ O'quvchi o'zi topishi kerak."""
 
         async with httpx.AsyncClient(timeout=20.0, proxy=settings.HTTP_PROXY or None) as client:
             response = await client.post(
-                settings.OPENAI_API_URL,
+                settings.openai_chat_url,
                 headers={
                     "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
                     "Content-Type": "application/json"
@@ -202,7 +202,7 @@ Faqat JSON formatda javob ber, boshqa hech narsa yozma:
 
         async with httpx.AsyncClient(timeout=30.0, proxy=settings.HTTP_PROXY or None) as client:
             response = await client.post(
-                settings.OPENAI_API_URL,
+                settings.openai_chat_url,
                 headers={
                     "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
                     "Content-Type": "application/json"

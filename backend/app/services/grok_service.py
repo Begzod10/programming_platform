@@ -50,7 +50,7 @@ Baholash mezonlari:
     try:
         async with httpx.AsyncClient(timeout=60.0, proxy=settings.HTTP_PROXY or None) as client:
             response = await client.post(
-                settings.OPENAI_API_URL,
+                settings.openai_chat_url,
                 headers={
                     "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
                     "Content-Type": "application/json"

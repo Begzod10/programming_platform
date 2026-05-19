@@ -22,9 +22,19 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     GENNIS_API_URL: str = "https://admin.gennis.uz/api"
     # OpenAI (active provider). Set OPENAI_API_KEY in .env.
+    # OPENAI_BASE_URL lets you point at a relay (e.g. a Cloudflare Worker)
+    # without the geo-blocks OpenAI applies to api.openai.com directly.
+    # If empty, falls back to OPENAI_API_URL.
+    OPENAI_BASE_URL: str = ""
     OPENAI_API_URL: str = "https://api.openai.com/v1/chat/completions"
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"
+
+    @property
+    def openai_chat_url(self) -> str:
+        if self.OPENAI_BASE_URL:
+            return f"{self.OPENAI_BASE_URL.rstrip('/')}/chat/completions"
+        return self.OPENAI_API_URL
     # Legacy Groq Cloud settings kept so existing .env entries don't trip
     # validation. Services now call OpenAI; remove later once .env is cleaned.
     GROK_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
