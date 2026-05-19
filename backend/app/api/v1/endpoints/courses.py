@@ -9,6 +9,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.services.course_service import CourseService
 from app.dependencies import get_db, get_current_student, get_current_teacher
 from app.models.lesson import Lesson, LessonCompletion
@@ -24,7 +25,7 @@ from app.schemas.course import (
 
 router = APIRouter()
 
-UPLOAD_DIR = Path("../../../../uploads/courses")
+UPLOAD_DIR = Path(settings.UPLOAD_DIR) / "courses"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
