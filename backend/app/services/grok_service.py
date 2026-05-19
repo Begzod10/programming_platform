@@ -50,13 +50,13 @@ Baholash mezonlari:
     try:
         async with httpx.AsyncClient(timeout=60.0, proxy=settings.HTTP_PROXY or None) as client:
             response = await client.post(
-                settings.GROK_API_URL,
+                settings.openai_chat_url,
                 headers={
-                    "Authorization": f"Bearer {settings.GROK_API_KEY}",
+                    "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
                     "Content-Type": "application/json"
                 },
                 json={
-                    "model": settings.GROK_MODEL,
+                    "model": settings.OPENAI_MODEL,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.3,
                     "max_tokens": 1000,

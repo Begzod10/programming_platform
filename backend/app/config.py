@@ -21,14 +21,27 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: list[str] = ["*"]
     APP_VERSION: str = "1.0.0"
     GENNIS_API_URL: str = "https://admin.gennis.uz/api"
-    # Naming kept as GROK_* for backwards compatibility, but we now call
-    # Groq Cloud (api.groq.com) — different company than xAI's Grok.
-    # Set GROK_API_KEY to a gsk_... key from console.groq.com.
+    # OpenAI (active provider). Set OPENAI_API_KEY in .env.
+    # OPENAI_BASE_URL lets you point at a relay (e.g. a Cloudflare Worker)
+    # without the geo-blocks OpenAI applies to api.openai.com directly.
+    # If empty, falls back to OPENAI_API_URL.
+    OPENAI_BASE_URL: str = ""
+    OPENAI_API_URL: str = "https://api.openai.com/v1/chat/completions"
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o-mini"
+
+    @property
+    def openai_chat_url(self) -> str:
+        if self.OPENAI_BASE_URL:
+            return f"{self.OPENAI_BASE_URL.rstrip('/')}/chat/completions"
+        return self.OPENAI_API_URL
+    # Legacy Groq Cloud settings kept so existing .env entries don't trip
+    # validation. Services now call OpenAI; remove later once .env is cleaned.
     GROK_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
     GROK_API_KEY: str = ""
     GROK_MODEL: str = "llama-3.3-70b-versatile"
-    # Outbound proxy for AI calls — used to bypass geo-blocks on Groq Cloud.
-    # Set in .env as: HTTP_PROXY=http://user:pass@host:port
+    # Outbound proxy for AI calls — used to bypass geo-blocks (e.g. OpenAI
+    # from Russia). Set in .env as: HTTP_PROXY=http://user:pass@host:port
     # Leave empty in environments where direct egress works.
     HTTP_PROXY: str = ""
 
