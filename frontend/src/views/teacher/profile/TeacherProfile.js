@@ -43,10 +43,17 @@ function TeacherProfile({ user: initialUser }) {
 
     /* ── Update ── */
     const handleUpdate = () => {
+        if (!profile?.id) {
+            setError(t('save_error'));
+            return;
+        }
         setSaving(true);
         setError('');
+        // Teacher profili o'zining /auth/me orqali yangilanadi —
+        // /v1/student/{id} student resource bo'lib, teacher rolida
+        // 403 yoki noto'g'ri jadvalga yozish riskini keltirib chiqaradi.
         request(
-            `${API_URL}v1/student/${profile.id}`,
+            `${API_URL}v1/auth/me`,
             'PUT',
             JSON.stringify({ full_name: form.full_name, bio: form.bio, avatar_url: form.avatar_url }),
             headers()

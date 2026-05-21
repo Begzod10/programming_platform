@@ -1,0 +1,26 @@
+# Secrets — second-line defense (root .gitignore also covers *.env)
+.env
+.env.*
+!.env.example
+
+# Debug dumps
+debug_output.txt
+debug_sync.txt
+
+# Uploads written by the app at runtime
+uploads/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+venv/
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor backup files
+*.py~
+*.swp

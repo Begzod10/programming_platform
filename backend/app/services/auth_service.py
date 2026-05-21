@@ -56,13 +56,15 @@ async def register_new_student(db: AsyncSession, user_data: UserCreate):
             detail="Bu username band!"
         )
 
-    # Yangi foydalanuvchi yaratish
+    # Yangi foydalanuvchi yaratish — role har doim "student" qilib o'rnatiladi.
+    # Schema dan role olib tashlangani, ammo qo'shimcha qatlam himoyasi sifatida
+    # bu yerda ham qattiq belgilab qo'yamiz (defense in depth).
     new_student = Student(
         username=user_data.username,
         email=user_data.email,
         full_name=user_data.full_name,
         hashed_password=get_password_hash(user_data.password),
-        role=user_data.role,
+        role=UserRole.student,
     )
     db.add(new_student)
     await db.commit()
@@ -85,17 +87,18 @@ async def register_new_student(db: AsyncSession, user_data: UserCreate):
 async def login(db: AsyncSession, username: str, password: str):
     """Login - Gennis birinchi, keyin lokal"""
     username = username.strip()
-    
+
     # 1. Gennis bilan login qilib ko'ramiz
-    print(f"Attempting Gennis login for: {username}")
+    # NOTE: usernamelarni log qilish o'chirildi — login formaga parolni
+    # username maydoniga noto'g'ri yozish hodisalari log fayllarga
+    # plaintext maxfiy ma'lumotni tushiradi.
     gennis_data = await GennisService.login(username, password)
-    
+
     if gennis_data:
-        print("Gennis data received, syncing...")
         # Gennis login muvaffaqiyatli
         user_data = gennis_data.get("user", {})
         gennis_id = user_data.get("id") or user_data.get("user_id")
-        
+
         # role_str ni to'g'ri aniqlash (Gennis API ba'zan dict qaytaradi)
         raw_role = user_data.get("role")
         if isinstance(raw_role, dict):
@@ -104,8 +107,6 @@ async def login(db: AsyncSession, username: str, password: str):
             role_str = raw_role
         else:
             role_str = gennis_data.get("type_user")
-            
-        print(f"Gennis ID: {gennis_id}, Role: {role_str}")
         
         # Bizning bazadan foydalanuvchini topamiz (username yoki email orqali)
         # Gennis foydalanuvchilari uchun username ko'pincha 'gennis_{id}' bo'ladi
@@ -119,13 +120,19 @@ async def login(db: AsyncSession, username: str, password: str):
         user = result.scalars().first()
         
         if not user:
-            # Yangi foydalanuvchi yaratamiz
+            # Yangi foydalanuvchi yaratamiz.
+            # Gennis-orqali login qiluvchilar uchun maxsus parol hash
+            # ishlatamiz: bcrypt(random) — bu hash hech qachon hech qaysi
+            # parolga to'g'ri kelmaydi, shuning uchun lokal verify_password
+            # yo'li orqali bu akkountga kirib bo'lmaydi.
+            import os as _os
+            from app.core.security import get_password_hash as _ghp
             role = UserRole.teacher if role_str == 'teacher' else UserRole.student
             user = Student(
                 username=username if role == UserRole.teacher else f"gennis_{gennis_id}",
                 email=user_data.get("email") or f"{username}@gennis.uz",
                 full_name=f"{user_data.get('name', '')} {user_data.get('surname', '')}".strip(),
-                hashed_password="external_auth",
+                hashed_password=_ghp(_os.urandom(32).hex()),
                 role=role,
                 is_active=True
             )

@@ -139,7 +139,7 @@ function TeacherStatistics() {
                     </li>
                     <li>
                         <span>Средний балл</span>
-                        <b>{data.average_points.toFixed(1)}</b>
+                        <b>{(data.average_points ?? 0).toFixed(1)}</b>
                     </li>
                     <li>
                         <span>Проверено работ</span>
@@ -155,7 +155,7 @@ function TeacherStatistics() {
             <article className="stats-block">
                 <h4>Динамика</h4>
                 <ul className="stats-list compact">
-                    {data.dynamics.map((item, i) => (
+                    {(data.dynamics || []).map((item, i) => (
                         <li key={i}>
                             <span>{item.label}</span>
                             <b

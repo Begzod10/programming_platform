@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import './LessonPage.css';
 import '../Exercise additions/Lessonpage exercise additions.css'
 import { SECTION_TYPES, getYTId } from '../../../../constants/courseUtils';
+import { sanitizeHtml } from '../../../../utils/sanitize';
 
 /* ── Exercise meta ── */
 const EX_TYPE_META = {
@@ -261,10 +262,10 @@ const LessonPage = ({ lesson, course, allLessons, onBack, onNavigate, onEdit, on
 
                                 <div className="lp-block-body">
 
-                                    {/* TEXT */}
+                                    {/* TEXT — sanitized to prevent XSS via stored HTML */}
                                     {section.type === 'text' && (
                                         <div className="lp-text-content"
-                                            dangerouslySetInnerHTML={{ __html: section.html || '<p style="color:rgba(26,26,46,0.35)">Текст не добавлен</p>' }} />
+                                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(section.html) || '<p style="color:rgba(26,26,46,0.35)">Текст не добавлен</p>' }} />
                                     )}
 
                                     {/* CODE */}

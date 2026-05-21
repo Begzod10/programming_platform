@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from datetime import datetime, timedelta
-from app.db.session import get_db
-from app.core.security import get_current_user
+from datetime import datetime, timedelta, timezone
+from app.dependencies import get_db, get_current_instructor
 from app.models.user import Student, UserRole
 from app.models.group import Group
 from app.models.project import Project
@@ -13,9 +12,9 @@ router = APIRouter()
 @router.get("/statistics")
 async def get_teacher_statistics(
         db: AsyncSession = Depends(get_db),
-        current_user=Depends(get_current_user)
+        current_teacher: Student = Depends(get_current_instructor)
 ):
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     last_month_start = (this_month_start - timedelta(days=1)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     last_month_end = this_month_start

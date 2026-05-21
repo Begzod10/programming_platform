@@ -49,8 +49,7 @@ async def _get_id_from_auth(request: Request) -> Optional[int]:
             user_id = payload.get("sub") or payload.get("id") or payload.get("student_id")
             return int(user_id) if user_id else None
         return None
-    except Exception as e:
-        print(f"DEBUG: Token dekodlashda xato -> {e}")
+    except Exception:
         return None
 
 
@@ -103,9 +102,6 @@ async def get_course(
     """Bitta kurs haqida to'liq ma'lumot"""
     student_id = await _get_id_from_auth(request)
 
-    # ✅ Debug: student_id ni tekshirish
-    print(f"DEBUG get_course: course_id={course_id}, student_id={student_id}")
-    print(f"DEBUG headers: {dict(request.headers)}")
     query = (
         select(Course)
         .options(
@@ -122,11 +118,7 @@ async def get_course(
     if not course:
         raise HTTPException(status_code=404, detail="Kurs topilmadi")
 
-    dto = await CourseService.build_dto(db, course, student_id)
-
-    print(f"DEBUG progress: {dto.get('progress_percentage')}%")
-
-    return dto
+    return await CourseService.build_dto(db, course, student_id)
 
 
 @router.post("/", response_model=CourseRead, status_code=status.HTTP_201_CREATED)
@@ -220,28 +212,39 @@ async def upload_course_image(
     if course.instructor_id != current_teacher.id:
         raise HTTPException(403, "Ruxsat berilmadi")
 
-    ext = os.path.splitext(file.filename)[1].lower()
+    ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in {".jpg", ".jpeg", ".png", ".webp"}:
-        raise HTTPException(400, "Faqat rasm formatlari ruxsat etiladi")
+        raise HTTPException(400, "Faqat rasm formatlari ruxsat etiladi (.jpg/.png/.webp)")
 
-    # Eski rasmni o'chirish
+    # Read with a hard cap so a teacher can't OOM the server by uploading
+    # a multi-GB file. settings.MAX_FILE_SIZE defaults to 10 MB.
+    max_bytes = settings.MAX_FILE_SIZE
+    content = await file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Fayl hajmi {max_bytes // (1024 * 1024)} MB dan oshmasligi kerak",
+        )
+
+    # Old image cleanup. Resolve to absolute path inside UPLOAD_DIR and
+    # guard against path-traversal (the stored value should always be a
+    # /uploads/courses/<file> path written by this same endpoint).
     if course.image_url:
-        old_path = Path("") / course.image_url.lstrip("/")
-        if old_path.exists():
-            try:
-                os.remove(old_path)
-            except:
-                pass
+        try:
+            old_name = Path(course.image_url).name
+            old_full = UPLOAD_DIR / old_name
+            if old_full.is_file() and old_full.parent == UPLOAD_DIR:
+                old_full.unlink()
+        except OSError:
+            pass  # best-effort cleanup; not fatal
 
-    filename = f"course_{uuid.uuid4()}{ext}"
-    relative_path = f"uploads/courses/{filename}"
+    filename = f"course_{uuid.uuid4().hex}{ext}"
     full_path = UPLOAD_DIR / filename
 
-    content = await file.read()
     with open(full_path, "wb") as f:
         f.write(content)
 
-    course.image_url = f"/{relative_path}"
+    course.image_url = f"/uploads/courses/{filename}"
     await db.commit()
 
     return {"message": "Rasm yuklandi", "image_url": course.image_url}

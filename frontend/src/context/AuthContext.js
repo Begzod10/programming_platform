@@ -1,6 +1,9 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 
-// [REFACTOR] Centralized auth context — manages user state, login, logout
+// Centralized auth context — manages user state, login, logout.
+// Token presence is tracked in React state (not read from localStorage on
+// every render), so isAuthenticated correctly re-computes when the token
+// is cleared from another tab or by the Axios refresh-token interceptor.
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -12,8 +15,15 @@ export function AuthProvider({ children }) {
             return null;
         }
     });
+    const [token, setToken] = useState(() => {
+        try {
+            return localStorage.getItem('token');
+        } catch {
+            return null;
+        }
+    });
 
-    const isAuthenticated = !!user && !!localStorage.getItem('token');
+    const isAuthenticated = useMemo(() => !!user && !!token, [user, token]);
 
     // ── Login: store tokens + user in localStorage and state ──
     const login = useCallback((response) => {
@@ -26,6 +36,7 @@ export function AuthProvider({ children }) {
         localStorage.setItem('user', JSON.stringify(userData));
 
         setUser(userData);
+        setToken(accessToken || null);
     }, []);
 
     // ── Logout: clear all auth data ──
@@ -35,15 +46,28 @@ export function AuthProvider({ children }) {
         localStorage.removeItem('user');
         localStorage.removeItem('activeTab');
         setUser(null);
+        setToken(null);
     }, []);
 
-    // ── Listen for forced logout from Axios interceptor ──
+    // ── Listen for forced logout from Axios interceptor + cross-tab token changes ──
     useEffect(() => {
-        const handleForceLogout = () => {
-            logout();
+        const handleForceLogout = () => logout();
+        const handleStorage = (e) => {
+            if (e.key === 'token') setToken(e.newValue);
+            if (e.key === 'user') {
+                try {
+                    setUser(e.newValue ? JSON.parse(e.newValue) : null);
+                } catch {
+                    setUser(null);
+                }
+            }
         };
         window.addEventListener('auth:logout', handleForceLogout);
-        return () => window.removeEventListener('auth:logout', handleForceLogout);
+        window.addEventListener('storage', handleStorage);
+        return () => {
+            window.removeEventListener('auth:logout', handleForceLogout);
+            window.removeEventListener('storage', handleStorage);
+        };
     }, [logout]);
 
     return (

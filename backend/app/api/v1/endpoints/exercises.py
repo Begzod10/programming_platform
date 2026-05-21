@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from app.dependencies import get_db, get_current_student
+from app.dependencies import get_db, get_current_student, get_current_teacher
 from app.services import exercise_service
 from app.schemas.exercise import (
     ExerciseCreate, ExerciseUpdate, ExerciseRead,
@@ -25,6 +25,7 @@ async def get_exercises(lesson_id: int, db: AsyncSession = Depends(get_db)):
 async def create_exercise(
         lesson_id: int,
         data: ExerciseCreate,
+        current_teacher: Student = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
     """Yangi mashq qo'shish — POST /courses/{course_id}/lessons/{lesson_id}/exercises"""
@@ -36,6 +37,7 @@ async def create_exercise(
 async def reorder_exercises(
         lesson_id: int,
         data: ExerciseReorderRequest,
+        current_teacher: Student = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
     """
@@ -109,6 +111,7 @@ async def update_exercise(
         lesson_id: int,
         exercise_id: int,
         data: ExerciseUpdate,
+        current_teacher: Student = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
     """Mashqni yangilash — PUT /courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}"""
@@ -116,7 +119,12 @@ async def update_exercise(
 
 
 @router.delete("/{lesson_id}/exercises/{exercise_id}")
-async def delete_exercise(lesson_id: int, exercise_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_exercise(
+        lesson_id: int,
+        exercise_id: int,
+        current_teacher: Student = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db)
+):
     """Mashqni o'chirish — DELETE /courses/{course_id}/lessons/{lesson_id}/exercises/{exercise_id}"""
     result = await exercise_service.delete_exercise(db, exercise_id)
     if not result:

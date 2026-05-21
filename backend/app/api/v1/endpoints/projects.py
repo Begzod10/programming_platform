@@ -237,8 +237,12 @@ async def update_comment(
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Izoh qo'shish"""
-    return await service.update_comment(project_id=project_id, comment=comment)
+    """Izoh qo'shish (faqat egasi)"""
+    return await service.update_comment(
+        project_id=project_id,
+        student_id=current_student.id,
+        comment=comment,
+    )
 
 
 @router.patch("/{project_id}/file")
@@ -248,5 +252,9 @@ async def update_file(
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Fayl urlini yangilash"""
-    return await service.update_file(project_id=project_id, file_url=file_url)
+    """Fayl urlini yangilash (faqat egasi)"""
+    return await service.update_file(
+        project_id=project_id,
+        student_id=current_student.id,
+        file_url=file_url,
+    )

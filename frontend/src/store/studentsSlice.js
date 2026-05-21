@@ -1,62 +1,9 @@
 import { createSlice } from '@reduxjs/toolkit';
 
-const initialStudents = [
-  {
-    id: 1,
-    name: 'Алия Сейткали',
-    email: 'aliya@student.com',
-    phone: '+998 70 123 4567',
-    groupId: 1,
-    password: 'student123',
-    role: 'student',
-    avatar: '👩‍💻',
-    registeredAt: '2025-01-10',
-    level: 'Beginner',
-  },
-  {
-    id: 2,
-    name: 'Данияр Ахметов',
-    email: 'daniyar@student.com',
-    phone: '+998 70 234 5678',
-    groupId: 1,
-    password: 'student123',
-    role: 'student',
-    avatar: '👨‍💻',
-    registeredAt: '2025-01-12',
-    level: 'Intermediate',
-  },
-  {
-    id: 3,
-    name: 'Мадина Жакупова',
-    email: 'madina@student.com',
-    phone: '+998 95 345 6789',
-    groupId: 2,
-    password: 'student123',
-    role: 'student',
-    avatar: '👩‍🎓',
-    registeredAt: '2025-02-01',
-    level: 'Advanced',
-  },
-];
-
-const initialGroups = [
-  {
-    id: 1,
-    name: 'React - Группа 1',
-    description: 'Основной поток по React разработке',
-    courseIds: [1],
-    createdAt: '2025-01-01',
-    color: '#6c5ce7',
-  },
-  {
-    id: 2,
-    name: 'Python - Группа 1',
-    description: 'Начинающие Python разработчики',
-    courseIds: [2],
-    createdAt: '2025-02-01',
-    color: '#00b894',
-  },
-];
+// Real data is loaded from the API. Initial slice state is empty so no
+// placeholder data (and no mock passwords) ship in the production bundle.
+const initialStudents = [];
+const initialGroups = [];
 
 const studentsSlice = createSlice({
   name: 'students',

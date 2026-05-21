@@ -144,10 +144,12 @@ class ProjectService:
         await self.db.refresh(project)
         return project
 
-    async def update_comment(self, project_id: int, comment: str) -> Project:
+    async def update_comment(self, project_id: int, student_id: int, comment: str) -> Project:
         project = await self.get_project(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+        if project.student_id != student_id:
+            raise HTTPException(status_code=403, detail="Ruxsat yo'q")
         project.instructor_feedback = comment
         await self.db.commit()
         await self.db.refresh(project)
@@ -165,19 +167,28 @@ class ProjectService:
         await self.db.refresh(project)
         return project
 
-    async def update_file(self, project_id: int, file_url: str) -> Project:
+    async def update_file(self, project_id: int, student_id: int, file_url: str) -> Project:
         project = await self.get_project(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+        if project.student_id != student_id:
+            raise HTTPException(status_code=403, detail="Ruxsat yo'q")
         project.project_files = file_url
         await self.db.commit()
         await self.db.refresh(project)
         return project
 
     async def like_project(self, project_id: int, student_id: int = None) -> Project:
+        """Like a project.
+
+        Self-likes are blocked. Per-user dedup is not enforced yet (needs a
+        dedicated project_likes join table — see TODO in the bug report).
+        """
         project = await self.get_project(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+        if student_id is not None and project.student_id == student_id:
+            raise HTTPException(status_code=400, detail="O'z loyihangizga like bosa olmaysiz")
         project.likes_count += 1
         await self.db.commit()
         await self.db.refresh(project)

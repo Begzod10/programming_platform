@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -48,7 +48,7 @@ async def get_my_projects(
 ):
     """Faqat o'ziga tegishli loyihalarni olish"""
     service = ProjectService(db)
-    return await service.get_projects_by_student(student_id=current_student.id)
+    return await service.get_all_projects_by_student(student_id=current_student.id)
 
 
 # --- UMUMIY VA MA'MURIY (ADMIN/TEACHER) SECTION ---
@@ -58,9 +58,10 @@ async def get_students(
         skip: int = Query(0, ge=0),
         limit: int = Query(10, ge=1, le=100),
         search: str = Query(None),
+        current_user: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """Barcha studentlarni ro'yxatini olish"""
+    """Barcha studentlarni ro'yxatini olish (autentifikatsiya talab qilinadi)"""
     service = StudentService(db)
     return await service.get_all_students(skip=skip, limit=limit, search=search)
 
@@ -68,9 +69,10 @@ async def get_students(
 @router.get("/{student_id}", response_model=UserRead)
 async def get_student_by_id(
         student_id: int,
+        current_user: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """ID orqali istalgan student ma'lumotini ko'rish"""
+    """ID orqali istalgan student ma'lumotini ko'rish (autentifikatsiya talab qilinadi)"""
     service = StudentService(db)
     student = await service.get_student_by_id(student_id)
     if not student:
@@ -128,14 +130,19 @@ async def refresh_all_student_levels(
         db: AsyncSession = Depends(get_db),
         current_teacher=Depends(get_current_instructor)  # Faqat admin/teacher qila olsin
 ):
-    """Bazadagi barcha studentlarning darajasini ballariga qarab to'g'rilab chiqish"""
+    """Bazadagi barcha studentlarning darajasini ballariga qarab to'g'rilab chiqish.
+
+    Student modelida @validates('total_points') hook level ni avtomatik moslab
+    qo'yadi — shu sababli total_points ga uning o'z qiymatini tayinlash
+    kifoya (validator ishga tushadi).
+    """
     result = await db.execute(select(Student))
     students = result.scalars().all()
 
     updated_count = 0
     for student in students:
         old_level = student.current_level
-        student.update_level_based_on_points()
+        student.total_points = student.total_points  # triggers validator
 
         if old_level != student.current_level:
             updated_count += 1

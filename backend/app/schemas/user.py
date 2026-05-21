@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr, ConfigDict, field_validator, Field
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, ConfigDict, field_validator, Field, model_validator
+from typing import Optional, List, Any
 from datetime import datetime
 from enum import Enum
 from app.models.user import UserRole
@@ -26,7 +26,9 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
-    role: Optional[UserRole] = Field(default=UserRole.student)
+    # Role is intentionally NOT exposed on the public registration schema.
+    # Caller-supplied roles let any anonymous request register as teacher.
+    # auth_service.register_new_student always forces UserRole.student.
 
     @field_validator("username")
     @classmethod
@@ -40,8 +42,8 @@ class UserCreate(UserBase):
     @classmethod
     def validate_password(cls, v: str) -> str:
         v = v.strip()
-        if len(v) < 5:
-            raise ValueError("Parol kamida 5 ta belgi bo'lishi kerak")
+        if len(v) < 8:
+            raise ValueError("Parol kamida 8 ta belgi bo'lishi kerak")
         return v
 
 
@@ -94,8 +96,31 @@ class UserRead(BaseModel):
     surname: Optional[str] = Field(default=None)
     created_at: datetime
 
-    # Yutuqlar: agar relationship yuklanmagan bo'lsa bo'sh list qaytadi
+    # Yutuqlar: ORM dagi `student_achievements` (join jadval) bo'yicha
+    # to'plab beriladi. Avval bu maydon `achievements` deb belgilangan edi,
+    # lekin Student modelida bu nomda relationship yo'q — natijada UI doim
+    # bo'sh list olar edi. Endi `student_achievements` orqali to'plab,
+    # nested `Achievement` ma'lumotini chiqaramiz.
     achievements: List[AchievementRead] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def collect_achievements(cls, data: Any) -> Any:
+        # `from_attributes=True` rejimida `data` ORM model bo'lishi mumkin.
+        try:
+            if hasattr(data, "student_achievements") and not isinstance(data, dict):
+                joined = getattr(data, "student_achievements", None) or []
+                # Sodda dict ko'rinishida qaytaramiz, AchievementRead esa
+                # `from_attributes` orqali maydonlarni xaritaga soladi.
+                extracted = [getattr(sa, "achievement", None) for sa in joined]
+                extracted = [a for a in extracted if a is not None]
+                # Pydantic v2 dict update qila olmaydi — yangi dict yasaymiz.
+                base = {k: getattr(data, k, None) for k in cls.model_fields.keys()}
+                base["achievements"] = extracted
+                return base
+        except Exception:
+            pass
+        return data
 
     # Pydantic v2 uchun sozlama
     model_config = ConfigDict(
