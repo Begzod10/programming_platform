@@ -1,7 +1,12 @@
 import axios from 'axios';
-import { API_URL } from './search/base';
 
-// [REFACTOR] Centralized Axios instance with interceptors for auth token management
+// API_URL is computed inline here to break the circular import with
+// ./search/base.js (base.js now uses axiosInstance for useHttp). Keep this
+// in sync with API_URL_DOC / API_URL in base.js.
+const API_URL_DOC = process.env.REACT_APP_API_URL || 'http://localhost:8000/';
+const API_URL = `${API_URL_DOC}api/`;
+
+// Centralized Axios instance with interceptors for auth token management
 const axiosInstance = axios.create({
     baseURL: API_URL,
     headers: { 'Content-Type': 'application/json' },
