@@ -13,6 +13,7 @@ import Profile        from './views/student/profile/Profile';
 import MyProjects     from './views/student/projects/MyProjects';
 import Leaderboard    from './views/student/rankings/LeaderBoard';
 import Degrees        from './views/student/degrees/DegreeCard';
+import Dictionary     from './views/student/dictionary/Dictionary';   // ← NEW
 
 // ── Teacher views ──
 import TeacherCourses      from './views/teacher/courses/TeacherCourses/TeacherCourses';
@@ -82,8 +83,9 @@ function AppRouter() {
                 <Route path="projects"                                    element={<MyProjects />} />
                 <Route path="rankings"                                    element={<Leaderboard />} />
                 <Route path="degrees"                                     element={<Degrees />} />
+                <Route path="dictionary"                                  element={<Dictionary />} />  {/* ← NEW */}
 
-                {/* Курсы — StudentCourses читает useParams и рендерит нужный вид */}
+                {/* Курсы */}
                 <Route path="courses"                                     element={<StudentCourses />} />
                 <Route path="courses/:courseId"                           element={<StudentCourses />} />
                 <Route path="courses/:courseId/lessons/:lessonId"         element={<StudentCourses />} />
@@ -105,8 +107,6 @@ function AppRouter() {
                 <Route path="certificates"                                element={<TeacherCertificates />} />
                 <Route path="statistics"                                  element={<TeacherStatistics />} />
 
-                {/* ВАЖНО: "lessons/new" должен быть ВЫШЕ "lessons/:lessonId"
-                    иначе React Router матчит "new" как lessonId */}
                 <Route path="courses"                                     element={<TeacherCourses />} />
                 <Route path="courses/:courseId"                           element={<TeacherCourses />} />
                 <Route path="courses/:courseId/lessons/new"               element={<TeacherCourses />} />

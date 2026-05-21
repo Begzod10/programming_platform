@@ -798,3 +798,670 @@
   .slp-ex-footer { flex-direction: column; }
   .slp-ex-submit-btn, .slp-ex-retry-btn { width: 100%; text-align: center; }
 }
+/* ══════════════════════════════════════════════════════════════
+   EXERCISE SECTION WRAPPER
+══════════════════════════════════════════════════════════════ */
+.slp-ex-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.slp-ex-section-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, rgba(108,92,231,0.07), rgba(162,155,254,0.05));
+  border: 1.5px solid rgba(108,92,231,0.15);
+  border-radius: 12px;
+  margin-bottom: 4px;
+}
+
+.slp-ex-section-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: #6c5ce7;
+}
+
+.slp-ex-section-pts {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(26,26,46,0.5);
+  background: rgba(108,92,231,0.08);
+  padding: 3px 11px;
+  border-radius: 20px;
+}
+
+.slp-ex-section-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   EXERCISE CARD — базовое состояние
+══════════════════════════════════════════════════════════════ */
+.slp-ex-card {
+  background: #ffffff;
+  border: 2px solid rgba(108,92,231,0.12);
+  border-radius: 18px;
+  overflow: hidden;
+  transition: border-color 0.3s, box-shadow 0.3s, transform 0.2s;
+  box-shadow: 0 2px 12px rgba(108,92,231,0.06);
+}
+
+.slp-ex-card:hover {
+  border-color: rgba(108,92,231,0.25);
+  box-shadow: 0 6px 24px rgba(108,92,231,0.1);
+  transform: translateY(-1px);
+}
+
+/* Состояния */
+.slp-ex-card.state-correct {
+  border-color: #00b894;
+  background: linear-gradient(160deg, #f0fff8, #ffffff);
+  box-shadow: 0 4px 20px rgba(0,184,148,0.12);
+}
+
+.slp-ex-card.state-wrong {
+  border-color: #e17055;
+  background: linear-gradient(160deg, #fff5f3, #ffffff);
+  box-shadow: 0 4px 20px rgba(225,112,85,0.1);
+}
+
+.slp-ex-card.state-submitted {
+  border-color: #6c5ce7;
+  background: linear-gradient(160deg, #f5f3ff, #ffffff);
+  box-shadow: 0 4px 20px rgba(108,92,231,0.12);
+}
+
+/* ── HEADER ── */
+.slp-ex-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 20px 14px;
+  border-bottom: 1.5px solid rgba(26,26,46,0.06);
+  background: rgba(26,26,46,0.015);
+}
+
+.slp-ex-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.slp-ex-diff-badge {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 11px;
+  border-radius: 20px;
+  border: 1.5px solid currentColor;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.slp-ex-pts-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6c5ce7;
+  background: rgba(108,92,231,0.1);
+  padding: 3px 11px;
+  border-radius: 20px;
+}
+
+.slp-ex-score-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #00b894;
+  background: rgba(0,184,148,0.1);
+  padding: 3px 12px;
+  border-radius: 20px;
+  animation: slpPop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+@keyframes slpPop {
+  from { transform: scale(0.6); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.slp-ex-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a2e;
+  line-height: 1.35;
+}
+
+/* ── BODY ── */
+.slp-ex-card-body {
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── QUESTION TEXT ── */
+.slp-ex-question {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1a1a2e;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FILL IN THE BLANK
+══════════════════════════════════════════════════════════════ */
+.slp-ex-fill-wrap {
+  background: rgba(108,92,231,0.03);
+  border: 1.5px solid rgba(108,92,231,0.1);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+.slp-ex-fill-text {
+  font-size: 15px;
+  color: #1a1a2e;
+  line-height: 2;
+}
+
+.slp-ex-fill-input {
+  display: inline-block;
+  width: 100px;
+  padding: 5px 10px;
+  border: 2px solid rgba(108,92,231,0.35);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #1a1a2e;
+  background: white;
+  outline: none;
+  transition: all 0.2s;
+  margin: 0 4px;
+  text-align: center;
+}
+
+.slp-ex-fill-input:focus {
+  border-color: #6c5ce7;
+  box-shadow: 0 0 0 3px rgba(108,92,231,0.12);
+  width: 120px;
+}
+
+.slp-ex-fill-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.slp-ex-fill-input.correct {
+  border-color: #00b894;
+  background: rgba(0,184,148,0.07);
+  color: #00856f;
+}
+
+.slp-ex-fill-input.wrong {
+  border-color: #e17055;
+  background: rgba(225,112,85,0.07);
+  color: #b0452e;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MULTIPLE CHOICE
+══════════════════════════════════════════════════════════════ */
+.slp-ex-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slp-ex-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border-radius: 13px;
+  border: 1.5px solid rgba(26,26,46,0.1);
+  background: white;
+  color: #1a1a2e;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: all 0.18s;
+  font-family: inherit;
+  position: relative;
+  overflow: hidden;
+}
+
+.slp-ex-option-btn::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: transparent;
+  transition: background 0.2s;
+  border-radius: 0 2px 2px 0;
+}
+
+.slp-ex-option-btn:hover:not(:disabled) {
+  border-color: rgba(108,92,231,0.3);
+  background: rgba(108,92,231,0.04);
+  transform: translateX(2px);
+}
+
+.slp-ex-option-btn:hover:not(:disabled)::before {
+  background: rgba(108,92,231,0.4);
+}
+
+.slp-ex-option-btn.selected {
+  border-color: #6c5ce7;
+  background: rgba(108,92,231,0.07);
+  color: #1a1a2e;
+  font-weight: 600;
+}
+
+.slp-ex-option-btn.selected::before {
+  background: #6c5ce7;
+}
+
+.slp-ex-option-btn:disabled {
+  cursor: not-allowed;
+}
+
+.slp-ex-opt-letter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  flex-shrink: 0;
+  background: rgba(108,92,231,0.08);
+  color: #6c5ce7;
+  transition: all 0.18s;
+}
+
+.slp-ex-option-btn.selected .slp-ex-opt-letter {
+  background: #6c5ce7;
+  color: white;
+}
+
+.slp-ex-opt-text {
+  flex: 1;
+  text-align: left;
+}
+
+.slp-ex-opt-check {
+  color: #6c5ce7;
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+  animation: slpPop 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+.slp-ex-multi-hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(26,26,46,0.4);
+  padding: 4px 2px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DRAG & DROP
+══════════════════════════════════════════════════════════════ */
+.slp-ex-drag-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.slp-ex-dropzone-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(26,26,46,0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.slp-ex-dropzone {
+  min-height: 60px;
+  border: 2px dashed rgba(108,92,231,0.3);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  background: rgba(108,92,231,0.02);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.slp-ex-dropzone:hover {
+  border-color: #6c5ce7;
+  background: rgba(108,92,231,0.05);
+}
+
+.slp-drop-hint {
+  color: rgba(26,26,46,0.3);
+  font-size: 13px;
+  font-style: italic;
+}
+
+.slp-ex-dropped-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+  color: white;
+  border-radius: 22px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  user-select: none;
+  box-shadow: 0 2px 8px rgba(108,92,231,0.25);
+}
+
+.slp-ex-dropped-chip:hover {
+  transform: scale(0.96);
+  box-shadow: none;
+  opacity: 0.85;
+}
+
+.slp-dropped-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: rgba(255,255,255,0.25);
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.slp-dropped-del {
+  font-size: 10px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.slp-ex-dropped-chip:hover .slp-dropped-del {
+  opacity: 1;
+}
+
+.slp-ex-drag-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.slp-ex-drag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: white;
+  border: 1.5px solid rgba(108,92,231,0.25);
+  color: #6c5ce7;
+  border-radius: 22px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: grab;
+  user-select: none;
+  transition: all 0.18s;
+  font-family: inherit;
+}
+
+.slp-ex-drag-chip:hover {
+  background: rgba(108,92,231,0.07);
+  border-color: #6c5ce7;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(108,92,231,0.18);
+}
+
+.slp-ex-drag-chip:active {
+  cursor: grabbing;
+  transform: scale(0.97);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   TEXT INPUT
+══════════════════════════════════════════════════════════════ */
+.slp-ex-textarea {
+  width: 100%;
+  min-height: 108px;
+  padding: 14px 16px;
+  border: 1.5px solid rgba(26,26,46,0.12);
+  border-radius: 13px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  color: #1a1a2e;
+  background: white;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+  line-height: 1.6;
+}
+
+.slp-ex-textarea:focus {
+  border-color: #6c5ce7;
+  box-shadow: 0 0 0 3px rgba(108,92,231,0.1);
+}
+
+.slp-ex-textarea:disabled {
+  background: rgba(26,26,46,0.03);
+  cursor: not-allowed;
+  color: rgba(26,26,46,0.5);
+}
+
+.slp-ex-ai-note {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(26,26,46,0.4);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: -4px;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   HINT
+══════════════════════════════════════════════════════════════ */
+.slp-ex-hint-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slp-ex-hint-btn {
+  align-self: flex-start;
+  background: rgba(253,203,110,0.1);
+  border: 1.5px solid rgba(253,203,110,0.45);
+  color: #c0821e;
+  padding: 7px 16px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+  letter-spacing: 0.01em;
+}
+
+.slp-ex-hint-btn:hover {
+  background: rgba(253,203,110,0.2);
+  border-color: rgba(253,203,110,0.7);
+}
+
+.slp-ex-hint-text {
+  padding: 12px 16px;
+  background: rgba(253,203,110,0.08);
+  border: 1.5px solid rgba(253,203,110,0.3);
+  border-radius: 11px;
+  font-size: 13.5px;
+  color: #7a5a00;
+  line-height: 1.6;
+  animation: slpFade 0.22s ease;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESULT BANNER
+══════════════════════════════════════════════════════════════ */
+.slp-ex-result-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 13px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  animation: slpSlideIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+}
+
+@keyframes slpSlideIn {
+  from { transform: translateY(-8px) scale(0.97); opacity: 0; }
+  to   { transform: translateY(0)    scale(1);    opacity: 1; }
+}
+
+.slp-ex-result-banner.correct {
+  background: linear-gradient(135deg, #d4faf0, #f0fff8);
+  border: 1.5px solid rgba(0,184,148,0.3);
+  color: #00856f;
+}
+
+.slp-ex-result-banner.wrong {
+  background: linear-gradient(135deg, #fde8e4, #fff5f3);
+  border: 1.5px solid rgba(225,112,85,0.3);
+  color: #c0392b;
+}
+
+.slp-ex-result-banner.submitted {
+  background: linear-gradient(135deg, #ede9ff, #f5f3ff);
+  border: 1.5px solid rgba(108,92,231,0.25);
+  color: #6c5ce7;
+}
+
+.slp-res-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   AI FEEDBACK
+══════════════════════════════════════════════════════════════ */
+.slp-ex-ai-feedback {
+  background: linear-gradient(135deg, rgba(108,92,231,0.05), rgba(162,155,254,0.07));
+  border: 1.5px solid rgba(108,92,231,0.18);
+  border-radius: 13px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: slpFade 0.3s ease;
+}
+
+.slp-ex-ai-feedback-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #6c5ce7;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.slp-ex-ai-feedback-text {
+  font-size: 14px;
+  color: #1a1a2e;
+  line-height: 1.65;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ACTION BUTTONS
+══════════════════════════════════════════════════════════════ */
+.slp-ex-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.slp-ex-submit-btn {
+  padding: 11px 26px;
+  background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 4px 14px rgba(108,92,231,0.32);
+  transition: all 0.22s;
+  letter-spacing: 0.01em;
+}
+
+.slp-ex-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 7px 22px rgba(108,92,231,0.45);
+}
+
+.slp-ex-submit-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.slp-ex-retry-btn {
+  padding: 11px 22px;
+  background: white;
+  color: #e17055;
+  border: 1.5px solid rgba(225,112,85,0.3);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.slp-ex-retry-btn:hover {
+  background: rgba(225,112,85,0.06);
+  border-color: rgba(225,112,85,0.5);
+  transform: translateY(-1px);
+}
+
+.slp-ex-done-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #00b894;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .slp-ex-card-head,
+  .slp-ex-card-body { padding: 14px 15px; }
+
+  .slp-ex-actions { flex-direction: column; align-items: stretch; }
+  .slp-ex-submit-btn,
+  .slp-ex-retry-btn { text-align: center; }
+
+  .slp-ex-option-btn { padding: 11px 13px; font-size: 13px; }
+  .slp-ex-fill-input { width: 80px; }
+}

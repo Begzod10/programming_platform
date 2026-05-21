@@ -1,0 +1,121 @@
+/* ══════════════════════════════════════════
+   DICT SELECTION POPUP
+   Всплывает над выделенным текстом в уроке
+══════════════════════════════════════════ */
+
+.dsp-popup {
+    position: absolute;
+    transform: translateX(-50%) translateY(-100%);
+    z-index: 8888;
+    background: #13111f;
+    border-radius: 14px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow:
+        0 10px 32px rgba(0,0,0,0.32),
+        0 2px 8px rgba(0,0,0,0.16);
+    animation: dspIn 0.22s cubic-bezier(0.34,1.56,0.64,1);
+    pointer-events: auto;
+    white-space: nowrap;
+    border: 1px solid rgba(255,255,255,0.08);
+    margin-top: -6px;
+    font-family: 'Sora', 'Inter', sans-serif;
+}
+@keyframes dspIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(calc(-100% + 10px)) scale(0.85); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(-100%) scale(1); }
+}
+
+.dsp-popup.done {
+    background: linear-gradient(135deg, #2ec4a9, #00b894);
+}
+.dsp-popup.error {
+    background: linear-gradient(135deg, #e05260, #c0392b);
+}
+
+/* Word preview */
+.dsp-word {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.4);
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Add button */
+.dsp-btn {
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 13px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.18s;
+    box-shadow: 0 3px 10px rgba(108,92,231,0.5);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 44px;
+    justify-content: center;
+}
+.dsp-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 16px rgba(108,92,231,0.65);
+}
+.dsp-btn:active { transform: scale(0.96); }
+.dsp-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+
+/* States */
+.dsp-done {
+    font-size: 13px;
+    font-weight: 800;
+    color: #fff;
+    padding: 2px 4px;
+}
+.dsp-err {
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    padding: 2px 4px;
+}
+
+/* Spinner */
+.dsp-spin {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255,255,255,0.25);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: dspSpin 0.6s linear infinite;
+}
+@keyframes dspSpin { to { transform: rotate(360deg); } }
+
+/* Arrow */
+.dsp-arrow {
+    position: absolute;
+    bottom: -7px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left:  7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top:   7px solid #13111f;
+    pointer-events: none;
+    transition: border-top-color 0.2s;
+}
+.dsp-popup.done  .dsp-arrow { border-top-color: #00b894; }
+.dsp-popup.error .dsp-arrow { border-top-color: #c0392b; }
+
+/* Mobile */
+@media (max-width: 480px) {
+    .dsp-popup { padding: 6px 8px; gap: 6px; }
+    .dsp-btn   { font-size: 11px; padding: 6px 10px; }
+    .dsp-word  { max-width: 80px; font-size: 10.5px; }
+}

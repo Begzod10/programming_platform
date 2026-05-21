@@ -1,28 +1,79 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './LeaderBoard.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 
 const TABS = [
-    { key: 'all',     label: 'Barcha vaqt' },
-    { key: 'monthly', label: 'Oy'          },
-    { key: 'weekly',  label: 'Hafta'       },
-    { key: 'daily',   label: 'Bugun'       },
+    { key: 'all',     label: 'Barcha vaqt', icon: '∞' },
+    { key: 'monthly', label: 'Oy',           icon: '◑' },
+    { key: 'weekly',  label: 'Hafta',        icon: '◔' },
+    { key: 'daily',   label: 'Bugun',        icon: '○' },
 ];
 
-function Leaderboard() {
+const PODIUM_COLORS = [
+    { bg: '#FFD93D', text: '#7A5800', glow: 'rgba(255,217,61,0.4)',  medal: '🥇' },
+    { bg: '#B8C4CC', text: '#3A4A52', glow: 'rgba(184,196,204,0.4)', medal: '🥈' },
+    { bg: '#CD8B5A', text: '#5C3010', glow: 'rgba(205,139,90,0.4)',  medal: '🥉' },
+];
+
+function Avatar({ url, name, rank }) {
+    const initials = name
+        ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+        : '?';
+    const colors = ['#6C5CE7','#00B894','#E17055','#0984E3','#E84393','#FDCB6E'];
+    const color  = colors[(name?.charCodeAt(0) ?? 0) % colors.length];
+
+    return (
+        <div className={`lb-avatar ${rank <= 3 ? 'lb-avatar--top' : ''}`}
+             style={rank <= 3 ? { borderColor: PODIUM_COLORS[rank-1].bg, boxShadow: `0 0 16px ${PODIUM_COLORS[rank-1].glow}` } : {}}>
+            {url
+                ? <img src={url} alt={name} />
+                : <span style={{ background: color }}>{initials}</span>
+            }
+        </div>
+    );
+}
+
+function PodiumBar({ student, rank, getPoints }) {
+    const c      = PODIUM_COLORS[rank - 1];
+    const name   = student?.full_name || student?.username || '—';
+    const pts    = student ? getPoints(student) : 0;
+    const heights = { 1: 110, 2: 80, 3: 64 };
+
+    if (!student) return (
+        <div className="lb-podium-slot lb-podium-slot--empty">
+            <div className="lb-podium-bar" style={{ height: heights[rank], background: 'rgba(255,255,255,0.04)' }}>
+                <span className="lb-podium-rank-num">{rank}</span>
+            </div>
+        </div>
+    );
+
+    return (
+        <div className={`lb-podium-slot lb-podium-slot--${rank}`}>
+            <Avatar url={student.avatar_url} name={name} rank={rank} />
+            <p className="lb-podium-name">{name.split(' ')[0]}</p>
+            <p className="lb-podium-pts">{pts} <span>pts</span></p>
+            <div className="lb-podium-bar" style={{ height: heights[rank], background: c.bg }}>
+                <span className="lb-podium-medal">{c.medal}</span>
+            </div>
+        </div>
+    );
+}
+
+export default function Leaderboard() {
     const { request } = useHttp();
     const [activeTab, setActiveTab] = useState('all');
     const [data,      setData]      = useState([]);
     const [myRank,    setMyRank]    = useState(null);
     const [loading,   setLoading]   = useState(true);
     const [error,     setError]     = useState('');
+    const listRef = useRef(null);
 
     const fetchRanking = (period) => {
         setLoading(true);
         setError('');
         request(`${API_URL}v1/rankings/leaderboard?period=${period}&limit=50`, 'GET', null, headers())
             .then(res => setData(Array.isArray(res) ? res : []))
-            .catch(() => setError('Reytingni yuklab bo\'lmadi'))
+            .catch(() => setError("Reytingni yuklab bo'lmadi"))
             .finally(() => setLoading(false));
     };
 
@@ -35,6 +86,7 @@ function Leaderboard() {
     useEffect(() => {
         fetchRanking(activeTab);
         fetchMyRank(activeTab);
+        listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }, [activeTab]);
 
     const getPoints = (student) => {
@@ -68,101 +120,128 @@ function Leaderboard() {
         return (rank && rank !== '-') ? `#${rank}` : '—';
     };
 
-    const getRankIcon = (rank) => {
-        if (rank === 1) return '🥇';
-        if (rank === 2) return '🥈';
-        if (rank === 3) return '🥉';
-        return rank;
-    };
+    const top3   = data.slice(0, 3);
+    const rest   = data.slice(3);
 
     return (
-        <div className="leaderboard-container">
+        <div className="lb">
 
-            {/* Header */}
-            <div className="leaderboard-header">
-                <h2>Reyting</h2>
-                <div className="filter-tabs">
-                    {TABS.map(t => (
-                        <span
-                            key={t.key}
-                            className={activeTab === t.key ? 'active' : ''}
-                            onClick={() => setActiveTab(t.key)}
-                        >
-                            {t.label}
-                        </span>
-                    ))}
+            {/* ── HEADER (sticky) ── */}
+            <div className="lb-header">
+                <div className="lb-header-top">
+                    <div className="lb-title-block">
+                        <span className="lb-trophy">🏆</span>
+                        <div>
+                            <h2 className="lb-title">Reyting</h2>
+                            <p className="lb-subtitle">{data.length} ta talaba</p>
+                        </div>
+                    </div>
+                    <div className="lb-tabs">
+                        {TABS.map(t => (
+                            <button
+                                key={t.key}
+                                className={`lb-tab ${activeTab === t.key ? 'lb-tab--active' : ''}`}
+                                onClick={() => setActiveTab(t.key)}
+                            >
+                                <span className="lb-tab-icon">{t.icon}</span>
+                                <span className="lb-tab-label">{t.label}</span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
+
+                {/* My rank band */}
+                {myRank && (
+                    <div className="lb-myrank">
+                        <div className="lb-myrank-left">
+                            <span className="lb-myrank-label">Mening o'rnim</span>
+                            <span className="lb-myrank-pos">{getMyRankValue()}</span>
+                        </div>
+                        <div className="lb-myrank-right">
+                            <span className="lb-myrank-pts">{getMyPoints()}</span>
+                            <span className="lb-myrank-unit">PTS</span>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Моя позиция */}
-            {myRank && (
-                <div className="lb-my-rank">
-                    <div className="lb-my-rank-left">
-                        <span className="lb-my-label">Mening o'rnim</span>
-                        <span className="lb-my-pos">{getMyRankValue()}</span>
-                    </div>
-                    <div className="lb-my-rank-right">
-                        <span className="lb-my-pts">{getMyPoints()}</span>
-                        <span className="lb-my-pts-label">PTS</span>
-                    </div>
-                </div>
-            )}
+            {/* ── SCROLLABLE BODY ── */}
+            <div className="lb-body" ref={listRef}>
 
-            {/* List */}
-            <div className="ranking-list same-with-header">
                 {loading ? (
-                    <div className="lb-loading">
-                        <div className="lb-spinner"/>
-                        <p>Yuklanmoqda...</p>
+                    <div className="lb-state">
+                        <div className="lb-spinner" />
+                        <p>Yuklanmoqda…</p>
                     </div>
                 ) : error ? (
-                    <div className="lb-error">
+                    <div className="lb-state lb-state--error">
+                        <span className="lb-state-icon">⚠</span>
                         <p>{error}</p>
-                        <button onClick={() => fetchRanking(activeTab)}>Qayta urinish</button>
+                        <button className="lb-retry" onClick={() => fetchRanking(activeTab)}>
+                            Qayta urinish
+                        </button>
                     </div>
                 ) : data.length === 0 ? (
-                    <div className="lb-empty">Hozircha ma'lumot yo'q</div>
-                ) : data.map((student, idx) => {
-                    const rank = student.rank ?? idx + 1;
-                    const name = student.full_name || student.username || 'Talaba';
-                    const pts  = getPoints(student);
+                    <div className="lb-state">
+                        <span className="lb-state-icon">📭</span>
+                        <p>Hozircha ma'lumot yo'q</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* ── PODIUM (top 3) ── */}
+                        {top3.length > 0 && (
+                            <div className="lb-podium">
+                                <PodiumBar student={top3[1]} rank={2} getPoints={getPoints} />
+                                <PodiumBar student={top3[0]} rank={1} getPoints={getPoints} />
+                                <PodiumBar student={top3[2]} rank={3} getPoints={getPoints} />
+                            </div>
+                        )}
 
-                    return (
-                        <div
-                            key={student.student_id ?? idx}
-                            className={`ranking-item ${rank <= 3 ? 'top-three' : ''}`}
-                            style={{ animationDelay: `${idx * 0.04}s` }}
-                        >
-                            <div className="rank-number">{getRankIcon(rank)}</div>
-                            <div className="student-info">
-                                <div className="student-avatar">
-                                    {student.avatar_url
-                                        ? <img src={student.avatar_url} alt={name} className="lb-avatar-img"/>
-                                        : <span className="lb-avatar-emoji">👤</span>
-                                    }
-                                </div>
-                                <div className="name-box">
-                                    <span className="student-name">{name}</span>
-                                    <div className="lb-meta">
-                                        {student.level && (
-                                            <span className="student-level">{student.level}</span>
-                                        )}
-                                        {student.projects_completed > 0 && (
-                                            <span className="lb-projects">📁 {student.projects_completed}</span>
-                                        )}
+                        {/* ── LIST (4+) ── */}
+                        <div className="lb-list">
+                            {rest.map((student, idx) => {
+                                const rank = student.rank ?? idx + 4;
+                                const name = student.full_name || student.username || 'Talaba';
+                                const pts  = getPoints(student);
+                                const pct  = data.length > 0 ? (pts / (getPoints(data[0]) || 1)) * 100 : 0;
+
+                                return (
+                                    <div
+                                        key={student.student_id ?? idx}
+                                        className="lb-item"
+                                        style={{ animationDelay: `${idx * 0.03}s` }}
+                                    >
+                                        <span className="lb-item-rank">{rank}</span>
+
+                                        <Avatar url={student.avatar_url} name={name} rank={rank} />
+
+                                        <div className="lb-item-info">
+                                            <div className="lb-item-top">
+                                                <span className="lb-item-name">{name}</span>
+                                                <span className="lb-item-pts">{pts} <em>pts</em></span>
+                                            </div>
+                                            <div className="lb-item-bar-wrap">
+                                                <div
+                                                    className="lb-item-bar"
+                                                    style={{ width: `${pct}%` }}
+                                                />
+                                            </div>
+                                            {(student.level || student.projects_completed > 0) && (
+                                                <div className="lb-item-meta">
+                                                    {student.level && <span className="lb-badge">{student.level}</span>}
+                                                    {student.projects_completed > 0 && (
+                                                        <span className="lb-badge lb-badge--dim">📁 {student.projects_completed} loyiha</span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                            <div className="student-points">
-                                <strong>{pts}</strong>
-                                <span>PTS</span>
-                            </div>
+                                );
+                            })}
                         </div>
-                    );
-                })}
+                    </>
+                )}
             </div>
         </div>
     );
 }
-
-export default Leaderboard;

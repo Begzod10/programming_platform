@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import './StudentLessonPage.css';
 import {SECTION_TYPES, getYTId} from '../../../../constants/courseUtils';
 import {API_URL, useHttp, headers} from '../../../../api/search/base';
-import {sanitizeHtml} from '../../../../utils/sanitize';
+import DictSelectionPopup from '../LessonPage/Dictselectionpopup';
 
 
 /* ─────────────────────────────────────────
@@ -393,6 +393,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                         `${API_URL}v1/achievements/check-and-earn-certificate?course_id=${course.id}`,
                         { method: 'POST', headers: headers() }
                     );
+                    console.log('=== check-and-earn-certificate called for course', course.id);
                 } catch (e) {
                     // Не блокируем UX — сертификат можно будет выдать и вручную из Degrees
                     console.warn('check-and-earn-certificate failed:', e);
@@ -446,6 +447,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                             `${API_URL}v1/achievements/check-and-earn-certificate?course_id=${course.id}`,
                             { method: 'POST', headers: headers() }
                         );
+                        console.log('=== check-and-earn-certificate called after project submit for course', course.id);
                     } catch (e) {
                         console.warn('check-and-earn-certificate failed:', e);
                     }
@@ -527,10 +529,10 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                 </div>
                                 <div className="slp-block-body">
 
-                                    {/* TEXT — sanitized to prevent XSS via teacher-authored HTML */}
+                                    {/* TEXT */}
                                     {section.type === 'text' && (
                                         <div className="slp-text-content"
-                                            dangerouslySetInnerHTML={{__html: sanitizeHtml(section.html) || '<p style="color:rgba(26,26,46,0.3)">Текст не добавлен</p>'}}/>
+                                            dangerouslySetInnerHTML={{__html: section.html || '<p style="color:rgba(26,26,46,0.3)">Текст не добавлен</p>'}}/>
                                     )}
 
                                     {/* CODE */}
@@ -732,6 +734,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 </div>,
                 document.body
             )}
+
+            {/* ── Dictionary selection popup ── */}
+            <DictSelectionPopup lessonId={lesson.id} />
 
         </div>
     );

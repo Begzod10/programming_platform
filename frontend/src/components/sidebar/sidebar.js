@@ -9,11 +9,12 @@ function Sidebar({ activeTab, onLogout, role }) {
     const [isOpen, setIsOpen] = useState(false);
 
     const menuItems = [
-        { id: 'profile',  label: 'Профиль',      icon: '👤' },
-        { id: 'projects', label: 'Мои Проекты',  icon: '💻' },
-        { id: 'courses',  label: 'Курсы',         icon: '📚' },
-        { id: 'rankings', label: 'Рейтинг',       icon: '🏆' },
-        { id: 'degrees',  label: 'Сертификаты',   icon: '🎓' },
+        { id: 'profile',    label: 'Профиль',       icon: '👤' },
+        { id: 'projects',   label: 'Мои Проекты',   icon: '💻' },
+        { id: 'courses',    label: 'Курсы',          icon: '📚' },
+        { id: 'rankings',   label: 'Рейтинг',        icon: '🏆' },
+        { id: 'degrees',    label: 'Сертификаты',    icon: '🎓' },
+        { id: 'dictionary', label: "Словарь",         icon: '📖' },
     ];
 
     const handleTabClick = (id) => {
