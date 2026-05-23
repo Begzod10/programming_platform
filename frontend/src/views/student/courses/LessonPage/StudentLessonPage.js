@@ -364,6 +364,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     );
     const [projectSaving, setProjectSaving] = useState(false);
     const [projectError,  setProjectError]  = useState('');
+    const [downloadingFile, setDownloadingFile] = useState(null); // fileName being downloaded
 
     const currentIndex  = allLessons.findIndex(l => l.id === lesson.id);
     const prevLesson    = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
@@ -377,6 +378,38 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             setCopiedId(id);
             setTimeout(() => setCopiedId(null), 2000);
         });
+    };
+
+    /* ── Скачивание файла урока ── */
+    const handleDownloadFile = async (lessonId, fileName) => {
+        if (!fileName) return;
+        setDownloadingFile(fileName);
+        try {
+            const token = headers()?.Authorization || headers()?.authorization || '';
+            const url = `${API_URL}v1/courses/${course.id}/lessons/${lessonId}/download?file_name=${encodeURIComponent(fileName)}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    ...(token ? {Authorization: token} : {}),
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!response.ok) throw new Error('Download failed');
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (err) {
+            console.error('File download error:', err);
+            alert('Файл yuklab olishda xatolik yuz berdi. Iltimos, qayta urinib ko\'ring.');
+        } finally {
+            setDownloadingFile(null);
+        }
     };
 
     // ─── ИЗМЕНЕНО: handleComplete теперь async, вызывает check-and-earn на последнем уроке ───
@@ -578,7 +611,13 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                     <div className="slp-file-name">{section.fileName}</div>
                                                     {section.fileSize && <div className="slp-file-size">{section.fileSize}</div>}
                                                 </div>
-                                                <button className="slp-file-dl-btn">⬇ Скачать</button>
+                                                <button
+                                                    className="slp-file-dl-btn"
+                                                    disabled={downloadingFile === section.fileName}
+                                                    onClick={() => handleDownloadFile(lesson.id, section.fileName)}
+                                                >
+                                                    {downloadingFile === section.fileName ? '⏳ Yuklanmoqda...' : '⬇ Скачать'}
+                                                </button>
                                             </div>
                                         ) : <div className="slp-file-empty">Файл не добавлен</div>
                                     )}
