@@ -15,3 +15,7 @@ from app.models.video_watch import VideoWatch
 
 def certificate():
     return None
+
+
+def certificate():
+    return None

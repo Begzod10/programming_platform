@@ -140,9 +140,8 @@ class Student(Base):
         "Group",
         back_populates="students",
         foreign_keys="Student.group_id",
-        overlaps="groups" # Added overlaps to avoid warning
+        overlaps="groups"  # Added overlaps to avoid warning
     )
-
 
     lesson_completions: Mapped[List["LessonCompletion"]] = relationship(
         "LessonCompletion",
@@ -166,6 +165,8 @@ class Student(Base):
         back_populates="teacher",
         foreign_keys="Group.teacher_id"
     )
+
+    dictionary_words = relationship("UserDictionary", back_populates="student")
 
     @validates('total_points')
     def sync_level_with_points(self, key, value):

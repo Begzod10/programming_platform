@@ -15,7 +15,7 @@ from app.api.v1.endpoints import (
 )
 from app.api.v1.endpoints.teacher import students as teacher_students
 from app.api.v1.endpoints.teacher import statistics as teacher_statistics
-
+from app.api.v1.endpoints import dictionary
 api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
@@ -32,3 +32,4 @@ api_router.include_router(exercises.router, prefix="/courses/{course_id}/lessons
 api_router.include_router(ai_review.router, prefix="/ai", tags=["AI Review"])
 api_router.include_router(teacher_students.router, prefix="/teacher/students", tags=["Teacher - Students"])
 api_router.include_router(teacher_statistics.router, prefix="/teacher", tags=["Teacher - Statistics"])
+api_router.include_router(dictionary.router, prefix="/dictionary", tags=["dictionary"])

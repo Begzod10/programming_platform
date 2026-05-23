@@ -18,6 +18,7 @@ from app.models.group import Group
 from app.models.exercise import Exercise, ExerciseSubmission
 from app.models.quiz import Quiz, Question, StudentQuizResult
 from app.models.video_watch import VideoWatch
+from app.models.dictionary import UserDictionary
 
 __all__ = [
     "Base",
@@ -40,4 +41,5 @@ __all__ = [
     "Question",
     "StudentQuizResult",
     "VideoWatch",
+    "UserDictionary",
 ]
