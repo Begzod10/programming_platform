@@ -13,6 +13,7 @@ from app.core.exceptions import register_exception_handlers
 from app.scheduler import start_scheduler, scheduler
 from app.utils import certificate as cert_utils
 from app.db import base  # noqa: F401  ensures all models register on Base.metadata
+from fastapi.staticfiles import StaticFiles
 
 UPLOAD_ROOT = Path(settings.UPLOAD_DIR)
 

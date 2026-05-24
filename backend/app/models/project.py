@@ -1,9 +1,13 @@
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Optional, List
 from sqlalchemy import String, Integer, Text, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
-from typing import List
+
+
+def utcnow():
+    return datetime.now(timezone.utc)
+
 
 class Project(Base):
     __tablename__ = "projects"
@@ -26,10 +30,11 @@ class Project(Base):
     grade: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
     views_count: Mapped[int] = mapped_column(Integer, default=0)
     likes_count: Mapped[int] = mapped_column(Integer, default=0)
-    submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     student: Mapped["Student"] = relationship(
         "Student",

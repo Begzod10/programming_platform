@@ -54,6 +54,7 @@ class UserUpdate(BaseModel):
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
 
+
     @field_validator("username", "full_name", "bio")
     @classmethod
     def strip_strings(cls, v: Optional[str]) -> Optional[str]:

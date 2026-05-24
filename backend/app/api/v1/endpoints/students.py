@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import os
+import uuid
+from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
+from pathlib import Path
 
+from app.config import settings
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.schemas.user import UserRead, UserUpdate
 from app.schemas.project import ProjectRead
@@ -12,10 +16,12 @@ from app.models.user import Student
 
 router = APIRouter()
 
+UPLOAD_DIR = Path(settings.UPLOAD_DIR) / "avatars"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
 
 @router.get("/me", response_model=UserRead)
 async def get_me(current_student: Student = Depends(get_current_student)):
-    """Joriy foydalanuvchi (o'zi) haqida ma'lumot olish"""
     return current_student
 
 
@@ -25,9 +31,71 @@ async def update_my_profile(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """O'z profilini tahrirlash"""
     service = StudentService(db)
     return await service.update_student(current_student.id, data)
+
+
+@router.patch("/me/avatar")
+async def upload_my_avatar(
+        file: UploadFile = File(...),
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    allowed_types = ["image/jpeg", "image/png", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Faqat JPEG, PNG, WEBP!")
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Fayl 5MB dan katta!")
+
+    # Eski avatarni o'chirish
+    if current_student.avatar_url:
+        old_path = UPLOAD_DIR / Path(current_student.avatar_url).name
+        if old_path.exists():
+            old_path.unlink()
+
+    # Yangi fayl saqlash
+    ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+    filename = f"{uuid.uuid4()}.{ext}"
+    filepath = UPLOAD_DIR / filename
+
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    avatar_url = f"/uploads/avatars/{filename}"
+
+    service = StudentService(db)
+    await service.update_student(
+        current_student.id,
+        UserUpdate(avatar_url=avatar_url)
+    )
+
+    return {
+        "avatar_url": avatar_url,
+        "message": "Avatar muvaffaqiyatli yangilandi!"
+    }
+
+
+@router.delete("/me/avatar")
+async def delete_my_avatar(
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    if not current_student.avatar_url:
+        raise HTTPException(status_code=404, detail="Avatar mavjud emas!")
+
+    # ✅ To'g'ri path
+    old_path = UPLOAD_DIR / Path(current_student.avatar_url).name
+    if old_path.exists():
+        old_path.unlink()
+
+    service = StudentService(db)
+    await service.update_student(
+        current_student.id,
+        UserUpdate(avatar_url=None)
+    )
+    return {"message": "Avatar o'chirildi!"}
 
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
@@ -35,7 +103,11 @@ async def delete_my_account(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """Student o'z akkauntini o'chirishi (ID talab qilinmaydi)"""
+    if current_student.avatar_url:
+        old_path = UPLOAD_DIR / Path(current_student.avatar_url).name
+        if old_path.exists():
+            old_path.unlink()
+
     service = StudentService(db)
     await service.delete_student(current_student.id)
     return None
@@ -46,12 +118,9 @@ async def get_my_projects(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """Faqat o'ziga tegishli loyihalarni olish"""
     service = ProjectService(db)
     return await service.get_all_projects_by_student(student_id=current_student.id)
 
-
-# --- UMUMIY VA MA'MURIY (ADMIN/TEACHER) SECTION ---
 
 @router.get("/", response_model=List[UserRead])
 async def get_students(
@@ -61,7 +130,6 @@ async def get_students(
         current_user: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """Barcha studentlarni ro'yxatini olish (autentifikatsiya talab qilinadi)"""
     service = StudentService(db)
     return await service.get_all_students(skip=skip, limit=limit, search=search)
 
@@ -72,7 +140,6 @@ async def get_student_by_id(
         current_user: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """ID orqali istalgan student ma'lumotini ko'rish (autentifikatsiya talab qilinadi)"""
     service = StudentService(db)
     student = await service.get_student_by_id(student_id)
     if not student:
@@ -84,20 +151,14 @@ async def get_student_by_id(
 async def update_specific_student(
         student_id: int,
         data: UserUpdate,
-        current_user: Student = Depends(get_current_student),  # Bu yerda role tekshiruvi muhim
+        current_user: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """
-    Ma'lum bir ID dagi studentni yangilash.
-    Agar student bo'lsa - faqat o'zini. Agar Admin bo'lsa - hamma studentni.
-    """
-    # Xavfsizlik filtri: Agar user student bo'lsa va birovni ID sini yuborsa - rad etish
     if current_user.role == "student" and current_user.id != student_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Sizda boshqa student ma'lumotlarini o'zgartirish huquqi yo'q"
         )
-
     service = StudentService(db)
     student = await service.update_student(student_id, data)
     if not student:
@@ -111,13 +172,11 @@ async def delete_specific_student(
         current_user: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """Studentni o'chirish (Faqat o'zi yoki Admin uchun)"""
     if current_user.role == "student" and current_user.id != student_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Sizda bu akkauntni o'chirish huquqi yo'q"
         )
-
     service = StudentService(db)
     success = await service.delete_student(student_id)
     if not success:
@@ -128,21 +187,15 @@ async def delete_specific_student(
 @router.post("/refresh-all-student-levels")
 async def refresh_all_student_levels(
         db: AsyncSession = Depends(get_db),
-        current_teacher=Depends(get_current_instructor)  # Faqat admin/teacher qila olsin
+        current_teacher=Depends(get_current_instructor)
 ):
-    """Bazadagi barcha studentlarning darajasini ballariga qarab to'g'rilab chiqish.
-
-    Student modelida @validates('total_points') hook level ni avtomatik moslab
-    qo'yadi — shu sababli total_points ga uning o'z qiymatini tayinlash
-    kifoya (validator ishga tushadi).
-    """
     result = await db.execute(select(Student))
     students = result.scalars().all()
 
     updated_count = 0
     for student in students:
         old_level = student.current_level
-        student.total_points = student.total_points  # triggers validator
+        student.total_points = student.total_points
 
         if old_level != student.current_level:
             updated_count += 1
