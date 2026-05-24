@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import './MyProjects.css';
 import ProjectCard from './ProjectCard';
@@ -21,8 +21,70 @@ const Modal = ({ onClose, children, wide }) => ReactDOM.createPortal(
     document.body
 );
 
+/* ── ZIP Drop Zone ── */
+const ZipDropZone = ({ selectedFile, onFileSelect, uploading, compact = false }) => {
+    const fileInputRef = useRef(null);
+    const [dragging, setDragging] = useState(false);
+
+    const handleDrop = useCallback((e) => {
+        e.preventDefault();
+        setDragging(false);
+        const file = e.dataTransfer.files[0];
+        if (file && file.name.endsWith('.zip')) onFileSelect(file);
+    }, [onFileSelect]);
+
+    const handleDragOver = (e) => { e.preventDefault(); setDragging(true); };
+    const handleDragLeave = () => setDragging(false);
+
+    return (
+        <div className={`mp-dropzone ${dragging ? 'mp-dropzone-drag' : ''} ${compact ? 'mp-dropzone-compact' : ''}`}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() => !uploading && fileInputRef.current?.click()}
+        >
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept=".zip"
+                style={{ display: 'none' }}
+                onChange={e => {
+                    const file = e.target.files[0];
+                    if (file) { onFileSelect(file); e.target.value = ''; }
+                }}
+            />
+            {selectedFile ? (
+                <div className="mp-dropzone-selected">
+                    <span className="mp-dropzone-icon">📦</span>
+                    <div className="mp-dropzone-info">
+                        <span className="mp-file-name">{selectedFile.name}</span>
+                        <span className={`mp-file-size ${selectedFile.size > 15 * 1024 * 1024 ? 'mp-overlimit' : ''}`}>
+                            {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                            {selectedFile.size > 15 * 1024 * 1024 && ' · ⚠️ Превышает 15MB'}
+                        </span>
+                    </div>
+                    <button className="mp-dropzone-clear" onClick={e => { e.stopPropagation(); onFileSelect(null); }}>✕</button>
+                </div>
+            ) : (
+                <div className="mp-dropzone-placeholder">
+                    <span className="mp-dropzone-icon mp-dropzone-icon-empty">{dragging ? '🎯' : '📁'}</span>
+                    <span className="mp-dropzone-text">
+                        {dragging ? 'Отпустите файл' : compact ? 'Перетащите .zip или нажмите' : 'Перетащите .zip архив сюда или нажмите для выбора'}
+                    </span>
+                    {!compact && <span className="mp-dropzone-hint">Максимум 15 MB · только .zip</span>}
+                </div>
+            )}
+            {selectedFile && (
+                <div className="mp-file-bar-wrap">
+                    <div className="mp-file-bar" style={{ width: `${Math.min((selectedFile.size / (15 * 1024 * 1024)) * 100, 100)}%` }} />
+                </div>
+            )}
+        </div>
+    );
+};
+
 /* ── Shared form fields ── */
-const ProjectFormFields = ({ form, errors, set }) => (
+const ProjectFormFields = ({ form, errors, set, zipFile, onZipSelect }) => (
     <>
         <div className="mp-field">
             <label>Название *</label>
@@ -61,12 +123,17 @@ const ProjectFormFields = ({ form, errors, set }) => (
                 {DIFFICULTIES.map(d => <option key={d}>{d}</option>)}
             </select>
         </div>
+
+        {/* ZIP upload in form */}
+        <div className="mp-field">
+            <label>📦 ZIP-архив <span className="mp-label-optional">(необязательно)</span></label>
+            <ZipDropZone selectedFile={zipFile} onFileSelect={onZipSelect} compact />
+        </div>
     </>
 );
 
 function MyProjects() {
     const { request } = useHttp();
-    const fileInputRef = useRef(null);
 
     const [projects,   setProjects]   = useState([]);
     const [loading,    setLoading]    = useState(true);
@@ -78,10 +145,19 @@ function MyProjects() {
     const [saving,     setSaving]     = useState(false);
     const [apiError,   setApiError]   = useState('');
 
-    // ZIP upload state
+    // ZIP upload state (detail modal)
     const [uploading,    setUploading]    = useState(false);
     const [uploadMsg,    setUploadMsg]    = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
+
+    // ZIP for create/edit form
+    const [formZipFile, setFormZipFile] = useState(null);
+
+    // File URL patch state
+    const [fileUrlInput,   setFileUrlInput]   = useState('');
+    const [fileUrlSaving,  setFileUrlSaving]  = useState(false);
+    const [fileUrlMsg,     setFileUrlMsg]     = useState('');
+    const [showFileUrlEdit, setShowFileUrlEdit] = useState(false);
 
     // AI Review state
     const [aiLoading,  setAiLoading]  = useState(false);
@@ -119,32 +195,59 @@ function MyProjects() {
         project_files:     '',
     });
 
+    /* ── Upload ZIP helper ── */
+    const uploadZipForProject = async (projectId, file) => {
+        if (!file) return;
+        if (file.size > 15 * 1024 * 1024) throw new Error('TOO_LARGE');
+        const formData = new FormData();
+        formData.append('file', file);
+        const h = headers();
+        delete h['Content-Type'];
+        const r = await fetch(`${API_URL}v1/project/${projectId}/upload-zip`, {
+            method: 'POST', headers: h, body: formData,
+        });
+        if (!r.ok) throw new Error('UPLOAD_FAILED');
+    };
+
     /* ── CREATE ── */
-    const handleCreate = () => {
+    const handleCreate = async () => {
         if (!validate()) return;
         setSaving(true); setApiError('');
-        request(`${API_URL}v1/project/`, 'POST', JSON.stringify(buildBody()), headers())
-            .then(res => {
-                setProjects(p => [res, ...p]);
-                setAddModal(false);
-                setForm({ ...EMPTY });
-            })
-            .catch(() => setApiError('Ошибка при создании проекта'))
-            .finally(() => setSaving(false));
+        try {
+            const res = await request(`${API_URL}v1/project/`, 'POST', JSON.stringify(buildBody()), headers());
+            // Upload ZIP if attached
+            if (formZipFile) {
+                try { await uploadZipForProject(res.id, formZipFile); } catch (_) { /* non-fatal */ }
+            }
+            setProjects(p => [res, ...p]);
+            setAddModal(false);
+            setForm({ ...EMPTY });
+            setFormZipFile(null);
+        } catch {
+            setApiError('Ошибка при создании проекта');
+        } finally {
+            setSaving(false);
+        }
     };
 
     /* ── UPDATE ── */
-    const handleUpdate = () => {
+    const handleUpdate = async () => {
         if (!validate()) return;
         setSaving(true); setApiError('');
-        request(`${API_URL}v1/project/${detail.id}`, 'PUT', JSON.stringify(buildBody()), headers())
-            .then(res => {
-                setProjects(p => p.map(pr => pr.id === res.id ? res : pr));
-                setDetail(res);
-                setEditModal(false);
-            })
-            .catch(() => setApiError('Ошибка при обновлении проекта'))
-            .finally(() => setSaving(false));
+        try {
+            const res = await request(`${API_URL}v1/project/${detail.id}`, 'PUT', JSON.stringify(buildBody()), headers());
+            if (formZipFile) {
+                try { await uploadZipForProject(res.id, formZipFile); } catch (_) { /* non-fatal */ }
+            }
+            setProjects(p => p.map(pr => pr.id === res.id ? res : pr));
+            setDetail(res);
+            setEditModal(false);
+            setFormZipFile(null);
+        } catch {
+            setApiError('Ошибка при обновлении проекта');
+        } finally {
+            setSaving(false);
+        }
     };
 
     /* ── SUBMIT ── */
@@ -165,7 +268,7 @@ function MyProjects() {
             .catch(() => alert('Ошибка при удалении'));
     };
 
-    /* ── UPLOAD ZIP ── */
+    /* ── UPLOAD ZIP (detail) ── */
     const handleZipUpload = (projectId, file) => {
         if (!file) return;
         if (file.size > 15 * 1024 * 1024) {
@@ -174,18 +277,16 @@ function MyProjects() {
         }
         const formData = new FormData();
         formData.append('file', file);
-
         setUploading(true); setUploadMsg('');
         const h = headers();
         delete h['Content-Type'];
         fetch(`${API_URL}v1/project/${projectId}/upload-zip`, {
-            method: 'POST',
-            headers: h,
-            body: formData,
+            method: 'POST', headers: h, body: formData,
         })
             .then(async r => {
                 if (!r.ok) throw new Error();
                 setUploadMsg('✅ ZIP загружен успешно');
+                setSelectedFile(null);
                 return request(`${API_URL}v1/project/${projectId}`, 'GET', null, headers());
             })
             .then(res => {
@@ -196,6 +297,27 @@ function MyProjects() {
             })
             .catch(() => setUploadMsg('❌ Ошибка загрузки ZIP'))
             .finally(() => setUploading(false));
+    };
+
+    /* ── PATCH FILE URL ── */
+    const handlePatchFileUrl = () => {
+        if (!fileUrlInput.trim()) return;
+        setFileUrlSaving(true); setFileUrlMsg('');
+        request(
+            `${API_URL}v1/project/${detail.id}/file`,
+            'PATCH',
+            JSON.stringify({ file_url: fileUrlInput.trim() }),
+            headers()
+        )
+            .then(() => {
+                const updated = { ...detail, project_files: fileUrlInput.trim() };
+                setProjects(p => p.map(pr => pr.id === detail.id ? updated : pr));
+                setDetail(updated);
+                setFileUrlMsg('✅ Ссылка обновлена');
+                setShowFileUrlEdit(false);
+            })
+            .catch(() => setFileUrlMsg('❌ Ошибка обновления ссылки'))
+            .finally(() => setFileUrlSaving(false));
     };
 
     /* ── AI REVIEW ── */
@@ -217,12 +339,14 @@ function MyProjects() {
             technologies_used: (detail.technologies_used || []).join(', '),
             difficulty_level:  detail.difficulty_level || 'Easy',
         });
+        setFormZipFile(null);
         setErrors({}); setApiError('');
         setEditModal(true);
     };
 
     const openAdd = () => {
         setForm({ ...EMPTY }); setErrors({}); setApiError('');
+        setFormZipFile(null);
         setAddModal(true);
     };
 
@@ -231,6 +355,9 @@ function MyProjects() {
         setSelectedFile(null);
         setUploadMsg('');
         setAiResult('');
+        setFileUrlInput('');
+        setFileUrlMsg('');
+        setShowFileUrlEdit(false);
     };
 
     return (
@@ -281,7 +408,7 @@ function MyProjects() {
                     </div>
                     <div className="mp-modal-body">
                         {apiError && <div className="mp-api-error">{apiError}</div>}
-                        <ProjectFormFields form={form} errors={errors} set={set} />
+                        <ProjectFormFields form={form} errors={errors} set={set} zipFile={formZipFile} onZipSelect={setFormZipFile} />
                     </div>
                     <div className="mp-modal-footer">
                         <button className="mp-btn-cancel" onClick={() => setAddModal(false)}>Отмена</button>
@@ -301,7 +428,7 @@ function MyProjects() {
                     </div>
                     <div className="mp-modal-body">
                         {apiError && <div className="mp-api-error">{apiError}</div>}
-                        <ProjectFormFields form={form} errors={errors} set={set} />
+                        <ProjectFormFields form={form} errors={errors} set={set} zipFile={formZipFile} onZipSelect={setFormZipFile} />
                     </div>
                     <div className="mp-modal-footer">
                         <button className="mp-btn-cancel" onClick={() => setEditModal(false)}>Отмена</button>
@@ -409,61 +536,78 @@ function MyProjects() {
                         {/* ── ZIP Upload ── */}
                         <div className="mp-section">
                             <span className="mp-detail-label">📦 ZIP-архив проекта</span>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".zip"
-                                style={{ display: 'none' }}
-                                onChange={e => {
-                                    const file = e.target.files[0];
-                                    if (!file) return;
-                                    setSelectedFile(file);
-                                    setUploadMsg('');
-                                }}
-                            />
-                            {selectedFile && (
-                                <div className={`mp-file-preview ${selectedFile.size > 15 * 1024 * 1024 ? 'too-large' : 'ok'}`}>
-                                    <div className="mp-file-info">
-                                        <span className="mp-file-name">📄 {selectedFile.name}</span>
-                                        <span className="mp-file-size">
-                                            {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
-                                        </span>
-                                    </div>
-                                    <div className="mp-file-bar-wrap">
-                                        <div
-                                            className="mp-file-bar"
-                                            style={{ width: `${Math.min((selectedFile.size / (15 * 1024 * 1024)) * 100, 100)}%` }}
-                                        />
-                                    </div>
-                                    <div className="mp-file-bar-labels">
-                                        <span>0 MB</span>
-                                        <span className={selectedFile.size > 15 * 1024 * 1024 ? 'mp-overlimit' : ''}>
-                                            {selectedFile.size > 15 * 1024 * 1024
-                                                ? '⚠️ Превышает лимит 15MB!'
-                                                : `${((1 - selectedFile.size / (15 * 1024 * 1024)) * 100).toFixed(0)}% свободно`}
-                                        </span>
-                                        <span>15 MB</span>
-                                    </div>
+
+                            {/* Current file link */}
+                            {detail.project_files && (
+                                <div className="mp-current-file">
+                                    <span className="mp-current-file-label">Текущий файл:</span>
+                                    <a href={detail.project_files} target="_blank" rel="noreferrer" className="mp-link mp-link-sm">
+                                        📎 Открыть
+                                    </a>
                                 </div>
                             )}
+
+                            <ZipDropZone
+                                selectedFile={selectedFile}
+                                onFileSelect={setSelectedFile}
+                                uploading={uploading}
+                            />
+
                             <div className="mp-zip-row">
-                                <button
-                                    className="mp-btn-zip"
-                                    onClick={() => { setSelectedFile(null); setUploadMsg(''); fileInputRef.current?.click(); }}
-                                    disabled={uploading}
-                                >
-                                    📁 Выбрать файл
-                                </button>
                                 <button
                                     className="mp-btn-zip-upload"
                                     onClick={() => handleZipUpload(detail.id, selectedFile)}
-                                    disabled={uploading || !selectedFile || selectedFile.size > 15 * 1024 * 1024}
+                                    disabled={uploading || !selectedFile || selectedFile?.size > 15 * 1024 * 1024}
                                 >
-                                    {uploading ? '⏳ Загрузка...' : '📤 Загрузить'}
+                                    {uploading ? (
+                                        <><span className="mp-btn-spinner" />Загрузка...</>
+                                    ) : '📤 Загрузить ZIP'}
                                 </button>
                                 {uploadMsg && <span className={`mp-upload-msg ${uploadMsg.startsWith('✅') ? 'success' : 'error'}`}>{uploadMsg}</span>}
                             </div>
-                            <p className="mp-hint">Максимальный размер: 15 MB · только .zip</p>
+                        </div>
+
+                        {/* ── File URL (PATCH) ── */}
+                        <div className="mp-section">
+                            <div className="mp-section-header">
+                                <span className="mp-detail-label">🔗 Ссылка на файл</span>
+                                <button
+                                    className="mp-toggle-link"
+                                    onClick={() => { setShowFileUrlEdit(v => !v); setFileUrlMsg(''); setFileUrlInput(detail.project_files || ''); }}
+                                >
+                                    {showFileUrlEdit ? 'Скрыть' : '✏️ Изменить'}
+                                </button>
+                            </div>
+
+                            {!showFileUrlEdit && detail.project_files && (
+                                <a href={detail.project_files} target="_blank" rel="noreferrer" className="mp-link mp-link-sm">
+                                    {detail.project_files}
+                                </a>
+                            )}
+                            {!showFileUrlEdit && !detail.project_files && (
+                                <span className="mp-hint">Ссылка не указана</span>
+                            )}
+
+                            {showFileUrlEdit && (
+                                <div className="mp-file-url-edit">
+                                    <input
+                                        className="mp-file-url-input"
+                                        placeholder="https://drive.google.com/..."
+                                        value={fileUrlInput}
+                                        onChange={e => { setFileUrlInput(e.target.value); setFileUrlMsg(''); }}
+                                    />
+                                    <button
+                                        className="mp-btn-save mp-btn-save-sm"
+                                        onClick={handlePatchFileUrl}
+                                        disabled={fileUrlSaving || !fileUrlInput.trim()}
+                                    >
+                                        {fileUrlSaving ? '⏳' : '💾 Сохранить'}
+                                    </button>
+                                </div>
+                            )}
+                            {fileUrlMsg && (
+                                <span className={`mp-upload-msg ${fileUrlMsg.startsWith('✅') ? 'success' : 'error'}`}>{fileUrlMsg}</span>
+                            )}
                         </div>
 
                         {/* ── AI Review ── */}
@@ -474,7 +618,9 @@ function MyProjects() {
                                 onClick={() => handleAiReview(detail.id)}
                                 disabled={aiLoading}
                             >
-                                {aiLoading ? '🔄 Анализ...' : '✨ Запустить AI-проверку'}
+                                {aiLoading ? (
+                                    <><span className="mp-btn-spinner mp-btn-spinner-pink" />Анализ...</>
+                                ) : '✨ Запустить AI-проверку'}
                             </button>
                             {aiResult && (
                                 <div className="mp-ai-result">

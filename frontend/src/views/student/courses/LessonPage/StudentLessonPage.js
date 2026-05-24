@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useRef, useCallback} from 'react';
 import ReactDOM from 'react-dom';
 import './StudentLessonPage.css';
 import {SECTION_TYPES, getYTId} from '../../../../constants/courseUtils';
@@ -24,17 +24,89 @@ const parseListField = (val) => {
     }
     return [];
 };
+
+/* ─────────────────────────────────────────
+   ZIP Drop Zone (переиспользуемый компонент)
+───────────────────────────────────────── */
+const ZipDropZone = ({ selectedFile, onFileSelect, uploading }) => {
+    const fileInputRef = useRef(null);
+    const [dragging, setDragging] = useState(false);
+
+    const handleDrop = useCallback((e) => {
+        e.preventDefault();
+        setDragging(false);
+        const file = e.dataTransfer.files[0];
+        if (file && file.name.endsWith('.zip')) onFileSelect(file);
+    }, [onFileSelect]);
+
+    const handleDragOver = (e) => { e.preventDefault(); setDragging(true); };
+    const handleDragLeave = () => setDragging(false);
+
+    return (
+        <div
+            className={`slp-dropzone ${dragging ? 'slp-dropzone-drag' : ''}`}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onClick={() => !uploading && fileInputRef.current?.click()}
+        >
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept=".zip"
+                style={{ display: 'none' }}
+                onChange={e => {
+                    const file = e.target.files[0];
+                    if (file) { onFileSelect(file); e.target.value = ''; }
+                }}
+            />
+            {selectedFile ? (
+                <div className="slp-dropzone-selected">
+                    <span className="slp-dropzone-icon">📦</span>
+                    <div className="slp-dropzone-info">
+                        <span className="slp-dropzone-name">{selectedFile.name}</span>
+                        <span className={`slp-dropzone-size ${selectedFile.size > 15 * 1024 * 1024 ? 'over' : ''}`}>
+                            {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
+                            {selectedFile.size > 15 * 1024 * 1024 && ' · ⚠️ Превышает 15MB'}
+                        </span>
+                    </div>
+                    <button
+                        className="slp-dropzone-clear"
+                        onClick={e => { e.stopPropagation(); onFileSelect(null); }}
+                    >✕</button>
+                </div>
+            ) : (
+                <div className="slp-dropzone-empty">
+                    <span className="slp-dropzone-icon slp-dropzone-icon-dim">
+                        {dragging ? '🎯' : '📁'}
+                    </span>
+                    <span className="slp-dropzone-text">
+                        {dragging ? 'Отпустите файл' : 'Перетащите .zip или нажмите для выбора'}
+                    </span>
+                    <span className="slp-dropzone-hint">Максимум 15 MB · только .zip</span>
+                </div>
+            )}
+            {selectedFile && (
+                <div className="slp-dropzone-bar-wrap">
+                    <div
+                        className={`slp-dropzone-bar ${selectedFile.size > 15 * 1024 * 1024 ? 'over' : ''}`}
+                        style={{ width: `${Math.min((selectedFile.size / (15 * 1024 * 1024)) * 100, 100)}%` }}
+                    />
+                </div>
+            )}
+        </div>
+    );
+};
+
 /* ═══════════════════════════════════════════════════════════
-   SINGLE EXERCISE CARD  (один exercise = одна карточка)
+   SINGLE EXERCISE CARD
 ═══════════════════════════════════════════════════════════ */
 const ExerciseCard = ({ex, courseId, lessonId}) => {
     const {request} = useHttp();
 
-    /* ── state ── */
     const [textAnswer,    setTextAnswer]    = useState('');
-    const [selected,      setSelected]      = useState([]);   // multiple_choice
-    const [fillAnswers,   setFillAnswers]   = useState([]);   // fill_in_blank: массив по пропускам
-    // Чистые массивы — на случай если пришли как JSON строка
+    const [selected,      setSelected]      = useState([]);
+    const [fillAnswers,   setFillAnswers]   = useState([]);
     const cleanOptions   = parseListField(ex.options);
     const cleanDragItems = parseListField(ex.drag_items);
 
@@ -42,7 +114,7 @@ const ExerciseCard = ({ex, courseId, lessonId}) => {
         () => [...cleanDragItems].sort(() => Math.random() - 0.5)
     );
     const [dragDropped,   setDragDropped]   = useState([]);
-    const [result,        setResult]        = useState(null); // null | 'correct' | 'wrong' | 'submitted'
+    const [result,        setResult]        = useState(null);
     const [aiFeedback,    setAiFeedback]    = useState('');
     const [score,         setScore]         = useState(null);
     const [submitting,    setSubmitting]    = useState(false);
@@ -52,27 +124,17 @@ const ExerciseCard = ({ex, courseId, lessonId}) => {
     const isWrong   = result === 'wrong';
     const exType    = ex.exercise_type;
 
-    /* ── Build student_answer string ── */
     const buildAnswer = () => {
-        if (exType === 'fill_in_blank') {
-            return fillAnswers.join(',');
-        }
-        if (exType === 'drag_and_drop') {
-            return JSON.stringify(dragDropped.map(s => s.trim()));
-        }
-        if (exType === 'multiple_choice') {
-            return selected.join(',');
-        }
+        if (exType === 'fill_in_blank')  return fillAnswers.join(',');
+        if (exType === 'drag_and_drop')  return JSON.stringify(dragDropped.map(s => s.trim()));
+        if (exType === 'multiple_choice') return selected.join(',');
         return textAnswer.trim();
     };
 
-    /* ── Submit ── */
     const handleSubmit = async () => {
         const answer = buildAnswer();
         if (!answer) return;
-        setSubmitting(true);
-        setAiFeedback('');
-        setScore(null);
+        setSubmitting(true); setAiFeedback(''); setScore(null);
         try {
             const res = await request(
                 `${API_URL}v1/courses/${courseId}/lessons/${lessonId}/exercises/${ex.id}/submit`,
@@ -83,37 +145,25 @@ const ExerciseCard = ({ex, courseId, lessonId}) => {
             if (res?.is_correct === true)       setResult('correct');
             else if (res?.is_correct === false) setResult('wrong');
             else                                setResult('submitted');
-
             if (res?.ai_feedback) setAiFeedback(res.ai_feedback);
             if (res?.score != null) setScore(res.score);
-        } catch {
-            setResult('wrong');
-        } finally {
-            setSubmitting(false);
-        }
+        } catch { setResult('wrong'); }
+        finally { setSubmitting(false); }
     };
 
-    /* ── Reset ── */
     const handleRetry = () => {
-        setResult(null);
-        setAiFeedback('');
-        setScore(null);
-        setSelected([]);
-        setTextAnswer('');
-        setFillAnswers([]);
+        setResult(null); setAiFeedback(''); setScore(null);
+        setSelected([]); setTextAnswer(''); setFillAnswers([]);
         setDragDropped([]);
         setDragAvailable([...cleanDragItems].sort(() => Math.random() - 0.5));
     };
 
-    /* ── helpers ── */
     const DIFF_COLOR = {Easy: '#00b894', Medium: '#e17055', Hard: '#d63031'};
     const diffColor  = DIFF_COLOR[ex.difficulty_level] || '#6c5ce7';
     const optionsList = cleanOptions;
 
     return (
         <div className={`slp-ex-card ${result === 'correct' ? 'state-correct' : result === 'wrong' ? 'state-wrong' : result === 'submitted' ? 'state-submitted' : ''}`}>
-
-            {/* ── Header ── */}
             <div className="slp-ex-card-head">
                 <div className="slp-ex-card-meta">
                     {ex.difficulty_level && (
@@ -121,20 +171,13 @@ const ExerciseCard = ({ex, courseId, lessonId}) => {
                             {ex.difficulty_level}
                         </span>
                     )}
-                    {ex.points > 0 && (
-                        <span className="slp-ex-pts-badge">⭐ {ex.points} pts</span>
-                    )}
-                    {score != null && (
-                        <span className="slp-ex-score-badge">🏆 +{score} pts</span>
-                    )}
+                    {ex.points > 0 && <span className="slp-ex-pts-badge">⭐ {ex.points} pts</span>}
+                    {score != null && <span className="slp-ex-score-badge">🏆 +{score} pts</span>}
                 </div>
                 {ex.title && <div className="slp-ex-card-title">{ex.title}</div>}
             </div>
 
-            {/* ── Body ── */}
             <div className="slp-ex-card-body">
-
-                {/* ── fill_in_blank ── */}
                 {exType === 'fill_in_blank' && (
                     <div className="slp-ex-fill-wrap">
                         <div className="slp-ex-fill-text">
@@ -161,13 +204,12 @@ const ExerciseCard = ({ex, courseId, lessonId}) => {
                     </div>
                 )}
 
-                {/* ── multiple_choice ── */}
                 {exType === 'multiple_choice' && (
                     <>
                         {ex.description && <div className="slp-ex-question">{ex.description}</div>}
                         <div className="slp-ex-options">
                             {optionsList.map((opt, i) => {
-                                const letter     = String.fromCharCode(65 + i);
+                                const letter = String.fromCharCode(65 + i);
                                 const isSelected = selected.includes(letter);
                                 return (
                                     <button
@@ -196,7 +238,6 @@ const ExerciseCard = ({ex, courseId, lessonId}) => {
                     </>
                 )}
 
-                {/* ── drag_and_drop ── */}
                 {exType === 'drag_and_drop' && (
                     <>
                         {ex.description && <div className="slp-ex-question">{ex.description}</div>}
@@ -246,7 +287,6 @@ const ExerciseCard = ({ex, courseId, lessonId}) => {
                     </>
                 )}
 
-                {/* ── text_input ── */}
                 {exType === 'text_input' && (
                     <>
                         {ex.description && <div className="slp-ex-question">{ex.description}</div>}
@@ -262,7 +302,6 @@ const ExerciseCard = ({ex, courseId, lessonId}) => {
                     </>
                 )}
 
-                {/* ── Hint ── */}
                 {ex.hint && (
                     <div className="slp-ex-hint-wrap">
                         <button className="slp-ex-hint-btn" onClick={() => setShowHint(h => !h)}>
@@ -272,7 +311,6 @@ const ExerciseCard = ({ex, courseId, lessonId}) => {
                     </div>
                 )}
 
-                {/* ── Result feedback ── */}
                 {result && (
                     <div className={`slp-ex-result-banner ${result}`}>
                         {result === 'correct'   && <><span className="slp-res-icon">🎉</span><div><strong>Правильно!</strong> Отличная работа!</div></>}
@@ -281,7 +319,6 @@ const ExerciseCard = ({ex, courseId, lessonId}) => {
                     </div>
                 )}
 
-                {/* ── AI Feedback ── */}
                 {aiFeedback && (
                     <div className="slp-ex-ai-feedback">
                         <div className="slp-ex-ai-feedback-label">🤖 AI Feedback:</div>
@@ -289,7 +326,6 @@ const ExerciseCard = ({ex, courseId, lessonId}) => {
                     </div>
                 )}
 
-                {/* ── Footer buttons ── */}
                 <div className="slp-ex-actions">
                     {!isDone && (
                         <button
@@ -309,21 +345,18 @@ const ExerciseCard = ({ex, courseId, lessonId}) => {
                         <div className="slp-ex-done-label">✓ Выполнено</div>
                     )}
                 </div>
-
             </div>
         </div>
     );
 };
 
 /* ═══════════════════════════════════════════════════════════
-   EXERCISE SECTION BLOCK  (список карточек)
+   EXERCISE SECTION BLOCK
 ═══════════════════════════════════════════════════════════ */
 const ExerciseSection = ({section, courseId, lessonId}) => {
     const exercises = section.exercises || [];
     if (exercises.length === 0) return null;
-
     const totalPts = exercises.reduce((s, e) => s + (e.points || 0), 0);
-
     return (
         <div className="slp-ex-section">
             <div className="slp-ex-section-bar">
@@ -335,12 +368,7 @@ const ExerciseSection = ({section, courseId, lessonId}) => {
                     .slice()
                     .sort((a, b) => (a.order || 0) - (b.order || 0))
                     .map((ex, i) => (
-                        <ExerciseCard
-                            key={ex.id || i}
-                            ex={ex}
-                            courseId={courseId}
-                            lessonId={lessonId}
-                        />
+                        <ExerciseCard key={ex.id || i} ex={ex} courseId={courseId} lessonId={lessonId} />
                     ))
                 }
             </div>
@@ -364,14 +392,19 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     );
     const [projectSaving, setProjectSaving] = useState(false);
     const [projectError,  setProjectError]  = useState('');
-    const [downloadingFile, setDownloadingFile] = useState(null); // fileName being downloaded
+    const [downloadingFile, setDownloadingFile] = useState(null);
 
-    const currentIndex  = allLessons.findIndex(l => l.id === lesson.id);
-    const prevLesson    = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
-    const nextLesson    = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
+    // ZIP upload state
+    const [zipFile,       setZipFile]       = useState(null);
+    const [zipUploading,  setZipUploading]  = useState(false);
+    const [zipMsg,        setZipMsg]        = useState('');
+
+    const currentIndex   = allLessons.findIndex(l => l.id === lesson.id);
+    const prevLesson     = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
+    const nextLesson     = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
     const projectSection = lesson.sections?.find(s => s.type === 'project');
-    const nextBlocked   = !!projectSection && !projectDone;
-    const isDone        = lesson.completed || justCompleted;
+    const nextBlocked    = !!projectSection && !projectDone;
+    const isDone         = lesson.completed || justCompleted;
 
     const copyCode = (id, code) => {
         navigator.clipboard.writeText(code).then(() => {
@@ -380,7 +413,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
         });
     };
 
-    /* ── Скачивание файла урока ── */
+    /* ── Скачивание файла ── */
     const handleDownloadFile = async (lessonId, fileName) => {
         if (!fileName) return;
         setDownloadingFile(fileName);
@@ -389,36 +422,41 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             const url = `${API_URL}v1/courses/${course.id}/lessons/${lessonId}/download?file_name=${encodeURIComponent(fileName)}`;
             const response = await fetch(url, {
                 method: 'GET',
-                headers: {
-                    ...(token ? {Authorization: token} : {}),
-                    'Content-Type': 'application/json',
-                },
+                headers: { ...(token ? {Authorization: token} : {}), 'Content-Type': 'application/json' },
             });
             if (!response.ok) throw new Error('Download failed');
             const blob = await response.blob();
             const blobUrl = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = blobUrl;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
+            a.href = blobUrl; a.download = fileName;
+            document.body.appendChild(a); a.click(); a.remove();
             window.URL.revokeObjectURL(blobUrl);
         } catch (err) {
-            console.error('File download error:', err);
-            alert('Файл yuklab olishda xatolik yuz berdi. Iltimos, qayta urinib ko\'ring.');
+            alert('Файл yuklab olishda xatolik yuz berdi.');
         } finally {
             setDownloadingFile(null);
         }
     };
 
-    // ─── ИЗМЕНЕНО: handleComplete теперь async, вызывает check-and-earn на последнем уроке ───
+    /* ── ZIP upload helper ── */
+    const uploadZip = async (projectId, file) => {
+        if (!file) return;
+        if (file.size > 15 * 1024 * 1024) throw new Error('TOO_LARGE');
+        const formData = new FormData();
+        formData.append('file', file);
+        const h = headers();
+        delete h['Content-Type'];
+        const r = await fetch(`${API_URL}v1/project/${projectId}/upload-zip`, {
+            method: 'POST', headers: h, body: formData,
+        });
+        if (!r.ok) throw new Error('UPLOAD_FAILED');
+    };
+
+    /* ── Complete ── */
     const handleComplete = async () => {
         if (!lesson.completed) {
             onComplete();
             setJustCompleted(true);
-
-            // Если это последний урок курса — фиксируем сертификат
             const isLastLesson = currentIndex === allLessons.length - 1;
             if (isLastLesson && course.id) {
                 try {
@@ -426,15 +464,12 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                         `${API_URL}v1/achievements/check-and-earn-certificate?course_id=${course.id}`,
                         { method: 'POST', headers: headers() }
                     );
-                    console.log('=== check-and-earn-certificate called for course', course.id);
-                } catch (e) {
-                    // Не блокируем UX — сертификат можно будет выдать и вручную из Degrees
-                    console.warn('check-and-earn-certificate failed:', e);
-                }
+                } catch (e) { console.warn('check-and-earn-certificate failed:', e); }
             }
         }
     };
 
+    /* ── Project submit ── */
     const handleProjectSubmit = async () => {
         if (!projectForm.github_url.trim()) return;
         const descriptionRaw = projectForm.description.trim() || projectSection?.description || '';
@@ -442,8 +477,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             ? descriptionRaw
             : (descriptionRaw + ' (loyiha)').padEnd(10, '.');
 
-        setProjectSaving(true);
-        setProjectError('');
+        setProjectSaving(true); setProjectError(''); setZipMsg('');
         try {
             const techList = projectSection?.techStack
                 ? projectSection.techStack.split(',').map(t => t.trim()).filter(Boolean)
@@ -451,19 +485,34 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             const created = await request(
                 `${API_URL}v1/project/`, 'POST',
                 JSON.stringify({
-                    title: projectSection?.label || lesson.title,
+                    title:             projectSection?.label || lesson.title,
                     description,
-                    github_url: projectForm.github_url,
-                    live_demo_url: projectForm.live_demo_url || '',
+                    github_url:        projectForm.github_url,
+                    live_demo_url:     projectForm.live_demo_url || '',
                     technologies_used: techList,
-                    difficulty_level: 'Easy',
-                    project_files: '',
+                    difficulty_level:  'Easy',
+                    project_files:     '',
                 }),
                 headers()
             );
+
+            // Upload ZIP if attached (non-fatal)
+            if (created?.id && zipFile) {
+                setZipUploading(true);
+                try {
+                    await uploadZip(created.id, zipFile);
+                    setZipMsg('✅ ZIP загружен');
+                } catch {
+                    setZipMsg('⚠️ Проект создан, но ZIP не загрузился');
+                } finally {
+                    setZipUploading(false);
+                }
+            }
+
             if (created?.id) {
                 await request(`${API_URL}v1/project/${created.id}/submit`, 'POST', null, headers());
             }
+
             localStorage.setItem(`project_done_lesson_${lesson.id}`, 'true');
             setProjectDone(true);
             setProjectModal(false);
@@ -471,8 +520,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             if (!lesson.completed) {
                 onComplete();
                 setJustCompleted(true);
-
-                // Проверяем сертификат и на последнем уроке с проектом
                 const isLastLesson = currentIndex === allLessons.length - 1;
                 if (isLastLesson && course.id) {
                     try {
@@ -480,10 +527,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                             `${API_URL}v1/achievements/check-and-earn-certificate?course_id=${course.id}`,
                             { method: 'POST', headers: headers() }
                         );
-                        console.log('=== check-and-earn-certificate called after project submit for course', course.id);
-                    } catch (e) {
-                        console.warn('check-and-earn-certificate failed:', e);
-                    }
+                    } catch (e) { console.warn('check-and-earn-certificate failed:', e); }
                 }
             }
         } catch (err) {
@@ -491,6 +535,13 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
         } finally {
             setProjectSaving(false);
         }
+    };
+
+    const closeProjectModal = () => {
+        setProjectModal(false);
+        setProjectError('');
+        setZipFile(null);
+        setZipMsg('');
     };
 
     const meta = (type) => SECTION_TYPES.find(t => t.type === type) || {icon: '🎯', label: 'Exercise'};
@@ -562,13 +613,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                 </div>
                                 <div className="slp-block-body">
 
-                                    {/* TEXT */}
                                     {section.type === 'text' && (
                                         <div className="slp-text-content"
                                             dangerouslySetInnerHTML={{__html: section.html || '<p style="color:rgba(26,26,46,0.3)">Текст не добавлен</p>'}}/>
                                     )}
 
-                                    {/* CODE */}
                                     {section.type === 'code' && (<>
                                         <div className="slp-code-header">
                                             <span className="slp-code-lang">{section.lang || 'code'}</span>
@@ -579,7 +628,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                         <pre className="slp-code-block">{section.code || '// Код не добавлен'}</pre>
                                     </>)}
 
-                                    {/* VIDEO */}
                                     {section.type === 'video' && (<>
                                         <div className="slp-video-wrap">
                                             {ytId
@@ -593,7 +641,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                         )}
                                     </>)}
 
-                                    {/* IMAGE */}
                                     {section.type === 'image' && (
                                         <div className="slp-img-block">
                                             {section.imgUrl
@@ -602,7 +649,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                         </div>
                                     )}
 
-                                    {/* FILE */}
                                     {section.type === 'file' && (
                                         section.fileName ? (
                                             <div className="slp-file-card">
@@ -622,16 +668,10 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                         ) : <div className="slp-file-empty">Файл не добавлен</div>
                                     )}
 
-                                    {/* EXERCISE */}
                                     {section.type === 'exercise' && (
-                                        <ExerciseSection
-                                            section={section}
-                                            courseId={course.id}
-                                            lessonId={lesson.id}
-                                        />
+                                        <ExerciseSection section={section} courseId={course.id} lessonId={lesson.id} />
                                     )}
 
-                                    {/* PROJECT */}
                                     {section.type === 'project' && (
                                         <div className={`slp-project-task ${projectDone ? 'done' : ''}`}>
                                             <div className="slp-project-top">
@@ -728,45 +768,77 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 document.body
             )}
 
-            {/* Project modal */}
+            {/* ═══════════ PROJECT MODAL ═══════════ */}
             {projectModal && ReactDOM.createPortal(
-                <div className="slp-overlay" onClick={() => setProjectModal(false)}>
-                    <div className="slp-modal" onClick={e => e.stopPropagation()}>
+                <div className="slp-overlay" onClick={closeProjectModal}>
+                    <div className="slp-modal slp-modal-wide" onClick={e => e.stopPropagation()}>
                         <div className="slp-modal-header">
                             <h3>📤 Загрузить проект</h3>
-                            <button className="slp-modal-close" onClick={() => setProjectModal(false)}>✕</button>
+                            <button className="slp-modal-close" onClick={closeProjectModal}>✕</button>
                         </div>
                         <div className="slp-modal-body">
                             <p className="slp-modal-task-name">🚀 {projectSection?.label || 'Практическое задание'}</p>
+
                             <div className="slp-modal-field">
                                 <label>GitHub URL *</label>
-                                <input placeholder="https://github.com/username/repo"
+                                <input
+                                    placeholder="https://github.com/username/repo"
                                     value={projectForm.github_url}
-                                    onChange={e => setProjectForm(f => ({...f, github_url: e.target.value}))}/>
+                                    onChange={e => setProjectForm(f => ({...f, github_url: e.target.value}))}
+                                />
                             </div>
                             <div className="slp-modal-field">
                                 <label>Live Demo URL</label>
-                                <input placeholder="https://myproject.com"
+                                <input
+                                    placeholder="https://myproject.com"
                                     value={projectForm.live_demo_url}
-                                    onChange={e => setProjectForm(f => ({...f, live_demo_url: e.target.value}))}/>
+                                    onChange={e => setProjectForm(f => ({...f, live_demo_url: e.target.value}))}
+                                />
                             </div>
                             <div className="slp-modal-field">
                                 <label>Комментарий</label>
-                                <textarea placeholder="Расскажите что сделали..." rows={3}
+                                <textarea
+                                    placeholder="Расскажите что сделали..."
+                                    rows={3}
                                     value={projectForm.description}
-                                    onChange={e => setProjectForm(f => ({...f, description: e.target.value}))}/>
+                                    onChange={e => setProjectForm(f => ({...f, description: e.target.value}))}
+                                />
                             </div>
-                            {projectError && (
-                                <div style={{color:'#e53e3e',fontSize:'13px',marginTop:'8px',padding:'8px 12px',background:'#fff5f5',borderRadius:'8px'}}>
-                                    ⚠️ {projectError}
+
+                            {/* ── ZIP Section ── */}
+                            <div className="slp-modal-field">
+                                <label>
+                                    📦 ZIP-архив
+                                    <span className="slp-label-opt">необязательно</span>
+                                </label>
+                                <ZipDropZone
+                                    selectedFile={zipFile}
+                                    onFileSelect={setZipFile}
+                                    uploading={zipUploading}
+                                />
+                            </div>
+
+                            {/* Status messages */}
+                            {zipMsg && (
+                                <div className={`slp-zip-msg ${zipMsg.startsWith('✅') ? 'success' : 'warn'}`}>
+                                    {zipMsg}
                                 </div>
+                            )}
+                            {projectError && (
+                                <div className="slp-project-error">⚠️ {projectError}</div>
                             )}
                         </div>
                         <div className="slp-modal-footer">
-                            <button className="slp-modal-cancel" onClick={() => { setProjectModal(false); setProjectError(''); }}>Отмена</button>
-                            <button className="slp-modal-submit" onClick={handleProjectSubmit}
-                                disabled={!projectForm.github_url.trim() || projectSaving}>
-                                {projectSaving ? '⏳ Отправка...' : '✅ Отправить'}
+                            <button className="slp-modal-cancel" onClick={closeProjectModal}>Отмена</button>
+                            <button
+                                className="slp-modal-submit"
+                                onClick={handleProjectSubmit}
+                                disabled={!projectForm.github_url.trim() || projectSaving}
+                            >
+                                {projectSaving
+                                    ? <><span className="slp-btn-spinner" />{zipUploading ? 'Загрузка ZIP...' : 'Отправка...'}</>
+                                    : '✅ Отправить'
+                                }
                             </button>
                         </div>
                     </div>
@@ -774,9 +846,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 document.body
             )}
 
-            {/* ── Dictionary selection popup ── */}
             <DictSelectionPopup lessonId={lesson.id} />
-
         </div>
     );
 };
