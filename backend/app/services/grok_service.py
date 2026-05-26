@@ -3,7 +3,6 @@ import re
 import json
 from app.config import settings
 
-
 async def analyze_project_with_grok(
         title: str,
         description: str,
@@ -95,63 +94,4 @@ Baholash mezonlari:
             "strengths": [],
             "improvements": [],
             "summary": "Xatolik yuz berdi."
-        }
-
-
-async def explain_word_with_ai(word: str) -> dict:
-    """
-    So'zni AI yordamida tushuntiradi (lug'at uchun)
-    """
-    prompt = f"""
-Sen dasturlash o'qituvchisisiz. "{word}" so'zini/texnologiyasini tushuntir.
-
-Faqat JSON formatida javob ber (boshqa hech narsa yozma):
-{{
-    "word": "{word}",
-    "short_definition": "1 jumlada qisqa ta'rif",
-    "full_explanation": "Batafsil tushuntirish (o'zbek tilida, 3-5 jumla)",
-    "example": "Misol yoki qo'llanilishi",
-    "category": "masalan: Markup Language, Framework, Library va h.k."
-}}
-"""
-
-    try:
-        async with httpx.AsyncClient(timeout=30.0, proxy=settings.HTTP_PROXY or None) as client:
-            response = await client.post(
-                settings.openai_chat_url,
-                headers={
-                    "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": settings.OPENAI_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.3,
-                    "max_tokens": 500,
-                    "response_format": {"type": "json_object"}
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
-            text = data["choices"][0]["message"]["content"]
-
-            json_match = re.search(r'\{.*\}', text, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-            else:
-                return {
-                    "word": word,
-                    "short_definition": text,
-                    "full_explanation": "",
-                    "example": "",
-                    "category": ""
-                }
-
-    except Exception as e:
-        return {
-            "word": word,
-            "short_definition": f"Xatolik: {str(e)}",
-            "full_explanation": "",
-            "example": "",
-            "category": ""
         }
