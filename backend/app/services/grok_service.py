@@ -85,7 +85,7 @@ Baholash mezonlari:
         if hasattr(e, 'response') and e.response:
             try:
                 error_msg += f" - Response: {e.response.text}"
-            except:
+            except Exception:
                 pass
         return {
             "grade": "F",
@@ -95,3 +95,75 @@ Baholash mezonlari:
             "improvements": [],
             "summary": "Xatolik yuz berdi."
         }
+
+
+async def explain_word_with_ai(word: str) -> dict:
+    """
+    AI yordamida so'zni tushuntiradi: tarjima, ta'rif va misollar.
+    Returns: {word, translation, definition, examples: list[str]}.
+    """
+    safe_word = (word or "").strip()
+    if not safe_word:
+        return {
+            "word": "",
+            "translation": "",
+            "definition": "",
+            "examples": [],
+            "error": "Empty word",
+        }
+    if len(safe_word) > 80:
+        safe_word = safe_word[:80]
+
+    prompt = f"""
+Sen ingliz tilini o'rgatuvchi tajribali o'qituvchisiz. Quyidagi so'zni o'quvchiga tushuntirib ber:
+SO'Z: {safe_word}
+
+Faqat JSON formatda javob ber (boshqa hech narsa yozma):
+{{
+    "word": "asl so'z",
+    "translation": "o'zbek tilidagi tarjimasi (1-3 ta variant, vergul bilan)",
+    "definition": "qisqa ta'rif (o'zbek tilida, 1-2 jumla)",
+    "examples": ["ingliz tilida misol jumla 1", "ingliz tilida misol jumla 2"]
+}}
+"""
+
+    fallback = {
+        "word": safe_word,
+        "translation": "",
+        "definition": "",
+        "examples": [],
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0, proxy=settings.HTTP_PROXY or None) as client:
+            response = await client.post(
+                settings.openai_chat_url,
+                headers={
+                    "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": settings.OPENAI_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.2,
+                    "max_tokens": 400,
+                    "response_format": {"type": "json_object"},
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            text = data["choices"][0]["message"]["content"]
+
+            json_match = re.search(r'\{.*\}', text, re.DOTALL)
+            if not json_match:
+                return {**fallback, "definition": text.strip()[:500]}
+
+            parsed = json.loads(json_match.group())
+            return {
+                "word": str(parsed.get("word") or safe_word),
+                "translation": str(parsed.get("translation") or ""),
+                "definition": str(parsed.get("definition") or ""),
+                "examples": [str(x) for x in (parsed.get("examples") or []) if x][:5],
+            }
+    except Exception as e:
+        return {**fallback, "error": f"AI xatolik: {str(e)[:200]}"}
