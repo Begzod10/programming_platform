@@ -32,17 +32,21 @@ class Grade(str, Enum):
 # --- Base
 
 class ProjectBase(BaseModel):
-    title: str = "Loyiha"           # ← default qo'shing
-    description: str = "—"          # ← default qo'shing
+    title: str = "Loyiha"  # ← default qo'shing
+    description: str = "—"  # ← default qo'shing
     github_url: Optional[str] = None
     live_demo_url: Optional[str] = None
     technologies_used: Optional[list[str]] = None
     difficulty_level: DifficultyLevel = DifficultyLevel.easy  # ← default
 
+    # ProjectBase da
     @field_validator("github_url", "live_demo_url", mode="before")
     @classmethod
     def validate_urls(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and not v.startswith(("http://", "https://")):
+        # ✅ Bo'sh yoki None bo'lsa None qaytarish
+        if not v or v.strip() == "":
+            return None
+        if not v.startswith(("http://", "https://")):
             raise ValueError("URL http:// yoki https:// bilan boshlanishi kerak")
         return v
 
@@ -89,10 +93,13 @@ class ProjectUpdate(BaseModel):
     difficulty_level: Optional[DifficultyLevel] = None
     project_files: Optional[str] = None
 
+    # ProjectUpdate da ham xuddi shunday
     @field_validator("github_url", "live_demo_url", mode="before")
     @classmethod
     def validate_urls(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and not v.startswith(("http://", "https://")):
+        if not v or v.strip() == "":
+            return None
+        if not v.startswith(("http://", "https://")):
             raise ValueError("URL http:// yoki https:// bilan boshlanishi kerak")
         return v
 
@@ -133,8 +140,6 @@ class ProjectRead(BaseModel):
         return v
 
     model_config = ConfigDict(from_attributes=True)  # ← eng oxirida
-
-
 
 
 # --- Read with Student

@@ -10,6 +10,8 @@ from app.dependencies import get_current_student
 from pydantic import BaseModel
 from typing import Optional
 
+from app.services.grok_service import explain_word_with_ai
+
 router = APIRouter()
 
 
@@ -82,3 +84,9 @@ async def delete_word(
     await db.delete(word)
     await db.commit()
     return {"message": "O'chirildi"}
+
+
+@router.post("/explain")
+async def explain_word(data: DictionaryCreate):
+    result = await explain_word_with_ai(data.word)
+    return result

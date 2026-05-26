@@ -14,6 +14,16 @@ from app.services import achievement_service
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
 from app.models.user import Student
 from app.services.ranking_service import RankingService
+from fastapi.responses import FileResponse
+
+# Importlarga qo'shing (fayl boshiga)
+import uuid
+from pathlib import Path
+from fastapi import UploadFile, File
+from app.config import settings
+
+PROJECTS_UPLOAD_DIR = Path(settings.UPLOAD_DIR) / "projects"
+PROJECTS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 router = APIRouter()
 
@@ -257,4 +267,112 @@ async def update_file(
         project_id=project_id,
         student_id=current_student.id,
         file_url=file_url,
+    )
+
+
+@router.post("/{project_id}/upload-zip")
+async def upload_project_zip(
+        project_id: int,
+        file: UploadFile = File(...),
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db),
+        service: ProjectService = Depends(get_project_service),
+):
+    import zipfile
+    import io
+
+    # Faqat ZIP
+    allowed_types = [
+        "application/zip",
+        "application/x-zip-compressed",
+        "application/octet-stream"
+    ]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Faqat ZIP fayl qabul qilinadi!")
+
+    contents = await file.read()
+
+    # Bo'sh fayl tekshiruvi
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="ZIP fayl bo'sh!")
+
+    # ✅ ZIP ichida fayl borligini tekshirish — SHU YERGA
+    try:
+        with zipfile.ZipFile(io.BytesIO(contents)) as zf:
+            if len(zf.namelist()) == 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="ZIP fayl bo'sh! Ichiga loyiha fayllarini qo'shing."
+                )
+    except zipfile.BadZipFile:
+        raise HTTPException(
+            status_code=400,
+            detail="Noto'g'ri ZIP fayl!"
+        )
+
+    # 50MB limit
+    if len(contents) > 50 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Fayl 50MB dan katta!")
+
+    # Loyiha mavjudligini tekshirish
+    project = await service.get_project(project_id=project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi!")
+
+    # Faqat o'z loyihasiga yuklash
+    if project.student_id != current_student.id:
+        raise HTTPException(status_code=403, detail="Bu loyiha sizniki emas!")
+
+    # Eski faylni o'chirish
+    if project.project_files:
+        old_path = PROJECTS_UPLOAD_DIR / Path(project.project_files).name
+        if old_path.exists():
+            old_path.unlink()
+
+    # Yangi fayl saqlash
+    filename = f"{uuid.uuid4()}.zip"
+    filepath = PROJECTS_UPLOAD_DIR / filename
+
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    file_url = f"/uploads/projects/{filename}"
+
+    await service.update_file(
+        project_id=project_id,
+        student_id=current_student.id,
+        file_url=file_url,
+    )
+
+    return {
+        "file_url": file_url,
+        "message": "ZIP fayl muvaffaqiyatli yuklandi!"
+    }
+
+
+@router.get("/{project_id}/download-zip")
+async def download_project_zip(
+        project_id: int,
+        current_teacher: Student = Depends(get_current_instructor),
+        service: ProjectService = Depends(get_project_service),
+):
+    """Teacher student ZIP faylini yuklab oladi"""
+    project = await service.get_project(project_id=project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi!")
+
+    if not project.project_files:
+        raise HTTPException(status_code=404, detail="Bu loyihada ZIP fayl yo'q!")
+
+    # Fayl yo'lini topish
+    filename = Path(project.project_files).name
+    filepath = PROJECTS_UPLOAD_DIR / filename
+
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="Fayl serverda topilmadi!")
+
+    return FileResponse(
+        path=str(filepath),
+        filename=f"project_{project_id}_{filename}",
+        media_type="application/zip"
     )
