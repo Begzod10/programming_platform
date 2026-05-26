@@ -6,11 +6,6 @@ import { API_URL, useHttp, headers } from '../../../api/search/base';
 
 const DIFFICULTIES = ['Easy', 'Medium', 'Hard'];
 
-const EMPTY = {
-    title: '', description: '', github_url: '',
-    live_demo_url: '', technologies_used: '', difficulty_level: 'Easy',
-};
-
 /* ── Modal Portal ── */
 const Modal = ({ onClose, children, wide }) => ReactDOM.createPortal(
     <div className="mp-overlay" onClick={onClose}>
@@ -19,6 +14,49 @@ const Modal = ({ onClose, children, wide }) => ReactDOM.createPortal(
         </div>
     </div>,
     document.body
+);
+
+/* ── Upload Method Selector ── */
+const UploadMethodSelector = ({ method, onChange }) => (
+    <div className="mp-method-selector">
+        <button
+            type="button"
+            className={`mp-method-btn ${method === 'github' ? 'mp-method-active' : ''}`}
+            onClick={() => onChange('github')}
+        >
+            <span className="mp-method-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+                    <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+                </svg>
+            </span>
+            <span className="mp-method-label">
+                <span className="mp-method-title">GitHub</span>
+                <span className="mp-method-sub">Ссылка на репозиторий</span>
+            </span>
+            {method === 'github' && <span className="mp-method-check">✓</span>}
+        </button>
+        <div className="mp-method-divider">
+            <span>или</span>
+        </div>
+        <button
+            type="button"
+            className={`mp-method-btn ${method === 'zip' ? 'mp-method-active mp-method-active-zip' : ''}`}
+            onClick={() => onChange('zip')}
+        >
+            <span className="mp-method-icon mp-method-icon-zip">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" width="20" height="20">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+            </span>
+            <span className="mp-method-label">
+                <span className="mp-method-title">ZIP-архив</span>
+                <span className="mp-method-sub">Загрузить файл до 15MB</span>
+            </span>
+            {method === 'zip' && <span className="mp-method-check">✓</span>}
+        </button>
+    </div>
 );
 
 /* ── ZIP Drop Zone ── */
@@ -36,8 +74,12 @@ const ZipDropZone = ({ selectedFile, onFileSelect, uploading, compact = false })
     const handleDragOver = (e) => { e.preventDefault(); setDragging(true); };
     const handleDragLeave = () => setDragging(false);
 
+    const isOverLimit = selectedFile && selectedFile.size > 15 * 1024 * 1024;
+    const isEmpty = selectedFile && selectedFile.size === 0;
+
     return (
-        <div className={`mp-dropzone ${dragging ? 'mp-dropzone-drag' : ''} ${compact ? 'mp-dropzone-compact' : ''}`}
+        <div
+            className={`mp-dropzone ${dragging ? 'mp-dropzone-drag' : ''} ${compact ? 'mp-dropzone-compact' : ''}`}
             onDrop={handleDrop}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
@@ -55,12 +97,14 @@ const ZipDropZone = ({ selectedFile, onFileSelect, uploading, compact = false })
             />
             {selectedFile ? (
                 <div className="mp-dropzone-selected">
-                    <span className="mp-dropzone-icon">📦</span>
+                    <span className="mp-dropzone-icon">{isEmpty ? '⚠️' : '📦'}</span>
                     <div className="mp-dropzone-info">
                         <span className="mp-file-name">{selectedFile.name}</span>
-                        <span className={`mp-file-size ${selectedFile.size > 15 * 1024 * 1024 ? 'mp-overlimit' : ''}`}>
-                            {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB
-                            {selectedFile.size > 15 * 1024 * 1024 && ' · ⚠️ Превышает 15MB'}
+                        <span className={`mp-file-size ${isOverLimit || isEmpty ? 'mp-overlimit' : ''}`}>
+                            {isEmpty
+                                ? '⚠️ Файл пустой — выберите другой'
+                                : `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB${isOverLimit ? ' · ⚠️ Превышает 15MB' : ''}`
+                            }
                         </span>
                     </div>
                     <button className="mp-dropzone-clear" onClick={e => { e.stopPropagation(); onFileSelect(null); }}>✕</button>
@@ -74,7 +118,7 @@ const ZipDropZone = ({ selectedFile, onFileSelect, uploading, compact = false })
                     {!compact && <span className="mp-dropzone-hint">Максимум 15 MB · только .zip</span>}
                 </div>
             )}
-            {selectedFile && (
+            {selectedFile && !isEmpty && (
                 <div className="mp-file-bar-wrap">
                     <div className="mp-file-bar" style={{ width: `${Math.min((selectedFile.size / (15 * 1024 * 1024)) * 100, 100)}%` }} />
                 </div>
@@ -83,8 +127,8 @@ const ZipDropZone = ({ selectedFile, onFileSelect, uploading, compact = false })
     );
 };
 
-/* ── Shared form fields ── */
-const ProjectFormFields = ({ form, errors, set, zipFile, onZipSelect }) => (
+/* ── Form Fields for Edit ── */
+const ProjectFormFields = ({ form, errors, set, zipFile, onZipSelect, uploadMethod, onMethodChange }) => (
     <>
         <div className="mp-field">
             <label>Название *</label>
@@ -100,13 +144,31 @@ const ProjectFormFields = ({ form, errors, set, zipFile, onZipSelect }) => (
                 className={errors.description ? 'mp-input-error' : ''} rows={3} />
             {errors.description && <span className="mp-error">{errors.description}</span>}
         </div>
+
         <div className="mp-field">
-            <label>GitHub URL *</label>
-            <input placeholder="https://github.com/username/repo" value={form.github_url}
-                onChange={e => set('github_url', e.target.value)}
-                className={errors.github_url ? 'mp-input-error' : ''} />
-            {errors.github_url && <span className="mp-error">{errors.github_url}</span>}
+            <label>Способ загрузки кода *</label>
+            <UploadMethodSelector method={uploadMethod} onChange={onMethodChange} />
+            {errors.source && <span className="mp-error">{errors.source}</span>}
         </div>
+
+        <div className={`mp-source-panel ${uploadMethod === 'github' ? 'mp-source-panel-visible' : ''}`}>
+            <div className="mp-field">
+                <label>GitHub URL</label>
+                <input placeholder="https://github.com/username/repo" value={form.github_url}
+                    onChange={e => set('github_url', e.target.value)}
+                    className={errors.github_url ? 'mp-input-error' : ''} />
+                {errors.github_url && <span className="mp-error">{errors.github_url}</span>}
+            </div>
+        </div>
+
+        <div className={`mp-source-panel ${uploadMethod === 'zip' ? 'mp-source-panel-visible' : ''}`}>
+            <div className="mp-field">
+                <label>ZIP-архив</label>
+                <ZipDropZone selectedFile={zipFile} onFileSelect={onZipSelect} compact />
+                {errors.zip && <span className="mp-error">{errors.zip}</span>}
+            </div>
+        </div>
+
         <div className="mp-field">
             <label>Live Demo URL</label>
             <input placeholder="https://myproject.com" value={form.live_demo_url}
@@ -123,122 +185,98 @@ const ProjectFormFields = ({ form, errors, set, zipFile, onZipSelect }) => (
                 {DIFFICULTIES.map(d => <option key={d}>{d}</option>)}
             </select>
         </div>
-
-        {/* ZIP upload in form */}
-        <div className="mp-field">
-            <label>📦 ZIP-архив <span className="mp-label-optional">(необязательно)</span></label>
-            <ZipDropZone selectedFile={zipFile} onFileSelect={onZipSelect} compact />
-        </div>
     </>
 );
 
 function MyProjects() {
     const { request } = useHttp();
 
-    const [projects,   setProjects]   = useState([]);
-    const [loading,    setLoading]    = useState(true);
-    const [addModal,   setAddModal]   = useState(false);
-    const [editModal,  setEditModal]  = useState(false);
-    const [detail,     setDetail]     = useState(null);
-    const [form,       setForm]       = useState({ ...EMPTY });
-    const [errors,     setErrors]     = useState({});
-    const [saving,     setSaving]     = useState(false);
-    const [apiError,   setApiError]   = useState('');
+    const [projects, setProjects] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [editModal, setEditModal] = useState(false);
+    const [detail, setDetail] = useState(null);
 
-    // ZIP upload state (detail modal)
-    const [uploading,    setUploading]    = useState(false);
-    const [uploadMsg,    setUploadMsg]    = useState('');
-    const [selectedFile, setSelectedFile] = useState(null);
+    const [form, setForm] = useState({
+        title: '', description: '', github_url: '',
+        live_demo_url: '', technologies_used: '', difficulty_level: 'Easy',
+    });
+    const [errors, setErrors] = useState({});
+    const [saving, setSaving] = useState(false);
+    const [apiError, setApiError] = useState('');
 
-    // ZIP for create/edit form
+    const [uploadMethod, setUploadMethod] = useState('github');
     const [formZipFile, setFormZipFile] = useState(null);
 
-    // File URL patch state
-    const [fileUrlInput,   setFileUrlInput]   = useState('');
-    const [fileUrlSaving,  setFileUrlSaving]  = useState(false);
-    const [fileUrlMsg,     setFileUrlMsg]     = useState('');
+    // Detail modal states
+    const [uploading, setUploading] = useState(false);
+    const [uploadMsg, setUploadMsg] = useState('');
+    const [selectedFile, setSelectedFile] = useState(null);
+
+    const [fileUrlInput, setFileUrlInput] = useState('');
+    const [fileUrlSaving, setFileUrlSaving] = useState(false);
+    const [fileUrlMsg, setFileUrlMsg] = useState('');
     const [showFileUrlEdit, setShowFileUrlEdit] = useState(false);
 
-    // AI Review state
-    const [aiLoading,  setAiLoading]  = useState(false);
-    const [aiResult,   setAiResult]   = useState('');
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiResult, setAiResult] = useState('');
 
+    // Load projects
     useEffect(() => {
         request(`${API_URL}v1/project/my`, 'GET', null, headers())
             .then(data => setProjects(Array.isArray(data) ? data : []))
             .catch(() => setProjects([]))
             .finally(() => setLoading(false));
-    }, []);
+    }, [request]);
 
-    const set = (k, v) => {
+    const setField = (k, v) => {
         setForm(f => ({ ...f, [k]: v }));
         setErrors(e => ({ ...e, [k]: '' }));
     };
 
     const validate = () => {
         const e = {};
-        if (!form.title.trim())       e.title       = 'Введите название';
+        if (!form.title.trim()) e.title = 'Введите название';
         if (!form.description.trim()) e.description = 'Введите описание';
         else if (form.description.trim().length < 10) e.description = 'Минимум 10 символов';
-        if (!form.github_url.trim())  e.github_url  = 'Введите GitHub ссылку';
+
+        if (uploadMethod === 'github') {
+            if (!form.github_url.trim()) e.github_url = 'Введите GitHub ссылку';
+        } else if (!formZipFile) {
+            e.zip = 'Выберите ZIP-файл';
+        } else if (formZipFile.size === 0) {
+            e.zip = 'ZIP-файл пустой';
+        } else if (formZipFile.size > 15 * 1024 * 1024) {
+            e.zip = 'Файл превышает 15MB';
+        }
+
         setErrors(e);
-        return !Object.keys(e).length;
+        return Object.keys(e).length === 0;
     };
 
     const buildBody = () => ({
-        title:             form.title,
-        description:       form.description,
-        github_url:        form.github_url,
-        live_demo_url:     form.live_demo_url || '',
+        title: form.title,
+        description: form.description,
+        github_url: uploadMethod === 'github' ? form.github_url : '',
+        live_demo_url: form.live_demo_url || '',
         technologies_used: form.technologies_used.split(',').map(t => t.trim()).filter(Boolean),
-        difficulty_level:  form.difficulty_level,
-        project_files:     '',
+        difficulty_level: form.difficulty_level,
     });
-
-    /* ── Upload ZIP helper ── */
-    const uploadZipForProject = async (projectId, file) => {
-        if (!file) return;
-        if (file.size > 15 * 1024 * 1024) throw new Error('TOO_LARGE');
-        const formData = new FormData();
-        formData.append('file', file);
-        const h = headers();
-        delete h['Content-Type'];
-        const r = await fetch(`${API_URL}v1/project/${projectId}/upload-zip`, {
-            method: 'POST', headers: h, body: formData,
-        });
-        if (!r.ok) throw new Error('UPLOAD_FAILED');
-    };
-
-    /* ── CREATE ── */
-    const handleCreate = async () => {
-        if (!validate()) return;
-        setSaving(true); setApiError('');
-        try {
-            const res = await request(`${API_URL}v1/project/`, 'POST', JSON.stringify(buildBody()), headers());
-            // Upload ZIP if attached
-            if (formZipFile) {
-                try { await uploadZipForProject(res.id, formZipFile); } catch (_) { /* non-fatal */ }
-            }
-            setProjects(p => [res, ...p]);
-            setAddModal(false);
-            setForm({ ...EMPTY });
-            setFormZipFile(null);
-        } catch {
-            setApiError('Ошибка при создании проекта');
-        } finally {
-            setSaving(false);
-        }
-    };
 
     /* ── UPDATE ── */
     const handleUpdate = async () => {
         if (!validate()) return;
-        setSaving(true); setApiError('');
+        setSaving(true);
+        setApiError('');
+
         try {
             const res = await request(`${API_URL}v1/project/${detail.id}`, 'PUT', JSON.stringify(buildBody()), headers());
-            if (formZipFile) {
-                try { await uploadZipForProject(res.id, formZipFile); } catch (_) { /* non-fatal */ }
+
+            if (uploadMethod === 'zip' && formZipFile) {
+                try {
+                    await uploadZipForProject(res.id, formZipFile);
+                } catch (_) {}
             }
+
             setProjects(p => p.map(pr => pr.id === res.id ? res : pr));
             setDetail(res);
             setEditModal(false);
@@ -250,7 +288,20 @@ function MyProjects() {
         }
     };
 
-    /* ── SUBMIT ── */
+    /* ── ZIP Upload Helper ── */
+    const uploadZipForProject = async (projectId, file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        const h = headers();
+        delete h['Content-Type'];
+
+        const r = await fetch(`${API_URL}v1/project/${projectId}/upload-zip`, {
+            method: 'POST', headers: h, body: formData,
+        });
+        if (!r.ok) throw new Error('Upload failed');
+    };
+
+    /* ── Other handlers ── */
     const handleSubmit = (projectId) => {
         request(`${API_URL}v1/project/${projectId}/submit`, 'POST', JSON.stringify({}), headers())
             .then(() => {
@@ -260,26 +311,30 @@ function MyProjects() {
             .catch(() => alert('Ошибка при отправке'));
     };
 
-    /* ── DELETE ── */
     const handleDelete = (projectId) => {
         if (!window.confirm('Удалить проект?')) return;
         request(`${API_URL}v1/project/${projectId}`, 'DELETE', null, headers())
-            .then(() => { setProjects(p => p.filter(pr => pr.id !== projectId)); setDetail(null); })
+            .then(() => {
+                setProjects(p => p.filter(pr => pr.id !== projectId));
+                setDetail(null);
+            })
             .catch(() => alert('Ошибка при удалении'));
     };
 
-    /* ── UPLOAD ZIP (detail) ── */
     const handleZipUpload = (projectId, file) => {
-        if (!file) return;
-        if (file.size > 15 * 1024 * 1024) {
-            setUploadMsg('❌ Файл слишком большой (макс. 15MB)');
+        if (!file || file.size === 0 || file.size > 15 * 1024 * 1024) {
+            setUploadMsg('❌ Некорректный файл');
             return;
         }
+
         const formData = new FormData();
         formData.append('file', file);
-        setUploading(true); setUploadMsg('');
+        setUploading(true);
+        setUploadMsg('');
+
         const h = headers();
         delete h['Content-Type'];
+
         fetch(`${API_URL}v1/project/${projectId}/upload-zip`, {
             method: 'POST', headers: h, body: formData,
         })
@@ -295,14 +350,15 @@ function MyProjects() {
                     setDetail(res);
                 }
             })
-            .catch(() => setUploadMsg('❌ Ошибка загрузки ZIP'))
+            .catch(() => setUploadMsg('❌ Ошибка загрузки'))
             .finally(() => setUploading(false));
     };
 
-    /* ── PATCH FILE URL ── */
     const handlePatchFileUrl = () => {
         if (!fileUrlInput.trim()) return;
-        setFileUrlSaving(true); setFileUrlMsg('');
+        setFileUrlSaving(true);
+        setFileUrlMsg('');
+
         request(
             `${API_URL}v1/project/${detail.id}/file`,
             'PATCH',
@@ -316,38 +372,33 @@ function MyProjects() {
                 setFileUrlMsg('✅ Ссылка обновлена');
                 setShowFileUrlEdit(false);
             })
-            .catch(() => setFileUrlMsg('❌ Ошибка обновления ссылки'))
+            .catch(() => setFileUrlMsg('❌ Ошибка обновления'))
             .finally(() => setFileUrlSaving(false));
     };
 
-    /* ── AI REVIEW ── */
     const handleAiReview = (projectId) => {
-        setAiLoading(true); setAiResult('');
+        setAiLoading(true);
+        setAiResult('');
         request(`${API_URL}v1/project/${projectId}/ai-review`, 'POST', JSON.stringify({}), headers())
             .then(res => setAiResult(typeof res === 'string' ? res : JSON.stringify(res)))
             .catch(() => setAiResult('❌ Ошибка AI-проверки'))
             .finally(() => setAiLoading(false));
     };
 
-    /* ── OPEN EDIT ── */
     const openEdit = () => {
         setForm({
-            title:             detail.title || '',
-            description:       detail.description || '',
-            github_url:        detail.github_url || '',
-            live_demo_url:     detail.live_demo_url || '',
+            title: detail.title || '',
+            description: detail.description || '',
+            github_url: detail.github_url || '',
+            live_demo_url: detail.live_demo_url || '',
             technologies_used: (detail.technologies_used || []).join(', '),
-            difficulty_level:  detail.difficulty_level || 'Easy',
+            difficulty_level: detail.difficulty_level || 'Easy',
         });
+        setUploadMethod(detail.github_url ? 'github' : 'zip');
         setFormZipFile(null);
-        setErrors({}); setApiError('');
+        setErrors({});
+        setApiError('');
         setEditModal(true);
-    };
-
-    const openAdd = () => {
-        setForm({ ...EMPTY }); setErrors({}); setApiError('');
-        setFormZipFile(null);
-        setAddModal(true);
     };
 
     const closeDetail = () => {
@@ -360,26 +411,31 @@ function MyProjects() {
         setShowFileUrlEdit(false);
     };
 
+    const handleMethodChange = (method) => {
+        setUploadMethod(method);
+        setErrors(e => ({ ...e, github_url: '', zip: '', source: '' }));
+        if (method === 'github') setFormZipFile(null);
+        if (method === 'zip') setField('github_url', '');
+    };
+
     return (
         <div className="mp-container item-fade-in">
-
-            {/* Header */}
             <div className="mp-header">
                 <div>
                     <h2>Мои Проекты</h2>
-                    <p className="mp-subtitle">Загружайте проекты и получайте очки</p>
+                    <p className="mp-subtitle">Управление вашими проектами</p>
                 </div>
-                <button className="mp-add-btn" onClick={openAdd}>➕ Загрузить проект</button>
             </div>
 
-            {/* List */}
             {loading ? (
-                <div className="mp-loading"><div className="mp-spinner" /><p>Загрузка...</p></div>
+                <div className="mp-loading">
+                    <div className="mp-spinner" />
+                    <p>Загрузка...</p>
+                </div>
             ) : projects.length === 0 ? (
                 <div className="mp-empty">
                     <span>📂</span>
                     <p>У вас пока нет проектов</p>
-                    <button className="mp-add-btn" onClick={openAdd}>Загрузить первый</button>
                 </div>
             ) : (
                 <div className="projects-grid">
@@ -393,33 +449,17 @@ function MyProjects() {
                             techStack={p.technologies_used || []}
                             grade={p.grade}
                             viewsCount={p.views_count || 0}
-                            onDetails={() => { setAiResult(''); setUploadMsg(''); setDetail(p); }}
+                            onDetails={() => {
+                                setAiResult('');
+                                setUploadMsg('');
+                                setDetail(p);
+                            }}
                         />
                     ))}
                 </div>
             )}
 
-            {/* ═══════════ ADD MODAL ═══════════ */}
-            {addModal && (
-                <Modal onClose={() => setAddModal(false)}>
-                    <div className="mp-modal-header">
-                        <h3>📁 Загрузить проект</h3>
-                        <button className="mp-close" onClick={() => setAddModal(false)}>✕</button>
-                    </div>
-                    <div className="mp-modal-body">
-                        {apiError && <div className="mp-api-error">{apiError}</div>}
-                        <ProjectFormFields form={form} errors={errors} set={set} zipFile={formZipFile} onZipSelect={setFormZipFile} />
-                    </div>
-                    <div className="mp-modal-footer">
-                        <button className="mp-btn-cancel" onClick={() => setAddModal(false)}>Отмена</button>
-                        <button className="mp-btn-save" onClick={handleCreate} disabled={saving}>
-                            {saving ? '⏳ Сохранение...' : '✅ Создать'}
-                        </button>
-                    </div>
-                </Modal>
-            )}
-
-            {/* ═══════════ EDIT MODAL ═══════════ */}
+            {/* EDIT MODAL */}
             {editModal && (
                 <Modal onClose={() => setEditModal(false)}>
                     <div className="mp-modal-header">
@@ -428,7 +468,15 @@ function MyProjects() {
                     </div>
                     <div className="mp-modal-body">
                         {apiError && <div className="mp-api-error">{apiError}</div>}
-                        <ProjectFormFields form={form} errors={errors} set={set} zipFile={formZipFile} onZipSelect={setFormZipFile} />
+                        <ProjectFormFields
+                            form={form}
+                            errors={errors}
+                            set={setField}
+                            zipFile={formZipFile}
+                            onZipSelect={setFormZipFile}
+                            uploadMethod={uploadMethod}
+                            onMethodChange={handleMethodChange}
+                        />
                     </div>
                     <div className="mp-modal-footer">
                         <button className="mp-btn-cancel" onClick={() => setEditModal(false)}>Отмена</button>
@@ -439,7 +487,7 @@ function MyProjects() {
                 </Modal>
             )}
 
-            {/* ═══════════ DETAIL MODAL ═══════════ */}
+            {/* DETAIL MODAL */}
             {detail && (
                 <Modal onClose={closeDetail} wide>
                     <div className="mp-modal-header">
@@ -447,25 +495,30 @@ function MyProjects() {
                         <button className="mp-close" onClick={closeDetail}>✕</button>
                     </div>
                     <div className="mp-modal-body">
-
                         {/* Badges */}
                         <div className="mp-detail-badges">
-                            <span className={`mp-diff ${
-                                detail.difficulty_level === 'Easy' ? 'mp-diff-easy' :
-                                detail.difficulty_level === 'Medium' ? 'mp-diff-medium' : 'mp-diff-hard'
-                            }`}>{detail.difficulty_level}</span>
-                            <span className={`mp-status ${
-                                { Draft: 'mp-status-draft', Submitted: 'mp-status-pending',
-                                  'Under Review': 'mp-status-pending', Approved: 'mp-status-approved',
-                                  Rejected: 'mp-status-denied' }[detail.status] || ''
-                            }`}>
-                                {{ Draft: 'Черновик', Submitted: 'Отправлен', 'Under Review': 'На проверке',
-                                   Approved: 'Одобрен', Rejected: 'Отклонён' }[detail.status] || detail.status}
+                            <span className={`mp-diff ${detail.difficulty_level === 'Easy' ? 'mp-diff-easy' : detail.difficulty_level === 'Medium' ? 'mp-diff-medium' : 'mp-diff-hard'}`}>
+                                {detail.difficulty_level}
+                            </span>
+                            <span className={`mp-status ${{
+                                Draft: 'mp-status-draft',
+                                Submitted: 'mp-status-pending',
+                                'Under Review': 'mp-status-pending',
+                                Approved: 'mp-status-approved',
+                                Rejected: 'mp-status-denied'
+                            }[detail.status] || ''}`}>
+                                {{
+                                    Draft: 'Черновик',
+                                    Submitted: 'Отправлен',
+                                    'Under Review': 'На проверке',
+                                    Approved: 'Одобрен',
+                                    Rejected: 'Отклонён'
+                                }[detail.status] || detail.status}
                             </span>
                             {detail.grade && <span className={`mp-grade mp-grade-${detail.grade}`}>Оценка: {detail.grade}</span>}
                         </div>
 
-                        {/* Stats row */}
+                        {/* Stats */}
                         <div className="mp-stats-row">
                             <div className="mp-stat">
                                 <span className="mp-stat-icon">🏆</span>
@@ -479,13 +532,12 @@ function MyProjects() {
                             </div>
                         </div>
 
-                        {/* Description */}
+                        {/* Description, Links, Technologies, etc. */}
                         <div className="mp-detail-row">
                             <span className="mp-detail-label">Описание</span>
                             <span className="mp-detail-value">{detail.description || '—'}</span>
                         </div>
 
-                        {/* GitHub */}
                         {detail.github_url && (
                             <div className="mp-detail-row">
                                 <span className="mp-detail-label">GitHub</span>
@@ -493,7 +545,6 @@ function MyProjects() {
                             </div>
                         )}
 
-                        {/* Live Demo */}
                         {detail.live_demo_url && (
                             <div className="mp-detail-row">
                                 <span className="mp-detail-label">Live Demo</span>
@@ -501,7 +552,6 @@ function MyProjects() {
                             </div>
                         )}
 
-                        {/* Technologies */}
                         {(detail.technologies_used || []).length > 0 && (
                             <div className="mp-detail-row">
                                 <span className="mp-detail-label">Технологии</span>
@@ -511,7 +561,6 @@ function MyProjects() {
                             </div>
                         )}
 
-                        {/* Instructor feedback */}
                         {detail.instructor_feedback && (
                             <div className="mp-feedback">
                                 <span className="mp-detail-label">💬 Отзыв преподавателя</span>
@@ -519,116 +568,54 @@ function MyProjects() {
                             </div>
                         )}
 
-                        {/* Dates */}
-                        {detail.submitted_at && (
-                            <div className="mp-detail-row">
-                                <span className="mp-detail-label">Отправлен</span>
-                                <span className="mp-detail-value">{new Date(detail.submitted_at).toLocaleDateString('ru-RU')}</span>
-                            </div>
-                        )}
-                        {detail.reviewed_at && (
-                            <div className="mp-detail-row">
-                                <span className="mp-detail-label">Проверен</span>
-                                <span className="mp-detail-value">{new Date(detail.reviewed_at).toLocaleDateString('ru-RU')}</span>
-                            </div>
-                        )}
-
-                        {/* ── ZIP Upload ── */}
+                        {/* ZIP Upload Section */}
                         <div className="mp-section">
                             <span className="mp-detail-label">📦 ZIP-архив проекта</span>
-
-                            {/* Current file link */}
                             {detail.project_files && (
                                 <div className="mp-current-file">
                                     <span className="mp-current-file-label">Текущий файл:</span>
-                                    <a href={detail.project_files} target="_blank" rel="noreferrer" className="mp-link mp-link-sm">
-                                        📎 Открыть
-                                    </a>
+                                    <a href={detail.project_files} target="_blank" rel="noreferrer" className="mp-link mp-link-sm">📎 Открыть</a>
                                 </div>
                             )}
-
-                            <ZipDropZone
-                                selectedFile={selectedFile}
-                                onFileSelect={setSelectedFile}
-                                uploading={uploading}
-                            />
-
+                            <ZipDropZone selectedFile={selectedFile} onFileSelect={setSelectedFile} uploading={uploading} />
                             <div className="mp-zip-row">
-                                <button
-                                    className="mp-btn-zip-upload"
-                                    onClick={() => handleZipUpload(detail.id, selectedFile)}
-                                    disabled={uploading || !selectedFile || selectedFile?.size > 15 * 1024 * 1024}
-                                >
-                                    {uploading ? (
-                                        <><span className="mp-btn-spinner" />Загрузка...</>
-                                    ) : '📤 Загрузить ZIP'}
+                                <button className="mp-btn-zip-upload" onClick={() => handleZipUpload(detail.id, selectedFile)}
+                                    disabled={uploading || !selectedFile}>
+                                    {uploading ? <>Загрузка...</> : '📤 Загрузить ZIP'}
                                 </button>
                                 {uploadMsg && <span className={`mp-upload-msg ${uploadMsg.startsWith('✅') ? 'success' : 'error'}`}>{uploadMsg}</span>}
                             </div>
                         </div>
 
-                        {/* ── File URL (PATCH) ── */}
+                        {/* File URL */}
                         <div className="mp-section">
                             <div className="mp-section-header">
                                 <span className="mp-detail-label">🔗 Ссылка на файл</span>
-                                <button
-                                    className="mp-toggle-link"
-                                    onClick={() => { setShowFileUrlEdit(v => !v); setFileUrlMsg(''); setFileUrlInput(detail.project_files || ''); }}
-                                >
+                                <button className="mp-toggle-link" onClick={() => { setShowFileUrlEdit(v => !v); setFileUrlMsg(''); setFileUrlInput(detail.project_files || ''); }}>
                                     {showFileUrlEdit ? 'Скрыть' : '✏️ Изменить'}
                                 </button>
                             </div>
-
-                            {!showFileUrlEdit && detail.project_files && (
-                                <a href={detail.project_files} target="_blank" rel="noreferrer" className="mp-link mp-link-sm">
-                                    {detail.project_files}
-                                </a>
-                            )}
-                            {!showFileUrlEdit && !detail.project_files && (
-                                <span className="mp-hint">Ссылка не указана</span>
-                            )}
-
-                            {showFileUrlEdit && (
+                            {showFileUrlEdit ? (
                                 <div className="mp-file-url-edit">
-                                    <input
-                                        className="mp-file-url-input"
-                                        placeholder="https://drive.google.com/..."
-                                        value={fileUrlInput}
-                                        onChange={e => { setFileUrlInput(e.target.value); setFileUrlMsg(''); }}
-                                    />
-                                    <button
-                                        className="mp-btn-save mp-btn-save-sm"
-                                        onClick={handlePatchFileUrl}
-                                        disabled={fileUrlSaving || !fileUrlInput.trim()}
-                                    >
-                                        {fileUrlSaving ? '⏳' : '💾 Сохранить'}
+                                    <input className="mp-file-url-input" placeholder="https://..." value={fileUrlInput} onChange={e => setFileUrlInput(e.target.value)} />
+                                    <button className="mp-btn-save mp-btn-save-sm" onClick={handlePatchFileUrl} disabled={fileUrlSaving || !fileUrlInput.trim()}>
+                                        {fileUrlSaving ? '⏳' : 'Сохранить'}
                                     </button>
                                 </div>
-                            )}
-                            {fileUrlMsg && (
-                                <span className={`mp-upload-msg ${fileUrlMsg.startsWith('✅') ? 'success' : 'error'}`}>{fileUrlMsg}</span>
-                            )}
+                            ) : detail.project_files ? (
+                                <a href={detail.project_files} target="_blank" rel="noreferrer" className="mp-link">{detail.project_files}</a>
+                            ) : <span className="mp-hint">Ссылка не указана</span>}
+                            {fileUrlMsg && <span className={`mp-upload-msg ${fileUrlMsg.startsWith('✅') ? 'success' : 'error'}`}>{fileUrlMsg}</span>}
                         </div>
 
-                        {/* ── AI Review ── */}
+                        {/* AI Review */}
                         <div className="mp-section">
                             <span className="mp-detail-label">🤖 AI-проверка</span>
-                            <button
-                                className="mp-btn-ai"
-                                onClick={() => handleAiReview(detail.id)}
-                                disabled={aiLoading}
-                            >
-                                {aiLoading ? (
-                                    <><span className="mp-btn-spinner mp-btn-spinner-pink" />Анализ...</>
-                                ) : '✨ Запустить AI-проверку'}
+                            <button className="mp-btn-ai" onClick={() => handleAiReview(detail.id)} disabled={aiLoading}>
+                                {aiLoading ? 'Анализ...' : '✨ Запустить AI-проверку'}
                             </button>
-                            {aiResult && (
-                                <div className="mp-ai-result">
-                                    <p>{aiResult}</p>
-                                </div>
-                            )}
+                            {aiResult && <div className="mp-ai-result"><p>{aiResult}</p></div>}
                         </div>
-
                     </div>
 
                     <div className="mp-modal-footer">
@@ -637,9 +624,7 @@ function MyProjects() {
                             {detail.status === 'Draft' && (
                                 <>
                                     <button className="mp-btn-edit" onClick={openEdit}>✏️ Изменить</button>
-                                    <button className="mp-btn-submit" onClick={() => handleSubmit(detail.id)}>
-                                        🚀 Отправить на проверку
-                                    </button>
+                                    <button className="mp-btn-submit" onClick={() => handleSubmit(detail.id)}>🚀 Отправить на проверку</button>
                                 </>
                             )}
                         </div>
