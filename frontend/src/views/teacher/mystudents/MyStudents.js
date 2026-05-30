@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './MyStudents.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 
@@ -12,12 +13,12 @@ const fmt = (n) =>
   new Intl.NumberFormat('uz-UZ').format(n) + ' so\'m';
 
 /* ─── StudentRow ─── */
-const StudentRow = ({ student }) => {
+const StudentRow = ({ student, onOpen }) => {
   const bc = balanceColor(student.balance);
   const initials = `${(student.name || '?')[0]}${(student.surname || '')[0] || ''}`.toUpperCase();
 
   return (
-    <div className="ms-student-row">
+    <div className="ms-student-row" onClick={() => onOpen(student.id)} style={{ cursor: 'pointer' }}>
       <div className="ms-sr-avatar">{initials}</div>
       <div className="ms-sr-info">
         <span className="ms-sr-name">{student.name} {student.surname}</span>
@@ -29,7 +30,7 @@ const StudentRow = ({ student }) => {
 };
 
 /* ─── GroupCard ─── */
-const GroupCard = ({ group }) => {
+const GroupCard = ({ group, onOpenStudent }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -88,7 +89,7 @@ const GroupCard = ({ group }) => {
           ) : (
             <div className="ms-students-list">
               {filtered.map(s => (
-                <StudentRow key={s.id} student={s} />
+                <StudentRow key={s.id} student={s} onOpen={onOpenStudent} />
               ))}
             </div>
           )}
@@ -101,11 +102,11 @@ const GroupCard = ({ group }) => {
 /* ─── Main ─── */
 const MyStudents = () => {
   const { request } = useHttp();
+  const navigate = useNavigate(); // ← useNavigate instead of modal state
 
   const [groups,  setGroups]  = useState([]);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
-  const [syncing, setSyncing] = useState(false);
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -119,6 +120,10 @@ const MyStudents = () => {
     loadData();
   }, [loadData]);
 
+  // ← Navigate to separate page instead of opening modal
+  const handleOpenStudent = (studentId) => {
+    navigate(`/teacher/students/${studentId}`);
+  };
 
   const filteredGroups = groups.filter(g =>
     (g.name || '').toLowerCase().includes(search.toLowerCase())
@@ -155,7 +160,7 @@ const MyStudents = () => {
         <div className="ms-stat-chip">👥 Talabalar: {totalStudents}</div>
       </div>
 
-      {loading && !syncing ? (
+      {loading ? (
         <div className="ms-loading">
           <div className="ms-spinner" />
           <span>Ma'lumotlar yuklanmoqda...</span>
@@ -165,7 +170,11 @@ const MyStudents = () => {
       ) : (
         <div className="ms-groups-list">
           {filteredGroups.map(g => (
-            <GroupCard key={g.id} group={g} />
+            <GroupCard
+              key={g.id}
+              group={g}
+              onOpenStudent={handleOpenStudent}
+            />
           ))}
         </div>
       )}
