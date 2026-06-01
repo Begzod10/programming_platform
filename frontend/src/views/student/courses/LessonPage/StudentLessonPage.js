@@ -495,6 +495,26 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [downloadingFile, setDownloadingFile] = useState(null);
     const [activeSection, setActiveSection] = useState(null);
 
+    // Dedup video-watch pings per (lesson, section) within this session so
+    // every re-render of the iframe doesn't refire the POST. Backend also
+    // de-dupes server-side, this just skips the network round-trip.
+    const watchedSectionsRef = useRef(new Set());
+    const recordVideoWatch = useCallback((sectionId) => {
+        if (!sectionId || !course?.id || !lesson?.id) return;
+        const key = `${lesson.id}:${sectionId}`;
+        if (watchedSectionsRef.current.has(key)) return;
+        watchedSectionsRef.current.add(key);
+        request(
+            `${API_URL}v1/courses/${course.id}/lessons/${lesson.id}/sections/${sectionId}/watch`,
+            'POST',
+            null,
+            headers(),
+        ).catch(() => {
+            // Drop the dedup marker on failure so the next iframe mount can retry.
+            watchedSectionsRef.current.delete(key);
+        });
+    }, [course?.id, lesson?.id, request]);
+
     // Upload method: 'github' | 'zip'
     const [uploadMethod, setUploadMethod] = useState('github');
     const [zipFile, setZipFile] = useState(null);
@@ -813,7 +833,8 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                             <div className="slp-video-wrap">
                                                 {ytId
                                                     ? <iframe src={`https://www.youtube.com/embed/${ytId}`}
-                                                              allowFullScreen title={section.label || 'Video'}/>
+                                                              allowFullScreen title={section.label || 'Video'}
+                                                              onLoad={() => recordVideoWatch(section.id)}/>
                                                     : <div className="slp-video-empty">🎬 Видео не добавлено</div>}
                                             </div>
                                             {section.videoUrl && (
