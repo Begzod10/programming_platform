@@ -43,11 +43,15 @@ class ProjectBase(BaseModel):
     @field_validator("github_url", "live_demo_url", mode="before")
     @classmethod
     def validate_urls(cls, v: Optional[str]) -> Optional[str]:
-        # ✅ Bo'sh yoki None bo'lsa None qaytarish
-        if not v or v.strip() == "":
+        # Bo'sh yoki None bo'lsa None qaytarish
+        if not v:
             return None
+        v = v.strip()
+        if not v:
+            return None
+        # Foydalanuvchi protokolsiz yozsa (github.com/...) avtomatik https:// qo'shamiz
         if not v.startswith(("http://", "https://")):
-            raise ValueError("URL http:// yoki https:// bilan boshlanishi kerak")
+            v = "https://" + v.lstrip("/")
         return v
 
     @field_validator("title", mode="before")
@@ -97,10 +101,13 @@ class ProjectUpdate(BaseModel):
     @field_validator("github_url", "live_demo_url", mode="before")
     @classmethod
     def validate_urls(cls, v: Optional[str]) -> Optional[str]:
-        if not v or v.strip() == "":
+        if not v:
+            return None
+        v = v.strip()
+        if not v:
             return None
         if not v.startswith(("http://", "https://")):
-            raise ValueError("URL http:// yoki https:// bilan boshlanishi kerak")
+            v = "https://" + v.lstrip("/")
         return v
 
 

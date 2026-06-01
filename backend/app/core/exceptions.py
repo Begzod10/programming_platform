@@ -23,6 +23,7 @@ def register_exception_handlers(app):
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        import sys
         errors = []
         for error in exc.errors():
             errors.append({
@@ -30,6 +31,12 @@ def register_exception_handlers(app):
                 "message": error.get("msg", ""),
                 "type": error.get("type", ""),
             })
+        # Diagnostik: 422 sabablarini server logiga yozamiz (journalctl ko'rinishi uchun)
+        print(
+            f"422 {request.method} {request.url.path}: {errors}",
+            file=sys.stderr,
+            flush=True,
+        )
         return JSONResponse(
             status_code=422,
             content={

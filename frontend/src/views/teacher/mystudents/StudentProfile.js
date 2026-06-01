@@ -18,7 +18,6 @@ const fmt = (n) => new Intl.NumberFormat('uz-UZ', {
   currency: 'UZS',
   maximumFractionDigits: 0
 }).format(n ?? 0);
-
 const fmtDate   = (iso) => iso
   ? new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(iso))
   : '—';
@@ -100,15 +99,12 @@ const StudentProfilePage = () => {
     setError(null); 
     setProfile(null); 
     setProgress(null);
-    
+
     Promise.all([
       request(`${API_URL}v1/student/${studentId}`,                   'GET', null, headers()),
       request(`${API_URL}v1/teacher/students/${studentId}/progress`, 'GET', null, headers()),
     ])
-      .then(([prof, prog]) => { 
-        setProfile(prof); 
-        setProgress(prog); 
-      })
+      .then(([prof, prog]) => { setProfile(prof); setProgress(prog); })
       .catch(() => setError("Ma'lumotlarni yuklashda xatolik yuz berdi"))
       .finally(() => setLoading(false));
   }, [studentId, request]);
@@ -125,7 +121,6 @@ const StudentProfilePage = () => {
   const achievements = d?.achievements || [];
   const avgProgress  = p?.average_progress ?? 0;
   const globalRank   = p?.global_rank     ?? '—';
-
   const initials = useMemo(() => {
     if (!d) return '??';
     const first = (d.full_name || d.username || '?')[0];
@@ -171,7 +166,7 @@ const StudentProfilePage = () => {
         <div className="spp-breadcrumb">
           <span>Talabalar</span>
           <span className="spp-bc-sep">/</span>
-        <span className="spp-bc-current">{d.full_name}{d.surname ? ' '+d.surname : ''}</span>
+          <span className="spp-bc-current">{d.full_name}{d.surname ? ' '+d.surname : ''}</span>
         </div>
       </div>
 
@@ -181,24 +176,24 @@ const StudentProfilePage = () => {
         <div className="spp-hero-content">
           {/* Avatar */}
           <div className="spp-hero-avatar-wrap">
-          {d.avatar_url
-            ? <img src={d.avatar_url} alt="" className="spp-hero-avatar-img"/>
+            {d.avatar_url
+              ? <img src={d.avatar_url} alt="" className="spp-hero-avatar-img"/>
               : <div className="spp-hero-avatar-ini">{initials}</div>}
-          <span className={`spp-hero-dot ${d.is_active ? 'on' : ''}`}/>
+            <span className={`spp-hero-dot ${d.is_active ? 'on' : ''}`}/>
           </div>
 
           {/* Name + tags */}
           <div className="spp-hero-info">
             <div className="spp-hero-name-row">
-            <h1 className="spp-hero-name">{d.full_name}{d.surname ? ' '+d.surname : ''}</h1>
-            <span className={`spp-hero-status ${d.is_active ? 'on' : 'off'}`}>
-              {d.is_active ? 'Faol' : 'Nofaol'}
+              <h1 className="spp-hero-name">{d.full_name}{d.surname ? ' '+d.surname : ''}</h1>
+              <span className={`spp-hero-status ${d.is_active ? 'on' : 'off'}`}>
+                {d.is_active ? 'Faol' : 'Nofaol'}
               </span>
             </div>
             <p className="spp-hero-uname">@{d.username}</p>
             <div className="spp-hero-tags">
               <span className="spp-tag-level" style={{ background: lvl.bg, color: lvl.color }}>
-              {lvl.icon} {d.current_level}
+                {lvl.icon} {d.current_level}
               </span>
               {groups.map((g,i) => (
                 <span key={i} className="spp-tag-group">🏫 {g}</span>
@@ -260,10 +255,10 @@ const StudentProfilePage = () => {
                   <span className="spp-info-val">{d.phone}</span>
                 </a>
               )}
-          {d.birth_date && (
+              {d.birth_date && (
                 <div className="spp-info-row">
                   <span className="spp-info-icon">🎂</span>
-              <span className="spp-info-val">{fmtDate(d.birth_date)}</span>
+                  <span className="spp-info-val">{fmtDate(d.birth_date)}</span>
                 </div>
               )}
               {d.age !== undefined && d.age !== null && (
@@ -278,22 +273,22 @@ const StudentProfilePage = () => {
                   <span className="spp-info-val">{d.address}</span>
                 </div>
               )}
-          {d.parent_phone && (
+              {d.parent_phone && (
                 <div className="spp-info-row">
                   <span className="spp-info-icon">👨‍👩‍👦</span>
-              <span className="spp-info-val">{d.parent_phone}</span>
+                  <span className="spp-info-val">{d.parent_phone}</span>
                 </div>
               )}
-          {p?.enrollment_date && (
+              {p?.enrollment_date && (
                 <div className="spp-info-row">
                   <span className="spp-info-icon">🎓</span>
-              <span className="spp-info-val">Qabul: {fmtDate(p.enrollment_date)}</span>
+                  <span className="spp-info-val">Qabul: {fmtDate(p.enrollment_date)}</span>
                 </div>
               )}
-          {d.created_at && (
+              {d.created_at && (
                 <div className="spp-info-row">
                   <span className="spp-info-icon">📅</span>
-              <span className="spp-info-val">Ro'yxat: {fmtDate(d.created_at)}</span>
+                  <span className="spp-info-val">Ro'yxat: {fmtDate(d.created_at)}</span>
                 </div>
               )}
             </div>
@@ -331,11 +326,11 @@ const StudentProfilePage = () => {
               </div>
               <span className="spp-balance-icon">💰</span>
             </div>
-        {d.total_score !== undefined && (
+            {d.total_score !== undefined && (
               <div className="spp-balance-row" style={{ marginTop:12, paddingTop:12, borderTop:'1.5px solid #f3f3f8' }}>
                 <div>
                   <p className="spp-balance-label">Umumiy hisob</p>
-              <p className="spp-balance-val" style={{ color: balColor(d.total_score ?? 0) }}>{fmt(d.total_score)}</p>
+                  <p className="spp-balance-val" style={{ color: balColor(d.total_score ?? 0) }}>{fmt(d.total_score)}</p>
                 </div>
                 <span className="spp-balance-icon">📊</span>
               </div>
@@ -386,12 +381,12 @@ const StudentProfilePage = () => {
                   <p className="spp-section-lbl">📈 Kurslar bo'yicha progress</p>
                   <div className="spp-mini-prog-list">
                     {courses.map((c) => (
-                  <div key={c.course_id} className="spp-mini-prog-row">
-                    <span className="spp-mpr-name">{c.course_title}</span>
+                      <div key={c.course_id} className="spp-mini-prog-row">
+                        <span className="spp-mpr-name">{c.course_title}</span>
                         <div className="spp-mpr-track">
-                      <div className="spp-mpr-fill" style={{ width:`${c.progress_percentage ?? 0}%` }}/>
+                          <div className="spp-mpr-fill" style={{ width:`${c.progress_percentage ?? 0}%` }}/>
                         </div>
-                    <span className="spp-mpr-pct">{c.progress_percentage ?? 0}%</span>
+                        <span className="spp-mpr-pct">{c.progress_percentage ?? 0}%</span>
                       </div>
                     ))}
                   </div>
@@ -413,7 +408,7 @@ const StudentProfilePage = () => {
               {courses.length === 0
                 ? <div className="spp-empty"><span>📚</span><p>Hech qanday kurs yo'q</p></div>
                 : <div className="spp-courses-grid">
-                {courses.map((c,i) => <CourseCard key={c.course_id} course={c} idx={i}/>)}
+                    {courses.map((c,i) => <CourseCard key={c.course_id} course={c} idx={i}/>)}
                   </div>
               }
             </div>
