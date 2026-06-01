@@ -1139,6 +1139,19 @@ LESSONS = [
                "ma'lumotda HTML yoki JavaScript bo'lsa, Jinja2 uni avtomatik escape qiladi va "
                "brauzer uni matn sifatida ko'rsatadi, kod sifatida ishga tushirmaydi.",
                diff="Hard", pts=4),
+            mc("{{ items | length }} filtri nima qaytaradi?",
+               ["items ro'yxatini sortlaydi",
+                "items ro'yxatining uzunligini (elementlar sonini) qaytaradi",
+                "items ichidagi har bir elementni chiqaradi",
+                "items ro'yxatini bo'shatadi"],
+               "B", hint="length so'zining ingliz tilidagi ma'nosini eslang.",
+               diff="Easy", pts=2),
+            ti("{% for item in items %}...{% endfor %} qanday ishlaydi va qaysi vaziyatlarda ishlatiladi?",
+               "Bu Jinja2 sikl. Python list yoki har qanday iterable obyekt elementlari bo'ylab "
+               "aylanadi va har bir element uchun ichidagi HTML bloki takrorlanadi. Foydalanuvchilar "
+               "ro'yxati, mahsulotlar jadvali, blog postlari kabi takrorlanuvchi ma'lumotlarni "
+               "shablonda ko'rsatish uchun ishlatiladi.",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1295,6 +1308,19 @@ LESSONS = [
                "buzilishi mumkin. Schema o'zgartirish uchun Flask-Migrate (Alembic) kabi migration "
                "vositalari ishlatiladi — ular o'zgarishlarni xavfsiz, qadama-qadam qo'llaydi.",
                diff="Hard", pts=4),
+            mc("User.query.filter_by(username='aziz').first() nima qaytaradi?",
+               ["Birinchi foydalanuvchini (har qanday)",
+                "username='aziz' bo'lgan birinchi foydalanuvchini, topilmasa None",
+                "Aziz nomli barcha foydalanuvchilarni",
+                "SQL so'rovni matn ko'rinishida"],
+               "B", diff="Easy", pts=2),
+            ti("nullable=False va unique=True ustun cheklovlari nima vazifa bajaradi?",
+               "nullable=False — ustun NULL (bo'sh) bo'lishi mumkin emas; yozuv yaratilganda u "
+               "qiymatga ega bo'lishi shart. unique=True — bu ustunning qiymati bazada "
+               "takrorlanmasligi kerak; takror urinish IntegrityError xato beradi. Birgalikda ular "
+               "ma'lumotlar yaxlitligini ta'minlaydi (masalan, email uchun nullable=False + "
+               "unique=True har bir user'ning aniq, takrorlanmas email'i bo'lishini kafolatlaydi).",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1334,6 +1360,20 @@ LESSONS = [
                "va keyingi commit'lar ham xato beradi. Rollback'dan keyin foydalanuvchiga tushunarli "
                "xato xabari (masalan, 'Bu email allaqachon mavjud') ko'rsatish kerak.",
                diff="Hard", pts=4),
+            mc("Note.query.order_by(Note.created_at.desc()).limit(10).all() nima qaytaradi?",
+               ["Eng eski 10 ta yozuvni",
+                "Eng yangi 10 ta yozuvni (sana bo'yicha kamayish tartibida)",
+                "Tasodifiy 10 ta yozuvni",
+                "Barcha yozuvlarni, lekin faqat 10 tasini ko'rsatish uchun"],
+               "B", hint="desc() so'zining ma'nosini eslang — kamayuvchi tartib.",
+               diff="Easy", pts=2),
+            ti("db.session.commit() qachon va nima uchun chaqiriladi? Agar uni chaqirmasdan route tugab ketsa nima bo'ladi?",
+               "commit() o'zgartirishlarni (add/update/delete) bazaga haqiqiy yozadi. Agar "
+               "chaqirilmasa, sessiya yopilganda o'zgarishlar avtomatik rollback bo'ladi — ya'ni "
+               "yo'qoladi. Bir nechta amalni birlashtirib bitta tranzaksiyada saqlash uchun har bir "
+               "add'dan keyin emas, balki barcha o'zgarishlardan keyin bir marta commit qilish "
+               "maqsadga muvofiq.",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1370,6 +1410,22 @@ LESSONS = [
                "url_for('auth.login') — blueprint nomi va endpoint nomi nuqta bilan ajratiladi. "
                "Bir nechta blueprint'da bir xil nomli funksiya (masalan, 'home') bo'lishi mumkin; "
                "prefix bo'lmasa Flask qaysi birini chaqirayotganini ajrata olmaydi.",
+               diff="Hard", pts=4),
+            mc("Blueprint('auth', __name__, template_folder='templates') chaqirig'ida "
+               "template_folder parametri nima vazifa bajaradi?",
+               ["Statik fayllar joyini belgilaydi",
+                "Bu blueprint o'zining template'larini qaysi papkadan qidirishini bildiradi",
+                "Eski template'larni avtomatik o'chiradi",
+                "Faqat dekorativ — hech qanday ta'sir qilmaydi"],
+               "B", hint="Har bir blueprint o'z template'larini mustaqil saqlashi mumkin.",
+               diff="Easy", pts=2),
+            ti("app.register_blueprint(auth_bp, url_prefix='/auth') chaqirig'ida url_prefix "
+               "qanday ta'sir qiladi? Misol bilan tushuntiring.",
+               "url_prefix blueprint'dagi har bir route'ning oldiga belgilangan yo'lni qo'shadi. "
+               "Misol: agar blueprint ichida @auth_bp.route('/login') deb yozilgan bo'lsa, "
+               "register_blueprint chaqirilgandan keyin haqiqiy URL /auth/login bo'ladi, nafaqat "
+               "/login. Bu blueprint'ni o'z 'namespace'iga ajratish va URL'lar to'qnashuvi oldini "
+               "olish uchun foydali.",
                diff="Hard", pts=4),
         ],
     },
@@ -1410,6 +1466,21 @@ LESSONS = [
                "(masalan, React localhost:3000) backend (Flask localhost:5000) ga so'rov yuborganda, "
                "bu turli origin (port farqi ham origin farqi). Brauzer bunday so'rovlarni avtomatik "
                "bloklaydi; CORS sozlash orqali backend ruxsat berilgan domainlarni e'lon qiladi.",
+               diff="Hard", pts=4),
+            mc("PUT va PATCH orasidagi farq nima?",
+               ["PUT yangi yaratadi, PATCH yangilaydi",
+                "PUT butun resursni almashtiradi (to'liq yangilash), "
+                "PATCH faqat berilgan maydonlarni o'zgartiradi",
+                "PUT GET ning aksi, PATCH POST ning aksi",
+                "Hech qanday farq yo'q — ikkalasi ham bir xil"],
+               "B", hint="Bittasi 'to'liq almashtirish', ikkinchisi 'qisman yangilash'.",
+               diff="Easy", pts=2),
+            ti("@app.errorhandler(404) JSON API uchun nima uchun ayniqsa muhim?",
+               "JSON API klienti (React, mobil ilova) HTML xato sahifasini ko'rmaydi — u JSON "
+               "kutadi. Agar errorhandler(404) belgilanmasa, Flask sukut bo'yicha HTML 404 sahifasini "
+               "qaytaradi va klient JSON.parse() qila olmay xato beradi. Custom 404 handler "
+               "{'error': 'Topilmadi'} ko'rinishidagi JSON qaytaradi, shunda klient xatoni to'g'ri "
+               "boshqarib foydalanuvchiga tushunarli xabar ko'rsata oladi.",
                diff="Hard", pts=4),
         ],
     },
