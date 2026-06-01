@@ -2,15 +2,9 @@ from datetime import datetime
 from typing import List, Optional, Any
 
 from pydantic import BaseModel, ConfigDict, Field, EmailStr, HttpUrl
-from pydantic.alias_generators import to_camel
 
 
 class TeacherStudentCourseProgress(BaseModel):
-    model_config = ConfigDict(
-        from_attributes=True,
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
     course_id: int
     course_title: str
     difficulty_level: str
@@ -20,14 +14,10 @@ class TeacherStudentCourseProgress(BaseModel):
     earned_points: int
     max_points: int
     is_completed: bool
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TeacherStudentProgress(BaseModel):
-    model_config = ConfigDict(
-        from_attributes=True,
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
     student_id: int
     username: str
     email: EmailStr
@@ -41,19 +31,16 @@ class TeacherStudentProgress(BaseModel):
     courses_count: int
     average_progress: float = Field(ge=0, le=100)
     courses: List[TeacherStudentCourseProgress] = Field(default_factory=list)
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TeacherStudentProgressList(BaseModel):
-    model_config = ConfigDict(
-        from_attributes=True,
-        alias_generator=to_camel,
-        populate_by_name=True
-    )
     total: int
     page: int = 1
     size: int = 10
     total_pages: int = 1
     items: List[TeacherStudentProgress]
+    model_config = ConfigDict(from_attributes=True)
 
 
 class TeacherStudentProgressDetail(TeacherStudentProgress):

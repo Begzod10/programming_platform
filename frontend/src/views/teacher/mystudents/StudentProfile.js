@@ -95,18 +95,25 @@ const StudentProfilePage = () => {
 
   const load = useCallback(() => {
     if (!studentId) return;
+    
+    let isMounted = true;
     setLoading(true); 
     setError(null); 
-    setProfile(null); 
-    setProgress(null);
 
     Promise.all([
       request(`${API_URL}v1/student/${studentId}`,                   'GET', null, headers()),
       request(`${API_URL}v1/teacher/students/${studentId}/progress`, 'GET', null, headers()),
     ])
-      .then(([prof, prog]) => { setProfile(prof); setProgress(prog); })
-      .catch(() => setError("Ma'lumotlarni yuklashda xatolik yuz berdi"))
-      .finally(() => setLoading(false));
+      .then(([prof, prog]) => {
+        if (isMounted) {
+          setProfile(prof);
+          setProgress(prog);
+        }
+      })
+      .catch(() => isMounted && setError("Ma'lumotlarni yuklashda xatolik yuz berdi"))
+      .finally(() => isMounted && setLoading(false));
+
+    return () => { isMounted = false; };
   }, [studentId, request]);
 
   useEffect(() => {
