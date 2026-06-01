@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from typing import Optional, List
 
 from app.models.lesson import Lesson, LessonCompletion
+from app.models.course import Course
 from app.models.user import Student
 from app.schemas.lesson import LessonCreate, LessonUpdate
 
@@ -92,6 +93,7 @@ async def complete_lesson(db: AsyncSession, lesson_id: int, student_id: int) -> 
     # LessonCompletion yaratish
     completion = LessonCompletion(student_id=student_id, lesson_id=lesson_id)
     db.add(completion)
+    await _ensure_student_enrolled(db, student_id, lesson.course_id)
 
     # Studentga ball qo'shish (Ranking ham yangilanadi)
     points_earned = 0
@@ -135,3 +137,22 @@ async def complete_lesson(db: AsyncSession, lesson_id: int, student_id: int) -> 
         "total_points": student.total_points if student else 0,
         "course_id": lesson.course_id
     }
+
+
+async def _ensure_student_enrolled(db: AsyncSession, student_id: int, course_id: int) -> None:
+    student_res = await db.execute(
+        select(Student)
+        .options(selectinload(Student.enrolled_courses))
+        .where(Student.id == student_id)
+    )
+    student = student_res.scalar_one_or_none()
+    if not student:
+        return
+
+    if any(course.id == course_id for course in student.enrolled_courses):
+        return
+
+    course_res = await db.execute(select(Course).where(Course.id == course_id))
+    course = course_res.scalar_one_or_none()
+    if course:
+        student.enrolled_courses.append(course)

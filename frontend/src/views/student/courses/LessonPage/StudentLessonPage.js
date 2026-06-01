@@ -598,10 +598,12 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const handleProjectSubmit = async () => {
         if (!validateProject()) return;
 
-        const descriptionRaw = projectForm.description.trim() || projectSection?.description || '';
+        const descriptionRaw = (projectForm.description.trim() || projectSection?.description || '').trim();
+        // Backend strips before length check, so an appended fixed phrase
+        // (>10 chars) guarantees the post-strip length passes validation.
         const description = descriptionRaw.length >= 10
             ? descriptionRaw
-            : (descriptionRaw + ' (loyiha)').padEnd(10, '.');
+            : `${descriptionRaw} loyiha topshirig'i`.trim();
 
         setProjectSaving(true);
         setProjectError('');

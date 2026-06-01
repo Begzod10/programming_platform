@@ -13,15 +13,16 @@ import Profile        from './views/student/profile/Profile';
 import MyProjects     from './views/student/projects/MyProjects';
 import Leaderboard    from './views/student/rankings/LeaderBoard';
 import Degrees        from './views/student/degrees/DegreeCard';
-import Dictionary     from './views/student/dictionary/Dictionary';   // ← NEW
+import Dictionary     from './views/student/dictionary/Dictionary';
 
 // ── Teacher views ──
-import TeacherCourses      from './views/teacher/courses/TeacherCourses/TeacherCourses';
-import TeacherProfile      from './views/teacher/profile/TeacherProfile';
-import TeacherReview       from './views/teacher/teacherreview/TeacherReview';
-import MyStudents          from './views/teacher/mystudents/MyStudents';
-import TeacherStatistics   from './views/teacher/statistics/TeacherStatistics';
-import TeacherCertificates from './views/teacher/TeacherCertificates/Teachercertificates';
+import TeacherCourses        from './views/teacher/courses/TeacherCourses/TeacherCourses';
+import TeacherProfile        from './views/teacher/profile/TeacherProfile';
+import TeacherReview         from './views/teacher/teacherreview/TeacherReview';
+import MyStudents            from './views/teacher/mystudents/MyStudents';
+import StudentProfilePage    from './views/teacher/mystudents/StudentProfile'; // ← NEW
+import TeacherStatistics     from './views/teacher/statistics/TeacherStatistics';
+import TeacherCertificates   from './views/teacher/TeacherCertificates/Teachercertificates';
 
 /* ─── helpers ─── */
 function RootRedirect() {
@@ -52,7 +53,7 @@ function RegisterPage() {
     return <div className="app"><Register onLogin={login} /></div>;
 }
 
-function StudentProfilePage() {
+function StudentProfilePageWrapper() {
     const { user, logout } = useAuth();
     return <Profile user={user} onLogout={logout} />;
 }
@@ -79,11 +80,11 @@ function AppRouter() {
                 }
             >
                 <Route index                                              element={<Navigate to="profile" replace />} />
-                <Route path="profile"                                     element={<StudentProfilePage />} />
+                <Route path="profile"                                     element={<StudentProfilePageWrapper />} />
                 <Route path="projects"                                    element={<MyProjects />} />
                 <Route path="rankings"                                    element={<Leaderboard />} />
                 <Route path="degrees"                                     element={<Degrees />} />
-                <Route path="dictionary"                                  element={<Dictionary />} />  {/* ← NEW */}
+                <Route path="dictionary"                                  element={<Dictionary />} />
 
                 {/* Курсы */}
                 <Route path="courses"                                     element={<StudentCourses />} />
@@ -104,6 +105,7 @@ function AppRouter() {
                 <Route path="profile"                                     element={<TeacherProfilePage />} />
                 <Route path="review"                                      element={<TeacherReview />} />
                 <Route path="students"                                    element={<MyStudents />} />
+                <Route path="students/:studentId"                         element={<StudentProfilePage />} /> {/* ← NEW */}
                 <Route path="certificates"                                element={<TeacherCertificates />} />
                 <Route path="statistics"                                  element={<TeacherStatistics />} />
 

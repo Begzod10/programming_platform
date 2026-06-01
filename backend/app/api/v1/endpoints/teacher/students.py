@@ -5,6 +5,11 @@ from typing import List
 
 from app.dependencies import get_db, get_current_instructor
 from app.schemas.user import UserRead, UserUpdate, UserCreate
+from app.schemas.teacher_progress import (
+    TeacherStudentProgress,
+    TeacherStudentProgressDetail,
+    TeacherStudentProgressList,
+)
 from app.models.user import Student
 from app.models.group import Group
 from app.services.student_service import StudentService
@@ -25,7 +30,7 @@ async def _student_is_in_teachers_group(
     return res.scalars().first() is not None
 
 
-@router.get("/", response_model=List[UserRead])
+@router.get("/", response_model=List[TeacherStudentProgress])
 async def get_all_students(
         skip: int = Query(0, ge=0),
         limit: int = Query(10, ge=1, le=100),
@@ -46,6 +51,33 @@ async def create_student(
     from app.services.auth_service import register_new_student
     result = await register_new_student(db, data)
     return result["user"]
+
+
+@router.get("/progress", response_model=TeacherStudentProgressList)
+async def get_students_progress(
+        skip: int = Query(0, ge=0),
+        limit: int = Query(10, ge=1, le=100),
+        search: str = Query(None),
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    service = StudentService(db)
+    return await service.get_teacher_students_progress(
+        current_teacher.id,
+        skip=skip,
+        limit=limit,
+        search=search,
+    )
+
+
+@router.get("/{student_id}/progress", response_model=TeacherStudentProgressDetail)
+async def get_student_progress(
+        student_id: int,
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    service = StudentService(db)
+    return await service.get_teacher_student_progress(current_teacher.id, student_id)
 
 
 @router.delete("/{student_id}")

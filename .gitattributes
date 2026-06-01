@@ -1,0 +1,10 @@
+# Matnli fayllarni avtomatik aniqlash va qator oxirini normallashtirish
+* text=auto
+
+# Python fayllari uchun har doim LF ishlatish (Linux/Server mosligi uchun)
+*.py text eol=lf
+
+# JavaScript/TypeScript/CSS fayllari uchun ham LF
+*.js text eol=lf
+*.jsx text eol=lf
+*.css text eol=lf

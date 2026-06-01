@@ -415,6 +415,8 @@ async def submit_lesson_project(
     if not lesson or lesson.course_id != course_id:
         raise HTTPException(status_code=404, detail="Dars topilmadi")
 
+    await _ensure_enrolled(db, current_student.id, course_id)
+
     existing_res = await db.execute(
         select(Submission).where(
             Submission.lesson_id == lesson_id,
