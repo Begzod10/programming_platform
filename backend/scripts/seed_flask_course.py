@@ -993,21 +993,79 @@ if __name__ == '__main__':
 """
 
 
-# Each lesson definition: title, text/code/video, and list of exercises.
-# Exercises mirror the HTML CSS shape — short Uzbek title used as both
-# title and description, text_input type, no auto-grading (expected_answer
-# left blank; teacher/AI reviews).
+# Each lesson has 5 mixed-type, auto-gradable exercises:
+#   - 2× multiple_choice (single answer)
+#   - 1× multiple_choice (is_multiple_select=True)
+#   - 1× drag_and_drop  (correct_order = JSON list of strings, IN ORDER)
+#   - 1× text_input     (AI-graded via expected_answer)
+#
+# Grading contract (verified in app/services/exercise_service.py):
+#   multiple_choice  correct_answers = "B" or "A,C"  (letters, set-compared)
+#   drag_and_drop    correct_order   = JSON list of strings (exact order)
+#   text_input       expected_answer = model answer (passed to AI grader)
+#
+# options/drag_items/correct_order are stored as Text columns; we json.dumps
+# them before insert. parseListField on the frontend handles both JSON and CSV.
+def mc(title, options, correct, *, multi=False, hint="", explanation="", diff="Easy", pts=2):
+    return {"title": title, "description": title, "exercise_type": "multiple_choice",
+            "options": options, "correct_answers": correct, "is_multiple_select": multi,
+            "hint": hint, "explanation": explanation,
+            "difficulty_level": diff, "points": pts}
+
+def dd(title, items_in_order, *, hint="", explanation="", diff="Medium", pts=3):
+    return {"title": title, "description": title, "exercise_type": "drag_and_drop",
+            "drag_items": list(items_in_order), "correct_order": list(items_in_order),
+            "is_multiple_select": False, "hint": hint, "explanation": explanation,
+            "difficulty_level": diff, "points": pts}
+
+def ti(title, expected, *, hint="", explanation="", diff="Hard", pts=4):
+    return {"title": title, "description": title, "exercise_type": "text_input",
+            "expected_answer": expected, "is_multiple_select": False,
+            "hint": hint, "explanation": explanation,
+            "difficulty_level": diff, "points": pts}
+
+
 LESSONS = [
     {
         "order": 0, "title": "1-Flaskga kirish",
         "text": L1_TEXT, "code": L1_CODE, "lang": "python",
         "video": "https://youtu.be/Z1RJmh_OqeA",
         "exercises": [
-            ("flask nima?", "Easy", 2),
-            ("virtualenv nima uchun kerak?", "Easy", 2),
-            ("flask ilovani ishga tushirish uchun qaysi komanda ishlatiladi?", "Medium", 3),
-            ("debug=True qachon ishlatiladi?", "Medium", 3),
-            ("__name__ ni Flask konstruktoriga nima uchun beramiz?", "Hard", 4),
+            mc("Flask nima?",
+               ["Python uchun ma'lumotlar bazasi boshqaruv tizimi",
+                "Python'da web ilovalar yozish uchun mikro framework",
+                "Faqat frontend uchun JavaScript kutubxonasi",
+                "Linux operatsion tizimi distributivi"],
+               "B", hint="U server tomonda ishlaydi va 'mikro' deyiladi.",
+               explanation="Flask — Python'da web ilovalar yozish uchun yengil (mikro) framework.",
+               diff="Easy", pts=2),
+            mc("virtualenv nima uchun kerak?",
+               ["Kodni avtomatik tezlashtirish uchun",
+                "Har bir loyihaning kutubxonalarini alohida, izolyatsiyalangan saqlash uchun",
+                "Internetga ulanish uchun",
+                "HTML shablonlarni yozish uchun"],
+               "B", hint="Ikki loyiha bir xil kutubxonaning turli versiyalarini talab qilsa-chi?",
+               diff="Easy", pts=2),
+            mc("Flask ilovasini ishga tushirishning to'g'ri usullarini tanlang",
+               ["python app.py   (faylda if __name__ == '__main__' bloki bo'lsa)",
+                "flask run   (FLASK_APP belgilangan bo'lsa)",
+                "run app.py",
+                "python -m flask start"],
+               "A,B", multi=True,
+               hint="Ikki haqiqiy variant bor; qolgan ikkitasi mavjud komanda emas.",
+               diff="Medium", pts=3),
+            dd("Minimal Flask ilovasini yaratish bosqichlarini to'g'ri tartibda joylang",
+               ["from flask import Flask",
+                "app = Flask(__name__)",
+                "@app.route('/') dekoratori bilan funksiya yozish",
+                "app.run(debug=True)"],
+               hint="Avval import, keyin ilova obyekti, keyin route, oxirida ishga tushirish.",
+               diff="Medium", pts=3),
+            ti("__name__ ni Flask konstruktoriga nima uchun beramiz?",
+               "__name__ Flask'ga ilova qaysi modul/papkada joylashganini bildiradi. "
+               "Flask shu ma'lumot orqali templates/ va static/ papkalarini qayerdan qidirishni aniqlaydi.",
+               hint="Flask templates va static fayllarini qayerdan qidirishini qanday biladi?",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1015,11 +1073,39 @@ LESSONS = [
         "text": L2_TEXT, "code": L2_CODE, "lang": "python",
         "video": "https://youtu.be/H4qPV6OS5LM",
         "exercises": [
-            ("@app.route dekoratori nima vazifa bajaradi?", "Easy", 2),
-            ("dinamik URL qanday yoziladi (masalan user/<id>)?", "Easy", 2),
-            ("<int:id> va <string:name> orasidagi farq nima?", "Medium", 3),
-            ("url_for nima uchun foydali?", "Medium", 3),
-            ("methods=['GET','POST'] qachon kerak bo'ladi?", "Hard", 4),
+            mc("@app.route('/') dekoratori asosan nima qiladi?",
+               ["HTML faylni o'qiydi",
+                "URL ni Python funksiyaga bog'laydi",
+                "Ma'lumotlar bazasini sozlaydi",
+                "JavaScript faylga havola yaratadi"],
+               "B", diff="Easy", pts=2),
+            mc("<int:id> URL converter'i nima qiladi?",
+               ["Faqat butun son qabul qiladi va id parametriga uzatadi",
+                "Faqat satr qabul qiladi",
+                "Sessiyaga ID saqlaydi",
+                "Bazadan id ni avtomatik oladi"],
+               "A", hint="/post/42 ishlaydi, /post/abc esa 404 qaytaradi — nima uchun?",
+               diff="Easy", pts=2),
+            mc("Quyidagilardan qaysilari to'g'ri url_for chaqirig'i?",
+               ["url_for('home')",
+                "url_for('user_page', username='aziz')",
+                "url_for('/about')",
+                "url_for(home)  # tirnoqsiz"],
+               "A,B", multi=True,
+               hint="url_for endpoint NOMINI string sifatida qabul qiladi.",
+               diff="Medium", pts=3),
+            dd("HTTP so'rovi qabul qilingandan keyingi bosqichlarni to'g'ri tartibda joylang",
+               ["Brauzer URL ga so'rov yuboradi",
+                "Flask URL ni route bilan solishtiradi",
+                "Mos kelgan funksiya chaqiriladi",
+                "Funksiya javob qaytaradi",
+                "Brauzer javobni ko'rsatadi"],
+               diff="Medium", pts=3),
+            ti("methods=['GET', 'POST'] parametri qachon kerak bo'ladi?",
+               "Sukut bo'yicha @app.route faqat GET so'rovlarini qabul qiladi. Forma yuborish (POST), "
+               "PUT, DELETE yoki boshqa methodlarni ham qabul qilish uchun methods parametrida ularni "
+               "aniq ko'rsatish kerak.",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1027,11 +1113,32 @@ LESSONS = [
         "text": L3_TEXT, "code": L3_CODE, "lang": "python",
         "video": "https://youtu.be/QnDWIZuWYW0",
         "exercises": [
-            ("render_template fayllarni qaysi papkadan qidiradi?", "Easy", 2),
-            ("{{ ... }} va {% ... %} orasidagi farq nima?", "Easy", 2),
-            ("{% for %} ni qanday yopamiz?", "Medium", 3),
-            ("{{ name | upper }} qanday natija beradi?", "Medium", 3),
-            ("Jinja2 nima uchun avtomatik HTML escape qiladi?", "Hard", 4),
+            mc("render_template fayllarni qaysi papkadan qidiradi?",
+               ["src/", "views/", "templates/", "html/"],
+               "C", diff="Easy", pts=2),
+            mc("{{ name }} va {% if %} orasidagi farq nima?",
+               ["Birinchisi sikl, ikkinchisi shart",
+                "{{ }} qiymatni chiqaradi, {% %} esa boshqaruv konstruksiyasi (if/for/...)",
+                "{{ }} faqat HTML uchun, {% %} CSS uchun",
+                "Hech qanday farq yo'q"],
+               "B", diff="Easy", pts=2),
+            mc("Quyidagilardan qaysilari haqiqiy Jinja2 filtrlari?",
+               ["| upper", "| length", "| sort", "| encrypt"],
+               "A,B,C", multi=True,
+               hint="Bittasi Jinja2 da mavjud emas — qaysi biri shifrlash bilan bog'liq?",
+               diff="Medium", pts=3),
+            dd("Jinja2 if/else blokini to'g'ri tartibda joylang",
+               ["{% if condition %}",
+                "Agar shart bajarilsa, bu HTML chiqadi",
+                "{% else %}",
+                "Aks holda, bu HTML chiqadi",
+                "{% endif %}"],
+               diff="Medium", pts=3),
+            ti("Jinja2 nega avtomatik HTML escape qiladi?",
+               "XSS (Cross-Site Scripting) hujumlardan himoyalanish uchun. Foydalanuvchi kiritgan "
+               "ma'lumotda HTML yoki JavaScript bo'lsa, Jinja2 uni avtomatik escape qiladi va "
+               "brauzer uni matn sifatida ko'rsatadi, kod sifatida ishga tushirmaydi.",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1039,11 +1146,39 @@ LESSONS = [
         "text": L4_TEXT, "code": L4_CODE, "lang": "python",
         "video": "https://youtu.be/3mwFC4SHY-Y",
         "exercises": [
-            ("static papkasi nima uchun ishlatiladi?", "Easy", 2),
-            ("CSS faylga shablonda qanday havola beramiz?", "Easy", 2),
-            ("GET form ma'lumotini server qayerdan oladi?", "Medium", 3),
-            ("request.args.get va request.args[...] farqi nimada?", "Medium", 3),
-            ("type=int parametri request.args.get da nima uchun kerak?", "Hard", 4),
+            mc("static/ papkasi nimaga ishlatiladi?",
+               ["HTML shablonlar",
+                "CSS, JavaScript, rasm — o'zgarmaydigan resurslar",
+                "Ma'lumotlar bazasi fayllari",
+                "Python modullari"],
+               "B", diff="Easy", pts=2),
+            mc("CSS faylga shablonda eng to'g'ri havola qaysi biri?",
+               ["<link href=\"style.css\">",
+                "<link href=\"{{ url_for('static', filename='style.css') }}\">",
+                "<link href=\"/css/style.css\">",
+                "{% load static %}{% static 'style.css' %}"],
+               "B", hint="url_for static papkasi yo'lini o'zgartirsa ham ishlashda davom etadi.",
+               diff="Easy", pts=2),
+            mc("GET form haqida qaysi gaplar to'g'ri?",
+               ["Ma'lumot URL query string ga qo'shiladi (?q=...)",
+                "Server ma'lumotni request.args.get orqali oladi",
+                "Faqat oz miqdordagi ma'lumot uchun mos",
+                "Parol yuborish uchun ideal"],
+               "A,B,C", multi=True,
+               hint="Parol URL'da ko'rinib qolsa — yaxshi g'oya bo'lmaydi.",
+               diff="Medium", pts=3),
+            dd("GET form ishlash bosqichlarini tartiblang",
+               ["Foydalanuvchi formani to'ldiradi",
+                "Submit tugmasini bosadi",
+                "Brauzer URL'ga ?q=qiymat qo'shadi",
+                "Server request.args.get('q') orqali qiymatni oladi",
+                "Server javob qaytaradi"],
+               diff="Medium", pts=3),
+            ti("Nega request.args.get('q') request.args['q']'dan yaxshiroq?",
+               "request.args.get('q') parametr yo'q bo'lsa None (yoki default qiymat) qaytaradi. "
+               "request.args['q'] esa KeyError chiqaradi va Flask 400 xato bilan javob beradi. "
+               "get() xavfsizroq va qulayroq.",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1051,11 +1186,38 @@ LESSONS = [
         "text": L5_TEXT, "code": L5_CODE, "lang": "python",
         "video": "https://youtu.be/UIJKdCIEXUQ",
         "exercises": [
-            ("request.form qachon to'ldiriladi?", "Easy", 2),
-            ("PRG (Post/Redirect/Get) pattern nima uchun kerak?", "Medium", 3),
-            ("flash xabarini ko'rsatish uchun qanday sozlama shart?", "Medium", 3),
-            ("nega xato bo'lganda ham redirect qaytarish mumkin?", "Medium", 3),
-            ("oddiy validatsiyada qanday tekshiruvlar yoziladi?", "Hard", 4),
+            mc("POST so'rov GET dan nima bilan farqlanadi?",
+               ["Tezroq ishlaydi",
+                "Ma'lumotni URL emas, request body orqali yuboradi",
+                "Faqat JSON qabul qiladi",
+                "Faqat ma'lumotlar bazasi uchun ishlatiladi"],
+               "B", diff="Easy", pts=2),
+            mc("flash xabarini ko'rsatish uchun qanday sozlama shart?",
+               ["flask-flash paketini o'rnatish",
+                "app.secret_key ni belgilash",
+                "jQuery ulash",
+                "Ma'lumotlar bazasi ulash"],
+               "B", hint="flash session orqali ishlaydi, session esa imzo uchun kalit kerak.",
+               diff="Easy", pts=2),
+            mc("PRG (Post/Redirect/Get) pattern nima uchun foydali?",
+               ["Sahifa yangilanganda forma qayta yuborilmaydi",
+                "URL POST javobi emas, GET URL ko'rsatiladi (toza qoladi)",
+                "Brauzer 'Formani qayta yubormoqchimisiz?' so'ramaydi",
+                "Forma ma'lumoti shifrlanadi"],
+               "A,B,C", multi=True, diff="Medium", pts=3),
+            dd("POST formani qayta ishlash tartibini tuzing",
+               ["Foydalanuvchi formani to'ldirib yuboradi",
+                "Server request.form orqali ma'lumotni oladi",
+                "Validatsiya: maydonlar to'g'ri to'ldirilganmi tekshirish",
+                "Ma'lumot bazaga saqlanadi",
+                "redirect(url_for(...)) bilan javob qaytariladi"],
+               diff="Medium", pts=3),
+            ti("Validatsiya nima uchun har doim server tomonda ham qilinishi kerak?",
+               "Frontend validatsiyasi (HTML required, JavaScript) faqat foydalanuvchi tajribasini "
+               "yaxshilaydi, lekin uni chetlab o'tish oson — masalan, DevTools orqali yoki to'g'ridan-"
+               "to'g'ri server URL ga curl bilan so'rov yuborish. Server doim mustaqil ravishda "
+               "tekshirishi kerak.",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1063,11 +1225,37 @@ LESSONS = [
         "text": L6_TEXT, "code": L6_CODE, "lang": "python",
         "video": "https://youtu.be/CSHx6eCkmv0",
         "exercises": [
-            ("HTTP nima uchun stateless deyiladi?", "Easy", 2),
-            ("session va oddiy cookie orasidagi farq nima?", "Medium", 3),
-            ("secret_key nima uchun maxfiy bo'lishi kerak?", "Medium", 3),
-            ("session.clear() qaysi paytda ishlatiladi?", "Medium", 3),
-            ("set_cookie da max_age parametri nima qiladi?", "Hard", 4),
+            mc("HTTP nima uchun 'stateless' deyiladi?",
+               ["Server doim o'chirilgan",
+                "Har bir so'rov mustaqil — server kim siz ekanligingizni o'z-o'zidan eslab qolmaydi",
+                "Yangi versiyasi yo'q",
+                "Faqat statik fayllar uchun ishlatiladi"],
+               "B", diff="Easy", pts=2),
+            mc("secret_key nima uchun maxfiy bo'lishi kerak?",
+               ["Faqat chiroyli ko'rinish uchun",
+                "Session imzosini yaratadi — bilsa, har qanday foydalanuvchini 'soxtalashtirish' mumkin",
+                "Faqat HTTPS uchun",
+                "Foydalanuvchi parolini saqlash uchun"],
+               "B", hint="Imzo nima va kim uni yarata oladi?",
+               diff="Easy", pts=2),
+            mc("session va oddiy cookie orasidagi to'g'ri farqlarni tanlang",
+               ["session Flask tomonidan imzolanadi (foydalanuvchi qiymatni o'zgartira olmaydi)",
+                "session ham, cookie ham brauzerda saqlanadi",
+                "Cookie odatda foydalanuvchi sozlamalari uchun, session esa login uchun ishlatiladi",
+                "Cookie session'dan tezroq"],
+               "A,B,C", multi=True, diff="Medium", pts=3),
+            dd("Login jarayoni bosqichlarini to'g'ri tartibda joylang",
+               ["Foydalanuvchi login va parolni yuboradi",
+                "Server parolni bazada tekshiradi",
+                "session['user_id'] = user.id",
+                "Foydalanuvchi dashboard sahifasiga yo'naltiriladi",
+                "Keyingi so'rovlarda session orqali kim ekanligi aniqlanadi"],
+               diff="Medium", pts=3),
+            ti("session.clear() qachon ishlatiladi va nima qiladi?",
+               "Logout amalida — foydalanuvchining sessiyadagi barcha ma'lumotlarini (user_id, "
+               "username va boshqalar) o'chiradi. Shunda u sahifaga endi anonymous sifatida kiradi. "
+               "Parol o'zgartirgandan keyin xavfsizlik uchun ham ishlatiladi.",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1075,11 +1263,38 @@ LESSONS = [
         "text": L7_TEXT, "code": L7_CODE, "lang": "python",
         "video": "https://youtu.be/cYWiDiIUxQc",
         "exercises": [
-            ("ORM nima va u nimani osonlashtiradi?", "Easy", 2),
-            ("db.Column da primary_key=True nima qiladi?", "Easy", 2),
-            ("db.create_all() qachon chaqiriladi?", "Medium", 3),
-            ("User.query.filter_by va User.query.get farqi nima?", "Medium", 3),
-            ("db.session.add() va db.session.commit() farqi nima?", "Hard", 4),
+            mc("ORM nima?",
+               ["Yangi Python kutubxonasi nomi",
+                "Bazaga yozuvlarni Python obyektlari sifatida ishlatish imkonini beruvchi tizim",
+                "SQL serverlarining yangi standarti",
+                "Faqat MySQL uchun ishlaydi"],
+               "B", diff="Easy", pts=2),
+            mc("primary_key=True nima vazifa bajaradi?",
+               ["Yozuvni shifrlaydi",
+                "Ustun avtomatik o'sib boruvchi yagona identifikator (id) bo'lishini ta'minlaydi",
+                "Ustunga faqat raqam yozilishini ta'minlaydi",
+                "Kerakli ustun ekanligini bildiradi"],
+               "B", diff="Easy", pts=2),
+            mc("db.session.add() haqida qaysi gaplar to'g'ri?",
+               ["Yangi yozuvni sessiyaga qo'shadi",
+                "Bazaga yozish uchun keyin commit() ham chaqirish kerak",
+                "Darhol bazaga yozadi",
+                "Mavjud yozuvni o'zgartirish uchun ham har safar chaqirish kerak"],
+               "A,B", multi=True,
+               hint="add() va commit() ikki alohida bosqich.",
+               diff="Medium", pts=3),
+            dd("Yangi yozuv qo'shish bosqichlarini tartiblang",
+               ["user = User(name='Aziz', email='aziz@example.com')",
+                "db.session.add(user)",
+                "db.session.commit()",
+                "Endi user.id qiymatga ega",
+                "Boshqa joyda user obyektidan foydalanish"],
+               diff="Medium", pts=3),
+            ti("Nima uchun db.create_all() faqat yangi jadvallarni yaratadi, mavjudini o'zgartirmaydi?",
+               "create_all() mavjud jadvallarni o'zgartirsa, undagi ma'lumotlar yo'qolishi yoki "
+               "buzilishi mumkin. Schema o'zgartirish uchun Flask-Migrate (Alembic) kabi migration "
+               "vositalari ishlatiladi — ular o'zgarishlarni xavfsiz, qadama-qadam qo'llaydi.",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1087,11 +1302,38 @@ LESSONS = [
         "text": L8_TEXT, "code": L8_CODE, "lang": "python",
         "video": "https://youtu.be/m_jzo2zE5LM",
         "exercises": [
-            ("CRUD harflari nimani anglatadi?", "Easy", 2),
-            ("get_or_404 qachon va nima uchun ishlatiladi?", "Easy", 2),
-            ("UPDATE da nima uchun db.session.add() chaqirilmaydi?", "Medium", 3),
-            ("DELETE ni nega GET orqali emas POST orqali qilamiz?", "Medium", 3),
-            ("IntegrityError yuz berganda nima qilish kerak?", "Hard", 4),
+            mc("CRUD harflari nimani anglatadi?",
+               ["Create, Read, Update, Delete",
+                "Code, Run, Update, Deploy",
+                "Common, Routine, User, Data",
+                "Connect, Read, Update, Detach"],
+               "A", diff="Easy", pts=2),
+            mc("get_or_404(id) nima qiladi?",
+               ["404 sahifani ko'rsatadi",
+                "Yozuv topilsa qaytaradi, topilmasa avtomatik 404 xato javobi beradi",
+                "404 ta yozuv olib keladi",
+                "Eski yozuvlarni o'chiradi"],
+               "B", diff="Easy", pts=2),
+            mc("Nega DELETE amalini POST orqali qilamiz, GET orqali emas?",
+               ["Brauzer link preview yozuvlarni tasodifan o'chirib qo'ymasligi uchun",
+                "Google bot o'chirish URL'lariga kirib yozuvlarni o'chirmasligi uchun",
+                "HTTP standartiga ko'ra GET o'zgartiruvchi (mutating) amallar uchun mos emas",
+                "DELETE faqat POST orqali ishlaydi"],
+               "A,B,C", multi=True,
+               hint="GET 'xavfsiz' (safe) deb hisoblanadi.",
+               diff="Medium", pts=3),
+            dd("Yozuvni yangilash (UPDATE) bosqichlarini tartiblang",
+               ["note = Note.query.get_or_404(id)",
+                "note.title = request.form['title']",
+                "db.session.commit()",
+                "return redirect(url_for('show_note', id=note.id))"],
+               hint="add() chaqirilmaydi — yozuv allaqachon sessiyada.",
+               diff="Medium", pts=3),
+            ti("IntegrityError yuz berganda nima qilish kerak va nima uchun?",
+               "db.session.rollback() chaqirish kerak — aks holda sessiya 'buzilgan' holatda qoladi "
+               "va keyingi commit'lar ham xato beradi. Rollback'dan keyin foydalanuvchiga tushunarli "
+               "xato xabari (masalan, 'Bu email allaqachon mavjud') ko'rsatish kerak.",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1099,11 +1341,36 @@ LESSONS = [
         "text": L9_TEXT, "code": L9_CODE, "lang": "python",
         "video": "https://youtu.be/WteIH6J9v64",
         "exercises": [
-            ("app factory pattern nima?", "Easy", 2),
-            ("Blueprint qachon foydali bo'ladi?", "Medium", 3),
-            ("url_prefix='/auth' nima qiladi?", "Medium", 3),
-            ("url_for da blueprint nomi qanday yoziladi?", "Medium", 3),
-            ("create_app() ning testlar uchun afzalligi nimada?", "Hard", 4),
+            mc("app factory pattern nimani anglatadi?",
+               ["Ilovani global o'zgaruvchi emas, funksiyadan qaytariladigan obyekt sifatida yaratish",
+                "Loyihada ko'p modul ishlatish",
+                "Production'da gunicorn ishlatish",
+                "HTML shablonlarni avtomatik yaratish"],
+               "A", diff="Easy", pts=2),
+            mc("Blueprint nima uchun foydali?",
+               ["Faqat HTML dizayn uchun",
+                "Bir guruh route va template'larni alohida modulga ajratish — kod tartibga solinishi uchun",
+                "Bazaga ulanish uchun",
+                "AI integratsiyasi uchun"],
+               "B", diff="Easy", pts=2),
+            mc("create_app() factory'ning afzalliklari qaysilar?",
+               ["Testlar uchun har xil konfiguratsiya bilan yangi ilova yaratish oson",
+                "Circular import muammolari kamayadi",
+                "Bir nechta deploy konfiguratsiyasi (dev, test, prod) bo'lishi mumkin",
+                "Avtomatik HTTPS yoqadi"],
+               "A,B,C", multi=True, diff="Medium", pts=3),
+            dd("Yangi Blueprint qo'shish bosqichlarini tartiblang",
+               ["auth/__init__.py: auth_bp = Blueprint('auth', __name__)",
+                "auth/routes.py: @auth_bp.route('/login') def login(): ...",
+                "app/__init__.py: from app.auth import auth_bp",
+                "app.register_blueprint(auth_bp, url_prefix='/auth')",
+                "Endi /auth/login URL ishlaydi"],
+               diff="Medium", pts=3),
+            ti("url_for da blueprint endpointiga qanday murojaat qilamiz va nima uchun?",
+               "url_for('auth.login') — blueprint nomi va endpoint nomi nuqta bilan ajratiladi. "
+               "Bir nechta blueprint'da bir xil nomli funksiya (masalan, 'home') bo'lishi mumkin; "
+               "prefix bo'lmasa Flask qaysi birini chaqirayotganini ajrata olmaydi.",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1111,11 +1378,39 @@ LESSONS = [
         "text": L10_TEXT, "code": L10_CODE, "lang": "python",
         "video": "https://youtu.be/PTZiDnuC86g",
         "exercises": [
-            ("jsonify oddiy return dan nima bilan farq qiladi?", "Easy", 2),
-            ("201 status kodi qachon qaytariladi?", "Easy", 2),
-            ("request.get_json() qanday holda None qaytaradi?", "Medium", 3),
-            ("CORS nima va u qachon kerak bo'ladi?", "Medium", 3),
-            ("@app.errorhandler(404) nima uchun foydali?", "Hard", 4),
+            mc("jsonify oddiy return dan nima bilan farq qiladi?",
+               ["Faqat string qabul qiladi",
+                "Python dict/list ni JSON ga aylantiradi va Content-Type: application/json qo'yadi",
+                "Tezroq ishlaydi",
+                "Faqat GET so'rovlar uchun ishlaydi"],
+               "B", diff="Easy", pts=2),
+            mc("201 status kodi qachon qaytariladi?",
+               ["Sahifa topilmadi",
+                "Server xatosi",
+                "POST orqali yangi resurs muvaffaqiyatli yaratildi",
+                "Avtorizatsiya kerak"],
+               "C", diff="Easy", pts=2),
+            mc("REST konventsiyaga ko'ra qaysilari to'g'ri yozilgan endpointlar?",
+               ["GET /api/users — barcha foydalanuvchilarni olish",
+                "POST /api/users — yangi foydalanuvchi yaratish",
+                "DELETE /api/users/42 — foydalanuvchini o'chirish",
+                "GET /api/users/delete/42 — foydalanuvchini o'chirish"],
+               "A,B,C", multi=True,
+               hint="REST'da amal HTTP method'da bo'ladi, URL'da emas.",
+               diff="Medium", pts=3),
+            dd("Bitta resurs (notes) uchun REST endpointlarni tartiblang (Create→Delete)",
+               ["POST   /api/notes          — Create",
+                "GET    /api/notes          — Read (list)",
+                "GET    /api/notes/<id>     — Read (one)",
+                "PUT    /api/notes/<id>     — Update",
+                "DELETE /api/notes/<id>     — Delete"],
+               diff="Medium", pts=3),
+            ti("CORS nima va qachon kerak bo'ladi?",
+               "CORS (Cross-Origin Resource Sharing) — brauzer xavfsizlik mexanizmi. Frontend "
+               "(masalan, React localhost:3000) backend (Flask localhost:5000) ga so'rov yuborganda, "
+               "bu turli origin (port farqi ham origin farqi). Brauzer bunday so'rovlarni avtomatik "
+               "bloklaydi; CORS sozlash orqali backend ruxsat berilgan domainlarni e'lon qiladi.",
+               diff="Hard", pts=4),
         ],
     },
     {
@@ -1123,11 +1418,40 @@ LESSONS = [
         "text": L11_TEXT, "code": L11_CODE, "lang": "python",
         "video": "https://youtu.be/goToXTC96Co",
         "exercises": [
-            ("python-dotenv nima vazifa bajaradi?", "Easy", 2),
-            ("nega .env faylini git ga qo'shmaymiz?", "Easy", 2),
-            ("gunicorn nima uchun kerak, app.run() etmaydimi?", "Medium", 3),
-            ("nginx + gunicorn arxitekturasini tushuntiring", "Medium", 3),
-            ("production checklist'dagi 3 ta eng muhim bandni ayting", "Hard", 4),
+            mc("python-dotenv nima vazifa bajaradi?",
+               ["Python'ni avtomatik o'rnatadi",
+                ".env faylidan environment o'zgaruvchilarini os.environ ga yuklab oladi",
+                "Faqat Linux serverlarda ishlaydi",
+                "Faqat Django uchun"],
+               "B", diff="Easy", pts=2),
+            mc("Nima uchun gunicorn ishlatamiz, app.run() yetmaydimi?",
+               ["gunicorn tezroq ishga tushadi",
+                "app.run() faqat development uchun: bir vaqtda bitta so'rovni boshqaradi va xavfsizligi cheklangan",
+                "gunicorn bepul, app.run() pulli",
+                "gunicorn HTML chiqaradi"],
+               "B", diff="Easy", pts=2),
+            mc("Production checklist'idan qaysi bandlar SHART?",
+               ["debug=False bo'lishi shart",
+                "SECRET_KEY environment variable orqali kelishi kerak",
+                ".env fayl gitignore'da bo'lishi shart",
+                "Hech qanday log yozmaslik kerak"],
+               "A,B,C", multi=True,
+               hint="Loglar production'da albatta kerak — qaysi band noto'g'ri?",
+               diff="Medium", pts=3),
+            dd("Yangi versiyani production'ga deploy qilish bosqichlarini tartiblang",
+               ["Kodni Git'ga commit qilish va push",
+                "Serverga ssh orqali ulanish",
+                "git pull va pip install -r requirements.txt",
+                "Yangi environment o'zgaruvchilarini .env ga yozish (kerak bo'lsa)",
+                "gunicorn / systemd service'ni qayta ishga tushirish",
+                "Brauzerda yoki curl bilan tekshirish"],
+               diff="Medium", pts=3),
+            ti("ProxyFix nima uchun ishlatiladi?",
+               "Nginx orqali so'rov kelganda, Flask uchun request.remote_addr har doim 127.0.0.1 "
+               "(nginx) bo'lib ko'rinadi — haqiqiy mijoz IP'si emas. ProxyFix Flask'ga nginx "
+               "tomonidan qo'shilgan X-Forwarded-For va X-Forwarded-Proto header'larini o'qishni "
+               "o'rgatadi, shunda haqiqiy mijoz IP va HTTP/HTTPS sxema to'g'ri aniqlanadi.",
+               diff="Hard", pts=4),
         ],
     },
 ]
@@ -1136,50 +1460,50 @@ LESSONS = [
 # ─────────────────────────────────────────────────────────────────────────────
 # Seeding logic
 # ─────────────────────────────────────────────────────────────────────────────
+def _jdump(value):
+    """Serialize lists to JSON for text columns; pass scalars through unchanged."""
+    if value is None:
+        return ""
+    if isinstance(value, (list, dict)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
 def build_sections_json(lesson: dict, exercise_rows: list[Exercise]) -> str:
-    """Mirror the HTML CSS course shape: text → code → video → exercise."""
-    sections = []
-    sections.append({
-        "id": f"t{lesson['order']}",
-        "type": "text",
-        "label": "Текст",
-        "html": lesson["text"],
-        "order": 0,
-    })
-    sections.append({
-        "id": f"c{lesson['order']}",
-        "type": "code",
-        "label": "Код",
-        "code": lesson["code"],
-        "lang": lesson["lang"],
-        "order": 1,
-    })
-    sections.append({
-        "id": f"v{lesson['order']}",
-        "type": "video",
-        "label": "Видео",
-        "videoUrl": lesson["video"],
-        "order": 2,
-    })
-    sections.append({
-        "id": f"e{lesson['order']}",
-        "type": "exercise",
-        "label": "Упражнения",
-        "exercises": [
-            {
-                "_localId": e.id, "id": e.id,
-                "title": e.title, "description": e.description,
-                "exercise_type": e.exercise_type,
-                "correct_answers": "", "drag_items": "", "correct_order": "",
-                "options": "", "is_multiple_select": False,
-                "expected_answer": "", "hint": "", "explanation": "",
-                "difficulty_level": e.difficulty_level,
-                "points": e.points, "order": 0,
-            }
-            for e in exercise_rows
-        ],
-        "order": 3,
-    })
+    """Mirror the HTML CSS course shape: text → code → video → exercise.
+
+    Embedded exercise mirror copies every field the frontend reads from the
+    inline section (options, drag_items, etc.) so renderer doesn't have to
+    fetch them separately.
+    """
+    sections = [
+        {"id": f"t{lesson['order']}", "type": "text", "label": "Текст",
+         "html": lesson["text"], "order": 0},
+        {"id": f"c{lesson['order']}", "type": "code", "label": "Код",
+         "code": lesson["code"], "lang": lesson["lang"], "order": 1},
+        {"id": f"v{lesson['order']}", "type": "video", "label": "Видео",
+         "videoUrl": lesson["video"], "order": 2},
+        {"id": f"e{lesson['order']}", "type": "exercise", "label": "Упражнения",
+         "exercises": [
+             {
+                 "_localId": e.id, "id": e.id,
+                 "title": e.title, "description": e.description,
+                 "exercise_type": e.exercise_type,
+                 "options": e.options or "",
+                 "correct_answers": e.correct_answers or "",
+                 "drag_items": e.drag_items or "",
+                 "correct_order": e.correct_order or "",
+                 "is_multiple_select": bool(e.is_multiple_select),
+                 "expected_answer": e.expected_answer or "",
+                 "hint": e.hint or "",
+                 "explanation": e.explanation or "",
+                 "difficulty_level": e.difficulty_level,
+                 "points": e.points, "order": e.order,
+             }
+             for e in exercise_rows
+         ],
+         "order": 3},
+    ]
     return json.dumps(sections, ensure_ascii=False)
 
 
@@ -1217,22 +1541,33 @@ async def seed(dry_run: bool = False) -> None:
             db.add(lesson)
             await db.flush()  # need lesson.id for exercises
 
-            # Insert exercises
+            # Insert exercises. Field rules (verified against
+            # exercise_service.check_answer_locally):
+            #   multiple_choice → correct_answers="B" or "A,C" (letters)
+            #   drag_and_drop   → correct_order = JSON list of strings IN ORDER
+            #   text_input      → expected_answer = model answer (AI-graded)
             ex_rows: list[Exercise] = []
-            for ex_order, (title, diff, pts) in enumerate(ldata["exercises"]):
-                ex = Exercise(
+            for ex_order, ex in enumerate(ldata["exercises"]):
+                row = Exercise(
                     lesson_id=lesson.id,
-                    title=title,
-                    description=title,         # mirrors HTML CSS course
-                    exercise_type="text_input",
-                    expected_answer="",        # manual / AI graded
-                    difficulty_level=diff,
-                    points=pts,
+                    title=ex["title"],
+                    description=ex.get("description", ex["title"]),
+                    exercise_type=ex["exercise_type"],
+                    options=_jdump(ex.get("options")),
+                    correct_answers=_jdump(ex.get("correct_answers")),
+                    drag_items=_jdump(ex.get("drag_items")),
+                    correct_order=_jdump(ex.get("correct_order")),
+                    is_multiple_select=bool(ex.get("is_multiple_select", False)),
+                    expected_answer=ex.get("expected_answer", ""),
+                    hint=ex.get("hint", ""),
+                    explanation=ex.get("explanation", ""),
+                    difficulty_level=ex["difficulty_level"],
+                    points=ex["points"],
                     order=ex_order,
                     is_active=True,
                 )
-                db.add(ex)
-                ex_rows.append(ex)
+                db.add(row)
+                ex_rows.append(row)
             await db.flush()  # need exercise ids for sections_json
 
             # Now build sections_json with real exercise ids embedded
