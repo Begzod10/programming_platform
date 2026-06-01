@@ -124,6 +124,13 @@ async def complete_lesson(db: AsyncSession, lesson_id: int, student_id: int) -> 
     total_count = len(total_lessons)
     progress = int((completed_count / total_count) * 100) if total_count > 0 else 0
 
+    # CRITICAL: commit before reading total_points so the LessonCompletion +
+    # enrollment + ranking writes above actually persist. Previously this
+    # function only flushed; if the downstream certificate handler didn't issue
+    # a cert (i.e. non-final lessons), the session closed without committing
+    # and the completion was silently rolled back.
+    await db.commit()
+
     # Student total points olish
     student_res = await db.execute(select(Student).where(Student.id == student_id))
     student = student_res.scalar_one_or_none()

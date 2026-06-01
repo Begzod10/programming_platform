@@ -2,6 +2,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
@@ -411,7 +412,14 @@ async def submit_lesson_project(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
+    # Row-level lock on the lesson serializes concurrent submits from the
+    # same student (double-click / network retry). The second request blocks
+    # until the first commits, then re-reads the existing-submission check
+    # below and exits cleanly with 400 instead of inserting a duplicate.
+    lock_res = await db.execute(
+        select(Lesson).where(Lesson.id == lesson_id).with_for_update()
+    )
+    lesson = lock_res.scalar_one_or_none()
     if not lesson or lesson.course_id != course_id:
         raise HTTPException(status_code=404, detail="Dars topilmadi")
 
@@ -467,7 +475,14 @@ async def submit_lesson_project(
             await _add_points(db, current_student.id, points_reward)
             points_earned = points_reward
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Defense-in-depth: if the partial unique index is in place and we
+        # still raced past the existing-check (e.g. cross-process without
+        # the row lock holding), turn the DB error into a clean 400.
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="Bu dars allaqachon topshirilgan")
 
     cert = await achievement_service.award_certificate(db, current_student.id, course_id)
 

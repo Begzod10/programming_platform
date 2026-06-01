@@ -22,5 +22,7 @@ venv/
 .ruff_cache/
 
 # Editor backup files
+*~
 *.py~
+*.js~
 *.swp
