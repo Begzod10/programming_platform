@@ -99,88 +99,77 @@ async def login(db: AsyncSession, username: str, password: str):
         user_data = gennis_data.get("user", {})
         gennis_id = user_data.get("id") or user_data.get("user_id")
 
-        # role_str ni to'g'ri aniqlash (Gennis API ba'zan dict qaytaradi)
-        raw_role = user_data.get("role")
-        if isinstance(raw_role, dict):
-            role_str = raw_role.get("name")
-        elif isinstance(raw_role, str):
-            role_str = raw_role
-        else:
-            role_str = gennis_data.get("type_user")
-        
-        # Bizning bazadan foydalanuvchini topamiz (username yoki email orqali)
-        # Gennis foydalanuvchilari uchun username ko'pincha 'gennis_{id}' bo'ladi
-        # Lekin o'qituvchilar o'z username'lari bilan kirishadi
-        stmt = select(Student).where(
-            (Student.username == username) | 
-            (Student.email == username) |
-            (Student.username == f"gennis_{gennis_id}")
-        )
-        result = await db.execute(stmt)
-        user = result.scalars().first()
-        
-        if not user:
-            # Yangi foydalanuvchi yaratamiz.
-            # Gennis-orqali login qiluvchilar uchun maxsus parol hash
-            # ishlatamiz: bcrypt(random) — bu hash hech qachon hech qaysi
-            # parolga to'g'ri kelmaydi, shuning uchun lokal verify_password
-            # yo'li orqali bu akkountga kirib bo'lmaydi.
-            import os as _os
-            from app.core.security import get_password_hash as _ghp
-            role = UserRole.teacher if role_str == 'teacher' else UserRole.student
-            user = Student(
-                username=username if role == UserRole.teacher else f"gennis_{gennis_id}",
-                email=user_data.get("email") or f"{username}@gennis.uz",
-                full_name=f"{user_data.get('name', '')} {user_data.get('surname', '')}".strip(),
-                hashed_password=_ghp(_os.urandom(32).hex()),
-                role=role,
-                is_active=True
-            )
-            db.add(user)
-            await db.commit()
-            await db.refresh(user)
+        if gennis_id:
+            # role_str ni to'g'ri aniqlash (Gennis API ba'zan dict qaytaradi)
+            raw_role = user_data.get("role")
+            if isinstance(raw_role, dict):
+                role_str = raw_role.get("name")
+            elif isinstance(raw_role, str):
+                role_str = raw_role
+            else:
+                role_str = gennis_data.get("type_user")
             
-            # Ranking yaratish (faqat student uchun)
-            if user.role == UserRole.student:
-                await create_ranking(db, user.id)
-        else:
-            # Foydalanuvchi mavjud, rolini yangilash kerakmi tekshiramiz
-            correct_role = UserRole.teacher if role_str == 'teacher' else UserRole.student
-            changed = False
-            if user.role != correct_role:
-                user.role = correct_role
-                changed = True
-
-            # O'qituvchi uchun username kiritilgan qiymatga moslashtiramiz
-            # (eski "gennis_{id}" username'ni asl username bilan almashtiramiz)
-            if correct_role == UserRole.teacher and user.username != username:
-                conflict = await db.execute(
-                    select(Student).where(
-                        Student.username == username,
-                        Student.id != user.id,
-                    )
+            # Biznying bazadan foydalanuvchini topamiz (username yoki email orqali)
+            stmt = select(Student).where(
+                (Student.username == username) | 
+                (Student.email == username) |
+                (Student.username == f"gennis_{gennis_id}")
+            )
+            result = await db.execute(stmt)
+            user = result.scalars().first()
+            
+            if not user:
+                import os as _os
+                from app.core.security import get_password_hash as _ghp
+                role = UserRole.teacher if role_str == 'teacher' else UserRole.student
+                user = Student(
+                    username=username if role == UserRole.teacher else f"gennis_{gennis_id}",
+                    email=user_data.get("email") or f"{username}@gennis.uz",
+                    full_name=f"{user_data.get('name', '')} {user_data.get('surname', '')}".strip(),
+                    hashed_password=_ghp(_os.urandom(32).hex()),
+                    role=role,
+                    is_active=True
                 )
-                if conflict.scalars().first() is None:
-                    user.username = username
-                    changed = True
-
-            if changed:
+                db.add(user)
                 await db.commit()
                 await db.refresh(user)
+                
+                if user.role == UserRole.student:
+                    await create_ranking(db, user.id)
+            else:
+                correct_role = UserRole.teacher if role_str == 'teacher' else UserRole.student
+                changed = False
+                if user.role != correct_role:
+                    user.role = correct_role
+                    changed = True
 
-        # Sinxronizatsiyani boshlaymiz
-        if user.role == UserRole.teacher:
-            await GennisService.sync_teacher_data(db, user, gennis_data)
-        elif user.role == UserRole.student:
-            await GennisService.sync_student_data(db, user, gennis_data)
-            
-        return {
-            "access_token": create_access_token(subject=user.id),
-            "token_type": "bearer",
-            "user": user
-        }
+                if correct_role == UserRole.teacher and user.username != username:
+                    conflict = await db.execute(
+                        select(Student).where(
+                            Student.username == username,
+                            Student.id != user.id,
+                        )
+                    )
+                    if conflict.scalars().first() is None:
+                        user.username = username
+                        changed = True
 
-    # 2. Gennis o'xshasa (yoki admin bo'lsa), lokal bazadan tekshiramiz
+                if changed:
+                    await db.commit()
+                    await db.refresh(user)
+
+            if user.role == UserRole.teacher:
+                await GennisService.sync_teacher_data(db, user, gennis_data)
+            elif user.role == UserRole.student:
+                await GennisService.sync_student_data(db, user, gennis_data)
+                
+            return {
+                "access_token": create_access_token(subject=user.id),
+                "token_type": "bearer",
+                "user": user
+            }
+
+    # 2. Local login (if Gennis failed or no gennis_id)
     result = await db.execute(
         select(Student).where(
             (Student.username == username) |
@@ -193,7 +182,7 @@ async def login(db: AsyncSession, username: str, password: str):
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Username yoki parol noto'g'ri"
+            detail="parol yokida login xato"
         )
 
     # Faol emasligini tekshirish
