@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import './StudentProfile.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
@@ -12,7 +12,13 @@ const LEVEL_MAP = {
   Expert:       { color: '#d4ac0d', bg: '#fef9e7', bar: '#d4ac0d', icon: '👑' },
 };
 const getLevel  = (l) => LEVEL_MAP[l] || { color: '#888', bg: '#f5f5f5', bar: '#888', icon: '📚' };
-const fmt       = (n) => new Intl.NumberFormat('uz-UZ').format(n ?? 0) + ' so\'m';
+
+const fmt = (n) => new Intl.NumberFormat('uz-UZ', {
+  style: 'currency',
+  currency: 'UZS',
+  maximumFractionDigits: 0
+}).format(n ?? 0);
+
 const fmtDate   = (iso) => iso
   ? new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(iso))
   : '—';
@@ -88,20 +94,28 @@ const StudentProfilePage = () => {
   const [error,    setError]    = useState(null);
   const [tab,      setTab]      = useState('overview');
 
-  useEffect(() => {
-    const load = () => {
-      if (!studentId) return;
-      setLoading(true); setError(null); setProfile(null); setProgress(null);
-      Promise.all([
-        request(`${API_URL}v1/student/${studentId}`,                   'GET', null, headers()),
-        request(`${API_URL}v1/teacher/students/${studentId}/progress`, 'GET', null, headers()),
-      ])
-        .then(([prof, prog]) => { setProfile(prof); setProgress(prog); })
-        .catch(() => setError("Ma'lumotlarni yuklashda xatolik yuz berdi"))
-        .finally(() => setLoading(false));
-    };
-    load();
+  const load = useCallback(() => {
+    if (!studentId) return;
+    setLoading(true); 
+    setError(null); 
+    setProfile(null); 
+    setProgress(null);
+    
+    Promise.all([
+      request(`${API_URL}v1/student/${studentId}`,                   'GET', null, headers()),
+      request(`${API_URL}v1/teacher/students/${studentId}/progress`, 'GET', null, headers()),
+    ])
+      .then(([prof, prog]) => { 
+        setProfile(prof); 
+        setProgress(prog); 
+      })
+      .catch(() => setError("Ma'lumotlarni yuklashda xatolik yuz berdi"))
+      .finally(() => setLoading(false));
   }, [studentId, request]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const d            = profile;
   const p            = progress;
@@ -111,9 +125,13 @@ const StudentProfilePage = () => {
   const achievements = d?.achievements || [];
   const avgProgress  = p?.average_progress ?? 0;
   const globalRank   = p?.global_rank     ?? '—';
-  const initials     = d
-    ? `${(d.full_name || d.username || '?')[0]}${(d.surname || '')[0] || ''}`.toUpperCase()
-    : '??';
+
+  const initials = useMemo(() => {
+    if (!d) return '??';
+    const first = (d.full_name || d.username || '?')[0];
+    const last = (d.surname || '')[0] || '';
+    return `${first}${last}`.toUpperCase();
+  }, [d]);
 
   /* ── LOADING ── */
   if (loading) return (
