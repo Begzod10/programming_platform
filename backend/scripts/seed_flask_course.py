@@ -992,6 +992,130 @@ if __name__ == '__main__':
 #   }
 """
 
+L12_TEXT = """\
+<h2>Database migration (Flask-Migrate)</h2>
+<p>7-darsda <code>db.create_all()</code> ni ko'rdik — bu faqat <strong>yangi</strong> jadvallarni yaratadi, mavjudini o'zgartirmaydi. Production'da modelga yangi ustun qo'shsangiz, <code>create_all()</code> hech narsa qilmaydi va sizning ilovangiz "ustun yo'q" xatosi bilan qulab tushadi. Yechim — <strong>migration</strong>.</p>
+
+<h3>Migration nima va nima uchun kerak?</h3>
+<p>Migration — bu bazaning sxemasini bir versiyadan boshqasiga ko'chiruvchi maxsus skript. Har bir o'zgarish (yangi ustun, indeks, jadval) alohida fayl bo'lib saqlanadi va ketma-ket raqamlanadi. Bu bizga:</p>
+<ul>
+<li><strong>Versiyalash</strong>: bazaning aynan qaysi holatda ekanligini bilish</li>
+<li><strong>Takror ishga tushirish</strong>: bir xil migration har bir muhitda (dev, staging, prod) aynan bir xil natija beradi</li>
+<li><strong>Orqaga qaytish</strong>: agar muammo bo'lsa, <code>downgrade</code> qilib oldingi versiyaga qaytish</li>
+<li><strong>Jamoada ishlash</strong>: ikki dasturchi parallel migration yozsa ham, ketma-ketlik aniq</li>
+</ul>
+
+<h3>Flask-Migrate o'rnatish</h3>
+<p>Flask-Migrate — bu <strong>Alembic</strong> ustidan yengil wrapper (Alembic — Python dunyosidagi de-facto migration vositasi).</p>
+<pre><code>pip install flask-migrate</code></pre>
+
+<h3>Sozlash</h3>
+<pre><code>from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)  # &lt;-- shu bitta qator</code></pre>
+<p>Modelni import qilishni unutmang — aks holda Alembic uni "ko'rmaydi":</p>
+<pre><code>from app.models import User, Post  # noqa: F401</code></pre>
+
+<h3>Asosiy 3 ta komanda</h3>
+<pre><code># 1. Faqat bir marta — migrations/ papkasini yaratish
+flask db init
+
+# 2. Modeldagi o'zgarishlarni payqab, yangi migration fayl generation qilish
+flask db migrate -m "add bio column to users"
+
+# 3. Migration'ni bazaga qo'llash
+flask db upgrade</code></pre>
+
+<h3>Tipik workflow: yangi ustun qo'shish</h3>
+<p>Aytaylik, <code>User</code> modeliga <code>bio</code> ustunini qo'shmoqchimiz:</p>
+<pre><code># 1) Modelga o'zgartirish kiritamiz
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    bio = db.Column(db.Text, nullable=True)  # &lt;-- yangi
+
+# 2) Terminal'da:
+$ flask db migrate -m "add bio to users"
+Generating migrations/versions/a1b2c3d4_add_bio_to_users.py ... done
+
+# 3) Generation qilingan faylni ko'rib chiqish (MUHIM!)
+#    upgrade() va downgrade() funksiyalari to'g'rimi tekshiramiz.
+
+# 4) Bazaga qo'llaymiz
+$ flask db upgrade</code></pre>
+
+<h3>⚠️ Autogenerate aniqlay olmaydigan o'zgarishlar</h3>
+<p><code>flask db migrate</code> sehrli emas — u model bilan live DB orasidagi farqlarni payqaydi, lekin <strong>ba'zi narsalarni noto'g'ri talqin qiladi</strong>:</p>
+<ul>
+<li><strong>Ustun nomini o'zgartirish</strong>: Alembic buni "eski ustunni o'chirish + yangi ustun yaratish" deb tushunadi — ma'lumotlar yo'qoladi!</li>
+<li><strong>NOT NULL qo'shish</strong>: agar ustunda eski qiymatlar bo'sh bo'lsa, migration ishlamaydi. Default qiymat to'ldirish qadamini qo'lda yozish kerak</li>
+<li><strong>CHECK constraint o'zgarishi</strong></li>
+<li><strong>Indekslar nomi</strong>: avtomatik nomlangan indekslar har xil ko'rinishi mumkin</li>
+</ul>
+<p>Shuning uchun: <strong>har bir generation qilingan migration faylini production'ga deploy qilishdan oldin qo'lda ko'rib chiqing</strong>.</p>
+
+<h3>Orqaga qaytish</h3>
+<pre><code>flask db downgrade        # 1 versiya orqaga
+flask db downgrade base   # boshigacha qaytish
+flask db history          # barcha migration'lar tarixini ko'rish
+flask db current          # hozirgi versiya</code></pre>
+
+<h3>Production xavfsizlik qoidalari</h3>
+<ol>
+<li><strong>Backup</strong>: migration o'tkazishdan oldin doim baza backup'ini oling</li>
+<li><strong>Staging'da sinab ko'ring</strong>: xuddi shu migration prod'ga o'xshash test muhitda muvaffaqiyatli ishlashi kerak</li>
+<li><strong>Downgrade'ni tekshiring</strong>: har bir migration'ning <code>downgrade()</code> funksiyasi to'g'ri yozilganligiga ishonch hosil qiling — prod'da muammo chiqsa qaytarish uchun</li>
+<li><strong>Katta jadvallar</strong>: million qatorlik jadvalda <code>ALTER TABLE</code> qulflanish (lock) keltirib chiqaradi. Bunday hollarda <code>CREATE INDEX CONCURRENTLY</code> kabi vositalardan foydalaning</li>
+<li><strong>Migration'ni avval, kodni keyin</strong>: agar yangi ustun qo'shsangiz, avval migration'ni qo'llang, keyin yangi kod versiyasini deploy qiling (aks holda yangi kod eski schema'da qulashi mumkin)</li>
+</ol>
+
+<h3>Tabriklaymiz!</h3>
+<p>Endi siz Flask ilovangizning bazasi vaqt o'tishi bilan qanday o'sib borishini boshqara olasiz. Bu — har qanday production loyihaning eng asosiy ko'nikmalaridan biri.</p>
+"""
+
+L12_CODE = """\
+# app.py — Flask-Migrate bilan ishlovchi minimal misol
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    # Endi bio ustunini qo'shmoqchimiz:
+    bio = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=db.func.now())
+
+# ─── Terminal'da ishga tushiriladigan komandalar ───
+#
+# Boshlanishida (bir marta):
+#   export FLASK_APP=app.py
+#   flask db init
+#
+# Har gal modelni o'zgartirgandan keyin:
+#   flask db migrate -m "add bio to users"
+#   # generation qilingan faylni ko'rib chiqamiz: migrations/versions/<hash>_add_bio.py
+#   flask db upgrade
+#
+# Agar muammo bo'lsa:
+#   flask db downgrade     # bir qadam orqaga
+#   flask db current       # hozirgi versiyani ko'rish
+#   flask db history       # barcha tarix
+"""
+
 
 # Each lesson has 5 mixed-type, auto-gradable exercises:
 #   - 2× multiple_choice (single answer)
@@ -1522,6 +1646,66 @@ LESSONS = [
                "(nginx) bo'lib ko'rinadi — haqiqiy mijoz IP'si emas. ProxyFix Flask'ga nginx "
                "tomonidan qo'shilgan X-Forwarded-For va X-Forwarded-Proto header'larini o'qishni "
                "o'rgatadi, shunda haqiqiy mijoz IP va HTTP/HTTPS sxema to'g'ri aniqlanadi.",
+               diff="Hard", pts=4),
+        ],
+    },
+    {
+        "order": 11, "title": "12-Database migration (Flask-Migrate)",
+        "text": L12_TEXT, "code": L12_CODE, "lang": "python",
+        "video": "https://youtu.be/wpRTU_X9OB0",
+        "exercises": [
+            mc("db.create_all() va Flask-Migrate orasidagi farq nima?",
+               ["create_all faqat yangi jadvallarni yaratadi; Flask-Migrate mavjud jadvallarni "
+                "ham o'zgartira oladi (versiyalash bilan)",
+                "create_all tezroq ishlaydi",
+                "Hech qanday farq yo'q — ikkalasi ham bir xil natija beradi",
+                "Flask-Migrate faqat MySQL uchun ishlaydi"],
+               "A", diff="Easy", pts=2),
+            mc("flask db init komandasi qachon ishlatiladi?",
+               ["Har bir deployment'dan oldin",
+                "Loyiha boshlanishida bir marta — migrations/ papkasini yaratish uchun",
+                "Yangi model qo'shganda har safar",
+                "Bazaga ulanib bo'lmaganida"],
+               "B", hint="Nomidan ham ko'rinib turibdi — 'init' = boshlash.",
+               diff="Easy", pts=2),
+            mc("flask db migrate avtomatik aniqlay olmaydigan o'zgarishlarni tanlang",
+               ["Ustun nomini o'zgartirish (rename) — drop+create kabi ko'rinadi va ma'lumot yo'qoladi",
+                "Yangi ustun qo'shish",
+                "NOT NULL constraint qo'shish — mavjud bo'sh qiymatlarni qanday to'ldirish",
+                "Yangi jadval qo'shish"],
+               "A,C", multi=True,
+               hint="Alembic models va DB ni solishtiradi — qaysi o'zgarish ikki tomonlama (semantik) ma'no talab qiladi?",
+               diff="Medium", pts=3),
+            dd("Yangi ustun qo'shish workflow'ini to'g'ri tartibda joylang",
+               ["Modelga yangi db.Column(...) qo'shish",
+                "flask db migrate -m 'add column' — generation qilish",
+                "Generation qilingan migration faylini ko'rib chiqish",
+                "flask db upgrade — bazaga qo'llash",
+                "Ilovani ishga tushirib yangi ustun ishlashini tekshirish"],
+               diff="Medium", pts=3),
+            mc("flask db downgrade komandasi nima qiladi?",
+               ["Butun bazani o'chiradi",
+                "Oxirgi migration'ni qaytaradi (avvalgi versiyaga o'tadi)",
+                "Server'ni qayta ishga tushiradi",
+                "Yangi migration fayl yaratadi"],
+               "B", diff="Easy", pts=2),
+            ti("Nima uchun avtomatik generation qilingan migration faylini har doim ko'rib chiqish kerak?",
+               "Alembic autogenerate models va live DB orasidagi farqlarni topib chiqaradi, lekin "
+               "ba'zi o'zgarishlarni noto'g'ri talqin qiladi. Eng xavfli misol — ustun nomini "
+               "o'zgartirish: Alembic buni 'eski ustunni drop qilish va yangi ustun yaratish' deb "
+               "tushunadi, natijada ustundagi barcha ma'lumotlar yo'qoladi. Shuningdek, NOT NULL "
+               "qo'shishdan oldin mavjud bo'sh qiymatlarni default qiymat bilan to'ldirish qadami "
+               "qo'lda yozilishi kerak. Production'ga deploy qilishdan oldin har bir migration "
+               "faylini qo'lda tekshirish — bu xavfsiz dasturlashning asosiy qoidasi.",
+               diff="Hard", pts=4),
+            ti("Production'da migration o'tkazishdagi 3 ta eng muhim xavfsizlik qoidasini ayting.",
+               "(1) Backup — migration boshlashdan oldin to'liq baza nusxasini oling, agar muammo "
+               "yuz bersa qaytarish uchun. (2) Staging'da sinash — xuddi shu migration'ni avval "
+               "prod'ga o'xshash test muhitida muvaffaqiyatli ishga tushiring; faqat shundan keyin "
+               "prod'da qo'llang. (3) Reversibility — har bir migration'ning downgrade() funksiyasi "
+               "to'g'ri yozilganligini tekshiring, prod'da xato chiqsa darhol qaytarib bo'lsin. "
+               "Qo'shimcha: migration'ni avval, kodni keyin deploy qiling (aks holda yangi kod "
+               "eski schema'da qulashi mumkin).",
                diff="Hard", pts=4),
         ],
     },

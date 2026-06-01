@@ -35,8 +35,30 @@ from scripts.seed_flask_course import (  # noqa: E402
 )
 
 
+def _build_exercise_row(lesson_id: int, ex: dict, order_idx: int) -> Exercise:
+    return Exercise(
+        lesson_id=lesson_id,
+        title=ex["title"],
+        description=ex.get("description", ex["title"]),
+        exercise_type=ex["exercise_type"],
+        options=_jdump(ex.get("options")),
+        correct_answers=_jdump(ex.get("correct_answers")),
+        drag_items=_jdump(ex.get("drag_items")),
+        correct_order=_jdump(ex.get("correct_order")),
+        is_multiple_select=bool(ex.get("is_multiple_select", False)),
+        expected_answer=ex.get("expected_answer", ""),
+        hint=ex.get("hint", ""),
+        explanation=ex.get("explanation", ""),
+        difficulty_level=ex["difficulty_level"],
+        points=ex["points"],
+        order=order_idx,
+        is_active=True,
+    )
+
+
 async def upgrade(dry_run: bool = False) -> None:
-    total_added = 0
+    new_lessons = 0
+    new_exercises = 0
     async with AsyncSessionLocal() as db:
         course = (
             await db.execute(select(Course).where(Course.title == COURSE["title"]))
@@ -55,10 +77,39 @@ async def upgrade(dry_run: bool = False) -> None:
                     )
                 )
             ).scalar_one_or_none()
+
+            # Case 1: lesson missing entirely → create it + all its exercises
             if not lesson:
-                print(f"  ⚠ lesson order={ldata['order']} '{ldata['title']}' missing — skip")
+                lesson = Lesson(
+                    course_id=course.id,
+                    title=ldata["title"],
+                    order=ldata["order"],
+                    points_reward=10,
+                    text_content=ldata["text"],
+                    code_content=ldata["code"],
+                    code_language=ldata["lang"],
+                    video_url=ldata["video"],
+                    sections_json=None,
+                    is_active=True,
+                    is_published=True,
+                )
+                db.add(lesson)
+                await db.flush()
+
+                ex_rows = [
+                    _build_exercise_row(lesson.id, ex, i)
+                    for i, ex in enumerate(ldata["exercises"])
+                ]
+                for r in ex_rows:
+                    db.add(r)
+                await db.flush()
+                lesson.sections_json = build_sections_json(ldata, ex_rows)
+                new_lessons += 1
+                new_exercises += len(ex_rows)
+                print(f"  L{ldata['order']+1:>2} {ldata['title']:<40}  NEW LESSON ({len(ex_rows)} ex)")
                 continue
 
+            # Case 2: lesson exists → check if its exercises are up to date
             existing = (
                 await db.execute(
                     select(Exercise)
@@ -70,49 +121,31 @@ async def upgrade(dry_run: bool = False) -> None:
             target_count = len(ldata["exercises"])
 
             if existing_count >= target_count:
-                print(f"  L{ldata['order']+1:>2} {lesson.title:<32}  "
+                print(f"  L{ldata['order']+1:>2} {lesson.title:<40}  "
                       f"existing={existing_count} target={target_count}  (skip)")
                 continue
 
-            # Append the tail
+            # Append missing tail exercises
             tail = ldata["exercises"][existing_count:]
-            new_rows: list[Exercise] = []
-            for i, ex in enumerate(tail):
-                row = Exercise(
-                    lesson_id=lesson.id,
-                    title=ex["title"],
-                    description=ex.get("description", ex["title"]),
-                    exercise_type=ex["exercise_type"],
-                    options=_jdump(ex.get("options")),
-                    correct_answers=_jdump(ex.get("correct_answers")),
-                    drag_items=_jdump(ex.get("drag_items")),
-                    correct_order=_jdump(ex.get("correct_order")),
-                    is_multiple_select=bool(ex.get("is_multiple_select", False)),
-                    expected_answer=ex.get("expected_answer", ""),
-                    hint=ex.get("hint", ""),
-                    explanation=ex.get("explanation", ""),
-                    difficulty_level=ex["difficulty_level"],
-                    points=ex["points"],
-                    order=existing_count + i,
-                    is_active=True,
-                )
-                db.add(row)
-                new_rows.append(row)
-            await db.flush()  # need ids for sections_json
-
-            # Rebuild sections_json with ALL exercises (existing tail incoming too).
+            new_rows = [
+                _build_exercise_row(lesson.id, ex, existing_count + i)
+                for i, ex in enumerate(tail)
+            ]
+            for r in new_rows:
+                db.add(r)
+            await db.flush()
             all_rows = existing + new_rows
             lesson.sections_json = build_sections_json(ldata, all_rows)
-            total_added += len(new_rows)
-            print(f"  L{ldata['order']+1:>2} {lesson.title:<32}  "
+            new_exercises += len(new_rows)
+            print(f"  L{ldata['order']+1:>2} {lesson.title:<40}  "
                   f"existing={existing_count} → {len(all_rows)} (+{len(new_rows)} new)")
 
         if dry_run:
             await db.rollback()
-            print(f"\nDRY RUN — would have added {total_added} exercises. Rolled back.")
+            print(f"\nDRY RUN — would add {new_lessons} lessons + {new_exercises} exercises. Rolled back.")
         else:
             await db.commit()
-            print(f"\nUpgrade complete: {total_added} new exercises added.")
+            print(f"\nUpgrade complete: +{new_lessons} lessons, +{new_exercises} exercises.")
 
     await engine.dispose()
 
