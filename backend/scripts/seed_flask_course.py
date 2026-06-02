@@ -135,7 +135,7 @@ def about(): return 'Biz haqimizda'
 def contact(): return 'Aloqa'</code></pre>
 <p>Endi <code>/</code>, <code>/about</code>, <code>/contact</code> manzillarining har biri o'z javobini qaytaradi.</p>
 <h3>HTTP methodlar — GET va POST</h3>
-<p>Sukut bo'yicha route faqat GET so'rovlarini qabul qiladi. Boshqa methodlarni ruxsat berish uchun:</p>
+<p>Odatda route faqat GET so'rovlarini qabul qiladi. Boshqa methodlarni ruxsat berish uchun:</p>
 <pre><code>@app.route('/submit', methods=['GET', 'POST'])
 def submit():
     return 'Forma yuborildi'</code></pre>
@@ -195,7 +195,7 @@ L3_TEXT = """\
 <h2>Jinja2 Templates</h2>
 <p>Hozirgacha biz HTML'ni Python qator ichida yozdik — bu shoxni juda tez qiyinlashtiradi. To'g'ri yo'l: HTML'ni alohida faylga ajratish va Python'dan unga ma'lumot yuborish. Buni <strong>shablon (template)</strong> deyiladi.</p>
 <h3>templates/ papkasi</h3>
-<p>Flask sukut bo'yicha shablonlarni <code>templates/</code> papkasidan qidiradi:</p>
+<p>Flask odatda shablonlarni <code>templates/</code> papkasidan qidiradi:</p>
 <pre><code>flask_app/
 ├── app.py
 └── templates/
@@ -1193,7 +1193,7 @@ R2_TEXT = """\
 <p>Modul 2 da o'rgangan <strong>session</strong>'ni Modul 3 dagi <strong>database</strong> bilan birlashtirsak — har bir foydalanuvchining o'z ma'lumotlari bo'ladi. Bu zamonaviy veb-ilovaning eng asosiy nuqtasi.</p>
 
 <h3>👥 User + Note: ikkita jadval orasidagi bog'lanish</h3>
-<p>Real ilovalarda bitta foydalanuvchining ko'p notalari bo'ladi. Buni <strong>one-to-many</strong> munosabat deyiladi va SQLAlchemy'da <code>ForeignKey</code> bilan ifodalanadi:</p>
+<p>Real ilovalarda bitta foydalanuvchining ko'p notalari bo'ladi. Buni <strong>one-to-many</strong> munosabat deyiladi va SQLAlchemy'da <code>ForeignKey</code> bilan yoziladi:</p>
 <pre><code>class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -2050,7 +2050,7 @@ LESSONS = [
                 "Brauzer javobni ko'rsatadi"],
                diff="Medium", pts=3),
             ti("methods=['GET', 'POST'] parametri qachon kerak bo'ladi?",
-               "Sukut bo'yicha @app.route faqat GET so'rovlarini qabul qiladi. Forma yuborish (POST), "
+               "Odatda @app.route faqat GET so'rovlarini qabul qiladi. Forma yuborish (POST), "
                "PUT, DELETE yoki boshqa methodlarni ham qabul qilish uchun methods parametrida ularni "
                "aniq ko'rsatish kerak.",
                diff="Hard", pts=4),
@@ -2295,7 +2295,7 @@ LESSONS = [
                 "SQL serverlarining yangi standarti",
                 "Faqat MySQL uchun ishlaydi"],
                "B", diff="Easy", pts=2),
-            mc("primary_key=True nima vazifa bajaradi?",
+            mc("primary_key=True nima uchun kerak?",
                ["Yozuvni shifrlaydi",
                 "Ustun avtomatik o'sib boruvchi yagona identifikator (id) bo'lishini ta'minlaydi",
                 "Ustunga faqat raqam yozilishini ta'minlaydi",
@@ -2327,7 +2327,7 @@ LESSONS = [
                 "Aziz nomli barcha foydalanuvchilarni",
                 "SQL so'rovni matn ko'rinishida"],
                "B", diff="Easy", pts=2),
-            ti("nullable=False va unique=True ustun cheklovlari nima vazifa bajaradi?",
+            ti("nullable=False va unique=True ustun cheklovlari nima uchun kerak?",
                "nullable=False — ustun NULL (bo'sh) bo'lishi mumkin emas; yozuv yaratilganda u "
                "qiymatga ega bo'lishi shart. unique=True — bu ustunning qiymati bazada "
                "takrorlanmasligi kerak; takror urinish IntegrityError xato beradi. Birgalikda ular "
@@ -2359,7 +2359,7 @@ LESSONS = [
                 "HTTP standartiga ko'ra GET o'zgartiruvchi (mutating) amallar uchun mos emas",
                 "DELETE faqat POST orqali ishlaydi"],
                "A,B,C", multi=True,
-               hint="GET 'xavfsiz' (safe) deb hisoblanadi.",
+               hint="GET 'xavfsiz' (safe) deyiladi.",
                diff="Medium", pts=3),
             dd("Yozuvni yangilash (UPDATE) bosqichlarini tartiblang",
                ["note = Note.query.get_or_404(id)",
@@ -2492,7 +2492,7 @@ LESSONS = [
                "prefix bo'lmasa Flask qaysi birini chaqirayotganini ajrata olmaydi.",
                diff="Hard", pts=4),
             mc("Blueprint('auth', __name__, template_folder='templates') chaqirig'ida "
-               "template_folder parametri nima vazifa bajaradi?",
+               "template_folder parametri nima uchun kerak?",
                ["Statik fayllar joyini belgilaydi",
                 "Bu blueprint o'zining template'larini qaysi papkadan qidirishini bildiradi",
                 "Eski template'larni avtomatik o'chiradi",
@@ -2557,7 +2557,7 @@ LESSONS = [
                diff="Easy", pts=2),
             ti("@app.errorhandler(404) JSON API uchun nima uchun ayniqsa muhim?",
                "JSON API klienti (React, mobil ilova) HTML xato sahifasini ko'rmaydi — u JSON "
-               "kutadi. Agar errorhandler(404) belgilanmasa, Flask sukut bo'yicha HTML 404 sahifasini "
+               "kutadi. Agar errorhandler(404) belgilanmasa, Flask odatda HTML 404 sahifasini "
                "qaytaradi va klient JSON.parse() qila olmay xato beradi. Custom 404 handler "
                "{'error': 'Topilmadi'} ko'rinishidagi JSON qaytaradi, shunda klient xatoni to'g'ri "
                "boshqarib foydalanuvchiga tushunarli xabar ko'rsata oladi.",
@@ -2636,7 +2636,7 @@ LESSONS = [
         "text": L11_TEXT, "code": L11_CODE, "lang": "python",
         "video": "https://youtu.be/goToXTC96Co",
         "exercises": [
-            mc("python-dotenv nima vazifa bajaradi?",
+            mc("python-dotenv nima uchun kerak?",
                ["Python'ni avtomatik o'rnatadi",
                 ".env faylidan environment o'zgaruvchilarini os.environ ga yuklab oladi",
                 "Faqat Linux serverlarda ishlaydi",
