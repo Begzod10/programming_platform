@@ -1131,7 +1131,7 @@
 .lep-ex-pts-wrap {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 6px; /* Чуть увеличили отступ для визуальной свободы */
     border: 1.5px solid rgba(26,26,46,0.09);
     border-radius: 8px;
     background: #fff;
@@ -1144,29 +1144,65 @@
     box-shadow: 0 0 0 2px rgba(108,92,231,0.10);
 }
 
+/* Инпут теперь выровнен по центру */
 .lep-ex-pts-input {
     border: none;
     background: transparent;
     color: #1a1a2e;
-    font-size: 12.5px;
+    font-size: 15px;
     font-weight: 700;
-    width: 44px;
+    width: 28px; /* Чуть уменьшили ширину, так как число центрировано */
     outline: none;
     font-family: inherit;
-    text-align: right;
+    text-align: center; /* Текст по центру */
     padding: 0;
     -moz-appearance: textfield;
 }
 
 .lep-ex-pts-input::-webkit-outer-spin-button,
-.lep-ex-pts-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.lep-ex-pts-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
 
+/* Горизонтальные кнопки «+» и «-» */
+.lep-ex-pts-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    font-size: 18px; /* Хорошо читаемый размер */
+    font-weight: 500;
+    color: rgba(26, 26, 46, 0.35);
+    transition: color 0.1s, transform 0.1s;
+    line-height: 1;
+    user-select: none;
+}
+
+/* Подсвечиваем кнопку при наведении фирменным фиолетовым */
+.lep-ex-pts-btn:hover {
+    color: #6c5ce7;
+}
+
+/* Легкий клик-эффект */
+.lep-ex-pts-btn:active {
+    transform: scale(0.85);
+}
+
+/* Лейбл в самом конце */
 .lep-ex-pts-label {
     font-size: 11px;
     font-weight: 700;
     color: rgba(26,26,46,0.35);
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    margin-left: 2px; /* Легкий отступ от плюса */
 }
 
 .lep-ex-ctrl {
