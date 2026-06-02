@@ -68,6 +68,15 @@ class Settings(BaseSettings):
     # Leave empty in environments where direct egress works.
     HTTP_PROXY: str = ""
 
+    # GitHub Personal Access Token (read-only public scope is enough).
+    # Optional but strongly recommended: unauthenticated GitHub API calls are
+    # capped at 60/hr/IP and will fail under any real load.
+    GITHUB_TOKEN: str = ""
+    # Hard cap on AI project reviews per student per UTC day. Prevents
+    # points-farming and OpenAI budget drain even if the AI passes back
+    # malformed/empty grades. Set to 0 to disable AI review entirely.
+    MAX_AI_REVIEWS_PER_DAY: int = 3
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
