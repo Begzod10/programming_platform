@@ -134,6 +134,22 @@ async def _gh_get(client: httpx.AsyncClient, url: str) -> httpx.Response:
     return await client.get(url, headers=headers)
 
 
+def _empty_authorship(reason: str = "") -> dict:
+    """Authorship dict shape returned when we can't read git history."""
+    return {
+        "available": False,
+        "reason": reason or "git history not available",
+        "is_fork": False,
+        "parent_repo": None,
+        "commit_count": None,
+        "commit_count_capped": False,
+        "unique_authors": None,
+        "owner_is_contributor": None,
+        "first_commit_at": None,
+        "last_commit_at": None,
+    }
+
+
 def _empty(error: str) -> dict:
     return {
         "exists": False,
@@ -143,7 +159,94 @@ def _empty(error: str) -> dict:
         "content_text": "",
         "truncated": False,
         "error": error,
+        "authorship": _empty_authorship("snapshot failed"),
     }
+
+
+async def _fetch_authorship(
+        client: httpx.AsyncClient, owner: str, repo: str, meta_json: dict,
+) -> dict:
+    """Read git-history signals that help detect copy-paste / forks.
+
+    Cheap: one extra Contents-API equivalent call (commits?per_page=100).
+    Fork detection is free (already in the meta payload we have).
+    """
+    out: dict = {
+        "available": True,
+        "reason": None,
+        "is_fork": bool(meta_json.get("fork")),
+        "parent_repo": None,
+        "commit_count": None,
+        "commit_count_capped": False,
+        "unique_authors": None,
+        "owner_is_contributor": None,
+        "first_commit_at": None,
+        "last_commit_at": None,
+    }
+    if out["is_fork"]:
+        parent = meta_json.get("parent") or {}
+        out["parent_repo"] = parent.get("full_name")
+
+    try:
+        resp = await _gh_get(
+            client,
+            f"https://api.github.com/repos/{owner}/{repo}/commits?per_page=100",
+        )
+    except (httpx.TimeoutException, httpx.HTTPError):
+        return _empty_authorship("commits fetch failed")
+
+    if resp.status_code == 409:
+        # Empty repo (no commits yet). Still authoritative — record zero.
+        out["commit_count"] = 0
+        out["unique_authors"] = 0
+        out["owner_is_contributor"] = False
+        return out
+    if resp.status_code != 200:
+        return _empty_authorship(f"commits HTTP {resp.status_code}")
+
+    commits = resp.json()
+    if not isinstance(commits, list):
+        return _empty_authorship("commits response shape")
+
+    # GitHub returns a Link header with rel="next" when there are >100 commits.
+    has_more = 'rel="next"' in resp.headers.get("link", "")
+    out["commit_count"] = len(commits)
+    out["commit_count_capped"] = has_more
+
+    authors: set[str] = set()
+    for c in commits:
+        # Prefer the linked GH user login (authoritative); fall back to
+        # the raw commit author email when GitHub can't resolve the user.
+        login = ((c.get("author") or {}) or {}).get("login")
+        if login:
+            authors.add(login.lower())
+            continue
+        email = (((c.get("commit") or {}).get("author") or {}) or {}).get("email")
+        if email:
+            authors.add(email.lower())
+
+    out["unique_authors"] = len(authors)
+    # `owner_is_contributor` only makes sense when the owner is a real user.
+    # Organizations (helloflask, pallets, ...) never appear in commit author
+    # lists because authors are individuals — checking "owner in authors"
+    # would always false-positive and unfairly penalize legit org repos.
+    # For student projects the URL owner IS the student's user account, so
+    # the check still catches the intended case: someone else's commits in
+    # a repo the student claims to have written.
+    owner_type = (meta_json.get("owner") or {}).get("type") or "User"
+    if owner_type == "Organization":
+        out["owner_is_contributor"] = None  # not applicable, frontend hides badge
+    else:
+        out["owner_is_contributor"] = owner.lower() in authors
+
+    if commits:
+        # GitHub returns commits newest-first.
+        last = ((commits[0].get("commit") or {}).get("author") or {}).get("date")
+        first = ((commits[-1].get("commit") or {}).get("author") or {}).get("date")
+        out["last_commit_at"] = last
+        out["first_commit_at"] = first
+
+    return out
 
 
 async def fetch_github_snapshot(github_url: str) -> dict:
@@ -177,6 +280,11 @@ async def fetch_github_snapshot(github_url: str) -> dict:
 
             meta_json = meta.json()
             default_branch = branch_hint or meta_json.get("default_branch") or "main"
+
+            # Authorship signals (fork / commit count / unique authors). Fetched
+            # alongside the snapshot because they share the same auth tokens
+            # and rate-limit budget. Always returned, even on partial failure.
+            authorship = await _fetch_authorship(client, owner, repo, meta_json)
 
             # 2) Recursive tree of the chosen branch
             tree_resp = await _gh_get(
@@ -260,6 +368,7 @@ async def fetch_github_snapshot(github_url: str) -> dict:
                 "content_text": "\n\n".join(blocks),
                 "truncated": truncated,
                 "error": None,
+                "authorship": authorship,
             }
     except httpx.TimeoutException:
         return _empty("GitHub fetch timed out")
@@ -395,6 +504,9 @@ def fetch_zip_snapshot(project_files_url: str) -> dict:
                 "content_text": "\n\n".join(blocks),
                 "truncated": truncated,
                 "error": None,
+                # ZIP uploads don't carry git history. The prompt will tell
+                # the AI to weight code quality more heavily as a result.
+                "authorship": _empty_authorship("ZIP upload — no git history"),
             }
     except zipfile.BadZipFile:
         return _empty("ZIP fayl buzuq yoki noto'g'ri format")

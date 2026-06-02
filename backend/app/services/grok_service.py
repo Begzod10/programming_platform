@@ -243,6 +243,68 @@ def _parse_ai_json(text: str) -> Optional[dict]:
 # Public API: project grading
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _format_authorship_block(authorship: Optional[dict]) -> str:
+    """Render the git-history signals as a prompt section.
+
+    The section ends with a short scoring instruction so the model knows
+    HOW to weight these signals (not just that they exist). Worded as
+    soft guidance — a fork can still be legit (template start), so we
+    don't hard-fail; we just cap the grade.
+    """
+    if not authorship or not authorship.get("available"):
+        reason = (authorship or {}).get("reason") or "no git history"
+        return (
+            "\n## AUTHORSHIP SIGNALS\n"
+            f"Git tarixi mavjud emas ({reason}). Bu fork yoki copy-paste "
+            "ekanligini tekshira olmadik. Faqat kod sifati asosida baholash.\n"
+        )
+
+    lines = ["\n## AUTHORSHIP SIGNALS"]
+
+    if authorship.get("is_fork"):
+        parent = authorship.get("parent_repo") or "noma'lum"
+        lines.append(f"- ⚠️ FORK: bu repo {parent} dan fork qilingan")
+    else:
+        lines.append("- Fork emas (mustaqil repo)")
+
+    commit_count = authorship.get("commit_count")
+    capped = authorship.get("commit_count_capped")
+    if commit_count is not None:
+        cap_marker = "+" if capped else ""
+        lines.append(f"- Commitlar soni: {commit_count}{cap_marker}")
+
+    unique_authors = authorship.get("unique_authors")
+    if unique_authors is not None:
+        lines.append(f"- Yagona mualliflar: {unique_authors}")
+
+    owner_is_contrib = authorship.get("owner_is_contributor")
+    if owner_is_contrib is False:
+        lines.append("- ⚠️ Repo egasi (URL'dagi owner) commitlar orasida YO'Q "
+                     "— kodni boshqa odam yozgan")
+    elif owner_is_contrib is True:
+        lines.append("- Repo egasi commitlar mualliflari orasida bor")
+
+    first = authorship.get("first_commit_at")
+    last = authorship.get("last_commit_at")
+    if first and last:
+        lines.append(f"- Birinchi commit: {first[:10]}, oxirgi: {last[:10]}")
+
+    lines.append("")
+    lines.append("BAHOLASHGA TA'SIRI (qattiq qoidalar):")
+    lines.append("• Agar FORK bo'lsa → maksimal C (74 ball). Feedback'da "
+                 "\"Bu loyiha fork — siz asl muallif emassiz, o'zingiz "
+                 "noldan yozishni mashq qiling\" deb yoz.")
+    lines.append("• Agar commitlar soni 1 ta bo'lsa (\"Initial commit\" "
+                 "kabi katta dump) → bosqichma-bosqich rivojlanish "
+                 "ko'rinmaydi, ball 15-25 ga PASAYTIRING.")
+    lines.append("• Agar repo egasi commitlar orasida YO'Q bo'lsa → boshqa "
+                 "odam ishlagan, maksimal D (59 ball).")
+    lines.append("• Agar 3+ commit bo'lsa va owner ham contributor bo'lsa "
+                 "→ haqiqiy mustaqil ish, signal ijobiy.")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
 def _build_review_prompt(
     *,
     title: str,
@@ -253,6 +315,7 @@ def _build_review_prompt(
     previous_points: int,
     repo_content: str,
     repo_summary: str,
+    authorship: Optional[dict] = None,
 ) -> str:
     technologies_str = ", ".join(technologies) if technologies else "ko'rsatilmagan"
 
@@ -275,8 +338,10 @@ def _build_review_prompt(
             "qayta urinib ko'ring\" deb yoz.\n"
         )
 
+    authorship_block = _format_authorship_block(authorship)
+
     return f"""
-Sen tajribali Python/Flask o'qituvchisisiz. O'quvchi loyihasini PASTDAGI ASL KOD asosida baholab ber. Faqat metadata (nomi, tavsifi) bo'yicha emas — ASL FAYLLAR TARKIBIGA qarab xulosa qil.
+Sen tajribali Python/Flask o'qituvchisisiz. O'quvchi loyihasini PASTDAGI ASL KOD asosida baholab ber. Faqat metadata (nomi, tavsifi) bo'yicha emas — ASL FAYLLAR TARKIBIGA qarab xulosa qil. AUTHORSHIP SIGNALS bo'limini ham e'tiborga ol — fork yoki copy-paste bo'lsa ball PASAYTIRING.
 
 {_INJECTION_GUARD}
 
@@ -289,6 +354,7 @@ Sen tajribali Python/Flask o'qituvchisisiz. O'quvchi loyihasini PASTDAGI ASL KOD
 - Manba: {github_url}
 - Qiyinlik darajasi: {difficulty_level}
 {previous_info}
+{authorship_block}
 {code_block}
 
 ## JAVOB FORMATI
@@ -334,6 +400,7 @@ async def analyze_project_with_grok(
         previous_points: int = 0,
         repo_content: str = "",
         repo_summary: str = "",
+        authorship: Optional[dict] = None,
 ) -> dict:
     """Grade a student project using the configured AI provider chain.
 
@@ -346,7 +413,7 @@ async def analyze_project_with_grok(
         title=title, description=description, github_url=github_url,
         technologies=technologies, difficulty_level=difficulty_level,
         previous_points=previous_points, repo_content=repo_content,
-        repo_summary=repo_summary,
+        repo_summary=repo_summary, authorship=authorship,
     )
 
     try:

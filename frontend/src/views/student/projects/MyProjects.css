@@ -1031,6 +1031,39 @@
     line-height: 1.4;
 }
 
+/* Authorship badges row: fork / commit count / not-owner warnings */
+.mp-ai-authorship {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.mp-author-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 9px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    border: 1px solid transparent;
+    cursor: help;
+}
+.mp-author-ok {
+    background: rgba(34, 197, 94, 0.10);
+    color: #15803d;
+    border-color: rgba(34, 197, 94, 0.35);
+}
+.mp-author-warn {
+    background: rgba(249, 115, 22, 0.10);
+    color: #c2410c;
+    border-color: rgba(249, 115, 22, 0.35);
+}
+.mp-author-danger {
+    background: rgba(239, 68, 68, 0.10);
+    color: #b91c1c;
+    border-color: rgba(239, 68, 68, 0.40);
+}
+
 .mp-ai-summary {
     font-size: 13px;
     color: var(--ink);

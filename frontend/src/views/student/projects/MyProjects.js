@@ -144,6 +144,56 @@ const GRADE_TONE = {
     A: 'mp-grade-a', B: 'mp-grade-b', C: 'mp-grade-c', D: 'mp-grade-d', F: 'mp-grade-f',
 };
 
+const AuthorshipBadges = ({ authorship }) => {
+    if (!authorship || !authorship.available) return null;
+    const badges = [];
+
+    if (authorship.is_fork) {
+        badges.push({
+            key: 'fork',
+            tone: 'danger',
+            label: '⚠️ Это форк',
+            title: authorship.parent_repo
+                ? `Форк репозитория ${authorship.parent_repo} — оценка ограничена`
+                : 'Репозиторий — форк. Оценка ограничена.',
+        });
+    }
+    if (authorship.commit_count === 1) {
+        badges.push({
+            key: 'single-commit',
+            tone: 'warn',
+            label: '⚠️ 1 коммит',
+            title: 'Только один коммит — нет поэтапной работы',
+        });
+    } else if (typeof authorship.commit_count === 'number' && authorship.commit_count >= 3) {
+        badges.push({
+            key: 'commits',
+            tone: 'ok',
+            label: `✓ ${authorship.commit_count} коммитов`,
+            title: 'Несколько коммитов — видна поэтапная работа',
+        });
+    }
+    if (authorship.owner_is_contributor === false) {
+        badges.push({
+            key: 'not-owner',
+            tone: 'danger',
+            label: '⚠️ Владелец не среди авторов',
+            title: 'Коммиты сделаны не владельцем репозитория',
+        });
+    }
+
+    if (badges.length === 0) return null;
+    return (
+        <div className="mp-ai-authorship">
+            {badges.map(b => (
+                <span key={b.key} className={`mp-author-badge mp-author-${b.tone}`} title={b.title}>
+                    {b.label}
+                </span>
+            ))}
+        </div>
+    );
+};
+
 const AiReviewResult = ({ data }) => {
     if (!data) return null;
 
@@ -183,6 +233,8 @@ const AiReviewResult = ({ data }) => {
                     <span>было: {data.old_points}</span>
                 )}
             </div>
+
+            <AuthorshipBadges authorship={data.authorship} />
 
             {data.summary && <p className="mp-ai-summary">{data.summary}</p>}
 

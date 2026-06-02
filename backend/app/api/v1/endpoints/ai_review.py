@@ -144,6 +144,7 @@ async def ai_review(
         difficulty_level=str(project.difficulty_level or "Easy"),
         repo_content=snapshot["content_text"],
         repo_summary=repo_summary,
+        authorship=snapshot.get("authorship"),
     )
 
     # AI call failed (network, malformed JSON, etc.) — surface as 502.
@@ -174,6 +175,20 @@ async def ai_review(
 
     await db.commit()
 
+    # Surface authorship signals to the frontend so it can show a "Fork
+    # detected" / "Single commit" badge alongside the grade. Keep the
+    # shape stable — null is fine when git history wasn't available
+    # (ZIP uploads, private repos, fetch failures).
+    authorship = snapshot.get("authorship") or {}
+    authorship_summary = {
+        "available": authorship.get("available", False),
+        "is_fork": authorship.get("is_fork", False),
+        "parent_repo": authorship.get("parent_repo"),
+        "commit_count": authorship.get("commit_count"),
+        "unique_authors": authorship.get("unique_authors"),
+        "owner_is_contributor": authorship.get("owner_is_contributor"),
+    }
+
     return {
         "message": "AI baholash yakunlandi!",
         "project_id": project_id,
@@ -184,5 +199,6 @@ async def ai_review(
             0, settings.MAX_AI_REVIEWS_PER_DAY - used_today - 1
         ),
         "files_reviewed": snapshot["files_included"],
+        "authorship": authorship_summary,
         **{k: v for k, v in review.items() if k != "error"},
     }
