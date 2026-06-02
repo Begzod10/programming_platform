@@ -175,6 +175,19 @@ async def _add_points(db: AsyncSession, student_id: int, points: int) -> int:
     return student.total_points if student else 0
 
 
+async def _subtract_points(db: AsyncSession, student_id: int, points: int) -> int:
+    if not points or points <= 0:
+        return 0
+    from app.services.ranking_service import RankingService
+    service = RankingService(db)
+    student = await service.subtract_points_from_student(student_id, points)
+    return student.total_points if student else 0
+
+
+# Minimum project score (0-100) to unlock the next lesson.
+PROJECT_PASS_THRESHOLD = 90
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  LESSON CRUD
 # ─────────────────────────────────────────────────────────────────────────────
@@ -431,8 +444,78 @@ async def submit_lesson_project(
             Submission.student_id == current_student.id
         )
     )
-    if existing_res.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Bu dars allaqachon topshirilgan")
+    existing_sub = existing_res.scalar_one_or_none()
+
+    # Re-submission path: an existing submission may be replaced ONLY if the
+    # teacher reviewed it and the result is failing — Rejected outright, or
+    # Approved with a score below PROJECT_PASS_THRESHOLD. Pending and passing
+    # submissions stay locked.
+    if existing_sub is not None:
+        proj_res = await db.execute(
+            select(Project).where(Project.id == existing_sub.project_id)
+        )
+        existing_project = proj_res.scalar_one_or_none()
+        proj_status = existing_project.status if existing_project else existing_sub.status
+        prev_points = existing_project.points_earned if existing_project else 0
+        can_resubmit = (
+            existing_project is not None
+            and (
+                proj_status == "Rejected"
+                or (proj_status == "Approved" and prev_points < PROJECT_PASS_THRESHOLD)
+            )
+        )
+        if not can_resubmit:
+            if proj_status == "Submitted":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Loyihangiz hali tekshirilmoqda — natijani kuting"
+                )
+            raise HTTPException(status_code=400, detail="Bu dars allaqachon topshirilgan")
+
+        # Reverse any points awarded by the previous review so re-review
+        # doesn't double-count when the teacher scores the new attempt.
+        if prev_points > 0:
+            await _subtract_points(db, current_student.id, prev_points)
+
+        existing_project.status = "Submitted"
+        existing_project.points_earned = 0
+        existing_project.grade = None
+        existing_project.instructor_feedback = None
+        existing_project.reviewed_at = None
+        existing_project.github_url = data.github_url
+        existing_project.live_demo_url = data.live_demo_url
+        existing_project.description = (
+            data.description or lesson.task_description or "Dars loyihasi"
+        )
+
+        existing_sub.status = "Submitted"
+        existing_sub.points_earned = 0
+        existing_sub.grade = None
+        existing_sub.instructor_feedback = None
+        existing_sub.reviewed_at = None
+        existing_sub.github_url = data.github_url
+        existing_sub.live_demo_url = data.live_demo_url
+        existing_sub.description = data.description
+
+        await db.commit()
+
+        student_res = await db.execute(
+            select(Student).where(Student.id == current_student.id)
+        )
+        student = student_res.scalar_one_or_none()
+        progress = await _calc_course_progress(db, course_id, current_student.id)
+
+        return {
+            "message": "Loyiha qayta topshirildi — o'qituvchi tekshirishini kuting",
+            "submission_id": existing_sub.id,
+            "project_id": existing_project.id,
+            "resubmitted": True,
+            **progress,
+            "points_earned": 0,
+            "total_points": student.total_points if student else 0,
+            "certificate_issued": False,
+            "certificate_id": None,
+        }
 
     new_project = Project(
         student_id=current_student.id,
@@ -523,14 +606,36 @@ async def get_lesson_submission(
     submission = result.scalar_one_or_none()
 
     if not submission:
-        return {"submitted": False}
+        return {"submitted": False, "pass_threshold": PROJECT_PASS_THRESHOLD}
+
+    # The teacher's review writes to the Project row, not the Submission row,
+    # so we join through to get the authoritative score and feedback.
+    proj_res = await db.execute(
+        select(Project).where(Project.id == submission.project_id)
+    )
+    project = proj_res.scalar_one_or_none()
+
+    proj_status = project.status if project else submission.status
+    points_earned = project.points_earned if project else 0
+    grade = project.grade if project else None
+    feedback = project.instructor_feedback if project else None
+    reviewed = proj_status in ("Approved", "Rejected")
+    passed = proj_status == "Approved" and points_earned >= PROJECT_PASS_THRESHOLD
+    can_resubmit = reviewed and not passed
 
     return {
         "submitted": True,
         "submission_id": submission.id,
         "project_id": submission.project_id,
-        "status": submission.status,
+        "status": proj_status,
         "github_url": submission.github_url,
         "live_demo_url": submission.live_demo_url,
         "description": submission.description,
+        "points_earned": points_earned,
+        "grade": grade,
+        "instructor_feedback": feedback,
+        "reviewed": reviewed,
+        "passed": passed,
+        "can_resubmit": can_resubmit,
+        "pass_threshold": PROJECT_PASS_THRESHOLD,
     }

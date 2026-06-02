@@ -1,4 +1,4 @@
-import React, {useState, useRef, useCallback} from 'react';
+import React, {useState, useRef, useCallback, useEffect} from 'react';
 import ReactDOM from 'react-dom';
 import './StudentLessonPage.css';
 import {SECTION_TYPES, getYTId} from '../../../../constants/courseUtils';
@@ -487,9 +487,10 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [projectModal, setProjectModal] = useState(false);
     const [exitModal, setExitModal] = useState(false);
     const [projectForm, setProjectForm] = useState({github_url: '', live_demo_url: '', description: ''});
-    const [projectDone, setProjectDone] = useState(
-        () => localStorage.getItem(`project_done_lesson_${lesson.id}`) === 'true'
-    );
+    // Submission status loaded from backend. Replaces the old localStorage flag.
+    // Shape: {submitted, status, points_earned, grade, feedback, passed, can_resubmit, pass_threshold}
+    const [projectSubmission, setProjectSubmission] = useState(null);
+    const [projectStatusLoading, setProjectStatusLoading] = useState(false);
     const [projectSaving, setProjectSaving] = useState(false);
     const [projectError, setProjectError] = useState('');
     const [downloadingFile, setDownloadingFile] = useState(null);
@@ -526,8 +527,54 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const prevLesson = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
     const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
     const projectSection = lesson.sections?.find(s => s.type === 'project');
+
+    // Project submission states derived from backend truth.
+    // notSubmitted → no submission exists; submit allowed.
+    // pendingReview → submitted, awaiting review; next locked.
+    // reviewedPassing → reviewed AND score ≥ threshold; next unlocked.
+    // reviewedFailing → reviewed AND score < threshold OR rejected; can resubmit.
+    const passThreshold = projectSubmission?.pass_threshold ?? 90;
+    const projectDone = !!projectSubmission?.passed;
+    const projectPending = !!projectSubmission?.submitted && !projectSubmission?.reviewed;
+    const projectFailed = !!projectSubmission?.reviewed && !projectSubmission?.passed;
+    const projectScore = projectSubmission?.points_earned ?? 0;
     const nextBlocked = !!projectSection && !projectDone;
     const isDone = lesson.completed || justCompleted;
+
+    // Fetch authoritative project status whenever the lesson changes.
+    // Skipped for lessons without a project section to avoid wasted calls.
+    useEffect(() => {
+        if (!projectSection || !course?.id || !lesson?.id) {
+            setProjectSubmission(null);
+            return;
+        }
+        let cancelled = false;
+        setProjectStatusLoading(true);
+        request(
+            `${API_URL}v1/courses/${course.id}/lessons/${lesson.id}/submission`,
+            'GET',
+            null,
+            headers(),
+        )
+            .then(res => {
+                if (cancelled || !res) return;
+                setProjectSubmission(res);
+                // Pre-fill form with prior submission so re-submitters see their last entry.
+                if (res.submitted) {
+                    setProjectForm(f => ({
+                        ...f,
+                        github_url: res.github_url || '',
+                        live_demo_url: res.live_demo_url || '',
+                        description: res.description || '',
+                    }));
+                }
+            })
+            .catch(() => {
+                if (!cancelled) setProjectSubmission({submitted: false, pass_threshold: 90});
+            })
+            .finally(() => { if (!cancelled) setProjectStatusLoading(false); });
+        return () => { cancelled = true; };
+    }, [projectSection, course?.id, lesson?.id, request]);
 
     const totalSections = (lesson.sections || []).filter(s => s.type !== 'project').length;
 
@@ -642,6 +689,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                     technologies_used: techList,
                     difficulty_level: 'Easy',
                     project_files: '',
+                    // Lesson-scoped: backend will create/replace a Submission
+                    // row linking this project to the lesson, enforce re-submission
+                    // rules (block pending/passed), and subtract previous points
+                    // when replacing a failed attempt.
+                    lesson_id: lesson.id,
                 }),
                 headers()
             );
@@ -666,8 +718,15 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 await request(`${API_URL}v1/project/${created.id}/submit`, 'POST', null, headers());
             }
 
-            localStorage.setItem(`project_done_lesson_${lesson.id}`, 'true');
-            setProjectDone(true);
+            // Re-fetch authoritative status (status, points_earned, passed)
+            // after submit — AI auto-review may have already graded it.
+            try {
+                const fresh = await request(
+                    `${API_URL}v1/courses/${course.id}/lessons/${lesson.id}/submission`,
+                    'GET', null, headers(),
+                );
+                if (fresh) setProjectSubmission(fresh);
+            } catch { /* fall through — UI will refetch on next mount */ }
             setProjectModal(false);
 
             if (!lesson.completed) {
@@ -739,7 +798,12 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                         <button className="slp-nav-btn"
                                 onClick={() => !nextBlocked && nextLesson && onNavigate(nextLesson)}
                                 disabled={!nextLesson || nextBlocked}
-                                title={nextBlocked ? 'Сначала сдайте проект' : ''}>
+                                title={
+                                    !nextBlocked ? ''
+                                    : projectPending ? 'Ожидание проверки проекта'
+                                    : projectFailed ? `Нужно ${passThreshold}/100 (сейчас ${projectScore})`
+                                    : 'Сначала сдайте проект'
+                                }>
                             След. →
                         </button>
                     </div>
@@ -880,7 +944,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                     )}
 
                                     {section.type === 'project' && (
-                                        <div className={`slp-project-task ${projectDone ? 'done' : ''}`}>
+                                        <div className={`slp-project-task ${projectDone ? 'done' : ''} ${projectFailed ? 'failed' : ''} ${projectPending ? 'pending' : ''}`}>
                                             <div className="slp-project-top">
                                                 <div className="slp-project-icon-wrap">🚀</div>
                                                 <div className="slp-project-info">
@@ -888,7 +952,26 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                     {section.description &&
                                                         <p className="slp-project-desc">{section.description}</p>}
                                                 </div>
-                                                {projectDone && <span className="slp-project-check">✅ Сдано</span>}
+                                                {projectDone && (
+                                                    <span className="slp-project-check" style={{background: '#16a34a', color: '#fff', padding: '6px 14px', borderRadius: 999, fontWeight: 600}}>
+                                                        🏆 {projectScore}/100 — Сдано
+                                                    </span>
+                                                )}
+                                                {projectPending && (
+                                                    <span className="slp-project-check" style={{background: '#fbbf24', color: '#451a03', padding: '6px 14px', borderRadius: 999, fontWeight: 600}}>
+                                                        🕐 На проверке
+                                                    </span>
+                                                )}
+                                                {projectFailed && (
+                                                    <span className="slp-project-check" style={{
+                                                        background: projectScore >= 70 ? '#f59e0b' : '#dc2626',
+                                                        color: '#fff', padding: '6px 14px', borderRadius: 999, fontWeight: 600
+                                                    }}>
+                                                        {projectSubmission?.status === 'Rejected'
+                                                            ? '✗ Отклонено'
+                                                            : `📊 ${projectScore}/100`}
+                                                    </span>
+                                                )}
                                             </div>
 
                                             {section.requirements && (
@@ -915,17 +998,42 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                 </div>
                                             )}
 
-                                            {!projectDone ? (
+                                            {/* Reviewer feedback (passing or failing) */}
+                                            {projectSubmission?.reviewed && projectSubmission?.instructor_feedback && (
+                                                <div className="slp-project-reqs" style={{marginTop: 12, borderLeft: `3px solid ${projectDone ? '#16a34a' : '#dc2626'}`, paddingLeft: 12}}>
+                                                    <div className="slp-reqs-title">💬 Отзыв преподавателя {projectSubmission?.grade ? `(${projectSubmission.grade})` : ''}</div>
+                                                    <div className="slp-reqs-text">{projectSubmission.instructor_feedback}</div>
+                                                </div>
+                                            )}
+
+                                            {/* Action area */}
+                                            {projectStatusLoading ? (
+                                                <div className="slp-project-deadline" style={{opacity: 0.6}}>Загрузка статуса...</div>
+                                            ) : projectFailed ? (
+                                                <>
+                                                    <div className="slp-project-deadline" style={{background: '#fef2f2', color: '#991b1b', borderLeft: '3px solid #dc2626', padding: '8px 12px'}}>
+                                                        ⚠️ Чтобы перейти к следующему уроку, нужно набрать минимум <strong>{passThreshold}/100</strong>. Загрузите проект заново.
+                                                    </div>
+                                                    <button className="slp-project-btn" onClick={() => setProjectModal(true)} style={{marginTop: 8}}>
+                                                        🔄 Загрузить заново
+                                                    </button>
+                                                </>
+                                            ) : projectPending ? (
+                                                <div className="slp-project-submitted">
+                                                    <span>🕐</span>
+                                                    <span>Ожидание проверки преподавателя</span>
+                                                </div>
+                                            ) : projectDone ? (
+                                                <div className="slp-project-submitted">
+                                                    <span>🔗</span>
+                                                    {projectSubmission?.github_url
+                                                        ? <a href={projectSubmission.github_url} target="_blank" rel="noreferrer">{projectSubmission.github_url}</a>
+                                                        : <span>Проект сдан</span>}
+                                                </div>
+                                            ) : (
                                                 <button className="slp-project-btn" onClick={() => setProjectModal(true)}>
                                                     📤 Загрузить проект
                                                 </button>
-                                            ) : (
-                                                <div className="slp-project-submitted">
-                                                    <span>🔗</span>
-                                                    <a href={projectForm.github_url} target="_blank" rel="noreferrer">
-                                                        {projectForm.github_url || 'Проект сдан'}
-                                                    </a>
-                                                </div>
                                             )}
                                         </div>
                                     )}
@@ -942,7 +1050,13 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                     ← Предыдущий урок
                 </button>
                 {nextBlocked ? (
-                    <div className="slp-next-locked">🔒 Сначала сдайте проект</div>
+                    <div className="slp-next-locked">
+                        {projectPending
+                            ? '🔒 Ожидание проверки проекта'
+                            : projectFailed
+                                ? `🔒 Нужно набрать ${passThreshold}/100 — текущий ${projectScore}`
+                                : '🔒 Сначала сдайте проект'}
+                    </div>
                 ) : isDone && nextLesson ? (
                     <button className="slp-bottom-btn next primary" onClick={() => onNavigate(nextLesson)}>
                         Следующий урок →

@@ -10,10 +10,16 @@ from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 
 from app.models.project import Project
+from app.models.submission import Submission
 from app.models.user import Student
 from app.schemas.project import ProjectCreate, ProjectUpdate
 
 logger = logging.getLogger(__name__)
+
+
+# Minimum project score (0-100) to consider a submission "passing".
+# Mirrors PROJECT_PASS_THRESHOLD in app/api/v1/endpoints/lessons.py.
+PROJECT_PASS_THRESHOLD = 90
 
 
 class ProjectService:
@@ -22,17 +28,76 @@ class ProjectService:
 
     async def create_project(self, student_id: int, data: ProjectCreate) -> Project:
         data_dict = data.dict()
-        
+        lesson_id = data_dict.pop("lesson_id", None)
+
         techs = data_dict.get("technologies_used")
         if techs is not None:
             if isinstance(techs, list):
                 data_dict["technologies_used"] = ",".join(techs)
-        
+
         if "difficulty_level" in data_dict and hasattr(data_dict["difficulty_level"], "value"):
             data_dict["difficulty_level"] = data_dict["difficulty_level"].value
-            
+
+        # Lesson-scoped path: enforce re-submission rules. Pending and passing
+        # submissions are locked; failed/rejected ones are replaced.
+        existing_sub = None
+        if lesson_id is not None:
+            sub_res = await self.db.execute(
+                select(Submission).where(
+                    Submission.lesson_id == lesson_id,
+                    Submission.student_id == student_id,
+                )
+            )
+            existing_sub = sub_res.scalar_one_or_none()
+            if existing_sub is not None:
+                old_proj_res = await self.db.execute(
+                    select(Project).where(Project.id == existing_sub.project_id)
+                )
+                old_project = old_proj_res.scalar_one_or_none()
+                old_status = old_project.status if old_project else existing_sub.status
+                old_points = old_project.points_earned if old_project else 0
+
+                if old_status == "Submitted":
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Loyihangiz hali tekshirilmoqda — natijani kuting",
+                    )
+                if old_status == "Approved" and old_points >= PROJECT_PASS_THRESHOLD:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Bu dars allaqachon muvaffaqiyatli topshirilgan",
+                    )
+
+                # Resubmit: reverse the previously awarded points before
+                # replacing the project so the next review doesn't double-count.
+                if old_points > 0:
+                    from app.services.ranking_service import RankingService
+                    await RankingService(self.db).subtract_points_from_student(
+                        student_id, old_points
+                    )
+
+                # Drop the old submission first (its FK points at the old
+                # project, which we're about to delete).
+                await self.db.delete(existing_sub)
+                if old_project is not None:
+                    await self.db.delete(old_project)
+                await self.db.flush()
+
         new_project = Project(**data_dict, student_id=student_id)
         self.db.add(new_project)
+        await self.db.flush()
+
+        if lesson_id is not None:
+            self.db.add(Submission(
+                lesson_id=lesson_id,
+                student_id=student_id,
+                project_id=new_project.id,
+                status=new_project.status,
+                github_url=new_project.github_url,
+                live_demo_url=new_project.live_demo_url,
+                description=new_project.description,
+            ))
+
         await self.db.commit()
         await self.db.refresh(new_project)
         return new_project

@@ -84,6 +84,10 @@ class ProjectBase(BaseModel):
 
 class ProjectCreate(ProjectBase):
     project_files: Optional[str] = None
+    # When set, the project is created as a lesson submission. The service
+    # creates a Submission row linking this project to the lesson, and enforces
+    # the re-submission rules (cannot re-submit while pending or after passing).
+    lesson_id: Optional[int] = None
 
 
 # --- Update
@@ -177,6 +181,6 @@ class ProjectReview(BaseModel):
     @field_validator("points_earned", mode="before")
     @classmethod
     def validate_points(cls, v: int) -> int:
-        if v < 0 or v > 100:
+        if v is None or v < 0 or v > 100:
             raise ValueError("Ball 0 dan 100 gacha bo'lishi kerak")
-        return
+        return v

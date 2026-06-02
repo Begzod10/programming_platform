@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status, Query, HTTPException, Body
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from app.models.project import Project
 from app.models.lesson import Lesson
@@ -135,7 +135,7 @@ async def like_project(
 class ReviewProjectRequest(BaseModel):
     feedback: str
     grade: str
-    points: int
+    points: int = Field(..., ge=0, le=100, description="Ball 0 dan 100 gacha")
 
 
 @router.post("/{project_id}/review")
