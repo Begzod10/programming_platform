@@ -28,20 +28,43 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     APP_VERSION: str = "1.0.0"
     GENNIS_API_URL: str = "https://admin.gennis.uz/api"
-    # OpenAI (active provider). Set OPENAI_API_KEY in .env.
-    # OPENAI_BASE_URL lets you point at a relay (e.g. a Cloudflare Worker)
-    # without the geo-blocks OpenAI applies to api.openai.com directly.
-    # If empty, falls back to OPENAI_API_URL.
+    # ─── AI providers ────────────────────────────────────────────────────
+    # AI calls iterate through this chain in order, using the first provider
+    # whose API key is set and whose call succeeds. Cheaper/faster providers
+    # come first; OpenAI is the high-quality fallback.
+    # Comma-separated; valid values: "groq", "gemini", "openai".
+    AI_PROVIDER_CHAIN: str = "groq,gemini,openai"
+
+    # OpenAI. OPENAI_BASE_URL lets you point at a relay (e.g. a Cloudflare
+    # Worker) to bypass the geo-blocks OpenAI applies to api.openai.com
+    # directly. If empty, falls back to OPENAI_API_URL.
     OPENAI_BASE_URL: str = ""
     OPENAI_API_URL: str = "https://api.openai.com/v1/chat/completions"
     OPENAI_API_KEY: str = ""
-    OPENAI_MODEL: str = "gpt-4o-mini"
+    OPENAI_MODEL: str = "gpt-4.1-mini"
+
+    # Google Gemini (v1beta generateContent endpoint). Auth is via ?key=...
+    # query param, not a Bearer header. Free tier supports gemini-2.5-flash.
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    GEMINI_API_URL: str = "https://generativelanguage.googleapis.com/v1beta/models"
 
     @property
     def openai_chat_url(self) -> str:
         if self.OPENAI_BASE_URL:
             return f"{self.OPENAI_BASE_URL.rstrip('/')}/chat/completions"
         return self.OPENAI_API_URL
+
+    @property
+    def ai_provider_chain_list(self) -> list[str]:
+        seen: set[str] = set()
+        out: list[str] = []
+        for raw in self.AI_PROVIDER_CHAIN.split(","):
+            name = raw.strip().lower()
+            if name and name not in seen:
+                seen.add(name)
+                out.append(name)
+        return out
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -58,8 +81,10 @@ class Settings(BaseSettings):
                 pass
         return [o.strip() for o in raw.split(",") if o.strip()]
 
-    # Legacy Groq Cloud settings kept so existing .env entries don't trip
-    # validation. Services now call OpenAI; remove later once .env is cleaned.
+    # Groq Cloud (OpenAI-compatible endpoint). First in the default provider
+    # chain — free tier is generous (~30 req/min) and llama-3.3-70b returns
+    # solid JSON-mode output for the grading task. Env var names are kept
+    # as GROK_* (not GROQ_*) so existing .env files don't break.
     GROK_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
     GROK_API_KEY: str = ""
     GROK_MODEL: str = "llama-3.3-70b-versatile"
