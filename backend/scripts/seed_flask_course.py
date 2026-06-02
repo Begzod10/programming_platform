@@ -992,6 +992,694 @@ if __name__ == '__main__':
 #   }
 """
 
+
+# ═════════════════════════════════════════════════════════════════════════════
+# REVISION LESSONS — module checkpoints with mini-projects
+# Each consolidates the preceding module and unlocks via a project ≥ 90/100.
+# ═════════════════════════════════════════════════════════════════════════════
+
+R1_TEXT = """\
+<h2>Takrorlash: Modul 1 + 2 — Routes, Templates, Forms, Session</h2>
+<p>Tabriklaymiz! Siz allaqachon 6 ta darsni o'tdingiz. Bu — Flask asoslarining yarmi. Endi to'xtab, hammasini birlashtirib mustahkamlash vaqti keldi. Bu dars yangi mavzu emas — bu sizning egallagan bilimlaringizni <strong>birgalikda</strong> ishlatishni o'rgatadi.</p>
+
+<h3>📋 Modul 1+2 da nimalarni o'rgangansiz</h3>
+<table style="border-collapse:collapse;width:100%;margin:1em 0">
+  <thead>
+    <tr style="background:#f3f4f6">
+      <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">Dars</th>
+      <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">Asosiy konsept</th>
+      <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">Kalit kod</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">1</td><td style="padding:8px;border:1px solid #e5e7eb">Flask ilovasini ishga tushirish</td><td style="padding:8px;border:1px solid #e5e7eb"><code>app = Flask(__name__)</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">2</td><td style="padding:8px;border:1px solid #e5e7eb">Routing va URL parametrlari</td><td style="padding:8px;border:1px solid #e5e7eb"><code>@app.route('/u/&lt;name&gt;')</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">3</td><td style="padding:8px;border:1px solid #e5e7eb">Jinja2 templatelar</td><td style="padding:8px;border:1px solid #e5e7eb"><code>render_template('x.html', user=u)</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">4</td><td style="padding:8px;border:1px solid #e5e7eb">Static fayllar + GET forma</td><td style="padding:8px;border:1px solid #e5e7eb"><code>request.args.get('q')</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">5</td><td style="padding:8px;border:1px solid #e5e7eb">POST forma va PRG pattern</td><td style="padding:8px;border:1px solid #e5e7eb"><code>request.form['x']</code> → <code>redirect(url_for(...))</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">6</td><td style="padding:8px;border:1px solid #e5e7eb">Session va cookies</td><td style="padding:8px;border:1px solid #e5e7eb"><code>session['user_id'] = id</code></td></tr>
+  </tbody>
+</table>
+
+<h3>🧩 Hammasini birlashtirish — odatiy ilova oqimi</h3>
+<p>Real veb-ilovada bu 6 ta konsept har doim birga ishlaydi. Foydalanuvchining bitta oddiy harakatini (login qilib, biror narsa yuborish) kuzatib chiqamiz:</p>
+<ol>
+  <li><strong>GET /login</strong> → <code>@app.route('/login', methods=['GET'])</code> → <code>render_template('login.html')</code> orqali forma chiqaradi</li>
+  <li><strong>POST /login</strong> → <code>request.form['username']</code> → tekshirib <code>session['username'] = ...</code> → <code>redirect(url_for('home'))</code></li>
+  <li><strong>GET /</strong> → <code>session.get('username')</code> bor-yo'qligini tekshiradi → <code>render_template('home.html', user=session['username'])</code></li>
+  <li><strong>POST /post</strong> → forma ma'lumotlari + <code>session['username']</code> birgalikda saqlanadi → redirect</li>
+  <li><strong>GET /logout</strong> → <code>session.clear()</code> → <code>redirect(url_for('login'))</code></li>
+</ol>
+
+<h3>⚠️ Modul 1+2 da eng ko'p uchraydigan xatolar</h3>
+<ul>
+  <li><strong>methods'ni unutish</strong>: <code>@app.route('/login')</code> faqat GET ni qabul qiladi. POST uchun <code>methods=['GET', 'POST']</code> kerak.</li>
+  <li><strong>POST'dan keyin redirect qilmaslik</strong>: foydalanuvchi sahifani refresh qilsa, forma qayta yuboriladi. Doim PRG pattern (POST → Redirect → GET).</li>
+  <li><strong>session'ni SECRET_KEY'siz ishlatish</strong>: <code>app.secret_key = '...'</code> bo'lmasa, session umuman ishlamaydi.</li>
+  <li><strong>session.get vs session[]</strong>: <code>session['username']</code> agar yo'q bo'lsa KeyError beradi. Xavfsiz tekshirish: <code>session.get('username')</code>.</li>
+  <li><strong>Jinja2 da Python ishlamaydi</strong>: <code>{{ items.length }}</code> emas, balki <code>{{ items|length }}</code> (filter) yoki <code>{{ items|count }}</code>.</li>
+  <li><strong>url_for() ni hardcode bilan almashtirish</strong>: HTML da <code>&lt;a href="/login"&gt;</code> emas, <code>&lt;a href="{{ url_for('login') }}"&gt;</code> — keyin route nomi o'zgarsa, linklar buzilmaydi.</li>
+</ul>
+
+<h3>🎯 Endi navbat sizda</h3>
+<p>Pastdagi kod — to'liq ishlaydigan <strong>Mehmonlar kitobi</strong> ilovasi. U bu modulning 4 ta asosiy konseptini birga ishlatadi: routing, templates, forms, session. Birinchi navbatda kodni o'qib chiqing, keyin uni o'zingiz qaytadan yozing (copy-paste qilmang!). Keyin loyihani bajaring.</p>
+"""
+
+R1_CODE = """\
+# app.py — to'liq ishlaydigan Mehmonlar kitobi (guest book)
+# 6 darsdan oldin o'rganganlaringiz birga ishlaydi.
+from flask import Flask, render_template_string, request, redirect, url_for, session, flash
+from datetime import datetime
+
+app = Flask(__name__)
+app.secret_key = 'maxfiy-kalit-prod-uchun-environment-dan-o\\'qing'  # 6-dars: session uchun
+
+# Oddiy xotira (database emas — keyingi darsda o'rganamiz)
+ENTRIES = []  # [{'author': str, 'text': str, 'time': datetime}]
+
+
+# ─── 2-dars: Routing ─────────────────────────────────────────────
+@app.route('/')
+def index():
+    # 6-dars: session'dan kim kirganini bilamiz
+    user = session.get('username')
+    # 3-dars: Jinja2 bilan render qilish, 5-dars: flash xabarlar
+    return render_template_string(INDEX_HTML, entries=ENTRIES, user=user)
+
+
+# ─── 5-dars: GET + POST forma ────────────────────────────────────
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        # 5-dars: server-side validation
+        if len(username) < 2:
+            flash('Ism kamida 2 ta belgidan iborat bo\\'lishi kerak', 'error')
+            return redirect(url_for('login'))  # PRG pattern
+        session['username'] = username  # 6-dars: session'ga yozish
+        flash(f'Xush kelibsiz, {username}!', 'success')
+        return redirect(url_for('index'))
+    return render_template_string(LOGIN_HTML)
+
+
+# ─── 5-dars: POST-only endpoint + 6-dars: session tekshiruv ────
+@app.route('/post', methods=['POST'])
+def post():
+    user = session.get('username')
+    if not user:
+        flash('Avval ro\\'yxatdan o\\'ting', 'error')
+        return redirect(url_for('login'))
+    text = request.form.get('text', '').strip()
+    if not text:
+        flash('Xabar bo\\'sh bo\\'lishi mumkin emas', 'error')
+        return redirect(url_for('index'))
+    ENTRIES.insert(0, {  # yangi xabarlar yuqorida
+        'author': user,
+        'text': text,
+        'time': datetime.now().strftime('%H:%M %d-%b'),
+    })
+    return redirect(url_for('index'))  # PRG pattern
+
+
+# ─── 6-dars: session'ni tozalash ─────────────────────────────────
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Xayr! Yana keling.', 'success')
+    return redirect(url_for('index'))
+
+
+# ─── 3-dars: Jinja2 templatelar (oddiylik uchun string ichida) ──
+INDEX_HTML = '''
+<!DOCTYPE html>
+<html><head><title>Mehmonlar kitobi</title></head><body>
+  <h1>📖 Mehmonlar kitobi</h1>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, msg in messages %}
+      <div style="color: {{ 'red' if category == 'error' else 'green' }}">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+  {% if user %}
+    <p>Salom, <strong>{{ user }}</strong>! (<a href="{{ url_for('logout') }}">Chiqish</a>)</p>
+    <form method="post" action="{{ url_for('post') }}">
+      <input name="text" placeholder="Sizning xabaringiz..." required>
+      <button type="submit">Yuborish</button>
+    </form>
+  {% else %}
+    <p><a href="{{ url_for('login') }}">Xabar yozish uchun ro'yxatdan o'ting</a></p>
+  {% endif %}
+  <hr>
+  {% if entries %}
+    {% for e in entries %}
+      <div style="margin: 1em 0; padding: 0.5em; background: #f0f0f0">
+        <strong>{{ e.author }}</strong> <small>· {{ e.time }}</small><br>
+        {{ e.text }}
+      </div>
+    {% endfor %}
+  {% else %}
+    <p style="color: gray">Hali xabarlar yo'q. Birinchi bo'lib yozing!</p>
+  {% endif %}
+</body></html>
+'''
+
+LOGIN_HTML = '''
+<!DOCTYPE html>
+<html><head><title>Login</title></head><body>
+  <h1>Ro'yxatdan o'tish</h1>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, msg in messages %}
+      <div style="color: red">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+  <form method="post">
+    <input name="username" placeholder="Ismingiz" required minlength="2">
+    <button type="submit">Kirish</button>
+  </form>
+  <p><a href="{{ url_for('index') }}">← Ortga</a></p>
+</body></html>
+'''
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
+"""
+
+
+R2_TEXT = """\
+<h2>Takrorlash: Modul 3 — Database va CRUD</h2>
+<p>Modul 3 da siz Flask-SQLAlchemy bilan ishlash, ma'lumotlarni saqlash va o'qish (Read), yangilash (Update), o'chirish (Delete) — ya'ni to'liq <strong>CRUD</strong> ni o'rgandingiz. Endi vaqt keldi — hammasini birlashtirib, har bir foydalanuvchining o'z shaxsiy yozuvlari bo'lgan to'liq ilovasini quramiz.</p>
+
+<h3>📋 Modul 3 da nimalarni o'rgangansiz</h3>
+<table style="border-collapse:collapse;width:100%;margin:1em 0">
+  <thead>
+    <tr style="background:#f3f4f6">
+      <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">Konsept</th>
+      <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">SQLAlchemy kod</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">Model yaratish</td><td style="padding:8px;border:1px solid #e5e7eb"><code>class Note(db.Model): ...</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">Yangi yozuv</td><td style="padding:8px;border:1px solid #e5e7eb"><code>db.session.add(n); db.session.commit()</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">Hammasini olish</td><td style="padding:8px;border:1px solid #e5e7eb"><code>Note.query.all()</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">Bittasini ID bo'yicha</td><td style="padding:8px;border:1px solid #e5e7eb"><code>Note.query.get_or_404(id)</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">Filtrlash</td><td style="padding:8px;border:1px solid #e5e7eb"><code>Note.query.filter_by(user_id=u).all()</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">Tartiblash</td><td style="padding:8px;border:1px solid #e5e7eb"><code>Note.query.order_by(Note.created_at.desc())</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">Yangilash</td><td style="padding:8px;border:1px solid #e5e7eb"><code>n.title = 'yangi'; db.session.commit()</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">O'chirish</td><td style="padding:8px;border:1px solid #e5e7eb"><code>db.session.delete(n); db.session.commit()</code></td></tr>
+  </tbody>
+</table>
+
+<h3>🧩 Modul 2 + 3 = real ilova</h3>
+<p>Modul 2 da o'rgangan <strong>session</strong>'ni Modul 3 dagi <strong>database</strong> bilan birlashtirsak — har bir foydalanuvchining o'z ma'lumotlari bo'ladi. Bu zamonaviy veb-ilovaning eng asosiy nuqtasi.</p>
+
+<h3>👥 User + Note: ikkita jadval orasidagi bog'lanish</h3>
+<p>Real ilovalarda bitta foydalanuvchining ko'p notalari bo'ladi. Buni <strong>one-to-many</strong> munosabat deyiladi va SQLAlchemy'da <code>ForeignKey</code> bilan ifodalanadi:</p>
+<pre><code>class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    notes = db.relationship('Note', backref='owner', lazy=True)  # bu foydalanuvchining barcha notalari
+
+class Note(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)  # qaysi foydalanuvchiniki
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)</code></pre>
+<p>Endi siz <code>user.notes</code> bilan foydalanuvchining barcha notalarini olishingiz mumkin, yoki <code>note.owner</code> bilan notaning egasini bilib olishingiz mumkin.</p>
+
+<h3>🔐 Login + filtrlash = xavfsizlik</h3>
+<p>Eng muhim qoida: <strong>foydalanuvchi faqat o'z notalarini ko'rishi va o'zgartirishi kerak</strong>. Buni quyidagi pattern bilan ta'minlaymiz:</p>
+<pre><code>@app.route('/notes')
+def list_notes():
+    user_id = session.get('user_id')
+    if not user_id:
+        return redirect(url_for('login'))
+    # FAQAT shu foydalanuvchining notalarini olamiz
+    notes = Note.query.filter_by(user_id=user_id).order_by(Note.created_at.desc()).all()
+    return render_template('notes.html', notes=notes)
+
+@app.route('/notes/&lt;int:note_id&gt;/edit', methods=['GET', 'POST'])
+def edit_note(note_id):
+    user_id = session.get('user_id')
+    note = Note.query.get_or_404(note_id)
+    # MUHIM: notaning egasi shu foydalanuvchi ekanligini tekshiramiz
+    if note.user_id != user_id:
+        return 'Ruxsat yo\\'q', 403
+    # ... edit logic ...
+</code></pre>
+
+<h3>⚠️ Modul 3 da eng xavfli xatolar</h3>
+<ul>
+  <li><strong>commit() ni unutish</strong>: <code>db.session.add(n)</code> dan keyin <code>db.session.commit()</code> chaqirilmasa, hech narsa saqlanmaydi.</li>
+  <li><strong>Foydalanuvchini tekshirmaslik</strong>: <code>Note.query.get(id)</code> har qanday notani qaytaradi — boshqa foydalanuvchiniki ham. Doim <code>note.user_id != session['user_id']</code> ni tekshiring.</li>
+  <li><strong>get() vs get_or_404()</strong>: <code>get(id)</code> mavjud bo'lmasa <code>None</code> qaytaradi, keyin AttributeError beradi. Yaxshisi <code>get_or_404(id)</code> — avtomatik 404 chiqaradi.</li>
+  <li><strong>created_at ga default qo'ymaslik</strong>: <code>default=datetime.utcnow</code> — qavslarsiz! Aks holda barcha notalar bir xil vaqt bilan saqlanadi.</li>
+  <li><strong>Parolni ochiq saqlash</strong>: bu darsda biz parolni hash qilmayapmiz (Medium kursida o'rgansiz), lekin haqiqiy ilovada hech qachon ochiq parol saqlamang.</li>
+</ul>
+
+<h3>🎯 Endi navbat sizda</h3>
+<p>Pastdagi kod — to'liq ishlaydigan shaxsiy notlar ilovasi. U Modul 2 + Modul 3 ning barcha konseptlarini birga ishlatadi. Birinchi navbatda kodni o'qib chiqing, har bir qatorning vazifasini tushuning. Keyin o'z loyihangizni qurishga o'ting.</p>
+"""
+
+R2_CODE = """\
+# app.py — Shaxsiy yozuvlar ilovasi (User + Note + Session-based auth)
+from flask import Flask, render_template_string, request, redirect, url_for, session, flash, abort
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+
+app = Flask(__name__)
+app.secret_key = 'maxfiy-kalit-prod-uchun-environment-dan-o\\'qing'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///notes.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+
+# ─── Modul 3: Models bilan one-to-many bog'lanish ──────────────
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    # Asosiy! lazy=True — kerakli vaqtda olinadi (performance uchun yaxshi)
+    notes = db.relationship('Note', backref='owner', lazy=True, cascade='all, delete-orphan')
+
+
+class Note(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # MUHIM: default=datetime.utcnow (qavslarsiz!) — har not uchun yangi vaqt
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# ─── Yordamchi: joriy foydalanuvchini olish ────────────────────
+def current_user():
+    user_id = session.get('user_id')
+    return User.query.get(user_id) if user_id else None
+
+
+def login_required(view):
+    \"\"\"Oddiy decorator: login bo'lmagan foydalanuvchini /login ga yuboradi\"\"\"
+    from functools import wraps
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not current_user():
+            flash('Avval kirish kerak', 'error')
+            return redirect(url_for('login'))
+        return view(*args, **kwargs)
+    return wrapped
+
+
+# ─── Login: yangi foydalanuvchi yaratamiz yoki mavjudini topamiz ─
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        if len(username) < 2:
+            flash('Ism kamida 2 ta belgidan iborat bo\\'lishi kerak', 'error')
+            return redirect(url_for('login'))
+        # Mavjud foydalanuvchini topish yoki yangi yaratish
+        user = User.query.filter_by(username=username).first()
+        if not user:
+            user = User(username=username)
+            db.session.add(user)
+            db.session.commit()
+        session['user_id'] = user.id
+        flash(f'Xush kelibsiz, {username}!', 'success')
+        return redirect(url_for('list_notes'))
+    return render_template_string(LOGIN_HTML)
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
+# ─── R (Read): faqat O'Z notalarimni ko'rish ──────────────────
+@app.route('/')
+@app.route('/notes')
+@login_required
+def list_notes():
+    user = current_user()
+    # MUHIM: filter_by(user_id=user.id) — boshqalarning notalari ko'rinmaydi
+    notes = Note.query.filter_by(user_id=user.id).order_by(Note.created_at.desc()).all()
+    return render_template_string(NOTES_HTML, notes=notes, user=user)
+
+
+# ─── C (Create): yangi nota qo'shish ─────────────────────────
+@app.route('/notes/new', methods=['GET', 'POST'])
+@login_required
+def new_note():
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        body = request.form.get('body', '').strip()
+        if not title or not body:
+            flash('Sarlavha va matn to\\'ldirilishi kerak', 'error')
+            return redirect(url_for('new_note'))
+        note = Note(title=title, body=body, user_id=current_user().id)
+        db.session.add(note)
+        db.session.commit()
+        flash('Nota qo\\'shildi', 'success')
+        return redirect(url_for('list_notes'))  # PRG pattern
+    return render_template_string(NEW_NOTE_HTML)
+
+
+# ─── U (Update): tahrirlash + xavfsizlik tekshiruvi ──────────
+@app.route('/notes/<int:note_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_note(note_id):
+    note = Note.query.get_or_404(note_id)
+    # MUHIM: faqat o'z notangizni tahrirlashingiz mumkin
+    if note.user_id != current_user().id:
+        abort(403)
+    if request.method == 'POST':
+        note.title = request.form.get('title', '').strip()
+        note.body = request.form.get('body', '').strip()
+        db.session.commit()  # add() chaqirish shart emas — obyekt allaqachon session'da
+        flash('Nota yangilandi', 'success')
+        return redirect(url_for('list_notes'))
+    return render_template_string(EDIT_NOTE_HTML, note=note)
+
+
+# ─── D (Delete): o'chirish (POST orqali — GET xavfsiz emas) ───
+@app.route('/notes/<int:note_id>/delete', methods=['POST'])
+@login_required
+def delete_note(note_id):
+    note = Note.query.get_or_404(note_id)
+    if note.user_id != current_user().id:
+        abort(403)
+    db.session.delete(note)
+    db.session.commit()
+    flash('Nota o\\'chirildi', 'success')
+    return redirect(url_for('list_notes'))
+
+
+# ─── Templatelar (oddiylik uchun string ichida) ───────────────
+LOGIN_HTML = '''<!doctype html><h1>Login</h1>
+{% with msgs = get_flashed_messages() %}{% for m in msgs %}<p style="color:red">{{ m }}</p>{% endfor %}{% endwith %}
+<form method="post"><input name="username" required minlength="2"><button>Kirish</button></form>'''
+
+NOTES_HTML = '''<!doctype html><h1>{{ user.username }} ning notalari</h1>
+<p><a href="{{ url_for('new_note') }}">+ Yangi nota</a> | <a href="{{ url_for('logout') }}">Chiqish</a></p>
+{% with msgs = get_flashed_messages() %}{% for m in msgs %}<p style="color:green">{{ m }}</p>{% endfor %}{% endwith %}
+{% for n in notes %}
+  <div style="border:1px solid #ccc;padding:1em;margin:0.5em 0">
+    <h3>{{ n.title }}</h3><p>{{ n.body }}</p>
+    <small>{{ n.created_at.strftime('%d-%b %H:%M') }}</small>
+    <a href="{{ url_for('edit_note', note_id=n.id) }}">✎ Tahrirlash</a>
+    <form method="post" action="{{ url_for('delete_note', note_id=n.id) }}" style="display:inline">
+      <button onclick="return confirm('O\\'chirishni xohlaysizmi?')">🗑</button>
+    </form>
+  </div>
+{% else %}
+  <p>Hali notalar yo'q.</p>
+{% endfor %}'''
+
+NEW_NOTE_HTML = '''<!doctype html><h1>Yangi nota</h1>
+<form method="post">
+  <input name="title" placeholder="Sarlavha" required><br>
+  <textarea name="body" placeholder="Matn" required></textarea><br>
+  <button>Saqlash</button>
+</form>'''
+
+EDIT_NOTE_HTML = '''<!doctype html><h1>Tahrirlash</h1>
+<form method="post">
+  <input name="title" value="{{ note.title }}" required><br>
+  <textarea name="body" required>{{ note.body }}</textarea><br>
+  <button>Yangilash</button>
+</form>'''
+
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True)
+"""
+
+
+R3_TEXT = """\
+<h2>Takrorlash: Modul 4 — Blueprint va JSON API</h2>
+<p>Modul 4 da siz katta loyihalarni <strong>Blueprint</strong>'lar orqali qismlarga bo'lish va JSON <strong>REST API</strong> yaratishni o'rgandingiz. Endi vaqt keldi — Modul 3 da yaratgan notlar ilovasini professional struktura va REST API ga aylantirishimiz mumkin.</p>
+
+<h3>📋 Modul 4 da nimalarni o'rgangansiz</h3>
+<table style="border-collapse:collapse;width:100%;margin:1em 0">
+  <thead>
+    <tr style="background:#f3f4f6">
+      <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">Konsept</th>
+      <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">Kod</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">Blueprint yaratish</td><td style="padding:8px;border:1px solid #e5e7eb"><code>notes_bp = Blueprint('notes', __name__)</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">Blueprint'ni ulash</td><td style="padding:8px;border:1px solid #e5e7eb"><code>app.register_blueprint(notes_bp, url_prefix='/api/notes')</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">app factory</td><td style="padding:8px;border:1px solid #e5e7eb"><code>def create_app(): app = Flask(__name__); ...; return app</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">JSON qaytarish</td><td style="padding:8px;border:1px solid #e5e7eb"><code>return jsonify({'id': n.id, 'title': n.title})</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">JSON qabul qilish</td><td style="padding:8px;border:1px solid #e5e7eb"><code>data = request.get_json()</code></td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb">Status kodlari</td><td style="padding:8px;border:1px solid #e5e7eb"><code>return jsonify(...), 201</code></td></tr>
+  </tbody>
+</table>
+
+<h3>📊 HTTP status kodlari — eslab qoling</h3>
+<table style="border-collapse:collapse;width:100%;margin:1em 0">
+  <thead>
+    <tr style="background:#f3f4f6">
+      <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">Kod</th>
+      <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">Ma'no</th>
+      <th style="padding:8px;border:1px solid #e5e7eb;text-align:left">Qachon ishlatiladi</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb"><strong>200</strong></td><td style="padding:8px;border:1px solid #e5e7eb">OK</td><td style="padding:8px;border:1px solid #e5e7eb">GET muvaffaqiyatli (default)</td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb"><strong>201</strong></td><td style="padding:8px;border:1px solid #e5e7eb">Created</td><td style="padding:8px;border:1px solid #e5e7eb">POST — yangi resurs yaratildi</td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb"><strong>204</strong></td><td style="padding:8px;border:1px solid #e5e7eb">No Content</td><td style="padding:8px;border:1px solid #e5e7eb">DELETE muvaffaqiyatli (jisman hech narsa qaytarmaydi)</td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb"><strong>400</strong></td><td style="padding:8px;border:1px solid #e5e7eb">Bad Request</td><td style="padding:8px;border:1px solid #e5e7eb">Mijoz xatosi (JSON noto'g'ri, maydon yo'q)</td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb"><strong>401</strong></td><td style="padding:8px;border:1px solid #e5e7eb">Unauthorized</td><td style="padding:8px;border:1px solid #e5e7eb">Login qilinmagan</td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb"><strong>403</strong></td><td style="padding:8px;border:1px solid #e5e7eb">Forbidden</td><td style="padding:8px;border:1px solid #e5e7eb">Login qilingan lekin ruxsat yo'q</td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb"><strong>404</strong></td><td style="padding:8px;border:1px solid #e5e7eb">Not Found</td><td style="padding:8px;border:1px solid #e5e7eb">Resurs topilmadi</td></tr>
+    <tr><td style="padding:8px;border:1px solid #e5e7eb"><strong>500</strong></td><td style="padding:8px;border:1px solid #e5e7eb">Server Error</td><td style="padding:8px;border:1px solid #e5e7eb">Bizning xatomiz (exception)</td></tr>
+  </tbody>
+</table>
+
+<h3>🏗 Loyiha tuzilishi — yaxshi va yomon</h3>
+<p><strong>Yomon (hammasi bitta faylda):</strong></p>
+<pre><code>app.py    # 500 qator, hammasi shu yerda
+notes.db</code></pre>
+<p><strong>Yaxshi (Blueprint + app factory):</strong></p>
+<pre><code>app/
+  __init__.py        # create_app() factory
+  models.py          # User, Note modellari
+  auth/
+    __init__.py
+    routes.py        # /api/auth/login, /api/auth/logout
+  notes/
+    __init__.py
+    routes.py        # /api/notes (CRUD)
+run.py               # entry point: from app import create_app; create_app().run()
+config.py            # ConfigBase, DevConfig, ProdConfig</code></pre>
+
+<h3>🧪 API ni qanday tekshirish — curl</h3>
+<pre><code># Barcha notalarni olish
+curl http://localhost:5000/api/notes
+
+# Yangi nota yaratish
+curl -X POST http://localhost:5000/api/notes \\
+  -H "Content-Type: application/json" \\
+  -d '{"title": "Test", "body": "Salom"}'
+
+# Bittasini olish
+curl http://localhost:5000/api/notes/1
+
+# Yangilash
+curl -X PUT http://localhost:5000/api/notes/1 \\
+  -H "Content-Type: application/json" \\
+  -d '{"title": "Yangilangan"}'
+
+# O'chirish
+curl -X DELETE http://localhost:5000/api/notes/1</code></pre>
+
+<h3>⚠️ Modul 4 da eng ko'p uchraydigan xatolar</h3>
+<ul>
+  <li><strong>url_prefix ni unutish</strong>: <code>app.register_blueprint(notes_bp)</code> da prefix bermasangiz, route'lar to'qnashishi mumkin.</li>
+  <li><strong>request.json vs request.get_json()</strong>: get_json() tavsiya etiladi — <code>force=True</code>, <code>silent=True</code> kabi opsiyalar bor.</li>
+  <li><strong>Status kod 200 ni har joyga qo'yish</strong>: POST → 201, DELETE → 204, xato → 400/404. To'g'ri kodlar mijozga aniq ma'lumot beradi.</li>
+  <li><strong>Xato javobni JSON sifatida qaytarmaslik</strong>: API foydalanuvchilar HTML xato sahifasini parse qila olmaydi. Doim <code>jsonify({'error': '...'}), 400</code> qaytaring.</li>
+  <li><strong>Foydalanuvchi tekshiruvini API'da unutish</strong>: web routes'larda <code>if not current_user()</code> bor, lekin API endpoint'larda buni qayta yozing — yangi developer e'tibordan chetda qoldirishi mumkin.</li>
+</ul>
+
+<h3>🎯 Endi navbat sizda</h3>
+<p>Pastdagi kod — to'liq REST API. Bu R2 dagi notlar ilovasining API versiyasi. Endi siz har qanday frontend (React, Vue, mobile app) bilan ishlay olasiz. Birinchi navbatda kodni o'qib chiqing va curl bilan har endpoint'ni tekshirib ko'ring. Keyin o'z loyihangizga o'ting.</p>
+"""
+
+R3_CODE = """\
+# notes_api.py — to'liq Notes REST API (Blueprint + app factory + JSON)
+# R2 dagi notlar ilovasini API ga o'tkazamiz.
+from flask import Flask, Blueprint, request, jsonify, session, abort
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+
+db = SQLAlchemy()
+
+
+# ─── Modellar (R2 dagi bilan bir xil) ──────────────────────────
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    notes = db.relationship('Note', backref='owner', lazy=True, cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {'id': self.id, 'username': self.username}
+
+
+class Note(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        \"\"\"Serializatsiya — JSON ga aylantirish uchun\"\"\"
+        return {
+            'id': self.id,
+            'title': self.title,
+            'body': self.body,
+            'user_id': self.user_id,
+            'created_at': self.created_at.isoformat(),
+        }
+
+
+# ─── Auth Blueprint: /api/auth/login, /api/auth/logout ─────────
+auth_bp = Blueprint('auth', __name__)
+
+
+@auth_bp.post('/login')
+def login():
+    data = request.get_json(silent=True) or {}
+    username = (data.get('username') or '').strip()
+    if len(username) < 2:
+        return jsonify({'error': 'username kamida 2 ta belgi'}), 400
+    user = User.query.filter_by(username=username).first()
+    if not user:
+        user = User(username=username)
+        db.session.add(user)
+        db.session.commit()
+    session['user_id'] = user.id
+    return jsonify({'user': user.to_dict(), 'message': 'Login muvaffaqiyatli'}), 200
+
+
+@auth_bp.post('/logout')
+def logout():
+    session.clear()
+    return '', 204  # No Content
+
+
+@auth_bp.get('/me')
+def me():
+    user_id = session.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Login qilinmagan'}), 401
+    user = User.query.get(user_id)
+    return jsonify({'user': user.to_dict()}), 200
+
+
+# ─── Notes Blueprint: /api/notes (CRUD) ────────────────────────
+notes_bp = Blueprint('notes', __name__)
+
+
+def require_login():
+    \"\"\"Yordamchi: 401 qaytaradi yoki current user'ni qaytaradi\"\"\"
+    user_id = session.get('user_id')
+    if not user_id:
+        return None
+    return User.query.get(user_id)
+
+
+@notes_bp.get('')
+def list_notes():
+    user = require_login()
+    if not user:
+        return jsonify({'error': 'Avval kirish kerak'}), 401
+    notes = Note.query.filter_by(user_id=user.id).order_by(Note.created_at.desc()).all()
+    return jsonify({'notes': [n.to_dict() for n in notes]}), 200
+
+
+@notes_bp.post('')
+def create_note():
+    user = require_login()
+    if not user:
+        return jsonify({'error': 'Avval kirish kerak'}), 401
+    data = request.get_json(silent=True) or {}
+    title = (data.get('title') or '').strip()
+    body = (data.get('body') or '').strip()
+    if not title or not body:
+        return jsonify({'error': 'title va body to\\'ldirilishi kerak'}), 400
+    note = Note(title=title, body=body, user_id=user.id)
+    db.session.add(note)
+    db.session.commit()
+    return jsonify({'note': note.to_dict()}), 201  # Created
+
+
+@notes_bp.get('/<int:note_id>')
+def get_note(note_id):
+    user = require_login()
+    if not user:
+        return jsonify({'error': 'Avval kirish kerak'}), 401
+    note = Note.query.get_or_404(note_id)
+    if note.user_id != user.id:
+        return jsonify({'error': 'Ruxsat yo\\'q'}), 403
+    return jsonify({'note': note.to_dict()}), 200
+
+
+@notes_bp.put('/<int:note_id>')
+def update_note(note_id):
+    user = require_login()
+    if not user:
+        return jsonify({'error': 'Avval kirish kerak'}), 401
+    note = Note.query.get_or_404(note_id)
+    if note.user_id != user.id:
+        return jsonify({'error': 'Ruxsat yo\\'q'}), 403
+    data = request.get_json(silent=True) or {}
+    if 'title' in data:
+        note.title = (data['title'] or '').strip()
+    if 'body' in data:
+        note.body = (data['body'] or '').strip()
+    db.session.commit()
+    return jsonify({'note': note.to_dict()}), 200
+
+
+@notes_bp.delete('/<int:note_id>')
+def delete_note(note_id):
+    user = require_login()
+    if not user:
+        return jsonify({'error': 'Avval kirish kerak'}), 401
+    note = Note.query.get_or_404(note_id)
+    if note.user_id != user.id:
+        return jsonify({'error': 'Ruxsat yo\\'q'}), 403
+    db.session.delete(note)
+    db.session.commit()
+    return '', 204  # No Content
+
+
+# ─── App factory pattern ───────────────────────────────────────
+def create_app():
+    app = Flask(__name__)
+    app.secret_key = 'maxfiy-kalit-prod-da-environment-dan-o\\'qing'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///notes_api.db'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db.init_app(app)
+    # Blueprint'larni ulash, har biriga URL prefiks beriladi
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(notes_bp, url_prefix='/api/notes')
+    with app.app_context():
+        db.create_all()
+    return app
+
+
+if __name__ == '__main__':
+    create_app().run(debug=True)
+"""
+
+
 # Each lesson has 5 mixed-type, auto-gradable exercises:
 #   - 2× multiple_choice (single answer)
 #   - 1× multiple_choice (is_multiple_select=True)
@@ -1130,7 +1818,26 @@ LESSON_TASKS: dict[int, dict] = {
         "technologies": "Python, Flask, session, secret_key, redirect, url_for",
         "deadline_days": 6,
     },
-    6: {  # 7-Database (SQLAlchemy)
+    6: {  # R1-Mehmonlar kitobi (REVISION of Modules 1+2)
+        "title": "🔁 R1: Mehmonlar kitobi (Guest Book)",
+        "description": (
+            "Modul 1+2 takrori: routes + templates + forms + session ni birga ishlatib "
+            "to'liq Mehmonlar kitobi ilovasini quring. Foydalanuvchilar ro'yxatdan o'tib, "
+            "xabar qoldira oladigan oddiy lekin to'liq sayt."
+        ),
+        "requirements": (
+            "• 4 ta route: / (bosh sahifa), /login (GET+POST), /post (POST), /logout (GET)\n"
+            "• Login session orqali ishlaydi (app.secret_key o'rnatilgan)\n"
+            "• Login bo'lmagan foydalanuvchi /post ga POST qila olmasin (redirect + flash)\n"
+            "• Bosh sahifa Jinja2 template orqali render qilinadi (oxirgi 20 ta xabar yuqorida)\n"
+            "• Har xabar yonida: author + matn + vaqt\n"
+            "• Logout dan keyin session tozalanadi va siz endi xabar yoza olmaysiz\n"
+            "• Bonus: bir xil matnli xabarni ketma-ket ikki marta yuborish bloklansin"
+        ),
+        "technologies": "Python, Flask, Jinja2, session, flash, POST form, redirect (PRG)",
+        "deadline_days": 5,
+    },
+    7: {  # 7-Database (SQLAlchemy)
         "title": "Notlar ilovasi v1 — Model",
         "description": (
             "Flask-SQLAlchemy bilan Note modelini yarating (id, title, body, "
@@ -1148,7 +1855,7 @@ LESSON_TASKS: dict[int, dict] = {
         "technologies": "Python, Flask, Flask-SQLAlchemy, SQLite",
         "deadline_days": 7,
     },
-    7: {  # 8-CRUD operatsiyalar
+    8: {  # 8-CRUD operatsiyalar
         "title": "Notlar ilovasi v2 — CRUD",
         "description": (
             "7-darsdagi Notlar ilovasini kengaytiring: yangi not qo'shish, "
@@ -1166,7 +1873,27 @@ LESSON_TASKS: dict[int, dict] = {
         "technologies": "Python, Flask, SQLAlchemy, flash, redirect, url_for",
         "deadline_days": 7,
     },
-    8: {  # 9-Blueprint va app factory
+    9: {  # R2-Shaxsiy yozuvlar (REVISION of Module 3)
+        "title": "🔁 R2: Shaxsiy yozuvlar (Personal Notes)",
+        "description": (
+            "Modul 3 takrori: Modul 2 dagi session + Modul 3 dagi SQLAlchemy CRUD ni birlashtirib "
+            "ko'p-foydalanuvchili Notlar ilovasini quring. Har bir foydalanuvchi faqat o'z notalarini "
+            "ko'radi va tahrirlay oladi."
+        ),
+        "requirements": (
+            "• Ikkita model: User (id, username) va Note (id, title, body, user_id, created_at)\n"
+            "• db.relationship + ForeignKey orqali bog'lanish, cascade delete-orphan\n"
+            "• /login — username yuboradi, mavjud bo'lmasa yangi User yaratiladi, session['user_id'] o'rnatiladi\n"
+            "• /notes — faqat shu foydalanuvchining notalari (filter_by(user_id=...))\n"
+            "• Full CRUD: /notes/new, /notes/<id>/edit, /notes/<id>/delete\n"
+            "• MUHIM: edit va delete'da note.user_id != session['user_id'] bo'lsa abort(403)\n"
+            "• PRG pattern + flash xabarlar\n"
+            "• /logout session ni tozalaydi"
+        ),
+        "technologies": "Python, Flask, SQLAlchemy, session, ForeignKey, relationship, login pattern",
+        "deadline_days": 7,
+    },
+    10: {  # 9-Blueprint va app factory
         "title": "Notlar ilovasi v3 — Blueprint",
         "description": (
             "8-darsdagi ilovani Blueprint'larga ajrating: main_bp (bosh sahifa, "
@@ -1183,7 +1910,7 @@ LESSON_TASKS: dict[int, dict] = {
         "technologies": "Python, Flask, Blueprint, app factory pattern",
         "deadline_days": 7,
     },
-    9: {  # 10-JSON API
+    11: {  # 10-JSON API
         "title": "Notlar ilovasi v4 — REST API",
         "description": (
             "9-darsdagi ilovaga JSON API endpoint'lari qo'shing. To'g'ri HTTP "
@@ -1201,7 +1928,29 @@ LESSON_TASKS: dict[int, dict] = {
         "technologies": "Python, Flask, jsonify, request.json, REST, HTTP status codes",
         "deadline_days": 7,
     },
-    10: {  # 11-Deployga tayyorlash (CAPSTONE)
+    12: {  # R3-Notes REST API (REVISION of Module 4)
+        "title": "🔁 R3: Notes REST API (to'liq)",
+        "description": (
+            "Modul 4 takrori: R2 dagi Shaxsiy notlar ilovasini Blueprint struktura va to'liq "
+            "JSON REST API ga o'tkazing. Endi sizning bekendingiz har qanday frontend (React, mobil) "
+            "bilan ishlay oladi."
+        ),
+        "requirements": (
+            "• 2 ta Blueprint: auth_bp (/api/auth/...) va notes_bp (/api/notes/...)\n"
+            "• create_app() factory pattern\n"
+            "• POST /api/auth/login — {username} qabul qiladi, session o'rnatadi, 200 + user JSON\n"
+            "• POST /api/auth/logout — 204 No Content\n"
+            "• GET /api/auth/me — login bo'lgan foydalanuvchi haqida ma'lumot (401 agar yo'q)\n"
+            "• GET /api/notes — login bo'lgan foydalanuvchining notalari (200)\n"
+            "• POST /api/notes — yangi nota yaratish (201)\n"
+            "• GET/PUT/DELETE /api/notes/<id> — to'g'ri status kodlar (200/204/403/404)\n"
+            "• Barcha xato javoblari JSON formatida: {'error': '...'}\n"
+            "• README'da curl misollari har bir endpoint uchun"
+        ),
+        "technologies": "Python, Flask, Blueprint, jsonify, request.get_json, REST, HTTP status codes, session-based auth",
+        "deadline_days": 10,
+    },
+    13: {  # 11-Deployga tayyorlash (CAPSTONE)
         "title": "🚀 CAPSTONE: Notlar ilovasini internetga chiqarish",
         "description": (
             "7–10 darslarda yaratgan to'liq Notlar ilovasini bepul hosting'ga "
@@ -1471,7 +2220,72 @@ LESSONS = [
         ],
     },
     {
-        "order": 6, "title": "7-Database (SQLAlchemy)",
+        "order": 6, "title": "R1-Mehmonlar kitobi (takrorlash)",
+        "text": R1_TEXT, "code": R1_CODE, "lang": "python",
+        "video": "",
+        "exercises": [
+            mc("Quyidagi route Flask'da nimaga mos keladi: @app.route('/post', methods=['POST'])?",
+               ["Faqat GET so'rovlarni qabul qiladi",
+                "Faqat POST so'rovlarni qabul qiladi",
+                "GET va POST ikkalasini qabul qiladi",
+                "Hech qaysi so'rovni qabul qilmaydi"],
+               "B", hint="methods ro'yxatida nima yozilgan?",
+               diff="Easy", pts=2),
+            mc("session ishlatish uchun nima eng birinchi sozlanishi kerak?",
+               ["app.run(debug=True) qo'shish",
+                "app.secret_key o'rnatish",
+                "session.init() chaqirish",
+                "Hech narsa — session avtomatik ishlaydi"],
+               "B", hint="Session imzolanadi — kalit yo'q bo'lsa qanday imzolanadi?",
+               diff="Easy", pts=2),
+            mc("Jinja2 da foydalanuvchi login bo'lganligini tekshirish uchun qaysi to'g'ri?",
+               ["{{ if session.username }} ... {{ endif }}",
+                "{% if user %} ... {% endif %}",
+                "<? if (user) ?> ... <? endif ?>",
+                "@if(user) ... @endif"],
+               "B", hint="Jinja2 da boshqarish bloklari {% ... %} ichida.",
+               diff="Easy", pts=2),
+            mc("Foydalanuvchi /post ga POST so'rov yubordi lekin sessiyada username yo'q. "
+               "Eng to'g'ri xatti-harakat qaysi?",
+               ["Bo'sh username bilan entry saqlash",
+                "302 redirect /login ga, flash('Avval login qiling') bilan",
+                "500 xato qaytarish",
+                "Sessiyaga 'guest' username yozish va davom etish"],
+               "B", hint="Foydalanuvchini boshqa joyga qanday yo'naltirish kerak?",
+               diff="Medium", pts=3),
+            mc("PRG (POST-Redirect-GET) pattern qaysi muammolarni hal qiladi?",
+               ["Sahifa refresh qilinganda formani qayta yuborish",
+                "URL bar'da forma ma'lumotlari ko'rinishi",
+                "Brauzer 'Back' tugmasi xatosi (POST resubmit warning)",
+                "JavaScript yo'q sahifalarda ishlash"],
+               "A,C", multi=True,
+               hint="POST javobi sifatida HTML qaytarish nimaga olib keladi?",
+               diff="Medium", pts=3),
+            dd("Foydalanuvchi 'Mehmonlar kitobi'da xabar yozish jarayoni bosqichlarini tartiblang",
+               ["Foydalanuvchi /login ga kiradi va ismni yuboradi",
+                "Server session['username'] = ism ni o'rnatadi",
+                "/ sahifaga redirect bo'ladi",
+                "Foydalanuvchi xabarini yozadi va /post ga yuboradi",
+                "Server session['username'] borligini tekshiradi",
+                "Yangi entry ENTRIES listga qo'shiladi",
+                "/ sahifaga redirect bo'ladi va yangi xabar ko'rinadi"],
+               diff="Medium", pts=3),
+            ti("session.clear() va session.pop('username', None) o'rtasidagi farq nima?",
+               "session.clear() — barcha session ma'lumotlarini o'chiradi (username, user_id va boshqalar — hammasi). "
+               "session.pop('username', None) — faqat 'username' kalitini o'chiradi, qolgan ma'lumotlar joyida qoladi. "
+               "Logout uchun clear() ko'p ishlatiladi (xavfsizroq). Pop esa ma'lum bir narsani olib tashlash uchun — masalan, "
+               "flash xabar o'qib bo'lingach uni o'chirish. Yana muhimi: pop() ikkinchi argumenti default — kalit yo'q bo'lsa xatolik chiqmaydi.",
+               diff="Hard", pts=4),
+            ti("Nima uchun Mehmonlar kitobi misolida xabarlar `ENTRIES.insert(0, entry)` orqali qo'shiladi, append(entry) emas?",
+               "insert(0, entry) yangi xabarni list'ning boshiga qo'shadi — shunda eng so'nggi xabar ro'yxatda birinchi (yuqorida) ko'rinadi. "
+               "append(entry) esa oxiriga qo'shadi va eski xabarlar yuqorida, yangilar pastda bo'lib qoladi. UX nuqtai nazaridan "
+               "foydalanuvchilar odatda eng yangi narsalarni birinchi ko'rishni xohlaydi (Twitter, Telegram, hamma joyda shunday). "
+               "Eslatma: real ilovada bu mantiqni database darajasida hal qilamiz — order_by(created_at.desc()).",
+               diff="Hard", pts=4),
+        ],
+    },
+    {
+        "order": 7, "title": "7-Database (SQLAlchemy)",
         "text": L7_TEXT, "code": L7_CODE, "lang": "python",
         "video": "https://youtu.be/cYWiDiIUxQc",
         "exercises": [
@@ -1523,7 +2337,7 @@ LESSONS = [
         ],
     },
     {
-        "order": 7, "title": "8-CRUD operatsiyalar",
+        "order": 8, "title": "8-CRUD operatsiyalar",
         "text": L8_TEXT, "code": L8_CODE, "lang": "python",
         "video": "https://youtu.be/m_jzo2zE5LM",
         "exercises": [
@@ -1576,7 +2390,74 @@ LESSONS = [
         ],
     },
     {
-        "order": 8, "title": "9-Blueprint va app factory",
+        "order": 9, "title": "R2-Shaxsiy yozuvlar (takrorlash)",
+        "text": R2_TEXT, "code": R2_CODE, "lang": "python",
+        "video": "",
+        "exercises": [
+            mc("User va Note modellari orasidagi munosabat qaysi?",
+               ["One-to-one (bir foydalanuvchining bitta notasi)",
+                "One-to-many (bir foydalanuvchining ko'p notalari)",
+                "Many-to-many (bir notada ko'p foydalanuvchi)",
+                "Hech qanday munosabat — ular mustaqil"],
+               "B", hint="db.relationship('Note', backref='owner', lazy=True) nima anglatadi?",
+               diff="Easy", pts=2),
+            mc("Note.query.get_or_404(id) nima qiladi?",
+               ["Notani topadi, agar yo'q bo'lsa None qaytaradi",
+                "Notani topadi, agar yo'q bo'lsa avtomatik 404 xato chiqaradi",
+                "Notani topadi va o'chiradi",
+                "Notani topadi va 404 statusda qaytaradi"],
+               "B", hint="Method nomi: get + or_404. 404 nima?",
+               diff="Easy", pts=2),
+            mc("Foydalanuvchi /notes/5/edit ga kirdi. Note id=5 boshqa foydalanuvchiniki. Eng to'g'ri xatti-harakat?",
+               ["Notani tahrirlashga ruxsat berish",
+                "404 qaytarish (bizning foydalanuvchi uchun u 'mavjud emas')",
+                "abort(403) — Ruxsat yo'q",
+                "Notani avtomatik o'chirib tashlash"],
+               "C", hint="403 Forbidden — autentifikatsiya qilingan lekin ruxsat yo'q.",
+               diff="Medium", pts=3),
+            mc("Quyidagi qaysi kod TO'G'RI yangi notani saqlaydi?",
+               ["note = Note(title='X', body='Y'); db.session.commit()",
+                "note = Note(title='X', body='Y'); db.session.add(note); db.session.commit()",
+                "Note.insert(title='X', body='Y')",
+                "db.add(Note(title='X', body='Y')); db.save()"],
+               "B", hint="Yangi yozuv: add() + commit() — ikkalasi ham kerak.",
+               diff="Easy", pts=2),
+            mc("created_at uchun qaysi kod TO'G'RI?",
+               ["db.Column(db.DateTime, default=datetime.utcnow)",
+                "db.Column(db.DateTime, default=datetime.utcnow())",
+                "db.Column(db.DateTime, server_default=db.func.now())",
+                "db.Column(db.DateTime, default=lambda: datetime.utcnow())"],
+               "A,C,D", multi=True,
+               hint="Qaysi variantda datetime.utcnow() FUNKSIYA emas, NATIJASI uzatiladi? Bu qaysi muammoga olib keladi?",
+               diff="Medium", pts=3),
+            dd("Foydalanuvchi 'Shaxsiy yozuvlar'da yangi nota yaratish jarayoni bosqichlarini tartiblang",
+               ["Foydalanuvchi /login ga kiradi va ismni yuboradi",
+                "Server User.query.filter_by(username=...).first() bilan tekshiradi",
+                "Foydalanuvchi yo'q bo'lsa — yangi User yaratiladi va commit qilinadi",
+                "session['user_id'] = user.id o'rnatiladi",
+                "Foydalanuvchi /notes/new ga o'tadi va formani to'ldiradi",
+                "Server Note(title, body, user_id=session['user_id']) yaratadi",
+                "db.session.add(note) va db.session.commit() chaqiriladi",
+                "/notes ga redirect qilinadi (PRG pattern)"],
+               diff="Medium", pts=3),
+            ti("Nima uchun cascade='all, delete-orphan' User.notes relationship'ida muhim?",
+               "Bu opsiya bo'lmasa, foydalanuvchini o'chirishga uringanimizda SQLAlchemy xato chiqaradi — chunki foydalanuvchining "
+               "notalari Note.user_id = user.id ga bog'langan (foreign key constraint). cascade='all, delete-orphan' shuni anglatadi: "
+               "foydalanuvchi o'chirilsa, uning barcha notalari ham avtomatik o'chiriladi (cascade). 'delete-orphan' qismi esa shuni "
+               "anglatadi: agar notani user.notes ro'yxatidan olib tashlasak (lekin Note obyekti hali jonli), uning 'egasi' qolmagan — "
+               "demak u 'orphan' (yetim) va u ham o'chiriladi. Bu — modellaringizning ma'lumot butunligini saqlaydi.",
+               diff="Hard", pts=4),
+            ti("Foydalanuvchi /notes/5/delete ga GET so'rov yubordi. Bizning kodimiz POST kutmoqda. Bu qanday xavfdan saqlaydi?",
+               "GET so'rovlar HAVOLALAR orqali tasodifan ishga tushishi mumkin — masalan, brauzer sahifani prefetch qiladi, "
+               "yoki Slack/Telegram-da bot link'ni preview qilish uchun ochadi, yoki Google bot indekslayotganda. Agar /notes/5/delete "
+               "GET ga ishlasa, kimdir sizga zararli HTML jo'natsa (masalan, <img src='https://app.com/notes/5/delete'>), brauzeringiz "
+               "avtomatik so'rov yuboradi va siz xabaringiz o'chib ketadi. POST esa odatda forma orqali boshlanadi va CSRF himoyasi bilan "
+               "to'liq xavfsiz qilish mumkin. Asosiy qoida: o'zgartirish bajaradigan amallar (delete, update, create) GET orqali bo'lmasin.",
+               diff="Hard", pts=4),
+        ],
+    },
+    {
+        "order": 10, "title": "9-Blueprint va app factory",
         "text": L9_TEXT, "code": L9_CODE, "lang": "python",
         "video": "https://youtu.be/WteIH6J9v64",
         "exercises": [
@@ -1629,7 +2510,7 @@ LESSONS = [
         ],
     },
     {
-        "order": 9, "title": "10-JSON API",
+        "order": 11, "title": "10-JSON API",
         "text": L10_TEXT, "code": L10_CODE, "lang": "python",
         "video": "https://youtu.be/PTZiDnuC86g",
         "exercises": [
@@ -1684,7 +2565,74 @@ LESSONS = [
         ],
     },
     {
-        "order": 10, "title": "11-Deployga tayyorlash",
+        "order": 12, "title": "R3-Notes REST API (takrorlash)",
+        "text": R3_TEXT, "code": R3_CODE, "lang": "python",
+        "video": "",
+        "exercises": [
+            mc("POST /api/notes muvaffaqiyatli yangi nota yaratdi. Qaysi status kod TO'G'RI?",
+               ["200 OK",
+                "201 Created",
+                "204 No Content",
+                "302 Found"],
+               "B", hint="POST + yangi resurs yaratildi — qaysi 2xx kod maxsus shu uchun?",
+               diff="Easy", pts=2),
+            mc("DELETE /api/notes/5 muvaffaqiyatli o'chirdi. Eng to'g'ri javob qaysi?",
+               ["200 OK, {'deleted': true}",
+                "201 Created, {}",
+                "204 No Content, javob tanasi bo'sh",
+                "404 Not Found"],
+               "C", hint="DELETE muvaffaqiyatli bo'lganda nima qaytariladi? 'No Content' nimani anglatadi?",
+               diff="Easy", pts=2),
+            mc("request.get_json(silent=True) ning request.get_json() ga nisbatan afzalligi nima?",
+               ["Tezroq ishlaydi",
+                "Mijoz noto'g'ri JSON yuborgan bo'lsa, xato chiqarmasdan None qaytaradi",
+                "Faqat Python 3.11+ da ishlaydi",
+                "Hech qanday farq yo'q"],
+               "B", hint="silent=True nomidan ham — 'jim'.",
+               diff="Easy", pts=2),
+            mc("Auth Blueprint'ni '/api/auth' prefiks bilan ulash uchun qaysi to'g'ri?",
+               ["app.register_blueprint(auth_bp, url_prefix='/api/auth')",
+                "auth_bp.url_prefix = '/api/auth'",
+                "app.add_blueprint(auth_bp, '/api/auth')",
+                "auth_bp.register(app, '/api/auth')"],
+               "A", hint="register_blueprint ning argumentlari nima?",
+               diff="Easy", pts=2),
+            mc("REST API'da xato javoblar uchun qaysi yondashuvlar TO'G'RI?",
+               ["HTML xato sahifasi qaytarish",
+                "{'error': 'Topilmadi'} ko'rinishidagi JSON qaytarish",
+                "To'g'ri HTTP status kod (404, 400, 403) qo'shish",
+                "Faqat 200 OK qaytarib, javob tanasida xato matni"],
+               "B,C", multi=True,
+               hint="API mijozi HTML'ni parse qila olmaydi. Va 200 status — 'hammasi yaxshi' degan ma'noni anglatadi.",
+               diff="Medium", pts=3),
+            dd("REST API orqali yangi nota yaratish jarayonini tartiblang",
+               ["Mijoz POST /api/auth/login ga {username: 'X'} yuboradi",
+                "Server User'ni topadi yoki yaratadi va session['user_id'] o'rnatadi",
+                "Mijoz POST /api/notes ga {title, body} yuboradi (cookie bilan)",
+                "Server session['user_id'] borligini tekshiradi (401 agar yo'q)",
+                "Server JSON validatsiya qiladi (400 agar title/body yo'q)",
+                "Server Note yaratadi va db.session.commit() chaqiradi",
+                "Server 201 status va yangi note JSON qaytaradi"],
+               diff="Medium", pts=3),
+            ti("Nima uchun Note modelida to_dict() metodi yozish JSON API uchun yaxshi pattern?",
+               "to_dict() — model obyektini JSON'ga aylantirish mantiqini bitta joyda saqlaydi. Agar har endpoint'da qo'lda "
+               "{'id': n.id, 'title': n.title, ...} yozsangiz: (1) takrorlash ko'p — DRY printsipiga zid; (2) yangi maydon qo'shilsa, "
+               "har endpoint'da yangilash kerak — eslab qolmasangiz, ba'zi endpointlardan u tushib qoladi; (3) sezgir ma'lumotlar "
+               "(masalan, password_hash) tasodifan ochilib qolishi mumkin. to_dict() metodida esa — model qaysi maydonlarini API "
+               "ochishini aniq belgilaysiz. Yana yaxshi tomoni: kelajakda Marshmallow yoki Pydantic kabi serializer'larga osongina o'tasiz.",
+               diff="Hard", pts=4),
+            ti("CRUD operatsiyalari uchun qaysi HTTP method qaysi vazifaga to'g'ri keladi va nima uchun?",
+               "GET — Read (o'qish): xavfsiz va idempotent (bir xil natija). URL'da parametr orqali, body yo'q. Misol: GET /api/notes/5. "
+               "POST — Create (yaratish): yangi resurs yaratiladi, server unga id beradi. Idempotent emas — har bir POST yangi entry yaratadi. "
+               "Misol: POST /api/notes + JSON body. PUT — Update (to'liq yangilash): mavjud resursni yangi ma'lumot bilan to'liq almashtirish. "
+               "Idempotent — bir xil PUT necha marta yuborilsa ham natija bir xil. PATCH — Update (qisman yangilash): faqat o'zgargan maydonlar. "
+               "DELETE — Delete (o'chirish): resursni o'chiradi. Idempotent — ikkinchi DELETE 404 qaytaradi (oldingisi allaqachon ishlab bo'lgan). "
+               "RESTful API'ning go'zalligi shunda — har URL bitta resursni anglatadi va method nima qilishingizni belgilaydi.",
+               diff="Hard", pts=4),
+        ],
+    },
+    {
+        "order": 13, "title": "11-Deployga tayyorlash",
         "text": L11_TEXT, "code": L11_CODE, "lang": "python",
         "video": "https://youtu.be/goToXTC96Co",
         "exercises": [
