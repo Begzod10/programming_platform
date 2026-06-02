@@ -523,7 +523,8 @@ function MyProjects() {
     const handleAiReview = (projectId) => {
         setAiLoading(true);
         setAiResult(null);
-        request(`${API_URL}v1/project/${projectId}/ai-review`, 'POST', JSON.stringify({}), headers())
+        // Router mount is /ai (not /project) — see backend/app/api/v1/router.py
+        request(`${API_URL}v1/ai/${projectId}/ai-review`, 'POST', JSON.stringify({}), headers())
             .then(res => {
                 // Server already returns a structured object; defensively
                 // handle the legacy string path too.

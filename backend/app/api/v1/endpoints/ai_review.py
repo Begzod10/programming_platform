@@ -1,41 +1,13 @@
-from datetime import datetime, timezone, timedelta
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.dependencies import get_current_student, get_db
 from app.models.project import Project
 from app.models.user import Student
-from app.services.github_repo_service import (
-    fetch_github_snapshot,
-    fetch_zip_snapshot,
-    parse_github_url,
-)
-from app.services.grok_service import analyze_project_with_grok
-from app.services.ranking_service import RankingService
+from app.services.ai_review_service import run_ai_review_for_project
 
 router = APIRouter()
-
-
-def _utc_day_start() -> datetime:
-    now = datetime.now(timezone.utc)
-    return now.replace(hour=0, minute=0, second=0, microsecond=0)
-
-
-async def _count_reviews_today(db: AsyncSession, student_id: int) -> int:
-    """Daily AI reviews already consumed by this student (UTC day window)."""
-    start = _utc_day_start()
-    end = start + timedelta(days=1)
-    result = await db.execute(
-        select(func.count(Project.id)).where(
-            Project.student_id == student_id,
-            Project.reviewed_at >= start,
-            Project.reviewed_at < end,
-        )
-    )
-    return int(result.scalar() or 0)
 
 
 @router.post("/{project_id}/ai-review")
@@ -44,21 +16,14 @@ async def ai_review(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db),
 ):
-    """AI orqali loyihani baholash.
+    """Manual AI review trigger from the MyProjects page.
 
-    Xavfsizlik:
-      - Daily cap: bir o'quvchi kuniga MAX_AI_REVIEWS_PER_DAY marta AI
-        baholash chaqira oladi (OpenAI byudjeti va ball-farming oldini olish).
-      - Re-review bloki: agar loyiha bir marta baholangan bo'lsa
-        (reviewed_at IS NOT NULL), uni qayta baholashga ruxsat berilmaydi.
-      - Repo fetch: GitHub'dan asl fayllar yuklab olinadi va LLM'ga ko'rsatiladi.
-        Agar repo bo'sh / mavjud emas / private bo'lsa — 400 qaytadi va AI
-        chaqirilmaydi (token sarflanmaydi).
+    The same logic also runs automatically when a student submits a
+    project from the lesson page (see project_service.submit_project) —
+    both paths go through run_ai_review_for_project to keep behavior
+    consistent. This endpoint exists so students can re-trigger if the
+    auto-review was skipped or they uploaded a ZIP after submission.
     """
-    if settings.MAX_AI_REVIEWS_PER_DAY <= 0:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                            detail="AI baholash hozircha o'chirilgan")
-
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
 
@@ -67,138 +32,7 @@ async def ai_review(
     if project.student_id != current_student.id:
         raise HTTPException(status_code=403, detail="Ruxsat yo'q")
 
-    # Block re-review on reviewed_at (not just status="Approved"). Prevents
-    # bypass via re-submission cycles that change status but leave the
-    # original AI review timestamp in place.
-    if project.reviewed_at is not None:
-        raise HTTPException(
-            status_code=400,
-            detail="Bu loyiha allaqachon baholangan, qayta AI baholash mumkin emas",
-        )
-
-    # Source selection: prefer GitHub URL when present (richer signal: real
-    # repo with history, README, etc.); fall back to ZIP upload otherwise.
-    # Frontend treats the two as mutually exclusive but DB doesn't enforce
-    # that, so we check explicitly.
-    source: str
-    if project.github_url:
-        if parse_github_url(project.github_url) is None:
-            raise HTTPException(
-                status_code=400,
-                detail="GitHub URL formati noto'g'ri (faqat https://github.com/owner/repo)",
-            )
-        source = "github"
-    elif project.project_files:
-        source = "zip"
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="AI baholash uchun GitHub URL yoki ZIP fayl kerak",
-        )
-
-    used_today = await _count_reviews_today(db, current_student.id)
-    if used_today >= settings.MAX_AI_REVIEWS_PER_DAY:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=(f"Bugun AI baholash limiti tugadi "
-                    f"({settings.MAX_AI_REVIEWS_PER_DAY}/kun). "
-                    f"Ertaga qayta urinib ko'ring."),
-        )
-
-    # Real code, not just metadata. If snapshot can't be built, refuse the AI
-    # call entirely — no point spending tokens for the LLM to hallucinate.
-    if source == "github":
-        snapshot = await fetch_github_snapshot(project.github_url)
-        source_label = "GitHub repo"
-    else:
-        snapshot = fetch_zip_snapshot(project.project_files)
-        source_label = "ZIP fayl"
-
-    if not snapshot["exists"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"{source_label} o'qib bo'lmadi: {snapshot.get('error') or 'nomalum xato'}",
-        )
-    if not snapshot["content_text"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"{source_label} bo'sh yoki o'qiladigan fayllar topilmadi",
-        )
-
-    repo_summary = (
-        f"manba={source_label}, "
-        f"default_branch={snapshot['default_branch']}, "
-        f"jami fayl soni={snapshot['file_count']}, "
-        f"kiritildi ({len(snapshot['files_included'])}): "
-        f"{', '.join(snapshot['files_included'])}"
-        + (" [truncated]" if snapshot["truncated"] else "")
-    )
-
-    technologies = project.technologies_used.split(",") if project.technologies_used else []
-
-    review = await analyze_project_with_grok(
-        title=project.title,
-        description=project.description or "",
-        github_url=project.github_url or f"(ZIP: {project.project_files})",
-        technologies=technologies,
-        difficulty_level=str(project.difficulty_level or "Easy"),
-        repo_content=snapshot["content_text"],
-        repo_summary=repo_summary,
-        authorship=snapshot.get("authorship"),
-    )
-
-    # AI call failed (network, malformed JSON, etc.) — surface as 502.
-    # No points awarded, project state unchanged. Daily quota is not consumed
-    # because reviewed_at stays NULL.
-    if review.get("error"):
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=review.get("feedback") or "AI baholash muvaffaqiyatsiz",
-        )
-
-    # Default to 0 (NOT 60) — malformed AI response must never grant free points.
-    new_points = int(review.get("points", 0) or 0)
-    new_points = max(0, min(100, new_points))
-
-    old_points = project.points_earned or 0
-    ranking_service = RankingService(db)
-    if old_points > 0:
-        await ranking_service.subtract_points_from_student(project.student_id, old_points)
-    if new_points > 0:
-        await ranking_service.add_points_to_student(project.student_id, new_points)
-
-    project.instructor_feedback = review.get("feedback", "")
-    project.grade = review.get("grade", "F")
-    project.points_earned = new_points
-    project.status = "Approved"
-    project.reviewed_at = datetime.now(timezone.utc)
-
-    await db.commit()
-
-    # Surface authorship signals to the frontend so it can show a "Fork
-    # detected" / "Single commit" badge alongside the grade. Keep the
-    # shape stable — null is fine when git history wasn't available
-    # (ZIP uploads, private repos, fetch failures).
-    authorship = snapshot.get("authorship") or {}
-    authorship_summary = {
-        "available": authorship.get("available", False),
-        "is_fork": authorship.get("is_fork", False),
-        "parent_repo": authorship.get("parent_repo"),
-        "commit_count": authorship.get("commit_count"),
-        "unique_authors": authorship.get("unique_authors"),
-        "owner_is_contributor": authorship.get("owner_is_contributor"),
-    }
-
-    return {
-        "message": "AI baholash yakunlandi!",
-        "project_id": project_id,
-        "source": source,
-        "old_points": old_points,
-        "new_points": new_points,
-        "reviews_remaining_today": max(
-            0, settings.MAX_AI_REVIEWS_PER_DAY - used_today - 1
-        ),
-        "files_reviewed": snapshot["files_included"],
-        "authorship": authorship_summary,
-        **{k: v for k, v in review.items() if k != "error"},
-    }
+    # raise_on_error=True → bad URL / quota / AI failure surface as
+    # HTTPException with the right status code (400 / 429 / 502).
+    review = await run_ai_review_for_project(db, project, raise_on_error=True)
+    return {"message": "AI baholash yakunlandi!", **review}
