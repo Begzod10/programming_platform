@@ -952,6 +952,9 @@
     border-radius: 0 var(--radius-md) var(--radius-md) 0;
     padding: 14px 16px;
     animation: fadeUp 0.3s ease both;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 .mp-ai-result p {
     margin: 0;
@@ -959,6 +962,142 @@
     color: var(--ink);
     line-height: 1.65;
     white-space: pre-wrap;
+}
+
+/* Error variant — red border, no grade/provider, single message */
+.mp-ai-error {
+    background: rgba(220, 53, 69, 0.05);
+    border-left-color: #dc3545;
+}
+
+/* Header row: provider badge + grade badge */
+.mp-ai-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+/* Provider badge — solid-color pill */
+.mp-ai-provider {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 11px;
+    border-radius: 14px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    line-height: 1;
+}
+.mp-ai-provider-sub {
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 0.88;
+}
+/* Brand colors — Groq orange, Gemini Google-purple, OpenAI teal */
+.mp-prov-groq   { background: linear-gradient(135deg, #f55036 0%, #ff7e3a 100%); }
+.mp-prov-gemini { background: linear-gradient(135deg, #4285f4 0%, #9b72cb 50%, #d96570 100%); }
+.mp-prov-openai { background: linear-gradient(135deg, #10a37f 0%, #19c37d 100%); }
+
+/* Grade badge — colored by tone */
+.mp-ai-grade {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 11px;
+    border-radius: 14px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+}
+.mp-grade-a { background: #22c55e; }   /* green */
+.mp-grade-b { background: #84cc16; }   /* lime */
+.mp-grade-c { background: #eab308; }   /* amber */
+.mp-grade-d { background: #f97316; }   /* orange */
+.mp-grade-f { background: #ef4444; }   /* red */
+
+/* Meta row: source · file count · daily quota */
+.mp-ai-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    font-size: 11px;
+    color: var(--muted, #888);
+    line-height: 1.4;
+}
+
+.mp-ai-summary {
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Strengths / improvements lists */
+.mp-ai-list { display: flex; flex-direction: column; gap: 4px; }
+.mp-ai-list-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.mp-ai-list ul {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 12.5px;
+    color: var(--ink);
+    line-height: 1.6;
+}
+.mp-ai-list li { margin: 1px 0; }
+.mp-ai-strengths ul li::marker    { color: #22c55e; }
+.mp-ai-improvements ul li::marker { color: #f97316; }
+
+/* Collapsible details (full feedback + file list) */
+.mp-ai-details {
+    border-top: 1px dashed rgba(0,0,0,0.08);
+    padding-top: 8px;
+}
+.mp-ai-details summary {
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--pink);
+    user-select: none;
+    list-style: none;
+}
+.mp-ai-details summary::-webkit-details-marker { display: none; }
+.mp-ai-details summary::before { content: '▸ '; transition: transform 0.2s; }
+.mp-ai-details[open] summary::before { content: '▾ '; }
+.mp-ai-details p {
+    margin: 8px 0 0;
+    font-size: 12.5px;
+    color: var(--ink);
+    line-height: 1.6;
+}
+
+.mp-ai-files {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    list-style: none;
+}
+.mp-ai-files li {
+    margin: 2px 0;
+    font-size: 12px;
+    color: var(--muted, #666);
+}
+.mp-ai-files code {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', Consolas, monospace;
+    background: rgba(0,0,0,0.04);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11.5px;
+    color: var(--ink);
 }
 
 /* ═══════════════════════════════════════════════

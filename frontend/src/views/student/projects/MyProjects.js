@@ -127,6 +127,98 @@ const ZipDropZone = ({ selectedFile, onFileSelect, uploading, compact = false })
     );
 };
 
+/* ── AI Review result panel ──
+   Renders the structured response from POST /v1/ai/{id}/ai-review.
+   Three shapes coexist:
+     - null / ''             → nothing rendered (initial state)
+     - { error: "...", ... } → red error card (network failure / 4xx/5xx)
+     - { grade, points, ... } → full success panel with provider badge
+*/
+const PROVIDER_META = {
+    groq:   { label: 'Groq',    sub: 'Llama 3.3 70B',  className: 'mp-prov-groq'   },
+    gemini: { label: 'Gemini',  sub: '2.5 Flash',      className: 'mp-prov-gemini' },
+    openai: { label: 'OpenAI',  sub: 'GPT-4.1 mini',   className: 'mp-prov-openai' },
+};
+
+const GRADE_TONE = {
+    A: 'mp-grade-a', B: 'mp-grade-b', C: 'mp-grade-c', D: 'mp-grade-d', F: 'mp-grade-f',
+};
+
+const AiReviewResult = ({ data }) => {
+    if (!data) return null;
+
+    if (data.error) {
+        return (
+            <div className="mp-ai-result mp-ai-error">
+                <p>❌ {data.errorMessage || 'AI-проверка не удалась'}</p>
+                {data.errorStatus && <p className="mp-ai-meta">HTTP {data.errorStatus}</p>}
+            </div>
+        );
+    }
+
+    const prov = PROVIDER_META[data.provider] || { label: data.provider || '?', sub: '', className: '' };
+    const gradeTone = GRADE_TONE[(data.grade || '').toUpperCase()] || 'mp-grade-c';
+    const sourceLabel = data.source === 'zip' ? '📦 ZIP' : data.source === 'github' ? '🐙 GitHub' : '';
+
+    return (
+        <div className="mp-ai-result">
+            <div className="mp-ai-head">
+                <span className={`mp-ai-provider ${prov.className}`} title={`Provider: ${prov.label}`}>
+                    ✨ {prov.label}{prov.sub && <span className="mp-ai-provider-sub"> · {prov.sub}</span>}
+                </span>
+                <span className={`mp-ai-grade ${gradeTone}`}>
+                    {data.grade || '?'} · {data.points ?? 0} баллов
+                </span>
+            </div>
+
+            <div className="mp-ai-meta">
+                {sourceLabel && <span>{sourceLabel}</span>}
+                {Array.isArray(data.files_reviewed) && data.files_reviewed.length > 0 && (
+                    <span>{data.files_reviewed.length} файлов проверено</span>
+                )}
+                {typeof data.reviews_remaining_today === 'number' && (
+                    <span>Осталось сегодня: {data.reviews_remaining_today}</span>
+                )}
+                {typeof data.old_points === 'number' && data.old_points > 0 && data.old_points !== data.new_points && (
+                    <span>было: {data.old_points}</span>
+                )}
+            </div>
+
+            {data.summary && <p className="mp-ai-summary">{data.summary}</p>}
+
+            {Array.isArray(data.strengths) && data.strengths.length > 0 && (
+                <div className="mp-ai-list mp-ai-strengths">
+                    <span className="mp-ai-list-title">✅ Сильные стороны</span>
+                    <ul>{data.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                </div>
+            )}
+
+            {Array.isArray(data.improvements) && data.improvements.length > 0 && (
+                <div className="mp-ai-list mp-ai-improvements">
+                    <span className="mp-ai-list-title">💡 Что улучшить</span>
+                    <ul>{data.improvements.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                </div>
+            )}
+
+            {data.feedback && (
+                <details className="mp-ai-details">
+                    <summary>Подробнее</summary>
+                    <p>{data.feedback}</p>
+                </details>
+            )}
+
+            {Array.isArray(data.files_reviewed) && data.files_reviewed.length > 0 && (
+                <details className="mp-ai-details">
+                    <summary>Проверенные файлы ({data.files_reviewed.length})</summary>
+                    <ul className="mp-ai-files">
+                        {data.files_reviewed.map((f, i) => <li key={i}><code>{f}</code></li>)}
+                    </ul>
+                </details>
+            )}
+        </div>
+    );
+};
+
 /* ── Form Fields for Edit ── */
 const ProjectFormFields = ({ form, errors, set, zipFile, onZipSelect, uploadMethod, onMethodChange }) => (
     <>
@@ -218,7 +310,7 @@ function MyProjects() {
     const [showFileUrlEdit, setShowFileUrlEdit] = useState(false);
 
     const [aiLoading, setAiLoading] = useState(false);
-    const [aiResult, setAiResult] = useState('');
+    const [aiResult, setAiResult] = useState(null);
 
     // Load projects
     useEffect(() => {
@@ -378,10 +470,30 @@ function MyProjects() {
 
     const handleAiReview = (projectId) => {
         setAiLoading(true);
-        setAiResult('');
+        setAiResult(null);
         request(`${API_URL}v1/project/${projectId}/ai-review`, 'POST', JSON.stringify({}), headers())
-            .then(res => setAiResult(typeof res === 'string' ? res : JSON.stringify(res)))
-            .catch(() => setAiResult('❌ Ошибка AI-проверки'))
+            .then(res => {
+                // Server already returns a structured object; defensively
+                // handle the legacy string path too.
+                if (typeof res === 'string') {
+                    try { setAiResult(JSON.parse(res)); }
+                    catch { setAiResult({ error: 'parse_failed', errorMessage: res }); }
+                } else {
+                    setAiResult(res);
+                }
+            })
+            .catch(e => {
+                const status = e?.status;
+                // FastAPI puts the human message in response.data.detail.
+                const detail = e?.response?.data?.detail
+                    || e?.message
+                    || 'AI-проверка не удалась';
+                setAiResult({
+                    error: 'request_failed',
+                    errorStatus: status,
+                    errorMessage: detail,
+                });
+            })
             .finally(() => setAiLoading(false));
     };
 
@@ -614,7 +726,7 @@ function MyProjects() {
                             <button className="mp-btn-ai" onClick={() => handleAiReview(detail.id)} disabled={aiLoading}>
                                 {aiLoading ? 'Анализ...' : '✨ Запустить AI-проверку'}
                             </button>
-                            {aiResult && <div className="mp-ai-result"><p>{aiResult}</p></div>}
+                            <AiReviewResult data={aiResult} />
                         </div>
                     </div>
 
