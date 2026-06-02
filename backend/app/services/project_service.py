@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime
 from typing import Optional
 
@@ -11,6 +12,8 @@ from fastapi import HTTPException
 from app.models.project import Project
 from app.models.user import Student
 from app.schemas.project import ProjectCreate, ProjectUpdate
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectService:
@@ -93,6 +96,33 @@ class ProjectService:
         project.submitted_at = datetime.utcnow()
         await self.db.commit()
         await self.db.refresh(project)
+
+        # Auto-trigger AI review when student submits from the lesson page.
+        # raise_on_error=False so a failed/missing AI never blocks the
+        # submission itself — the project is already marked Submitted and
+        # the student can manually retry from MyProjects later. On success,
+        # the AI writes status=Approved + grade + points back to the same
+        # Project row, so the refreshed project below carries the grade.
+        # Local import avoids circular dependency (ai_review_service imports
+        # RankingService which lives elsewhere; cleaner to defer).
+        from app.services.ai_review_service import run_ai_review_for_project
+        try:
+            ai_result = await run_ai_review_for_project(
+                self.db, project, raise_on_error=False,
+            )
+            if ai_result.get("success"):
+                logger.info(
+                    "[ai-auto] project=%d graded %s/%d via %s",
+                    project.id, ai_result.get("grade"),
+                    ai_result.get("new_points"), ai_result.get("provider"),
+                )
+            await self.db.refresh(project)
+        except Exception as e:
+            # Defense in depth — any unhandled exception in the AI path
+            # gets logged but never propagates. The submission stands.
+            logger.warning("[ai-auto] project=%d unhandled error: %s",
+                           project.id, e)
+
         return project
 
     async def review_project(self, project_id: int, feedback: str, grade: str, points: int) -> Project:
