@@ -8,7 +8,11 @@ from app.config import settings
 from app.dependencies import get_current_student, get_db
 from app.models.project import Project
 from app.models.user import Student
-from app.services.github_repo_service import fetch_repo_snapshot, parse_github_url
+from app.services.github_repo_service import (
+    fetch_github_snapshot,
+    fetch_zip_snapshot,
+    parse_github_url,
+)
 from app.services.grok_service import analyze_project_with_grok
 from app.services.ranking_service import RankingService
 
@@ -72,13 +76,24 @@ async def ai_review(
             detail="Bu loyiha allaqachon baholangan, qayta AI baholash mumkin emas",
         )
 
-    if not project.github_url:
-        raise HTTPException(status_code=400, detail="AI baholash uchun GitHub URL kerak")
-
-    if parse_github_url(project.github_url) is None:
+    # Source selection: prefer GitHub URL when present (richer signal: real
+    # repo with history, README, etc.); fall back to ZIP upload otherwise.
+    # Frontend treats the two as mutually exclusive but DB doesn't enforce
+    # that, so we check explicitly.
+    source: str
+    if project.github_url:
+        if parse_github_url(project.github_url) is None:
+            raise HTTPException(
+                status_code=400,
+                detail="GitHub URL formati noto'g'ri (faqat https://github.com/owner/repo)",
+            )
+        source = "github"
+    elif project.project_files:
+        source = "zip"
+    else:
         raise HTTPException(
             status_code=400,
-            detail="GitHub URL formati noto'g'ri (faqat https://github.com/owner/repo)",
+            detail="AI baholash uchun GitHub URL yoki ZIP fayl kerak",
         )
 
     used_today = await _count_reviews_today(db, current_student.id)
@@ -90,21 +105,28 @@ async def ai_review(
                     f"Ertaga qayta urinib ko'ring."),
         )
 
-    # Real code, not just metadata. If repo can't be read, refuse the AI call
-    # entirely — no point spending tokens for the LLM to hallucinate.
-    snapshot = await fetch_repo_snapshot(project.github_url)
+    # Real code, not just metadata. If snapshot can't be built, refuse the AI
+    # call entirely — no point spending tokens for the LLM to hallucinate.
+    if source == "github":
+        snapshot = await fetch_github_snapshot(project.github_url)
+        source_label = "GitHub repo"
+    else:
+        snapshot = fetch_zip_snapshot(project.project_files)
+        source_label = "ZIP fayl"
+
     if not snapshot["exists"]:
         raise HTTPException(
             status_code=400,
-            detail=f"GitHub repo o'qib bo'lmadi: {snapshot.get('error') or 'noma''lum xato'}",
+            detail=f"{source_label} o'qib bo'lmadi: {snapshot.get('error') or 'nomalum xato'}",
         )
     if not snapshot["content_text"]:
         raise HTTPException(
             status_code=400,
-            detail="Repo bo'sh yoki o'qiladigan fayllar topilmadi",
+            detail=f"{source_label} bo'sh yoki o'qiladigan fayllar topilmadi",
         )
 
     repo_summary = (
+        f"manba={source_label}, "
         f"default_branch={snapshot['default_branch']}, "
         f"jami fayl soni={snapshot['file_count']}, "
         f"kiritildi ({len(snapshot['files_included'])}): "
@@ -117,7 +139,7 @@ async def ai_review(
     review = await analyze_project_with_grok(
         title=project.title,
         description=project.description or "",
-        github_url=project.github_url,
+        github_url=project.github_url or f"(ZIP: {project.project_files})",
         technologies=technologies,
         difficulty_level=str(project.difficulty_level or "Easy"),
         repo_content=snapshot["content_text"],
@@ -155,6 +177,7 @@ async def ai_review(
     return {
         "message": "AI baholash yakunlandi!",
         "project_id": project_id,
+        "source": source,
         "old_points": old_points,
         "new_points": new_points,
         "reviews_remaining_today": max(

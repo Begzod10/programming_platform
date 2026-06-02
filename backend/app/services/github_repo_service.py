@@ -1,26 +1,39 @@
-"""Fetch a snapshot of a public GitHub repo so the LLM can grade the actual
-code instead of hallucinating from the title.
+"""Fetch a code snapshot for AI grading. Two backends, one output shape:
 
-Two HTTP calls per snapshot:
+  fetch_github_snapshot(url)  — public GitHub repo via REST API
+  fetch_zip_snapshot(file_url) — student-uploaded ZIP on local disk
+
+Both return the same dict so the AI-review endpoint can dispatch transparently.
+Output is byte-capped (MAX_REPO_BYTES) so it stays inside the LLM context
+window and OpenAI cost stays predictable.
+
+GitHub backend:
   1) GET /repos/{owner}/{repo}                — exists check + default_branch
-  2) GET /repos/{owner}/{repo}/git/trees/{branch}?recursive=1  — full file list
+  2) GET /repos/{owner}/{repo}/git/trees/{branch}?recursive=1  — file list
+  3) Up to MAX_FILES Contents API calls (one per kept file).
+  Auth header attached when settings.GITHUB_TOKEN is set; falls back to the
+  60-req/hr/IP anonymous tier otherwise.
 
-Then up to MAX_FILES Contents API calls (one per file kept). Auth header is
-attached when settings.GITHUB_TOKEN is set; otherwise we fall back to the
-60-req/hr/IP anonymous tier and surface a clear error if rate-limited.
-
-Output is byte-capped (MAX_REPO_BYTES) so it stays well inside the LLM
-context window and OpenAI cost stays predictable.
+ZIP backend:
+  Reads via zipfile.ZipFile against PROJECTS_UPLOAD_DIR. Per-entry file_size
+  cap defends against zip bombs (we decompress in-memory, never extract).
+  Path-traversal patterns in member names are rejected even though we read
+  by ZipInfo (defense in depth).
 """
 from __future__ import annotations
 
 import base64
 import re
+import zipfile
+from pathlib import Path
 from typing import Optional
 
 import httpx
 
 from app.config import settings
+
+
+PROJECTS_UPLOAD_DIR = Path(settings.UPLOAD_DIR) / "projects"
 
 
 # Same shape as the regex in ai_review.py — accept owner/repo and an optional
@@ -133,8 +146,8 @@ def _empty(error: str) -> dict:
     }
 
 
-async def fetch_repo_snapshot(github_url: str) -> dict:
-    """Fetch a byte-capped snapshot of the repo for LLM context.
+async def fetch_github_snapshot(github_url: str) -> dict:
+    """Fetch a byte-capped snapshot of a public GitHub repo for LLM context.
 
     Returns a dict with keys: exists, default_branch, file_count,
     files_included (list of paths actually included), content_text
@@ -252,3 +265,138 @@ async def fetch_repo_snapshot(github_url: str) -> dict:
         return _empty("GitHub fetch timed out")
     except httpx.HTTPError as e:
         return _empty(f"GitHub fetch failed: {type(e).__name__}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ZIP backend — student-uploaded archive on local disk
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Refuse to read any single ZIP entry whose declared uncompressed size is
+# larger than this. Defense against zip bombs (e.g. 10 KB ZIP that expands
+# to 10 GB). 32 KB is 4x our per-file truncation cap, which is plenty of
+# headroom for any real source file we'd want to grade.
+MAX_ZIP_ENTRY_BYTES = 4 * MAX_FILE_BYTES
+
+
+def _is_zip_path_unsafe(name: str) -> bool:
+    """Reject path-traversal patterns in ZIP member names.
+
+    We never extract to disk (only `zf.read(zi)`), so this is defense in
+    depth. The bigger concern is that crafted names like `../../etc/passwd`
+    end up in the prompt or logs, which is misleading and noisy.
+    """
+    if not name:
+        return True
+    if name.startswith("/") or name.startswith("\\"):
+        return True
+    parts = name.replace("\\", "/").split("/")
+    if ".." in parts:
+        return True
+    # Windows-style absolute path: "C:\..."
+    if len(name) >= 2 and name[1] == ":":
+        return True
+    return False
+
+
+def _resolve_zip_path(project_files_url: str) -> Optional[Path]:
+    """Map project.project_files (URL form) to an absolute on-disk path.
+
+    Only the basename is used — Path(...).name strips any directory
+    components, so a crafted `project_files = "/etc/passwd"` reduces to
+    `passwd`, which then fails the `.zip` extension check below.
+    """
+    if not project_files_url:
+        return None
+    name = Path(project_files_url).name
+    if not name.endswith(".zip"):
+        return None
+    path = PROJECTS_UPLOAD_DIR / name
+    if not path.exists() or not path.is_file():
+        return None
+    return path
+
+
+def fetch_zip_snapshot(project_files_url: str) -> dict:
+    """Read a byte-capped snapshot from a student-uploaded ZIP.
+
+    Same return shape as fetch_github_snapshot. `default_branch` is set
+    to "(zip)" so the LLM prompt clearly distinguishes the source.
+    """
+    path = _resolve_zip_path(project_files_url)
+    if path is None:
+        return _empty("ZIP fayl topilmadi yoki yo'l noto'g'ri")
+
+    try:
+        with zipfile.ZipFile(path) as zf:
+            # ZipFile.testzip() catches CRC errors. Skipped for speed —
+            # individual zf.read() calls below will surface corruption.
+            entries = [
+                zi for zi in zf.infolist()
+                if not zi.is_dir() and not _is_zip_path_unsafe(zi.filename)
+            ]
+            file_count = len(entries)
+            if file_count == 0:
+                return _empty("ZIP fayl bo'sh yoki o'qiladigan fayllar yo'q")
+
+            candidates = [zi for zi in entries if not _should_skip(zi.filename)]
+            candidates.sort(key=lambda zi: (_priority_score(zi.filename), zi.filename))
+            picked = candidates[:MAX_FILES]
+
+            blocks: list[str] = []
+            included: list[str] = []
+            total_bytes = 0
+            truncated = False
+            for zi in picked:
+                if total_bytes >= MAX_REPO_BYTES:
+                    truncated = True
+                    break
+                # Zip-bomb guard: refuse to decompress oversized entries.
+                # file_size is the declared uncompressed size in the header.
+                if zi.file_size > MAX_ZIP_ENTRY_BYTES:
+                    continue
+                try:
+                    raw = zf.read(zi)
+                except (zipfile.BadZipFile, KeyError, RuntimeError):
+                    # RuntimeError fires for encrypted entries (no password).
+                    continue
+
+                try:
+                    text = raw.decode("utf-8", errors="replace")
+                except Exception:
+                    continue
+
+                if len(text) > MAX_FILE_BYTES:
+                    text = text[:MAX_FILE_BYTES] + "\n... [truncated]"
+                    truncated = True
+
+                if total_bytes + len(text) + 50 > MAX_REPO_BYTES:
+                    remaining = MAX_REPO_BYTES - total_bytes - 50
+                    if remaining < 200:
+                        truncated = True
+                        break
+                    text = text[:remaining] + "\n... [truncated]"
+                    truncated = True
+
+                blocks.append(f"### {zi.filename}\n```\n{text}\n```")
+                included.append(zi.filename)
+                total_bytes += len(text) + 50
+
+            if not blocks:
+                return _empty(
+                    "ZIP'da o'qiladigan kod fayli yo'q (faqat rasm/binar yoki "
+                    "barchasi juda katta)"
+                )
+
+            return {
+                "exists": True,
+                "default_branch": "(zip)",
+                "file_count": file_count,
+                "files_included": included,
+                "content_text": "\n\n".join(blocks),
+                "truncated": truncated,
+                "error": None,
+            }
+    except zipfile.BadZipFile:
+        return _empty("ZIP fayl buzuq yoki noto'g'ri format")
+    except Exception as e:
+        return _empty(f"ZIP o'qishda xato: {type(e).__name__}")
