@@ -1,9 +1,22 @@
 import React, {useState, useRef, useCallback, useEffect} from 'react';
 import ReactDOM from 'react-dom';
+import mermaid from 'mermaid';
 import './StudentLessonPage.css';
 import {SECTION_TYPES, getYTId} from '../../../../constants/courseUtils';
 import {API_URL, useHttp, headers} from '../../../../api/search/base';
 import DictSelectionPopup from '../LessonPage/Dictselectionpopup';
+
+// One-time Mermaid init at module load. startOnLoad:false because we trigger
+// run() manually after each lesson's text section mounts.
+mermaid.initialize({
+    startOnLoad: false,
+    theme: 'default',
+    securityLevel: 'loose',
+    flowchart: {useMaxWidth: true, htmlLabels: true},
+    themeVariables: {
+        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+    },
+});
 
 /* ─────────────────────────────────────────
    Умный парсер → всегда возвращает чистый массив строк
@@ -495,6 +508,23 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [projectError, setProjectError] = useState('');
     const [downloadingFile, setDownloadingFile] = useState(null);
     const [activeSection, setActiveSection] = useState(null);
+
+    // Render any <pre class="mermaid"> blocks embedded in lesson text sections.
+    // Mermaid mutates the DOM in place; the :not selector skips already-rendered
+    // blocks when the user expands/collapses sections without changing lessons.
+    useEffect(() => {
+        if (!lesson?.sections?.length) return;
+        const timer = setTimeout(() => {
+            const nodes = document.querySelectorAll(
+                'pre.mermaid:not([data-processed="true"])',
+            );
+            if (nodes.length === 0) return;
+            mermaid.run({nodes: Array.from(nodes)}).catch(() => {
+                // Render failed — leave the <pre> source visible as graceful fallback.
+            });
+        }, 50);
+        return () => clearTimeout(timer);
+    }, [lesson?.id, lesson?.sections]);
 
     // Dedup video-watch pings per (lesson, section) within this session so
     // every re-render of the iframe doesn't refire the POST. Backend also

@@ -230,6 +230,30 @@
 .slp-text-content a { color: var(--purple); text-decoration: none; }
 .slp-text-content a:hover { text-decoration: underline; }
 
+/* Mermaid diagram blocks rendered inside lesson text */
+.slp-text-content pre.mermaid {
+    background: #f7f8fc;
+    border: 1px solid #e1e3ee;
+    border-radius: var(--r-md, 10px);
+    padding: 16px;
+    margin: 18px 0;
+    text-align: center;
+    overflow-x: auto;
+    /* Before render: fall back to readable monospace so source is visible if Mermaid fails. */
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 13px;
+    color: #4a4d6b;
+}
+.slp-text-content pre.mermaid[data-processed="true"] {
+    font-family: inherit;
+    color: inherit;
+}
+.slp-text-content pre.mermaid svg {
+    max-width: 100%;
+    height: auto;
+    display: inline-block;
+}
+
 /* CODE */
 .slp-code-header {
     display: flex; align-items: center; gap: 12px;
