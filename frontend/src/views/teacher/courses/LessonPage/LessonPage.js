@@ -209,29 +209,40 @@ const ExerciseBlock = ({ section }) => {
 const LessonPage = ({ lesson, course, allLessons, onBack, onNavigate, onEdit, onDelete }) => {
     const [copiedId, setCopiedId] = useState(null);
 
-    // Render any <pre class="mermaid"> blocks embedded in the lesson HTML.
-    // sanitizeHtml + dangerouslySetInnerHTML may commit after this effect
-    // fires, so poll every 200ms (up to ~3s) until the nodes show up.
+    // Render <pre class="mermaid"> blocks. MutationObserver pattern so that
+    // any React re-commit of the section HTML (e.g. caused by another
+    // useState elsewhere) triggers a re-render — otherwise mermaid's SVG
+    // gets wiped the next time dangerouslySetInnerHTML touches the DOM.
     useEffect(() => {
         if (!lesson?.id) return;
         let cancelled = false;
-        let attempts = 0;
-        const MAX_ATTEMPTS = 15;
-        const INTERVAL_MS = 200;
-        const tick = () => {
-            if (cancelled) return;
-            attempts += 1;
+        let running = false;
+        let scheduled = null;
+        const runMermaid = () => {
+            scheduled = null;
+            if (cancelled || running) return;
             const nodes = document.querySelectorAll(
                 'pre.mermaid:not([data-processed="true"])',
             );
-            if (nodes.length > 0) {
-                mermaid.run({ nodes: Array.from(nodes) }).catch(() => {});
-                return;
-            }
-            if (attempts < MAX_ATTEMPTS) setTimeout(tick, INTERVAL_MS);
+            if (nodes.length === 0) return;
+            running = true;
+            mermaid.run({ nodes: Array.from(nodes) })
+                .catch(() => {})
+                .finally(() => { running = false; });
         };
-        const first = setTimeout(tick, 50);
-        return () => { cancelled = true; clearTimeout(first); };
+        const schedule = () => {
+            if (scheduled || cancelled) return;
+            scheduled = setTimeout(runMermaid, 50);
+        };
+        schedule();
+        const target = document.querySelector('.lp-blocks') || document.body;
+        const observer = new MutationObserver(schedule);
+        observer.observe(target, { childList: true, subtree: true });
+        return () => {
+            cancelled = true;
+            observer.disconnect();
+            if (scheduled) clearTimeout(scheduled);
+        };
     }, [lesson?.id]);
 
     const currentIndex = allLessons.findIndex(l => l.id === lesson.id);

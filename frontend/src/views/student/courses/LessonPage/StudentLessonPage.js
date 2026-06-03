@@ -514,44 +514,55 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [downloadingFile, setDownloadingFile] = useState(null);
     const [activeSection, setActiveSection] = useState(null);
 
-    // Render any <pre class="mermaid"> blocks embedded in lesson text sections.
-    // dangerouslySetInnerHTML may commit after this effect fires, so we poll
-    // every 200ms until either nodes show up or we hit the retry cap.
-    // The :not selector skips already-rendered blocks on subsequent passes.
+    // Render <pre class="mermaid"> blocks embedded in lesson text sections.
+    //
+    // We can't just useEffect-once-and-done: any unrelated state change in
+    // this component (e.g. a project-submission re-fetch) causes React to
+    // re-commit the text section's dangerouslySetInnerHTML, which wipes
+    // mermaid's rendered SVG and puts the original <pre> source back. So
+    // we watch the DOM with a MutationObserver and re-render any unrendered
+    // pre.mermaid that appears — including the ones React just put back.
+    //
+    // The :not([data-processed="true"]) selector skips blocks mermaid has
+    // already touched, so the observer/render pair won't infinite-loop on
+    // mermaid's own mutations.
     useEffect(() => {
         if (!lesson?.id) return;
         let cancelled = false;
-        let attempts = 0;
-        const MAX_ATTEMPTS = 15;        // ~3s total wall-clock
-        const INTERVAL_MS = 200;
+        let running = false;
+        let scheduled = null;
 
-        const tick = () => {
-            if (cancelled) return;
-            attempts += 1;
+        const runMermaid = () => {
+            scheduled = null;
+            if (cancelled || running) return;
             const nodes = document.querySelectorAll(
                 'pre.mermaid:not([data-processed="true"])',
             );
-            if (nodes.length > 0) {
-                mermaid
-                    .run({nodes: Array.from(nodes)})
-                    .catch(() => {
-                        // Render failed (bad diagram syntax). Leave the
-                        // <pre> source visible as a fallback so the
-                        // operator sees something rendered the bug.
-                    });
-                return;       // success or attempted; stop polling
-            }
-            if (attempts < MAX_ATTEMPTS) {
-                setTimeout(tick, INTERVAL_MS);
-            }
+            if (nodes.length === 0) return;
+            running = true;
+            mermaid.run({nodes: Array.from(nodes)})
+                .catch(() => {})
+                .finally(() => { running = false; });
         };
 
-        // First attempt next tick so React has time to commit
-        // dangerouslySetInnerHTML into the DOM.
-        const first = setTimeout(tick, 50);
+        const schedule = () => {
+            if (scheduled || cancelled) return;
+            scheduled = setTimeout(runMermaid, 50);
+        };
+
+        // Initial attempt after React commits the lesson HTML.
+        schedule();
+
+        // Re-render whenever React replaces a section's DOM. Scoped to the
+        // sections container if we can find it, otherwise document.body.
+        const target = document.querySelector('.slp-blocks') || document.body;
+        const observer = new MutationObserver(schedule);
+        observer.observe(target, {childList: true, subtree: true});
+
         return () => {
             cancelled = true;
-            clearTimeout(first);
+            observer.disconnect();
+            if (scheduled) clearTimeout(scheduled);
         };
     }, [lesson?.id]);
 
