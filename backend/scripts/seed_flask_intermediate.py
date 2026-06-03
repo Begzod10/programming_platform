@@ -209,6 +209,18 @@ if __name__ == '__main__':
 
 L2_TEXT = """\
 <h2>Blueprint — ilovani modullarga ajratish</h2>
+
+<pre class="mermaid">
+flowchart LR
+    A["app/__init__.py"] --> B["create_app"]
+    B --> M["main_bp"]
+    B --> N["notes_bp"]
+    B --> A2["auth_bp"]
+    M --> R1["/  /about"]
+    N --> R2["/notes  /notes/id"]
+    A2 --> R3["/login  /logout"]
+</pre>
+
 <p>Asoslar kursida barcha route'lar <code>app.py</code> ichida edi. 5–10 route bilan bu yaxshi, lekin 30+ route bo'lganda fayl o'qib bo'lmas holga keladi. Yechim — <strong>Blueprint</strong>.</p>
 <p>Blueprint — bu route'lar va shablonlarni guruhlab, keyinroq <code>create_app</code> ichida ilovaga ulanadigan modul. Har bir Blueprint o'z papkasida yashaydi va o'z prefiksi bilan ishlaydi.</p>
 
@@ -535,6 +547,18 @@ def create_note():
 
 L4_TEXT = """\
 <h2>Modellar orasidagi munosabatlar (relationships)</h2>
+
+<pre class="mermaid">
+flowchart LR
+    U["User"] -->|one-to-many| N["Note"]
+    N -->|many-to-many| NT["note_tags"]
+    NT --> T["Tag"]
+    style U fill:#e3f2fd
+    style N fill:#fff3e0
+    style T fill:#f3e5f5
+    style NT fill:#eeeeee
+</pre>
+
 <p>Hozircha bizning Note modeli yakka holatda. Real ilovada esa har note birovga tegishli — masalan, foydalanuvchiga. Bu munosabat <strong>one-to-many</strong> (bir foydalanuvchining ko'p notalari) deyiladi.</p>
 
 <h3>Foreign Key — bog'lanish ustuni</h3>
@@ -678,6 +702,17 @@ class Note(db.Model):
 
 L5_TEXT = """\
 <h2>So'rovlar, filterlar va paginatsiya</h2>
+
+<pre class="mermaid">
+flowchart LR
+    A["request"] --> B["Note.query"]
+    B --> C["filter q"]
+    C --> D["order_by"]
+    D --> E["paginate page per_page"]
+    E --> F["pagination.items"]
+    F --> G["render template"]
+</pre>
+
 <p>Endi modellarimiz bor — ulardan kerakli ma'lumotni qanday olamiz? Flask-SQLAlchemy bizga <code>Model.query</code> orqali kuchli so'rov tilini beradi.</p>
 
 <h3>Asosiy so'rov metodlari</h3>
@@ -825,6 +860,17 @@ def notes_by_tag(tag_name):
 
 L6_TEXT = """\
 <h2>Flask-Migrate — sxemani xavfsiz o'zgartirish</h2>
+
+<pre class="mermaid">
+flowchart LR
+    A["edit model"] --> B["flask db migrate"]
+    B --> C["new versions/xxx.py"]
+    C --> D["review migration"]
+    D --> E["flask db upgrade"]
+    E --> F["schema in sync"]
+    E -.->|on production| G["deploy script auto runs"]
+</pre>
+
 <p>Asoslar kursida biz <code>db.create_all()</code> chaqirardik — bu YANGI jadvallarni yaratadi, lekin mavjudlarini o'zgartirmaydi. Endi yangi ustun qo'shish kerak bo'lsa-chi? Yoki ustun nomini o'zgartirish? <code>create_all()</code> bunga ojiz.</p>
 <p>Yechim — <strong>Migration</strong>. Bu sxemaning har bir o'zgarishi alohida «versiya» fayl sifatida saqlanadi va ketma-ket qo'llab boriladi. <strong>Flask-Migrate</strong> — bu Flask uchun Alembic kutubxonasi ustidan qulay qatlam.</p>
 
@@ -945,6 +991,21 @@ class Note(db.Model):
 
 R1_TEXT = """\
 <h2>R1 — Modul 1 + 2 takrorlash</h2>
+
+<pre class="mermaid">
+flowchart TB
+    A["wsgi.py"] --> B["create_app"]
+    B --> M["main_bp"]
+    B --> I["items_bp"]
+    B --> DB["db SQLAlchemy"]
+    B --> MIG["migrate Flask-Migrate"]
+    M --> P1["/  /about"]
+    I --> P2["/items  /items/new  /tag/name"]
+    DB --> T1["User"]
+    DB --> T2["Item"]
+    DB --> T3["Tag + item_tags"]
+</pre>
+
 <p>Bu darsda yangi kontent yo'q — siz o'rganganlaringizni bitta loyihaga birlashtirib qo'yasiz.</p>
 
 <h3>Nimani takrorlaymiz?</h3>
@@ -1019,6 +1080,19 @@ R1_TEXT = """\
 
 L7_TEXT = """\
 <h2>Parolni xavfsiz saqlash</h2>
+
+<pre class="mermaid">
+flowchart LR
+    A["user types password"] --> B["generate_password_hash"]
+    B --> C["salt + pbkdf2 + iterations"]
+    C --> D[("DB: password_hash")]
+    E["login attempt"] --> F["check_password_hash"]
+    D --> F
+    F --> G{"matches?"}
+    G -->|yes| H["login_user"]
+    G -->|no| I["flash error"]
+</pre>
+
 <p>Asoslar kursida biz parolni bevosita tekshirib oddiy login yasagandik:</p>
 <pre><code>if username == 'admin' and password == '1234':
     session['user'] = username</code></pre>
@@ -1154,6 +1228,23 @@ def register():
 
 L8_TEXT = """\
 <h2>Flask-Login — sessiya orqali autentifikatsiya</h2>
+
+<pre class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant F as Flask
+    participant DB as Baza
+    U->>F: POST /auth/login
+    F->>DB: find user by username
+    DB-->>F: User row
+    F->>F: check_password_hash
+    F->>F: login_user
+    F-->>U: Set-Cookie session
+    U->>F: GET /notes/new
+    F->>F: load_user from session
+    F-->>U: render new note form
+</pre>
+
 <p>Parolimiz bor, lekin login bo'lgan foydalanuvchini har sahifada qanday eslab qolamiz? Asoslar kursida biz <code>session['user_id']</code> ni qo'lda boshqargandik. <strong>Flask-Login</strong> esa buni avtomatlashtiradi va ko'p qulayliklar beradi: <code>current_user</code>, <code>@login_required</code>, «next» URL'iga avtomatik qaytish, va boshqalar.</p>
 
 <h3>O'rnatish va sozlash</h3>
@@ -1342,6 +1433,18 @@ def logout():
 
 L9_TEXT = """\
 <h2>Roli va kirish nazorati (RBAC)</h2>
+
+<pre class="mermaid">
+flowchart TB
+    A["request to /notes/5/edit"] --> B{"is_authenticated?"}
+    B -->|no| C["401 or redirect to login"]
+    B -->|yes| D{"is admin?"}
+    D -->|yes| H["view runs"]
+    D -->|no| E{"owns resource?"}
+    E -->|yes| H
+    E -->|no| F["403 Forbidden"]
+</pre>
+
 <p>Real ilovalarda «login bor / yo'q» yetarli emas — odatda turli rollar mavjud: admin, oddiy foydalanuvchi, moderator. Har birining huquqlari boshqacha. Bu pattern <strong>RBAC</strong> (Role-Based Access Control) deyiladi.</p>
 
 <h3>Eng oddiy yondashuv — string ustun</h3>
@@ -1504,6 +1607,20 @@ def unauthorized(e):
 
 R2_TEXT = """\
 <h2>R2 — Modul 3 takrorlash</h2>
+
+<pre class="mermaid">
+flowchart LR
+    R["register"] --> H["generate_password_hash"]
+    H --> U[("User table")]
+    L["login"] --> CH["check_password_hash"]
+    U --> CH
+    CH --> S["login_user + session"]
+    S --> P["POST /posts/new"]
+    P --> O{"owner or admin?"}
+    O -->|yes| E["edit / delete"]
+    O -->|no| F["403"]
+</pre>
+
 <p>Modul 1+2 dagi sof ilovani endi haqiqiy autentifikatsiya bilan to'ldiramiz: ro'yxatdan o'tish, login, parol hashing, sessiya boshqaruvi va rol-asoslangan kirish.</p>
 
 <h3>Nimani takrorlaymiz?</h3>
@@ -1675,6 +1792,19 @@ CONFIGS = {'development': DevelopmentConfig}
 
 L10_TEXT = """\
 <h2>Flask-WTF — formalar va CSRF himoyasi</h2>
+
+<pre class="mermaid">
+flowchart LR
+    A["GET form"] --> B["server generates CSRF token"]
+    B --> C["render hidden_tag in form"]
+    C --> D["browser shows form"]
+    D --> E["user submits POST"]
+    E --> F{"token valid?"}
+    F -->|no| G["400 CSRF error"]
+    F -->|yes| H["form.validate_on_submit"]
+    H --> I["save to DB + redirect"]
+</pre>
+
 <p>Asoslar kursida biz <code>request.form['username']</code> orqali ma'lumotlarni qo'lda olib, validatsiyani har route'da yozardik. Bu ishlaydi, lekin kod tarqalib ketadi: bo'sh maydonni tekshirish, email formatini tekshirish, xato xabarlarni shablonga o'tkazish — har joyda qaytariladi.</p>
 <p><strong>Flask-WTF</strong> formani Python klass sifatida tasvirlash imkonini beradi. U validatsiyani, render qilishni va — bu juda muhim — <strong>CSRF himoyasini</strong> avtomatik qo'shadi.</p>
 
@@ -1882,6 +2012,21 @@ def register():
 
 L11_TEXT = """\
 <h2>Fayl yuklash — xavfsiz va to'g'ri</h2>
+
+<pre class="mermaid">
+flowchart TB
+    A["user uploads file"] --> B{"size under 5MB?"}
+    B -->|no| C["413 Too Large"]
+    B -->|yes| D{"FileAllowed extension?"}
+    D -->|no| E["form validation error"]
+    D -->|yes| F{"imghdr real type ok?"}
+    F -->|no| G["flash: not a real image"]
+    F -->|yes| H["secure_filename + uuid"]
+    H --> I["save to uploads/ outside static"]
+    I --> J["update DB row"]
+    J --> K["redirect to profile"]
+</pre>
+
 <p>Avatarlar, hujjatlar, rasm galereyalari — har real ilovada fayl yuklash mavjud. Lekin bu eng xavfli xususiyatlardan biri: noto'g'ri yozsangiz, hujumchi serveringizga PHP skript yuklab ishga tushirishi mumkin.</p>
 
 <h3>Asosiy qoidalar</h3>
@@ -2102,6 +2247,17 @@ def too_large(e):
 
 L12_TEXT = """\
 <h2>REST API'ni to'g'ri qurish</h2>
+
+<pre class="mermaid">
+flowchart LR
+    GET1["GET /api/notes"] --> R1["200 list"]
+    GET2["GET /api/notes/id"] --> R2["200 or 404"]
+    POST["POST /api/notes"] --> R3["201 + Location"]
+    PUT["PUT /api/notes/id"] --> R4["200 updated"]
+    DEL["DELETE /api/notes/id"] --> R5["204 no content"]
+    BAD["bad JSON / missing field"] --> R6["400 error"]
+</pre>
+
 <p>Asoslar kursida biz oddiy <code>jsonify</code> ishlatdik. Endi haqiqiy REST API ishlab chiqamiz: to'g'ri HTTP status kodlari, izchil JSON formati, xatolar uchun standart javob shakli va alohida API Blueprint.</p>
 
 <h3>REST asoslari</h3>
@@ -2357,6 +2513,18 @@ def server_error(e):
 
 L13_TEXT = """\
 <h2>API pagination, filtering va sortlash</h2>
+
+<pre class="mermaid">
+flowchart LR
+    A["GET /api/notes?page=2&per_page=20&q=flask&sort=title"] --> B["validate params"]
+    B --> C["cap per_page at MAX 50"]
+    C --> D["whitelist sort column"]
+    D --> E["build query with filter"]
+    E --> F["paginate page per_page"]
+    F --> G["build items meta links"]
+    G --> H["200 JSON response"]
+</pre>
+
 <p>API'da <code>GET /api/notes</code> 100 ming yozuvni bir paketda qaytarmaydi — bu ham server, ham mijoz uchun og'ir. Real API'lar har doim paginatsiya beradi, va ko'pincha filter/sort parametrlarini qabul qiladi.</p>
 
 <h3>Query paramlarni o'qish</h3>
@@ -2545,6 +2713,27 @@ def list_notes():
 
 L14_TEXT = """\
 <h2>Flask-Mail — email yuborish</h2>
+
+<pre class="mermaid">
+sequenceDiagram
+    participant U as User
+    participant F as Flask
+    participant T as Thread
+    participant SMTP as SMTP server
+    U->>F: POST /auth/forgot email
+    F->>F: make_reset_token user_id
+    F->>T: send_async_email
+    F-->>U: redirect to login + flash
+    T->>SMTP: send via SMTP
+    SMTP-->>U: email with reset link
+    U->>F: GET /auth/reset/token
+    F->>F: verify_reset_token
+    F-->>U: new password form
+    U->>F: POST new password
+    F->>F: set_password + commit
+    F-->>U: redirect login
+</pre>
+
 <p>Ro'yxatdan o'tishni tasdiqlash, parolni tiklash, bildirishnomalar — email yuborish har bir real ilovaning qismi. <strong>Flask-Mail</strong> Python'ning <code>smtplib</code>'i ustidan qulay qatlam.</p>
 
 <h3>O'rnatish va sozlash</h3>
@@ -2805,6 +2994,25 @@ def reset_password(token):
 
 R3_TEXT = """\
 <h2>R3 — Modul 4+5 takrorlash + kurs yakuni</h2>
+
+<pre class="mermaid">
+flowchart TB
+    BR["browser"] --> NX["nginx"]
+    NX --> GU["gunicorn + uvicorn"]
+    GU --> APP["create_app"]
+    APP --> MN["main_bp"]
+    APP --> AU["auth_bp"]
+    APP --> PO["posts_bp"]
+    APP --> AP["api_bp"]
+    APP --> UB["user_bp avatar"]
+    AU --> EM["Flask-Mail"]
+    EM --> SM["SMTP"]
+    PO --> DB[("PostgreSQL")]
+    AP --> DB
+    AU --> DB
+    UB --> UP["uploads/"]
+</pre>
+
 <p>Bu kursning yakuniy mashqi. Modul 4 (formalar + fayl yuklash) va Modul 5 (REST API + email) ni bitta haqiqiy ilovada birlashtiramiz. Bu sizning portfolio'ngiz uchun ham yaxshi loyiha bo'ladi.</p>
 
 <h3>Nimani takrorlaymiz?</h3>
