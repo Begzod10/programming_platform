@@ -1,8 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import mermaid from 'mermaid';
 import './LessonPage.css';
 import '../Exercise additions/Lessonpage exercise additions.css'
 import { SECTION_TYPES, getYTId } from '../../../../constants/courseUtils';
 import { sanitizeHtml } from '../../../../utils/sanitize';
+
+// One-time Mermaid init at module load. startOnLoad:false because we trigger
+// run() manually from a polling effect once the lesson HTML is in the DOM.
+mermaid.initialize({
+    startOnLoad: false,
+    theme: 'default',
+    securityLevel: 'loose',
+    flowchart: { useMaxWidth: true, htmlLabels: true },
+    themeVariables: {
+        fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+    },
+});
 
 /* ── Exercise meta ── */
 const EX_TYPE_META = {
@@ -191,6 +204,31 @@ const ExerciseBlock = ({ section }) => {
 ═══════════════════════════════════════════ */
 const LessonPage = ({ lesson, course, allLessons, onBack, onNavigate, onEdit, onDelete }) => {
     const [copiedId, setCopiedId] = useState(null);
+
+    // Render any <pre class="mermaid"> blocks embedded in the lesson HTML.
+    // sanitizeHtml + dangerouslySetInnerHTML may commit after this effect
+    // fires, so poll every 200ms (up to ~3s) until the nodes show up.
+    useEffect(() => {
+        if (!lesson?.id) return;
+        let cancelled = false;
+        let attempts = 0;
+        const MAX_ATTEMPTS = 15;
+        const INTERVAL_MS = 200;
+        const tick = () => {
+            if (cancelled) return;
+            attempts += 1;
+            const nodes = document.querySelectorAll(
+                'pre.mermaid:not([data-processed="true"])',
+            );
+            if (nodes.length > 0) {
+                mermaid.run({ nodes: Array.from(nodes) }).catch(() => {});
+                return;
+            }
+            if (attempts < MAX_ATTEMPTS) setTimeout(tick, INTERVAL_MS);
+        };
+        const first = setTimeout(tick, 50);
+        return () => { cancelled = true; clearTimeout(first); };
+    }, [lesson?.id]);
 
     const currentIndex = allLessons.findIndex(l => l.id === lesson.id);
     const prevLesson   = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
