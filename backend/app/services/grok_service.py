@@ -206,9 +206,12 @@ async def call_chain(
                            provider, elapsed_ms)
         except httpx.HTTPError as e:
             elapsed_ms = int((time.perf_counter() - started) * 1000)
-            attempts.append(f"{provider}: {type(e).__name__}")
-            logger.warning("[ai-chain] %s -> http error in %dms (%s)",
-                           provider, elapsed_ms, type(e).__name__)
+            # Include str(e) — for ProxyError/ConnectError the class name
+            # alone ("ProxyError") doesn't say WHY (refused / DNS / auth).
+            detail = str(e) or type(e).__name__
+            attempts.append(f"{provider}: {type(e).__name__}: {detail}")
+            logger.warning("[ai-chain] %s -> http error in %dms (%s: %s)",
+                           provider, elapsed_ms, type(e).__name__, detail)
         except Exception as e:
             # Defense in depth — never let an unexpected provider error
             # bubble up and 500 the endpoint when we have more to try.
