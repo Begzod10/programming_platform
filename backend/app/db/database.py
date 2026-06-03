@@ -78,6 +78,23 @@ async def _reconcile_indexes(conn) -> None:
             "ON submissions (student_id, lesson_id) "
             "WHERE lesson_id IS NOT NULL"
         ),
+        # 2026-06-03: Increase lesson limits to 500
+        text(
+            "DO $$ BEGIN "
+            "IF (SELECT character_maximum_length FROM information_schema.columns "
+            "WHERE table_name = 'lessons' AND column_name = 'title') < 500 THEN "
+            "ALTER TABLE lessons ALTER COLUMN title TYPE VARCHAR(500); "
+            "END IF; "
+            "IF (SELECT character_maximum_length FROM information_schema.columns "
+            "WHERE table_name = 'lessons' AND column_name = 'chapter') < 500 THEN "
+            "ALTER TABLE lessons ALTER COLUMN chapter TYPE VARCHAR(500); "
+            "END IF; "
+            "IF (SELECT character_maximum_length FROM information_schema.columns "
+            "WHERE table_name = 'lessons' AND column_name = 'task_title') < 500 THEN "
+            "ALTER TABLE lessons ALTER COLUMN task_title TYPE VARCHAR(500); "
+            "END IF; "
+            "END $$;"
+        ),
     ]
     for stmt in statements:
         await conn.execute(stmt)

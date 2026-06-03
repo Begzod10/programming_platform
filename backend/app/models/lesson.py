@@ -20,13 +20,13 @@ class Lesson(Base):
         ForeignKey("courses.id", ondelete="CASCADE"),
         nullable=False
     )
-    title: Mapped[str] = mapped_column(String(200), nullable=False)
-    chapter: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    chapter: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     order: Mapped[int] = mapped_column(Integer, default=0)
     points_reward: Mapped[int] = mapped_column(Integer, default=10, server_default="10")
 
     # Vazifa ma'lumotlari
-    task_title: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    task_title: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     task_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     task_requirements: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     task_technologies: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
