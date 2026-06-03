@@ -14,6 +14,7 @@ from app.models.student_degree import StudentDegree
 from app.models.achievement import Achievement
 from app.models.student_achievement import StudentAchievement, CourseCertificate
 from app.models.lesson import Lesson, LessonCompletion
+from app.models.lesson_file import LessonFile
 from app.models.group import Group
 from app.models.exercise import Exercise, ExerciseSubmission
 from app.models.quiz import Quiz, Question, StudentQuizResult
@@ -36,6 +37,7 @@ __all__ = [
     "ExerciseSubmission",
     "Lesson",
     "LessonCompletion",
+    "LessonFile",
     "Group",
     "Quiz",
     "Question",
