@@ -44,13 +44,13 @@ _INJECTION_GUARD = (
 # Raise on any failure — the chain runner converts that into a fallthrough.
 # ─────────────────────────────────────────────────────────────────────────────
 
-class _ProviderError(Exception):
+class ProviderError(Exception):
     """Raised when a single provider can't return usable text."""
 
 
 async def _call_groq(prompt: str, max_tokens: int) -> str:
     if not settings.GROK_API_KEY:
-        raise _ProviderError("Groq API key not set")
+        raise ProviderError("Groq API key not set")
     async with httpx.AsyncClient(timeout=60.0,
                                  proxy=settings.HTTP_PROXY or None) as client:
         resp = await client.post(
@@ -68,17 +68,17 @@ async def _call_groq(prompt: str, max_tokens: int) -> str:
             },
         )
         if resp.status_code >= 400:
-            raise _ProviderError(f"Groq HTTP {resp.status_code}")
+            raise ProviderError(f"Groq HTTP {resp.status_code}")
         data = resp.json()
         try:
             return data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as e:
-            raise _ProviderError(f"Groq response shape: {e}")
+            raise ProviderError(f"Groq response shape: {e}")
 
 
 async def _call_gemini(prompt: str, max_tokens: int) -> str:
     if not settings.GEMINI_API_KEY:
-        raise _ProviderError("Gemini API key not set")
+        raise ProviderError("Gemini API key not set")
     url = (f"{settings.GEMINI_API_URL.rstrip('/')}/"
            f"{settings.GEMINI_MODEL}:generateContent"
            f"?key={settings.GEMINI_API_KEY}")
@@ -97,17 +97,17 @@ async def _call_gemini(prompt: str, max_tokens: int) -> str:
             },
         )
         if resp.status_code >= 400:
-            raise _ProviderError(f"Gemini HTTP {resp.status_code}")
+            raise ProviderError(f"Gemini HTTP {resp.status_code}")
         data = resp.json()
         try:
             return data["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError, TypeError) as e:
-            raise _ProviderError(f"Gemini response shape: {e}")
+            raise ProviderError(f"Gemini response shape: {e}")
 
 
 async def _call_openai(prompt: str, max_tokens: int) -> str:
     if not settings.OPENAI_API_KEY:
-        raise _ProviderError("OpenAI API key not set")
+        raise ProviderError("OpenAI API key not set")
     async with httpx.AsyncClient(timeout=60.0,
                                  proxy=settings.HTTP_PROXY or None) as client:
         resp = await client.post(
@@ -125,12 +125,12 @@ async def _call_openai(prompt: str, max_tokens: int) -> str:
             },
         )
         if resp.status_code >= 400:
-            raise _ProviderError(f"OpenAI HTTP {resp.status_code}")
+            raise ProviderError(f"OpenAI HTTP {resp.status_code}")
         data = resp.json()
         try:
             return data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as e:
-            raise _ProviderError(f"OpenAI response shape: {e}")
+            raise ProviderError(f"OpenAI response shape: {e}")
 
 
 _PROVIDER_CALLERS: dict[str, Callable[[str, int], Awaitable[str]]] = {
@@ -140,7 +140,7 @@ _PROVIDER_CALLERS: dict[str, Callable[[str, int], Awaitable[str]]] = {
 }
 
 
-async def _call_chain(
+async def call_chain(
         prompt: str,
         max_tokens: int,
         validator: Optional[Callable[[str], Any]] = None,
@@ -153,7 +153,7 @@ async def _call_chain(
         validator: optional callable that receives the raw response text and
             returns either a parsed object (success) or None (treat this
             provider as failed and fall through to the next one). Use this
-            to enforce response shape — e.g. _parse_ai_json for endpoints
+            to enforce response shape — e.g. parse_ai_json for endpoints
             that require valid JSON. If omitted, any non-empty response
             wins and `parsed` in the return tuple is None.
 
@@ -163,7 +163,7 @@ async def _call_chain(
         providers that were skipped or failed BEFORE the successful one.
 
     Raises:
-        _ProviderError if every provider in the chain failed.
+        ProviderError if every provider in the chain failed.
     """
     attempts: list[str] = []
     for provider in settings.ai_provider_chain_list:
@@ -177,7 +177,7 @@ async def _call_chain(
         try:
             text = await caller(prompt, max_tokens)
             if not text or not text.strip():
-                raise _ProviderError("empty response body")
+                raise ProviderError("empty response body")
 
             parsed: Any = None
             if validator is not None:
@@ -188,13 +188,13 @@ async def _call_chain(
                     # fields). Treat as a soft failure so the next provider
                     # gets a shot — this is exactly the failure mode that
                     # used to bail out instead of falling through.
-                    raise _ProviderError("response failed validator (likely non-JSON)")
+                    raise ProviderError("response failed validator (likely non-JSON)")
 
             elapsed_ms = int((time.perf_counter() - started) * 1000)
             logger.info("[ai-chain] %s -> success in %dms", provider, elapsed_ms)
             return text, parsed, provider, attempts
 
-        except _ProviderError as e:
+        except ProviderError as e:
             elapsed_ms = int((time.perf_counter() - started) * 1000)
             attempts.append(f"{provider}: {e}")
             logger.warning("[ai-chain] %s -> error in %dms (%s)",
@@ -218,10 +218,10 @@ async def _call_chain(
                              provider, elapsed_ms)
 
     logger.error("[ai-chain] all providers failed: %s", "; ".join(attempts))
-    raise _ProviderError("; ".join(attempts) or "no providers configured")
+    raise ProviderError("; ".join(attempts) or "no providers configured")
 
 
-def _parse_ai_json(text: str) -> Optional[dict]:
+def parse_ai_json(text: str) -> Optional[dict]:
     """Extract the first JSON object from a model response.
 
     Models sometimes wrap JSON in markdown code fences even with JSON mode
@@ -417,14 +417,14 @@ async def analyze_project_with_grok(
     )
 
     try:
-        # Pass _parse_ai_json as the validator: any provider that returns
+        # Pass parse_ai_json as the validator: any provider that returns
         # non-JSON text is treated as a soft failure and the chain
         # continues to the next provider. This closes the gap where a
         # chatty model response would short-circuit the chain.
-        _text, parsed, provider, attempts = await _call_chain(
-            prompt, max_tokens=1200, validator=_parse_ai_json,
+        _text, parsed, provider, attempts = await call_chain(
+            prompt, max_tokens=1200, validator=parse_ai_json,
         )
-    except _ProviderError as e:
+    except ProviderError as e:
         return _failure_review("all_providers_failed",
                                f"AI baholash muvaffaqiyatsiz: {e}")
 
@@ -491,18 +491,18 @@ Faqat JSON formatda javob ber (boshqa hech narsa yozma):
     try:
         # No validator — for dictionary lookups a chatty response is still
         # useful (we use the raw text as the definition). Fallthrough still
-        # happens on HTTP/network errors per _call_chain semantics.
-        text, _parsed, provider, attempts = await _call_chain(
+        # happens on HTTP/network errors per call_chain semantics.
+        text, _parsed, provider, attempts = await call_chain(
             prompt, max_tokens=400, validator=None,
         )
-    except _ProviderError as e:
+    except ProviderError as e:
         return {**fallback, "error": f"AI xatolik: {e}"}
 
     if attempts:
         logger.info("[ai-chain] used %s after %d fallthrough(s): %s",
                     provider, len(attempts), "; ".join(attempts))
 
-    parsed = _parse_ai_json(text)
+    parsed = parse_ai_json(text)
     if not parsed:
         return {**fallback, "definition": text.strip()[:500], "provider": provider}
 

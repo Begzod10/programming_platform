@@ -2,13 +2,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi import HTTPException
 from typing import List, Optional
-import httpx
 import json
-import re
+import logging
 
 from app.models.exercise import Exercise, ExerciseSubmission
 from app.schemas.exercise import ExerciseCreate, ExerciseUpdate, ExerciseSubmitRequest
-from app.config import settings
+from app.services.grok_service import ProviderError, call_chain, parse_ai_json
+
+logger = logging.getLogger(__name__)
 
 
 async def get_exercises_by_lesson(db: AsyncSession, lesson_id: int) -> List[Exercise]:
@@ -99,27 +100,15 @@ TO'G'RI JAVOBNI AYTMA, O'QUVCHI JAVOBINI HAM AYTMA.
 Faqat nima uchun xato bo'lishi mumkinligini va qanday o'ylash kerakligini ayt.
 O'quvchi o'zi topishi kerak."""
     try:
-        if not settings.OPENAI_API_KEY:
-            return "AI xizmati vaqtincha ishlamayapti (API kalit ulanmagan)."
-
-        async with httpx.AsyncClient(timeout=20.0, proxy=settings.HTTP_PROXY or None) as client:
-            response = await client.post(
-                settings.openai_chat_url,
-                headers={
-                    "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": settings.OPENAI_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.3,
-                    "max_tokens": 300
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data["choices"][0]["message"]["content"].strip()
-    except Exception:
+        text, _parsed, provider, attempts = await call_chain(
+            prompt, max_tokens=300, validator=None,
+        )
+        if attempts:
+            logger.info("[exercise-ai] explanation via %s after %d fallthrough(s): %s",
+                        provider, len(attempts), "; ".join(attempts))
+        return text.strip()
+    except ProviderError as e:
+        logger.warning("[exercise-ai] get_ai_explanation failed: %s", e)
         return f"Noto'g'ri. To'g'ri javob: {correct_answer}"
 
 
@@ -197,38 +186,19 @@ Faqat JSON formatda javob ber, boshqa hech narsa yozma:
 }}"""
 
     try:
-        if not settings.OPENAI_API_KEY:
-            return {"is_correct": False, "partial_score": 0, "feedback": "AI xizmati vaqtincha ishlamayapti (API kalit ulanmagan)."}
-
-        async with httpx.AsyncClient(timeout=30.0, proxy=settings.HTTP_PROXY or None) as client:
-            response = await client.post(
-                settings.openai_chat_url,
-                headers={
-                    "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": settings.OPENAI_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.3,
-                    "max_tokens": 500,
-                    "response_format": {"type": "json_object"}
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
-            text = data["choices"][0]["message"]["content"]
-
-            json_match = re.search(r'\{.*\}', text, re.DOTALL)
-            if json_match:
-                return json.loads(json_match.group())
-            else:
-                return {"is_correct": False, "partial_score": 0.5, "feedback": text}
-    except Exception as e:
+        _text, parsed, provider, attempts = await call_chain(
+            prompt, max_tokens=500, validator=parse_ai_json,
+        )
+        if attempts:
+            logger.info("[exercise-ai] grade via %s after %d fallthrough(s): %s",
+                        provider, len(attempts), "; ".join(attempts))
+        return parsed
+    except ProviderError as e:
+        logger.warning("[exercise-ai] check_answer_with_grok failed: %s", e)
         return {
             "is_correct": False,
             "partial_score": 0,
-            "feedback": f"AI xato: {str(e)}"
+            "feedback": "AI xizmati hozir javob bera olmadi. Birozdan keyin qayta urinib ko'ring.",
         }
 
 
