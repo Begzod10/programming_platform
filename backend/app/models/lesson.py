@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from app.models.project import Project
     from app.models.user import Student
     from app.models.exercise import Exercise
+    from app.models.lesson_file import LessonFile
+
 
 
 class Lesson(Base):
@@ -72,6 +74,11 @@ class Lesson(Base):
 
     completions: Mapped[List["LessonCompletion"]] = relationship(
         "LessonCompletion",
+        back_populates="lesson",
+        cascade="all, delete-orphan"
+    )
+    files: Mapped[List["LessonFile"]] = relationship(
+        "LessonFile",
         back_populates="lesson",
         cascade="all, delete-orphan"
     )

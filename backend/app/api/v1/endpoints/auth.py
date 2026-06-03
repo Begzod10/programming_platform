@@ -20,7 +20,6 @@ async def login(
 ):
     return await auth_service.login(db, user_in.username, user_in.password)
 
-
 @router.post(
     "/logout",
     summary="Logout user"

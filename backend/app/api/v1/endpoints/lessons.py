@@ -1,13 +1,15 @@
 import json
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
-
-from app.dependencies import get_db, get_current_student, get_current_teacher, get_current_student_optional
+from starlette import status
+from app.models.lesson_file import LessonFile
+from app.dependencies import get_db, get_current_student, get_current_teacher, get_current_student_optional, \
+    get_current_instructor
 from app.services import lesson_service, achievement_service
 from app.schemas.lesson import LessonCreate, LessonUpdate, LessonRead
 from app.models.user import Student
@@ -16,8 +18,22 @@ from app.models.project import Project
 from app.models.lesson import LessonCompletion, Lesson
 from app.models.course import Course
 from app.services.course_service import CourseService
+import os
+import uuid
+from pathlib import Path
+from fastapi import UploadFile, File, Form
+from fastapi.responses import FileResponse
+from app.config import settings
 
 router = APIRouter()
+LESSONS_FILES_DIR = Path(settings.UPLOAD_DIR) / "lesson_files"
+LESSONS_FILES_DIR.mkdir(parents=True, exist_ok=True)
+
+# Ruxsat etilgan kod fayl turlari
+ALLOWED_CODE_EXTENSIONS = {
+    ".html", ".css", ".js", ".py", ".ts", ".jsx", ".tsx",
+    ".json", ".xml", ".php", ".java", ".cpp", ".c", ".sql"
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -639,3 +655,256 @@ async def get_lesson_submission(
         "can_resubmit": can_resubmit,
         "pass_threshold": PROJECT_PASS_THRESHOLD,
     }
+
+
+@router.post("/{lesson_id}/files", status_code=status.HTTP_201_CREATED)
+async def upload_lesson_file(
+        lesson_id: int,
+        file: UploadFile = File(...),
+        label: str = Form(default=""),
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """O'qituvchi darsga kod fayl yuklaydi — kodi o'qilib qaytariladi"""
+
+    # Kengaytmani tekshirish
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_CODE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Faqat kod fayllari qabul qilinadi: {', '.join(ALLOWED_CODE_EXTENSIONS)}"
+        )
+
+    # Faylni o'qish
+    contents = await file.read()
+
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Fayl bo'sh!")
+
+    if len(contents) > 1 * 1024 * 1024:  # 1MB limit
+        raise HTTPException(status_code=400, detail="Fayl 1MB dan katta!")
+
+    # Kodni decode qilish
+    try:
+        code_text = contents.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="Fayl UTF-8 formatida emas!")
+
+    # Darsni tekshirish
+    result = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
+    lesson = result.scalar_one_or_none()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Dars topilmadi!")
+
+    # Faylni serverga saqlash
+    filename = f"{uuid.uuid4()}{ext}"
+    filepath = LESSONS_FILES_DIR / filename
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    # Bazaga saqlash
+    lesson_file = LessonFile(
+        lesson_id=lesson_id,
+        original_name=file.filename,
+        saved_name=filename,
+        file_url=f"/uploads/lesson_files/{filename}",
+        extension=ext,
+        label=label,
+        code_content=code_text,
+        file_size=len(contents)
+    )
+    db.add(lesson_file)
+    await db.commit()
+    await db.refresh(lesson_file)
+
+    return {
+        "id": lesson_file.id,
+        "lesson_id": lesson_id,
+        "original_name": file.filename,
+        "file_url": lesson_file.file_url,
+        "extension": ext,
+        "label": label,
+        "code_content": code_text,
+        "file_size": len(contents),
+        "created_at": lesson_file.created_at
+    }
+
+
+# ============================================================
+# 2. DARSNING BARCHA FAYLLARINI OLISH
+# ============================================================
+
+@router.get("/{lesson_id}/files")
+async def get_lesson_files(
+        lesson_id: int,
+        current_user: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """Darsga yuklangan barcha fayllar va ularning kodi"""
+
+    result = await db.execute(
+        select(LessonFile)
+        .where(LessonFile.lesson_id == lesson_id)
+        .order_by(LessonFile.created_at)
+    )
+    files = result.scalars().all()
+
+    return [
+        {
+            "id": f.id,
+            "lesson_id": f.lesson_id,
+            "original_name": f.original_name,
+            "file_url": f.file_url,
+            "extension": f.extension,
+            "label": f.label,
+            "code_content": f.code_content,
+            "file_size": f.file_size,
+            "created_at": f.created_at
+        }
+        for f in files
+    ]
+
+
+# ============================================================
+# 3. BITTA FAYLNI OLISH
+# ============================================================
+
+@router.get("/{lesson_id}/files/{file_id}")
+async def get_lesson_file(
+        lesson_id: int,
+        file_id: int,
+        current_user: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(LessonFile).where(
+            LessonFile.id == file_id,
+            LessonFile.lesson_id == lesson_id
+        )
+    )
+    lesson_file = result.scalar_one_or_none()
+    if not lesson_file:
+        raise HTTPException(status_code=404, detail="Fayl topilmadi!")
+
+    return {
+        "id": lesson_file.id,
+        "original_name": lesson_file.original_name,
+        "file_url": lesson_file.file_url,
+        "extension": lesson_file.extension,
+        "label": lesson_file.label,
+        "code_content": lesson_file.code_content,
+        "file_size": lesson_file.file_size,
+        "created_at": lesson_file.created_at
+    }
+
+
+# ============================================================
+# 4. FAYLNI YANGILASH (kodni o'zgartirish)
+# ============================================================
+
+@router.patch("/{lesson_id}/files/{file_id}")
+async def update_lesson_file(
+        lesson_id: int,
+        file_id: int,
+        label: str = Body(default=None, embed=True),
+        code_content: str = Body(default=None, embed=True),
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """Fayl label yoki kodni yangilash"""
+
+    result = await db.execute(
+        select(LessonFile).where(
+            LessonFile.id == file_id,
+            LessonFile.lesson_id == lesson_id
+        )
+    )
+    lesson_file = result.scalar_one_or_none()
+    if not lesson_file:
+        raise HTTPException(status_code=404, detail="Fayl topilmadi!")
+
+    if label is not None:
+        lesson_file.label = label
+
+    if code_content is not None:
+        lesson_file.code_content = code_content
+        # Diskdagi faylni ham yangilash
+        filepath = LESSONS_FILES_DIR / lesson_file.saved_name
+        if filepath.exists():
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(code_content)
+
+    await db.commit()
+    await db.refresh(lesson_file)
+
+    return {
+        "id": lesson_file.id,
+        "label": lesson_file.label,
+        "code_content": lesson_file.code_content,
+        "message": "Fayl yangilandi!"
+    }
+
+
+# ============================================================
+# 5. FAYLNI O'CHIRISH
+# ============================================================
+
+@router.delete("/{lesson_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_lesson_file(
+        lesson_id: int,
+        file_id: int,
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """Faylni o'chirish"""
+
+    result = await db.execute(
+        select(LessonFile).where(
+            LessonFile.id == file_id,
+            LessonFile.lesson_id == lesson_id
+        )
+    )
+    lesson_file = result.scalar_one_or_none()
+    if not lesson_file:
+        raise HTTPException(status_code=404, detail="Fayl topilmadi!")
+
+    # Diskdan o'chirish
+    filepath = LESSONS_FILES_DIR / lesson_file.saved_name
+    if filepath.exists():
+        filepath.unlink()
+
+    await db.delete(lesson_file)
+    await db.commit()
+    return None
+
+
+# ============================================================
+# 6. FAYLNI YUKLAB OLISH
+# ============================================================
+
+@router.get("/{lesson_id}/files/{file_id}/download")
+async def download_lesson_file(
+        lesson_id: int,
+        file_id: int,
+        current_user: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(LessonFile).where(
+            LessonFile.id == file_id,
+            LessonFile.lesson_id == lesson_id
+        )
+    )
+    lesson_file = result.scalar_one_or_none()
+    if not lesson_file:
+        raise HTTPException(status_code=404, detail="Fayl topilmadi!")
+
+    filepath = LESSONS_FILES_DIR / lesson_file.saved_name
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="Fayl serverda topilmadi!")
+
+    return FileResponse(
+        path=str(filepath),
+        filename=lesson_file.original_name,
+        media_type="application/octet-stream"
+    )
