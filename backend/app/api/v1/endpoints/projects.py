@@ -15,8 +15,8 @@ from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
 from app.models.user import Student
 from app.services.ranking_service import RankingService
 from fastapi.responses import FileResponse
+from app.services.grok_service import analyze_project_with_grok
 
-# Importlarga qo'shing (fayl boshiga)
 import uuid
 from pathlib import Path
 from fastapi import UploadFile, File
@@ -270,6 +270,7 @@ async def update_file(
     )
 
 
+
 @router.post("/{project_id}/upload-zip")
 async def upload_project_zip(
         project_id: int,
@@ -281,45 +282,56 @@ async def upload_project_zip(
     import zipfile
     import io
 
-    # Faqat ZIP
     allowed_types = [
         "application/zip",
         "application/x-zip-compressed",
         "application/octet-stream"
     ]
     if file.content_type not in allowed_types:
-        raise HTTPException(status_code=400, detail="Faqat ZIP fayl qabul qilinadi!")
+        raise HTTPException(status_code=400, detail="Faqat ZIP fayl!")
 
     contents = await file.read()
 
-    # Bo'sh fayl tekshiruvi
     if len(contents) == 0:
         raise HTTPException(status_code=400, detail="ZIP fayl bo'sh!")
 
-    # ✅ ZIP ichida fayl borligini tekshirish — SHU YERGA
+    # ZIP ichida fayl borligini tekshirish
     try:
         with zipfile.ZipFile(io.BytesIO(contents)) as zf:
-            if len(zf.namelist()) == 0:
+            real_files = [
+                name for name in zf.namelist()
+                if not name.endswith("/")
+            ]
+            if len(real_files) == 0:
                 raise HTTPException(
                     status_code=400,
-                    detail="ZIP fayl bo'sh! Ichiga loyiha fayllarini qo'shing."
+                    detail="ZIP ichida fayl yo'q!"
                 )
-    except zipfile.BadZipFile:
-        raise HTTPException(
-            status_code=400,
-            detail="Noto'g'ri ZIP fayl!"
-        )
 
-    # 50MB limit
-    if len(contents) > 50 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="Fayl 50MB dan katta!")
+            # ✅ ZIP ichidagi kod fayllarini o'qish (AI uchun)
+            code_content = ""
+            code_extensions = [
+                ".html", ".css", ".js", ".py",
+                ".ts", ".jsx", ".tsx", ".vue",
+                ".java", ".php", ".cpp", ".c"
+            ]
+            for name in real_files[:10]:  # Max 10 fayl
+                if any(name.endswith(ext) for ext in code_extensions):
+                    try:
+                        with zf.open(name) as f:
+                            code = f.read().decode("utf-8", errors="ignore")
+                            code_content += f"\n\n=== {name} ===\n{code[:2000]}"
+                    except Exception:
+                        pass
+
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Noto'g'ri ZIP fayl!")
 
     # Loyiha mavjudligini tekshirish
     project = await service.get_project(project_id=project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi!")
 
-    # Faqat o'z loyihasiga yuklash
     if project.student_id != current_student.id:
         raise HTTPException(status_code=403, detail="Bu loyiha sizniki emas!")
 
@@ -338,15 +350,56 @@ async def upload_project_zip(
 
     file_url = f"/uploads/projects/{filename}"
 
+    # Bazada project_files yangilash
     await service.update_file(
         project_id=project_id,
         student_id=current_student.id,
         file_url=file_url,
     )
 
+    # ✅ AI AVTOMATIK TEKSHIRISH
+    technologies = []
+    if project.technologies_used:
+        if isinstance(project.technologies_used, list):
+            technologies = project.technologies_used
+        else:
+            technologies = [project.technologies_used]
+
+    ai_result = await analyze_project_with_grok(
+        title=project.title,
+        description=project.description + (
+            f"\n\nKod fayllari:\n{code_content}" if code_content else ""
+        ),
+        github_url=project.github_url or "ZIP fayl orqali yuklandi",
+        technologies=technologies,
+        difficulty_level=project.difficulty_level,
+        previous_points=project.points_earned or 0
+    )
+
+    # ✅ AI natijasini bazaga saqlash
+    project_result = await db.execute(
+        select(Project).where(Project.id == project_id)
+    )
+    db_project = project_result.scalar_one_or_none()
+
+    if db_project and ai_result:
+        db_project.grade = ai_result.get("grade")
+        db_project.points_earned = ai_result.get("points", 0)
+        db_project.instructor_feedback = ai_result.get("feedback", "")
+        db_project.status = "Under Review"
+        await db.commit()
+
     return {
         "file_url": file_url,
-        "message": "ZIP fayl muvaffaqiyatli yuklandi!"
+        "message": "ZIP fayl yuklandi va AI tekshirdi!",
+        "ai_review": {
+            "grade": ai_result.get("grade"),
+            "points": ai_result.get("points"),
+            "summary": ai_result.get("summary"),
+            "feedback": ai_result.get("feedback"),
+            "strengths": ai_result.get("strengths", []),
+            "improvements": ai_result.get("improvements", []),
+        }
     }
 
 

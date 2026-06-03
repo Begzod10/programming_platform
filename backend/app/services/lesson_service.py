@@ -15,7 +15,10 @@ async def get_lessons_by_course(db: AsyncSession, course_id: int) -> List[Lesson
         select(Lesson)
         .where(Lesson.course_id == course_id, Lesson.is_active == True)
         .order_by(Lesson.order)
-        .options(selectinload(Lesson.exercises))
+        .options(
+            selectinload(Lesson.exercises),
+            selectinload(Lesson.files)  # ✅ qo'shing
+        )
     )
     return result.scalars().all()
 
@@ -24,7 +27,10 @@ async def get_lesson_by_id(db: AsyncSession, lesson_id: int) -> Optional[Lesson]
     result = await db.execute(
         select(Lesson)
         .where(Lesson.id == lesson_id)
-        .options(selectinload(Lesson.exercises))
+        .options(
+            selectinload(Lesson.exercises),
+            selectinload(Lesson.files)  # ✅ qo'shing
+        )
     )
     return result.scalar_one_or_none()
 
@@ -35,7 +41,6 @@ async def create_lesson(db: AsyncSession, course_id: int, data: LessonCreate) ->
     await db.commit()
     await db.refresh(new_lesson)
     
-    # exercises ni ham yuklaymiz
     result = await db.execute(
         select(Lesson)
         .where(Lesson.id == new_lesson.id)

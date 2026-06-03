@@ -1,3 +1,4 @@
+
 """Multi-provider AI calls with automatic fallback.
 
 Chain order (configurable via settings.AI_PROVIDER_CHAIN, default
@@ -15,6 +16,12 @@ Public API:
   explain_word_with_ai(word)       — dictionary lookup (400 tok cap)
 """
 from __future__ import annotations
+
+# services/grok_service.py
+from typing import Optional
+
+import httpx
+import re
 
 import json
 import logging
@@ -394,6 +401,132 @@ def _failure_review(error_code: str, message: str) -> dict:
     }
 
 
+
+async def _call_grok(prompt: str) -> Optional[str]:
+    """1. Grok AI"""
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                "https://api.x.ai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.GROK_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "grok-3",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": 1000,
+                }
+            )
+            if response.status_code == 429:
+                print("⚠️ Grok limiti tugadi → Gemini ga o'tilmoqda...")
+                return None
+            if response.status_code == 200:
+                return response.json()["choices"][0]["message"]["content"]
+            return None
+    except Exception as e:
+        print(f"❌ Grok xato: {e}")
+        return None
+
+
+async def _call_gemini(prompt: str) -> Optional[str]:
+    """2. Gemini AI"""
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={settings.GEMINI_API_KEY}",
+                headers={"Content-Type": "application/json"},
+                json={
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {
+                        "temperature": 0.3,
+                        "maxOutputTokens": 1000,
+                    }
+                }
+            )
+            if response.status_code == 429:
+                print("⚠️ Gemini limiti tugadi → OpenAI ga o'tilmoqda...")
+                return None
+            if response.status_code == 200:
+                return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            return None
+    except Exception as e:
+        print(f"❌ Gemini xato: {e}")
+        return None
+
+
+async def _call_openai(prompt: str) -> Optional[str]:
+    """3. OpenAI AI"""
+    try:
+        async with httpx.AsyncClient(
+            timeout=60.0,
+            proxy=settings.HTTP_PROXY or None
+        ) as client:
+            response = await client.post(
+                settings.openai_chat_url,
+                headers={
+                    "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": settings.OPENAI_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": 1000,
+                    "response_format": {"type": "json_object"}
+                }
+            )
+            if response.status_code == 429:
+                print("❌ OpenAI ham limiti tugadi!")
+                return None
+            if response.status_code == 200:
+                return response.json()["choices"][0]["message"]["content"]
+            return None
+    except Exception as e:
+        print(f"❌ OpenAI xato: {e}")
+        return None
+
+
+async def _ask_ai(prompt: str) -> Optional[str]:
+    """Grok → Gemini → OpenAI fallback"""
+
+    # 1. Grok
+    result = await _call_grok(prompt)
+    if result:
+        print("✅ Grok javob berdi")
+        return result
+
+    # 2. Gemini
+    result = await _call_gemini(prompt)
+    if result:
+        print("✅ Gemini javob berdi")
+        return result
+
+    # 3. OpenAI
+    result = await _call_openai(prompt)
+    if result:
+        print("✅ OpenAI javob berdi")
+        return result
+
+    return None
+
+
+def _parse_json(text: str) -> Optional[dict]:
+    """JSON ni xavfsiz parse qilish"""
+    try:
+        json_match = re.search(r'\{.*\}', text, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group())
+    except Exception:
+        pass
+    return None
+
+
+# ============================================================
+# ASOSIY FUNKSIYALAR
+# ============================================================
+
 async def analyze_project_with_grok(
         title: str,
         description: str,
@@ -405,6 +538,7 @@ async def analyze_project_with_grok(
         repo_summary: str = "",
         authorship: Optional[dict] = None,
 ) -> dict:
+
     """Grade a student project using the configured AI provider chain.
 
     Returns the parsed AI JSON plus a `provider` key indicating which
@@ -516,3 +650,102 @@ Faqat JSON formatda javob ber (boshqa hech narsa yozma):
         "examples": [str(x) for x in (parsed.get("examples") or []) if x][:5],
         "provider": provider,
     }
+
+    """AI yordamida proektni tahlil qiladi (Grok → Gemini → OpenAI)"""
+
+    technologies_str = ", ".join(technologies) if technologies else "ko'rsatilmagan"
+
+    previous_info = ""
+    if previous_points > 0:
+        previous_info = f"\nDIQQAT: Bu loyiha avval {previous_points} ball olgan edi. Agar ball oshgan bo'lsa, feedback da nima yaxshilanganini aniq ayt."
+
+    prompt = f"""
+Sen tajribali dasturlash o'qituvchisisiz. Quyidagi o'quvchi proektini baholab ber.
+Proekt ma'lumotlari:
+- Nomi: {title}
+- Tavsifi: {description}
+- GitHub: {github_url}
+- Texnologiyalar: {technologies_str}
+- Qiyinlik darajasi: {difficulty_level}
+{previous_info}
+
+Quyidagi formatda JSON javob ber (boshqa hech narsa yozma, faqat JSON):
+{{
+    "grade": "A yoki B yoki C yoki D yoki F",
+    "points": 0-100 orasida son,
+    "feedback": "O'quvchiga batafsil fikr-mulohaza (o'zbek tilida).",
+    "strengths": ["kuchli tomon 1", "kuchli tomon 2"],
+    "improvements": ["yaxshilash kerak 1", "yaxshilash kerak 2"],
+    "summary": "Qisqa xulosa (1-2 jumla, o'zbek tilida)"
+}}
+Baholash mezonlari:
+- A: 90-100 ball - Ajoyib proekt
+- B: 75-89 ball - Yaxshi proekt
+- C: 60-74 ball - O'rtacha proekt
+- D: 45-59 ball - Qoniqarsiz
+- F: 0-44 ball - Juda zaif
+"""
+
+    text = await _ask_ai(prompt)
+
+    if text:
+        parsed = _parse_json(text)
+        if parsed:
+            return parsed
+        return {
+            "grade": "C",
+            "points": 60,
+            "feedback": text,
+            "strengths": [],
+            "improvements": [],
+            "summary": "AI javobi JSON formatida emas edi."
+        }
+
+    return {
+        "grade": "F",
+        "points": 0,
+        "feedback": "AI tahlilida xatolik yuz berdi. Barcha AI limitlari tugadi.",
+        "strengths": [],
+        "improvements": [],
+        "summary": "Xatolik yuz berdi."
+    }
+
+
+async def explain_word_with_ai(word: str) -> dict:
+    """So'zni AI yordamida tushuntiradi (Grok → Gemini → OpenAI)"""
+
+    prompt = f"""
+Sen dasturlash o'qituvchisisiz. "{word}" so'zini/texnologiyasini tushuntir.
+
+Faqat JSON formatida javob ber (boshqa hech narsa yozma):
+{{
+    "word": "{word}",
+    "short_definition": "1 jumlada qisqa ta'rif",
+    "full_explanation": "Batafsil tushuntirish (o'zbek tilida, 3-5 jumla)",
+    "example": "Misol yoki qo'llanilishi",
+    "category": "masalan: Markup Language, Framework, Library va h.k."
+}}
+"""
+
+    text = await _ask_ai(prompt)
+
+    if text:
+        parsed = _parse_json(text)
+        if parsed:
+            return parsed
+        return {
+            "word": word,
+            "short_definition": text,
+            "full_explanation": "",
+            "example": "",
+            "category": ""
+        }
+
+    return {
+        "word": word,
+        "short_definition": "AI xizmati hozirda mavjud emas.",
+        "full_explanation": "",
+        "example": "",
+        "category": ""
+    }
+
