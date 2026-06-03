@@ -6,13 +6,13 @@ from datetime import datetime
 
 class LessonBase(BaseModel):
     """Lesson base schema"""
-    title: str = Field(..., min_length=1, max_length=200, description="Dars nomi")
-    chapter: Optional[str] = Field(None, max_length=200, description="Bo'lim nomi")
+    title: str = Field(..., min_length=1, max_length=500, description="Dars nomi")
+    chapter: Optional[str] = Field(None, max_length=500, description="Bo'lim nomi")
     order: int = Field(default=0, ge=0, description="Dars tartibi")
     points_reward: int = Field(default=10, ge=0, description="Darsni tugatganda beriladigan ball")
 
     # Vazifa fieldlari
-    task_title: Optional[str] = Field(None, max_length=200, description="Vazifa sarlavhasi")
+    task_title: Optional[str] = Field(None, max_length=500, description="Vazifa sarlavhasi")
     task_description: Optional[str] = Field(None, description="Vazifa tavsifi")
     task_requirements: Optional[str] = Field(None, description="Talablar (har qatordan)")
     task_technologies: Optional[str] = Field(None, description="Texnologiyalar (vergul bilan)")
@@ -50,13 +50,13 @@ class LessonCreate(LessonBase):
 
 class LessonUpdate(BaseModel):
     """Darsni yangilash (barcha fieldlar optional)"""
-    title: Optional[str] = Field(None, min_length=1, max_length=200)
-    chapter: Optional[str] = Field(None, max_length=200)
+    title: Optional[str] = Field(None, min_length=1, max_length=500)
+    chapter: Optional[str] = Field(None, max_length=500)
     order: Optional[int] = Field(None, ge=0)
     points_reward: Optional[int] = Field(None, ge=0, description="Darsni tugatganda beriladigan ball")
 
     # Vazifa
-    task_title: Optional[str] = Field(None, max_length=200)
+    task_title: Optional[str] = Field(None, max_length=500)
     task_description: Optional[str] = None
     task_requirements: Optional[str] = None
     task_technologies: Optional[str] = None
