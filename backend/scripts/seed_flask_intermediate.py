@@ -75,14 +75,14 @@ L1_TEXT = """\
 
 <pre class="mermaid">
 flowchart LR
-    A[wsgi.py] -->|create_app&#40;'production'&#41;| B(create_app)
-    T[tests.py] -->|create_app&#40;'testing'&#41;| B
-    D[shell] -->|create_app&#40;'development'&#41;| B
-    B --> C[Yangi Flask&#40;__name__&#41;]
-    C --> E[config.from_object&#40;CONFIGS&#91;name&#93;&#41;]
-    E --> F[db.init_app&#40;app&#41;<br/>login.init_app&#40;app&#41;<br/>mail.init_app&#40;app&#41;]
-    F --> G[register_blueprint&#40;...&#41;]
-    G --> H((return app))
+    A["wsgi.py"] -->|prod| B["create_app"]
+    T["tests.py"] -->|test| B
+    D["shell"] -->|dev| B
+    B --> C["Flask init"]
+    C --> E["config.from_object"]
+    E --> F["db.init_app + login.init_app"]
+    F --> G["register_blueprint"]
+    G --> H(("return app"))
 </pre>
 
 <p>Asoslar kursida biz ilovamizni bir qator bilan yaratardik:</p>
@@ -125,14 +125,14 @@ def create_app(config_name='development'):
 
 <pre class="mermaid">
 flowchart TB
-    subgraph BAD["❌ NOTO'G'RI — bitta ilovaga mahkamlangan"]
-        B1[db = SQLAlchemy&#40;app&#41;] --> B2[Test boshqa app yarata olmaydi]
-        B2 --> B3[Aylanma import xatosi]
+    subgraph BAD["NOTOGRI - bitta ilovaga mahkamlangan"]
+        B1["db = SQLAlchemy with app"] --> B2["Test boshqa app yarata olmaydi"]
+        B2 --> B3["Aylanma import xatosi"]
     end
-    subgraph GOOD["✅ TO'G'RI — kechiktirilgan bog'lanish"]
-        G1[db = SQLAlchemy&#40;&#41; <br/>modul darajasida] --> G2[create_app&#40;cfg&#41;]
-        G2 --> G3[db.init_app&#40;app&#41;]
-        G3 --> G4[Har test o'z app va db ga ega]
+    subgraph GOOD["TOGRI - kechiktirilgan boglanish"]
+        G1["db = SQLAlchemy modul darajasida"] --> G2["create_app cfg"]
+        G2 --> G3["db.init_app app"]
+        G3 --> G4["Har test oz app va db ga ega"]
     end
 </pre>
 
@@ -350,11 +350,11 @@ L3_TEXT = """\
 
 <pre class="mermaid">
 flowchart LR
-    A[Python kod<br/>Note&#40;title='...'&#41;] -->|ORM| B[SQLAlchemy]
-    B -->|SQL generatsiya| C{Qaysi baza?}
-    C -->|sqlite:///app.db| D[(SQLite)]
-    C -->|postgresql://...| E[(PostgreSQL)]
-    C -->|mysql://...| F[(MySQL)]
+    A["Python kod"] -->|ORM| B["SQLAlchemy"]
+    B -->|SQL generatsiya| C{"Qaysi baza?"}
+    C -->|sqlite| D[("SQLite")]
+    C -->|postgresql| E[("PostgreSQL")]
+    C -->|mysql| F[("MySQL")]
     style A fill:#e8f5e9
     style B fill:#fff3e0
 </pre>
@@ -444,22 +444,21 @@ except Exception:
 
 <pre class="mermaid">
 sequenceDiagram
-    participant V as View funksiyasi
+    participant V as View
     participant S as db.session
     participant DB as Baza
-
-    V->>S: add&#40;note&#41;
-    Note over S: navbatda — hali yozilmagan
-    V->>S: commit&#40;&#41;
-    S->>DB: INSERT INTO notes ...
+    V->>S: add note
+    Note over S: navbatda hali yozilmagan
+    V->>S: commit
+    S->>DB: INSERT INTO notes
     alt Muvaffaqiyatli
         DB-->>S: OK
         S-->>V: True
-    else Xato &#40;UNIQUE va h.k.&#41;
+    else Xato
         DB-->>S: IntegrityError
         S-->>V: Exception
-        V->>S: rollback&#40;&#41;
-        Note over S: sessiya toza,<br/>keyingi so'rov ishlaydi
+        V->>S: rollback
+        Note over S: sessiya toza endi
     end
 </pre>
 """
