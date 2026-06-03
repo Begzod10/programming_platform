@@ -14,15 +14,19 @@ export default function Dictionary() {
     const [error,    setError]    = useState('');
     const [toast,    setToast]    = useState('');
     const [filter,   setFilter]   = useState('all');
-    const [view,     setView]     = useState('grid'); // 'grid' | 'list'
+    const [view,     setView]     = useState('grid');
+
+    // ✅ Modal state
+    const [showModal, setShowModal] = useState(false);
+    const [adding,    setAdding]    = useState(false);
+    const [form,      setForm]      = useState({ word: '', context: '' });
+    const [formError, setFormError] = useState('');
 
     const showToast = useCallback((msg, type = 'success') => {
         setToast({ msg, type });
         setTimeout(() => setToast(''), 3000);
     }, []);
 
-    // Слушаем событие из DictSelectionPopup → Dictionary уже добавил слово через API,
-    // нам нужно только перезагрузить список
     useEffect(() => {
         const onWordAdded = () => {
             request(BASE, 'GET', null, headers())
@@ -49,6 +53,38 @@ export default function Dictionary() {
             })
             .catch(() => setError("O'chirishda xatolik"))
             .finally(() => setDeleting(null));
+    };
+
+    // ✅ Ruchnoy so'z qo'shish
+    const handleAddWord = async () => {
+        if (!form.word.trim()) {
+            setFormError("So'z kiriting!");
+            return;
+        }
+        setAdding(true);
+        setFormError('');
+        try {
+            const newWord = await request(BASE, 'POST', {
+                word: form.word.trim(),
+                context: form.context.trim() || null,
+                lesson_id: null
+            }, headers());
+
+            setWords(w => [newWord, ...w]);
+            setShowModal(false);
+            setForm({ word: '', context: '' });
+            showToast("So'z qo'shildi ✓");
+        } catch (e) {
+            setFormError("Xatolik yuz berdi, qayta urinib ko'ring");
+        } finally {
+            setAdding(false);
+        }
+    };
+
+    const closeModal = () => {
+        setShowModal(false);
+        setForm({ word: '', context: '' });
+        setFormError('');
     };
 
     const lessons = [...new Set(words.map(w => w.lesson_id).filter(Boolean))].sort((a, b) => a - b);
@@ -81,6 +117,73 @@ export default function Dictionary() {
                 </div>
             )}
 
+            {/* ✅ Modal */}
+            {showModal && (
+                <div className="d-modal-overlay" onClick={closeModal}>
+                    <div className="d-modal" onClick={e => e.stopPropagation()}>
+                        <div className="d-modal-header">
+                            <span className="d-modal-icon">✏️</span>
+                            <div>
+                                <div className="d-modal-title">So'z qo'shish</div>
+                                <div className="d-modal-sub">Lug'atingizga yangi so'z qo'shing</div>
+                            </div>
+                            <button className="d-modal-close" onClick={closeModal}>✕</button>
+                        </div>
+
+                        <div className="d-modal-body">
+                            <div className="d-field">
+                                <label className="d-label">So'z <span className="d-required">*</span></label>
+                                <input
+                                    className={`d-input ${formError && !form.word.trim() ? 'error' : ''}`}
+                                    placeholder="Masalan: flexbox, margin, gap..."
+                                    value={form.word}
+                                    onChange={e => {
+                                        setForm(f => ({ ...f, word: e.target.value }));
+                                        setFormError('');
+                                    }}
+                                    onKeyDown={e => e.key === 'Enter' && handleAddWord()}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <div className="d-field">
+                                <label className="d-label">
+                                    Izoh
+                                    <span className="d-optional">ixtiyoriy</span>
+                                </label>
+                                <textarea
+                                    className="d-textarea"
+                                    placeholder="Bu so'zning ma'nosi yoki misol..."
+                                    value={form.context}
+                                    onChange={e => setForm(f => ({ ...f, context: e.target.value }))}
+                                    rows={3}
+                                />
+                            </div>
+
+                            {formError && (
+                                <div className="d-form-error">⚠️ {formError}</div>
+                            )}
+                        </div>
+
+                        <div className="d-modal-footer">
+                            <button className="d-btn-cancel" onClick={closeModal}>
+                                Bekor qilish
+                            </button>
+                            <button
+                                className="d-btn-add"
+                                onClick={handleAddWord}
+                                disabled={adding}
+                            >
+                                {adding
+                                    ? <><span className="d-spin-white" /> Qo'shilmoqda...</>
+                                    : <><span>+</span> Qo'shish</>
+                                }
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── Sidebar ── */}
             <aside className="d-sidebar">
                 <div className="d-sidebar-logo">
@@ -108,6 +211,12 @@ export default function Dictionary() {
                         <span className="d-sstat-key">natija</span>
                     </div>
                 </div>
+
+                {/* ✅ Qo'shish tugmasi sidebarда */}
+                <button className="d-add-btn" onClick={() => setShowModal(true)}>
+                    <span className="d-add-plus">+</span>
+                    So'z qo'shish
+                </button>
 
                 {/* Lesson filters */}
                 {lessons.length > 0 && (
@@ -164,6 +273,11 @@ export default function Dictionary() {
                         )}
                     </div>
 
+                    {/* ✅ Topbar da ham qo'shish tugmasi */}
+                    <button className="d-topbar-add" onClick={() => setShowModal(true)}>
+                        <span>+</span> So'z qo'shish
+                    </button>
+
                     <div className="d-view-toggle">
                         <button
                             className={`d-vbtn ${view === 'grid' ? 'active' : ''}`}
@@ -215,9 +329,14 @@ export default function Dictionary() {
                             {search
                                 ? "Boshqa kalit so'z bilan qidiring"
                                 : words.length === 0
-                                    ? "Darsda matnni belgilab lug'atga qo'shing"
+                                    ? "Quyidagi tugma orqali so'z qo'shing"
                                     : ''}
                         </div>
+                        {words.length === 0 && !search && (
+                            <button className="d-empty-reset" onClick={() => setShowModal(true)}>
+                                + So'z qo'shish
+                            </button>
+                        )}
                         {search && (
                             <button className="d-empty-reset" onClick={() => setSearch('')}>
                                 Tozalash
@@ -243,9 +362,10 @@ export default function Dictionary() {
                                 <div className="d-card-inner">
                                     <div className="d-card-top">
                                         <span className="d-card-word">{item.word}</span>
-                                        {item.lesson_id && (
-                                            <span className="d-card-tag">{item.lesson_id}-dars</span>
-                                        )}
+                                        {item.lesson_id
+                                            ? <span className="d-card-tag">{item.lesson_id}-dars</span>
+                                            : <span className="d-card-tag manual">✍️ qo'lda</span>
+                                        }
                                     </div>
                                     {item.context && (
                                         <p className="d-card-ctx">"{item.context}"</p>
@@ -281,9 +401,10 @@ export default function Dictionary() {
                                 <div className="d-list-index">{i + 1}</div>
                                 <div className="d-list-word">{item.word}</div>
                                 <div className="d-list-ctx">{item.context || '—'}</div>
-                                {item.lesson_id && (
-                                    <span className="d-list-tag">{item.lesson_id}-dars</span>
-                                )}
+                                {item.lesson_id
+                                    ? <span className="d-list-tag">{item.lesson_id}-dars</span>
+                                    : <span className="d-list-tag manual">✍️ qo'lda</span>
+                                }
                                 <button
                                     className="d-list-del"
                                     onClick={() => handleDelete(item.id)}
