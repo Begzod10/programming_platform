@@ -11,7 +11,11 @@ mermaid.initialize({
     startOnLoad: false,
     theme: 'default',
     securityLevel: 'loose',
-    flowchart: { useMaxWidth: true, htmlLabels: true },
+    // useMaxWidth:false — CSS handles scaling; see StudentLessonPage for
+    // the rationale (parent width measurement returns NaN when the text
+    // section hasn't been laid out yet, breaking every transform).
+    flowchart: { useMaxWidth: false, htmlLabels: true },
+    sequence: { useMaxWidth: false },
     themeVariables: {
         fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
     },

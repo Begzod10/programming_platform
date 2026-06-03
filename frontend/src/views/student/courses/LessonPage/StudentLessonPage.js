@@ -12,7 +12,12 @@ mermaid.initialize({
     startOnLoad: false,
     theme: 'default',
     securityLevel: 'loose',
-    flowchart: {useMaxWidth: true, htmlLabels: true},
+    // useMaxWidth:false — let SVG use intrinsic size; CSS handles scaling.
+    // With useMaxWidth:true mermaid measures parent width, but when the
+    // text section hasn't been laid out yet that read returns NaN and
+    // every transform attribute becomes "translate(undefined, NaN)".
+    flowchart: {useMaxWidth: false, htmlLabels: true},
+    sequence: {useMaxWidth: false},
     themeVariables: {
         fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
     },
