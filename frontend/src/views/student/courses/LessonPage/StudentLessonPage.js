@@ -18,6 +18,12 @@ mermaid.initialize({
     },
 });
 
+// Temporary: expose mermaid on window so we can debug in DevTools when
+// diagrams fail to render. Safe to leave in — module is already bundled.
+if (typeof window !== 'undefined') {
+    window.mermaid = mermaid;
+}
+
 /* ─────────────────────────────────────────
    Умный парсер → всегда возвращает чистый массив строк
 ───────────────────────────────────────── */
@@ -518,11 +524,17 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             const nodes = document.querySelectorAll(
                 'pre.mermaid:not([data-processed="true"])',
             );
+            // eslint-disable-next-line no-console
+            console.log('[mermaid] effect fired, found', nodes.length, 'unrendered blocks');
             if (nodes.length === 0) return;
-            mermaid.run({nodes: Array.from(nodes)}).catch(() => {
-                // Render failed — leave the <pre> source visible as graceful fallback.
+            mermaid.run({nodes: Array.from(nodes)}).then((res) => {
+                // eslint-disable-next-line no-console
+                console.log('[mermaid] rendered', nodes.length, 'diagrams:', res);
+            }).catch((err) => {
+                // eslint-disable-next-line no-console
+                console.error('[mermaid] render failed:', err);
             });
-        }, 50);
+        }, 150);
         return () => clearTimeout(timer);
     }, [lesson?.id, lesson?.sections]);
 
