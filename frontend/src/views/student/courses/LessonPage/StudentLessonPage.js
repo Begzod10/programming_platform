@@ -18,12 +18,6 @@ mermaid.initialize({
     },
 });
 
-// Temporary: expose mermaid on window so we can debug in DevTools when
-// diagrams fail to render. Safe to leave in — module is already bundled.
-if (typeof window !== 'undefined') {
-    window.mermaid = mermaid;
-}
-
 /* ─────────────────────────────────────────
    Умный парсер → всегда возвращает чистый массив строк
 ───────────────────────────────────────── */
@@ -516,27 +510,45 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [activeSection, setActiveSection] = useState(null);
 
     // Render any <pre class="mermaid"> blocks embedded in lesson text sections.
-    // Mermaid mutates the DOM in place; the :not selector skips already-rendered
-    // blocks when the user expands/collapses sections without changing lessons.
+    // dangerouslySetInnerHTML may commit after this effect fires, so we poll
+    // every 200ms until either nodes show up or we hit the retry cap.
+    // The :not selector skips already-rendered blocks on subsequent passes.
     useEffect(() => {
-        if (!lesson?.sections?.length) return;
-        const timer = setTimeout(() => {
+        if (!lesson?.id) return;
+        let cancelled = false;
+        let attempts = 0;
+        const MAX_ATTEMPTS = 15;        // ~3s total wall-clock
+        const INTERVAL_MS = 200;
+
+        const tick = () => {
+            if (cancelled) return;
+            attempts += 1;
             const nodes = document.querySelectorAll(
                 'pre.mermaid:not([data-processed="true"])',
             );
-            // eslint-disable-next-line no-console
-            console.log('[mermaid] effect fired, found', nodes.length, 'unrendered blocks');
-            if (nodes.length === 0) return;
-            mermaid.run({nodes: Array.from(nodes)}).then((res) => {
-                // eslint-disable-next-line no-console
-                console.log('[mermaid] rendered', nodes.length, 'diagrams:', res);
-            }).catch((err) => {
-                // eslint-disable-next-line no-console
-                console.error('[mermaid] render failed:', err);
-            });
-        }, 150);
-        return () => clearTimeout(timer);
-    }, [lesson?.id, lesson?.sections]);
+            if (nodes.length > 0) {
+                mermaid
+                    .run({nodes: Array.from(nodes)})
+                    .catch(() => {
+                        // Render failed (bad diagram syntax). Leave the
+                        // <pre> source visible as a fallback so the
+                        // operator sees something rendered the bug.
+                    });
+                return;       // success or attempted; stop polling
+            }
+            if (attempts < MAX_ATTEMPTS) {
+                setTimeout(tick, INTERVAL_MS);
+            }
+        };
+
+        // First attempt next tick so React has time to commit
+        // dangerouslySetInnerHTML into the DOM.
+        const first = setTimeout(tick, 50);
+        return () => {
+            cancelled = true;
+            clearTimeout(first);
+        };
+    }, [lesson?.id]);
 
     // Dedup video-watch pings per (lesson, section) within this session so
     // every re-render of the iframe doesn't refire the POST. Backend also
