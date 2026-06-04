@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func, delete  # 👈 'delete' funktsiyasi qo'shildi
+from sqlalchemy import select, and_, func, delete
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 from typing import Optional, List
@@ -7,7 +7,7 @@ from typing import Optional, List
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.course import Course
 from app.models.user import Student
-from app.models.dictionary import UserDictionary  # 👈 Agar user_dictionary modeli shu yerda bo'lsa, import qiling
+from app.models.dictionary import UserDictionary
 from app.schemas.lesson import LessonCreate, LessonUpdate
 
 
