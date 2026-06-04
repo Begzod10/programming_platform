@@ -63,6 +63,16 @@ COURSE = {
 
 L1_TEXT = """\
 <h2>Flaskga kirish</h2>
+
+<pre class="mermaid">
+flowchart LR
+    A["Brauzer"] -->|GET /| B["Flask app"]
+    B --> C["@app.route handler"]
+    C --> D["return Salom dunyo"]
+    D -->|HTTP 200| A
+    B -.->|debug=True| R["auto reload"]
+</pre>
+
 <p>Flask — bu Pythonda web ilovalar yozish uchun ishlatiladigan eng mashhur <strong>mikro</strong> framework. "Mikro" degani — Flask sizga faqat eng kerakli narsalarni beradi: URL routing, request/response cycle va template engine. Qolganini (ma'lumotlar bazasi, autentifikatsiya, formalar) o'zingiz tanlab qo'shasiz.</p>
 <h3>Nima uchun aynan Flask?</h3>
 <ul>
@@ -123,6 +133,24 @@ if __name__ == '__main__':
 
 L2_TEXT = """\
 <h2>Routing va URL</h2>
+
+<pre class="mermaid">
+flowchart TB
+    U1["GET /"] --> M["URL Map"]
+    U2["GET /user/aziz"] --> M
+    U3["GET /post/42"] --> M
+    U4["POST /submit"] --> M
+    M -->|matches| H1["home"]
+    M -->|matches| H2["user_page username"]
+    M -->|matches| H3["show_post id int"]
+    M -->|matches| H4["submit"]
+    M -.->|no match| E["404 Not Found"]
+    H1 --> R["Response"]
+    H2 --> R
+    H3 --> R
+    H4 --> R
+</pre>
+
 <p>Routing — bu turli URL manzillarni turli Python funksiyalariga bog'lash. Flask buni <code>@app.route()</code> dekoratori orqali qiladi.</p>
 <h3>Bir nechta sahifa</h3>
 <pre><code>@app.route('/')
@@ -193,6 +221,22 @@ if __name__ == '__main__':
 
 L3_TEXT = """\
 <h2>Jinja2 Templates</h2>
+
+<pre class="mermaid">
+flowchart LR
+    R["route handler"] --> CTX["context dict name=Aziz"]
+    CTX --> T["render_template"]
+    T -->|reads| F["templates/index.html"]
+    T --> J["Jinja2 engine"]
+    J -->|expands| V["double curly variables"]
+    J -->|runs| L["for if blocks"]
+    J -->|applies| FL["upper length safe filters"]
+    V --> H["rendered HTML"]
+    L --> H
+    FL --> H
+    H -->|escaped XSS safe| B["Brauzer"]
+</pre>
+
 <p>Hozirgacha biz HTML'ni Python qator ichida yozdik — bu shoxni juda tez qiyinlashtiradi. To'g'ri yo'l: HTML'ni alohida faylga ajratish va Python'dan unga ma'lumot yuborish. Buni <strong>shablon (template)</strong> deyiladi.</p>
 <h3>templates/ papkasi</h3>
 <p>Flask odatda shablonlarni <code>templates/</code> papkasidan qidiradi:</p>
@@ -266,6 +310,20 @@ def profile(name):
 
 L4_TEXT = """\
 <h2>Statik fayllar va GET form</h2>
+
+<pre class="mermaid">
+flowchart TB
+    B["Brauzer"] -->|GET /static/style.css| S["static papka"]
+    S -->|file response| B
+    B -->|GET /static/logo.png| S
+    U["foydalanuvchi forma to'ldiradi"] -->|GET /search?q=flask| H["search handler"]
+    H --> Q["request.args.get q"]
+    Q --> FT["filter items by q"]
+    FT --> RT["render_template results"]
+    RT --> B
+    H -.->|q yo'q| EMPTY["bo'sh natija"]
+</pre>
+
 <h3>static/ papkasi</h3>
 <p>CSS, JavaScript, rasm — bularning hammasi <code>static/</code> papkasiga joylanadi. Flask ularni avtomatik xizmat qiladi.</p>
 <pre><code>flask_app/
@@ -325,6 +383,21 @@ def search():
 
 L5_TEXT = """\
 <h2>POST formani qabul qilish</h2>
+
+<pre class="mermaid">
+flowchart LR
+    A["GET /contact"] -->|render| F["form HTML"]
+    F -->|user submits| C["POST /contact"]
+    C --> RF["request.form"]
+    RF --> V["validate fields"]
+    V -->|ok| SAVE["save data"]
+    SAVE --> FS["flash success"]
+    FS --> RDR["redirect 302"]
+    V -->|fail| FE["flash error"]
+    FE --> RDR
+    RDR -->|GET again| A
+</pre>
+
 <p>GET form URL ichida ma'lumot yuboradi (qisqa, ko'rinadigan). POST esa request body ichida yuboradi — uzun yoki maxfiy ma'lumotlar (parol, izoh, fayl) uchun.</p>
 <h3>methods=['GET', 'POST']</h3>
 <p>Bitta route ham forma ko'rsatadi (GET), ham qabul qiladi (POST):</p>
@@ -399,6 +472,20 @@ def contact():
 
 L6_TEXT = """\
 <h2>Session va cookies</h2>
+
+<pre class="mermaid">
+flowchart LR
+    A["POST /login user pass"] --> B["check credentials"]
+    B -->|ok| S["session user_id=42"]
+    S -->|signed by SECRET_KEY| CK["Set-Cookie session"]
+    CK --> U["Brauzer saves"]
+    U -->|next request sends cookie| D["GET /dashboard"]
+    D --> RD["read session user_id"]
+    RD --> PG["render private page"]
+    L["GET /logout"] --> CL["session.clear"]
+    CL --> RM["expire cookie"]
+</pre>
+
 <p>HTTP — bu <em>stateless</em> protokol. Har bir so'rov o'z-o'zicha mustaqil, server siz kimligingizni eslab qolmaydi. Lekin login qilishingiz uchun server kim siz ekanligingizni bilishi kerak. Yechim — <strong>session</strong> va <strong>cookies</strong>.</p>
 <h3>Cookies — brauzer xotirasi</h3>
 <p>Server brauzerga "bu qiymatni yodda saqla va keyingi so'rovda menga qaytar" deydi. Brauzer buni avtomatik bajaradi.</p>
@@ -491,6 +578,21 @@ def logout():
 
 L7_TEXT = """\
 <h2>Database — Flask-SQLAlchemy</h2>
+
+<pre class="mermaid">
+flowchart LR
+    P["Python kod"] --> M["User Model class"]
+    M --> ORM["SQLAlchemy ORM"]
+    P -->|User.query.all| Q["query builder"]
+    Q --> ORM
+    P -->|db.session.add| S["unit of work"]
+    S -->|db.session.commit| ORM
+    ORM -->|SQL statement| D["SQLite or Postgres"]
+    D -->|rows| ORM
+    ORM -->|User objects| P
+    P -.->|rollback on error| S
+</pre>
+
 <p>Real ilovalarda ma'lumot xotirada emas, balki <strong>ma'lumotlar bazasida</strong> saqlanadi. Flask'da eng keng tarqalgan vosita — <code>Flask-SQLAlchemy</code>, bu Python obyektlari orqali SQL bilan ishlash imkonini beradi (ORM).</p>
 <h3>O'rnatish</h3>
 <pre><code>pip install flask-sqlalchemy</code></pre>
@@ -578,6 +680,27 @@ if __name__ == '__main__':
 
 L8_TEXT = """\
 <h2>CRUD operatsiyalar</h2>
+
+<pre class="mermaid">
+flowchart TB
+    subgraph CR["CREATE"]
+        C1["POST /notes"] --> C2["Note title body"]
+        C2 --> C3["add then commit"]
+    end
+    subgraph RD["READ"]
+        R1["GET /notes"] --> R2["query.order_by all"]
+        R3["GET /notes/id"] --> R4["get_or_404"]
+    end
+    subgraph UP["UPDATE"]
+        U1["POST /notes/id/edit"] --> U2["note.title equals new"]
+        U2 --> U3["commit only"]
+    end
+    subgraph DL["DELETE"]
+        D1["POST /notes/id/delete"] --> D2["session.delete"]
+        D2 --> D3["commit"]
+    end
+</pre>
+
 <p>CRUD — bu Create, Read, Update, Delete. Har qanday ma'lumot bilan ishlovchi ilovaning asosiy 4 amali.</p>
 <h3>CREATE — yangi yozuv</h3>
 <pre><code>@app.route('/notes', methods=['POST'])
@@ -676,6 +799,20 @@ def delete(id):
 
 L9_TEXT = """\
 <h2>Blueprint va app factory</h2>
+
+<pre class="mermaid">
+flowchart TB
+    F["create_app config"] --> A["Flask instance"]
+    A --> CFG["config.from_object"]
+    A --> DB["db.init_app app"]
+    A --> AB["auth_bp at /auth"]
+    A --> NB["notes_bp at /notes"]
+    AB --> AR["login logout routes"]
+    NB --> NR["list show edit routes"]
+    A --> RET["return app"]
+    RET --> RUN["run.py or wsgi.py"]
+</pre>
+
 <p>11 ta route va 5 ta modeli bor ilova bitta <code>app.py</code> faylida turishi mumkin. Lekin 50 route va 20 model uchun — bu jahannamga aylanadi. Yechim: <strong>Blueprint</strong> va <strong>app factory</strong> pattern.</p>
 <h3>App factory pattern</h3>
 <p>Ilovani global o'zgaruvchi sifatida emas, balki <strong>funksiyadan qaytariladigan obyekt</strong> sifatida yaratamiz:</p>
@@ -790,6 +927,21 @@ if __name__ == '__main__':
 
 L10_TEXT = """\
 <h2>JSON API yaratish</h2>
+
+<pre class="mermaid">
+flowchart LR
+    C["Client React or curl"] -->|GET /api/notes| LH["list_notes"]
+    LH -->|jsonify list 200| C
+    C -->|POST /api/notes JSON| PH["create_note"]
+    PH -->|jsonify dict 201| C
+    C -->|GET /api/notes/id| GH["get_note"]
+    GH -->|jsonify 200 or 404| C
+    C -->|PUT /api/notes/id| UH["update_note"]
+    UH -->|jsonify 200| C
+    C -->|DELETE /api/notes/id| DH["delete_note"]
+    DH -->|empty 204| C
+</pre>
+
 <p>Hozirgacha Flask HTML qaytardi. Lekin mobil ilova yoki React frontend bilan ishlash uchun bizga <strong>JSON API</strong> kerak — server JSON qaytaradi, klient uni o'zicha ko'rsatadi.</p>
 <h3>jsonify — JSON javob qaytarish</h3>
 <pre><code>from flask import jsonify
@@ -907,6 +1059,19 @@ def not_found(e):
 
 L11_TEXT = """\
 <h2>Deployga tayyorlash</h2>
+
+<pre class="mermaid">
+flowchart LR
+    I["Internet"] -->|HTTPS 443| N["nginx"]
+    N -->|proxy_pass 8000| G["gunicorn 4 workers"]
+    G --> F["Flask app"]
+    F --> D["PostgreSQL"]
+    E[".env file"] -->|load_dotenv| F
+    E -.->|SECRET_KEY DATABASE_URL| F
+    N -.->|serves static| S["static folder"]
+    F -.->|debug=False| PROD["production safe"]
+</pre>
+
 <p>Ilovangiz lokalda ishlayapti. Endi uni publik serverga chiqarish vaqti. Lekin <code>python app.py</code> bilan production'da ishlatish — xavfli va sekin. To'g'ri yo'l: <strong>WSGI server + environment vars + xavfsiz sozlamalar</strong>.</p>
 <h3>1. python-dotenv — .env fayl</h3>
 <p>Maxfiy ma'lumotlarni (SECRET_KEY, DATABASE_URL) kodga yozmang. <code>.env</code> faylga chiqaring:</p>
@@ -1000,6 +1165,21 @@ if __name__ == '__main__':
 
 R1_TEXT = """\
 <h2>Takrorlash: Modul 1 + 2 — Routes, Templates, Forms, Session</h2>
+
+<pre class="mermaid">
+flowchart TB
+    L1["GET /login form"] -->|user submits| L2["POST /login"]
+    L2 -->|session username set| I["GET / index"]
+    I -->|render_template entries user| H["index HTML"]
+    H -->|user types text| S["POST /post"]
+    S --> AUTH["session check"]
+    AUTH -->|ok| APP["append entry"]
+    APP -->|redirect 302| I
+    AUTH -->|no session| L1
+    I -->|click chiqish| O["GET /logout"]
+    O -->|session.clear| L1
+</pre>
+
 <p>Tabriklaymiz! Siz allaqachon 6 ta darsni o'tdingiz. Bu — Flask asoslarining yarmi. Endi to'xtab, hammasini birlashtirib mustahkamlash vaqti keldi. Bu dars yangi mavzu emas — bu sizning egallagan bilimlaringizni <strong>birgalikda</strong> ishlatishni o'rgatadi.</p>
 
 <h3>📋 Modul 1+2 da nimalarni o'rgangansiz</h3>
@@ -1167,6 +1347,22 @@ if __name__ == '__main__':
 
 R2_TEXT = """\
 <h2>Takrorlash: Modul 3 — Database va CRUD</h2>
+
+<pre class="mermaid">
+flowchart LR
+    subgraph DB["Database"]
+        U["User id username"] -->|one to many| N1["Note id title body user_id"]
+        U -->|one to many| N2["Note id title body user_id"]
+    end
+    R["GET /notes"] --> SE["session.get user_id"]
+    SE --> FT["filter_by user_id"]
+    FT --> DB
+    DB --> LST["only my notes"]
+    E["GET /notes/55/edit"] --> CHK["note.user_id check"]
+    CHK -->|mismatch| F403["403 Forbidden"]
+    CHK -->|match| FORM["edit form"]
+</pre>
+
 <p>Modul 3 da siz Flask-SQLAlchemy bilan ishlash, ma'lumotlarni saqlash va o'qish (Read), yangilash (Update), o'chirish (Delete) — ya'ni to'liq <strong>CRUD</strong> ni o'rgandingiz. Endi vaqt keldi — hammasini birlashtirib, har bir foydalanuvchining o'z shaxsiy yozuvlari bo'lgan to'liq ilovasini quramiz.</p>
 
 <h3>📋 Modul 3 da nimalarni o'rgangansiz</h3>
@@ -1419,6 +1615,25 @@ if __name__ == '__main__':
 
 R3_TEXT = """\
 <h2>Takrorlash: Modul 4 — Blueprint va JSON API</h2>
+
+<pre class="mermaid">
+flowchart TB
+    F["create_app"] --> A["Flask"]
+    A --> AB["auth_bp at /api/auth"]
+    A --> NB["notes_bp at /api/notes"]
+    AB --> LOGIN["POST login"]
+    AB --> LOGOUT["POST logout"]
+    NB --> G["GET list"]
+    NB --> P["POST create"]
+    NB --> PUT["PUT update"]
+    NB --> DEL["DELETE remove"]
+    G -->|jsonify 200| C["Client React Vue mobile"]
+    P -->|jsonify 201| C
+    PUT -->|jsonify 200| C
+    DEL -->|empty 204| C
+    LOGIN -.->|session set| C
+</pre>
+
 <p>Modul 4 da siz katta loyihalarni <strong>Blueprint</strong>'lar orqali qismlarga bo'lish va JSON <strong>REST API</strong> yaratishni o'rgandingiz. Endi vaqt keldi — Modul 3 da yaratgan notlar ilovasini professional struktura va REST API ga aylantirishimiz mumkin.</p>
 
 <h3>📋 Modul 4 da nimalarni o'rgangansiz</h3>
