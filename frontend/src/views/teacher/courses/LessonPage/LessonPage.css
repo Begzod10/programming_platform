@@ -238,29 +238,6 @@
     margin-top: 0;
 }
 
-/* Mermaid diagram blocks embedded in lesson text */
-.lp-text-content pre.mermaid {
-    background: #f7f8fc;
-    border: 1px solid #e1e3ee;
-    border-radius: 10px;
-    padding: 16px;
-    margin: 18px 0;
-    text-align: center;
-    overflow-x: auto;
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 13px;
-    color: #4a4d6b;
-}
-.lp-text-content pre.mermaid[data-processed="true"] {
-    font-family: inherit;
-    color: inherit;
-}
-.lp-text-content pre.mermaid svg {
-    max-width: 100%;
-    height: auto;
-    display: inline-block;
-}
-
 .lp-code-header {
     display: flex;
     align-items: center;

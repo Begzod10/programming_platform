@@ -1,6 +1,8 @@
 import React, {useState, useRef, useEffect} from 'react';
 import './LessonEditor.css';
+import './LessonEditor.additions.css';
 import {SECTION_TYPES, getYTId} from '../../../../constants/courseUtils';
+import ExerciseFileUpload from '../ExercsieFileUpload/ExercsieFileUpload';
 
 /* ─── Constants ─── */
 const FONT_SIZES = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px'];
@@ -29,6 +31,7 @@ export const makeSection = (type) => ({
     techStack: '',
     deadline: '',
     exercises: [],
+    projectFiles: [],   // ← code files inside Loyiha (project) block
     mashqType: 'textarea',
     question: '',
     answer: '',
@@ -72,10 +75,7 @@ const RichTextEditor = ({value, onChange}) => {
     const restoreSelection = () => {
         if (!savedRange.current) return;
         const sel = window.getSelection();
-        if (sel) {
-            sel.removeAllRanges();
-            sel.addRange(savedRange.current);
-        }
+        if (sel) { sel.removeAllRanges(); sel.addRange(savedRange.current); }
     };
     const preventBlur = (e) => e.preventDefault();
     const exec = (cmd, val = null) => {
@@ -102,11 +102,7 @@ const RichTextEditor = ({value, onChange}) => {
         if (savedRange.current && !savedRange.current.collapsed) {
             const span = document.createElement('span');
             span.style.fontSize = size;
-            try {
-                savedRange.current.surroundContents(span);
-                onChange(editorRef.current.innerHTML);
-            } catch {
-            }
+            try { savedRange.current.surroundContents(span); onChange(editorRef.current.innerHTML); } catch {}
         } else {
             document.execCommand('fontSize', false, '3');
             const fonts = editorRef.current.querySelectorAll('font[size]');
@@ -129,40 +125,28 @@ const RichTextEditor = ({value, onChange}) => {
     return (
         <div className="lep-rte-wrap">
             <div className="lep-rte-toolbar" onMouseDown={preventBlur}>
-                <select className="lep-rte-select" defaultValue="Paragraph" onMouseDown={e => e.stopPropagation()}
-                        onChange={setBlock}>
+                <select className="lep-rte-select" defaultValue="Paragraph" onMouseDown={e => e.stopPropagation()} onChange={setBlock}>
                     {HEADINGS.map(h => <option key={h}>{h}</option>)}
                 </select>
                 <div className="lep-rte-sep"/>
-                <select className="lep-rte-select" defaultValue="Georgia" onMouseDown={e => e.stopPropagation()}
-                        onChange={applyFontFamily}>
+                <select className="lep-rte-select" defaultValue="Georgia" onMouseDown={e => e.stopPropagation()} onChange={applyFontFamily}>
                     {FONT_FAMILIES.map(f => <option key={f}>{f}</option>)}
                 </select>
-                <select className="lep-rte-select" defaultValue="14px" onMouseDown={e => e.stopPropagation()}
-                        onChange={applyFontSize}>
+                <select className="lep-rte-select" defaultValue="14px" onMouseDown={e => e.stopPropagation()} onChange={applyFontSize}>
                     {FONT_SIZES.map(s => <option key={s}>{s}</option>)}
                 </select>
                 <div className="lep-rte-sep"/>
-                <button className="lep-rte-btn" title="Жирный" onMouseDown={preventBlur} onClick={() => exec('bold')}>
-                    <b>B</b></button>
-                <button className="lep-rte-btn" title="Курсив" onMouseDown={preventBlur} onClick={() => exec('italic')}>
-                    <i>I</i></button>
-                <button className="lep-rte-btn" title="Подчёркнутый" onMouseDown={preventBlur}
-                        onClick={() => exec('underline')}><u>U</u></button>
-                <button className="lep-rte-btn" title="Зачёркнутый" onMouseDown={preventBlur}
-                        onClick={() => exec('strikeThrough')}><s>S</s></button>
+                <button className="lep-rte-btn" title="Жирный" onMouseDown={preventBlur} onClick={() => exec('bold')}><b>B</b></button>
+                <button className="lep-rte-btn" title="Курсив" onMouseDown={preventBlur} onClick={() => exec('italic')}><i>I</i></button>
+                <button className="lep-rte-btn" title="Подчёркнутый" onMouseDown={preventBlur} onClick={() => exec('underline')}><u>U</u></button>
+                <button className="lep-rte-btn" title="Зачёркнутый" onMouseDown={preventBlur} onClick={() => exec('strikeThrough')}><s>S</s></button>
                 <div className="lep-rte-sep"/>
                 <button className="lep-rte-btn" onMouseDown={preventBlur} onClick={() => exec('justifyLeft')}>⬅</button>
-                <button className="lep-rte-btn" onMouseDown={preventBlur} onClick={() => exec('justifyCenter')}>☰
-                </button>
-                <button className="lep-rte-btn" onMouseDown={preventBlur} onClick={() => exec('justifyRight')}>➡
-                </button>
+                <button className="lep-rte-btn" onMouseDown={preventBlur} onClick={() => exec('justifyCenter')}>☰</button>
+                <button className="lep-rte-btn" onMouseDown={preventBlur} onClick={() => exec('justifyRight')}>➡</button>
                 <div className="lep-rte-sep"/>
-                <button className="lep-rte-btn" onMouseDown={preventBlur} onClick={() => exec('insertUnorderedList')}>•
-                    –
-                </button>
-                <button className="lep-rte-btn" onMouseDown={preventBlur} onClick={() => exec('insertOrderedList')}>1.
-                </button>
+                <button className="lep-rte-btn" onMouseDown={preventBlur} onClick={() => exec('insertUnorderedList')}>• –</button>
+                <button className="lep-rte-btn" onMouseDown={preventBlur} onClick={() => exec('insertOrderedList')}>1.</button>
                 <div className="lep-rte-sep"/>
                 <div className="lep-rte-color" title="Цвет текста">
                     <div className="lep-rte-dot" style={{background: '#1a1a2e'}}/>
@@ -175,17 +159,12 @@ const RichTextEditor = ({value, onChange}) => {
                            onMouseDown={e => e.stopPropagation()} onChange={e => applyColor(e, 'hiliteColor')}/>
                 </div>
                 <div className="lep-rte-sep"/>
-                <button className="lep-rte-btn" title="Очистить" onMouseDown={preventBlur}
-                        onClick={() => exec('removeFormat')}>✕
-                </button>
+                <button className="lep-rte-btn" title="Очистить" onMouseDown={preventBlur} onClick={() => exec('removeFormat')}>✕</button>
             </div>
             <div className="lep-rte-editor" ref={editorRef} contentEditable suppressContentEditableWarning
                  data-placeholder="Введите текст урока..."
                  onFocus={saveSelection} onKeyUp={saveSelection} onMouseUp={saveSelection} onSelect={saveSelection}
-                 onInput={() => {
-                     onChange(editorRef.current.innerHTML);
-                     saveSelection();
-                 }}/>
+                 onInput={() => { onChange(editorRef.current.innerHTML); saveSelection(); }}/>
         </div>
     );
 };
@@ -209,54 +188,25 @@ const ExerciseRow = ({ex, index, onUpdate, onDelete, onMoveUp, onMoveDown, isFir
             <div className="lep-ex-row-head">
                 <div className="lep-ex-row-left">
                     <span className="lep-ex-row-num">{index + 1}</span>
-                    <select className="lep-ex-type-sel" value={ex.exercise_type}
-                            onChange={e => upd({exercise_type: e.target.value})}>
+                    <select className="lep-ex-type-sel" value={ex.exercise_type} onChange={e => upd({exercise_type: e.target.value})}>
                         {EX_TYPES.map(t => <option key={t} value={t}>{TYPE_LABELS[t] || t}</option>)}
                     </select>
-                    <select
-                        className="lep-ex-diff-sel"
-                        value={ex.difficulty_level}
-                        onChange={e => {
-                            const nextDiff = e.target.value;
-                            upd({
-                                difficulty_level: nextDiff,
-                                points: DIFF_POINTS[nextDiff] // Автоматически ставит 2, 4 или 5
-                            });
-                        }}
-                    >
+                    <select className="lep-ex-diff-sel" value={ex.difficulty_level}
+                            onChange={e => { const d = e.target.value; upd({difficulty_level: d, points: DIFF_POINTS[d]}); }}>
                         {DIFF_LEVELS.map(d => <option key={d}>{d}</option>)}
                     </select>
-
                     <div className="lep-ex-pts-wrap">
-                        <button
-                            type="button"
-                            className="lep-ex-pts-btn"
-                            onClick={() => upd({points: Math.max(0, ex.points - 1)})}
-                        >
-                            –
-                        </button>
-                        <input
-                            className="lep-ex-pts-input"
-                            type="number"
-                            value={ex.points}
-                            onChange={e => upd({points: Number(e.target.value)})}
-                            title="Баллы"
-                        />
-                        <button
-                            type="button"
-                            className="lep-ex-pts-btn"
-                            onClick={() => upd({points: ex.points + 1})}
-                        >
-                            +
-                        </button>
+                        <button type="button" className="lep-ex-pts-btn" onClick={() => upd({points: Math.max(0, ex.points - 1)})}>–</button>
+                        <input className="lep-ex-pts-input" type="number" value={ex.points}
+                               onChange={e => upd({points: Number(e.target.value)})} title="Баллы"/>
+                        <button type="button" className="lep-ex-pts-btn" onClick={() => upd({points: ex.points + 1})}>+</button>
                         <span className="lep-ex-pts-label">pts</span>
                     </div>
                 </div>
                 <div className="lep-ex-row-right">
                     <button className="lep-ex-ctrl" onClick={onMoveUp} disabled={isFirst} title="Вверх">↑</button>
                     <button className="lep-ex-ctrl" onClick={onMoveDown} disabled={isLast} title="Вниз">↓</button>
-                    <button className="lep-ex-ctrl lep-ex-ctrl--toggle" onClick={() => setOpen(o => !o)}
-                            title={open ? 'Свернуть' : 'Развернуть'}>
+                    <button className="lep-ex-ctrl lep-ex-ctrl--toggle" onClick={() => setOpen(o => !o)} title={open ? 'Свернуть' : 'Развернуть'}>
                         {open ? '▲' : '▼'}
                     </button>
                     <button className="lep-ex-ctrl lep-ex-ctrl--del" onClick={onDelete} title="Удалить">✕</button>
@@ -277,8 +227,7 @@ const ExerciseRow = ({ex, index, onUpdate, onDelete, onMoveUp, onMoveDown, isFir
                         <div className="lep-ex-field">
                             <label>Вопрос / Описание</label>
                             <textarea className="lep-ex-textarea" value={ex.description}
-                                      onChange={e => upd({description: e.target.value})}
-                                      placeholder="Опишите задание..."/>
+                                      onChange={e => upd({description: e.target.value})} placeholder="Опишите задание..."/>
                         </div>
                     )}
 
@@ -286,12 +235,10 @@ const ExerciseRow = ({ex, index, onUpdate, onDelete, onMoveUp, onMoveDown, isFir
                         <div className="lep-ex-field">
                             <label>Варианты ответов <span className="lep-ex-hint-label">(через запятую)</span></label>
                             <input className="lep-ex-input" value={ex.options}
-                                   onChange={e => upd({options: e.target.value})}
-                                   placeholder="Вариант A, Вариант B, Вариант C"/>
+                                   onChange={e => upd({options: e.target.value})} placeholder="Вариант A, Вариант B, Вариант C"/>
                         </div>
                         <div className="lep-ex-field">
-                            <label>Правильный ответ(ы) <span
-                                className="lep-ex-hint-label">(через запятую)</span></label>
+                            <label>Правильный ответ(ы) <span className="lep-ex-hint-label">(через запятую)</span></label>
                             <input className="lep-ex-input" value={ex.correct_answers}
                                    onChange={e => upd({correct_answers: e.target.value})} placeholder="Вариант A"/>
                         </div>
@@ -306,28 +253,23 @@ const ExerciseRow = ({ex, index, onUpdate, onDelete, onMoveUp, onMoveDown, isFir
                         <div className="lep-ex-field">
                             <label>Элементы <span className="lep-ex-hint-label">(через запятую)</span></label>
                             <input className="lep-ex-input" value={ex.drag_items}
-                                   onChange={e => upd({drag_items: e.target.value})}
-                                   placeholder="Элемент 1, Элемент 2, Элемент 3"/>
+                                   onChange={e => upd({drag_items: e.target.value})} placeholder="Элемент 1, Элемент 2, Элемент 3"/>
                         </div>
                         <div className="lep-ex-field">
                             <label>Правильный порядок <span className="lep-ex-hint-label">(через запятую)</span></label>
                             <input className="lep-ex-input" value={ex.correct_order}
-                                   onChange={e => upd({correct_order: e.target.value})}
-                                   placeholder="Элемент 1, Элемент 3, Элемент 2"/>
+                                   onChange={e => upd({correct_order: e.target.value})} placeholder="Элемент 1, Элемент 3, Элемент 2"/>
                         </div>
                     </>)}
 
                     {ex.exercise_type === 'fill_in_blank' && (<>
                         <div className="lep-ex-field">
-                            <label>Текст с пропусками <span
-                                className="lep-ex-hint-label">(используйте ___ для пропуска)</span></label>
+                            <label>Текст с пропусками <span className="lep-ex-hint-label">(используйте ___ для пропуска)</span></label>
                             <textarea className="lep-ex-textarea" value={ex.description}
-                                      onChange={e => upd({description: e.target.value})}
-                                      placeholder="Столица России — ___, а Франции — ___."/>
+                                      onChange={e => upd({description: e.target.value})} placeholder="Столица России — ___, а Франции — ___."/>
                         </div>
                         <div className="lep-ex-field">
-                            <label>Правильные ответы <span
-                                className="lep-ex-hint-label">(через запятую, по порядку)</span></label>
+                            <label>Правильные ответы <span className="lep-ex-hint-label">(через запятую, по порядку)</span></label>
                             <input className="lep-ex-input" value={ex.correct_answers}
                                    onChange={e => upd({correct_answers: e.target.value})} placeholder="Москва, Париж"/>
                         </div>
@@ -354,10 +296,11 @@ const ExerciseRow = ({ex, index, onUpdate, onDelete, onMoveUp, onMoveDown, isFir
 };
 
 /* ─────────────────────────────────────────────
-   SECTION BLOCK  — collapse + move + drag handle
+   SECTION BLOCK
 ───────────────────────────────────────────── */
-const SectionBlock = ({section, onUpdate, onDelete, index, total, onMoveUp, onMoveDown, dragHandleProps}) => {
+const SectionBlock = ({section, onUpdate, onDelete, index, total, onMoveUp, onMoveDown, dragHandleProps, lessonId, apiBaseUrl}) => {
     const [collapsed, setCollapsed] = useState(false);
+    const [projectTab, setProjectTab] = useState('info'); // 'info' | 'files'
     const fileRef = useRef(null);
     const imgRef = useRef(null);
     const update = (patch) => onUpdate({...section, ...patch});
@@ -377,6 +320,9 @@ const SectionBlock = ({section, onUpdate, onDelete, index, total, onMoveUp, onMo
         update({exercises: list});
     };
 
+    const taskCount = (section.exercises || []).length;
+    const projectFileCount = (section.projectFiles || []).length;
+
     return (
         <div className={`lep-section${collapsed ? ' lep-section--collapsed' : ''}`} {...dragHandleProps}>
             {/* HEAD */}
@@ -395,14 +341,9 @@ const SectionBlock = ({section, onUpdate, onDelete, index, total, onMoveUp, onMo
                     />
                 </div>
                 <div className="lep-section-head-right">
-                    <button className="lep-section-ctrl" onClick={onMoveUp} disabled={index === 0}
-                            title="Переместить вверх">↑
-                    </button>
-                    <button className="lep-section-ctrl" onClick={onMoveDown} disabled={index === total - 1}
-                            title="Переместить вниз">↓
-                    </button>
-                    <button className="lep-section-ctrl lep-section-ctrl--collapse"
-                            onClick={() => setCollapsed(c => !c)} title={collapsed ? 'Развернуть' : 'Свернуть'}>
+                    <button className="lep-section-ctrl" onClick={onMoveUp} disabled={index === 0} title="Переместить вверх">↑</button>
+                    <button className="lep-section-ctrl" onClick={onMoveDown} disabled={index === total - 1} title="Переместить вниз">↓</button>
+                    <button className="lep-section-ctrl lep-section-ctrl--collapse" onClick={() => setCollapsed(c => !c)} title={collapsed ? 'Развернуть' : 'Свернуть'}>
                         {collapsed ? '▼' : '▲'}
                     </button>
                     <button className="lep-section-del" onClick={onDelete} title="Удалить блок">✕</button>
@@ -433,10 +374,8 @@ const SectionBlock = ({section, onUpdate, onDelete, index, total, onMoveUp, onMo
                                value={section.videoUrl} onChange={e => update({videoUrl: e.target.value})}/>
                         <div className="lep-video-preview">
                             {ytId
-                                ?
-                                <iframe src={`https://www.youtube.com/embed/${ytId}`} allowFullScreen title="preview"/>
-                                : <div className="lep-video-placeholder"><span>🎬</span><p>Введите YouTube ссылку для
-                                    предпросмотра</p></div>
+                                ? <iframe src={`https://www.youtube.com/embed/${ytId}`} allowFullScreen title="preview"/>
+                                : <div className="lep-video-placeholder"><span>🎬</span><p>Введите YouTube ссылку для предпросмотра</p></div>
                             }
                         </div>
                     </>)}
@@ -452,9 +391,7 @@ const SectionBlock = ({section, onUpdate, onDelete, index, total, onMoveUp, onMo
                                    const f = e.target.files[0];
                                    if (f) update({imgUrl: URL.createObjectURL(f), imgName: f.name, imgUrlDirect: ''});
                                }}/>
-                        {section.imgUrl &&
-                            <div className="lep-img-preview"><img src={section.imgUrl} alt={section.imgName || ''}/>
-                            </div>}
+                        {section.imgUrl && <div className="lep-img-preview"><img src={section.imgUrl} alt={section.imgName || ''}/></div>}
                         <input className="lep-input lep-input-sm" placeholder="Или вставьте URL изображения"
                                value={section.imgUrlDirect || ''}
                                onChange={e => update({imgUrlDirect: e.target.value, imgUrl: e.target.value})}/>
@@ -480,60 +417,95 @@ const SectionBlock = ({section, onUpdate, onDelete, index, total, onMoveUp, onMo
                         )}
                     </>)}
 
-                    {/* ── PROJECT (Loyiha) ── */}
+                    {/* ══════════════════════════════════════════
+                        PROJECT (Loyiha) — sub-tabs: Info | Files
+                    ══════════════════════════════════════════ */}
                     {section.type === 'project' && (
                         <div className="lep-project-editor">
-                            <div className="lep-ex-field">
-                                <label>Описание проекта</label>
-                                <textarea className="lep-ex-textarea" value={section.description || ''}
-                                          onChange={e => update({description: e.target.value})}
-                                          placeholder="Опишите суть проекта..."/>
+
+                            {/* ── Sub-tab bar ── */}
+                            <div className="lep-ex-subtab-bar">
+                                <button
+                                    className={`lep-ex-subtab-btn ${projectTab === 'info' ? 'active' : ''}`}
+                                    onClick={() => setProjectTab('info')}
+                                >
+                                    🚀 Описание
+                                </button>
+                                <button
+                                    className={`lep-ex-subtab-btn ${projectTab === 'files' ? 'active' : ''}`}
+                                    onClick={() => setProjectTab('files')}
+                                >
+                                    🗂️ Файлы кода
+                                    {projectFileCount > 0 && (
+                                        <span className="lep-ex-subtab-badge lep-ex-subtab-badge--files">
+                                            {projectFileCount}
+                                        </span>
+                                    )}
+                                </button>
                             </div>
-                            <div className="lep-ex-field">
-                                <label>Требования</label>
-                                <textarea className="lep-ex-textarea" value={section.requirements || ''}
-                                          onChange={e => update({requirements: e.target.value})}
-                                          placeholder="Перечислите требования к проекту..."/>
-                            </div>
-                            <div className="lep-ex-field-row">
+
+                            {/* ── INFO tab ── */}
+                            {projectTab === 'info' && (<>
                                 <div className="lep-ex-field">
-                                    <label>Стек технологий <span
-                                        className="lep-ex-hint-label">(через запятую)</span></label>
-                                    <input className="lep-ex-input" value={section.techStack || ''}
-                                           onChange={e => update({techStack: e.target.value})}
-                                           placeholder="React, Node.js, PostgreSQL"/>
+                                    <label>Описание проекта</label>
+                                    <textarea className="lep-ex-textarea" value={section.description || ''}
+                                              onChange={e => update({description: e.target.value})}
+                                              placeholder="Опишите суть проекта..."/>
                                 </div>
-                                <div className="lep-ex-field lep-ex-field--sm">
-                                    <label>Дедлайн (дней)</label>
-                                    <input className="lep-ex-input" type="number" value={section.deadline || ''}
-                                           onChange={e => update({deadline: e.target.value})} placeholder="7"/>
+                                <div className="lep-ex-field">
+                                    <label>Требования</label>
+                                    <textarea className="lep-ex-textarea" value={section.requirements || ''}
+                                              onChange={e => update({requirements: e.target.value})}
+                                              placeholder="Перечислите требования к проекту..."/>
                                 </div>
-                            </div>
-                            {section.techStack && (
-                                <div className="lep-project-tags-preview">
-                                    {section.techStack.split(',').filter(Boolean).map((t, i) => (
-                                        <span key={i} className="lep-project-tag">{t.trim()}</span>
-                                    ))}
+                                <div className="lep-ex-field-row">
+                                    <div className="lep-ex-field">
+                                        <label>Стек технологий <span className="lep-ex-hint-label">(через запятую)</span></label>
+                                        <input className="lep-ex-input" value={section.techStack || ''}
+                                               onChange={e => update({techStack: e.target.value})}
+                                               placeholder="React, Node.js, PostgreSQL"/>
+                                    </div>
+                                    <div className="lep-ex-field lep-ex-field--sm">
+                                        <label>Дедлайн (дней)</label>
+                                        <input className="lep-ex-input" type="number" value={section.deadline || ''}
+                                               onChange={e => update({deadline: e.target.value})} placeholder="7"/>
+                                    </div>
                                 </div>
+                                {section.techStack && (
+                                    <div className="lep-project-tags-preview">
+                                        {section.techStack.split(',').filter(Boolean).map((t, i) => (
+                                            <span key={i} className="lep-project-tag">{t.trim()}</span>
+                                        ))}
+                                    </div>
+                                )}
+                            </>)}
+
+                            {/* ── FILES tab ── */}
+                            {projectTab === 'files' && (
+                                <ExerciseFileUpload
+                                    lessonId={lessonId}
+                                    apiBaseUrl={apiBaseUrl}
+                                    files={section.projectFiles || []}
+                                    onChange={(newFiles) => update({projectFiles: newFiles})}
+                                />
                             )}
+
                         </div>
                     )}
 
-                    {/* ── EXERCISE ── */}
+                    {/* ── EXERCISE (без изменений) ── */}
                     {section.type === 'exercise' && (
                         <div className="lep-exercise-editor">
                             <div className="lep-exercise-editor-bar">
                                 <span className="lep-exercise-count">
-                                    🎯 {(section.exercises || []).length} заданий
-                                    {(section.exercises || []).length > 0 && (
-                                        <> ·
-                                            🏆 {(section.exercises || []).reduce((s, e) => s + (Number(e.points) || 0), 0)} pts</>
+                                    🎯 {taskCount} заданий
+                                    {taskCount > 0 && (
+                                        <> · 🏆 {(section.exercises || []).reduce((s, e) => s + (Number(e.points) || 0), 0)} pts</>
                                     )}
                                 </span>
-                                <button className="lep-exercise-add-btn" onClick={addExercise}>+ Добавить задание
-                                </button>
+                                <button className="lep-exercise-add-btn" onClick={addExercise}>+ Добавить задание</button>
                             </div>
-                            {(section.exercises || []).length === 0 ? (
+                            {taskCount === 0 ? (
                                 <div className="lep-exercise-empty">
                                     <span>📭</span>
                                     <p>Нет заданий. Нажмите «Добавить задание»</p>
@@ -543,13 +515,15 @@ const SectionBlock = ({section, onUpdate, onDelete, index, total, onMoveUp, onMo
                                     {(section.exercises || []).map((ex, i) => {
                                         const lid = ex._localId || ex.id;
                                         return (
-                                            <ExerciseRow key={lid} ex={ex} index={i}
-                                                         isFirst={i === 0}
-                                                         isLast={i === (section.exercises || []).length - 1}
-                                                         onUpdate={d => updateExercise(lid, d)}
-                                                         onDelete={() => deleteExercise(lid)}
-                                                         onMoveUp={() => moveExercise(lid, -1)}
-                                                         onMoveDown={() => moveExercise(lid, 1)}/>
+                                            <ExerciseRow
+                                                key={lid} ex={ex} index={i}
+                                                isFirst={i === 0}
+                                                isLast={i === taskCount - 1}
+                                                onUpdate={d => updateExercise(lid, d)}
+                                                onDelete={() => deleteExercise(lid)}
+                                                onMoveUp={() => moveExercise(lid, -1)}
+                                                onMoveDown={() => moveExercise(lid, 1)}
+                                            />
                                         );
                                     })}
                                 </div>
@@ -581,8 +555,7 @@ const SectionBlock = ({section, onUpdate, onDelete, index, total, onMoveUp, onMo
                             </div>
                             {section.mashqType === 'word_sort' && (
                                 <div className="lep-ex-field">
-                                    <label>Слова для сортировки <span
-                                        className="lep-ex-hint-label">(через запятую)</span></label>
+                                    <label>Слова для сортировки <span className="lep-ex-hint-label">(через запятую)</span></label>
                                     <input className="lep-ex-input"
                                            value={Array.isArray(section.words) ? section.words.join(', ') : (section.words || '')}
                                            onChange={e => update({words: e.target.value.split(',').map(w => w.trim()).filter(Boolean)})}
@@ -601,23 +574,15 @@ const SectionBlock = ({section, onUpdate, onDelete, index, total, onMoveUp, onMo
 /* ─────────────────────────────────────────────
    DRAG-AND-DROP SORTABLE SECTIONS LIST
 ───────────────────────────────────────────── */
-const SectionsList = ({sections, onReorder, onUpdate, onDelete, onMoveUp, onMoveDown}) => {
+const SectionsList = ({sections, onReorder, onUpdate, onDelete, onMoveUp, onMoveDown, lessonId, apiBaseUrl}) => {
     const dragIdx = useRef(null);
     const [dragOver, setDragOver] = useState(null);
 
-    const handleDragStart = (i) => {
-        dragIdx.current = i;
-    };
-    const handleDragOver = (e, i) => {
-        e.preventDefault();
-        setDragOver(i);
-    };
+    const handleDragStart = (i) => { dragIdx.current = i; };
+    const handleDragOver = (e, i) => { e.preventDefault(); setDragOver(i); };
     const handleDrop = (e, i) => {
         e.preventDefault();
-        if (dragIdx.current === null || dragIdx.current === i) {
-            setDragOver(null);
-            return;
-        }
+        if (dragIdx.current === null || dragIdx.current === i) { setDragOver(null); return; }
         const list = [...sections];
         const [moved] = list.splice(dragIdx.current, 1);
         list.splice(i, 0, moved);
@@ -625,10 +590,7 @@ const SectionsList = ({sections, onReorder, onUpdate, onDelete, onMoveUp, onMove
         dragIdx.current = null;
         setDragOver(null);
     };
-    const handleDragEnd = () => {
-        dragIdx.current = null;
-        setDragOver(null);
-    };
+    const handleDragEnd = () => { dragIdx.current = null; setDragOver(null); };
 
     return (
         <div className="lep-sections-list">
@@ -643,6 +605,8 @@ const SectionsList = ({sections, onReorder, onUpdate, onDelete, onMoveUp, onMove
                         onDelete={() => onDelete(s.id)}
                         onMoveUp={() => onMoveUp(i)}
                         onMoveDown={() => onMoveDown(i)}
+                        lessonId={lessonId}
+                        apiBaseUrl={apiBaseUrl}
                         dragHandleProps={{
                             draggable: true,
                             onDragStart: () => handleDragStart(i),
@@ -658,7 +622,7 @@ const SectionsList = ({sections, onReorder, onUpdate, onDelete, onMoveUp, onMove
 /* ─────────────────────────────────────────────
    MAIN EXPORT: LESSON EDITOR PAGE
 ───────────────────────────────────────────── */
-const LessonEditorPage = ({course, lesson, chapters, onSave, onClose}) => {
+const LessonEditorPage = ({course, lesson, chapters, onSave, onClose, apiBaseUrl = '/api/v1'}) => {
     const [form, setForm] = useState({
         title: lesson?.title || '',
         chapter: lesson?.chapter || '',
@@ -683,22 +647,16 @@ const LessonEditorPage = ({course, lesson, chapters, onSave, onClose}) => {
     const handleSave = async () => {
         if (!form.title.trim()) return;
         setSaving(true);
-        try {
-            await onSave(form);
-        } finally {
-            setSaving(false);
-        }
+        try { await onSave(form); } finally { setSaving(false); }
     };
 
     return (
         <div className="lep-page">
-            {/* Header */}
             <div className="lep-header">
                 <div className="lep-header-left">
                     <button className="lep-back-btn" onClick={onClose} title="Назад">
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                            <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
-                                  strokeLinejoin="round"/>
+                            <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                     </button>
                     <div className="lep-header-meta">
@@ -717,7 +675,6 @@ const LessonEditorPage = ({course, lesson, chapters, onSave, onClose}) => {
                 </div>
             </div>
 
-            {/* Body */}
             <div className="lep-body">
                 <aside className="lep-sidebar">
                     <div className="lep-sidebar-card">
@@ -763,8 +720,7 @@ const LessonEditorPage = ({course, lesson, chapters, onSave, onClose}) => {
 
                     {form.sections.length > 0 && (
                         <div className="lep-sidebar-card lep-stats-card">
-                            <div className="lep-stat-row"><span>📦 Блоков</span><strong>{form.sections.length}</strong>
-                            </div>
+                            <div className="lep-stat-row"><span>📦 Блоков</span><strong>{form.sections.length}</strong></div>
                             {[
                                 {type: 'text', icon: '📝', label: 'Текст'},
                                 {type: 'video', icon: '🎬', label: 'Видео'},
@@ -774,9 +730,22 @@ const LessonEditorPage = ({course, lesson, chapters, onSave, onClose}) => {
                                 {type: 'mashq', icon: '✏️', label: 'Mashq'},
                             ].map(({type, icon, label}) => {
                                 const cnt = form.sections.filter(s => s.type === type).length;
-                                return cnt > 0 ? <div key={type} className="lep-stat-row">
-                                    <span>{icon} {label}</span><strong>{cnt}</strong></div> : null;
+                                return cnt > 0 ? (
+                                    <div key={type} className="lep-stat-row">
+                                        <span>{icon} {label}</span><strong>{cnt}</strong>
+                                    </div>
+                                ) : null;
                             })}
+                            {(() => {
+                                const totalFiles = form.sections
+                                    .filter(s => s.type === 'project')
+                                    .reduce((sum, s) => sum + (s.projectFiles || []).length, 0);
+                                return totalFiles > 0 ? (
+                                    <div className="lep-stat-row">
+                                        <span>🗂️ Файлов кода</span><strong>{totalFiles}</strong>
+                                    </div>
+                                ) : null;
+                            })()}
                         </div>
                     )}
                 </aside>
@@ -789,8 +758,7 @@ const LessonEditorPage = ({course, lesson, chapters, onSave, onClose}) => {
                             <p>Добавьте блоки контента с помощью панели слева</p>
                             <div className="lep-empty-types">
                                 {SECTION_TYPES.slice(0, 5).map(t => (
-                                    <button key={t.type} className="lep-empty-type-btn"
-                                            onClick={() => addSection(t.type)}>
+                                    <button key={t.type} className="lep-empty-type-btn" onClick={() => addSection(t.type)}>
                                         {t.icon} {t.label}
                                     </button>
                                 ))}
@@ -804,6 +772,8 @@ const LessonEditorPage = ({course, lesson, chapters, onSave, onClose}) => {
                             onDelete={deleteSection}
                             onMoveUp={i => moveSection(i, -1)}
                             onMoveDown={i => moveSection(i, 1)}
+                            lessonId={lesson?.id}
+                            apiBaseUrl={apiBaseUrl}
                         />
                     )}
                 </main>

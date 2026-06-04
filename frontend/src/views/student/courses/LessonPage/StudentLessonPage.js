@@ -5,6 +5,7 @@ import './StudentLessonPage.css';
 import {SECTION_TYPES, getYTId} from '../../../../constants/courseUtils';
 import {API_URL, useHttp, headers} from '../../../../api/search/base';
 import DictSelectionPopup from '../LessonPage/Dictselectionpopup';
+import StudentProjectFiles from '../StudentProjectPreview/StudentProjectPreview';
 
 // One-time Mermaid init at module load. startOnLoad:false because we trigger
 // run() manually after each lesson's text section mounts.
@@ -12,20 +13,15 @@ mermaid.initialize({
     startOnLoad: false,
     theme: 'default',
     securityLevel: 'loose',
-    // useMaxWidth:false — let SVG use intrinsic size; CSS handles scaling.
-    // With useMaxWidth:true mermaid measures parent width, but when the
-    // text section hasn't been laid out yet that read returns NaN and
-    // every transform attribute becomes "translate(undefined, NaN)".
-    flowchart: {useMaxWidth: false, htmlLabels: true},
-    sequence: {useMaxWidth: false},
+    flowchart: {useMaxWidth: true, htmlLabels: true},
     themeVariables: {
         fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
     },
 });
 
-/* ─────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────
    Умный парсер → всегда возвращает чистый массив строк
-───────────────────────────────────────── */
+───────────────────────────────────────────────────────────── */
 const parseListField = (val) => {
     if (!val) return [];
     if (Array.isArray(val)) return val.map(s => String(s).trim()).filter(Boolean);
@@ -42,9 +38,9 @@ const parseListField = (val) => {
     return [];
 };
 
-/* ─────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────
    Upload Method Selector
-───────────────────────────────────────── */
+───────────────────────────────────────────────────────────── */
 const UploadMethodSelector = ({ method, onChange }) => (
     <div className="slp-method-selector">
         <button
@@ -87,9 +83,9 @@ const UploadMethodSelector = ({ method, onChange }) => (
     </div>
 );
 
-/* ─────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────
    ZIP Drop Zone
-───────────────────────────────────────── */
+───────────────────────────────────────────────────────────── */
 const ZipDropZone = ({selectedFile, onFileSelect, uploading}) => {
     const fileInputRef = useRef(null);
     const [dragging, setDragging] = useState(false);
@@ -505,8 +501,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [projectModal, setProjectModal] = useState(false);
     const [exitModal, setExitModal] = useState(false);
     const [projectForm, setProjectForm] = useState({github_url: '', live_demo_url: '', description: ''});
-    // Submission status loaded from backend. Replaces the old localStorage flag.
-    // Shape: {submitted, status, points_earned, grade, feedback, passed, can_resubmit, pass_threshold}
     const [projectSubmission, setProjectSubmission] = useState(null);
     const [projectStatusLoading, setProjectStatusLoading] = useState(false);
     const [projectSaving, setProjectSaving] = useState(false);
@@ -514,61 +508,18 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [downloadingFile, setDownloadingFile] = useState(null);
     const [activeSection, setActiveSection] = useState(null);
 
-    // Render <pre class="mermaid"> blocks embedded in lesson text sections.
-    //
-    // We can't just useEffect-once-and-done: any unrelated state change in
-    // this component (e.g. a project-submission re-fetch) causes React to
-    // re-commit the text section's dangerouslySetInnerHTML, which wipes
-    // mermaid's rendered SVG and puts the original <pre> source back. So
-    // we watch the DOM with a MutationObserver and re-render any unrendered
-    // pre.mermaid that appears — including the ones React just put back.
-    //
-    // The :not([data-processed="true"]) selector skips blocks mermaid has
-    // already touched, so the observer/render pair won't infinite-loop on
-    // mermaid's own mutations.
     useEffect(() => {
-        if (!lesson?.id) return;
-        let cancelled = false;
-        let running = false;
-        let scheduled = null;
-
-        const runMermaid = () => {
-            scheduled = null;
-            if (cancelled || running) return;
+        if (!lesson?.sections?.length) return;
+        const timer = setTimeout(() => {
             const nodes = document.querySelectorAll(
                 'pre.mermaid:not([data-processed="true"])',
             );
             if (nodes.length === 0) return;
-            running = true;
-            mermaid.run({nodes: Array.from(nodes)})
-                .catch(() => {})
-                .finally(() => { running = false; });
-        };
+            mermaid.run({nodes: Array.from(nodes)}).catch(() => {});
+        }, 50);
+        return () => clearTimeout(timer);
+    }, [lesson?.id, lesson?.sections]);
 
-        const schedule = () => {
-            if (scheduled || cancelled) return;
-            scheduled = setTimeout(runMermaid, 50);
-        };
-
-        // Initial attempt after React commits the lesson HTML.
-        schedule();
-
-        // Re-render whenever React replaces a section's DOM. Scoped to the
-        // sections container if we can find it, otherwise document.body.
-        const target = document.querySelector('.slp-blocks') || document.body;
-        const observer = new MutationObserver(schedule);
-        observer.observe(target, {childList: true, subtree: true});
-
-        return () => {
-            cancelled = true;
-            observer.disconnect();
-            if (scheduled) clearTimeout(scheduled);
-        };
-    }, [lesson?.id]);
-
-    // Dedup video-watch pings per (lesson, section) within this session so
-    // every re-render of the iframe doesn't refire the POST. Backend also
-    // de-dupes server-side, this just skips the network round-trip.
     const watchedSectionsRef = useRef(new Set());
     const recordVideoWatch = useCallback((sectionId) => {
         if (!sectionId || !course?.id || !lesson?.id) return;
@@ -581,12 +532,10 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             null,
             headers(),
         ).catch(() => {
-            // Drop the dedup marker on failure so the next iframe mount can retry.
             watchedSectionsRef.current.delete(key);
         });
     }, [course?.id, lesson?.id, request]);
 
-    // Upload method: 'github' | 'zip'
     const [uploadMethod, setUploadMethod] = useState('github');
     const [zipFile, setZipFile] = useState(null);
     const [zipUploading, setZipUploading] = useState(false);
@@ -598,11 +547,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
     const projectSection = lesson.sections?.find(s => s.type === 'project');
 
-    // Project submission states derived from backend truth.
-    // notSubmitted → no submission exists; submit allowed.
-    // pendingReview → submitted, awaiting review; next locked.
-    // reviewedPassing → reviewed AND score ≥ threshold; next unlocked.
-    // reviewedFailing → reviewed AND score < threshold OR rejected; can resubmit.
     const passThreshold = projectSubmission?.pass_threshold ?? 90;
     const projectDone = !!projectSubmission?.passed;
     const projectPending = !!projectSubmission?.submitted && !projectSubmission?.reviewed;
@@ -611,8 +555,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const nextBlocked = !!projectSection && !projectDone;
     const isDone = lesson.completed || justCompleted;
 
-    // Fetch authoritative project status whenever the lesson changes.
-    // Skipped for lessons without a project section to avoid wasted calls.
     useEffect(() => {
         if (!projectSection || !course?.id || !lesson?.id) {
             setProjectSubmission(null);
@@ -629,7 +571,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             .then(res => {
                 if (cancelled || !res) return;
                 setProjectSubmission(res);
-                // Pre-fill form with prior submission so re-submitters see their last entry.
                 if (res.submitted) {
                     setProjectForm(f => ({
                         ...f,
@@ -714,7 +655,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
         }
     };
 
-    /* ── Validate project form ── */
     const validateProject = () => {
         const e = {};
         if (uploadMethod === 'github') {
@@ -736,8 +676,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
         if (!validateProject()) return;
 
         const descriptionRaw = (projectForm.description.trim() || projectSection?.description || '').trim();
-        // Backend strips before length check, so an appended fixed phrase
-        // (>10 chars) guarantees the post-strip length passes validation.
         const description = descriptionRaw.length >= 10
             ? descriptionRaw
             : `${descriptionRaw} loyiha topshirig'i`.trim();
@@ -759,10 +697,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                     technologies_used: techList,
                     difficulty_level: 'Easy',
                     project_files: '',
-                    // Lesson-scoped: backend will create/replace a Submission
-                    // row linking this project to the lesson, enforce re-submission
-                    // rules (block pending/passed), and subtract previous points
-                    // when replacing a failed attempt.
                     lesson_id: lesson.id,
                 }),
                 headers()
@@ -788,15 +722,13 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 await request(`${API_URL}v1/project/${created.id}/submit`, 'POST', null, headers());
             }
 
-            // Re-fetch authoritative status (status, points_earned, passed)
-            // after submit — AI auto-review may have already graded it.
             try {
                 const fresh = await request(
                     `${API_URL}v1/courses/${course.id}/lessons/${lesson.id}/submission`,
                     'GET', null, headers(),
                 );
                 if (fresh) setProjectSubmission(fresh);
-            } catch { /* fall through — UI will refetch on next mount */ }
+            } catch { /* fall through */ }
             setProjectModal(false);
 
             if (!lesson.completed) {
@@ -1013,6 +945,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                         <ExerciseSection section={section} courseId={course.id} lessonId={lesson.id}/>
                                     )}
 
+                                    {/* ══════════════════════════════════════════
+                                        PROJECT SECTION
+                                        — shows StudentProjectFiles (live preview)
+                                          then the submit/status block below
+                                    ══════════════════════════════════════════ */}
                                     {section.type === 'project' && (
                                         <div className={`slp-project-task ${projectDone ? 'done' : ''} ${projectFailed ? 'failed' : ''} ${projectPending ? 'pending' : ''}`}>
                                             <div className="slp-project-top">
@@ -1068,7 +1005,13 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                 </div>
                                             )}
 
-                                            {/* Reviewer feedback (passing or failing) */}
+                                            {/* ── Live preview files from API ── */}
+                                            <StudentProjectFiles
+                                                lessonId={lesson.id}
+                                                courseId={course.id}
+                                            />
+
+                                            {/* Reviewer feedback */}
                                             {projectSubmission?.reviewed && projectSubmission?.instructor_feedback && (
                                                 <div className="slp-project-reqs" style={{marginTop: 12, borderLeft: `3px solid ${projectDone ? '#16a34a' : '#dc2626'}`, paddingLeft: 12}}>
                                                     <div className="slp-reqs-title">💬 Отзыв преподавателя {projectSubmission?.grade ? `(${projectSubmission.grade})` : ''}</div>
@@ -1184,13 +1127,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                 <span>{projectSection?.label || 'Практическое задание'}</span>
                             </div>
 
-                            {/* ── Upload Method Selector ── */}
                             <div className="slp-modal-field">
                                 <label>Способ загрузки кода <span className="slp-field-required">*</span></label>
                                 <UploadMethodSelector method={uploadMethod} onChange={handleMethodChange}/>
                             </div>
 
-                            {/* ── GitHub panel ── */}
                             <div className={`slp-source-panel ${uploadMethod === 'github' ? 'slp-source-panel-visible' : ''}`}>
                                 <div className="slp-modal-field">
                                     <label>GitHub URL</label>
@@ -1209,7 +1150,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                 </div>
                             </div>
 
-                            {/* ── ZIP panel ── */}
                             <div className={`slp-source-panel ${uploadMethod === 'zip' ? 'slp-source-panel-visible' : ''}`}>
                                 <div className="slp-modal-field">
                                     <label>ZIP-архив</label>

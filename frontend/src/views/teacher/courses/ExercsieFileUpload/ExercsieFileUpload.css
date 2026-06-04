@@ -1,0 +1,643 @@
+/* ═══════════════════════════════════════════
+   EXERCISE FILE UPLOAD — ExerciseFileUpload.css
+   Refined dark-code-editor aesthetic
+═══════════════════════════════════════════ */
+
+/* ── Root ── */
+.efu-root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+}
+
+/* ── Header ── */
+.efu-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.efu-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.efu-header-icon {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.efu-header-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #1a1a2e;
+  letter-spacing: -0.02em;
+}
+
+.efu-header-sub {
+  font-size: 11.5px;
+  color: rgba(26, 26, 46, 0.42);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.efu-header-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.efu-stat-chip {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: rgba(108, 92, 231, 0.08);
+  color: #6c5ce7;
+  border: 1px solid rgba(108, 92, 231, 0.15);
+}
+
+/* ── Error ── */
+.efu-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(225, 112, 85, 0.08);
+  border: 1.5px solid rgba(225, 112, 85, 0.25);
+  border-radius: 10px;
+  font-size: 13px;
+  color: #e17055;
+  font-weight: 600;
+}
+
+.efu-error button {
+  background: none;
+  border: none;
+  color: #e17055;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.efu-error button:hover { opacity: 1; }
+
+/* ══════════════════════════════════════
+   UPLOAD ZONE
+══════════════════════════════════════ */
+.efu-upload-zone {
+  border: 2px dashed rgba(108, 92, 231, 0.22);
+  border-radius: 16px;
+  padding: 28px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.025), rgba(162, 155, 254, 0.035));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+}
+
+.efu-upload-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0), rgba(108, 92, 231, 0.06));
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.efu-upload-zone:hover {
+  border-color: #6c5ce7;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 28px rgba(108, 92, 231, 0.12);
+}
+
+.efu-upload-zone:hover::before { opacity: 1; }
+
+.efu-upload-zone--over {
+  border-color: #6c5ce7;
+  background: rgba(108, 92, 231, 0.06);
+  transform: scale(1.01);
+  box-shadow: 0 12px 36px rgba(108, 92, 231, 0.18);
+}
+
+.efu-upload-zone--loading {
+  cursor: not-allowed;
+  opacity: 0.75;
+  transform: none !important;
+}
+
+.efu-upload-icon {
+  font-size: 38px;
+  line-height: 1;
+  transition: transform 0.2s;
+}
+
+.efu-upload-zone:hover .efu-upload-icon {
+  transform: scale(1.1) translateY(-2px);
+}
+
+.efu-upload-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.efu-upload-text strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a2e;
+}
+
+.efu-upload-text span {
+  font-size: 12px;
+  color: rgba(26, 26, 46, 0.40);
+  font-weight: 500;
+}
+
+.efu-upload-hint-chips {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.efu-hint-chip {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(26, 26, 46, 0.05);
+  color: rgba(26, 26, 46, 0.45);
+  border: 1px solid rgba(26, 26, 46, 0.08);
+  letter-spacing: 0.03em;
+}
+
+.efu-hint-chip--more {
+  background: rgba(108, 92, 231, 0.08);
+  color: #6c5ce7;
+  border-color: rgba(108, 92, 231, 0.15);
+}
+
+/* Loading */
+.efu-upload-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.efu-upload-loading span {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(26, 26, 46, 0.50);
+}
+
+.efu-upload-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(108, 92, 231, 0.15);
+  border-top-color: #6c5ce7;
+  border-radius: 50%;
+  animation: efuSpin 0.7s linear infinite;
+}
+
+@keyframes efuSpin { to { transform: rotate(360deg); } }
+
+/* ══════════════════════════════════════
+   FILES LIST
+══════════════════════════════════════ */
+.efu-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ══════════════════════════════════════
+   FILE CARD
+══════════════════════════════════════ */
+.efu-file-card {
+  border: 1.5px solid rgba(26, 26, 46, 0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  animation: efuCardIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes efuCardIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.efu-file-card:hover {
+  border-color: rgba(108, 92, 231, 0.22);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+}
+
+.efu-file-card--collapsed .efu-file-card-head {
+  border-bottom: none;
+}
+
+/* Card head */
+.efu-file-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(26, 26, 46, 0.018);
+  border-bottom: 1px solid rgba(26, 26, 46, 0.06);
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.efu-file-card-head-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.efu-file-lang-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+.efu-file-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.efu-file-card-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1a1a2e;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+.efu-file-card-meta {
+  font-size: 11px;
+  color: rgba(26, 26, 46, 0.40);
+  font-weight: 500;
+}
+
+.efu-file-label-badge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(108, 92, 231, 0.08);
+  color: #6c5ce7;
+  border: 1px solid rgba(108, 92, 231, 0.15);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.efu-file-card-head-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* View toggle */
+.efu-view-toggle {
+  display: flex;
+  background: rgba(26, 26, 46, 0.05);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.efu-view-toggle-btn {
+  padding: 5px 12px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: rgba(26, 26, 46, 0.45);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.efu-view-toggle-btn.active {
+  background: #fff;
+  color: #6c5ce7;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.10);
+}
+
+.efu-view-toggle-btn:hover:not(.active) {
+  color: rgba(26, 26, 46, 0.70);
+}
+
+.efu-file-collapse-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(26, 26, 46, 0.09);
+  background: transparent;
+  color: rgba(26, 26, 46, 0.35);
+  font-size: 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.efu-file-collapse-btn:hover {
+  color: #6c5ce7;
+  background: rgba(108, 92, 231, 0.07);
+  border-color: rgba(108, 92, 231, 0.18);
+}
+
+.efu-file-del-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(26, 26, 46, 0.25);
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.efu-file-del-btn:hover:not(:disabled) {
+  color: #e17055;
+  background: rgba(225, 112, 85, 0.09);
+  border-color: rgba(225, 112, 85, 0.18);
+}
+
+.efu-file-del-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Card body */
+.efu-file-card-body {
+  overflow: hidden;
+}
+
+/* ══════════════════════════════════════
+   CODE VIEWER
+══════════════════════════════════════ */
+.efu-code-viewer {
+  background: #0e0e1c;
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+}
+
+.efu-code-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #16162a;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.efu-code-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.efu-traffic {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.efu-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+.efu-dot--red    { background: #ff5f57; }
+.efu-dot--yellow { background: #ffbd2e; }
+.efu-dot--green  { background: #28c840; }
+
+.efu-code-filename {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.efu-lang-pill {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.efu-code-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.efu-line-count {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.25);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.efu-copy-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.55);
+  border-radius: 7px;
+  padding: 4px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.efu-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+/* Code body with line numbers */
+.efu-code-body {
+  display: flex;
+  overflow: auto;
+  max-height: 480px;
+  scroll-behavior: smooth;
+}
+
+.efu-code-body::-webkit-scrollbar { width: 6px; height: 6px; }
+.efu-code-body::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
+.efu-code-body::-webkit-scrollbar-thumb {
+  background: rgba(108, 92, 231, 0.35);
+  border-radius: 4px;
+}
+.efu-code-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(108, 92, 231, 0.55);
+}
+
+.efu-line-nums {
+  padding: 16px 0;
+  background: rgba(255, 255, 255, 0.02);
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  min-width: 44px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.efu-line-num {
+  display: block;
+  padding: 0 12px;
+  font-size: 12px;
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.18);
+  font-family: 'JetBrains Mono', monospace;
+  text-align: right;
+}
+
+.efu-code-pre {
+  margin: 0;
+  padding: 16px 18px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 13px;
+  color: #cdd6f4;
+  line-height: 1.75;
+  overflow: visible;
+  white-space: pre;
+  flex: 1;
+  min-width: 0;
+}
+
+.efu-code-line {
+  display: block;
+  min-height: 1em;
+  white-space: pre;
+}
+
+.efu-code-line:hover {
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 3px;
+}
+
+/* Syntax highlight tokens */
+.hl-kw     { color: #cba6f7; font-weight: 600; }  /* keywords — purple */
+.hl-str    { color: #a6e3a1; }                      /* strings — green */
+.hl-comment{ color: #6c7086; font-style: italic; }  /* comments — grey */
+.hl-num    { color: #fab387; }                      /* numbers — orange */
+.hl-class  { color: #89dceb; }                      /* classes — cyan */
+.hl-tag    { color: #89b4fa; }                      /* html tags — blue */
+.hl-attr   { color: #f38ba8; }                      /* attributes — red */
+
+/* ══════════════════════════════════════
+   HTML PREVIEW
+══════════════════════════════════════ */
+.efu-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  background: #f0f0f5;
+}
+
+.efu-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 16px;
+  background: #e8e8ef;
+  border-bottom: 1px solid rgba(26, 26, 46, 0.08);
+}
+
+.efu-preview-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(26, 26, 46, 0.50);
+  letter-spacing: 0.02em;
+}
+
+.efu-browser-dots {
+  display: flex;
+  gap: 5px;
+}
+
+.efu-browser-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(26, 26, 46, 0.15);
+}
+
+.efu-browser-dots span:nth-child(1) { background: #ff5f57; }
+.efu-browser-dots span:nth-child(2) { background: #ffbd2e; }
+.efu-browser-dots span:nth-child(3) { background: #28c840; }
+
+.efu-preview-iframe {
+  width: 100%;
+  height: 420px;
+  border: none;
+  background: #fff;
+  display: block;
+}
+
+/* ══════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════ */
+@media (max-width: 640px) {
+  .efu-upload-zone { padding: 20px 14px; }
+  .efu-upload-icon { font-size: 28px; }
+  .efu-upload-text strong { font-size: 13px; }
+
+  .efu-file-card-head { padding: 10px 12px; }
+  .efu-file-card-name { max-width: 160px; font-size: 12px; }
+
+  .efu-view-toggle-btn { padding: 4px 9px; font-size: 11px; }
+
+  .efu-code-body { max-height: 320px; }
+  .efu-code-pre { font-size: 12px; }
+  .efu-line-num { font-size: 11px; min-width: 36px; }
+
+  .efu-preview-iframe { height: 280px; }
+
+  .efu-header-stats { display: none; }
+}

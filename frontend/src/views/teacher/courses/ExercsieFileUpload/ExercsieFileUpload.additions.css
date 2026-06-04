@@ -1,0 +1,112 @@
+/* ═══════════════════════════════════════════════════════
+   ADDITIONS for ExerciseFileUpload — editable code viewer
+═══════════════════════════════════════════════════════ */
+
+/* Edit / Save / Cancel buttons in topbar */
+.efu-edit-toggle-btn {
+  background: rgba(108, 92, 231, 0.12);
+  border: 1px solid rgba(108, 92, 231, 0.25);
+  color: #6c5ce7;
+  border-radius: 7px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.efu-edit-toggle-btn:hover {
+  background: rgba(108, 92, 231, 0.22);
+  border-color: #6c5ce7;
+}
+
+.efu-save-code-btn {
+  background: rgba(0, 184, 148, 0.14);
+  border: 1px solid rgba(0, 184, 148, 0.35);
+  color: #00b894;
+  border-radius: 7px;
+  padding: 4px 13px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.efu-save-code-btn:hover:not(:disabled) {
+  background: rgba(0, 184, 148, 0.25);
+}
+.efu-save-code-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.efu-cancel-code-btn {
+  background: rgba(255, 118, 117, 0.1);
+  border: 1px solid rgba(255, 118, 117, 0.25);
+  color: #ff7675;
+  border-radius: 7px;
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.efu-cancel-code-btn:hover {
+  background: rgba(255, 118, 117, 0.2);
+}
+
+/* Editor layout — textarea with line numbers */
+.efu-editor-wrap {
+  display: flex;
+  background: #0f1117;
+  border-radius: 0 0 10px 10px;
+  overflow: hidden;
+  min-height: 120px;
+  position: relative;
+}
+
+.efu-line-nums--edit {
+  /* same as efu-line-nums but pointer-events off */
+  pointer-events: none;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.efu-code-textarea {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #a8ff78;
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.65;
+  padding: 12px 16px;
+  resize: none;
+  tab-size: 2;
+  white-space: pre;
+  overflow-x: auto;
+  caret-color: #a8ff78;
+  min-height: 200px;
+  /* match line height of line nums */
+  box-sizing: border-box;
+}
+.efu-code-textarea::selection {
+  background: rgba(108, 92, 231, 0.35);
+}
+
+/* Hint bar below editor */
+.efu-editor-hint {
+  background: #0a0c10;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  border-radius: 0 0 10px 10px;
+  padding: 5px 16px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.28);
+  font-family: 'Fira Code', monospace;
+  letter-spacing: 0.02em;
+}
