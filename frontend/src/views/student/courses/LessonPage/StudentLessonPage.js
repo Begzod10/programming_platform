@@ -509,16 +509,40 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [activeSection, setActiveSection] = useState(null);
 
     useEffect(() => {
-        if (!lesson?.sections?.length) return;
-        const timer = setTimeout(() => {
+        if (!lesson?.id) return;
+        let cancelled = false;
+        let running = false;
+        let scheduled = null;
+        const runMermaid = () => {
+            scheduled = null;
+            if (cancelled || running) return;
             const nodes = document.querySelectorAll(
                 'pre.mermaid:not([data-processed="true"])',
             );
             if (nodes.length === 0) return;
-            mermaid.run({nodes: Array.from(nodes)}).catch(() => {});
-        }, 50);
-        return () => clearTimeout(timer);
-    }, [lesson?.id, lesson?.sections]);
+            running = true;
+            mermaid
+                .run({nodes: Array.from(nodes)})
+                .catch(() => {})
+                .finally(() => {
+                    running = false;
+                });
+        };
+        const schedule = () => {
+            if (scheduled || cancelled) return;
+            scheduled = setTimeout(runMermaid, 50);
+        };
+        schedule();
+        const target =
+            document.querySelector('.slp-blocks') || document.body;
+        const observer = new MutationObserver(schedule);
+        observer.observe(target, {childList: true, subtree: true});
+        return () => {
+            cancelled = true;
+            observer.disconnect();
+            if (scheduled) clearTimeout(scheduled);
+        };
+    }, [lesson?.id]);
 
     const watchedSectionsRef = useRef(new Set());
     const recordVideoWatch = useCallback((sectionId) => {

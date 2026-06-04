@@ -1,9 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import mermaid from 'mermaid';
 import './LessonPage.css';
 import './LessonPage.additions.css'
 import '../Exercise additions/Lessonpage exercise additions.css'
 import { SECTION_TYPES, getYTId } from '../../../../constants/courseUtils';
 import { sanitizeHtml } from '../../../../utils/sanitize';
+
+mermaid.initialize({
+    startOnLoad: false,
+    theme: 'default',
+    securityLevel: 'loose',
+    flowchart: { useMaxWidth: false, htmlLabels: true },
+    sequence: { useMaxWidth: false },
+    themeVariables: {
+        fontFamily:
+            'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    },
+});
 
 /* ── Exercise meta ── */
 const EX_TYPE_META = {
@@ -273,6 +286,41 @@ const ExerciseBlock = ({ section }) => {
 ═══════════════════════════════════════════ */
 const LessonPage = ({ lesson, course, allLessons, onBack, onNavigate, onEdit, onDelete }) => {
     const [copiedId, setCopiedId] = useState(null);
+
+    useEffect(() => {
+        if (!lesson?.id) return;
+        let cancelled = false;
+        let running = false;
+        let scheduled = null;
+        const runMermaid = () => {
+            scheduled = null;
+            if (cancelled || running) return;
+            const nodes = document.querySelectorAll(
+                'pre.mermaid:not([data-processed="true"])',
+            );
+            if (nodes.length === 0) return;
+            running = true;
+            mermaid
+                .run({ nodes: Array.from(nodes) })
+                .catch(() => {})
+                .finally(() => {
+                    running = false;
+                });
+        };
+        const schedule = () => {
+            if (scheduled || cancelled) return;
+            scheduled = setTimeout(runMermaid, 50);
+        };
+        schedule();
+        const target = document.querySelector('.lp-blocks') || document.body;
+        const observer = new MutationObserver(schedule);
+        observer.observe(target, { childList: true, subtree: true });
+        return () => {
+            cancelled = true;
+            observer.disconnect();
+            if (scheduled) clearTimeout(scheduled);
+        };
+    }, [lesson?.id]);
 
     const currentIndex = allLessons.findIndex(l => l.id === lesson.id);
     const prevLesson   = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
