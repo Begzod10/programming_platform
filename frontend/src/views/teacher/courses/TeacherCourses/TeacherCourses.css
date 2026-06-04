@@ -58,14 +58,25 @@
 }
 .tc-add-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(108,92,231,0.45); }
 
-/* ===== FILTER BAR ===== */
+/* ===== FILTER BAR =====
+   The bar scrolls horizontally on overflow. Per CSS spec, setting
+   overflow-x:auto forces overflow-y to auto too — so chips MUST fit
+   inside the bar's content box vertically, otherwise they get clipped.
+   We give the bar a fixed min-height + symmetric padding so the chip's
+   border, shadow, and active-state outline all stay inside.
+*/
 .tc-filter-bar {
-    display: flex; gap: 8px; align-items: center;
-    overflow-x: auto; overflow-y: visible;
+    position: relative;
+    z-index: 1;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    overflow-x: auto;
     -webkit-overflow-scrolling: touch;
-    scrollbar-width: none; -ms-overflow-style: none;
-    padding: 8px 2px;
-    min-height: 44px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding: 10px 4px;
+    min-height: 56px;
 }
 .tc-filter-bar::-webkit-scrollbar { display: none; }
 
@@ -77,12 +88,16 @@
 }
 
 .tc-filter-chip {
-    padding: 7px 16px; border-radius: 20px;
+    padding: 8px 18px;
+    border-radius: 20px;
     font-size: 13px; font-weight: 600;
     border: 1px solid rgba(26,26,46,0.12);
     background: white; color: rgba(26,26,46,0.55);
     cursor: pointer; transition: all 0.2s;
-    font-family: 'Inter', sans-serif; white-space: nowrap; flex-shrink: 0;
+    font-family: 'Inter', sans-serif;
+    white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 1.2;
 }
 .tc-filter-chip:hover { border-color: rgba(108,92,231,0.35); color: #6c5ce7; background: rgba(108,92,231,0.06); }
 .tc-filter-chip.active { background: rgba(108,92,231,0.1); border-color: rgba(108,92,231,0.4); color: #6c5ce7; }
