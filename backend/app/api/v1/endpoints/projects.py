@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, status, Query, HTTPException, Body
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime
 from app.models.project import Project
@@ -63,6 +63,104 @@ async def get_my_projects(
 ):
     """Mening proyektlarim"""
     return await service.get_all_projects_by_student(student_id=current_student.id)
+
+
+@router.post("/upload-zip")
+async def upload_project_zip(
+        file: UploadFile = File(...),
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db),
+        service: ProjectService = Depends(get_project_service),
+):
+    import zipfile, io
+
+    allowed_types = [
+        "application/zip",
+        "application/x-zip-compressed",
+        "application/octet-stream"
+    ]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Faqat ZIP fayl!")
+
+    contents = await file.read()
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="ZIP fayl bo'sh!")
+
+    if len(contents) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="ZIP fayl 15MB dan katta!")
+
+    # ZIP tekshirish va kod o'qish
+    code_content = ""
+    try:
+        with zipfile.ZipFile(io.BytesIO(contents)) as zf:
+            real_files = [n for n in zf.namelist() if not n.endswith("/")]
+            if not real_files:
+                raise HTTPException(status_code=400, detail="ZIP ichida fayl yo'q!")
+            code_extensions = [".html", ".css", ".js", ".py", ".ts", ".jsx", ".tsx", ".vue", ".java", ".php"]
+            for name in real_files[:10]:
+                if any(name.endswith(ext) for ext in code_extensions):
+                    try:
+                        with zf.open(name) as f:
+                            code = f.read().decode("utf-8", errors="ignore")
+                            code_content += f"\n\n=== {name} ===\n{code[:2000]}"
+                    except Exception:
+                        pass
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Noto'g'ri ZIP fayl!")
+
+    # Faylni saqlash
+    filename = f"{uuid.uuid4()}.zip"
+    filepath = PROJECTS_UPLOAD_DIR / filename
+    with open(filepath, "wb") as f:
+        f.write(contents)
+    file_url = f"/uploads/projects/{filename}"
+
+    # Avtomatik project yaratish
+    new_project = Project(
+        student_id=current_student.id,
+        title="Loyiha",
+        description="",
+        github_url=None,
+        live_demo_url=None,
+        difficulty_level="Easy",
+        status="Submitted",
+        project_files=file_url,
+    )
+    db.add(new_project)
+    await db.flush()
+
+    # AI tekshirish
+    ai_result = {}
+    try:
+        ai_result = await analyze_project_with_grok(
+            title=new_project.title,
+            description=new_project.description + (f"\n\nKod fayllari:\n{code_content}" if code_content else ""),
+            github_url="ZIP fayl orqali yuklandi",
+            technologies=[],
+            difficulty_level="Easy",
+            previous_points=0
+        )
+        if ai_result:
+            new_project.grade = ai_result.get("grade")
+            new_project.points_earned = ai_result.get("points", 0)
+            new_project.instructor_feedback = ai_result.get("feedback", "")
+            new_project.status = "Under Review"
+    except Exception:
+        pass
+
+    await db.commit()
+    await db.refresh(new_project)
+
+    return {
+        "project_id": new_project.id,
+        "file_url": file_url,
+        "message": "ZIP fayl yuklandi!",
+        "ai_review": {
+            "grade": ai_result.get("grade") if ai_result else None,
+            "points": ai_result.get("points") if ai_result else None,
+            "feedback": ai_result.get("feedback") if ai_result else None,
+        }
+    }
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
@@ -145,14 +243,6 @@ async def review_project(
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """
-    O'qituvchi loyihani tasdiqlaydi.
-    Tasdiqlangandan keyin avtomatik:
-      - Ballar qo'shiladi
-      - Kurs tugagan bo'lsa sertifikat beriladi
-      - Achievementlar tekshiriladi
-    """
-    # 1. Loyihani topish
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()
 
@@ -162,11 +252,9 @@ async def review_project(
     if project.status == "Approved":
         raise HTTPException(status_code=400, detail="Bu loyiha allaqachon tasdiqlangan")
 
-    # 2. Ballarni qo'shish
     ranking_service = RankingService(db)
     await ranking_service.add_points_to_student(project.student_id, data.points)
 
-    # 3. Loyiha holatini yangilash
     project.status = "Approved"
     project.instructor_feedback = data.feedback
     project.grade = data.grade
@@ -175,7 +263,6 @@ async def review_project(
 
     await db.commit()
 
-    # 4. ✅ Submission orqali course_id ni topib sertifikat berish
     sub_result = await db.execute(
         select(Submission).where(Submission.project_id == project_id)
     )
@@ -197,7 +284,6 @@ async def review_project(
                 certificate_issued = True
                 certificate_id = cert.id
 
-    # 5. ✅ Achievementlarni tekshirish
     await achievement_service.check_and_award_achievements(db, project.student_id)
 
     return {
@@ -214,7 +300,6 @@ async def update_status(
         current_teacher: Student = Depends(get_current_instructor),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Status o'zgartirish (faqat teacher)"""
     return await service.update_status(project_id=project_id, status=new_status)
 
 
@@ -225,7 +310,6 @@ async def update_grade(
         current_teacher: Student = Depends(get_current_instructor),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Baho berish (faqat teacher)"""
     return await service.update_grade(project_id=project_id, grade=grade)
 
 
@@ -236,7 +320,6 @@ async def update_difficulty(
         current_teacher: Student = Depends(get_current_instructor),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Qiyinlik darajasini o'zgartirish (faqat teacher)"""
     return await service.update_difficulty(project_id=project_id, difficulty=difficulty)
 
 
@@ -247,7 +330,6 @@ async def update_comment(
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Izoh qo'shish (faqat egasi)"""
     return await service.update_comment(
         project_id=project_id,
         student_id=current_student.id,
@@ -262,7 +344,6 @@ async def update_file(
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Fayl urlini yangilash (faqat egasi)"""
     return await service.update_file(
         project_id=project_id,
         student_id=current_student.id,
@@ -270,17 +351,15 @@ async def update_file(
     )
 
 
-
 @router.post("/{project_id}/upload-zip")
-async def upload_project_zip(
+async def upload_project_zip_by_id(
         project_id: int,
         file: UploadFile = File(...),
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db),
         service: ProjectService = Depends(get_project_service),
 ):
-    import zipfile
-    import io
+    import zipfile, io
 
     allowed_types = [
         "application/zip",
@@ -291,31 +370,20 @@ async def upload_project_zip(
         raise HTTPException(status_code=400, detail="Faqat ZIP fayl!")
 
     contents = await file.read()
-
     if len(contents) == 0:
         raise HTTPException(status_code=400, detail="ZIP fayl bo'sh!")
 
-    # ZIP ichida fayl borligini tekshirish
+    if len(contents) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="ZIP fayl 15MB dan katta!")
+
+    code_content = ""
     try:
         with zipfile.ZipFile(io.BytesIO(contents)) as zf:
-            real_files = [
-                name for name in zf.namelist()
-                if not name.endswith("/")
-            ]
-            if len(real_files) == 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail="ZIP ichida fayl yo'q!"
-                )
-
-            # ✅ ZIP ichidagi kod fayllarini o'qish (AI uchun)
-            code_content = ""
-            code_extensions = [
-                ".html", ".css", ".js", ".py",
-                ".ts", ".jsx", ".tsx", ".vue",
-                ".java", ".php", ".cpp", ".c"
-            ]
-            for name in real_files[:10]:  # Max 10 fayl
+            real_files = [n for n in zf.namelist() if not n.endswith("/")]
+            if not real_files:
+                raise HTTPException(status_code=400, detail="ZIP ichida fayl yo'q!")
+            code_extensions = [".html", ".css", ".js", ".py", ".ts", ".jsx", ".tsx", ".vue", ".java", ".php"]
+            for name in real_files[:10]:
                 if any(name.endswith(ext) for ext in code_extensions):
                     try:
                         with zf.open(name) as f:
@@ -323,82 +391,68 @@ async def upload_project_zip(
                             code_content += f"\n\n=== {name} ===\n{code[:2000]}"
                     except Exception:
                         pass
-
     except zipfile.BadZipFile:
         raise HTTPException(status_code=400, detail="Noto'g'ri ZIP fayl!")
 
-    # Loyiha mavjudligini tekshirish
     project = await service.get_project(project_id=project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi!")
-
     if project.student_id != current_student.id:
         raise HTTPException(status_code=403, detail="Bu loyiha sizniki emas!")
 
-    # Eski faylni o'chirish
     if project.project_files:
         old_path = PROJECTS_UPLOAD_DIR / Path(project.project_files).name
         if old_path.exists():
             old_path.unlink()
 
-    # Yangi fayl saqlash
     filename = f"{uuid.uuid4()}.zip"
     filepath = PROJECTS_UPLOAD_DIR / filename
-
     with open(filepath, "wb") as f:
         f.write(contents)
-
     file_url = f"/uploads/projects/{filename}"
 
-    # Bazada project_files yangilash
     await service.update_file(
         project_id=project_id,
         student_id=current_student.id,
         file_url=file_url,
     )
 
-    # ✅ AI AVTOMATIK TEKSHIRISH
-    technologies = []
-    if project.technologies_used:
-        if isinstance(project.technologies_used, list):
-            technologies = project.technologies_used
-        else:
-            technologies = [project.technologies_used]
+    ai_result = {}
+    try:
+        technologies = []
+        if project.technologies_used:
+            if isinstance(project.technologies_used, list):
+                technologies = project.technologies_used
+            else:
+                technologies = [project.technologies_used]
 
-    ai_result = await analyze_project_with_grok(
-        title=project.title,
-        description=project.description + (
-            f"\n\nKod fayllari:\n{code_content}" if code_content else ""
-        ),
-        github_url=project.github_url or "ZIP fayl orqali yuklandi",
-        technologies=technologies,
-        difficulty_level=project.difficulty_level,
-        previous_points=project.points_earned or 0
-    )
-
-    # ✅ AI natijasini bazaga saqlash
-    project_result = await db.execute(
-        select(Project).where(Project.id == project_id)
-    )
-    db_project = project_result.scalar_one_or_none()
-
-    if db_project and ai_result:
-        db_project.grade = ai_result.get("grade")
-        db_project.points_earned = ai_result.get("points", 0)
-        db_project.instructor_feedback = ai_result.get("feedback", "")
-        db_project.status = "Under Review"
-        await db.commit()
+        ai_result = await analyze_project_with_grok(
+            title=project.title,
+            description=project.description + (f"\n\nKod fayllari:\n{code_content}" if code_content else ""),
+            github_url=project.github_url or "ZIP fayl orqali yuklandi",
+            technologies=technologies,
+            difficulty_level=project.difficulty_level,
+            previous_points=project.points_earned or 0
+        )
+        if ai_result:
+            project_result = await db.execute(select(Project).where(Project.id == project_id))
+            db_project = project_result.scalar_one_or_none()
+            if db_project:
+                db_project.grade = ai_result.get("grade")
+                db_project.points_earned = ai_result.get("points", 0)
+                db_project.instructor_feedback = ai_result.get("feedback", "")
+                db_project.status = "Under Review"
+                await db.commit()
+    except Exception:
+        pass
 
     return {
         "file_url": file_url,
         "message": "ZIP fayl yuklandi va AI tekshirdi!",
         "ai_review": {
-            "grade": ai_result.get("grade"),
-            "points": ai_result.get("points"),
-            "summary": ai_result.get("summary"),
-            "feedback": ai_result.get("feedback"),
-            "strengths": ai_result.get("strengths", []),
-            "improvements": ai_result.get("improvements", []),
+            "grade": ai_result.get("grade") if ai_result else None,
+            "points": ai_result.get("points") if ai_result else None,
+            "feedback": ai_result.get("feedback") if ai_result else None,
         }
     }
 
@@ -409,15 +463,12 @@ async def download_project_zip(
         current_teacher: Student = Depends(get_current_instructor),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Teacher student ZIP faylini yuklab oladi"""
     project = await service.get_project(project_id=project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi!")
-
     if not project.project_files:
         raise HTTPException(status_code=404, detail="Bu loyihada ZIP fayl yo'q!")
 
-    # Fayl yo'lini topish
     filename = Path(project.project_files).name
     filepath = PROJECTS_UPLOAD_DIR / filename
 

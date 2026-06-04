@@ -474,11 +474,11 @@ async def submit_lesson_project(
         proj_status = existing_project.status if existing_project else existing_sub.status
         prev_points = existing_project.points_earned if existing_project else 0
         can_resubmit = (
-            existing_project is not None
-            and (
-                proj_status == "Rejected"
-                or (proj_status == "Approved" and prev_points < PROJECT_PASS_THRESHOLD)
-            )
+                existing_project is not None
+                and (
+                        proj_status == "Rejected"
+                        or (proj_status == "Approved" and prev_points < PROJECT_PASS_THRESHOLD)
+                )
         )
         if not can_resubmit:
             if proj_status == "Submitted":
@@ -501,7 +501,7 @@ async def submit_lesson_project(
         existing_project.github_url = data.github_url
         existing_project.live_demo_url = data.live_demo_url
         existing_project.description = (
-            data.description or lesson.task_description or "Dars loyihasi"
+                data.description or lesson.task_description or "Dars loyihasi"
         )
 
         existing_sub.status = "Submitted"
@@ -737,19 +737,18 @@ async def upload_lesson_file(
 @router.get("/{lesson_id}/files")
 async def get_lesson_files(
         lesson_id: int,
-        current_user: Student = Depends(get_current_student),
+        current_user: Optional[Student] = Depends(get_current_student_optional),
         db: AsyncSession = Depends(get_db)
 ):
-    """Darsga yuklangan barcha fayllar va ularning kodi"""
-
+    # 1. LessonFile jadvalidan
     result = await db.execute(
         select(LessonFile)
         .where(LessonFile.lesson_id == lesson_id)
         .order_by(LessonFile.created_at)
     )
-    files = result.scalars().all()
+    db_files = result.scalars().all()
 
-    return [
+    files = [
         {
             "id": f.id,
             "lesson_id": f.lesson_id,
@@ -761,19 +760,41 @@ async def get_lesson_files(
             "file_size": f.file_size,
             "created_at": f.created_at
         }
-        for f in files
+        for f in db_files
     ]
 
+    # 2. sections_json ichidagi projectFiles dan ham olish
+    if not files:
+        lesson_res = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
+        lesson = lesson_res.scalar_one_or_none()
+        if lesson and lesson.sections_json:
+            try:
+                sections = json.loads(lesson.sections_json)
+                for section in sections:
+                    for pf in section.get("projectFiles", []):
+                        files.append({
+                            "id": pf.get("_localId"),
+                            "lesson_id": lesson_id,
+                            "original_name": pf.get("filename") or pf.get("name"),
+                            "file_url": None,
+                            "extension": "." + pf.get("filename", "").split(".")[-1],
+                            "label": pf.get("label", ""),
+                            "code_content": pf.get("content") or pf.get("code"),
+                            "file_size": pf.get("size"),
+                            "created_at": None
+                        })
+            except Exception:
+                pass
 
-# ============================================================
-# 3. BITTA FAYLNI OLISH
-# ============================================================
+    return files
+
+
 
 @router.get("/{lesson_id}/files/{file_id}")
 async def get_lesson_file(
         lesson_id: int,
         file_id: int,
-        current_user: Student = Depends(get_current_student),
+        current_user: Student = Depends(get_current_instructor),  # ← o'zgartirildi
         db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
@@ -785,7 +806,6 @@ async def get_lesson_file(
     lesson_file = result.scalar_one_or_none()
     if not lesson_file:
         raise HTTPException(status_code=404, detail="Fayl topilmadi!")
-
     return {
         "id": lesson_file.id,
         "original_name": lesson_file.original_name,
@@ -802,7 +822,7 @@ async def get_lesson_file(
 # 4. FAYLNI YANGILASH (kodni o'zgartirish)
 # ============================================================
 
-@router.patch("/{lesson_id}/files/{file_id}")
+@router.put("/{lesson_id}/files/{file_id}")  # PATCH o'rniga PUT
 async def update_lesson_file(
         lesson_id: int,
         file_id: int,
@@ -878,15 +898,11 @@ async def delete_lesson_file(
     return None
 
 
-# ============================================================
-# 6. FAYLNI YUKLAB OLISH
-# ============================================================
-
 @router.get("/{lesson_id}/files/{file_id}/download")
 async def download_lesson_file(
         lesson_id: int,
         file_id: int,
-        current_user: Student = Depends(get_current_student),
+        current_user: Student = Depends(get_current_instructor),  # ← o'zgartirildi
         db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(

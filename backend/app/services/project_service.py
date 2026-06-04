@@ -96,6 +96,9 @@ class ProjectService:
                 github_url=new_project.github_url,
                 live_demo_url=new_project.live_demo_url,
                 description=new_project.description,
+                submitted_at=datetime.utcnow(),
+                created_at=datetime.utcnow(),  # ← qo'shing
+                updated_at=datetime.utcnow(),  # ← qo'shing
             ))
 
         await self.db.commit()
