@@ -55,77 +55,158 @@ COURSE = {
 # L1 — Dasturlash nima va u qayerda yashaydi
 # ═════════════════════════════════════════════════════════════════════════════
 L1_TEXT = """\
-<h2>Dasturlash nima?</h2>
+<h2>Salom! Birinchi kodingizni 5 daqiqada yozasiz</h2>
 
 <pre class="mermaid">
 flowchart LR
-    P["dasturchi"] -->|kod yozadi| C["source code"]
-    C --> I["interpreter yoki compiler"]
-    I --> CPU["CPU mashina kodi"]
-    CPU --> R["natija"]
-    R -.->|ko'rsatadi| U["foydalanuvchi"]
+    Y["1. Siz kod yozasiz"] -->|alert salom| I["2. Interpreter o'qib tushunadi"]
+    I -->|tarjima qiladi| CPU["3. CPU bajaradi"]
+    CPU -->|natija| OUT["4. Siz ekranda ko'rasiz"]
 </pre>
 
-<p><strong>Dasturlash</strong> — bu kompyuterga aniq ko'rsatma berish san'ati. Kompyuter o'zi hech narsa qila olmaydi — uni siz aytasiz. Siz yozgan har bir qator <em>kod</em> kompyuterga "buni qil, keyin buni qil" deydi.</p>
+<p>Bu kurs <strong>asoslar</strong> (foundations) darsidir — biz hozir haqiqiy dastur yozishni boshlamaymiz. Maqsad boshqa: <em>dasturchi miyasini qurish</em>. Kompyuter qanday "o'ylaydi", kod nima, xato qanday o'qiladi. Real kod keyingi kurslarda boshlanadi.</p>
 
-<h3>Kompyuter qanday "tushunadi"?</h3>
-<p>Kompyuter aslida faqat ikki narsani biladi: <strong>0</strong> va <strong>1</strong>. Lekin biz inson tilida yozamiz: <code>print("Salom")</code>. Oradagi tarjimon — <strong>interpreter</strong> yoki <strong>compiler</strong>:</p>
-<ul>
-<li><strong>Interpreter</strong> — qatorma-qator o'qib darhol bajaradi. Misol: Python, JavaScript.</li>
-<li><strong>Compiler</strong> — butun kodni bir marta mashina tiliga aylantiradi va keyin ishlatadi. Misol: C, Go, Rust.</li>
-</ul>
+<p>Lekin nazariyadan oldin — amaliyot. Siz hozir, shu daqiqaning o'zida, brauzeringizda birinchi buyrug'ingizni berasiz. Va u sizni tinglaydi.</p>
 
-<h3>Dastur qayerda yashaydi?</h3>
+<h3>⚡ Birinchi 5 daqiqa — siz dasturchi bo'lasiz</h3>
+<p>Hech narsani o'rnatish kerak emas. Brauzeringiz yetarli. Quyidagi 4 ta qadamni AYNAN bajaring:</p>
+
+<ol>
+<li><strong>Brauzerda yangi yorliq oching</strong> va <code>https://google.com</code> ga kiring.</li>
+<li><strong>Klaviaturada <code>F12</code> tugmasini bosing.</strong> (Mac uchun: <code>Option + Cmd + I</code>). Yuqorida yashirin panel — <strong>DevTools</strong> — ochiladi.</li>
+<li><strong>Panelning yuqorisida <code>Console</code> yorlig'ini bosing.</strong></li>
+<li><strong>Quyidagi qatorni AYNAN yozing va <code>Enter</code> bosing:</strong>
+<pre><code>alert("Salom, men dastur yozyapman!")</code></pre>
+</li>
+</ol>
+
+<p>Ekranda xabar oynasi paydo bo'ldi?</p>
+<p>🎉 <strong>Tabriklaymiz.</strong> Siz hozir hayotingizdagi birinchi kod qatoringizni yozdingiz va kompyuter sizning buyrug'ingizni bajardi. Bu — dasturlash. Boshqa hech narsa emas: <strong>siz aytdingiz, kompyuter qildi.</strong></p>
+
+<h3>🎮 Ko'proq o'ynaymiz</h3>
+<p>Konsolni yopmang. Quyidagi har bir qatorni alohida yozing, <code>Enter</code> bosing, natijani ko'ring.</p>
+
+<h4>1. Kompyuter sizning kalkulyatoringiz</h4>
+<pre><code>console.log(2 + 2)
+console.log(1000 * 365)
+console.log(100 / 7)</code></pre>
+<p>Pastda raqamlar chiqdimi? Demak konsol — dunyodagi eng kuchli kalkulyator.</p>
+
+<h4>2. So'zlar bilan ishlash</h4>
+<pre><code>console.log("Men" + " " + "dasturchi" + " " + "bo'ldim!")</code></pre>
+
+<h4>3. Saytni o'zgartiring</h4>
+<pre><code>document.body.style.background = "pink"</code></pre>
+<p>Google sahifasi pushti bo'ldi! Sahifani yangilang (<code>F5</code>) — hammasi qaytariladi. Bu o'zgarish <strong>faqat sizning brauzerangizda</strong> — boshqa hech kim ko'rmaydi.</p>
+
+<h4>4. Sizdan savol so'rang</h4>
+<pre><code>let ism = prompt("Ismingiz nima?");
+alert("Xush kelibsiz, " + ism + "!");</code></pre>
+
+<h3>💡 Endi tushuntiramiz — sizning kodingiz qanday ishladi?</h3>
+<p>Siz <code>alert("Salom")</code> yozdingiz. Bu uzoq sayohatni boshladi:</p>
+<ol>
+<li><strong>Code</strong> — sizning yozganingiz brauzerga uzatildi.</li>
+<li><strong>JavaScript interpreter</strong> — brauzer ichidagi tarjimon sizning kodni o'qidi va uni mashina tushunadigan signallarga aylantirdi.</li>
+<li><strong>CPU</strong> — kompyuterning "miyasi" signallarni bajardi: elektr orqali xabar oynasini chizdi.</li>
+<li><strong>Natija</strong> — siz ekranda <code>alert</code> ni ko'rdingiz.</li>
+</ol>
+<p>Bu — har qanday dasturlashning asosi. Til o'zgaradi (Python, Java, C++, Go), lekin zanjir bir xil: <strong>Code → Interpreter (yoki Compiler) → CPU → Natija</strong>.</p>
+
+<h3>🔧 Interpreter vs Compiler — kichik farq</h3>
 <table>
-<tr><th>Joy</th><th>Misol</th><th>Til</th></tr>
-<tr><td>Veb-sayt</td><td>Google, YouTube, Telegram Web</td><td>JavaScript, HTML, CSS, Python, Go</td></tr>
-<tr><td>Mobil ilova</td><td>Instagram, Uber, banking ilovasi</td><td>Swift (iOS), Kotlin (Android), Flutter</td></tr>
-<tr><td>Sun'iy intellekt</td><td>ChatGPT, rasm generatorlari, tarjimon</td><td>Python (PyTorch, TensorFlow)</td></tr>
-<tr><td>O'yinlar</td><td>Minecraft, Fortnite, mobile o'yinlar</td><td>C++, C# (Unity), Lua</td></tr>
-<tr><td>Embedded — qurilmalar</td><td>Robot, smart soat, mashinaning ECU si</td><td>C, Rust, C++</td></tr>
-<tr><td>Server</td><td>Bank tizimlari, marketpleys backend</td><td>Java, Go, Python, Node.js</td></tr>
+<tr><th></th><th>Interpreter</th><th>Compiler</th></tr>
+<tr><td>Misol tillar</td><td>JavaScript, Python, Ruby</td><td>C, C++, Go, Rust</td></tr>
+<tr><td>Qanday ishlaydi</td><td>Qatorma-qator o'qib darhol bajaradi</td><td>Butun kodni bir marta mashina tiliga aylantiradi</td></tr>
+<tr><td>Tezlik</td><td>Sekinroq</td><td>Tezroq</td></tr>
+<tr><td>Tuzatish</td><td>Tezroq sinash mumkin</td><td>Har o'zgarishdan keyin qayta compile qilish kerak</td></tr>
 </table>
 
-<h3>Mini-tarix: dasturlashning 3 daqiqasi</h3>
-<p>1830-yillarda Ada Lovelace deb nomlangan ayol birinchi marta <strong>algoritm</strong> yozgan — kompyuter hali ixtiro qilinmagandi! 1950-yillarda birinchi yuqori darajadagi tillar (Fortran, COBOL) paydo bo'ldi. Bugun esa 700+ dan ortiq dasturlash tillari mavjud, lekin 95% loyihalar 10 ta asosiy tilda yozilgan.</p>
+<h3>🌍 Dastur qayerda yashaydi?</h3>
+<table>
+<tr><th>Joy</th><th>Misol</th><th>Til</th></tr>
+<tr><td>Veb-sayt</td><td>Google, YouTube, Telegram Web</td><td>JavaScript, Python, Go</td></tr>
+<tr><td>Mobil ilova</td><td>Instagram, Uber, banking ilovasi</td><td>Swift (iOS), Kotlin (Android)</td></tr>
+<tr><td>Sun'iy intellekt</td><td>ChatGPT, Midjourney</td><td>Python</td></tr>
+<tr><td>O'yinlar</td><td>Minecraft, Fortnite</td><td>C++, C#</td></tr>
+<tr><td>Smart soat / robot</td><td>Apple Watch, robot pylesos</td><td>C, Rust</td></tr>
+</table>
 
-<h3>Nima uchun dasturlashni o'rganish kerak?</h3>
-<ul>
-<li><strong>Mantiqiy fikrlash</strong> — kompyuter aniqlik talab qiladi, sizni ham aniq fikrlashga o'rgatadi</li>
-<li><strong>Avtomatlash</strong> — qo'lda qiladigan ishlarni bir marta yozib, qayta ishlatish</li>
-<li><strong>Ish topish</strong> — hozirgi davrda eng yuqori talabga ega kasblardan biri</li>
-<li><strong>Yaratuvchanlik</strong> — siz qachondir <em>foydalanuvchi</em> edingiz, endi <em>yaratuvchi</em>siz</li>
-</ul>
-
-<h3>Sizning birinchi "dasturingiz"</h3>
-<p>Aslida siz har kuni "dastur" yozasiz — faqat kod shaklida emas. Choy damlash retsepti — bu ham algoritm:</p>
+<h3>📝 Algoritm — kompyuterning "fikr-tartibi"</h3>
+<p><strong>Algoritm</strong> — bu tartibli qadamlar ro'yxati. Algoritm — bu <strong>kod EMAS</strong>. Kod — algoritmni biror tilda yozish.</p>
+<p>Choy damlash — bu algoritm:</p>
 <ol>
 <li>Qaynoq suv tayyorlang</li>
 <li>Choynakka 1 qoshiq choy soling</li>
 <li>Qaynoq suv quying</li>
-<li>3-5 daqiqa kuting</li>
+<li>3–5 daqiqa kuting</li>
 <li>Stakanga quying</li>
 </ol>
-<p>Bu — <strong>ketma-ket</strong> ko'rsatmalar. Endi shartni qo'shamiz: "agar choy juda qattiq bo'lsa, ko'proq suv qo'shing". Bu — <strong>shart</strong>. Va "stakan to'lguncha quying" — bu <strong>sikl</strong>. Hammasi bo'lib — algoritm.</p>
+<p>Algoritmda 3 ta "qurilish bloki" bor:</p>
+<ul>
+<li><strong>Ketma-ket</strong> qadamlar (1 → 2 → 3)</li>
+<li><strong>Shart</strong> ("agar choy juda qattiq bo'lsa, ko'proq suv qo'shing")</li>
+<li><strong>Takror</strong> ("stakan to'lguncha quying")</li>
+</ul>
+<p>Kompyuter dasturlari ham xuddi shunaqa: ketma-ket + shartlar + takrorlar.</p>
+
+<h3>⚠️ Xato chiqdi — qo'rqmang!</h3>
+<p>Konsolda quyidagini yozib ko'ring (ataylab katta harf bilan):</p>
+<pre><code>Alert("Test")</code></pre>
+<p>Qizil xato chiqadi:</p>
+<pre><code>Uncaught ReferenceError: Alert is not defined</code></pre>
+<p><strong>Bu juda yaxshi!</strong> Siz xato qildingiz. Tabriklaymiz — siz endi haqiqiy dasturchisiz, chunki dasturchining ishi 80% xatolarni tuzatishdir.</p>
+<p>Xato xabari sizga aytayotgan narsa:</p>
+<ul>
+<li><code>Alert</code> — mavjud emas (kompyuter "Alert" ni bilmaydi)</li>
+<li><code>alert</code> (kichik harf) — mavjud. Qayta yozing.</li>
+</ul>
+<p>📚 <strong>Dasturchining birinchi qoidasi:</strong> Xato — bu kompyuteringizning sizga aniq nima xato ekanligini aytayotgani. Qo'rqmang — <em>o'qing</em>. Xato matnidagi BIRINCHI muhim so'zni o'qing va Google'da qidiring.</p>
+
+<h3>🚀 Sizning yo'lingiz endi boshlandi</h3>
+<p>Bu kursni tugatganingizda siz:</p>
+<ul>
+<li>Dasturlashning butun olamini ko'rasiz (8 ta qisqa dars)</li>
+<li>Algoritmik fikrlashni o'rganasiz</li>
+<li>Terminal va Git ishlay olasiz</li>
+<li>Yakuniy loyihada o'z saytingizni internetga chiqarasiz (GitHub Pages)</li>
+</ul>
+<p>Lekin bu darsdagi eng muhim narsa — siz <strong>"men buni uddalayman"</strong> degan ishonchni qo'lga kiritdingiz. Bu — dasturchi bo'lishning yarmi.</p>
 """
 
 L1_CODE = """\
-# Sizning birinchi "kod"ingiz — uchta tilda bir xil amal
+// 🎉 Brauzer konsoliga (DevTools -> Console) yozish uchun
+// nusxa olib, har bir qatorni alohida Enter bilan ishga tushiring.
+// Avval https://google.com ni oching, keyin F12 (Mac: Option+Cmd+I).
 
-# Python
-print("Salom, dunyo!")
+// 1. Birinchi buyruq — xabar oynasi
+alert("Salom, men dastur yozyapman!");
 
-# JavaScript
-# console.log("Salom, dunyo!");
+// 2. Konsol — sizning kalkulyatoringiz
+console.log(2 + 2);
+console.log(1000 * 365);
+console.log(100 / 7);
 
-# HTML
-# <h1>Salom, dunyo!</h1>
+// 3. So'zlarni qo'shish (concatenation)
+console.log("Men" + " " + "dasturchi" + " " + "bo'ldim!");
 
-# Pseudo-kod (har qanday tilda)
-# CHIQAR "Salom, dunyo!"
+// 4. Saytni o'zgartirish — faqat sizning brauzerangizda
+document.body.style.background = "pink";
+document.body.style.color = "darkblue";
 
-# Bularning hammasi bir xil natijani beradi:
-# ekranda "Salom, dunyo!" matni paydo bo'ladi.
+// 5. Foydalanuvchi bilan muloqot
+let ism = prompt("Ismingiz nima?");
+let yosh = prompt("Yoshingiz nechida?");
+alert("Salom " + ism + "! Siz " + yosh + " yoshda dasturchi bo'ldingiz!");
+
+// 6. Xato — ataylab katta harf bilan, qo'rqmang!
+// Alert("Test")
+// -> Uncaught ReferenceError: Alert is not defined
+// Sabab: "Alert" mavjud emas. Yechim: "alert" (kichik harf).
+
+// Bularning hammasi — sizning birinchi haqiqiy
+// dasturlash tajribangiz. Sahifani yangilang —
+// hammasi qaytadi, hech narsani buzmaysiz.
 """
 
 
@@ -1238,40 +1319,51 @@ LESSON_TASKS: dict[int, dict] = {
 LESSONS = [
     {
         "order": 0, "title": "1-Dasturlash nima va qayerda yashaydi",
-        "text": L1_TEXT, "code": L1_CODE, "lang": "python",
+        "text": L1_TEXT, "code": L1_CODE, "lang": "javascript",
         "video": "https://youtu.be/zOjov-2OZ0E",
         "exercises": [
-            mc("Dasturlash nima?",
-               ["Kompyuter remontiga doir fan",
-                "Kompyuterga ko'rsatma berish — algoritmlarni kodga aylantirish",
-                "Faqat veb-saytlar yasash",
-                "Internet sozlash"],
-               "B", diff="Easy", pts=2),
-            mc("Interpreter va compiler farqi qaysi?",
-               ["Interpreter — qatorma-qator ishlaydi, compiler — butun kodni bir marta aylantiradi",
-                "Compiler — qatorma-qator ishlaydi, interpreter — butun kodni aylantiradi",
-                "Bir xil narsa",
-                "Faqat sintaksis farqi"],
-               "A", hint="Python — interpreted (qatorma-qator), C — compiled (butunlay aylantiriladi).",
+            mc("Brauzerda F12 tugmasi nima qiladi?",
+               ["Saytni yopadi",
+                "DevTools panelini ochadi",
+                "Yangi sayt ochadi",
+                "Kompyuterni qayta yoqadi"],
+               "B",
+               hint="F12 — dasturchilar uchun yashirin oyna.",
+               explanation="F12 (Mac uchun Option+Cmd+I) brauzer ichidagi DevTools panelini ochadi. Console yorlig'i orqali siz JavaScript kod yoza olasiz.",
                diff="Easy", pts=2),
-            mc("Quyidagi tillardan qaysilari interpreted (tarjima qilinadi)?",
-               ["Python", "JavaScript", "C", "Go"],
-               "A,B", multi=True,
-               hint="C va Go — compiled. Python va JavaScript — interpreted.",
+            mc("Konsolda alert(\"Salom\") yozsangiz nima bo'ladi?",
+               ["Sayt o'chadi",
+                "Ekranda \"Salom\" matnli xabar oynasi paydo bo'ladi",
+                "Email yuboriladi",
+                "Hech narsa — xato beradi"],
+               "B",
+               explanation="alert() — JavaScript ning eng oddiy buyrug'i. Foydalanuvchiga modal oyna chiqaradi.",
+               diff="Easy", pts=2),
+            mc("Quyidagilardan qaysilari konsolda haqiqatda ishlaydi?",
+               ["alert(\"salom\")",
+                "console.log(2 + 2)",
+                "document.body.style.background = \"red\"",
+                "Alert(\"salom\")",
+                "Console.Log(\"salom\")"],
+               "A,B,C", multi=True,
+               hint="JavaScript case-sensitive — katta harf bilan boshlangani ishlamaydi.",
+               explanation="JavaScript da alert va console.log kichik harflar bilan yoziladi. Alert va Console.Log — noma'lum identifikatorlar, ReferenceError beradi.",
                diff="Medium", pts=3),
-            dd("Kod ishga tushish bosqichlarini tartiblang",
-               ["Dasturchi kod yozadi",
-                "Faylni saqlash",
-                "Interpreter yoki compiler kodni o'qiydi",
-                "CPU mashina kodini bajaradi",
-                "Foydalanuvchi natijani ko'radi"],
+            dd("Kod ishga tushish zanjirini to'g'ri tartibda joylang",
+               ["Siz kod yozasiz (alert salom)",
+                "Brauzer ichidagi JavaScript interpreter kodni o'qiydi",
+                "Interpreter kodni mashina signallariga aylantiradi",
+                "CPU signallarni bajaradi",
+                "Siz natijani ekranda ko'rasiz"],
+               hint="Code → Interpreter → CPU → Natija. Hero diagrammasiga qarang.",
                diff="Medium", pts=3),
-            ti("Nima uchun dasturlashni o'rganish foydali?",
-               "Dasturlash mantiqiy fikrlashni rivojlantiradi, qo'lda qilinadigan vazifalarni "
-               "avtomatlashtirishga imkon beradi, hozirgi davrda eng yuqori talabga ega ish "
-               "imkoniyatlarini ochadi va yaratuvchanlik bilan o'z g'oyalaringizni hayotga "
-               "tatbiq qilishga yordam beradi. Bundan tashqari, dasturlash bilan tanish bo'lgan "
-               "har qanday kasb (jurnalist, biznes, dizayner) ham ko'proq qadrlanadi.",
+            ti("Algoritm va kod orasida qanday farq bor?",
+               "Algoritm — bu tartibli qadamlar ro'yxati. U til-erkin: choy damlash retsepti, "
+               "kunlik rejim ham algoritm. Kod esa — algoritmni biror dasturlash tilida "
+               "(Python, JavaScript, C va boshqalar) yozish. Bitta algoritmni 10 ta turli "
+               "tilda yozish mumkin — algoritm bir xil bo'lib qoladi. Kod algoritmsiz "
+               "yozilmaydi: avval algoritmni o'ylab topish, keyin uni kodga aylantirish kerak.",
+               hint="Algoritm — bu fikr; kod — bu fikrning yozma shakli.",
                diff="Hard", pts=4),
         ],
     },
