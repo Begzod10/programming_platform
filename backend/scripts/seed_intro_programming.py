@@ -374,115 +374,211 @@ console.log("Salom, dunyo!");
 # L3 — Kompyuter qisqacha
 # ═════════════════════════════════════════════════════════════════════════════
 L3_TEXT = """\
-<h2>Kompyuter qisqacha</h2>
+<h2>Kompyuteringizni siz o'zingiz tahlil qilasiz</h2>
 
 <pre class="mermaid">
 flowchart LR
     KB["keyboard mouse"] --> CPU["CPU miya"]
-    CPU <--> RAM["RAM tez xotira"]
-    CPU <--> DISK["disk doimiy xotira"]
+    CPU <--> RAM["RAM tez vaqtinchalik"]
+    CPU <--> DISK["disk doimiy"]
     CPU --> SC["screen output"]
     NET["network internet"] <--> CPU
     OS["operatsion tizim"] -.->|boshqaradi| CPU
 </pre>
 
-<p>Dasturchi bo'lish uchun siz kompyuter ichida nima bo'lishini umumiy tushunishingiz kerak. Bu bilim kodingiz nega tez yoki sekin ishlashini, fayl qayerda yashashini, "RAM yetmaydi" xabari nima ekanligini tushunishga yordam beradi.</p>
+<p>Dasturchi kompyuter ichida nima bo'layotganini tushunishi kerak — kod nega tez yoki sekin ishlaydi, fayl qayerda yashaydi, "RAM yetmaydi" xabari nima degani. Lekin biz nazariyadan oldin — siz hozir <strong>o'zingizning kompyuteringizning aniq texnik xususiyatlarini</strong> brauzeringizdan ko'rib chiqasiz.</p>
 
-<h3>4 ta asosiy qism</h3>
+<h3>⚡ Birinchi 5 daqiqa — o'z kompyuteringizning ichini ochasiz</h3>
+<p>Hech qanday dastur o'rnatish kerak emas. F12 → Console — 1-darsdan tanish. Quyidagi har bir qatorni yozing va <code>Enter</code> bosing:</p>
+
+<pre><code>// 1. Brauzer + OS haqida
+navigator.userAgent
+
+// 2. CPU yadrolar (cores) soni
+navigator.hardwareConcurrency
+
+// 3. RAM darajasi (GB taxminan)
+navigator.deviceMemory
+
+// 4. OS turi
+navigator.platform
+
+// 5. Ekran o'lchami
+screen.width + " x " + screen.height
+
+// 6. Internet tezligi (so'rovga oid)
+navigator.connection &amp;&amp; navigator.connection.effectiveType</code></pre>
+
+<p>🎉 Tabriklaymiz — siz hozir <strong>o'z kompyuteringizning pasportini</strong> ochdingiz. Bu raqamlarni yodda saqlang — loyihada keraksiz.</p>
+
+<h3>🎮 RAM vs Disk — siz buni qo'lda sezasiz</h3>
+<p>Endi eng chalkashtiriladigan tushuncha — RAM va Disk farqi. Demo:</p>
+
+<h4>Tajriba 1: Disk-kabi xotira (saqlanib qoladi)</h4>
+<pre><code>// localStorage — brauzerdagi "mini-disk"
+localStorage.setItem("mening_ismim", "Aziz")
+localStorage.getItem("mening_ismim")
+// "Aziz" qaytadi</code></pre>
+
+<p>Endi brauzerni <strong>butunlay yoping va qayta oching</strong>. Konsolda yana yozing:</p>
+<pre><code>localStorage.getItem("mening_ismim")
+// "Aziz" — hali ham bor!</code></pre>
+
+<h4>Tajriba 2: RAM-kabi xotira (yo'qoladi)</h4>
+<pre><code>// Oddiy o'zgaruvchi — vaqtinchalik
+let mening_ismim = "Aziz"
+console.log(mening_ismim)
+// "Aziz"</code></pre>
+
+<p>Endi <strong>sahifani yangilang (F5)</strong>. Konsolda yana yozing:</p>
+<pre><code>console.log(mening_ismim)
+// Uncaught ReferenceError: mening_ismim is not defined
+// yo'q bo'lib ketdi!</code></pre>
+
+<p>👏 Siz hozir <strong>RAM va Disk farqini qo'lda his qildingiz</strong>:</p>
+<ul>
+<li><strong>RAM (oddiy o'zgaruvchi)</strong>: tez ishlaydi, lekin sahifa o'chsa — yo'qoladi</li>
+<li><strong>Disk (localStorage)</strong>: sekinroq, lekin doimo saqlanadi</li>
+</ul>
+
+<h3>💡 Endi tushuntiramiz — 4 ta asosiy qism</h3>
 <table>
 <tr><th>Qism</th><th>Vazifasi</th><th>Misol</th></tr>
-<tr><td><strong>CPU</strong> (protsessor)</td><td>"Miya" — barcha hisob-kitoblar va qarorlar shu yerda</td><td>Intel Core i5, Apple M2, AMD Ryzen</td></tr>
-<tr><td><strong>RAM</strong> (operativ xotira)</td><td>Tez lekin vaqtinchalik xotira — kompyuter o'chsa, hammasi yo'q bo'ladi</td><td>8 GB, 16 GB, 32 GB</td></tr>
-<tr><td><strong>Disk</strong> (HDD yoki SSD)</td><td>Doimiy xotira — kompyuter o'chsa ham saqlanadi</td><td>256 GB SSD, 1 TB HDD</td></tr>
-<tr><td><strong>Network</strong></td><td>Boshqa kompyuterlar bilan bog'lanish</td><td>Wi-Fi, Ethernet kabeli, 4G/5G</td></tr>
+<tr><td><strong>CPU</strong> (protsessor)</td><td>"Miya" — barcha hisob-kitoblar va qarorlar shu yerda. Yadro (core) qancha ko'p — parallel ishlar shuncha ko'p</td><td>Intel Core i5, Apple M2, AMD Ryzen</td></tr>
+<tr><td><strong>RAM</strong> (operativ xotira)</td><td>Tez lekin vaqtinchalik. Kompyuter o'chsa — hammasi yo'qoladi. Hozir ochiq dasturlar shu yerda yashaydi</td><td>4 GB, 8 GB, 16 GB</td></tr>
+<tr><td><strong>Disk</strong> (HDD / SSD)</td><td>Doimiy xotira — kompyuter o'chsa ham saqlanadi. Sekinroq, lekin katta hajmli. SSD — HDD dan 10-100 marta tezroq</td><td>256 GB SSD, 1 TB HDD</td></tr>
+<tr><td><strong>Network</strong></td><td>Boshqa kompyuterlar bilan bog'lanish — internet</td><td>Wi-Fi, Ethernet kabel, 4G/5G</td></tr>
 </table>
 
-<h3>RAM vs Disk — eng ko'p chalkashtiriladigan tushuncha</h3>
-<p>Tassavur qiling: ish stolingiz — bu <strong>RAM</strong>. Kitob javoningiz — bu <strong>Disk</strong>. Siz qaysi kitobni o'qiyotgan bo'lsangiz, uni stolga olib chiqasiz (Disk → RAM). Ish tugagach, kitobni javonga qaytarasiz (RAM → Disk). Stol kichik (8 GB), javon katta (1 TB). Lekin stoldagi narsalarga tezroq kirasiz.</p>
+<h3>📊 RAM vs Disk — taqqoslash</h3>
+<table>
+<tr><th></th><th>RAM</th><th>Disk</th></tr>
+<tr><td>Tezlik</td><td>~10-100 GB/s</td><td>SSD: 0.5-5 GB/s, HDD: 0.1 GB/s</td></tr>
+<tr><td>Hajm</td><td>4-32 GB</td><td>256 GB - 4 TB</td></tr>
+<tr><td>O'chsa nima bo'ladi?</td><td>Hammasi yo'qoladi 💨</td><td>Saqlanib qoladi ✅</td></tr>
+<tr><td>Misol</td><td>Hozir ochiq dasturlar</td><td>Fayllar, rasm, video</td></tr>
+</table>
+<p>Tasavvur qiling: ish stolingiz — bu <strong>RAM</strong>. Kitob javoningiz — bu <strong>Disk</strong>. Stoldagi narsalarga tez kirasiz, lekin u kichik. Javondan kerakli kitobni stolga olasiz (Disk → RAM), ish tugagach javonga qaytarasiz.</p>
 
-<h3>Operatsion tizim (OS)</h3>
-<p>OS — bu kompyuterning "menejeri". U barcha dasturlar va qismlar o'rtasida mediator bo'lib ishlaydi.</p>
+<h3>🖥 Operatsion tizim (OS)</h3>
+<p>OS — kompyuterning <strong>menejeri</strong>. Dasturlar va qismlar o'rtasida mediator:</p>
 <ul>
-<li><strong>Windows</strong> — eng keng tarqalgan ish kompyuterlarida</li>
+<li><strong>Windows</strong> — keng tarqalgan ish kompyuterlarida</li>
 <li><strong>macOS</strong> — Apple kompyuterlari</li>
-<li><strong>Linux</strong> — serverlar, dasturchilar, embedded qurilmalar</li>
-<li><strong>Android / iOS</strong> — mobile qurilmalar</li>
+<li><strong>Linux</strong> — serverlar, dasturchilar, embedded qurilmalar (Ubuntu, Fedora...)</li>
+<li><strong>Android / iOS</strong> — mobile</li>
 </ul>
 <p>Dasturchilar ko'pincha <strong>Linux</strong> yoki <strong>macOS</strong> ni afzal ko'radi — chunki ular Unix asosida qurilgan va terminal bilan yaxshi ishlaydi.</p>
 
-<h3>Fayllar va papkalar</h3>
-<p>Hamma ma'lumot diskda <strong>fayl</strong> shaklida saqlanadi. Fayllar <strong>papkalar</strong>da guruhlanadi. Har faylning manzili — <strong>path</strong>:</p>
-<pre><code># Linux / Mac
+<h3>📁 Fayllar, papkalar va path</h3>
+<p>Hamma ma'lumot diskda <strong>fayl</strong> shaklida saqlanadi. Fayllar <strong>papkalar</strong>da guruhlanadi. Har faylning manzili — <strong>path</strong> (yo'l):</p>
+<pre><code># Linux / macOS — forward slash
 /home/aziz/Documents/loyiha/index.html
 
-# Windows
+# Windows — backward slash
 C:\\Users\\Aziz\\Documents\\loyiha\\index.html</code></pre>
 
-<h3>Ikki turdagi path</h3>
+<h3>🗺 Ikki turdagi path</h3>
+<table>
+<tr><th>Tur</th><th>Boshlanishi</th><th>Misol</th><th>Qachon ishlatiladi</th></tr>
+<tr><td><strong>Absolute</strong></td><td>"/" dan (yoki "C:\\")</td><td><code>/home/aziz/file.txt</code></td><td>Aniq joyni ko'rsatish kerak bo'lganda</td></tr>
+<tr><td><strong>Relative</strong></td><td>"./" yoki ".." dan</td><td><code>./file.txt</code>, <code>../boshqa/file.txt</code></td><td>Joriy joydan boshqa joyni topish</td></tr>
+</table>
 <ul>
-<li><strong>Absolute path</strong>: tugamagan manzil, "/" dan boshlanadi. Misol: <code>/home/aziz/file.txt</code></li>
-<li><strong>Relative path</strong>: joriy joydan boshlanadi. Misol: <code>./file.txt</code> yoki <code>../boshqa-papka/file.txt</code></li>
+<li><code>.</code> — joriy papka (bu yerda)</li>
+<li><code>..</code> — yuqoridagi papka (parent)</li>
+<li><code>~</code> — uy papkangiz (Linux/macOS)</li>
+<li><code>/</code> — Linux/Mac: ildiz papka, Windows: drive ildiz</li>
 </ul>
-<p><code>.</code> — joriy papka, <code>..</code> — yuqoridagi papka, <code>~</code> — uy papkangiz.</p>
 
-<h3>Bayt, kilobayt, megabayt — birliklar</h3>
+<h3>📏 Bayt, kilobayt, megabayt — birliklar</h3>
 <ul>
 <li><strong>1 bit</strong> = 0 yoki 1</li>
 <li><strong>1 bayt</strong> = 8 bit (bitta inglizcha harfni saqlash uchun yetadi)</li>
 <li><strong>1 KB</strong> = 1024 bayt (qisqa matn)</li>
-<li><strong>1 MB</strong> = 1024 KB (kichik rasm yoki MP3)</li>
+<li><strong>1 MB</strong> = 1024 KB (kichik rasm yoki MP3 qo'shig'i)</li>
 <li><strong>1 GB</strong> = 1024 MB (1 soat HD video)</li>
-<li><strong>1 TB</strong> = 1024 GB (deyarli butun musiqa kolleksiya)</li>
+<li><strong>1 TB</strong> = 1024 GB (deyarli butun musiqa kolleksiyasi)</li>
 </ul>
-<p>Bularning hammasi sizni dasturlashda baytlarni hisoblay olishingizga yordam beradi.</p>
+
+<h3>⚠️ Xato chiqdi — qo'rqmang!</h3>
+<p>Konsolda yangi sahifani oching (yangi yorliqda <code>google.com</code>) va yozing:</p>
+<pre><code>localStorage.getItem("mening_ismim")</code></pre>
+<p>Natija: <code>null</code> — bo'sh. Bu xato emas — bu shunchaki <strong>"bu sayt uchun bunday nom bor emas"</strong> degani.</p>
+<p>Lekin xato namunasi ko'ring:</p>
+<pre><code>navigator.deviceMemori   // ataylab xato yozildi</code></pre>
+<p>Natija:</p>
+<pre><code>undefined</code></pre>
+<p><code>undefined</code> — JavaScript da "bunday xususiyat yo'q" degani. To'g'risi: <code>deviceMemory</code> (oxirida "y"). 📚 <strong>Eslatma:</strong> dasturlashda har bir harf muhim — typo eng ko'p uchraydigan xato.</p>
+
+<h3>🚀 Bu darsdan keyin siz bilasizki</h3>
+<ul>
+<li>Sizning kompyuteringizning aniq texnik xususiyatlari</li>
+<li>RAM va Disk orasidagi farq (siz buni qo'lda his qildingiz)</li>
+<li>Path nima va u qanday yoziladi</li>
+<li>Operatsion tizim qaysi rolda</li>
+</ul>
+<p>Bu bilim keyingi darslarda — fayllar bilan ishlashda, terminalda, Git ishlatishda — kerak bo'ladi.</p>
 """
 
 L3_CODE = """\
-# Kompyuteringiz haqida bilish — terminal komandalari
+// ═══════════════════════════════════════════════════════
+// O'z kompyuteringizning pasportini brauzerdan oching
+// (F12 → Console, har qatorni alohida Enter bilan)
+// ═══════════════════════════════════════════════════════
 
-# ─── Linux / macOS ───────────────────────────
-# CPU ma'lumotlari
-# Linux:
-# lscpu
-# macOS:
-# sysctl -n machdep.cpu.brand_string
+// 1. Brauzer + OS
+navigator.userAgent;
 
-# RAM hajmi
-# Linux:
-# free -h
-# macOS:
-# system_profiler SPHardwareDataType | grep "Memory:"
+// 2. CPU yadrolar (parallel ishlar uchun)
+navigator.hardwareConcurrency;
 
-# Disk bo'shliq
-# df -h
+// 3. RAM taxminiy darajasi (GB)
+navigator.deviceMemory;
 
-# Joriy papka
-# pwd
+// 4. OS turi
+navigator.platform;
 
-# Papkadagi fayllar
-# ls -lah
+// 5. Ekran o'lchami
+screen.width + " x " + screen.height;
 
-
-# ─── Windows ────────────────────────────────
-# CPU + RAM (PowerShell)
-# Get-ComputerInfo | Select CsName, CsProcessors, OsTotalVisibleMemorySize
-
-# Disk bo'shliq
-# Get-PSDrive
-
-# Joriy papka
-# Get-Location
-
-# Papkadagi fayllar
-# Get-ChildItem
+// 6. Internet turi (4g, 3g, slow-2g ...)
+navigator.connection && navigator.connection.effectiveType;
 
 
-# ─── Universal (Python bilan) ───────────────
-import os, shutil, platform
+// ═══════════════════════════════════════════════════════
+// RAM vs Disk — siz qo'lda his qilasiz
+// ═══════════════════════════════════════════════════════
 
-print("OS:", platform.system())
-print("Joriy papka:", os.getcwd())
-print("Disk bo'sh:", shutil.disk_usage('/').free // (1024**3), "GB")
+// Disk-kabi (localStorage — saqlanib qoladi)
+localStorage.setItem("mening_ismim", "Aziz");
+localStorage.getItem("mening_ismim");
+// Brauzerni yopib qayta oching — qiymat hali ham bor
+
+// RAM-kabi (oddiy o'zgaruvchi — yo'qoladi)
+let mening_ismim = "Aziz";
+console.log(mening_ismim);
+// Sahifani yangilang (F5) — qayta yozsangiz: ReferenceError
+
+
+// ═══════════════════════════════════════════════════════
+// Universal — fayl tizimi haqida (terminal komandalari)
+// Bu komandalarni keyingi darslarda terminalda ishlatasiz
+// ═══════════════════════════════════════════════════════
+
+// Linux / macOS:
+//   pwd          — joriy papka
+//   ls -lah      — papkadagi fayllar (yashirin bilan)
+//   lscpu        — CPU info (Linux)
+//   free -h      — RAM info (Linux)
+//   df -h        — disk bo'shligi
+//   du -sh .     — joriy papka hajmi
+
+// Windows (PowerShell):
+//   Get-Location           — joriy papka
+//   Get-ChildItem          — papkadagi fayllar
+//   Get-ComputerInfo       — CPU + RAM info
+//   Get-PSDrive            — disk bo'shligi
 """
 
 
@@ -1487,45 +1583,56 @@ LESSONS = [
     },
     {
         "order": 2, "title": "3-Kompyuter qisqacha (CPU, RAM, disk, OS)",
-        "text": L3_TEXT, "code": L3_CODE, "lang": "bash",
+        "text": L3_TEXT, "code": L3_CODE, "lang": "javascript",
         "video": "https://youtu.be/8YBpgKHU7HM",
         "exercises": [
+            mc("Brauzer konsolida navigator.hardwareConcurrency nima qaytaradi?",
+               ["Brauzer versiyasi",
+                "CPU yadrolar (core) soni",
+                "Internet tezligi",
+                "RAM hajmi GB da"],
+               "B",
+               hint="\"hardware\" + \"concurrency\" (parallellik) — kompyuteringiz nechta amalni bir vaqtda bajara olishi.",
+               explanation="navigator.hardwareConcurrency CPU dagi mantiqiy yadrolar sonini qaytaradi. Ko'p yadro = ko'p parallel ish.",
+               diff="Easy", pts=2),
             mc("RAM va Disk orasidagi asosiy farq qaysi?",
                ["RAM tez lekin vaqtinchalik, Disk sekin lekin doimiy",
                 "RAM doimiy, Disk vaqtinchalik",
                 "Hech qanday farq yo'q",
                 "RAM faqat Windows uchun"],
-               "A", explanation="RAM — operativ xotira (o'chsa yo'qoladi), Disk — doimiy xotira.",
+               "A",
+               hint="Brauzerda localStorage Disk kabi (saqlanib qoladi), oddiy o'zgaruvchi RAM kabi (sahifa yangilansa yo'qoladi) — siz buni darsda sinab ko'rdingiz.",
+               explanation="RAM — vaqtinchalik tez xotira (elektr o'chsa yo'qoladi). Disk (SSD/HDD) — sekinroq lekin doimiy. Kod o'zgaruvchilari RAM da, fayllar Disk da.",
                diff="Easy", pts=2),
-            mc("Operatsion tizim nima qiladi?",
-               ["Kompyuter qismlari va dasturlar o'rtasida mediator",
-                "Faqat ekranni boshqaradi",
-                "Faqat internet uchun",
-                "Bir dasturni boshqasi bilan almashtiradi"],
-               "A", diff="Easy", pts=2),
-            mc("Quyidagilardan qaysilari Unix-asosida qurilgan operatsion tizimlar?",
-               ["Linux", "macOS", "Windows", "iOS"],
-               "A,B,D", multi=True,
-               hint="Windows — Unix asosida emas, alohida tarmoq.",
+            mc("Quyidagilardan qaysilari sahifa yangilanganda saqlanib qoladi?",
+               ["localStorage.setItem(\"x\", \"5\")",
+                "sessionStorage.setItem(\"y\", \"10\")",
+                "let z = 5",
+                "document.cookie qiymati",
+                "console.log(...) chiqishi"],
+               "A,D", multi=True,
+               hint="localStorage va cookie — disk kabi doimiy. sessionStorage — yorliq yopilguncha. let — oddiy o'zgaruvchi, sahifa yangilansa yo'q bo'ladi.",
+               explanation="localStorage va cookie diskda saqlanadi — sahifa yangilansa yoki brauzer o'chsa ham qoladi. sessionStorage — faqat yorliq (tab) tirik bo'lguncha. let bilan e'lon qilingan o'zgaruvchi RAM da — har refresh da nol dan boshlanadi.",
                diff="Medium", pts=3),
-            mc("1 GB qancha MB ga teng?",
-               ["10 MB", "100 MB", "1024 MB", "1000000 MB"],
-               "C", explanation="Binar sistema: 1 GB = 1024 MB (texnik). Tijoratda 1000 MB ham ishlatiladi.",
-               diff="Easy", pts=2),
-            dd("Linux/macOS terminal komandalarini natijasi bilan moslang",
-               ["pwd — joriy papka",
-                "ls — papkadagi fayllar",
-                "cd — boshqa papkaga o'tish",
-                "mkdir — yangi papka",
-                "rm — fayl o'chirish"],
+            dd("Siz Photoshop ni ochganingizda nima bo'lishini to'g'ri tartibda joylang",
+               ["Photoshop fayli Disk da yashaydi (masalan, Program Files ichida)",
+                "Siz ikonkani bosasiz — OS dasturni boshlaydi",
+                "OS Photoshop ni Disk dan RAM ga ko'chiradi",
+                "CPU RAM dagi kodni o'qib bajaradi",
+                "Ekrandan natija siz ko'rasiz"],
+               hint="Dastur har doim avval Disk da yashaydi. Ishga tushish uchun u RAM ga ko'chirilishi shart — CPU faqat RAM bilan ishlaydi.",
+               explanation="Dastur Disk da fayl sifatida turadi. Ishga tushganda OS uni RAM ga yuklaydi (chunki CPU faqat RAM dan o'qiy oladi). CPU ko'rsatmalarni bajarib, natijani ekranga uzatadi. Dastur yopilsa RAM dagi qismi yo'qoladi, lekin Disk dagi fayl saqlanib qoladi.",
                diff="Medium", pts=3),
             ti("Absolute path va relative path farqi nima?",
-               "Absolute path — tugamagan manzil, root (/) dan boshlanadi va aniq joyni "
-               "ko'rsatadi: /home/aziz/Documents/file.txt. Relative path — joriy joydan "
-               "boshlanadi: ./file.txt (joriy papka), ../file.txt (yuqori papka). Absolute path "
-               "har joydan ishlaydi, relative path joriy papkaga bog'liq. Skriptlarda absolute "
-               "path ko'pincha xavfsizroq, lekin loyiha ichidagi fayllar uchun relative path "
-               "yaxshi (loyihani boshqa joyga ko'chirsangiz ham ishlaydi).",
+               "Absolute path — tugamagan to'liq manzil, ildiz (/) yoki drive (C:\\) dan "
+               "boshlanadi va aniq joyni ko'rsatadi: /home/aziz/Documents/file.txt. "
+               "Relative path — joriy joydan boshlanadi: ./file.txt (joriy papkada), "
+               "../file.txt (yuqori papka), boshqa-papka/file.txt (qo'shni papka). "
+               "Absolute path har joydan bir xil ishlaydi (joriy papka muhim emas), "
+               "relative path esa joriy papkaga bog'liq. Skript ichida absolute path "
+               "ko'pincha xavfsizroq, lekin loyihani boshqa joyga ko'chirsangiz buziladi. "
+               "Loyiha ichidagi fayllar uchun relative path yaxshi — loyiha har joyda ishlaydi.",
+               hint=". = joriy papka, .. = yuqori papka, / = ildiz papka",
                diff="Hard", pts=4),
         ],
     },

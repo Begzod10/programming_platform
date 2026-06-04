@@ -43,9 +43,10 @@ from scripts.seed_intro_programming import (  # noqa: E402
 # Delete exercises that exist in DB but not in the seed — only for lessons
 # whose old exercise set was deliberately replaced.
 # L1 (order=0): rewritten from theory to WIN-FIRST DevTools — all 5 swapped.
-# L2 (order=1): rewritten with polyglot hands-on hook — all 5 swapped
-#               (the essay's title was tweaked slightly so it falls in too).
-ORPHAN_DELETE_LESSONS = {0, 1}
+# L2 (order=1): rewritten with polyglot hands-on hook — all 5 swapped.
+# L3 (order=2): rewritten with browser-based machine inspection — 4 swapped,
+#               1 kept (absolute vs relative path essay).
+ORPHAN_DELETE_LESSONS = {0, 1, 2}
 
 
 EXERCISE_TEXT_FIELDS = {
