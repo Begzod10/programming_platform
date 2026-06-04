@@ -70,6 +70,16 @@
     margin-bottom: 24px;
     flex-wrap: wrap;
     gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #fff;
+    padding: 14px 4px;
+    margin-left: -4px;
+    margin-right: -4px;
+    border-bottom: 1px solid #eceef5;
+    box-shadow: 0 6px 14px -10px rgba(40, 44, 90, 0.18);
+    backdrop-filter: saturate(140%) blur(4px);
 }
 
 .slp-breadcrumb {
