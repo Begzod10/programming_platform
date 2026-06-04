@@ -214,11 +214,11 @@ alert("Salom " + ism + "! Siz " + yosh + " yoshda dasturchi bo'ldingiz!");
 # L2 — Qaysi tilni o'rganay?
 # ═════════════════════════════════════════════════════════════════════════════
 L2_TEXT = """\
-<h2>Qaysi tilni o'rganay?</h2>
+<h2>3 ta tilni 5 daqiqada sinab ko'rasiz</h2>
 
 <pre class="mermaid">
 flowchart TB
-    Q["nima qurmoqchisiz"] --> WEB["veb-sayt"]
+    Q["Nima qurmoqchisiz"] --> WEB["veb-sayt"]
     Q --> MOB["mobile ilova"]
     Q --> AI["AI ML"]
     Q --> DATA["ma'lumotlar tahlili"]
@@ -226,78 +226,147 @@ flowchart TB
     Q --> SYS["tizim past darajadagi"]
     WEB --> HCJ["HTML CSS JavaScript"]
     MOB --> SK["Swift iOS yoki Kotlin Android"]
-    AI --> PY1["Python PyTorch"]
+    AI --> PY1["Python"]
     DATA --> PY2["Python yoki R"]
-    GAME --> CS["C++ yoki C# Unity"]
+    GAME --> CS["C plus plus yoki C sharp"]
     SYS --> RC["C Rust"]
 </pre>
 
-<p>Bu eng ko'p so'raladigan savol: <strong>"Birinchi til sifatida nimani tanlay?"</strong> To'g'ri javob: <em>maqsadingizga qarab</em>. Hech bir til "eng yaxshi" emas — har biri muayyan ishlar uchun tug'ilgan.</p>
+<p>Bu darsda biz "qaysi til eng yaxshi?" savoliga javob beramiz. Lekin nazariyadan oldin — siz hozir, shu daqiqaning o'zida, <strong>3 ta tilda</strong> dastur yozasiz. Hech narsani o'rnatish kerak emas. Brauzeringiz va internet yetarli.</p>
 
-<h3>Ishingizga qarab tanlash</h3>
+<h3>⚡ Birinchi 5 daqiqa — siz polyglot bo'lasiz</h3>
+<p>Quyidagi 3 ta tilda bir xil amalni — <strong>"Salom, dunyo!" matnini ekranga chiqarish</strong> — bajaring. Sintaksis farqlanadi, g'oya bir xil.</p>
+
+<h4>🟨 Til 1: JavaScript (brauzer konsoli)</h4>
+<ol>
+<li>Yangi yorliqda <code>https://google.com</code> ni oching.</li>
+<li><code>F12</code> (Mac: <code>Option + Cmd + I</code>) → <code>Console</code> yorlig'i.</li>
+<li>Yozing va <code>Enter</code>:
+<pre><code>console.log("Salom, dunyo!")</code></pre>
+</li>
+</ol>
+<p>Natija: konsolda <code>Salom, dunyo!</code> chiqadi. (1-darsdan tanish.)</p>
+
+<h4>🟧 Til 2: HTML (brauzer manzil satrida — server kerak emas!)</h4>
+<ol>
+<li>Brauzeringizning yuqorisidagi <strong>manzil satriga</strong> (URL bar) quyidagini AYNAN ko'chiring va <code>Enter</code> bosing:
+<pre><code>data:text/html,&lt;h1&gt;Salom, dunyo!&lt;/h1&gt;&lt;p&gt;Men HTML yozdim.&lt;/p&gt;</code></pre>
+</li>
+</ol>
+<p>Brauzer to'liq sahifa shaklida ko'rsatadi! Bu — <strong>HTML</strong> — sahifa tuzilmasini tasvirlash tili. <code>data:text/html,...</code> sxemasi brauzerga "matn HTML deb tushun, fayldan o'qima" deydi — server ham, fayl ham kerak emas.</p>
+
+<h4>🟦 Til 3: Python (onlayn shell)</h4>
+<ol>
+<li>Yangi yorliqda <code>https://www.python.org/shell/</code> ni oching. (Bu Python tilining rasmiy onlayn interpreteri.)</li>
+<li>Yuklanguncha bir oz kuting (Loading skameykalari).</li>
+<li><code>&gt;&gt;&gt;</code> belgisidan keyin yozing va <code>Enter</code>:
+<pre><code>print("Salom, dunyo!")</code></pre>
+</li>
+</ol>
+<p>Natija: <code>Salom, dunyo!</code></p>
+
+<p>🎉 <strong>Tabriklaymiz!</strong> Siz hozir <strong>3 ta tilda</strong> dastur yozdingiz va brauzeringizdan tashqari hech narsa o'rnatmadingiz. Sintaksis 3 xil edi, lekin g'oya bir xil: "matnni ekranga chiqar". Bu — har qanday dasturlash tilining birinchi va eng muhim qadami.</p>
+
+<h3>💡 Endi tushuntiramiz — nima uchun 3 xil til?</h3>
+<p>Har bir dasturlash tili muayyan ish uchun yaratilgan. Til tanlash — bu asbob tanlash: bolg'a bilan o'tin yorish mumkin, lekin tikuv mashinasi uchun u ishlamaydi.</p>
+
 <table>
-<tr><th>Maqsad</th><th>Tavsiya etiladigan til</th><th>Sabab</th></tr>
-<tr><td>Birinchi marta o'rganaman</td><td><strong>Python</strong> yoki HTML+CSS</td><td>Sodda sintaksis, tez natija</td></tr>
-<tr><td>Veb-sayt yasamoqchi</td><td>HTML/CSS → JavaScript → Python(Flask/Django)</td><td>Frontend va backend ikkalasi kerak</td></tr>
-<tr><td>Mobil ilova</td><td>Swift (iOS), Kotlin (Android), Flutter</td><td>Har platforma o'z tilini sevadi</td></tr>
-<tr><td>AI / Machine Learning</td><td>Python</td><td>Hamma AI kutubxonalari Python uchun</td></tr>
-<tr><td>O'yin</td><td>C# (Unity), C++ (Unreal)</td><td>Game engineslar shu tillarda</td></tr>
-<tr><td>Ish topish (umumiy)</td><td>JavaScript, Python, Java</td><td>Eng ko'p vakansiyalar</td></tr>
-<tr><td>Tizim, drayver, OS</td><td>C, Rust, C++</td><td>Mashinaga yaqin, tez</td></tr>
+<tr><th>Til</th><th>Qayerda ishlaydi</th><th>Eng yaxshi nimaga</th></tr>
+<tr><td><strong>JavaScript</strong></td><td>Brauzer (frontend), server (Node.js)</td><td>Veb-saytni jonlantirish</td></tr>
+<tr><td><strong>HTML + CSS</strong></td><td>Brauzer</td><td>Sahifa tuzilmasi va stillari (asl dasturlash tili emas — "markup" tili)</td></tr>
+<tr><td><strong>Python</strong></td><td>Server, AI, skriptlar, ma'lumot tahlili</td><td>Universal — har joyda ishlatiladi</td></tr>
+<tr><td><strong>Swift / Kotlin</strong></td><td>Telefon — iOS / Android</td><td>Mobil ilovalar</td></tr>
+<tr><td><strong>C / C++ / Rust</strong></td><td>Tizim darajasi, drayverlar</td><td>Tezlik kerak bo'lganda</td></tr>
+<tr><td><strong>C# / C++</strong></td><td>Game engine (Unity, Unreal)</td><td>O'yinlar</td></tr>
 </table>
 
-<h3>Boshlang'ich uchun: 3 ta yo'l</h3>
+<h3>🎯 Maqsadingizga qarab tanlash</h3>
+<table>
+<tr><th>Maqsadingiz</th><th>Tavsiya</th><th>Sabab</th></tr>
+<tr><td>Birinchi marta o'rganaman, qanday ekanini bilmoqchiman</td><td><strong>Python</strong> yoki HTML+CSS</td><td>Sodda sintaksis, tez natija</td></tr>
+<tr><td>Veb-sayt yasamoqchiman</td><td>HTML/CSS → JavaScript → Python (Flask/Django)</td><td>Frontend va backend ikkalasi kerak</td></tr>
+<tr><td>iPhone yoki Android ilova</td><td>Swift (iOS), Kotlin (Android), Flutter (ikkalasi)</td><td>Har platforma o'z tilini sevadi</td></tr>
+<tr><td>AI / ChatGPT kabi loyihalar</td><td><strong>Python</strong></td><td>PyTorch, TensorFlow, sklearn — barchasi Python uchun</td></tr>
+<tr><td>O'yin yasamoqchiman</td><td>C# (Unity), C++ (Unreal)</td><td>Game engine'lar shu tillarda yozilgan</td></tr>
+<tr><td>Ish topish (umumiy)</td><td>JavaScript yoki Python yoki Java</td><td>Eng ko'p vakansiya bor</td></tr>
+<tr><td>Tizim, drayver, OS</td><td>C, Rust, C++</td><td>Mashinaga yaqin, juda tez</td></tr>
+</table>
 
-<h4>🌐 Yo'l 1: Veb (eng vizual)</h4>
-<p><strong>HTML → CSS → JavaScript</strong>. Birinchi kuningiz allaqachon sahifa ko'rasiz. 1 oydan keyin interaktiv sayt yasayapsiz. Bu yo'l "ko'zga ko'rinadigan natija" sevuvchilar uchun.</p>
-
-<h4>🐍 Yo'l 2: Python (eng moslashuvchan)</h4>
-<p>Python deyarli har joyda ishlatiladi: web (Flask, Django), AI (PyTorch), avtomatlash (skriptlar), ma'lumotlar tahlili (pandas). Sintaksis sodda — inglizcha gapga o'xshaydi. AI yo'lini tanlasangiz — to'g'ri tanlov.</p>
-
-<h4>📱 Yo'l 3: Mobil (eng murakkab boshlovchi uchun)</h4>
-<p>Swift yoki Kotlin to'g'ridan-to'g'ri o'rganish qiyin. Tavsiya: avval Python/JavaScript ni o'zlashtiring, keyin mobile ga o'ting.</p>
-
-<h3>3 ta katta yolg'on</h3>
+<h3>⚠️ 3 ta katta yolg'on (ehtiyot bo'ling)</h3>
 <ol>
-<li><strong>"Eng yaxshi til bor"</strong> — yo'q. Har birining o'z joyi bor.</li>
-<li><strong>"Bitta tilni mukammal bilish kifoya"</strong> — yo'q. Tajribali dasturchilar 3-5 ta til biladi.</li>
-<li><strong>"30 kunda dasturchi bo'lasan"</strong> — yo'q. Asoslarni 30 kunda — ha. Tajribali bo'lish — 2-5 yil.</li>
+<li><strong>"Eng yaxshi til bor"</strong> — yo'q. Har birining o'z joyi bor. Python AI uchun yaxshi, lekin o'yin uchun emas.</li>
+<li><strong>"Bitta tilni mukammal bilish kifoya"</strong> — yo'q. Tajribali dasturchilar 3-5 ta tilni biladi.</li>
+<li><strong>"30 kunda dasturchi bo'lasan"</strong> — yo'q. Asoslarni 30 kunda — ha. Tajribali bo'lish — 2-5 yil. Sabr-toqat kerak.</li>
 </ol>
 
-<h3>Bizning platformaga oid: 4 ta yo'l</h3>
-<p>Hozir bu platformada quyidagi kurslar bor:</p>
+<h3>⚠️ Xato chiqdi — qo'rqmang!</h3>
+<p>Python shell ga quyidagini yozib ko'ring (ataylab tirnoq ochiq):</p>
+<pre><code>print("Salom)</code></pre>
+<p>Xato chiqadi:</p>
+<pre><code>SyntaxError: EOL while scanning string literal</code></pre>
+<p>Bu xato sizga aytayotgan narsa: <code>EOL</code> = "end of line" (satr oxiri). Demak: <strong>satr oxiriga keldim, lekin string yopilmagan</strong>. Yechim: yopuvchi tirnoq qo'shing → <code>print("Salom")</code>.</p>
+<p>📚 <strong>Eslatma:</strong> Har tilda xato xabarlari boshqacha so'zlarda yoziladi, lekin g'oya bir xil — kompyuter sizga aniq nima xato ekanligini aytadi. Birinchi muhim so'zni topib o'qing.</p>
+
+<h3>🚀 Bu platformada quyidagi yo'llar bor</h3>
+<p>Bu kursdan keyin keyingi kursingizni tanlash uchun:</p>
 <ul>
-<li>📘 <strong>HTML CSS</strong> — vizual yo'l bilan boshlovchilar uchun</li>
+<li>📘 <strong>HTML CSS</strong> — vizual natijani tezda ko'rishni xohlovchilar uchun</li>
 <li>📗 <strong>Javascript</strong> — saytni jonlantirish uchun</li>
-<li>📕 <strong>Python Asoslari</strong> — universal yo'l</li>
+<li>📕 <strong>Python Asoslari</strong> — universal yo'l (AI, web, avtomatlash)</li>
 <li>📓 <strong>Python Flask</strong> — Python ni bilganlar uchun veb ilovalar</li>
 </ul>
-<p><strong>Maslahat</strong>: agar vizual natijani tezda ko'rishni istasangiz — HTML CSS dan boshlang. Agar mantiqiy fikrlashni va keng imkoniyatni istasangiz — Python Asoslari.</p>
+<p><strong>Tavsiya:</strong></p>
+<ul>
+<li>Agar vizual natija tezda kerak bo'lsa — <strong>HTML CSS</strong> dan boshlang.</li>
+<li>Agar mantiqiy fikrlash va keng imkoniyatlar kerak bo'lsa — <strong>Python Asoslari</strong>.</li>
+<li>Agar siz allaqachon HTML ni bilsangiz — <strong>Javascript</strong>.</li>
+</ul>
+
+<h3>🧠 Bu darsdan qoldiriladigan asosiy fikr</h3>
+<p>Til — bu asbob. Asbobni tanlash uchun avval <strong>nima qurmoqchi ekanligingizni</strong> aniqlang. Til avval — yo'l keyin emas. Yo'l avval — til keyin. 🚀</p>
 """
 
 L2_CODE = """\
-# Bir xil amal — 3 ta tilda
+// 3 ta tilda "Salom, dunyo!" — siz hozir o'zingiz sinab ko'rasiz.
+// Hech narsa o'rnatish kerak emas, faqat brauzer.
 
-# ─── Python (interpreted, sodda) ──────────────────
-ism = input("Ismingiz: ")
-print(f"Salom, {ism}!")
+// ─── Til 1: JavaScript (brauzer konsoli) ──────────────────
+// F12 → Console, keyin yozing va Enter:
+console.log("Salom, dunyo!");
 
-# ─── JavaScript (interpreted, brauzerda) ──────────
-# const ism = prompt("Ismingiz:");
-# alert(`Salom, ${ism}!`);
+// ─── Til 2: HTML (brauzer manzil satrida) ─────────────────
+// Brauzeringizning yuqorisidagi URL satriga AYNAN ko'chiring:
+//
+//   data:text/html,<h1>Salom, dunyo!</h1><p>Men HTML yozdim.</p>
+//
+// "data:" sxemasi brauzerga "matn HTML deb tushun" deydi.
+// Server kerak emas, .html fayl ham kerak emas.
 
-# ─── C (compiled, tez) ────────────────────────────
-# #include <stdio.h>
-# int main() {
-#     char ism[50];
-#     printf("Ismingiz: ");
-#     scanf("%s", ism);
-#     printf("Salom, %s!\\n", ism);
-#     return 0;
-# }
+// ─── Til 3: Python (onlayn shell) ─────────────────────────
+// https://www.python.org/shell/ ni oching, >>> dan keyin:
+//
+//   print("Salom, dunyo!")
 
-# Uchchasi ham bir xil natijani beradi — lekin Python eng qisqa.
-# Boshlovchilar uchun: qisqa va sodda muhim.
+// ─── Til 4 (bonus): C — compiled, tez ─────────────────────
+// Bu tilni o'rnatish kerak — hozir faqat ko'ring:
+//
+//   #include <stdio.h>
+//   int main() {
+//       printf("Salom, dunyo!\\n");
+//       return 0;
+//   }
+
+// Til o'zgaradi — g'oya bir xil:
+//   1. "Salom, dunyo!" matnini ol
+//   2. Ekranga chiqar
+//
+// Sintaksis farqi sizni qo'rqitmasin — har tilning o'z sababi bor.
+//
+// Veb-sayt        → JavaScript (+ HTML/CSS)
+// AI / ma'lumot   → Python
+// Mobil ilova     → Swift (iOS) yoki Kotlin (Android)
+// O'yin           → C# (Unity) yoki C++ (Unreal)
+// Tezlik / tizim  → C yoki Rust
 """
 
 
@@ -1369,34 +1438,50 @@ LESSONS = [
     },
     {
         "order": 1, "title": "2-Qaysi tilni o'rganay?",
-        "text": L2_TEXT, "code": L2_CODE, "lang": "python",
+        "text": L2_TEXT, "code": L2_CODE, "lang": "javascript",
         "video": "https://youtu.be/Q8eHsRZ81bI",
         "exercises": [
-            mc("AI / Machine Learning uchun qaysi til eng ko'p ishlatiladi?",
-               ["JavaScript", "Python", "C++", "Java"],
-               "B", explanation="PyTorch, TensorFlow, scikit-learn — barchasi Python uchun.",
+            mc("Brauzer manzil satrida data:text/html,<h1>Salom</h1> yozsangiz nima bo'ladi?",
+               ["Brauzer xato beradi",
+                "Sahifada \"Salom\" sarlavhasi ko'rinadi",
+                "HTML fayl yuklab olinadi",
+                "Console paneli ochiladi"],
+               "B",
+               hint="data: sxemasi brauzerga \"matn HTML deb tushun\" deydi — fayl ham, server ham kerak emas.",
+               explanation="data:text/html,... brauzerga inline HTML ni darhol render qilishga buyuradi. Bu — server va fayl yaratmasdan HTML sinab ko'rish usuli.",
                diff="Easy", pts=2),
-            mc("Boshlovchilar uchun qaysi tillar tavsiya etiladi?",
-               ["Python", "HTML + CSS", "Assembly", "JavaScript"],
-               "A,B,D", multi=True,
-               hint="Assembly — past darajadagi til, boshlovchilarga juda qiyin.",
-               diff="Medium", pts=3),
-            mc("Mobil ilova uchun (iOS) qaysi til ishlatiladi?",
-               ["Swift", "JavaScript", "Python", "PHP"],
-               "A", explanation="Swift — Apple tomonidan iOS uchun yaratilgan.",
+            mc("AI / ChatGPT kabi loyihalar uchun eng keng ishlatiladigan til qaysi?",
+               ["JavaScript", "Python", "Swift", "C"],
+               "B",
+               explanation="PyTorch, TensorFlow, scikit-learn — barcha mashhur AI/ML kutubxonalari Python uchun yozilgan.",
                diff="Easy", pts=2),
-            mc("Veb-saytlarda frontend (foydalanuvchi ko'radigan qism) uchun qaysilar kerak?",
-               ["HTML", "CSS", "JavaScript", "Python", "Java"],
+            mc("Quyidagilardan qaysilari brauzeringizda HECH NARSA o'rnatmay ishlay oladi?",
+               ["JavaScript (F12 → Console)",
+                "HTML (data: URL yoki .html fayl)",
+                "Python (python.org/shell — onlayn)",
+                "Swift (iPhone uchun)",
+                "C / C++"],
                "A,B,C", multi=True,
-               hint="Python va Java — backend tillar.",
+               hint="Swift va C ni ishlatish uchun maxsus dasturlar o'rnatish kerak. Birinchi 3 ta — brauzeringizdan ishlaydi.",
+               explanation="JavaScript brauzerda allaqachon bor. HTML faylsiz ham data: URL orqali ishlaydi. Python esa python.org/shell onlayn interpreter beradi. Swift va C — kompilyator / IDE talab qiladi.",
                diff="Medium", pts=3),
-            ti("Nima uchun bitta til hammasini hal qilmaydi?",
+            dd("Til tanlash jarayonini to'g'ri tartibda joylang",
+               ["Loyihangizning maqsadini aniqlang (nima qurmoqchisiz)",
+                "Sohani tanlang (web, mobile, AI, o'yin, tizim)",
+                "Tegishli tillar ro'yxatini ko'rib chiqing",
+                "Bittasini tanlang va boshlang",
+                "30 kun ichida asoslarni o'rganing"],
+               hint="Til — bu asbob. Avval nima qurish kerakligini bilish, keyin asbob tanlash.",
+               explanation="Eng katta xato — \"qaysi til eng yaxshi?\" deb so'rash. To'g'ri savol: \"nima qurmoqchiman?\". Maqsad → soha → tilning oilasi → aniq til.",
+               diff="Medium", pts=3),
+            ti("Nima uchun bitta til hammasini hal qila olmaydi?",
                "Har bir dasturlash tili muayyan vazifa va kontekst uchun yaratilgan. C — "
                "tezlik va past darajadagi nazorat uchun. Python — sodda sintaksis va ilmiy "
-               "hisob-kitoblar uchun. JavaScript — brauzer uchun (faqat brauzerda ishlaydi). "
+               "hisob-kitoblar uchun. JavaScript — brauzer uchun (faqat brauzer bilan ishlovchi til). "
                "Swift — Apple ekotizimi uchun. Bitta til hammasini hal qilishga harakat qilsa, "
                "u har vazifada o'rtacha bo'ladi — hech narsada eng yaxshi emas. Shuning uchun "
-               "tajribali dasturchilar bir nechta tilni biladi.",
+               "tajribali dasturchilar 3-5 ta tilni biladi va har birini o'z joyida ishlatadi.",
+               hint="Bolg'a bilan o'tin yorish mumkin, lekin tikuv mashinasi uchun u ishlamaydi.",
                diff="Hard", pts=4),
         ],
     },

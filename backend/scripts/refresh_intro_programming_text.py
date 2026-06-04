@@ -41,10 +41,11 @@ from scripts.seed_intro_programming import (  # noqa: E402
 
 
 # Delete exercises that exist in DB but not in the seed — only for lessons
-# whose old exercise set was deliberately replaced. L1 was rewritten from
-# theory-heavy to WIN-FIRST DevTools pedagogy; all 5 old exercises become
-# orphans and should be cleaned up.
-ORPHAN_DELETE_LESSONS = {0}
+# whose old exercise set was deliberately replaced.
+# L1 (order=0): rewritten from theory to WIN-FIRST DevTools — all 5 swapped.
+# L2 (order=1): rewritten with polyglot hands-on hook — all 5 swapped
+#               (the essay's title was tweaked slightly so it falls in too).
+ORPHAN_DELETE_LESSONS = {0, 1}
 
 
 EXERCISE_TEXT_FIELDS = {
