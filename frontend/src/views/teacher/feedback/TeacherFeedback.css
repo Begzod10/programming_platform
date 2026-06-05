@@ -295,3 +295,73 @@
 .tfb-muted {
     color: rgba(26, 26, 46, 0.4);
 }
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════ */
+/* Tablet portrait (≤820px) — outer padding shrinks, summary grid
+ * tightens, lesson body still side-by-side but smaller sidebar. */
+@media (max-width: 820px) {
+    .tfb-root        { padding: 22px 20px 48px; }
+    .tfb-title       { font-size: 20px; }
+    .tfb-subtitle    { font-size: 13.5px; }
+    .tfb-summary     { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+    .tfb-summary-card{ padding: 14px 16px; }
+    .tfb-summary-value { font-size: 20px; }
+    .tfb-lesson-body { grid-template-columns: minmax(200px, 240px) 1fr; gap: 22px; }
+}
+
+/* Tablet / small portrait (≤720px) — lesson body stacks fully
+ * (kept from the original ad-hoc breakpoint; folded into the new
+ * canonical set as part of the responsive sweep). */
+@media (max-width: 720px) {
+    .tfb-lesson-body { grid-template-columns: 1fr; gap: 16px; }
+}
+
+/* Mobile portrait (≤480px) — single-column summary, smaller bars,
+ * course tabs scroll horizontally so they don't wrap into a tall
+ * pile that pushes content off-screen. */
+@media (max-width: 480px) {
+    .tfb-root         { padding: 18px 16px 40px; }
+    .tfb-title        { font-size: 18px; }
+    .tfb-subtitle     { font-size: 13px; }
+
+    /* Tabs become a horizontal scroller — preserves all options
+     * without stacking them. -mx-3 trick keeps the scroller flush
+     * with the edges so first/last tabs aren't visually clipped. */
+    .tfb-course-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 6px;
+        margin-inline: -16px;
+        padding-inline: 16px;
+        padding-bottom: 12px;
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
+    }
+    .tfb-course-tab {
+        padding: 8px 14px;
+        font-size: 12.5px;
+        flex-shrink: 0;          /* don't shrink tabs into the scroller */
+        min-height: 40px;
+    }
+
+    .tfb-summary       { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+    .tfb-summary-card  { padding: 12px 14px; border-radius: 12px; }
+    .tfb-summary-label { font-size: 11px; }
+    .tfb-summary-value { font-size: 18px; }
+
+    .tfb-lesson-body   { padding: 6px 14px 18px; gap: 14px; }
+    .tfb-bar-row       { grid-template-columns: 32px 1fr 26px; gap: 8px; font-size: 11.5px; }
+    .tfb-bar-track     { height: 7px; }
+    .tfb-comments-title{ font-size: 12.5px; }
+    .tfb-empty         { padding: 24px 14px; font-size: 13px; }
+}
+
+/* Very small phones (≤360px) — single-column summary, lift density */
+@media (max-width: 360px) {
+    .tfb-root         { padding: 16px 12px 32px; }
+    .tfb-title        { font-size: 17px; }
+    .tfb-summary      { grid-template-columns: 1fr; gap: 8px; }
+    .tfb-summary-card { padding: 11px 13px; }
+}
