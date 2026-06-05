@@ -22,6 +22,7 @@ import TeacherReview         from './views/teacher/teacherreview/TeacherReview';
 import MyStudents            from './views/teacher/mystudents/MyStudents';
 import StudentProfilePage    from './views/teacher/mystudents/StudentProfile'; // ← NEW
 import TeacherStatistics     from './views/teacher/statistics/TeacherStatistics';
+import TeacherFeedback       from './views/teacher/feedback/TeacherFeedback';
 import TeacherCertificates   from './views/teacher/TeacherCertificates/Teachercertificates';
 
 /* ─── helpers ─── */
@@ -108,6 +109,7 @@ function AppRouter() {
                 <Route path="students/:studentId"                         element={<StudentProfilePage />} /> {/* ← NEW */}
                 <Route path="certificates"                                element={<TeacherCertificates />} />
                 <Route path="statistics"                                  element={<TeacherStatistics />} />
+                <Route path="feedback"                                    element={<TeacherFeedback />} />
 
                 <Route path="courses"                                     element={<TeacherCourses />} />
                 <Route path="courses/:courseId"                           element={<TeacherCourses />} />

@@ -766,6 +766,98 @@
 .slp-project-submitted a:hover { text-decoration: underline; }
 
 /* ═══════════════════════════════════════════════
+   LESSON FEEDBACK
+═══════════════════════════════════════════════ */
+.slp-feedback {
+    margin-top: 32px;
+    padding: 24px 26px;
+    background: linear-gradient(135deg, var(--purple-bg), rgba(108,92,231,0.02));
+    border: 1px solid var(--ink-06);
+    border-radius: var(--r-lg);
+    display: flex; flex-direction: column; gap: 16px;
+}
+.slp-feedback-head {
+    display: flex; gap: 14px; align-items: flex-start;
+}
+.slp-feedback-icon {
+    flex: 0 0 auto;
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    background: var(--surface); border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(108,92,231,0.12);
+}
+.slp-feedback-title {
+    margin: 0 0 4px; font-size: 16px; font-weight: 700;
+    color: var(--ink); font-family: 'Inter', sans-serif;
+}
+.slp-feedback-sub {
+    margin: 0; font-size: 13px; color: var(--ink-60); line-height: 1.5;
+}
+.slp-feedback-stars {
+    display: flex; align-items: center; gap: 6px;
+    flex-wrap: wrap;
+}
+.slp-feedback-star {
+    background: transparent; border: none; cursor: pointer;
+    font-size: 30px; line-height: 1; padding: 4px 6px;
+    color: var(--ink-12);
+    transition: color 120ms ease, transform 120ms ease;
+}
+.slp-feedback-star:hover { transform: scale(1.12); }
+.slp-feedback-star.is-on { color: #f5c518; }
+.slp-feedback-star:disabled { cursor: not-allowed; opacity: 0.55; }
+.slp-feedback-star:focus-visible {
+    outline: 2px solid var(--purple); outline-offset: 2px; border-radius: 6px;
+}
+.slp-feedback-star-label {
+    margin-left: 10px;
+    font-size: 13px; color: var(--ink-60); font-weight: 600;
+    font-family: 'Inter', sans-serif;
+}
+.slp-feedback-comment {
+    width: 100%; box-sizing: border-box;
+    padding: 12px 14px; border-radius: var(--r-md, 12px);
+    border: 1px solid var(--ink-12); background: var(--surface);
+    font-size: 14px; line-height: 1.55; color: var(--ink);
+    font-family: 'Inter', sans-serif; resize: vertical;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.slp-feedback-comment:focus {
+    outline: none; border-color: var(--purple);
+    box-shadow: 0 0 0 3px var(--purple-glow);
+}
+.slp-feedback-comment:disabled { background: var(--ink-06); cursor: not-allowed; }
+.slp-feedback-actions {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+}
+.slp-feedback-submit {
+    padding: 10px 22px; border-radius: var(--r-lg);
+    background: linear-gradient(135deg, var(--purple), var(--purple-lt));
+    color: #fff; border: none;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
+}
+.slp-feedback-submit:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px var(--purple-glow);
+}
+.slp-feedback-submit:disabled { opacity: 0.45; cursor: not-allowed; }
+.slp-feedback-saved {
+    font-size: 13px; font-weight: 600; color: var(--green);
+    font-family: 'Inter', sans-serif;
+}
+.slp-feedback-error {
+    font-size: 13px; font-weight: 600; color: #d63031;
+    font-family: 'Inter', sans-serif;
+}
+@media (max-width: 600px) {
+    .slp-feedback { padding: 18px 16px; }
+    .slp-feedback-star { font-size: 26px; padding: 3px 4px; }
+}
+
+/* ═══════════════════════════════════════════════
    BOTTOM NAV
 ═══════════════════════════════════════════════ */
 .slp-bottom-nav {
