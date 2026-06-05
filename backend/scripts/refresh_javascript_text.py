@@ -58,7 +58,8 @@ from scripts.seed_javascript_course import (  # noqa: E402
 # Lessons where DB exercises that are NOT in the seed get deleted. Only set
 # this for lessons whose existing exercises are known-broken placeholders.
 # L4 (for/while) had a single garbage exercise titled "1-savol:".
-ORPHAN_DELETE_LESSONS = {4}
+# L1 ("if,else") had 9 exercises, all text_input, with duplicates + "dfsdfs".
+ORPHAN_DELETE_LESSONS = {1, 4}
 
 
 EXERCISE_TEXT_FIELDS = {

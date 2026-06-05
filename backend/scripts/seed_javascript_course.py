@@ -71,28 +71,186 @@ var ism = "Ali";
 """
 
 L1_TEXT = """\
+<h2>if / else — dastur qaror qabul qiladi</h2>
+
 <pre class="mermaid">
 flowchart TB
-    A["if shart"] -->|true| THEN["asosiy blok"]
-    A -->|false| EL["else blok"]
-    A2["if then else if then else"] --> CH["chain shartlar"]
-    OP["== === < > && ||"] -->|operators| A
+    A["if shart"] -->|true| THEN["if bloki ishlaydi"]
+    A -->|false| ELIF["else if shart"]
+    ELIF -->|true| THEN2["else if bloki ishlaydi"]
+    ELIF -->|false| EL["else bloki ishlaydi"]
     THEN --> END["davom"]
+    THEN2 --> END
     EL --> END
 </pre>
 
-<p data-path-to-node="0">JavaScript-da <b data-path-to-node="0" data-index-in-node="14"><code data-path-to-node="0" data-index-in-node="14">if</code></b>, <b data-path-to-node="0" data-index-in-node="18"><code data-path-to-node="0" data-index-in-node="18">else if</code></b> va <b data-path-to-node="0" data-index-in-node="29"><code data-path-to-node="0" data-index-in-node="29">else</code></b> — bu dasturning qaror qabul qilishi uchun ishlatiladigan <b data-path-to-node="0" data-index-in-node="91">shart operatorlari</b> hisoblanadi. Ularni hayotiy misol bilan tushunish juda oson.</p><p data-path-to-node="1">Tasavvur qiling, siz ko'chada ketayapsiz va svetoforga duch keldingiz:</p><ul data-path-to-node="2"><li><p data-path-to-node="2,0,0"><b data-path-to-node="2,0,0" data-index-in-node="0">Agarda (<code data-path-to-node="2,0,0" data-index-in-node="8">if</code>)</b> chiroq yashil bo'lsa — yurasiz.</p></li><li><p data-path-to-node="2,1,0"><b data-path-to-node="2,1,0" data-index-in-node="0">Yoki agarda (<code data-path-to-node="2,1,0" data-index-in-node="13">else if</code>)</b> chiroq sariq bo'lsa — kutasiz.</p></li><li><p data-path-to-node="2,2,0"><b data-path-to-node="2,2,0" data-index-in-node="0">Aks holda (<code data-path-to-node="2,2,0" data-index-in-node="11">else</code>)</b> (ya'ni qizil bo'lsa) — to'xtaysiz.</p></li></ul>
+<h3>🏆 5 daqiqada g'alaba — svetoforni kod orqali boshqaramiz</h3>
+<p>Hech narsa o'rnatmaymiz. <code>about:blank</code> oching → <kbd>F12</kbd> → <strong>Console</strong>. Pastdagilarni yopishtirib, Enter bosing.</p>
+
+<h4>BLOKA 1 — Birinchi qaror</h4>
+<pre><code>let chiroq = "yashil";
+
+if (chiroq === "yashil") {
+    console.log("🚶 Yuring!");
+} else {
+    console.log("🛑 To'xtang!");
+}</code></pre>
+<p>Natija: <code>🚶 Yuring!</code>. Endi <code>chiroq</code>'ni o'zgartiring va qaytadan yuring:</p>
+<pre><code>chiroq = "qizil";
+if (chiroq === "yashil") { console.log("🚶 Yuring!"); } else { console.log("🛑 To'xtang!"); }</code></pre>
+<p>Endi <code>🛑 To'xtang!</code>. <strong>Bitta o'zgaruvchi — ikki xil natija</strong>. Dasturingiz qaror qabul qildi.</p>
+
+<h4>BLOKA 2 — 3 ta variant (else if)</h4>
+<p>Sariq chiroqni ham qo'shamiz:</p>
+<pre><code>let svetofor = "sariq";
+
+if (svetofor === "yashil") {
+    console.log("🚶 Yuring!");
+} else if (svetofor === "sariq") {
+    console.log("⏸ Kuting!");
+} else {
+    console.log("🛑 To'xtang!");
+}</code></pre>
+<p>Natija: <code>⏸ Kuting!</code>. <code>else if</code> zanjirini istalgancha cho'zish mumkin — 4, 5, 10 ta variant.</p>
+
+<h4>BLOKA 3 — Interaktiv yosh tekshiruvchi</h4>
+<pre><code>let yosh = Number(prompt("Yoshingizni kiriting:"));
+
+if (yosh < 0) {
+    alert("Bunday yosh bo'lmaydi!");
+} else if (yosh < 7) {
+    alert("Bog'cha yoshi 🧒");
+} else if (yosh < 18) {
+    alert("Maktab yoshi 📚");
+} else if (yosh < 60) {
+    alert("Voyaga yetgan 💼");
+} else {
+    alert("Hurmatli yosh 🎩");
+}</code></pre>
+<p><strong>Hayrat:</strong> bitta dastur 5 xil natija qaytaradi. Sharti birinchi <code>true</code> bo'lganda to'xtaydi — boshqalarni tekshirmaydi. Tartib MUHIM.</p>
+
+<h3>🐛 Ataylab xato — `=` va `===` farqi</h3>
+<p>Bu — JavaScript'ning eng mashhur tuzog'i. Sinab ko'ring:</p>
+<pre><code>let kun = "shanba";
+
+// XATO: bir tenglik = bu o'zlashtirish!
+if (kun = "yakshanba") {
+    console.log("Dam olish!");
+} else {
+    console.log("Ish kuni");
+}</code></pre>
+<p>Natija: <code>Dam olish!</code> — hatto <code>kun = "shanba"</code> bo'lsa ham. Sababi: bitta <code>=</code> — <strong>o'zlashtirish</strong> ("kunga yakshanba qiymatini ber"), <strong>solishtirish emas</strong>. Natijada kun o'zgardi va shart "truthy" deb baholandi.</p>
+<p>To'g'risi — <strong>uchta</strong> tenglik:</p>
+<pre><code>if (kun === "yakshanba") { ... }   // taqqoslash</code></pre>
+<p>Qoida: <strong>solishtirishda har doim <code>===</code> ishlating</strong>. Yagona <code>=</code> faqat qiymat berish uchun.</p>
+
+<h3>Endi tushuntiramiz — if / else if / else</h3>
+
+<h4>Sintaksis</h4>
+<pre><code>if (SHART) {
+    // shart true bo'lsa — bu blok ishlaydi
+} else if (BOSHQA_SHART) {
+    // birinchi shart false, ikkinchisi true bo'lsa
+} else {
+    // hech qaysi shart true bo'lmasa
+}</code></pre>
+
+<h4>Taqqoslash operatorlari</h4>
+<table>
+<tr><th>Operator</th><th>Ma'no</th><th>Misol</th></tr>
+<tr><td><code>===</code></td><td>Qat'iy teng (tur + qiymat)</td><td><code>5 === 5</code> → true</td></tr>
+<tr><td><code>!==</code></td><td>Qat'iy teng emas</td><td><code>5 !== "5"</code> → true</td></tr>
+<tr><td><code>&gt;</code> <code>&lt;</code></td><td>Katta / kichik</td><td><code>10 &gt; 5</code> → true</td></tr>
+<tr><td><code>&gt;=</code> <code>&lt;=</code></td><td>Katta-teng / kichik-teng</td><td><code>5 &gt;= 5</code> → true</td></tr>
+</table>
+<p><strong>Eslatma:</strong> <code>==</code> (ikkita tenglik) — turlarni avtomatik aylantiradi: <code>"5" == 5</code> → <strong>true</strong>. Bu xavfli. Har doim <code>===</code> ishlating.</p>
+
+<h4>Mantiqiy operatorlar (qisqacha)</h4>
+<ul>
+<li><code>&&</code> — VA (ikkalasi ham true bo'lsa)</li>
+<li><code>||</code> — YOKI (hech bo'lmaganda bittasi true bo'lsa)</li>
+<li><code>!</code> — EMAS (true → false, false → true)</li>
+</ul>
+<pre><code>let yosh = 25;
+let karta = true;
+
+if (yosh >= 18 && karta === true) {
+    console.log("✅ Sotib olishingiz mumkin");
+}</code></pre>
+
+<h4>Tartib — birinchi true to'xtatadi</h4>
+<p>JavaScript shartlarni yuqoridan pastga tekshiradi. Birinchi <code>true</code> topilganda — boshqalarini ko'rmaydi.</p>
+<pre><code>let ball = 85;
+
+if (ball >= 90) { console.log("A"); }
+else if (ball >= 80) { console.log("B"); }   // ← bu ishlaydi
+else if (ball >= 70) { console.log("C"); }   // ← tekshirilmaydi ham
+else { console.log("D"); }</code></pre>
+
+<h4>Qachon if, qachon else if, qachon else?</h4>
+<ul>
+<li><strong>Faqat if</strong> — bitta shart bor, "agar shu bo'lsa qil"</li>
+<li><strong>if + else</strong> — 2 ta variant ("yashil yoki qizil")</li>
+<li><strong>if + else if + else</strong> — 3+ variant ("yashil/sariq/qizil")</li>
+</ul>
+
+<h3>📌 Bu darsdan keyin siz bilasizki</h3>
+<ul>
+<li><code>if</code> shart <code>true</code> bo'lsa — bloki ishlaydi</li>
+<li><code>else if</code> bilan zanjir cho'zilarli, <code>else</code> "boshqa hamma holatda"</li>
+<li>Solishtirish — har doim <code>===</code>, <strong>hech qachon</strong> <code>=</code></li>
+<li>Birinchi <code>true</code> shart bajariladi, qolganlar tekshirilmaydi</li>
+<li><code>&&</code> (VA), <code>||</code> (YOKI), <code>!</code> (EMAS) bilan shartlarni birlashtirasiz</li>
+</ul>
 """
 
 L1_CODE = """\
-let chiroq = "sariq";
+// ═══ DARS 2 — if / else / else if ═══
+// about:blank → F12 → Console → pastdagilarni yopishtiring
 
+// ─── BLOKA 1: Birinchi qaror ─────────────────────
+let chiroq = "yashil";
 if (chiroq === "yashil") {
-    console.log("Yuring!"); 
-} else if (chiroq === "sariq") {
-    console.log("Kuting!"); // Aynan shu kod ishga tushadi
+    console.log("🚶 Yuring!");
 } else {
-    console.log("To'xtang!");
+    console.log("🛑 To'xtang!");
+}
+
+// O'zgaruvchini almashtiring, qaytadan yuring
+chiroq = "qizil";
+if (chiroq === "yashil") { console.log("🚶 Yuring!"); }
+else { console.log("🛑 To'xtang!"); }
+
+// ─── BLOKA 2: 3 ta variant — else if ─────────────
+let svetofor = "sariq";
+if (svetofor === "yashil") {
+    console.log("🚶 Yuring!");
+} else if (svetofor === "sariq") {
+    console.log("⏸ Kuting!");
+} else {
+    console.log("🛑 To'xtang!");
+}
+
+// ─── BLOKA 3: Interaktiv yosh tekshiruvchi ───────
+let yosh = Number(prompt("Yoshingizni kiriting:"));
+if (yosh < 0)        alert("Bunday yosh bo'lmaydi!");
+else if (yosh < 7)   alert("Bog'cha yoshi 🧒");
+else if (yosh < 18)  alert("Maktab yoshi 📚");
+else if (yosh < 60)  alert("Voyaga yetgan 💼");
+else                 alert("Hurmatli yosh 🎩");
+
+// ─── XATO TUZOG'I: bitta = vs uchta === ──────────
+let kun = "shanba";
+if (kun = "yakshanba") console.log("Dam!");       // XATO: o'zlashtirish
+else                    console.log("Ish kuni");
+// Tuzatish:
+if (kun === "yakshanba") console.log("Dam!");     // TO'G'RI: taqqoslash
+else                      console.log("Ish kuni");
+
+// ─── Mantiqiy operator (&& va ||) ────────────────
+let yoshim = 25, kartam = true;
+if (yoshim >= 18 && kartam === true) {
+    console.log("✅ Sotib olishingiz mumkin");
 }
 """
 
@@ -616,104 +774,41 @@ LESSONS = [
         "text": L1_TEXT, "code": L1_CODE, "lang": "javascript",
         "video": "",
         "exercises": [
-            {
-                "exercise_type": "text_input",
-                "title": "if va else zanjiriga yana qo'shimcha uchinchi, to'rtinchi shartlarni kiritmoqchi bo'lsak, qaysi kalit so'zlar birikmasidan foydalanamiz?",
-                "description": "if va else zanjiriga yana qo'shimcha uchinchi, to'rtinchi shartlarni kiritmoqchi bo'lsak, qaysi kalit so'zlar birikmasidan foydalanamiz?",
-                "is_multiple_select": False,
-                "hint": "",
-                "explanation": "",
-                "difficulty_level": "Easy",
-                "points": 2,
-                "expected_answer": "else if",
-            },
-            {
-                "exercise_type": "text_input",
-                "title": "if va else zanjiriga yana qo'shimcha uchinchi, to'rtinchi shartlarni kiritmoqchi bo'lsak, qaysi kalit so'zlar birikmasidan foydalanamiz?",
-                "description": "if va else zanjiriga yana qo'shimcha uchinchi, to'rtinchi shartlarni kiritmoqchi bo'lsak, qaysi kalit so'zlar birikmasidan foydalanamiz?",
-                "is_multiple_select": False,
-                "hint": "",
-                "explanation": "",
-                "difficulty_level": "Easy",
-                "points": 2,
-                "expected_answer": "else if",
-            },
-            {
-                "exercise_type": "text_input",
-                "title": "Agar shart operatorida tekshirilayotgan holat to'g'ri (rost) bo'lsa, qaysi blok ichidagi buyruqlar bajariladi: ifmi yoki elsemi?",
-                "description": "Agar shart operatorida tekshirilayotgan holat to'g'ri (rost) bo'lsa, qaysi blok ichidagi buyruqlar bajariladi: ifmi yoki elsemi?",
-                "is_multiple_select": False,
-                "hint": "",
-                "explanation": "",
-                "difficulty_level": "Easy",
-                "points": 1,
-                "expected_answer": "if bloki",
-            },
-            {
-                "exercise_type": "text_input",
-                "title": "Agar shart operatorida tekshirilayotgan holat to'g'ri (rost) bo'lsa, qaysi blok ichidagi buyruqlar bajariladi: ifmi yoki elsemi?",
-                "description": "Agar shart operatorida tekshirilayotgan holat to'g'ri (rost) bo'lsa, qaysi blok ichidagi buyruqlar bajariladi: ifmi yoki elsemi?",
-                "is_multiple_select": False,
-                "hint": "",
-                "explanation": "",
-                "difficulty_level": "Easy",
-                "points": 1,
-                "expected_answer": "if bloki",
-            },
-            {
-                "exercise_type": "text_input",
-                "title": "JavaScript-da qat'iy tenglik (===) operatori ishlatilganda, matn ko'rinishidagi \"5\" va son ko'rinishidagi 5 raqami bir-biriga teng deb hisoblanadimi yoki yo'q?",
-                "description": "JavaScript-da qat'iy tenglik (===) operatori ishlatilganda, matn ko'rinishidagi \"5\" va son ko'rinishidagi 5 raqami bir-biriga teng deb hisoblanadimi yoki yo'q?",
-                "is_multiple_select": False,
-                "hint": "",
-                "explanation": "",
-                "difficulty_level": "Medium",
-                "points": 4,
-                "expected_answer": "Yo'q, teng deb hisoblanmaydi (chunki ularning ma'lumot turi turlicha)",
-            },
-            {
-                "exercise_type": "text_input",
-                "title": "if va else zanjiriga yana qo'shimcha uchinchi, to'rtinchi shartlarni kiritmoqchi bo'lsak, qaysi kalit so'zlar birikmasidan foydalanamiz?",
-                "description": "if va else zanjiriga yana qo'shimcha uchinchi, to'rtinchi shartlarni kiritmoqchi bo'lsak, qaysi kalit so'zlar birikmasidan foydalanamiz?",
-                "is_multiple_select": False,
-                "hint": "",
-                "explanation": "",
-                "difficulty_level": "Easy",
-                "points": 2,
-                "expected_answer": "else if",
-            },
-            {
-                "exercise_type": "text_input",
-                "title": "dfsdfs",
-                "description": "dfsdfs",
-                "is_multiple_select": False,
-                "hint": "",
-                "explanation": "",
-                "difficulty_level": "Easy",
-                "points": 10,
-            },
-            {
-                "exercise_type": "text_input",
-                "title": "Agar shart operatorida tekshirilayotgan holat to'g'ri (rost) bo'lsa, qaysi blok ichidagi buyruqlar bajariladi: ifmi yoki elsemi?",
-                "description": "Agar shart operatorida tekshirilayotgan holat to'g'ri (rost) bo'lsa, qaysi blok ichidagi buyruqlar bajariladi: ifmi yoki elsemi?",
-                "is_multiple_select": False,
-                "hint": "",
-                "explanation": "",
-                "difficulty_level": "Easy",
-                "points": 1,
-                "expected_answer": "if bloki",
-            },
-            {
-                "exercise_type": "text_input",
-                "title": "JavaScript-da qat'iy tenglik (===) operatori ishlatilganda, matn ko'rinishidagi \"5\" va son ko'rinishidagi 5 raqami bir-biriga teng deb hisoblanadimi yoki yo'q?",
-                "description": "JavaScript-da qat'iy tenglik (===) operatori ishlatilganda, matn ko'rinishidagi \"5\" va son ko'rinishidagi 5 raqami bir-biriga teng deb hisoblanadimi yoki yo'q?",
-                "is_multiple_select": False,
-                "hint": "",
-                "explanation": "",
-                "difficulty_level": "Medium",
-                "points": 4,
-                "expected_answer": "Yo'q, teng deb hisoblanmaydi (chunki ularning ma'lumot turi turlicha)",
-            },
+            mc("Konsolda quyidagi kod nima chiqaradi?\n`let chiroq = \"sariq\"; if (chiroq === \"yashil\") console.log(\"yur\"); else if (chiroq === \"sariq\") console.log(\"kut\"); else console.log(\"to'xta\");`",
+               ["yur", "kut", "to'xta", "Hech narsa"],
+               "B",
+               explanation='chiroq === "sariq" → true → else if bloki ishlaydi. else if true bo\'lganda qolgan shartlar tekshirilmaydi.',
+               diff="Easy", pts=2),
+            mc("`if (kun = \"yakshanba\")` — bu qator nima qiladi?",
+               ["kun o'zgaruvchisini \"yakshanba\" qiymatiga aylantiradi va doim true qaytaradi",
+                "kun va \"yakshanba\" ni solishtiradi",
+                "Sintaksis xatosi (SyntaxError)",
+                "Hech narsa qilmaydi"],
+               "A",
+               hint='= — o\'zlashtirish; === — solishtirish.',
+               explanation='Bitta = o\'zlashtirish: kun ga "yakshanba" yoziladi. Natija "truthy", shart har doim true. Solishtirish uchun === ishlatiladi.',
+               diff="Medium", pts=3),
+            mc("Quyidagilardan qaysilari TO'G'RI taqqoslash operatorlari?",
+               ["===", "!==", ">=", "<=", "=<", "<>"],
+               "A,B,C,D", multi=True,
+               hint='=< va <> — JavaScript da yo\'q.',
+               diff="Medium", pts=3),
+            dd("`let ball = 85;` bo'lganda, JS shu kodda qaysi tartibda harakat qiladi?",
+               ["`if (ball >= 90)` tekshiriladi → false",
+                "`else if (ball >= 80)` tekshiriladi → true",
+                "console.log(\"B\") ishga tushadi",
+                "Qolgan `else if` va `else` bloklar tekshirilmaydi"],
+               explanation='Birinchi true topilganda qolganlari tashlanadi — bu if-else if zanjirining asosiy qoidasi.',
+               diff="Medium", pts=3),
+            ti("`5 === \"5\"` va `5 == \"5\"` — bu ikkisi nimani qaytaradi va NIMA UCHUN farqlanadi?",
+               "5 === \"5\" → false. 5 == \"5\" → true. Farqi: === (qat'iy tenglik) ham qiymatni "
+               "ham TURni solishtiradi: 5 (number) va \"5\" (string) — turlari turlicha, shuning "
+               "uchun false. == (yumshoq tenglik) avval turlarni avtomatik aylantiradi (type "
+               "coercion) — \"5\" ni number 5 ga aylantirib, keyin solishtiradi → true. "
+               "Bu xavfli, chunki kutilmagan natijalar beradi (masalan 0 == \"\" → true, "
+               "[] == false → true). Professional kodda har doim === ishlating — turni ham "
+               "tekshirib turing. == ni faqat aniq sabab bilan ishlating.",
+               diff="Hard", pts=4),
         ],
     },
     {
