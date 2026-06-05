@@ -46,7 +46,10 @@ from scripts.seed_intro_programming import (  # noqa: E402
 # L2 (order=1): rewritten with polyglot hands-on hook — all 5 swapped.
 # L3 (order=2): rewritten with browser-based machine inspection — 4 swapped,
 #               1 kept (absolute vs relative path essay).
-ORPHAN_DELETE_LESSONS = {0, 1, 2}
+# L4 (order=3): rewritten with 3-block JS console hook (sequence/condition/
+#               loop on google.com) — 3 swapped, 2 kept by title (the
+#               3-blocks mc and the cheksiz-sikl essay).
+ORPHAN_DELETE_LESSONS = {0, 1, 2, 3}
 
 
 EXERCISE_TEXT_FIELDS = {

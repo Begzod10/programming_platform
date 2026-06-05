@@ -586,7 +586,7 @@ console.log(mening_ismim);
 # L4 — Algoritmik fikrlash
 # ═════════════════════════════════════════════════════════════════════════════
 L4_TEXT = """\
-<h2>Algoritmik fikrlash</h2>
+<h2>Google sahifasini robotga aylantiramiz</h2>
 
 <pre class="mermaid">
 flowchart TB
@@ -601,11 +601,45 @@ flowchart TB
     EN --> END
 </pre>
 
-<p><strong>Algoritm</strong> — bu muayyan natijaga olib boruvchi aniq qadamlar ketma-ketligi. Sizning ertalabki odatingiz — algoritm. Choy damlash — algoritm. Manzilni topish — algoritm. Hamma narsa.</p>
+<p>Bu darsda <strong>algoritmik fikrlashni</strong> o'rganamiz — bu dasturlashning eng muhim ko'nikmasi (til bilish — 20%, algoritmik fikrlash — 80%). Lekin nazariyadan oldin — siz hozir <strong>algoritmning 3 ta qurilish blokini</strong> brauzeringizda his qilasiz.</p>
 
-<h3>Algoritmning 3 asosiy "qurilish bloki"</h3>
+<h3>⚡ Birinchi 5 daqiqa — 3 ta blokni his qilasiz</h3>
+<p>Hech narsa o'rnatish kerak emas. Yangi yorliqda <code>https://google.com</code> ni oching. <code>F12</code> → Console. Quyidagi 3 ta blokni navbati bilan ko'chirib, har birini alohida ishga tushiring.</p>
 
-<h4>1️⃣ Ketma-ketlik (sequence)</h4>
+<h4>🟢 Bloka 1: Ketma-ketlik (Sequence) — qadamlar tartibda bajariladi</h4>
+<pre><code>document.body.style.background = "red";
+document.title = "TO'XTANG!";
+document.body.style.fontSize = "30px";</code></pre>
+<p>Natija: Google sahifasi qizil rangga aylanadi, sarlavhasi (yorliq nomi) o'zgaradi, matnlar kattalashadi. <strong>3 ta qadam ketma-ket bajarildi.</strong></p>
+
+<h4>🟡 Bloka 2: Shart (Condition) — "agar ... bo'lsa"</h4>
+<pre><code>let yosh = prompt("Yoshingiz nechida?");
+if (yosh &gt;= 18) {
+    document.body.style.background = "green";
+    alert("Voyaga yetgansiz!");
+} else {
+    document.body.style.background = "yellow";
+    alert("Hali bolasiz");
+}</code></pre>
+<p>Natija: yoshingizga qarab sahifa <strong>yashil yoki sariq</strong> bo'ladi. Kompyuter <strong>qaror qabul qildi</strong>. Bir hil shart, ikki natijaning biri.</p>
+
+<h4>🔴 Bloka 3: Takror (Loop) — bir xil amal qayta-qayta</h4>
+<pre><code>const ranglar = ["red", "orange", "yellow", "green", "blue", "purple"];
+for (let i = 0; i &lt; ranglar.length; i++) {
+    setTimeout(() =&gt; {
+        document.body.style.background = ranglar[i];
+    }, i * 500);
+}</code></pre>
+<p>Natija: Google sahifasi har yarim soniyada rangini o'zgartiradi — qizil, to'q sariq, sariq, yashil, ko'k, binafsha. <strong>Bir amal 6 marta takrorlandi.</strong></p>
+
+<p>🎉 <strong>Tabriklaymiz!</strong> Siz hozir <strong>algoritmning 3 ta qurilish blokini</strong> ishlatdingiz: ketma-ketlik, shart, takror. Bu uchtasi bilan dunyodagi har qanday dasturni yozish mumkin — Google, Telegram, Instagram, ChatGPT — barchasi shu 3 blokdan qurilgan.</p>
+
+<h3>💡 Endi tushuntiramiz — algoritm nima?</h3>
+<p><strong>Algoritm</strong> — bu muayyan natijaga olib boruvchi aniq qadamlar ketma-ketligi. Sizning ertalabki odatingiz — algoritm. Choy damlash — algoritm. Manzilni topish — algoritm. Har qanday "qanday qilamiz?" savoliga javob — algoritm.</p>
+
+<h3>📐 3 ta qurilish bloki — kundalik misollarda</h3>
+
+<h4>1️⃣ Ketma-ketlik (sequence) — har dasturda bor</h4>
 <p>Qadamlarni tartib bilan bajarish. 1 → 2 → 3 → 4.</p>
 <pre><code>Choy damlash:
 1. Suv qaynat
@@ -614,7 +648,7 @@ flowchart TB
 4. 5 daqiqa kut
 5. Stakanga quy</code></pre>
 
-<h4>2️⃣ Shart (decision)</h4>
+<h4>2️⃣ Shart (condition / decision) — qaror qabul qilish</h4>
 <p>"Agar ... bo'lsa, ... qil. Aks holda — ... qil."</p>
 <pre><code>Tashqariga chiqish:
 1. Tashqarini ko'r
@@ -624,8 +658,8 @@ flowchart TB
        Quyoshli ko'zoynak ol
 3. Tashqariga chiq</code></pre>
 
-<h4>3️⃣ Takror (loop)</h4>
-<p>Bir xil amalni qayta-qayta bajarish.</p>
+<h4>3️⃣ Takror (loop) — bir amalni qayta bajarish</h4>
+<p>Bir xil ishni har xil narsalarga qo'llash.</p>
 <pre><code>Pol yuvish:
 1. Vedrani suv bilan to'ldir
 2. HAR XONA UCHUN takrorlash:
@@ -634,7 +668,7 @@ flowchart TB
        Keyingi xonaga o't
 3. Vedrani to'k</code></pre>
 
-<h3>Flowchart — algoritmni rasm shaklida</h3>
+<h3>📊 Flowchart — algoritmni rasm shaklida</h3>
 <p>Algoritmni so'z bilan emas, rasm bilan tasvirlash mumkin. Bu — <strong>flowchart</strong>:</p>
 <ul>
 <li><strong>Oval</strong> — boshlanish va tugash</li>
@@ -642,61 +676,120 @@ flowchart TB
 <li><strong>Romb</strong> — shart (qaror qabul qilish)</li>
 <li><strong>Strelka</strong> — qaysi qadamga o'tish</li>
 </ul>
-<p>Yuqoridagi hero rasm — "ertalabki odat" algoritmining flowchart'i. Romb shakli — bu shart ("ish kuni mi?"), to'rtburchaklar — amallar.</p>
+<p>Yuqoridagi hero rasm — "ertalabki odat" algoritmining flowchart'i. Romb shakli — shart ("ish kunimi?"), to'rtburchaklar — amallar.</p>
 
-<h3>Yaxshi algoritm qanday yoziladi?</h3>
+<h3>✅ Yaxshi algoritm qanday yoziladi?</h3>
 <ol>
-<li><strong>Aniq</strong> — har qadam bitta ma'noli bo'lishi kerak. "Choy damla" — noaniq. "1 qoshiq choy sol" — aniq.</li>
-<li><strong>To'liq</strong> — barcha holatlar qamrab olingan. Yomg'ir holatini unutmang.</li>
-<li><strong>Cheklangan</strong> — algoritm har doim tugaydi. Cheksiz sikldan ehtiyot bo'ling!</li>
-<li><strong>Samarali</strong> — bir ishni 100 qadamda emas, 5 qadamda bajarish.</li>
+<li><strong>Aniq (precise)</strong> — har qadam bitta ma'noli. "Choy damla" — noaniq. "1 qoshiq choy sol" — aniq. Kompyuter taxmin qilmaydi.</li>
+<li><strong>To'liq (complete)</strong> — barcha holatlar qamrab olingan. Yomg'ir holatini unutmang.</li>
+<li><strong>Cheklangan (finite)</strong> — algoritm har doim tugaydi. Cheksiz sikldan ehtiyot bo'ling!</li>
+<li><strong>Samarali (efficient)</strong> — bir ishni 100 qadamda emas, 5 qadamda bajarish.</li>
 </ol>
 
-<h3>Mashhur algoritmlar</h3>
+<h3>⚠️ Cheksiz sikl — qo'rqing!</h3>
+<p>Konsolga quyidagini yozmang (yoki yozing, lekin keyingi qadamga tayyor bo'ling):</p>
+<pre><code>while (true) {
+    console.log("Cheksiz sikl");
+}</code></pre>
+<p>Brauzer "qotib qoladi" — sikl hech qachon tugamaydi. Yechim: yorliqni yopish (X tugma) yoki <code>Ctrl+W</code>.</p>
+<p>Bu — algoritmning "to'rtinchi qoidasi" buzilishi. <strong>Har qanday sikl tugashi shart.</strong> Aks holda kompyuter foydasiz ish bilan band bo'lib qoladi.</p>
+
+<h3>🌍 Mashhur algoritmlar — siz har kuni ishlatasiz</h3>
 <table>
 <tr><th>Nom</th><th>Vazifasi</th><th>Qayerda ko'rinadi</th></tr>
-<tr><td>Binary search</td><td>Saralanga ro'yxatdan tezda topish</td><td>Lug'atda so'z izlash</td></tr>
-<tr><td>Bubble sort</td><td>Saralash (sekin lekin sodda)</td><td>O'rganish maqsadida</td></tr>
-<tr><td>Dijkstra</td><td>Eng qisqa yo'lni topish</td><td>Yandex Maps, Google Maps</td></tr>
-<tr><td>PageRank</td><td>Sahifalarni reytinglash</td><td>Google qidiruv</td></tr>
-<tr><td>SHA-256</td><td>Ma'lumotning "barmoq izi"</td><td>Parol saqlash, Bitcoin</td></tr>
+<tr><td><strong>Binary search</strong></td><td>Saralanga ro'yxatdan tezda topish</td><td>Lug'atda so'z izlash, baza qidiruv</td></tr>
+<tr><td><strong>Dijkstra</strong></td><td>Eng qisqa yo'lni topish</td><td>Yandex Maps, Google Maps</td></tr>
+<tr><td><strong>PageRank</strong></td><td>Sahifalarni reytinglash</td><td>Google qidiruv natijalari</td></tr>
+<tr><td><strong>SHA-256</strong></td><td>Ma'lumotning "barmoq izi"</td><td>Parol saqlash, Bitcoin</td></tr>
+<tr><td><strong>RSA / TLS</strong></td><td>Ma'lumotni shifrlash</td><td>HTTPS saytlar, bank kartalari</td></tr>
 </table>
 
-<h3>Eng muhim ko'nikma</h3>
-<p>Algoritmik fikrlash — bu kompyuterga emas, <strong>o'zingizga</strong> aytadigan ko'nikma. Katta muammoni kichik bo'laklarga ajratish. Har bo'lakka aniq ism berish. Har bo'lakni alohida hal qilish. Keyin birlashtirish.</p>
-<p>Bu — programming. Hech narsa qila olmagan dasturchi ham emas — algoritmik fikrlay olmagan. Til bilish — 20%. Algoritmik fikrlash — 80%.</p>
+<h3>🧠 Eng muhim ko'nikma</h3>
+<p>Algoritmik fikrlash — bu kompyuterga emas, <strong>o'zingizga</strong> aytadigan ko'nikma:</p>
+<ul>
+<li><strong>Katta muammoni</strong> kichik bo'laklarga ajratish (decomposition)</li>
+<li><strong>Har bo'lakka</strong> aniq ism berish</li>
+<li><strong>Har bo'lakni</strong> alohida hal qilish</li>
+<li><strong>Keyin birlashtirish</strong></li>
+</ul>
+<p>Bu — dasturlashning yuragi. Hech qachon kod yoza olmaydigan dasturchi yo'q — algoritmik fikrlay olmaydigan dasturchi bor. <strong>Til bilish — 20%. Algoritmik fikrlash — 80%.</strong></p>
+
+<h3>🚀 Bu darsdan keyin siz bilasizki</h3>
+<ul>
+<li>Algoritm — bu hayotning bir qismi, faqat kompyuter dunyosi emas</li>
+<li>3 ta qurilish bloki: ketma-ketlik, shart, takror</li>
+<li>Yaxshi algoritmning 4 ta xususiyati</li>
+<li>Cheksiz sikldan qanday qutulish</li>
+</ul>
+<p>Keyingi darsda — o'zgaruvchilar va turlar. Algoritmlardan kodga o'tishimiz boshlanadi.</p>
 """
 
 L4_CODE = """\
-# Pseudo-kod misoli — "Manzilga borish" algoritmi
-# Pseudo-kod hech qanday haqiqiy tilda bo'lmasligi mumkin —
-# muhimi: aniq, o'qiladigan va mantiqiy.
+// ═══════════════════════════════════════════════════════
+// Algoritmning 3 ta blokini brauzeringizda his qiling
+// (google.com → F12 → Console → har blokni alohida)
+// ═══════════════════════════════════════════════════════
 
-ALGORITM Manzilga_borish(boshlanish, manzil):
-
-    # Sequence: ketma-ket
-    xarita_ochish()
-    yo'l_qidirish(boshlanish, manzil)
-
-    HAR yo'l_qadami UCHUN:                  # Loop: takror
-
-        AGAR yo'lda traffic bor:            # Decision: shart
-            muqobil_yo'l_qidir()
-
-        AGAR yoqilg'i kam (< 10%):
-            yoqilg'i_quygich_top()
-            yoqilg'i_qo'sh()
-
-        davom_etish()
-
-    manzilga_yetdik()
-
-    QAYTAR muvaffaqiyat
+// ─── 🟢 BLOKA 1: KETMA-KETLIK (Sequence) ───
+// Qadamlar tartib bilan bajariladi
+document.body.style.background = "red";
+document.title = "TO'XTANG!";
+document.body.style.fontSize = "30px";
 
 
-# Bu hech qanday tilda bajarilmaydi, lekin
-# kelajakda Python / JavaScript / boshqa tilda
-# yozish OSOND bo'ladi — chunki mantiq tayyor.
+// ─── 🟡 BLOKA 2: SHART (Condition / Decision) ───
+// "Agar ... bo'lsa, ... qil. Aks holda — ... qil."
+let yosh = prompt("Yoshingiz nechida?");
+if (yosh >= 18) {
+    document.body.style.background = "green";
+    alert("Voyaga yetgansiz!");
+} else {
+    document.body.style.background = "yellow";
+    alert("Hali bolasiz");
+}
+
+
+// ─── 🔴 BLOKA 3: TAKROR (Loop) ───
+// Bir amal qayta-qayta — har xil rangda
+const ranglar = ["red", "orange", "yellow", "green", "blue", "purple"];
+for (let i = 0; i < ranglar.length; i++) {
+    setTimeout(() => {
+        document.body.style.background = ranglar[i];
+    }, i * 500);
+}
+
+
+// ─── ⚠️ EHTIYOT: Cheksiz sikl — qo'rqing! ───
+// Quyidagi kodni YOZMANG — brauzer qotib qoladi:
+//
+//   while (true) {
+//       console.log("cheksiz");
+//   }
+//
+// Sikl shartining tugashini ta'minlash — algoritmning
+// 4-qoidasi: "har sikl tugashi shart" (finite).
+
+
+// ═══════════════════════════════════════════════════════
+// Pseudo-kod — "Manzilga borish" algoritmi
+// Hech qanday tilda bajarilmaydi, lekin keyingi tilda
+// yozish oson bo'ladi (mantiq tayyor)
+// ═══════════════════════════════════════════════════════
+
+// ALGORITM Manzilga_borish(boshlanish, manzil):
+//     xarita_ochish()                          // sequence
+//     yo'l_qidirish(boshlanish, manzil)
+//
+//     HAR yo'l_qadami UCHUN:                   // loop
+//         AGAR yo'lda traffic bor:             // condition
+//             muqobil_yo'l_qidir()
+//         AGAR yoqilg'i kam (< 10%):
+//             yoqilg'i_quygich_top()
+//             yoqilg'i_qo'sh()
+//         davom_etish()
+//
+//     manzilga_yetdik()
+//     QAYTAR muvaffaqiyat
 """
 
 
@@ -1638,44 +1731,56 @@ LESSONS = [
     },
     {
         "order": 3, "title": "4-Algoritmik fikrlash",
-        "text": L4_TEXT, "code": L4_CODE, "lang": "python",
+        "text": L4_TEXT, "code": L4_CODE, "lang": "javascript",
         "video": "https://youtu.be/6hfOvs8pY1k",
         "exercises": [
+            mc("Brauzer konsolida if/else bloki nima qiladi?",
+               ["Sikl yaratadi va qayta-qayta ishlaydi",
+                "Shartga qarab ikki yo'ldan birini tanlaydi",
+                "Sahifani yangilaydi",
+                "Faqat matnni chiqaradi"],
+               "B",
+               hint="\"agar yosh 18 dan katta bo'lsa — yashil, aks holda — sariq\" — bu shart.",
+               explanation="if/else — shartli ifoda. Kompyuter shartni baholaydi (true yoki false) va shunga qarab if-bloki yoki else-bloki ichidagi kodni bajaradi.",
+               diff="Easy", pts=2),
             mc("Algoritmning 3 ta asosiy qurilish bloki qaysilari?",
-               ["Sequence, Decision, Loop",
+               ["Sequence, Decision, Loop (ketma-ketlik, shart, takror)",
                 "Variable, Function, Class",
                 "HTML, CSS, JavaScript",
                 "Print, Input, Output"],
-               "A", diff="Easy", pts=2),
-            mc("Flowchart'da romb shakli nimani anglatadi?",
-               ["Boshlanish va tugash",
-                "Amal (nimadir qilish)",
-                "Shart (qaror qabul qilish)",
-                "Ma'lumot saqlash"],
-               "C", explanation="Romb — shart (decision). Oval — boshlanish/tugash. To'rtburchak — amal.",
+               "A",
+               hint="Siz hozir darsda 3 ta bloka bilan google.com ni robotga aylantirdingiz.",
+               explanation="Bu uchtasi bilan dunyodagi har qanday algoritmni yozish mumkin: qadamlarni ketma-ket bajarish, shartga qarab yo'l tanlash, amalni takrorlash.",
                diff="Easy", pts=2),
-            mc("Yaxshi algoritm qanday xususiyatlarga ega?",
-               ["Aniq (har qadam bitta ma'noli)",
-                "To'liq (barcha holatlar qamrab olingan)",
-                "Cheklangan (har doim tugaydi)",
-                "Iloji boricha uzun"],
-               "A,B,C", multi=True,
-               hint="Yaxshi algoritm qisqa va samarali bo'lishi kerak — uzun emas.",
+            mc("Quyidagilardan qaysilari algoritm hisoblanadi?",
+               ["Choy damlash retsepti",
+                "Avtobusda kompostlash tartibi (kart kiritish, tugmani bosish)",
+                "Tasodifiy ravishda bir narsa o'ylash",
+                "Google qidiruv natijalarini reytinglash usuli",
+                "Telefon parolini kiritish va bosh sahifaga o'tish"],
+               "A,B,D,E", multi=True,
+               hint="Algoritm — aniq qadamlar ketma-ketligi muayyan natijaga olib boruvchi. Tasodifiy fikr — algoritm emas (qadam yo'q, natija yo'q).",
+               explanation="Algoritm — har qanday \"qanday qilamiz?\" savoliga aniq javob. Hatto eng oddiy ish (parolni kiritish) ham algoritm. Tasodifiy fikr esa algoritm emas — unda na qadamlar, na natija belgilangan.",
                diff="Medium", pts=3),
-            dd("Choy damlash algoritmini to'g'ri tartibda joylang",
-               ["Suv qaynat",
-                "Choynakka choy sol",
-                "Qaynoq suv quy",
-                "3-5 daqiqa kut",
-                "Stakanga quy"],
+            dd("Sendvich tayyorlash algoritmini to'g'ri tartibda joylang",
+               ["Nonni paketdan oling",
+                "Pichoq oling va nonni ikkiga kesing",
+                "Pastki tilimga moy yoki sous suring",
+                "Ustiga pomidor, tarvuz va boshqa ingredientlarni qo'ying",
+                "Yuqori tilim bilan yoping",
+                "Tarelka ga qo'yib xizmat qiling"],
+               hint="Algoritm — aniq, batafsil, har qadam mantiqiy. \"Sendvich qil\" yetarli emas — kompyuter taxmin qilmaydi.",
+               explanation="Bu — algoritmning birinchi qoidasi (aniqlik) tushuntiruvchi misol. Kompyuter \"nonni paketdan oling\" deb aytmasangiz — paket ichidagi nondan sendvich qiladi va paket ham qo'shadi. Har qadam aniq bo'lishi shart.",
                diff="Medium", pts=3),
             ti("Cheksiz sikl (infinite loop) nima va nima uchun yomon?",
                "Cheksiz sikl — bu hech qachon to'xtamaydigan loop. Sikl shartning yolg'on "
                "bo'lishini hech narsa o'zgartirmaydi. Misol: \"while X kichik 10\" lekin X "
                "hech qachon o'smaydi. Yomon, chunki: 1) dastur to'xtamaydi va ishlatuvchi "
                "kuta-kuta charchadi; 2) CPU 100% band qoladi va kompyuter sekinlashadi; "
-               "3) batareya tez tugaydi (mobil). Yechim: sikl shartini ichkaridan o'zgartirish "
-               "yoki break bilan to'xtatish.",
+               "3) batareya tez tugaydi (mobil). 4) brauzerda — yorliq qotib qoladi. "
+               "Yechim: sikl shartini ichkaridan o'zgartirish (X ni oshirish) yoki break "
+               "bilan to'xtatish. Algoritmning 4 qoidasidan biri — \"finite\" — har sikl tugashi shart.",
+               hint="while (true) — eng mashhur cheksiz sikl. Hech qachon yozmang!",
                diff="Hard", pts=4),
         ],
     },
