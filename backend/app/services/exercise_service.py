@@ -131,7 +131,25 @@ def check_answer_locally(exercise: Exercise, student_answer: str) -> dict:
         try:
             correct_order = json.loads(exercise.correct_order or "[]")
             student_order = json.loads(student_answer)
-            is_correct = correct_order == student_order
+
+            # Normalize each item: drag chips render without leading-whitespace
+            # (indentation looks weird in a pill UI), so the student-submitted
+            # values often differ from the stored `correct_order` only by
+            # whitespace. Strict == would then mark a correct sequence as
+            # wrong (e.g. "    yigindi = yigindi + i;" vs
+            # "yigindi = yigindi + i;"). Compare on normalized strings.
+            def _norm(item: object) -> str:
+                if not isinstance(item, str):
+                    return ""
+                # Strip outer whitespace and collapse internal whitespace runs
+                # so cosmetic differences (tabs vs spaces, double-space typos)
+                # also don't cause false negatives.
+                return " ".join(item.split())
+
+            correct_norm = [_norm(x) for x in correct_order]
+            student_norm = [_norm(x) for x in student_order]
+            is_correct = correct_norm == student_norm
+
             return {
                 "is_correct": is_correct,
                 "partial_score": 1.0 if is_correct else 0.0,

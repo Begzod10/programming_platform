@@ -41,7 +41,7 @@ class CourseService:
         if instructor_id:
             query = query.where(Course.instructor_id == instructor_id)
 
-        query = query.order_by(Course.created_at.desc()).offset(skip).limit(limit)
+        query = query.order_by(Course.display_order.asc(), Course.id.asc()).offset(skip).limit(limit)
         result = await self.db.execute(query)
         return result.scalars().all()
 

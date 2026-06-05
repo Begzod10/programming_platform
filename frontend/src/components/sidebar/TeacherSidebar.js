@@ -9,12 +9,14 @@ function TeacherSidebar({ activeTab, onLogout }) {
     const [isOpen, setIsOpen] = useState(false);
 
     const teacherMenuItems = [
-        { id: 'profile',      label: 'Профиль',         icon: '👨‍🏫' },
-        { id: 'review',       label: 'Проверка работ',  icon: '📥' },
-        { id: 'students',     label: 'Мои Студенты',    icon: '👥' },
-        { id: 'courses',      label: 'Курсы',            icon: '📚' },
-        { id: 'certificates', label: 'Сертификаты',      icon: '🏅' },
-        { id: 'statistics',   label: 'Статистика',       icon: '📈' },
+        { id: 'profile',      label: 'Профиль',          icon: '👨‍🏫' },
+        { id: 'review',       label: 'Проверка работ',   icon: '📥' },
+        { id: 'students',     label: 'Мои Студенты',     icon: '👥' },
+        { id: 'rankings',     label: 'Таблица лидеров',  icon: '🏆' }, // ← NEW
+        { id: 'courses',      label: 'Курсы',             icon: '📚' },
+        { id: 'certificates', label: 'Сертификаты',       icon: '🏅' },
+        { id: 'statistics',   label: 'Статистика',        icon: '📈' },
+        { id: 'feedback',     label: 'Отзывы',             icon: '⭐' },
     ];
 
     const handleTabClick = (id) => {
@@ -23,7 +25,9 @@ function TeacherSidebar({ activeTab, onLogout }) {
     };
 
     useEffect(() => {
-        const onResize = () => { if (window.innerWidth > 600) setIsOpen(false); };
+        const onResize = () => {
+            if (window.innerWidth > 600) setIsOpen(false);
+        };
         window.addEventListener('resize', onResize);
         return () => window.removeEventListener('resize', onResize);
     }, []);
@@ -47,11 +51,14 @@ function TeacherSidebar({ activeTab, onLogout }) {
                 <span style={{ opacity: isOpen ? 0 : 1 }} />
                 <span style={{ transform: isOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none' }} />
             </div>
+
             <div className={`sidebar-overlay ${isOpen ? 'open' : ''}`} onClick={() => setIsOpen(false)} />
+
             <div className={`sidebar ${isOpen ? 'open' : ''}`}>
                 <div className="sidebar-logo">
                     <h2>Gennis IT Platform</h2>
                 </div>
+
                 <nav className="sidebar-menu">
                     {teacherMenuItems.map(item => (
                         <div
@@ -64,6 +71,7 @@ function TeacherSidebar({ activeTab, onLogout }) {
                         </div>
                     ))}
                 </nav>
+
                 <button className="logout-btn-side" onClick={handleLogout}>
                     Выйти 🚪
                 </button>

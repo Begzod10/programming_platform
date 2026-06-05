@@ -28,6 +28,7 @@ from app.services.github_repo_service import (
     parse_github_url,
 )
 from app.services.grok_service import analyze_project_with_grok
+from app.services.lesson_context_resolver import load_lesson_context_for_project
 from app.services.ranking_service import RankingService
 
 logger = logging.getLogger(__name__)
@@ -156,6 +157,14 @@ async def run_ai_review_for_project(
     technologies = (project.technologies_used.split(",")
                     if project.technologies_used else [])
 
+    # Lesson + course context — without this the AI grader uses a generic
+    # persona and HTML/CSS submissions get reviewed against an invented
+    # Python/Flask-style rubric. Returns None for standalone projects
+    # (no Submission row); the AI then falls back to "dasturlash o'qituvchisi".
+    lesson_context = await load_lesson_context_for_project(
+        db, project_id=project.id
+    )
+
     review = await analyze_project_with_grok(
         title=project.title,
         description=project.description or "",
@@ -165,6 +174,7 @@ async def run_ai_review_for_project(
         repo_content=snapshot["content_text"],
         repo_summary=repo_summary,
         authorship=snapshot.get("authorship"),
+        lesson_context=lesson_context,
     )
 
     # AI call failed (all providers down, no key set anywhere, etc.).

@@ -1445,6 +1445,22 @@
     .lep-sections-list { gap: 10px; }
 }
 
+/* Mobile portrait — true phones (canonical 480) */
+@media (max-width: 480px) {
+    /* Save button stays sticky-visible — give it room to breathe */
+    .lep-save-btn       { padding: 10px 14px; font-size: 12px; min-height: 40px; }
+    .lep-type-grid      { grid-template-columns: repeat(2, 1fr); }
+    .lep-section-head   { padding: 9px 11px; }
+    .lep-section-body   { padding: 12px; }
+    .lep-ex-row-body    { padding: 12px; }
+    .lep-empty h3       { font-size: 17px; }
+    .lep-empty-types    { flex-wrap: wrap; }
+    .lep-empty-type-btn { flex: 1 1 calc(50% - 6px); text-align: center; }
+    .lep-main           { padding: 12px 10px; }
+    .lep-sidebar        { padding: 12px; gap: 8px; }
+    .lep-sidebar-card   { min-width: 100%; }   /* one card per row on phones */
+}
+
 /* Very small */
 @media (max-width: 380px) {
     .lep-type-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1454,4 +1470,21 @@
     .lep-ex-row-left { gap: 5px; }
     .lep-ex-pts-wrap { padding: 4px 7px; }
     .lep-ex-pts-input { width: 36px; }
+}
+
+/* Tiny phones (≤360px) */
+@media (max-width: 360px) {
+    .lep-type-grid      { grid-template-columns: 1fr; }
+    .lep-header-title   { font-size: 12px; }
+    .lep-save-btn       { padding: 9px 12px; font-size: 11.5px; }
+}
+
+/* Mobile landscape — the editor is too tall for short viewports.
+ * Sidebar stays at the top as a horizontal strip (already does
+ * thanks to 860 rule) but main area gets more vertical room. */
+@media (max-height: 500px) and (orientation: landscape) {
+    .lep-header     { height: 52px; }
+    .lep-sidebar    { padding: 10px 14px; gap: 8px; max-height: 38vh; overflow-y: auto; }
+    .lep-main       { padding: 12px 14px; }
+    .lep-section-head { padding: 8px 12px; }
 }

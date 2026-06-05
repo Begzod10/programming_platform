@@ -17,10 +17,11 @@ from app.models.user import Student
 from app.services.ranking_service import RankingService
 from fastapi.responses import FileResponse
 from app.services.grok_service import analyze_project_with_grok
+from app.services.lesson_context_resolver import load_lesson_context_for_project
 
 import uuid
 from pathlib import Path
-from fastapi import UploadFile, File
+from fastapi import UploadFile, File, Form
 from app.config import settings
 
 PROJECTS_UPLOAD_DIR = Path(settings.UPLOAD_DIR) / "projects"
@@ -33,47 +34,10 @@ def get_project_service(db: AsyncSession = Depends(get_db)) -> ProjectService:
     return ProjectService(db)
 
 
-async def _load_lesson_context_for_project(
-    db: AsyncSession, *, project_id: int
-) -> Optional[dict]:
-    """Resolve the lesson + course a project belongs to so the AI grader has
-    real context. A project is linked to a lesson through `submissions`
-    (submissions.project_id → submissions.lesson_id) — there is no direct
-    project.lesson_id column. If no such submission exists (standalone
-    project), returns None and the AI falls back to a generic persona.
-    """
-    sub_row = (await db.execute(
-        select(Submission.lesson_id)
-        .where(Submission.project_id == project_id)
-        .where(Submission.lesson_id.is_not(None))
-        .order_by(Submission.id.desc())
-        .limit(1)
-    )).first()
-    if not sub_row or sub_row[0] is None:
-        return None
-    lesson_id = sub_row[0]
-
-    lesson = (await db.execute(
-        select(Lesson).where(Lesson.id == lesson_id)
-    )).scalar_one_or_none()
-    if lesson is None:
-        return None
-
-    course = (await db.execute(
-        select(Course).where(Course.id == lesson.course_id)
-    )).scalar_one_or_none()
-
-    return {
-        "course_title": course.title if course else None,
-        "course_difficulty": course.difficulty_level if course else None,
-        "lesson_title": lesson.title,
-        "lesson_order": lesson.order,
-        "lesson_code_language": lesson.code_language,
-        "task_title": lesson.task_title,
-        "task_description": lesson.task_description,
-        "task_requirements": lesson.task_requirements,
-        "task_technologies": lesson.task_technologies,
-    }
+# Backwards-compat alias — earlier in this branch the helper lived here.
+# Kept so any in-flight branches that imported the private name still resolve;
+# delete after one release cycle.
+_load_lesson_context_for_project = load_lesson_context_for_project
 
 
 # ============================================================
@@ -112,6 +76,7 @@ async def get_my_projects(
 @router.post("/upload-zip")
 async def upload_project_zip(
         file: UploadFile = File(...),
+        lesson_id: Optional[int] = Form(None),
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db),
         service: ProjectService = Depends(get_project_service),
@@ -173,16 +138,32 @@ async def upload_project_zip(
     db.add(new_project)
     await db.flush()
 
+    # Tie project → lesson via Submission so the AI grader can resolve
+    # course/lesson context, and so the regrade pipeline (which looks up
+    # submissions.project_id → lesson_id) finds this submission later.
+    if lesson_id is not None:
+        db.add(Submission(
+            project_id=new_project.id,
+            student_id=current_student.id,
+            lesson_id=lesson_id,
+            status="Submitted",
+        ))
+        await db.flush()
+
     # AI tekshirish
     ai_result = {}
     try:
+        lesson_context = await load_lesson_context_for_project(
+            db, project_id=new_project.id
+        )
         ai_result = await analyze_project_with_grok(
             title=new_project.title,
             description=new_project.description + (f"\n\nKod fayllari:\n{code_content}" if code_content else ""),
             github_url="ZIP fayl orqali yuklandi",
             technologies=[],
             difficulty_level="Easy",
-            previous_points=0
+            previous_points=0,
+            lesson_context=lesson_context,
         )
         if ai_result:
             new_project.grade = ai_result.get("grade")

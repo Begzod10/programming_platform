@@ -21,6 +21,7 @@ from app.schemas.course import (
     CourseUpdate,
     CourseReadWithStudents,
     CourseImageUploadResponse,
+    CourseReorderRequest,
 )
 
 router = APIRouter()
@@ -62,9 +63,13 @@ async def get_courses(
 ):
     student_id = await _get_id_from_auth(request)
 
-    query = select(Course).options(
-        selectinload(Course.instructor)
-    ).where(Course.is_active == True).offset(skip).limit(limit)
+    query = (
+        select(Course)
+        .options(selectinload(Course.instructor))
+        .where(Course.is_active == True)
+        .order_by(Course.display_order.asc(), Course.id.asc())
+        .offset(skip).limit(limit)
+    )
 
     result = await db.execute(query)
     courses = result.scalars().all()
@@ -86,11 +91,51 @@ async def get_my_courses(
             selectinload(Course.students)
         )
         .where(Course.instructor_id == current_teacher.id)
+        .order_by(Course.display_order.asc(), Course.id.asc())
     )
     result = await db.execute(query)
     courses = result.scalars().all()
 
     return [await CourseService.build_dto(db, c, current_teacher.id) for c in courses]
+
+
+@router.put("/reorder", status_code=status.HTTP_204_NO_CONTENT)
+async def reorder_courses(
+        payload: CourseReorderRequest,
+        current_teacher: Student = Depends(get_current_teacher),
+        db: AsyncSession = Depends(get_db),
+):
+    """Bulk-update display_order for the teacher's own courses.
+
+    The frontend sends the full new ordering after a drag-and-drop drop:
+    [{"id": 3, "display_order": 0}, {"id": 1, "display_order": 1}, ...].
+    Courses not owned by the caller are rejected (403) — the request is
+    all-or-nothing so partial reorders never leak through.
+    """
+    ids = [item.id for item in payload.items]
+    if len(ids) != len(set(ids)):
+        raise HTTPException(status_code=400, detail="Duplicate course id in payload")
+
+    rows = (
+        await db.execute(
+            select(Course).where(Course.id.in_(ids))
+        )
+    ).scalars().all()
+
+    if len(rows) != len(ids):
+        raise HTTPException(status_code=404, detail="One or more courses not found")
+    for c in rows:
+        if c.instructor_id != current_teacher.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Faqat o'z kurslaringizning tartibini o'zgartirishingiz mumkin",
+            )
+
+    new_order_by_id = {item.id: item.display_order for item in payload.items}
+    for c in rows:
+        c.display_order = new_order_by_id[c.id]
+
+    await db.commit()
 
 
 @router.get("/{course_id}", response_model=CourseReadWithStudents)

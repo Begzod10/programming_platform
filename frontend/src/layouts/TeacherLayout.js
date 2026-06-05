@@ -2,7 +2,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import TeacherSidebar from '../components/sidebar/TeacherSidebar';
 import { useAuth } from '../context/AuthContext';
 
-const SCROLLABLE_SEGMENTS = ['students', 'review', 'statistics', 'courses', 'certificates'];
+const SCROLLABLE_SEGMENTS = ['students', 'review', 'statistics', 'courses', 'certificates', 'feedback'];
 
 function TeacherLayout() {
     const { user, logout } = useAuth();

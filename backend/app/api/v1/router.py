@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (
     groups,
     exercises,
     ai_review,
+    lesson_feedback,
 )
 from app.api.v1.endpoints.teacher import students as teacher_students
 from app.api.v1.endpoints.teacher import statistics as teacher_statistics
@@ -33,3 +34,4 @@ api_router.include_router(ai_review.router, prefix="/ai", tags=["AI Review"])
 api_router.include_router(teacher_students.router, prefix="/teacher/students", tags=["Teacher - Students"])
 api_router.include_router(teacher_statistics.router, prefix="/teacher", tags=["Teacher - Statistics"])
 api_router.include_router(dictionary.router, prefix="/dictionary", tags=["dictionary"])
+api_router.include_router(lesson_feedback.router, prefix="", tags=["Lesson Feedback"])

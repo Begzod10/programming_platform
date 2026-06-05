@@ -1172,26 +1172,75 @@
 /* ═══════════════════════════════════════════════
    RESPONSIVE
 ═══════════════════════════════════════════════ */
-@media (max-width: 768px) {
-    .mp-header h2 { font-size: 22px; }
-    .projects-grid { grid-template-columns: 1fr 1fr; gap: 14px; }
-    .mp-modal { max-width: 100%; border-radius: var(--radius-xl); }
-    .mp-modal-header { padding: 20px 20px 0; }
-    .mp-modal-body { padding: 18px 20px; }
-    .mp-modal-footer { padding: 0 20px 20px; }
+/* Small laptop / tablet landscape (≤1024px) — keep desktop layout
+ * but trim outer spacing so the page fits without scroll bars on
+ * narrower viewports. */
+@media (max-width: 1024px) {
+    .mp-container  { gap: 20px; }
+    .projects-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
+    .mp-header h2  { font-size: 24px; }
 }
 
+/* Tablet portrait (≤820px) — header still horizontal but compresses,
+ * grid drops to 2 columns. */
+@media (max-width: 820px) {
+    .mp-container       { gap: 18px; }
+    .mp-header h2       { font-size: 22px; }
+    .mp-subtitle        { font-size: 12.5px; }
+    .projects-grid      { grid-template-columns: 1fr 1fr; gap: 14px; }
+    .mp-modal           { max-width: 100%; border-radius: var(--radius-xl); }
+    .mp-modal-header    { padding: 20px 20px 0; }
+    .mp-modal-body      { padding: 18px 20px; }
+    .mp-modal-footer    { padding: 0 20px 20px; }
+}
+
+/* Mobile portrait (≤480px) — single-column grid, header stacks,
+ * modal becomes a bottom sheet, all action buttons go full-width. */
 @media (max-width: 480px) {
-    .mp-header { flex-direction: column; align-items: flex-start; }
-    .mp-add-btn { width: 100%; text-align: center; }
-    .projects-grid { grid-template-columns: 1fr; gap: 12px; }
-    .mp-overlay { padding: 0; align-items: flex-end; }
-    .mp-modal { border-radius: 24px 24px 0 0; max-height: 94vh; }
-    .mp-modal-footer { flex-direction: column; }
-    .mp-btn-cancel, .mp-btn-save, .mp-btn-submit,
-    .mp-btn-delete, .mp-btn-edit { width: 100%; text-align: center; justify-content: center; }
-    .mp-stats-row { gap: 6px; }
-    .mp-file-url-edit { flex-direction: column; }
-    .mp-btn-save-sm { width: 100%; justify-content: center; }
+    .mp-container       { gap: 16px; }
+    .mp-header          { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .mp-header h2       { font-size: 20px; }
+    .mp-add-btn         { width: 100%; text-align: center; padding: 12px 18px; min-height: 44px; }
+    .projects-grid      { grid-template-columns: 1fr; gap: 12px; }
+
+    /* Modal slides up from the bottom — classic mobile sheet pattern */
+    .mp-overlay         { padding: 0; align-items: flex-end; }
+    .mp-modal           { border-radius: 24px 24px 0 0; max-height: 94vh; }
+    .mp-detail-modal    { max-width: 100%; }
+    .mp-modal-header    { padding: 18px 18px 0; }
+    .mp-modal-body      { padding: 16px 18px; }
+    .mp-modal-footer    { padding: 0 18px 18px; flex-direction: column; gap: 10px; }
+
+    /* Every action button: full-width, min 44px tap target */
+    .mp-btn-cancel,
+    .mp-btn-save,
+    .mp-btn-submit,
+    .mp-btn-delete,
+    .mp-btn-edit,
+    .mp-btn-zip-upload,
+    .mp-btn-ai          { width: 100%; text-align: center; justify-content: center; min-height: 44px; }
+
+    .mp-stats-row       { gap: 6px; flex-wrap: wrap; }
+    .mp-file-url-edit   { flex-direction: column; gap: 8px; }
+    .mp-btn-save-sm     { width: 100%; justify-content: center; }
     .mp-method-selector { border-radius: var(--radius-md); }
+
+    .mp-empty           { padding: 60px 16px; font-size: 13.5px; }
+    .mp-empty span      { font-size: 44px; }
+}
+
+/* Very small phones (≤360px) — squeeze button paddings further */
+@media (max-width: 360px) {
+    .mp-header h2     { font-size: 18px; }
+    .mp-modal-header,
+    .mp-modal-footer  { padding-inline: 14px; }
+    .mp-modal-body    { padding: 14px; }
+    .mp-add-btn       { font-size: 13px; padding: 11px 14px; }
+}
+
+/* Mobile landscape — short viewport, let the modal use most of the
+ * screen height instead of leaving a thick gap at the top. */
+@media (max-height: 500px) and (orientation: landscape) {
+    .mp-overlay   { align-items: stretch; padding: 6px; }
+    .mp-modal     { max-height: 96vh; border-radius: var(--radius-xl); }
 }

@@ -797,121 +797,159 @@ for (let i = 0; i < ranglar.length; i++) {
 # L5 — O'zgaruvchilar va turlar (universal)
 # ═════════════════════════════════════════════════════════════════════════════
 L5_TEXT = """\
-<h2>O'zgaruvchilar va turlar — universal tushuncha</h2>
+<h2>O'zgaruvchilar — qutichalarga yorliq yopishtiramiz</h2>
 
 <pre class="mermaid">
 flowchart LR
-    L1["ism = Aziz"] -->|str| B1["text quticha"]
-    L2["yosh = 20"] -->|number| B2["int quticha"]
-    L3["talaba = True"] -->|bool| B3["true false quticha"]
-    L4["ranglar = qizil ko'k"] -->|list| B4["array quticha"]
-    B1 --> CODE["dasturlar"]
+    L1["ism = Aziz"] -->|string| B1["matn quticha"]
+    L2["yosh = 20"] -->|number| B2["son quticha"]
+    L3["talaba = true"] -->|boolean| B3["ha yoki yoq"]
+    L4["ranglar = qizil kok"] -->|array| B4["royhat quticha"]
+    B1 --> CODE["dastur xotirasi"]
     B2 --> CODE
     B3 --> CODE
     B4 --> CODE
 </pre>
 
-<p>Har bir dasturlash tilida (Python, JavaScript, Java, C, Rust, Go ...) bitta tushuncha bor: <strong>o'zgaruvchi</strong>. Bu — qiymatni saqlash uchun nom. Tilning sintaksisi farq qiladi, lekin g'oya bir xil.</p>
+<h3>🏆 5 daqiqada g'alaba — brauzer konsoli bizning xotiramiz</h3>
+<p>Hech narsa o'rnatmaymiz. Yangi brauzer oynasi oching → URL qatoriga <code>about:blank</code> yozing → <kbd>F12</kbd> bosing → <strong>Console</strong> tabini tanlang. Endi kompyuter sizning komandalaringizni eshitishga tayyor.</p>
 
-<h3>O'zgaruvchi = quticha + yorliq</h3>
-<p>Tasavvur qiling: sizda quticha bor, unga yorliq yopishtirdingiz. Yorliq — bu nom (<code>yosh</code>). Quticha ichidagi narsa — qiymat (<code>20</code>).</p>
-<pre><code>yosh = 20
-#  ↑    ↑
-#  yorliq  qiymat
-#  (nom)</code></pre>
-<p>Kelajakda <code>yosh</code> deganingizda — Python (yoki JS yoki har qanday til) qutichaga qaraydi va ichidagi qiymatni qaytaradi.</p>
-
-<h3>5 ta universal tur</h3>
-<table>
-<tr><th>Tur</th><th>Nima saqlaydi</th><th>Misol</th></tr>
-<tr><td><strong>Integer (int)</strong></td><td>Butun son</td><td>20, -5, 1000</td></tr>
-<tr><td><strong>Float</strong></td><td>Kasr son</td><td>3.14, -0.5, 99.99</td></tr>
-<tr><td><strong>String (str)</strong></td><td>Matn — tirnoq ichida</td><td>"Salom", 'A'</td></tr>
-<tr><td><strong>Boolean (bool)</strong></td><td>True yoki False</td><td>True, False</td></tr>
-<tr><td><strong>List / Array</strong></td><td>Bir nechta qiymat birga</td><td>[1, 2, 3], ["a", "b"]</td></tr>
-</table>
-
-<h3>Sintaksis 3 ta tilda</h3>
-<pre><code># Python
-ism = "Aziz"
-yosh = 20
-ranglar = ["qizil", "ko'k"]
-
-# JavaScript
+<h4>BLOKA 1 — Qutichalarga ism beramiz</h4>
+<p>Pastdagi kodni nusxalang va konsolga yopishtiring (Enter bosing):</p>
+<pre><code>// Har bir qatorda: yorliq = qiymat
 let ism = "Aziz";
 let yosh = 20;
-let ranglar = ["qizil", "ko'k"];
+let boy = 1.75;
+let talaba = true;
+let ranglar = ["qizil", "ko'k", "yashil"];
 
-# Java
-String ism = "Aziz";
-int yosh = 20;
-String[] ranglar = {"qizil", "ko'k"};</code></pre>
-<p>Farq: Java da <strong>tur</strong> oldindan yoziladi (<code>String</code>, <code>int</code>), Python va JS da — yo'q. Java <strong>statically typed</strong>, Python/JS — <strong>dynamically typed</strong>.</p>
+// Endi yorliq nomini yozing — quticha ichidagi qiymat qaytadi
+console.log(ism);
+console.log(yosh, "yosh,", boy, "metr");
+console.log("Sevimli ranglar:", ranglar);
+console.log("Talaba?", talaba);</code></pre>
+<p><strong>Nima bo'ldi:</strong> 5 ta o'zgaruvchi yaratdingiz. Har biri — yorliq yopishtirilgan quticha. <code>console.log</code> qutichalarga qarab, ichidagi qiymatlarni ko'rsatadi. Brauzer xotirasi sizning komandangizni eslab qoldi.</p>
 
-<h3>O'zgaruvchi qiymatini o'zgartirish</h3>
-<p>"O'zgaruvchi" deyilishining sababi — qiymati o'zgarishi mumkin:</p>
-<pre><code>yosh = 20         # quticha ichida 20
-yosh = 21         # endi quticha ichida 21
-yosh = yosh + 1   # eski qiymat + 1 = 22</code></pre>
-<p>Bu eng ko'p uchraydigan amal: <code>x = x + 1</code> — qiymatga 1 qo'shish va qaytarib quticha ichiga qo'yish.</p>
+<h4>BLOKA 2 — Turlarni "ko'rish"</h4>
+<p>Konsolda <code>typeof</code> komandasi har bir qiymatning turi nima ekanligini aytib beradi:</p>
+<pre><code>console.log(typeof ism);      // "string"
+console.log(typeof yosh);     // "number"
+console.log(typeof talaba);   // "boolean"
+console.log(typeof ranglar);  // "object"  (massiv ham object)
+console.log(Array.isArray(ranglar));  // true — bu massiv</code></pre>
+<p><strong>5 ta universal tur:</strong> string (matn), number (son), boolean (rost/yolg'on), array (ro'yxat), object (obyekt). Bu turlar deyarli har bir dasturlash tilida bor — Python, Java, Go, C++ — faqat nomi biroz boshqacha.</p>
 
-<h3>Const va var — o'zgarmas qutichalar</h3>
-<p>Ba'zi tillarda <strong>o'zgarmas</strong> qutichalar bor:</p>
+<h4>BLOKA 3 — Tabriknoma robotini quramiz</h4>
+<p>Foydalanuvchidan ma'lumot olamiz va shaxsiy javob qaytaramiz:</p>
+<pre><code>let foydaIsm = prompt("Ismingizni kiriting:");
+let foydaYosh = Number(prompt("Yoshingizni kiriting:"));
+let keyingiYil = foydaYosh + 1;
+
+if (foydaYosh >= 18) {
+    alert(foydaIsm + ", siz voyaga yetgansiz! Kelgusi yil " + keyingiYil + " yoshda bo'lasiz.");
+} else {
+    let qolgan = 18 - foydaYosh;
+    alert(foydaIsm + ", siz hali bolasiz. " + qolgan + " yildan keyin voyaga yetasiz.");
+}</code></pre>
+<p>3 ta qutichada uchta turli tur: <code>foydaIsm</code> — string, <code>foydaYosh</code> — number, <code>keyingiYil</code> — number. Kompyuter qiymatlarni eslab, ular bilan amallar bajarib, javob qurdi.</p>
+
+<h3>🐛 Ataylab xato — eng mashhur "tuzoq"</h3>
+<p>Quyidagi qatorlarni konsolga yopishtiring va natijaga qarang:</p>
+<pre><code>let a = "5";    // matn — tirnoq ichida!
+let b = 3;      // son
+console.log(a + b);   // Nima chiqdi?</code></pre>
+<p>Javob: <code>"53"</code> chiqdi, <code>8</code> emas. Sababi: <code>a</code> ichida matn ("5"), shuning uchun JavaScript <code>+</code> ni qo'shish emas — <strong>yopishtirish</strong> deb tushundi ("5" yoniga "3" yopishtirdi).</p>
+<p><strong>Tuzatish:</strong> matnni avval songa aylantiring:</p>
+<pre><code>console.log(Number(a) + b);   // 8 — endi to'g'ri qo'shildi</code></pre>
+<p>Bu xato yangi boshlovchilarning №1 hayratlanish manbai. Endi siz uni biladigan birinchilardansiz.</p>
+
+<h3>Endi tushuntiramiz — turlar nima uchun muhim</h3>
+
+<h4>O'zgaruvchi = yorliqli quticha</h4>
+<p>Kod yozayotganingizda, har bir qiymat (son, matn, ha/yo'q) xotirada qaerdadir saqlanadi. Siz <strong>yorliq</strong> yopishtirasiz — keyin shu yorliq bo'yicha qiymatga murojaat qilasiz.</p>
+<pre><code>let yosh = 20;     // quticha yaratildi, yorliq yopishtirildi, ichida 20
+yosh = 21;         // o'sha qutichaga endi 21 qo'yildi (qiymat o'zgardi)
+yosh = yosh + 1;   // o'qing → 1 qo'shing → qaytarib qo'ying = 22</code></pre>
+
+<h4>Dynamic vs Static — turni kim tekshiradi?</h4>
+<table>
+<tr><th>Til</th><th>Sintaksis</th><th>Qoida</th></tr>
+<tr><td>JavaScript</td><td><code>let yosh = 20;</code></td><td>Tur avtomatik — dynamic</td></tr>
+<tr><td>Python</td><td><code>yosh = 20</code></td><td>Tur avtomatik — dynamic</td></tr>
+<tr><td>Java</td><td><code>int yosh = 20;</code></td><td>Tur oldindan e'lon — static</td></tr>
+<tr><td>Go</td><td><code>var yosh int = 20</code></td><td>Static (yoki <code>:=</code> bilan auto)</td></tr>
+</table>
+<p><strong>Static</strong>: kompilator boshida turni biladi → xatoni dasturdan oldin tutadi. <strong>Dynamic</strong>: tezroq yoziladi, lekin xato faqat ishga tushganda chiqadi (yuqoridagi <code>"5" + 3</code> kabi).</p>
+
+<h4>Nom qoidalari (deyarli har bir tilda bir xil)</h4>
 <ul>
-<li>JavaScript: <code>const PI = 3.14</code> — bir marta beriladi, qayta o'zgarmaydi</li>
-<li>Python: katta harf nomi — odat (<code>PI = 3.14</code>), texnik majburiy emas</li>
-<li>Java: <code>final int PI = 3</code></li>
+<li>✅ Harf yoki <code>_</code> bilan boshlanadi: <code>yosh</code>, <code>_temp</code></li>
+<li>❌ Raqamdan boshlanmaydi: <code>1ism</code> — xato</li>
+<li>❌ Bo'sh joy yo'q: <code>mening yoshim</code> — xato</li>
+<li>❌ Tilning kalit so'zlari: <code>let</code>, <code>if</code>, <code>class</code> — ishlatilmaydi</li>
+<li>✅ Tushunarli, ma'noli: <code>foydaYoshi</code> > <code>fY</code></li>
 </ul>
-<p>Qachon kerak? Doimiy qiymatlar uchun: pi, soliq foizi, maksimum yosh.</p>
 
-<h3>O'zgaruvchi nomi qoidalari (deyarli barcha tilda bir xil)</h3>
+<h4>Yaxshi nom — kelajakdagi sizga sovg'a</h4>
+<p>"Kod bir marta yoziladi, lekin 100 marta o'qiladi" — tajribali dasturchilar qoidasi.</p>
+<pre><code>// Yomon — 3 oydan keyin tushunmaysiz
+let x = 25;
+let y = x * 0.12;
+
+// Yaxshi — bir qarashda aniq
+let mahsulotNarxi = 25;
+let soliqSummasi = mahsulotNarxi * 0.12;</code></pre>
+
+<h3>📌 Bu darsdan keyin siz bilasizki</h3>
 <ul>
-<li>✅ Harf yoki <code>_</code> bilan boshlanadi</li>
-<li>❌ Raqamdan boshlanmaydi: <code>1ism</code> noto'g'ri</li>
-<li>❌ Bo'sh joy yo'q: <code>mening yoshim</code> noto'g'ri</li>
-<li>✅ Tushunarli nom: <code>foydalanuvchi_yoshi</code>, <code>fY</code> emas</li>
-<li>❌ Tilning kalit so'zlari: <code>class</code>, <code>if</code>, <code>function</code> ishlatilmaydi</li>
+<li>O'zgaruvchi — qiymatni saqlash uchun yorliqli quticha</li>
+<li>5 ta universal tur bor: string, number, boolean, array, object</li>
+<li><code>typeof</code> bilan turini ko'rasiz</li>
+<li><code>"5" + 3</code> = <code>"53"</code> — chunki matn bilan son qo'shilganda matnga aylanadi</li>
+<li>Static til (Java, Go) turini oldindan biladi; dynamic til (JS, Python) — ish vaqtida aniqlaydi</li>
+<li>Nom qoidalari va yaxshi nom = yaxshi kod</li>
 </ul>
-
-<h3>Yaxshi nom — yaxshi kod</h3>
-<p>Tajribali dasturchi qoidasi: "Kod bir marta yoziladi, lekin 100 marta o'qiladi". Yaxshi nom = yaxshi o'qiladigan kod = kelajakdagi siz uchun rahmat.</p>
-<pre><code># Yomon
-x = 25
-y = x * 0.12
-
-# Yaxshi
-mahsulot_narxi = 25
-soliq_summasi = mahsulot_narxi * 0.12</code></pre>
 """
 
 L5_CODE = """\
-# Universal pseudo-kod misollar — turli tillarda ko'rib chiqing
+// ═══ DARS 5 — KONSOLDA TUSHUNCHALARNI SINASH ═══
+// about:blank → F12 → Console → pastdagilarni yopishtiring
 
-# ─── Asosiy turlar ──────────────────────────────────
-ism = "Aziz"           # string
-yosh = 20              # integer
-boy = 1.75             # float
-talaba = True          # boolean
-ranglar = ["qizil", "ko'k", "yashil"]  # list
+// ─── BLOKA 1: Qutichalarga yorliq yopishtirish ───────
+let ism = "Aziz";
+let yosh = 20;
+let boy = 1.75;
+let talaba = true;
+let ranglar = ["qizil", "ko'k", "yashil"];
 
-# ─── Amallar ────────────────────────────────────────
-yangi_yosh = yosh + 5              # 25
-to'liq_ism = ism + " Karimov"      # "Aziz Karimov"
-ranglar_soni = len(ranglar)        # 3
+console.log(ism);
+console.log(yosh, "yosh,", boy, "metr");
+console.log("Sevimli ranglar:", ranglar);
 
-# ─── Shart ──────────────────────────────────────────
-if yosh >= 18:
-    print(f"{ism} voyaga yetgan")
-else:
-    print(f"{ism} hali bola")
+// ─── BLOKA 2: Turlarni ko'rish ───────────────────────
+console.log(typeof ism);       // "string"
+console.log(typeof yosh);      // "number"
+console.log(typeof talaba);    // "boolean"
+console.log(Array.isArray(ranglar));  // true
 
-# ─── Sikl ───────────────────────────────────────────
-for rang in ranglar:
-    print("Rang:", rang)
+// ─── BLOKA 3: Interaktiv tabriknoma ──────────────────
+let foydaIsm = prompt("Ismingiz?");
+let foydaYosh = Number(prompt("Yoshingiz?"));
+if (foydaYosh >= 18) {
+    alert(foydaIsm + ", voyaga yetgansiz!");
+} else {
+    alert(foydaIsm + ", " + (18 - foydaYosh) + " yil qolgan.");
+}
 
-# Bu Python sintaksisi. JavaScript da bir xil mantiq:
-# if (yosh >= 18) { ... }
-# for (let rang of ranglar) { ... }
+// ─── XATO TUZOG'I: matn + son = matn ─────────────────
+let a = "5";
+let b = 3;
+console.log(a + b);          // "53" — yopishtirildi
+console.log(Number(a) + b);  // 8 — to'g'ri qo'shildi
+
+// ─── O'zgartirish mumkin (shuning uchun "o'zgaruvchi") ─
+yosh = 21;
+yosh = yosh + 1;   // 22
 """
 
 
@@ -919,115 +957,187 @@ for rang in ranglar:
 # L6 — Brauzer, tarmoq, veb
 # ═════════════════════════════════════════════════════════════════════════════
 L6_TEXT = """\
-<h2>Brauzer, tarmoq va veb</h2>
+<h2>Brauzer va veb — so'rov-javob raqsi</h2>
 
 <pre class="mermaid">
 flowchart LR
-    B["brauzer client"] -->|HTTP GET URL| S["server"]
-    DNS["DNS lookup"] -->|domain ni IP ga| B
-    S -->|HTML CSS JS| B
-    B --> R["sahifani ko'rsatadi"]
-    B -.->|click form| S
+    B["brauzer"] -->|1 GET URL| DNS["DNS"]
+    DNS -->|2 IP qaytaradi| B
+    B -->|3 HTTP request| S["server"]
+    S -->|4 HTML CSS JS| B
+    B --> R["sahifa"]
 </pre>
 
-<p>Internet aslida juda sodda g'oyaga asoslangan: <strong>siz so'rov yuborasiz, server javob qaytaradi</strong>. Brauzer (Chrome, Firefox, Safari) — siz va server o'rtasidagi vositachi.</p>
+<h3>🏆 5 daqiqada g'alaba — internet jonli ko'rinadi</h3>
+<p>Hech narsa o'rnatmaymiz. Brauzer ichida har bir so'rov va javobni o'z ko'zingiz bilan ko'rasiz.</p>
 
-<h3>Sodda misol — google.com ga kirish</h3>
+<h4>BLOKA 1 — Network tab (so'rovlarni ushlash)</h4>
+<ol>
+<li>Yangi brauzer oynasi: <code>https://github.com</code> ga kiring</li>
+<li><kbd>F12</kbd> bosing → <strong>Network</strong> tabini tanlang</li>
+<li>Sahifani <kbd>Ctrl+R</kbd> (Mac: <kbd>Cmd+R</kbd>) bilan qayta yuklang</li>
+<li>Endi ro'yxat to'ldi — har bir qator bitta so'rov</li>
+</ol>
+<p>Har qatorda quyidagilar ko'rinadi:</p>
+<ul>
+<li><strong>Name</strong> — qaysi fayl (HTML, logo.png, style.css ...)</li>
+<li><strong>Status</strong> — 200 (OK), 304 (cached), 404 (topilmadi)</li>
+<li><strong>Type</strong> — document, script, image, font, xhr</li>
+<li><strong>Size</strong> — necha KB</li>
+<li><strong>Time</strong> — necha millisekund</li>
+</ul>
+<p>Birinchi qatorni bosing → o'ng paneldan <strong>Headers</strong> ni tanlang. Bu yerda <code>Request Method: GET</code>, <code>Status: 200</code>, <code>Content-Type: text/html</code> va boshqa "ko'rinmaydigan" muloqotni ko'rasiz. Mana — internet aslida shunday ko'rinadi.</p>
+
+<h4>BLOKA 2 — Konsoldan API ga so'rov</h4>
+<p>Endi siz brauzer bo'lasiz. <kbd>Console</kbd> tabiga o'ting va yozing:</p>
+<pre><code>// GitHub'ning ochiq API'sidan ma'lumot olamiz
+fetch("https://api.github.com/users/torvalds")
+    .then(r => r.json())
+    .then(data => {
+        console.log("Ism:", data.name);
+        console.log("Joy:", data.location);
+        console.log("Public repos:", data.public_repos);
+        console.log("Followers:", data.followers);
+    });</code></pre>
+<p><strong>Nima bo'ldi:</strong> sizning brauzer GitHub serveriga HTTP GET so'rov yubordi. Server JSON ko'rinishidagi ma'lumotni qaytardi. <code>fetch</code> — bu zamonaviy JavaScript komandasi, server bilan muloqot uchun. Network tabga qaytsangiz — yangi qator paydo bo'lgan: <code>torvalds</code>, Status 200, Type xhr.</p>
+
+<h4>BLOKA 3 — Sahifani jonli o'zgartirish</h4>
+<p>Hozir ham GitHub.com da turibsiz. Konsolda yozing:</p>
+<pre><code>// Sahifaning 3 qismini "qo'l bilan" o'zgartiramiz
+
+// 1. HTML strukturasini o'qing
+console.log(document.title);
+console.log(document.querySelectorAll("a").length, "ta havola bor");
+
+// 2. CSS — fonni o'zgartiring
+document.body.style.background = "linear-gradient(45deg, #ff6ec4, #7873f5)";
+
+// 3. JavaScript — tugma qo'shing
+let btn = document.createElement("button");
+btn.textContent = "Bosing!";
+btn.style.cssText = "position:fixed;top:20px;right:20px;padding:10px 20px;font-size:20px;z-index:9999";
+btn.onclick = () => alert("Sahifani men o'zgartirdim!");
+document.body.appendChild(btn);</code></pre>
+<p><strong>Nima bo'ldi:</strong> 3 ta qatorda 3 ta texnologiyaga tegdingiz — <strong>HTML</strong> (struktura), <strong>CSS</strong> (dizayn), <strong>JavaScript</strong> (interaktivlik). Sahifani <kbd>F5</kbd> bilan yangilasangiz — hammasi yo'qoladi, chunki o'zgarishlar faqat sizning brauzer xotirangizda edi, serverda emas.</p>
+
+<h3>🐛 Ataylab xato — 404 ni ko'ramiz</h3>
+<p>Konsolda yozing:</p>
+<pre><code>fetch("https://api.github.com/users/bumantxtaitarmiymis123abc")
+    .then(r => {
+        console.log("Status:", r.status);   // 404 chiqadi
+        console.log("OK?", r.ok);           // false
+        return r.json();
+    })
+    .then(data => console.log(data));</code></pre>
+<p>Status <strong>404 Not Found</strong> — bu foydalanuvchi mavjud emas. Eslab qoling: 404 — bu serverning aybi emas, sizning so'rovingiz noto'g'ri manzilga ketgan. Eng mashhur xato kodi.</p>
+
+<h3>Endi tushuntiramiz — internet qanday ishlaydi</h3>
+
+<h4>5 bosqichda google.com ochish</h4>
 <ol>
 <li>Siz <code>google.com</code> deb yozasiz</li>
-<li>Brauzer "google.com qayerda?" deb DNS server'ga so'raydi</li>
-<li>DNS javob qaytaradi: "google.com = 142.250.180.46" (IP manzil)</li>
-<li>Brauzer 142.250.180.46 ga HTTP so'rov yuboradi: "menga / sahifasini ber"</li>
-<li>Google server HTML, CSS, JavaScript ni qaytaradi</li>
-<li>Brauzer ularni o'qib, sizga sahifa ko'rsatadi</li>
+<li>Brauzer DNS server'ga so'raydi: "google.com qaysi IP?"</li>
+<li>DNS javob: "google.com = 142.250.180.46"</li>
+<li>Brauzer 142.250.180.46 ga HTTP GET / yuboradi</li>
+<li>Server HTML+CSS+JS qaytaradi → brauzer rasm chizadi</li>
 </ol>
-<p>Bularning hammasi 0.3 sekundda bo'ladi!</p>
+<p>Bu 0.3 sekundda bo'ladi. Har gal.</p>
 
-<h3>URL anatomiyasi</h3>
-<pre><code>https://www.example.com:443/blog/post-1?id=42&amp;source=email#section-2
-  ↑         ↑           ↑    ↑              ↑               ↑
-protokol   domain      port  path           query          fragment</code></pre>
-<ul>
-<li><strong>Protokol</strong>: <code>http://</code> (oddiy) yoki <code>https://</code> (xavfsiz, shifrlangan)</li>
-<li><strong>Domain</strong>: server nomi</li>
-<li><strong>Port</strong>: server qaysi "eshik"da kutmoqda (HTTP — 80, HTTPS — 443)</li>
-<li><strong>Path</strong>: server ichidagi resurs yo'li</li>
-<li><strong>Query</strong>: qo'shimcha parametrlar (key=value)</li>
-<li><strong>Fragment</strong>: sahifaning bir qismi (anchor)</li>
-</ul>
+<h4>URL anatomiyasi</h4>
+<pre><code>https://api.github.com:443/users/torvalds?tab=repos#main
+  ↑           ↑          ↑      ↑           ↑       ↑
+protokol    domain     port    path        query  fragment</code></pre>
 
-<h3>HTTP — internetning tili</h3>
-<p>Brauzer va server <strong>HTTP</strong> (HyperText Transfer Protocol) orqali muloqot qiladi. Asosiy "fe'llari":</p>
+<h4>HTTP methodlar (so'rov turlari)</h4>
 <table>
-<tr><th>Method</th><th>Ma'no</th><th>Misol</th></tr>
-<tr><td><code>GET</code></td><td>"Menga ber"</td><td>Sahifani yuklash</td></tr>
-<tr><td><code>POST</code></td><td>"Menga yangi yarating"</td><td>Forma yuborish</td></tr>
-<tr><td><code>PUT</code></td><td>"Buni yangilang"</td><td>Profilingizni o'zgartirish</td></tr>
-<tr><td><code>DELETE</code></td><td>"Buni o'chirib tashlang"</td><td>Postingizni o'chirish</td></tr>
+<tr><th>Method</th><th>Ma'no</th><th>Hayotiy misol</th></tr>
+<tr><td><code>GET</code></td><td>Menga ber</td><td>Sahifa yuklash, qidirish</td></tr>
+<tr><td><code>POST</code></td><td>Yangi yarating</td><td>Forma yuborish, ro'yxatdan o'tish</td></tr>
+<tr><td><code>PUT/PATCH</code></td><td>Mavjudni yangilang</td><td>Profil tahrirlash</td></tr>
+<tr><td><code>DELETE</code></td><td>O'chiring</td><td>Postni o'chirish</td></tr>
 </table>
 
-<h3>HTTP status kodlari</h3>
+<h4>HTTP status kodlari</h4>
 <ul>
 <li><strong>200 OK</strong> — hammasi yaxshi</li>
-<li><strong>301 Redirect</strong> — manzil o'zgargan, boshqa joyga o'ting</li>
-<li><strong>404 Not Found</strong> — resurs topilmadi (eng mashhur xato)</li>
-<li><strong>500 Server Error</strong> — serverda xato</li>
-<li><strong>403 Forbidden</strong> — sizga ruxsat yo'q</li>
+<li><strong>301 / 302</strong> — manzil o'zgargan, boshqa joyga yo'naltirildi</li>
+<li><strong>400 Bad Request</strong> — sizning so'rovingiz xato</li>
+<li><strong>401 Unauthorized</strong> — login qiling</li>
+<li><strong>403 Forbidden</strong> — login bor, lekin ruxsat yo'q</li>
+<li><strong>404 Not Found</strong> — yo'q, topilmadi</li>
+<li><strong>500 Internal Server Error</strong> — serverning aybi</li>
 </ul>
+<p>Qoida: <strong>2xx</strong> = yaxshi, <strong>3xx</strong> = yo'naltirish, <strong>4xx</strong> = sizning xato, <strong>5xx</strong> = serverning xato.</p>
 
-<h3>Sahifaning 3 qismi</h3>
-<p>Har bir veb-sahifa 3 ta texnologiyadan iborat:</p>
+<h4>Sahifaning 3 qismi (siz konsolda tegdingiz)</h4>
 <ul>
-<li>📄 <strong>HTML</strong> — struktura (sarlavhalar, paragraflar, tugmalar)</li>
-<li>🎨 <strong>CSS</strong> — dizayn (ranglar, shriftlar, joylashuv)</li>
-<li>⚡ <strong>JavaScript</strong> — interaktivlik (click qilganda nima bo'ladi)</li>
+<li>📄 <strong>HTML</strong> — struktura (sarlavha, paragraf, tugma)</li>
+<li>🎨 <strong>CSS</strong> — dizayn (rang, shrift, joylashuv)</li>
+<li>⚡ <strong>JavaScript</strong> — interaktivlik (click → nima bo'ladi)</li>
 </ul>
-<p>HTML — kostyum. CSS — kiyimning rangi va shakli. JavaScript — odam — harakat qiladi.</p>
 
-<h3>Frontend vs Backend</h3>
+<h4>Frontend vs Backend</h4>
 <table>
-<tr><th></th><th>Frontend (mijoz)</th><th>Backend (server)</th></tr>
+<tr><th></th><th>Frontend</th><th>Backend</th></tr>
 <tr><td>Qayerda</td><td>Sizning brauzeringizda</td><td>Uzoq serverda</td></tr>
-<tr><td>Til</td><td>HTML, CSS, JavaScript</td><td>Python, Java, Go, Node.js, PHP</td></tr>
-<tr><td>Ma'lumot</td><td>Hozir ko'rinayotgan ma'lumot</td><td>Baza, autentifikatsiya, logika</td></tr>
-<tr><td>Misol</td><td>Tugma, forma, animatsiya</td><td>Login tekshirish, postlarni saqlash</td></tr>
+<tr><td>Til</td><td>HTML, CSS, JavaScript</td><td>Python, Go, Node.js, Java, PHP</td></tr>
+<tr><td>Vazifa</td><td>Ko'rinish va interaktivlik</td><td>Ma'lumot, login, biznes logika</td></tr>
+</table>
+<p>Misol: Telegram'da xabar yozish — frontend. O'sha xabarni boshqa odamga yetkazish va saqlash — backend.</p>
+
+<h4>DevTools — har dasturchining oynasi</h4>
+<table>
+<tr><th>Tab</th><th>Nima uchun</th></tr>
+<tr><td><strong>Elements</strong></td><td>HTML+CSS ni o'qish va o'zgartirish</td></tr>
+<tr><td><strong>Console</strong></td><td>JS yozish, xatolarni ko'rish</td></tr>
+<tr><td><strong>Network</strong></td><td>Har so'rov-javobni kuzatish</td></tr>
+<tr><td><strong>Application</strong></td><td>localStorage, cookies, cache</td></tr>
 </table>
 
-<h3>DevTools — har dasturchining do'sti</h3>
-<p>Har brauzerda <strong>Developer Tools</strong> bor. F12 yoki Cmd+Option+I bilan oching:</p>
+<h3>📌 Bu darsdan keyin siz bilasizki</h3>
 <ul>
-<li><strong>Elements</strong> — HTML va CSS ni ko'rish va o'zgartirish</li>
-<li><strong>Console</strong> — JavaScript komandalarni yozish va xatolarni ko'rish</li>
-<li><strong>Network</strong> — har so'rov va javobni ko'rish</li>
-<li><strong>Application</strong> — saqlangan ma'lumotlar (cookies, localStorage)</li>
+<li>Internet — bu so'rov (GET/POST/PUT/DELETE) va javob (200/404/500)</li>
+<li>DNS — domen nomini IP manzilga o'giradi</li>
+<li>Network tab har bir so'rovni ko'rsatadi</li>
+<li><code>fetch()</code> bilan konsoldan API ga so'rov yuborasiz</li>
+<li>Sahifa = HTML + CSS + JavaScript</li>
+<li>Frontend brauzeringda, Backend serverda</li>
 </ul>
 """
 
 L6_CODE = """\
-# Brauzer DevTools — Console da yozib sinab ko'ring!
+// ═══ DARS 6 — BRAUZER KONSOLI BILAN INTERNETNI USHLASH ═══
+// github.com ga kiring → F12 → quyidagilarni sinab ko'ring
 
-# F12 bosing → Console tabini oching → quyidagi qatorlarni yozing:
+// ─── BLOKA 1: Network tab ───────────────────────────
+// Network tabini oching, Ctrl+R bilan yangilang
+// Har qatorni bosing — Headers/Response da nimalar borligini ko'ring
 
-# JavaScript Console misollari:
-# alert("Salom, dunyo!");
-# console.log("Bu konsolga chiqadi");
-# document.title    // sahifaning nomi
-# location.href     // joriy URL
-# document.body.style.background = "lightblue"   // fonni ko'k qiling!
+// ─── BLOKA 2: fetch() bilan API ga so'rov ───────────
+fetch("https://api.github.com/users/torvalds")
+    .then(r => r.json())
+    .then(data => {
+        console.log("Ism:", data.name);
+        console.log("Joy:", data.location);
+        console.log("Public repos:", data.public_repos);
+    });
 
-# Network tab da har resursni ko'rishingiz mumkin:
-#   Status (200 OK?)
-#   Type (HTML, CSS, JS, image)
-#   Size va Time
+// ─── BLOKA 3: Sahifaning 3 qismi (HTML+CSS+JS) ──────
+console.log(document.title);
+document.body.style.background = "linear-gradient(45deg, #ff6ec4, #7873f5)";
 
-# ─── HTTP so'rov yuborish — Python bilan ────────────
-import urllib.request
+let btn = document.createElement("button");
+btn.textContent = "Bosing!";
+btn.style.cssText = "position:fixed;top:20px;right:20px;padding:10px;z-index:9999";
+btn.onclick = () => alert("Sahifani men o'zgartirdim!");
+document.body.appendChild(btn);
 
-with urllib.request.urlopen("https://api.github.com") as response:
-    print("Status:", response.status)
-    print("Server:", response.headers.get("Server"))
-    # data = response.read()
-    # print(data[:200])
+// ─── XATO TUZOG'I: 404 ni ko'rish ───────────────────
+fetch("https://api.github.com/users/bumantxtaitarmiymis123abc")
+    .then(r => {
+        console.log("Status:", r.status);   // 404
+        console.log("OK?", r.ok);           // false
+    });
 """
 
 
@@ -1036,159 +1146,230 @@ with urllib.request.urlopen("https://api.github.com") as response:
 # L7 — Terminal va Git
 # ═════════════════════════════════════════════════════════════════════════════
 L7_TEXT = """\
-<h2>Terminal va Git — boshlovchilar uchun</h2>
+<h2>Terminal va Git — 10 daqiqada birinchi publik kodingiz</h2>
 
 <pre class="mermaid">
 flowchart LR
-    T["terminal"] -->|cd ls mkdir| FS["fayl tizim"]
-    T -->|git init| REPO["local repo"]
-    REPO -->|git add commit| STAGE["staged"]
-    STAGE -->|git push| GH["GitHub remote"]
-    GH --> WORLD["dunyo ko'radi"]
+    WEB["github.com web"] -->|1 Create repo| REPO["public repo"]
+    REPO -->|2 git clone| LOCAL["local papka"]
+    LOCAL -->|3 edit + add + commit| STAGE["snapshot"]
+    STAGE -->|4 git push| REPO
+    REPO --> WORLD["dunyo ko'radi"]
 </pre>
 
-<p>Ikki vosita har dasturchining doimiy hamrohi: <strong>terminal</strong> (matn orqali kompyuter bilan muloqot) va <strong>Git</strong> (kod tarixini saqlash). Bularni o'rganmasdan haqiqiy dasturchi bo'lib bo'lmaydi.</p>
+<h3>🏆 10 daqiqada g'alaba — birinchi publik repo</h3>
+<p>Hech qanday komanda yoki o'rnatish yo'q. Sizda faqat brauzer kerak. Oxirida — sizning kodingiz <code>github.com/sizning-ism/salom-dunyo</code> URL'da yashaydi.</p>
 
-<h3>Terminal nima?</h3>
-<p>Terminal — bu kompyuter bilan <strong>matn orqali</strong> muloqot qilish usuli. Tugmalar va sichqoncha o'rniga — komandalar yozasiz. Birinchi qarashda qiyin, lekin tezroq va kuchliroq.</p>
-<ul>
-<li><strong>Linux/macOS</strong>: Terminal ilovasi (avval o'rnatilgan)</li>
-<li><strong>Windows</strong>: PowerShell yoki Windows Terminal (yangi)</li>
-</ul>
-
-<h3>Eng muhim 10 ta komanda</h3>
-<table>
-<tr><th>Komanda</th><th>Vazifasi</th><th>Misol</th></tr>
-<tr><td><code>pwd</code></td><td>Hozir qayerdaman?</td><td><code>pwd</code> → <code>/home/aziz</code></td></tr>
-<tr><td><code>ls</code></td><td>Papkadagi fayllarni ko'rsat</td><td><code>ls -lah</code></td></tr>
-<tr><td><code>cd</code></td><td>Boshqa papkaga o't</td><td><code>cd Documents</code></td></tr>
-<tr><td><code>cd ..</code></td><td>Yuqori papkaga</td><td><code>cd ..</code></td></tr>
-<tr><td><code>mkdir</code></td><td>Yangi papka yarat</td><td><code>mkdir loyiha</code></td></tr>
-<tr><td><code>touch</code></td><td>Bo'sh fayl yarat</td><td><code>touch index.html</code></td></tr>
-<tr><td><code>cat</code></td><td>Fayl ichini ko'rsat</td><td><code>cat README.md</code></td></tr>
-<tr><td><code>rm</code></td><td>Faylni o'chir</td><td><code>rm old.txt</code></td></tr>
-<tr><td><code>cp</code></td><td>Nusxa olish</td><td><code>cp a.txt b.txt</code></td></tr>
-<tr><td><code>mv</code></td><td>Ko'chirish / nomini o'zgartirish</td><td><code>mv old new</code></td></tr>
-</table>
-<p><strong>Maslahat</strong>: <code>Tab</code> tugmasini bosib avtotugatishdan foydalaning. <code>cd Doc</code> + Tab → <code>cd Documents/</code>.</p>
-
-<h3>Git — nima va nima uchun?</h3>
-<p><strong>Git</strong> — bu kodingizning <strong>vaqt mashinasi</strong>. Har o'zgarishni saqlaydi, kerak bo'lsa ortga qaytarish mumkin. Jamoa bilan ishlashda — ajralmas.</p>
-<p>Tasavvur qiling: 200 qator yozdingiz, hammasini buzdingiz, ortga qaytmoqchisiz. Git'siz — yo'q. Git bilan — bitta komanda.</p>
-
-<h3>Git ish jarayoni — 4 qadam</h3>
+<h4>BLOKA 1 — Web UI bilan repo yaratish (faqat brauzer)</h4>
 <ol>
-<li><strong>Edit</strong>: faylni o'zgartirasiz (yangi qator yozasiz)</li>
-<li><strong>Add</strong>: o'zgarishlarni "staging" ga qo'shasiz (<code>git add</code>)</li>
-<li><strong>Commit</strong>: snapshot saqlaysiz xabar bilan (<code>git commit -m "..."</code>)</li>
-<li><strong>Push</strong>: serverga yuborasiz (<code>git push</code>)</li>
+<li>github.com'da ro'yxatdan o'ting (agar hisobingiz bo'lmasa)</li>
+<li>O'ng yuqorida <strong>+</strong> tugmasini bosing → <strong>New repository</strong></li>
+<li>Repository name: <code>salom-dunyo</code></li>
+<li><strong>Public</strong> ni tanlang</li>
+<li><strong>Initialize with README</strong> ga ✓ qo'ying</li>
+<li><strong>Create repository</strong> bosing</li>
+</ol>
+<p>Tabriklayman — sizda birinchi publik repo bor. URL: <code>github.com/SIZNING-ISM/salom-dunyo</code>. Bu havolani do'stingizga yuboring — ular ko'radi.</p>
+
+<h4>BLOKA 2 — Web orqali faylni tahrirlash</h4>
+<ol>
+<li>Repo ichida <code>README.md</code> ga bosing</li>
+<li>O'ng yuqoridagi <strong>qalam</strong> ikonkasini bosing</li>
+<li>Matnni o'zgartiring:
+<pre><code># Salom dunyo!
+
+Men Aziz, dasturlashni o'rganmoqdaman.
+
+## Mening rejam
+- HTML/CSS o'rganish
+- JavaScript bilan tanishish
+- Birinchi sahifani GitHub Pages'ga joylashtirish</code></pre>
+</li>
+<li>Pastga tushing → <strong>Commit message</strong>: "README ni yangiladim" → <strong>Commit changes</strong></li>
+</ol>
+<p>Mana, sizning birinchi commit'ingiz. Repo bosh sahifasiga qayting — README yangilangan. Tarix uchun <strong>Commits</strong> tugmasini bosing — 2 ta commit ko'rinadi.</p>
+
+<h4>BLOKA 3 — Endi terminal bilan (lokal kompyuterda)</h4>
+<p>Terminalni oching:</p>
+<ul>
+<li><strong>Mac</strong>: Cmd+Space → "Terminal" → Enter</li>
+<li><strong>Windows</strong>: Win → "PowerShell" → Enter</li>
+<li><strong>Linux</strong>: Ctrl+Alt+T</li>
+</ul>
+<p>Avval terminalda yashashni o'rganamiz — 5 ta komanda:</p>
+<pre><code>pwd                  # qayerdaman? — masalan /home/aziz
+ls                   # nima bor shu papkada?
+cd Desktop           # Desktop papkasiga o'tdim
+mkdir loyihalar      # yangi papka yaratdim
+cd loyihalar         # ichkariga kirdim</code></pre>
+<p>Endi GitHub'dagi repo'ni shu kompyuterga ko'chiramiz. Repo sahifasidagi yashil <strong>Code</strong> tugmasini bosing → HTTPS URL'ni nusxa oling. Terminalda:</p>
+<pre><code>git config --global user.name "Sizning Ism"
+git config --global user.email "siz@example.com"
+
+git clone https://github.com/SIZNING-ISM/salom-dunyo.git
+cd salom-dunyo
+ls                   # README.md ko'rinadi — bu o'sha fayl!</code></pre>
+<p><strong>Hayrat 1:</strong> GitHub'dagi fayllar endi lokal kompyuteringizda. <code>cat README.md</code> bilan ichini ko'ring.</p>
+
+<p>Endi lokal o'zgarish kiritamiz va GitHub'ga qaytarib yuboramiz:</p>
+<pre><code># Yangi fayl qo'shamiz
+echo "Salom!" > hello.txt
+
+# Git ga nima o'zgarganini ko'rsating
+git status                   # hello.txt — Untracked
+
+# Stage'ga qo'shish
+git add hello.txt
+
+# Snapshot saqlash
+git commit -m "hello.txt qo'shildi"
+
+# GitHub'ga yuborish
+git push</code></pre>
+<p>Brauzerga qayting → repo sahifasini yangilang (<kbd>F5</kbd>) → <code>hello.txt</code> ro'yxatda paydo bo'ldi. Lokal terminalda yozgan fayl endi internetda jonli!</p>
+
+<h3>🐛 Ataylab xato — git add ni unutamiz</h3>
+<p>Yangi faylni qo'shing-u, lekin git add ni o'tkazib yuboring:</p>
+<pre><code>echo "yana bitta" > yangi.txt
+git commit -m "yangi.txt qo'shildi"</code></pre>
+<p>Natija: <code>nothing to commit, working tree clean</code> yoki <code>untracked files: yangi.txt</code> ogohlantirishi. Sababi: git fayllarni 2 bosqichda saqlaydi. Birinchi <strong>stage</strong> (git add) — qaysi fayllarni saqlashni tanlash; ikkinchi <strong>commit</strong> — snapshot olish. <code>git add</code>'siz commit topa olmaydi. Tuzating:</p>
+<pre><code>git add yangi.txt
+git commit -m "yangi.txt qo'shildi"
+git push</code></pre>
+
+<h3>Endi tushuntiramiz — Terminal va Git asoslari</h3>
+
+<h4>Terminal nima va nega kerak?</h4>
+<p>Terminal — kompyuter bilan <strong>matn orqali</strong> muloqot. Sichqoncha + tugma o'rniga — komandalar yozasiz. Boshida qiyin, lekin: tez, takrorlanadigan, masofadan ishlaydi (server admin uchun majburiy).</p>
+
+<h4>Eng muhim 10 ta terminal komandasi</h4>
+<table>
+<tr><th>Komanda</th><th>Vazifa</th><th>Misol</th></tr>
+<tr><td><code>pwd</code></td><td>Qayerdaman?</td><td><code>pwd</code> → <code>/home/aziz</code></td></tr>
+<tr><td><code>ls</code></td><td>Papkani ko'rsat</td><td><code>ls -lah</code></td></tr>
+<tr><td><code>cd</code></td><td>Papkaga o't</td><td><code>cd Documents</code></td></tr>
+<tr><td><code>cd ..</code></td><td>Yuqori papka</td><td><code>cd ..</code></td></tr>
+<tr><td><code>mkdir</code></td><td>Yangi papka</td><td><code>mkdir loyiha</code></td></tr>
+<tr><td><code>touch</code></td><td>Bo'sh fayl</td><td><code>touch index.html</code></td></tr>
+<tr><td><code>cat</code></td><td>Fayl ichini ko'rsat</td><td><code>cat README.md</code></td></tr>
+<tr><td><code>echo</code></td><td>Yozish (yoki faylga)</td><td><code>echo "hi" > a.txt</code></td></tr>
+<tr><td><code>rm</code></td><td>Faylni o'chir</td><td><code>rm old.txt</code></td></tr>
+<tr><td><code>mv</code></td><td>Ko'chirish / nom</td><td><code>mv a.txt b.txt</code></td></tr>
+</table>
+<p><strong>Pro maslahat</strong>: <kbd>Tab</kbd> avtotugatish — yarim yozsangiz Tab bosing, qolganini terminal o'zi yozadi.</p>
+
+<h4>Git ish jarayoni — 4 bosqich</h4>
+<ol>
+<li><strong>Edit</strong> — faylni o'zgartirasiz</li>
+<li><strong>Add</strong> — <code>git add</code> bilan stage'ga qo'yasiz ("buni saqlamoqchiman")</li>
+<li><strong>Commit</strong> — <code>git commit -m "xabar"</code> bilan snapshot</li>
+<li><strong>Push</strong> — <code>git push</code> bilan GitHub'ga yuborasiz</li>
 </ol>
 
-<h3>Eng muhim Git komandalari</h3>
-<pre><code># Yangi loyiha boshlash
+<pre class="mermaid">
+flowchart LR
+    E["working dir"] -->|git add| S["staging"]
+    S -->|git commit| L["local history"]
+    L -->|git push| R["remote GitHub"]
+    R -->|git pull| L
+</pre>
+
+<h4>Eng muhim git komandalari</h4>
+<pre><code># Loyiha boshida (bir marta)
+git config --global user.name "..."
+git config --global user.email "..."
+
+# Mavjud repo'ni olish
+git clone URL
+
+# Yangi (bo'sh) loyiha boshlash
 git init
 
-# Holatni ko'rish (nima o'zgargan)
+# Holatni ko'rish
 git status
 
-# Yangi fayllarni qo'shish
-git add .                    # hammasini
-git add index.html           # bittasini
-
-# Snapshot saqlash
-git commit -m "Birinchi sahifa"
-
-# Tarixni ko'rish
-git log --oneline
-
-# GitHub ga yuborish
-git push origin main</code></pre>
-
-<h3>GitHub — Git uchun "ijtimoiy tarmoq"</h3>
-<p><strong>GitHub</strong> — bu sizning kodingizni saqlash va boshqalar bilan ulashish uchun platforma. Hozir har dasturchi GitHub'da hisobga ega bo'lishi shart — bu sizning <em>portfoliyo</em>ngiz.</p>
-<ul>
-<li>Bepul hisob: <a href="https://github.com">github.com</a></li>
-<li>Loyihalaringizni yuklang — kelajakdagi ish beruvchilar ko'radi</li>
-<li>Boshqalar kodini o'qing — bu ham o'rganish</li>
-<li><strong>GitHub Pages</strong> — bepul vebsite hosting (keyingi darsda ishlatamiz)</li>
-</ul>
-
-<h3>Birinchi marta sozlash</h3>
-<pre><code>git config --global user.name "Sizning Ismingiz"
-git config --global user.email "siz@example.com"
-
-# Tekshirish
-git config --list</code></pre>
-<p>Bu komandalar git'ga sizning kim ekanligingizni aytadi — har commit shu ism bilan saqlanadi.</p>
-
-<h3>.gitignore — Git ga nimani saqlamaslikni aytish</h3>
-<p>Ba'zi fayllar git'da bo'lmasligi kerak: parollar, katta video fayllar, build natijalari.</p>
-<pre><code># .gitignore fayli
-.env                # parollar
-node_modules/       # JavaScript paketlar
-__pycache__/        # Python keshi
-*.log               # log fayllar</code></pre>
-
-<h3>Eng ko'p uchraydigan xatolar</h3>
-<ul>
-<li><strong><code>git push</code> rad etiladi</strong>: remote'da yangi commit bor. Avval <code>git pull</code> qiling.</li>
-<li><strong><code>git commit</code> ishlamaydi</strong>: <code>git add</code> qilmagansiz</li>
-<li><strong>Parolingizni so'raydi</strong>: GitHub endi parol qabul qilmaydi. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens">Personal Access Token</a> ishlatish kerak.</li>
-</ul>
-"""
-
-L7_CODE = """\
-# Terminal + Git — birinchi loyiha yaratish
-
-# ─── Terminal komandalari ───────────────────────
-# Yangi papka yaratish va kirish
-mkdir mening-birinchi-saytim
-cd mening-birinchi-saytim
-
-# Fayl yaratish
-touch index.html
-touch README.md
-
-# Faylni o'zgartirish (nano yoki sizning muharriringiz)
-# nano index.html
-
-# Papkadagi fayllarni ko'rish
-ls -lah
-
-
-# ─── Git boshlash ───────────────────────────────
-# Birinchi marta — git ni sozlash (bir marta qilinadi)
-git config --global user.name "Sizning Ismingiz"
-git config --global user.email "siz@example.com"
-
-# Yangi loyiha — git tarixini boshlash
-git init
-
-# Holat
-git status
-
-# Hamma fayllarni qo'shish
-git add .
-
-# Snapshot saqlash
-git commit -m "Birinchi commit: bo'sh sahifa"
+# Stage va commit
+git add fayl.txt           # bittasini
+git add .                  # hammasini
+git commit -m "xabar"
 
 # Tarix
 git log --oneline
 
+# Sync
+git push                   # GitHub'ga yubor
+git pull                   # GitHub'dan ol</code></pre>
 
-# ─── GitHub ga yuborish ─────────────────────────
-# 1. github.com da yangi (bo'sh) repo yarating
-# 2. URL ni nusxa oling
-# 3. Local repo'ga remote sifatida qo'shing:
+<h4>.gitignore — git'ga nimani UNUTISHNI aytish</h4>
+<p>Ba'zi fayllar git'da bo'lmasligi kerak: parollar, katta build natijalari, paket papkalari.</p>
+<pre><code># .gitignore fayli
+.env                # maxfiy parollar
+node_modules/       # JS paketlari
+__pycache__/        # Python cache
+*.log               # log fayllar
+.DS_Store           # macOS xizmat fayli</code></pre>
 
-git remote add origin https://github.com/SIZNING-USERNAME/mening-birinchi-saytim.git
+<h4>Eng ko'p uchraydigan 3 ta xato</h4>
+<table>
+<tr><th>Xato</th><th>Sabab</th><th>Yechim</th></tr>
+<tr><td><code>nothing to commit</code></td><td><code>git add</code> qilmagansiz</td><td><code>git add</code> + qaytadan commit</td></tr>
+<tr><td><code>push rejected</code></td><td>Remote'da yangi commit bor</td><td><code>git pull</code> → keyin push</td></tr>
+<tr><td><code>Authentication failed</code></td><td>Parol ishlamaydi — token kerak</td><td>GitHub Settings → Personal Access Token</td></tr>
+</table>
 
-# Yuborish
-git branch -M main
-git push -u origin main
+<h3>📌 Bu darsdan keyin siz bilasizki</h3>
+<ul>
+<li>GitHub'da repo yaratish — web UI orqali ham, terminal orqali ham mumkin</li>
+<li>Terminal — pwd, ls, cd, mkdir, touch — kunlik komandalar</li>
+<li>Git workflow: edit → add → commit → push</li>
+<li><code>git add</code> va <code>git commit</code> alohida bosqichlar — stage qaysi fayllarni saqlashni boshqaradi</li>
+<li><code>.gitignore</code> bilan parollar va kesh git'ga tushmaydi</li>
+<li><code>git clone</code> — remote repo'ni lokal'ga ko'chiradi; <code>git push</code> — orqaga yuboradi</li>
+</ul>
+"""
 
-# Tabriklayman! Sizning kodingiz endi GitHub'da.
+L7_CODE = """\
+# ═══ DARS 7 — TERMINAL + GIT BIRINCHI SAYKLI ═══
+
+# ─── BLOKA 1: WEB UI orqali repo (brauzer) ──────
+# github.com → + → New repository
+# Name: salom-dunyo  → Public → Init with README → Create
+# Sizda endi: github.com/SIZNING-ISM/salom-dunyo
+
+# ─── BLOKA 2: Terminal asoslari ─────────────────
+pwd                              # qayerdaman?
+ls                               # nima bor?
+cd Desktop                       # papkaga o'tdim
+mkdir loyihalar && cd loyihalar  # yangi papka + ichkari
+
+# ─── BLOKA 3: Lokal sykl (clone → edit → push) ──
+git config --global user.name "Sizning Ism"
+git config --global user.email "siz@example.com"
+
+git clone https://github.com/SIZNING-ISM/salom-dunyo.git
+cd salom-dunyo
+ls                               # README.md — GitHub'dan keldi
+cat README.md                    # ichini ko'rish
+
+# Yangi fayl + commit + push
+echo "Salom!" > hello.txt
+git status                       # hello.txt — Untracked
+git add hello.txt
+git commit -m "hello.txt qo'shildi"
+git push                         # brauzerni F5 bosing — hello.txt jonli!
+
+# ─── XATO TUZOG'I: git add ni unutish ───────────
+echo "yana bitta" > yangi.txt
+git commit -m "yangi.txt qo'shildi"   # XATO: nothing to commit
+# Tuzatish:
+git add yangi.txt
+git commit -m "yangi.txt qo'shildi"
+git push
+
+# ─── Tez-tez kerak ──────────────────────────────
+git log --oneline                # tarix
+git status                       # nima o'zgargan
+git pull                         # remote'dan yangiliklar
 """
 
 
@@ -1200,99 +1381,167 @@ L8_TEXT = """\
 
 <pre class="mermaid">
 flowchart LR
-    F["index.html"] --> R["git repo"]
-    R -->|git push| GH["GitHub"]
-    GH -->|Pages enabled| URL["yourname.github.io"]
+    F["index.html"] --> LOCAL["dbl click brauzer"]
+    F --> REPO["git push"]
+    REPO --> GH["GitHub"]
+    GH -->|Pages on| URL["yourname.github.io"]
     URL --> WORLD["publik URL"]
-    YOU["siz"] -.->|share link| FR["do'stlar ish beruvchilar"]
 </pre>
 
-<p>Mana, kursning yakuniy darsi. Endi biz hammasini birga ishlatamiz: HTML (struktura), Git (saqlash), GitHub (uzoq saqlash) va <strong>GitHub Pages</strong> (bepul hosting). 30 daqiqada — sizning birinchi sahifangiz internetda yashaydi.</p>
+<h3>🏆 5 daqiqada g'alaba — kompyuterda jonli sahifa</h3>
+<p>Hech qanday tarmoq, hosting yoki server kerak emas. Brauzeringiz HTML faylni <strong>to'g'ridan-to'g'ri</strong> ochib, sahifani ko'rsata oladi.</p>
 
-<h3>GitHub Pages nima?</h3>
-<p>GitHub Pages — bu bepul vebsite hosting xizmati. Repo ichidagi HTML/CSS/JS fayllarni avtomatik publik URL ga joylashtiradi. Format: <code>yourusername.github.io/repo-nomi</code>.</p>
-<p>Bu — talabalar uchun <strong>oltin</strong>: hech qanday hosting to'lovi yo'q, oddiy, ishonchli. Real veb-saytlar GitHub Pages'da joylashgan: jamoa loyihalari, blog, dokumentatsiya.</p>
-
-<h3>4 qadam — internetga chiqish</h3>
-
-<h4>1️⃣ HTML sahifani yarating</h4>
-<p>Oddiy "About me" sahifasini yozing. Ko'p narsa kerak emas — sodda va aniq.</p>
+<h4>BLOKA 1 — Yangi fayl, jonli sahifa</h4>
+<ol>
+<li>Ish stolida yangi papka yarating: <code>mening-sahifam</code></li>
+<li>O'sha papka ichida yangi matn fayli yarating, nomini <strong>aynan</strong> <code>index.html</code> qo'ying (txt emas!)</li>
+<li>Fayl ichini quyidagicha to'ldiring (Notepad, TextEdit, VS Code — har qanday muharrir):</li>
+</ol>
 <pre><code>&lt;!DOCTYPE html&gt;
 &lt;html lang="uz"&gt;
 &lt;head&gt;
     &lt;meta charset="UTF-8"&gt;
-    &lt;title&gt;Aziz Karimov — Frontend talabasi&lt;/title&gt;
-    &lt;style&gt;
-        body {
-            font-family: sans-serif;
-            max-width: 600px;
-            margin: 40px auto;
-            padding: 0 20px;
-            line-height: 1.6;
-        }
-        h1 { color: #6c5ce7; }
-        a { color: #6c5ce7; }
-    &lt;/style&gt;
+    &lt;title&gt;Mening birinchi sahifam&lt;/title&gt;
 &lt;/head&gt;
 &lt;body&gt;
-    &lt;h1&gt;Salom, men Aziz! 👋&lt;/h1&gt;
-    &lt;p&gt;Men 20 yoshli talaba va dasturlashni o'rganmoqdaman.&lt;/p&gt;
-    &lt;h2&gt;Hozir o'rganayotganlarim&lt;/h2&gt;
-    &lt;ul&gt;
-        &lt;li&gt;HTML va CSS&lt;/li&gt;
-        &lt;li&gt;JavaScript&lt;/li&gt;
-        &lt;li&gt;Python&lt;/li&gt;
-    &lt;/ul&gt;
-    &lt;h2&gt;Aloqa&lt;/h2&gt;
-    &lt;p&gt;Telegram: &lt;a href="https://t.me/aziz"&gt;@aziz&lt;/a&gt;&lt;/p&gt;
-    &lt;p&gt;GitHub: &lt;a href="https://github.com/aziz"&gt;github.com/aziz&lt;/a&gt;&lt;/p&gt;
+    &lt;h1&gt;Salom, dunyo!&lt;/h1&gt;
+    &lt;p&gt;Mana, mening birinchi sahifam.&lt;/p&gt;
 &lt;/body&gt;
 &lt;/html&gt;</code></pre>
+<p>Faylni saqlang. Endi <strong>fayl ustiga ikki marta bosing</strong> — brauzer ochiladi va sahifangizni ko'rsatadi. URL qatorida: <code>file:///.../mening-sahifam/index.html</code>. Tabriklayman — sizda jonli HTML sahifa bor.</p>
 
-<h4>2️⃣ Git va GitHub'ga joylash</h4>
-<pre><code># Loyiha papkasi ichida
-git init
+<h4>BLOKA 2 — Dizayn qo'shamiz (CSS)</h4>
+<p><code>&lt;/title&gt;</code> dan keyin va <code>&lt;/head&gt;</code> dan oldin <code>&lt;style&gt;</code> blokini qo'shing:</p>
+<pre><code>&lt;style&gt;
+    body {
+        font-family: sans-serif;
+        max-width: 600px;
+        margin: 60px auto;
+        padding: 0 20px;
+        color: #1a1a2e;
+        background: linear-gradient(135deg, #fafafd, #e8e9f7);
+        line-height: 1.6;
+    }
+    h1 {
+        color: #6c5ce7;
+        font-size: 3em;
+        margin-bottom: 10px;
+    }
+&lt;/style&gt;</code></pre>
+<p>Faylni saqlang (<kbd>Ctrl+S</kbd>) → brauzerda <kbd>F5</kbd> bosing. Mana, dizayn paydo bo'ldi — gradient fon, katta binafsha sarlavha. CSS sahifaning "kostyumi".</p>
+
+<h4>BLOKA 3 — Interaktivlik qo'shamiz (JS)</h4>
+<p><code>&lt;/body&gt;</code> dan oldin tugma va JavaScript qo'shing:</p>
+<pre><code>&lt;button id="say-hi"&gt;Bosing!&lt;/button&gt;
+&lt;p id="output"&gt;&lt;/p&gt;
+
+&lt;script&gt;
+    let count = 0;
+    document.getElementById("say-hi").onclick = () =&gt; {
+        count = count + 1;
+        document.getElementById("output").textContent =
+            "Siz tugmani " + count + " marta bosdingiz!";
+    };
+&lt;/script&gt;</code></pre>
+<p>Saqlang → F5 → tugmani bir necha marta bosing. Hisoblagich oshib boradi. <strong>3 ta texnologiya birga ishlamoqda</strong>: HTML (struktura), CSS (rang), JavaScript (interaktivlik).</p>
+
+<h3>🐛 Ataylab xato — kichik harf masalasi</h3>
+<p>Sinab ko'ring: papka ichida fayl nomini <code>Index.HTML</code> qiling. Brauzer URL qatorida <code>index.html</code> deb yozing va Enter bosing. Linux/Mac da — <strong>404 yoki ochilmaydi</strong>; Windows da — ochiladi. Sababi: serverlar (va Linux) <strong>katta-kichik harflarga sezgir</strong>. <code>Index.HTML</code> ≠ <code>index.html</code>. GitHub Pages — Linux serverda turadi. Qoida: fayl nomlari har doim kichik harfda, bo'sh joysiz, <code>my-page.html</code> ko'rinishida.</p>
+
+<h3>Endi internetga chiqaramiz — GitHub Pages 4 qadam</h3>
+
+<h4>1️⃣ Lokal repo'ni tayyorlang</h4>
+<p>Terminalni <code>mening-sahifam</code> papkasi ichida oching. Avvalgi darsdagi git komandalarini ishlating:</p>
+<pre><code>git init
 git add .
-git commit -m "Birinchi sahifa: about me"
+git commit -m "Birinchi sahifa"</code></pre>
 
-# GitHub'da yangi repo yarating: about-me yoki yourname.github.io
-# Keyin local ni unga ulang:
-git remote add origin https://github.com/USERNAME/about-me.git
+<h4>2️⃣ GitHub'da repo yarating</h4>
+<p>github.com → + → New repository. Tavsiya: nomini aynan <strong><code>SIZNING-USERNAME.github.io</code></strong> qo'ying (kichik harflarda). Bu maxsus nom — URL'ingiz <code>https://SIZNING-USERNAME.github.io/</code> bo'ladi (root URL).</p>
+
+<h4>3️⃣ Lokalni GitHub'ga ulang</h4>
+<pre><code>git remote add origin https://github.com/SIZNING-USERNAME/SIZNING-USERNAME.github.io.git
 git branch -M main
 git push -u origin main</code></pre>
 
-<h4>3️⃣ GitHub Pages ni yoqing</h4>
+<h4>4️⃣ Pages'ni yoqing (faqat boshqa nom uchun)</h4>
+<p>Agar repo nomi <code>SIZNING-USERNAME.github.io</code> bo'lsa — Pages avtomatik yoqiladi. Boshqa nom (masalan <code>about-me</code>) bo'lsa:</p>
 <ol>
-<li>GitHub'da repo sahifasiga kiring</li>
-<li><strong>Settings</strong> → <strong>Pages</strong> bo'limi</li>
-<li>"Branch" ni <code>main</code> ga qo'ying va Save</li>
-<li>1-2 daqiqa kuting</li>
+<li>Repo → <strong>Settings</strong> → <strong>Pages</strong></li>
+<li>Source: Deploy from a branch</li>
+<li>Branch: <code>main</code> → <code>/ (root)</code> → Save</li>
+<li>1–2 daqiqa kuting</li>
+<li>Yashil banner: "Your site is live at <strong>https://SIZNING-USERNAME.github.io/about-me/</strong>"</li>
 </ol>
+<p>Bu URL'ni do'stlaringizga yuboring. Resume'ga qo'shing. Telegram'da ulashing. <strong>Internetda sizning izingiz bor</strong> — kompyuteringiz o'chsa ham, sahifa ishlaydi.</p>
 
-<h4>4️⃣ URL ni oling va ulashing!</h4>
-<p>Settings → Pages'da yashil tasma paydo bo'ladi: "Your site is live at <strong>https://USERNAME.github.io/about-me/</strong>"</p>
-<p>Bu — sizning sahifangiz. Telegram'da ulashing. Resume'ga qo'shing. Birinchi haqiqiy onlayn izingiz.</p>
+<h3>Endi tushuntiramiz — nima sodir bo'ldi</h3>
 
-<h3>Maxsus repo: <code>USERNAME.github.io</code></h3>
-<p>Agar repo nomingizni aynan <code>SIZNING-USERNAME.github.io</code> qilsangiz, URL <code>https://SIZNING-USERNAME.github.io/</code> bo'ladi — bu sizning "asosiy" sahifangiz. Tavsiya etamiz.</p>
-
-<h3>Keyingi qadam — qaysi kursni tanlay?</h3>
-<p>Tabriklaymiz! Siz dasturlash dunyosiga kirdingiz. Endi yo'lni tanlash vaqti:</p>
+<h4>3 ta texnologiya qanday birga ishlaydi</h4>
 <table>
-<tr><th>Agar siz ...</th><th>Keyingi kurs</th></tr>
-<tr><td>Vizual natija va veb-saytlarni sevsangiz</td><td>📘 <strong>HTML CSS</strong> kursi</td></tr>
-<tr><td>Saytlarni jonlantirmoqchi bo'lsangiz</td><td>📗 <strong>Javascript</strong> kursi</td></tr>
-<tr><td>Keng imkoniyatlarni va AI'ni xohlasangiz</td><td>📕 <strong>Python Asoslari</strong></td></tr>
-<tr><td>Python'ni bilsangiz va veb-ilovalar quring</td><td>📓 <strong>Python Flask</strong></td></tr>
+<tr><th>Texnologiya</th><th>Vazifa</th><th>Misol</th></tr>
+<tr><td>HTML</td><td>Sahifa <strong>tuzilishi</strong></td><td><code>&lt;h1&gt;</code>, <code>&lt;p&gt;</code>, <code>&lt;button&gt;</code></td></tr>
+<tr><td>CSS</td><td>Sahifa <strong>ko'rinishi</strong></td><td>rang, shrift, joylashuv</td></tr>
+<tr><td>JavaScript</td><td>Sahifa <strong>xulq-atvori</strong></td><td>click, hisoblagich, animatsiya</td></tr>
 </table>
 
-<h3>3 ta yakuniy maslahat</h3>
-<ol>
-<li><strong>Har kuni 30 daqiqa</strong> — haftada 3 soatdan ko'ra yaxshi</li>
-<li><strong>Loyiha quring</strong> — faqat o'qish — yetarli emas. Yozish, buzish, qayta qurish</li>
-<li><strong>Sabr qiling</strong> — birinchi 3 oy — eng qiyin. Keyin oson bo'lib boradi</li>
-</ol>
-<p>Yo'lda omad! Endi haqiqiy o'rganish boshlanadi. 🚀</p>
+<h4>HTML eng kamida nima kerak?</h4>
+<ul>
+<li><code>&lt;!DOCTYPE html&gt;</code> — brauzerga "bu HTML5"</li>
+<li><code>&lt;html&gt;</code> — butun sahifaning idishi</li>
+<li><code>&lt;head&gt;</code> — sahifa haqida ma'lumot (title, meta, CSS)</li>
+<li><code>&lt;body&gt;</code> — ko'rinadigan tarkib</li>
+</ul>
+
+<h4>file:// vs https://</h4>
+<ul>
+<li><code>file:///home/aziz/.../index.html</code> — fayl bevosita siz turgan kompyuterdan ochilgan. Faqat siz ko'rasiz.</li>
+<li><code>https://aziz.github.io/</code> — internetdagi server'dan, dunyodagi har kim ko'radi.</li>
+</ul>
+<p>Lokal sinov uchun <code>file://</code> yetarli. Lekin <code>fetch()</code> va boshqa "haqiqiy" funksiyalar faqat <code>http(s)://</code> da to'liq ishlaydi.</p>
+
+<h4>GitHub Pages — nima yaxshi, nima yo'q</h4>
+<table>
+<tr><th>✅ Ishlaydi</th><th>❌ Ishlamaydi</th></tr>
+<tr><td>HTML, CSS, JavaScript</td><td>Python, Node, PHP (backend)</td></tr>
+<tr><td>Statik sahifa</td><td>Ma'lumotlar bazasi (PostgreSQL, ...)</td></tr>
+<tr><td>API'larga so'rov (frontend)</td><td>Login tizimi (server logikasi)</td></tr>
+<tr><td>To'liq bepul</td><td>Real-time websocket server</td></tr>
+</table>
+<p>GitHub Pages — frontend uchun mukammal. Backend kerak bo'lsa — keyingi kurslar (Python Flask, Node) buni qoplaydi.</p>
+
+<h3>🎓 CAPSTONE topshiriq</h3>
+<p>"About me" sahifa yarating va GitHub Pages'ga joylang. Minimum talablar:</p>
+<ul>
+<li>Sarlavha (ism) + 1 abzats tanishuv</li>
+<li>2 ta ro'yxat: hozir o'rganayotganlaringiz, kelajak maqsadlar</li>
+<li>Aloqa havolalari (Telegram, email, GitHub)</li>
+<li>O'z CSS dizayningiz — kamida rang va shrift tanlangan</li>
+<li>Mobile'da yaxshi ko'rinadi (<code>viewport</code> meta tegi va max-width)</li>
+<li>Real publik URL: <code>https://SIZNING-USERNAME.github.io/...</code></li>
+</ul>
+<p>O'qituvchiga URL'ni yuboring → tasdiqlanadi.</p>
+
+<h3>🧭 Keyingi qadam — qaysi kursni tanlay?</h3>
+<table>
+<tr><th>Agar siz...</th><th>Keyingi kurs</th></tr>
+<tr><td>Vizual sahifa va dizaynni sevsangiz</td><td>📘 <strong>HTML CSS</strong> chuqurroq</td></tr>
+<tr><td>Saytni jonlantirishni xohlasangiz</td><td>📗 <strong>JavaScript</strong></td></tr>
+<tr><td>Universal til va AI yo'lini xohlasangiz</td><td>📕 <strong>Python Asoslari</strong></td></tr>
+<tr><td>Backend va veb-ilovalar quring</td><td>📓 <strong>Python Flask</strong></td></tr>
+</table>
+
+<h3>📌 Bu darsdan keyin siz bilasizki</h3>
+<ul>
+<li><code>index.html</code> faylini yaratib, brauzerda ochish — server kerak emas</li>
+<li>HTML + CSS + JS — 3 texnologiya bir sahifada birga ishlaydi</li>
+<li>Fayl nomlari kichik harf, bo'sh joysiz — chunki GitHub Pages = Linux server</li>
+<li>GitHub Pages bepul, statik sahifalar uchun</li>
+<li>Maxsus repo <code>username.github.io</code> — root URL beradi</li>
+<li>Endi sizda dunyo ko'radigan publik URL bor</li>
+</ul>
+
+<p>Yo'lda omad! 🚀 Endi haqiqiy o'rganish boshlanadi — har kuni 30 daqiqa, har hafta yangi loyiha.</p>
 """
 
 L8_CODE = """\
@@ -1786,40 +2035,38 @@ LESSONS = [
     },
     {
         "order": 4, "title": "5-O'zgaruvchilar va turlar (universal)",
-        "text": L5_TEXT, "code": L5_CODE, "lang": "python",
+        "text": L5_TEXT, "code": L5_CODE, "lang": "javascript",
         "video": "https://youtu.be/v6Bm9JzkAv4",
         "exercises": [
-            mc("O'zgaruvchi nima?",
-               ["Qiymatni saqlash uchun nom (yorliqlangan quticha)",
-                "Algoritm turi",
-                "Funksiya nomi",
-                "Fayl turi"],
-               "A", diff="Easy", pts=2),
+            mc("Brauzer konsolida `typeof \"Aziz\"` qaysi natijani qaytaradi?",
+               ['"string"', '"number"', '"text"', '"object"'],
+               "A", explanation='Tirnoq ichidagi qiymat — har doim string turidagi.',
+               diff="Easy", pts=2),
             mc("Quyidagilardan qaysilari TO'G'RI o'zgaruvchi nomi?",
-               ["yosh", "foydalanuvchi_yoshi", "1ism", "user-name", "userName"],
+               ["yosh", "foydaYoshi", "1ism", "user-name", "_temp"],
                "A,B,E", multi=True,
-               hint="Raqamdan boshlanmaslik va '-' belgisi bo'lmasligi kerak.",
+               hint="Raqamdan boshlanmaslik va '-' belgisi bo'lmasligi kerak. _ ruxsat etilgan.",
                diff="Medium", pts=3),
-            mc("Statically typed va dynamically typed til farqi qaysi?",
-               ["Statically — tur oldindan e'lon qilinadi; dynamically — tur avtomatik aniqlanadi",
-                "Statically — sekin, dynamically — tez",
-                "Statically — eski, dynamically — yangi",
-                "Hech qanday farq yo'q"],
-               "A", hint="Java (statically): int yosh = 20. Python (dynamically): yosh = 20.",
+            mc("`let a = \"5\"; let b = 3; console.log(a + b);` — konsolda nima chiqadi?",
+               ['"53"', "8", '"8"', "Xato (TypeError)"],
+               "A",
+               explanation='a — string. String + number → JavaScript ikkalasini ham stringga aylantirib yopishtiradi. Number(a) + b qilsangiz 8 chiqadi.',
+               hint='Yodda tuting: matn bilan son qo\'shilsa — yopishtirish bo\'ladi.',
                diff="Medium", pts=3),
-            dd("Universal turlarni misol bilan moslang",
-               ["Integer — 20",
-                "Float — 3.14",
-                "String — \"Salom\"",
-                "Boolean — True",
-                "List — [1, 2, 3]"],
+            dd("Qiymatni mos turga ulang",
+               ['number — 20',
+                'string — "Aziz"',
+                'boolean — true',
+                'array — [1, 2, 3]',
+                'object — { ism: "Aziz" }'],
                diff="Medium", pts=3),
-            ti("Nima uchun yaxshi nom yaxshi koddir?",
-               "\"Kod bir marta yoziladi, lekin 100 marta o'qiladi\" — tajribali dasturchilar "
-               "shu qoidaga amal qiladi. Yaxshi nom: 1) sizning va kelajakdagi sizning vaqtingizni "
-               "tejaydi; 2) jamoa a'zolari kodni tezroq tushunadi; 3) hujjatlash kerak emas, kod o'zi "
-               "tushuntiradi; 4) bug topish osonlashadi. \"x = 25 * 0.12\" yomon — x nima? 0.12 "
-               "nima? \"soliq_summasi = mahsulot_narxi * SOLIQ_FOIZI\" yaxshi — har biri aniq.",
+            ti("`yosh = yosh + 1` qatori nima qiladi? Bosqichma-bosqich tushuntiring.",
+               "Bu qator 3 bosqichda ishlaydi: 1) o'ng tomon hisoblanadi — kompyuter yosh "
+               "qutichasidan eski qiymatni o'qiydi (masalan 20) va unga 1 qo'shadi (20 + 1 = 21); "
+               "2) natija (21) vaqtinchalik xotirada turadi; 3) chap tomondagi yosh qutichasiga "
+               "yangi qiymat (21) yoziladi — eski qiymat o'chiriladi. Natijada yosh qutichasi "
+               "ichida endi 21 turadi. Bu naqsh dasturlashda eng ko'p uchraydigan amal — counter "
+               "(hisoblagich) oshirish, ball qo'shish, indeks oldinga siljitish va h.k.",
                diff="Hard", pts=4),
         ],
     },
@@ -1828,42 +2075,44 @@ LESSONS = [
         "text": L6_TEXT, "code": L6_CODE, "lang": "javascript",
         "video": "https://youtu.be/guvsH5OFizE",
         "exercises": [
-            mc("HTTP nima?",
-               ["Brauzer va server orasida muloqot qilish protokoli",
-                "Faqat HTML yuklash usuli",
-                "Internet provayder turi",
-                "Operatsion tizim"],
-               "A", diff="Easy", pts=2),
-            mc("HTTP status kodi 404 nimani anglatadi?",
-               ["Hammasi yaxshi",
-                "Resurs topilmadi",
-                "Server xatosi",
-                "Sizga ruxsat yo'q"],
-               "B", diff="Easy", pts=2),
-            mc("Veb-sahifaning 3 ta asosiy qismi qaysilar?",
-               ["HTML (struktura)",
-                "CSS (dizayn)",
-                "JavaScript (interaktivlik)",
-                "Python",
-                "PHP"],
-               "A,B,C", multi=True,
+            mc("DevTools'da Network tab nimani ko'rsatadi?",
+               ["Brauzer va server o'rtasidagi har bir so'rov va javob",
+                "Faqat xato xabarlarini",
+                "Faqat tezlik testini",
+                "Internet provayder ma'lumotlarini"],
+               "A", explanation='Network tab — har bir HTTP so\'rovni real-time ko\'rsatadi: Status, Type, Size, Time.',
+               diff="Easy", pts=2),
+            mc("Konsolda `fetch(\"https://api.github.com/users/yo'qodam123abc\")` qaytarsa, Status qanday bo'ladi?",
+               ["200", "301", "404", "500"],
+               "C", hint='Yo\'q foydalanuvchi → server "topilmadi" deydi.',
+               explanation='404 = Not Found. Server topa olmadi → 4xx oilasidagi xato (sizning so\'rovingiz xato).',
+               diff="Easy", pts=2),
+            mc("HTTP method'lar qaysilari mavjud va to'g'ri ishlatiladi?",
+               ["GET — ma'lumot olish (sahifa yuklash)",
+                "POST — yangi ma'lumot yaratish (forma yuborish)",
+                "PUT — mavjud ma'lumotni yangilash",
+                "DELETE — o'chirish",
+                "RUN — funksiyani ishga tushirish"],
+               "A,B,C,D", multi=True,
+               explanation='RUN — yo\'q. Asosiy 4 ta: GET, POST, PUT (yoki PATCH), DELETE.',
                diff="Medium", pts=3),
-            dd("URL ga kirishdagi qadamlarni tartiblang",
-               ["Foydalanuvchi URL ni yozadi",
-                "Brauzer DNS dan IP manzilni so'raydi",
-                "DNS IP manzilni qaytaradi",
-                "Brauzer serverga HTTP so'rov yuboradi",
-                "Server HTML, CSS, JS qaytaradi",
-                "Brauzer sahifani ko'rsatadi"],
+            dd("URL ga kirishdagi qadamlarni to'g'ri tartibda joylang",
+               ["Foydalanuvchi google.com yozadi",
+                "Brauzer DNS'dan google.com ning IP manzilini so'raydi",
+                "DNS IP manzilni qaytaradi (masalan 142.250.180.46)",
+                "Brauzer o'sha IP'ga HTTP GET / so'rovini yuboradi",
+                "Server HTML, CSS, JS faylarini qaytaradi",
+                "Brauzer fayllarni o'qib, sahifani ekranga chiqaradi"],
                diff="Medium", pts=3),
-            ti("Frontend va backend orasidagi farqni tushuntiring",
-               "Frontend — foydalanuvchi ko'radigan va bevosita o'zaro aloqa qiladigan qism. "
-               "Brauzerda ishlaydi. HTML, CSS, JavaScript tilllarida yoziladi. Misol: tugmalar, "
-               "formalar, animatsiyalar, ranglar. Backend — server tomonda ishlaydi, "
-               "foydalanuvchi ko'rmaydi. Ma'lumotlar bazasi, autentifikatsiya, biznes mantiq. "
-               "Python (Django, Flask), Java, Node.js, Go, PHP. Frontend so'raydi — backend "
-               "javob qaytaradi. Misol: Telegram'da xabar yozish — frontend; o'sha xabarni "
-               "boshqa foydalanuvchiga yetkazish, saqlash — backend.",
+            ti("Konsolda `document.body.style.background = \"red\"` yozsangiz — fon qizil bo'ladi. F5 bosgandan keyin nima uchun yana eski rangga qaytadi?",
+               "O'zgarish faqat sizning brauzeringizning operativ xotirasida sodir bo'ldi, "
+               "serverda emas. Brauzer sahifani ko'rsatish uchun serverdan HTML/CSS/JS ni yuklab "
+               "olib, o'zining xotirasida (DOM) rasm chizadi. Siz o'sha DOM'ga teging — faqat "
+               "lokal o'zgarish. F5 bosganingizda brauzer sahifani serverdan qaytadan yuklaydi — "
+               "asl HTML/CSS qaytadan keladi, sizning lokal o'zgarishlaringiz tushib qoladi. "
+               "Doimiy o'zgarish kerak bo'lsa — serverda saqlanishi kerak (backend), yoki "
+               "brauzer'ning localStorage'iga yozish kerak. Bu farq frontend va backend "
+               "ajralishining mohiyati: frontend — vaqtinchalik ko'rinish, backend — doimiy haqiqat.",
                diff="Hard", pts=4),
         ],
     },
@@ -1872,44 +2121,49 @@ LESSONS = [
         "text": L7_TEXT, "code": L7_CODE, "lang": "bash",
         "video": "https://youtu.be/RGOj5yH7evk",
         "exercises": [
-            mc("Terminalda joriy papkani aniqlash uchun qaysi komanda?",
-               ["pwd", "cd", "ls", "where"],
-               "A", explanation="pwd — 'print working directory' qisqartmasi.",
+            mc("Terminalda `pwd` komandasi nima qiladi?",
+               ["Joriy ish papkasini ko'rsatadi (print working directory)",
+                "Parol o'rnatadi (password)",
+                "Fayllarni o'chiradi",
+                "Yangi papka yaratadi"],
+               "A", explanation="pwd = 'print working directory'. Har terminalda birinchi savol: 'qayerdaman?'",
                diff="Easy", pts=2),
-            mc("Git ish jarayonining to'g'ri tartibi qaysi?",
-               ["edit → add → commit → push",
-                "commit → add → edit → push",
-                "push → commit → add → edit",
-                "edit → commit → add → push"],
-               "A", diff="Easy", pts=2),
+            mc("Lokal o'zgarishni GitHub'da ko'rsatish uchun to'g'ri tartib qaysi?",
+               ["edit fayl → git add → git commit → git push",
+                "git push → edit fayl → git add → git commit",
+                "git commit → git add → edit fayl → git push",
+                "edit fayl → git commit → git push (git add kerak emas)"],
+               "A", hint='add — "saqlamoqchiman" deyish; commit — snapshot; push — GitHub\'ga jo\'natish.',
+               diff="Easy", pts=2),
             mc("Quyidagilardan qaysilari TO'G'RI Git komandalari?",
-               ["git init", "git add .", "git commit -m", "git push", "git delete"],
+               ["git clone URL",
+                "git status",
+                "git add .",
+                "git commit -m \"xabar\"",
+                "git delete fayl.txt"],
                "A,B,C,D", multi=True,
-               hint="git delete — bunday komanda yo'q. git rm bor.",
+               hint='git delete — yo\'q. Faylni o\'chirish: rm fayl.txt va keyin git add yoki git rm fayl.txt.',
                diff="Medium", pts=3),
-            mc("GitHub Pages nima?",
-               ["Bepul vebsite hosting (HTML/CSS/JS uchun)",
-                "GitHub'ning yangi versiyasi",
-                "Kommersiya hosting xizmati",
-                "Faqat dokumentatsiya uchun"],
-               "A", diff="Easy", pts=2),
-            dd("Birinchi marta git ni sozlash va birinchi commit qadamlari",
-               ["git config --global user.name \"Ismingiz\"",
-                "git config --global user.email \"siz@example.com\"",
-                "mkdir loyiha && cd loyiha",
-                "git init",
-                "echo \"Hello\" > README.md",
-                "git add README.md",
-                "git commit -m \"Birinchi commit\""],
+            dd("GitHub repo'ni klonlab birinchi o'zgarishni qaytarib yuborish qadamlarini tartiblang",
+               ["github.com'da repo yaratish (web UI)",
+                "Terminalda `git clone https://github.com/.../repo.git`",
+                "`cd repo` bilan ichkariga kirish",
+                "Faylni yaratish yoki tahrirlash (masalan `echo \"hi\" > hello.txt`)",
+                "`git add hello.txt` — stage'ga qo'shish",
+                "`git commit -m \"hello qo'shildi\"` — snapshot saqlash",
+                "`git push` — GitHub'ga yuborish"],
                diff="Medium", pts=3),
-            ti(".gitignore fayl nima va nima uchun kerak?",
-               ".gitignore — Git ga qaysi fayllar va papkalarni KUZATMASLIK kerakligini "
-               "aytadigan fayl. Loyiha ichidagi ba'zi narsalar Git'da bo'lmasligi kerak: "
-               "1) parol va maxfiy ma'lumotlar (.env fayl) — xavfsizlik; "
-               "2) katta paket fayllar (node_modules, __pycache__) — repo hajmini kichik tutish; "
-               "3) IDE va OS sozlamalari (.vscode, .DS_Store) — har odamning kompyuteri turlicha; "
-               "4) build natijalari (dist, build) — kerak bo'lganda qayta yaratiladi. "
-               ".gitignore yo'q bo'lsa, parollar GitHub'da xalqqa ko'rinib qoladi — eng katta xato.",
+            ti("`git add` va `git commit` nima uchun ALOHIDA bosqichlar? Nima uchun bittada qilmaydi?",
+               "Git fayllarni 3 ta zonada saqlaydi: 1) working directory — siz tahrir qilayotgan "
+               "joriy fayllar; 2) staging area — keyingi snapshot'ga qo'shmoqchi bo'lgan fayllar; "
+               "3) repository — saqlangan snapshotlar tarixi. git add fayl'ni working'dan "
+               "staging'ga ko'chiradi; git commit staging'dagi hammasini birgalikda snapshot "
+               "qiladi. Bu ajralishning sababi: bitta loyiha ustida ishlayotganda siz bir vaqtning "
+               "o'zida 10 ta faylni o'zgartirgan bo'lishingiz mumkin — lekin ulardan faqat 3 tasi "
+               "bir-biriga bog'liq va alohida commit'ga loyiq. git add bilan o'sha 3 tasini "
+               "tanlaysiz, commit qilasiz, keyin qolganlarini boshqa commit'da yuborasiz. "
+               "Bu — git'ning kuchli tomoni: tarixingiz toza va ma'noli bo'ladi, har commit bitta "
+               "fikrni anglatadi.",
                diff="Hard", pts=4),
         ],
     },
@@ -1918,39 +2172,44 @@ LESSONS = [
         "text": L8_TEXT, "code": L8_CODE, "lang": "html",
         "video": "https://youtu.be/2MsN8gpT6jY",
         "exercises": [
-            mc("GitHub Pages qaysi turdagi sahifalar uchun ishlatiladi?",
-               ["Statik (HTML, CSS, JS) sahifalar",
-                "Faqat Wordpress saytlar",
-                "Server-side rendered ilovalar",
-                "Faqat dokumentatsiya"],
-               "A", explanation="GitHub Pages statik HTML/CSS/JS uchun. Backend (Python, Node) yo'q.",
+            mc("`index.html` faylini ish stolida yaratib, ustiga ikki marta bossangiz — nima bo'ladi?",
+               ["Brauzer ochiladi va sahifani ko'rsatadi (file:// URL)",
+                "Hech narsa — server kerak",
+                "Faqat matn muharririda ochiladi",
+                "Internet aloqasi tekshiriladi"],
+               "A", explanation='Brauzer HTML faylni to\'g\'ridan-to\'g\'ri rasm chiza oladi — server ham, internet ham kerak emas.',
                diff="Easy", pts=2),
-            mc("Repo nomi <username>.github.io bo'lsa, URL qanday bo'ladi?",
-               ["https://username.github.io/",
-                "https://github.com/username/",
-                "https://username.github.com/",
-                "https://pages.github.io/username/"],
-               "A", hint="Maxsus format — root URL beradi.",
-               diff="Medium", pts=3),
             mc("HTML sahifa eng kamida qaysi teglarga ega bo'lishi kerak?",
                ["<!DOCTYPE html>", "<html>", "<head>", "<body>", "<title>"],
                "A,B,C,D,E", multi=True,
+               explanation='5 ta ham majburiy minimum: DOCTYPE → html → head (title bilan) → body.',
                diff="Medium", pts=3),
-            dd("GitHub Pages bilan sahifani ishga tushirish qadamlari",
-               ["Local'da index.html yaratish",
-                "git init va commit",
-                "GitHub'da yangi repo yaratish",
-                "git push origin main",
-                "Settings → Pages → branch tanlash",
-                "Yashil URL paydo bo'lishini kutish"],
+            mc("Repo nomi `aziz.github.io` bo'lsa, GitHub Pages URL'i qanday bo'ladi?",
+               ["https://aziz.github.io/",
+                "https://github.com/aziz/",
+                "https://aziz.github.com/",
+                "https://pages.github.io/aziz/"],
+               "A", hint='Maxsus repo nomi — root URL beradi (boshqa repo nomlari /repo-nomi/ qo\'shadi).',
                diff="Medium", pts=3),
-            ti("Sizning birinchi GitHub Pages sahifangiz qanday bo'lishi kerak — strategiya?",
-               "Mening birinchi GitHub Pages sahifam — bu mening dunyoga \"birinchi xat\"im. "
-               "Maqsadlar: 1) o'zimni qisqacha tanishtirish — kim, qayerdan, nima o'rganmoqdaman; "
-               "2) hozirgi va kelajakdagi o'qishim/maqsadlarim; 3) ulanish ma'lumotlari — Telegram, "
-               "GitHub, email; 4) loyihalar uchun joy qoldirish — keyinroq qo'shaman. Dizayn: sodda, "
-               "o'qishga oson, mobile-friendly. Ranglar: 1-2 ta asosiy + neutral. Shrift: standart "
-               "system fontlardan biri. Bu sahifa keyinchalik portfolio ga aylanadi.",
+            dd("Lokal HTML faylni publik GitHub Pages URL'ga aylantirish qadamlarini tartiblang",
+               ["Lokal'da `index.html` faylini yaratish va tahrir qilish",
+                "Terminalda `git init`, `git add .`, `git commit -m \"...\"`",
+                "github.com'da yangi repo yaratish (preferred: username.github.io)",
+                "`git remote add origin URL` va `git push -u origin main`",
+                "Repo Settings → Pages → branch=main → Save (agar maxsus nom emas bo'lsa)",
+                "1-2 daqiqa kutish — yashil banner'da publik URL paydo bo'ladi"],
+               diff="Medium", pts=3),
+            ti("Lokal'da `index.html` ishladi, GitHub Pages'ga push'dan keyin 404 chiqdi. Nima uchun va qanday topish/tuzatish?",
+               "Eng ko'p sabab — fayl nomida katta-kichik harf. Lokal kompyuter (ayniqsa Windows va "
+               "macOS default) fayl nomlarida katta-kichikni e'tiborga olmaydi: Index.HTML va "
+               "index.html bir xil deb biladi. GitHub Pages — Linux serverda turadi, Linux'da "
+               "Index.HTML va index.html — IKKI XIL fayl. Brauzer `https://username.github.io/` "
+               "ga kirganda server faqat `index.html` nomli faylni qidiradi — agar Index.HTML "
+               "bo'lsa, topa olmay 404 qaytaradi. Yechim: 1) `git mv Index.HTML index.html` "
+               "bilan kichik harflarga o'zgartirish; 2) commit + push; 3) brauzerda hard refresh "
+               "(Ctrl+Shift+R). Qoida: barcha fayl va papka nomlarini kichik harf + chiziqcha "
+               "ko'rinishida (`about-me.html`, `images/`) saqlash. Bu hosil odat butun "
+               "professional dasturlash uchun standard.",
                diff="Hard", pts=4),
         ],
     },

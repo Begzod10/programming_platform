@@ -116,6 +116,13 @@
 /* Mobile */
 @media (max-width: 480px) {
     .dsp-popup { padding: 6px 8px; gap: 6px; }
-    .dsp-btn   { font-size: 11px; padding: 6px 10px; }
+    .dsp-btn   { font-size: 11px; padding: 7px 11px; min-height: 32px; }
     .dsp-word  { max-width: 80px; font-size: 10.5px; }
+}
+
+/* Tiny phones — abbreviate word display + tighter padding */
+@media (max-width: 360px) {
+    .dsp-popup { padding: 5px 7px; gap: 5px; }
+    .dsp-btn   { font-size: 10.5px; padding: 6px 9px; }
+    .dsp-word  { max-width: 60px; font-size: 10px; }
 }

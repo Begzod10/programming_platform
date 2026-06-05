@@ -121,15 +121,75 @@
     gap: 22px;
 }
 
-/* ===== COURSE CARD ===== */
+/* ===== COURSE CARD =====
+   @dnd-kit puts `transform` and `transition` on the card via inline `style`
+   (set by useSortable). Rules to keep the drag smooth:
+     • Never animate `transform` from a CSS class — it would fight the
+       library's per-frame inline transform.
+     • Only transition `box-shadow` and `border-color` on the card itself.
+     • While dragging, opacity drops via inline style (set in JS) so the
+       neighbours' rearrangement animation reads clearly.
+*/
 .tc-course-card {
     background: rgba(255,255,255,0.97);
     border: 1px solid rgba(0,0,0,0.07);
     border-radius: 22px; overflow: hidden;
     box-shadow: 0 4px 20px rgba(0,0,0,0.07);
-    transition: all 0.3s cubic-bezier(0.4,0,0.2,1); cursor: pointer;
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+    cursor: pointer;
+    position: relative;
+    /* Hint the GPU — dnd-kit will animate transform on this element. */
+    will-change: transform;
+    touch-action: manipulation;
 }
-.tc-course-card:hover { transform: translateY(-5px); box-shadow: 0 16px 40px rgba(0,0,0,0.13); }
+.tc-course-card:hover {
+    box-shadow: 0 16px 40px rgba(0,0,0,0.13);
+    border-color: rgba(108,92,231,0.25);
+}
+/* While dragging: stronger shadow only. No transform/transition overrides
+   here — dnd-kit owns both via inline style. */
+.tc-course-card--dragging {
+    box-shadow: 0 24px 48px rgba(108,92,231,0.35);
+    cursor: grabbing;
+}
+.tc-course-card--dragging:hover { box-shadow: 0 24px 48px rgba(108,92,231,0.35); }
+
+/* Drag handle — small grip in the top-left of each card, only visible
+   on hover so it doesn't clutter the design. Clicking the handle does
+   nothing; the user grabs and drags. */
+.tc-drag-handle {
+    position: absolute;
+    top: 8px; left: 8px;
+    z-index: 5;
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.95);
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 8px;
+    cursor: grab;
+    font-size: 14px; font-weight: 700;
+    color: rgba(26,26,46,0.55);
+    user-select: none;
+    opacity: 0;
+    transition: opacity 0.18s ease, background 0.15s ease, color 0.15s ease;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+}
+.tc-course-card:hover .tc-drag-handle { opacity: 1; }
+.tc-drag-handle:hover { background: #6c5ce7; color: #fff; border-color: #6c5ce7; }
+.tc-drag-handle:active { cursor: grabbing; }
+.tc-course-card--dragging .tc-drag-handle { opacity: 1; background: #6c5ce7; color: #fff; }
+
+/* Hint shown when the chapter filter is active (reorder disabled). */
+.tc-reorder-hint {
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    background: rgba(108,92,231,0.06);
+    border: 1px dashed rgba(108,92,231,0.3);
+    border-radius: 10px;
+    font-size: 13px;
+    color: rgba(26,26,46,0.72);
+    font-family: 'Inter', sans-serif;
+}
 
 .tc-course-preview {
     position: relative; height: 190px;
@@ -314,39 +374,63 @@
    RESPONSIVE
    ============================================================ */
 
-@media (max-width: 768px) {
-    .tc-header h2 { font-size: 22px; }
-    .tc-courses-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-    .tc-modal { padding: 24px 20px; }
-    .tc-confirm { padding: 30px 24px 24px; }
+/* Laptop / tablet landscape (≤1024px) — grid tightens */
+@media (max-width: 1024px) {
+    .tc-container    { gap: 18px; }
+    .tc-courses-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .tc-header h2    { font-size: 23px; }
 }
 
+/* Tablet portrait (≤820px) — header still wide, grid stays 2+ cols */
+@media (max-width: 820px) {
+    .tc-header h2    { font-size: 22px; }
+    .tc-courses-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+    .tc-modal        { padding: 24px 20px; }
+    .tc-confirm      { padding: 30px 24px 24px; }
+}
+
+/* Mobile portrait (≤480px) — single column, modal as bottom sheet */
 @media (max-width: 480px) {
-    .tc-container { gap: 16px; }
-    .tc-header { flex-direction: column; align-items: flex-start; gap: 12px; }
-    .tc-header h2 { font-size: 20px; }
-    .tc-header-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .tc-chapter-btn, .tc-add-btn { width: 100%; text-align: center; padding: 11px 10px; font-size: 13px; }
+    .tc-container         { gap: 16px; }
+    .tc-header            { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .tc-header h2         { font-size: 20px; }
+    .tc-header-actions    { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .tc-chapter-btn,
+    .tc-add-btn           { width: 100%; text-align: center; padding: 11px 10px; font-size: 13px; min-height: 44px; }
 
-    .tc-courses-grid { grid-template-columns: 1fr; gap: 14px; }
-    .tc-course-preview { height: 160px; }
+    .tc-courses-grid      { grid-template-columns: 1fr; gap: 14px; }
+    .tc-course-preview    { height: 160px; }
 
-    /* Modal снизу */
-    .tc-modal-overlay { align-items: flex-end; padding: 0; }
-    .tc-modal { border-radius: 24px 24px 0 0; max-height: calc(100dvh - 40px); padding: 20px 16px; }
-    .tc-modal h3 { font-size: 18px; margin-bottom: 16px; }
-    .tc-modal-actions { flex-direction: column-reverse; gap: 8px; }
-    .tc-cancel-btn, .tc-save-btn { width: 100%; flex: none; }
+    /* Modal: bottom sheet */
+    .tc-modal-overlay     { align-items: flex-end; padding: 0; }
+    .tc-modal             { border-radius: 24px 24px 0 0; max-height: calc(100dvh - 40px); padding: 20px 16px; }
+    .tc-modal h3          { font-size: 18px; margin-bottom: 16px; }
+    .tc-modal-actions     { flex-direction: column-reverse; gap: 8px; }
+    .tc-cancel-btn,
+    .tc-save-btn          { width: 100%; flex: none; min-height: 44px; }
 
-    .tc-chapter-add-row { flex-direction: column; }
-    .tc-chapter-add-btn { width: 100%; padding: 11px; }
+    .tc-chapter-add-row   { flex-direction: column; }
+    .tc-chapter-add-btn   { width: 100%; padding: 11px; min-height: 44px; }
 
-    /* Confirm всегда по центру */
-    .tc-confirm { padding: 28px 20px 22px; border-radius: 20px; max-width: calc(100vw - 32px); }
-    .tc-confirm h4 { font-size: 18px; }
-    .tc-confirm-actions { flex-direction: column-reverse; gap: 8px; }
+    /* Confirm dialog stays centered (it's small enough) */
+    .tc-confirm           { padding: 28px 20px 22px; border-radius: 20px; max-width: calc(100vw - 32px); }
+    .tc-confirm h4        { font-size: 18px; }
+    .tc-confirm-actions   { flex-direction: column-reverse; gap: 8px; }
     .tc-confirm-actions .tc-cancel-btn,
-    .tc-confirm-actions .tc-delete-btn { width: 100%; flex: none; }
+    .tc-confirm-actions .tc-delete-btn { width: 100%; flex: none; min-height: 44px; }
+}
+
+/* Very small phones (≤360px) — header actions stack to 1 column */
+@media (max-width: 360px) {
+    .tc-header-actions { grid-template-columns: 1fr; }
+    .tc-header h2      { font-size: 18px; }
+}
+
+/* Mobile landscape — modal back to centered with margin (short height
+ * makes the bottom-sheet pattern eat the whole screen) */
+@media (max-height: 500px) and (orientation: landscape) {
+    .tc-modal-overlay { align-items: stretch; padding: 8px; }
+    .tc-modal         { max-height: 96vh; border-radius: 18px; }
 }
 .tc-publish-btn {
     display: inline-flex;

@@ -51,6 +51,7 @@ class CourseRead(CourseBase):
     instructor_name: Optional[str] = None
     is_active: bool
     is_published: bool
+    display_order: int = 0
     created_at: datetime
     updated_at: datetime
     progress_percentage: int = 0
@@ -59,6 +60,19 @@ class CourseRead(CourseBase):
     prerequisite_course_id: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CourseReorderItem(BaseModel):
+    """One entry in the bulk-reorder payload."""
+    id: int = Field(..., ge=1)
+    display_order: int = Field(..., ge=0)
+
+
+class CourseReorderRequest(BaseModel):
+    items: List[CourseReorderItem] = Field(
+        ..., min_length=1, max_length=500,
+        description="Each course you want to reposition, in the new order.",
+    )
 
 
 class CourseReadWithStudents(CourseRead):

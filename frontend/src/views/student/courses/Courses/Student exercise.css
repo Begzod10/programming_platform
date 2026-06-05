@@ -562,12 +562,71 @@
 }
 
 /* ── Responsive ── */
+/* Tablet portrait (≤820px) — slim padding; chips/inputs still comfortable */
+@media (max-width: 820px) {
+    .slp-ex-card        { border-radius: 16px; }
+    .slp-ex-card-body   { padding: 16px; gap: 12px; }
+    .slp-ex-card-head   { padding: 12px 16px 8px; }
+    .slp-ex-section-bar { gap: 6px; }
+    .slp-ex-card-title  { font-size: 14.5px; }
+    .slp-ex-question    { font-size: 14.5px; line-height: 1.6; }
+}
+
+/* Mobile portrait (≤480px) — primary breakpoint */
 @media (max-width: 480px) {
-    .slp-ex-card-body  { padding: 14px; gap: 12px; }
-    .slp-ex-card-head  { padding: 12px 14px 8px; }
-    .slp-ex-option-btn { padding: 11px 13px; font-size: 13px; }
-    .slp-ex-fill-input { width: 80px; font-size: 13px; }
-    .slp-ex-drag-chip  { padding: 6px 12px; font-size: 13px; }
-    .slp-ex-submit-btn { width: 100%; text-align: center; }
-    .slp-ex-retry-btn  { width: 100%; text-align: center; }
+    .slp-ex-card        { border-radius: 14px; }
+    .slp-ex-card-body   { padding: 14px; gap: 12px; }
+    .slp-ex-card-head   { padding: 12px 14px 8px; }
+    .slp-ex-card-title  { font-size: 14px; line-height: 1.45; }
+    .slp-ex-question    { font-size: 14px; line-height: 1.6; }
+
+    .slp-ex-option-btn  { padding: 11px 13px; font-size: 13.5px; gap: 10px; }
+    .slp-ex-opt-letter  { width: 26px; height: 26px; font-size: 11.5px; }
+
+    .slp-ex-fill-text   { font-size: 14px; line-height: 2.1; }
+    .slp-ex-fill-input  { width: 88px; font-size: 13px; padding: 3px 8px; }
+
+    .slp-ex-drag-chip   { padding: 8px 14px; font-size: 13px; min-height: 36px; }
+    .slp-ex-dropped-chip{ padding: 7px 12px; font-size: 12.5px; min-height: 36px; }
+    .slp-ex-dropzone    { min-height: 52px; padding: 8px 10px; gap: 6px; }
+
+    .slp-ex-textarea    { font-size: 14px; padding: 11px 12px; min-height: 96px; }
+
+    .slp-ex-hint-text   { font-size: 13px; padding: 10px 12px; }
+    .slp-ex-hint-btn    { font-size: 12.5px; padding: 7px 12px; }
+
+    .slp-ex-result-banner { font-size: 13.5px; padding: 11px 13px; gap: 10px; }
+    .slp-res-icon         { font-size: 20px; }
+
+    .slp-ex-ai-feedback      { padding: 12px 13px; }
+    .slp-ex-ai-feedback-text { font-size: 13px; }
+
+    /* Footer: actions stack so each tap target is full-width and
+     * stays above the WCAG 44px minimum. */
+    .slp-ex-actions     { flex-direction: column; align-items: stretch; gap: 8px; }
+    .slp-ex-submit-btn,
+    .slp-ex-retry-btn,
+    .slp-ex-done-label  { width: 100%; text-align: center; justify-content: center; min-height: 44px; padding: 12px 18px; }
+
+    /* Section header pills wrap and shrink */
+    .slp-ex-section-count,
+    .slp-ex-section-pts { font-size: 12px; padding: 4px 11px; }
+}
+
+/* Very small phones (≤360px) — squeeze further but keep tap targets */
+@media (max-width: 360px) {
+    .slp-ex-card-body  { padding: 12px; gap: 10px; }
+    .slp-ex-card-title { font-size: 13.5px; }
+    .slp-ex-question   { font-size: 13.5px; }
+    .slp-ex-option-btn { padding: 10px 11px; font-size: 13px; }
+    .slp-ex-drag-chip  { font-size: 12.5px; padding: 7px 12px; }
+    .slp-ex-fill-input { width: 76px; }
+}
+
+/* Mobile landscape (short viewport) — collapse the dropzone min-height
+ * so it doesn't eat half the screen when phone is sideways. */
+@media (max-height: 500px) and (orientation: landscape) {
+    .slp-ex-dropzone   { min-height: 44px; }
+    .slp-ex-textarea   { min-height: 72px; }
+    .slp-ex-card-body  { gap: 10px; padding: 12px 14px; }
 }
