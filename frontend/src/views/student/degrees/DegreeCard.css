@@ -341,16 +341,24 @@
    RESPONSIVE
    ============================================================ */
 
-@media (max-width: 768px) {
-    .deg-header { padding: 20px; border-radius: 16px; }
-    .deg-title { font-size: 20px; }
-    .deg-card { padding: 14px 16px; gap: 12px; border-radius: 14px; }
-    .deg-icon-wrap { width: 44px; height: 44px; font-size: 22px; border-radius: 12px; }
-    .deg-icon-wrap img { width: 28px; height: 28px; }
-    .deg-name { font-size: 14px; }
-    .deg-action { flex-direction: row; align-items: center; }
+/* Laptop / tablet landscape (≤1024px) — minor compression */
+@media (max-width: 1024px) {
+    .deg-header { padding: 22px 24px; }
+    .deg-title  { font-size: 22px; }
+    .deg-card   { padding: 16px 18px; gap: 14px; }
+}
+
+/* Tablet portrait (≤820px) */
+@media (max-width: 820px) {
+    .deg-header          { padding: 20px; border-radius: 16px; }
+    .deg-title           { font-size: 20px; }
+    .deg-card            { padding: 14px 16px; gap: 12px; border-radius: 14px; }
+    .deg-icon-wrap       { width: 44px; height: 44px; font-size: 22px; border-radius: 12px; }
+    .deg-icon-wrap img   { width: 28px; height: 28px; }
+    .deg-name            { font-size: 14px; }
+    .deg-action          { flex-direction: row; align-items: center; }
     .deg-certified-stamp { display: none; }
-    .deg-progress-bar { max-width: 100px; }
+    .deg-progress-bar    { max-width: 100px; }
 }
 
 @media (max-width: 480px) {
@@ -381,6 +389,23 @@
         padding-top: 10px;
         margin-top: 2px;
     }
-    .deg-download-btn { flex: 1; justify-content: center; font-size: 12px; }
+    .deg-download-btn { flex: 1; justify-content: center; font-size: 12px; min-height: 40px; }
     .deg-lock-badge   { flex: 1; text-align: center; }
+}
+
+/* Tiny phones (≤360px) — even tighter */
+@media (max-width: 360px) {
+    .deg-header   { padding: 16px 14px; }
+    .deg-title    { font-size: 17px; }
+    .deg-card     { padding: 12px; gap: 8px; }
+    .deg-icon-wrap{ width: 36px; height: 36px; font-size: 18px; }
+    .deg-name     { font-size: 13px; }
+    .deg-info     { flex-basis: calc(100% - 48px); }
+}
+
+/* Mobile landscape — header back to horizontal row since width is plenty */
+@media (max-height: 500px) and (orientation: landscape) {
+    .deg-header              { flex-direction: row; align-items: center; padding: 14px 18px; }
+    .deg-progress-ring-wrap  { align-self: center; margin-top: 0; }
+    .deg-card                { padding: 12px 14px; gap: 10px; }
 }
