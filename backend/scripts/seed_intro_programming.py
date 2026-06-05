@@ -1146,159 +1146,230 @@ fetch("https://api.github.com/users/bumantxtaitarmiymis123abc")
 # L7 — Terminal va Git
 # ═════════════════════════════════════════════════════════════════════════════
 L7_TEXT = """\
-<h2>Terminal va Git — boshlovchilar uchun</h2>
+<h2>Terminal va Git — 10 daqiqada birinchi publik kodingiz</h2>
 
 <pre class="mermaid">
 flowchart LR
-    T["terminal"] -->|cd ls mkdir| FS["fayl tizim"]
-    T -->|git init| REPO["local repo"]
-    REPO -->|git add commit| STAGE["staged"]
-    STAGE -->|git push| GH["GitHub remote"]
-    GH --> WORLD["dunyo ko'radi"]
+    WEB["github.com web"] -->|1 Create repo| REPO["public repo"]
+    REPO -->|2 git clone| LOCAL["local papka"]
+    LOCAL -->|3 edit + add + commit| STAGE["snapshot"]
+    STAGE -->|4 git push| REPO
+    REPO --> WORLD["dunyo ko'radi"]
 </pre>
 
-<p>Ikki vosita har dasturchining doimiy hamrohi: <strong>terminal</strong> (matn orqali kompyuter bilan muloqot) va <strong>Git</strong> (kod tarixini saqlash). Bularni o'rganmasdan haqiqiy dasturchi bo'lib bo'lmaydi.</p>
+<h3>🏆 10 daqiqada g'alaba — birinchi publik repo</h3>
+<p>Hech qanday komanda yoki o'rnatish yo'q. Sizda faqat brauzer kerak. Oxirida — sizning kodingiz <code>github.com/sizning-ism/salom-dunyo</code> URL'da yashaydi.</p>
 
-<h3>Terminal nima?</h3>
-<p>Terminal — bu kompyuter bilan <strong>matn orqali</strong> muloqot qilish usuli. Tugmalar va sichqoncha o'rniga — komandalar yozasiz. Birinchi qarashda qiyin, lekin tezroq va kuchliroq.</p>
-<ul>
-<li><strong>Linux/macOS</strong>: Terminal ilovasi (avval o'rnatilgan)</li>
-<li><strong>Windows</strong>: PowerShell yoki Windows Terminal (yangi)</li>
-</ul>
-
-<h3>Eng muhim 10 ta komanda</h3>
-<table>
-<tr><th>Komanda</th><th>Vazifasi</th><th>Misol</th></tr>
-<tr><td><code>pwd</code></td><td>Hozir qayerdaman?</td><td><code>pwd</code> → <code>/home/aziz</code></td></tr>
-<tr><td><code>ls</code></td><td>Papkadagi fayllarni ko'rsat</td><td><code>ls -lah</code></td></tr>
-<tr><td><code>cd</code></td><td>Boshqa papkaga o't</td><td><code>cd Documents</code></td></tr>
-<tr><td><code>cd ..</code></td><td>Yuqori papkaga</td><td><code>cd ..</code></td></tr>
-<tr><td><code>mkdir</code></td><td>Yangi papka yarat</td><td><code>mkdir loyiha</code></td></tr>
-<tr><td><code>touch</code></td><td>Bo'sh fayl yarat</td><td><code>touch index.html</code></td></tr>
-<tr><td><code>cat</code></td><td>Fayl ichini ko'rsat</td><td><code>cat README.md</code></td></tr>
-<tr><td><code>rm</code></td><td>Faylni o'chir</td><td><code>rm old.txt</code></td></tr>
-<tr><td><code>cp</code></td><td>Nusxa olish</td><td><code>cp a.txt b.txt</code></td></tr>
-<tr><td><code>mv</code></td><td>Ko'chirish / nomini o'zgartirish</td><td><code>mv old new</code></td></tr>
-</table>
-<p><strong>Maslahat</strong>: <code>Tab</code> tugmasini bosib avtotugatishdan foydalaning. <code>cd Doc</code> + Tab → <code>cd Documents/</code>.</p>
-
-<h3>Git — nima va nima uchun?</h3>
-<p><strong>Git</strong> — bu kodingizning <strong>vaqt mashinasi</strong>. Har o'zgarishni saqlaydi, kerak bo'lsa ortga qaytarish mumkin. Jamoa bilan ishlashda — ajralmas.</p>
-<p>Tasavvur qiling: 200 qator yozdingiz, hammasini buzdingiz, ortga qaytmoqchisiz. Git'siz — yo'q. Git bilan — bitta komanda.</p>
-
-<h3>Git ish jarayoni — 4 qadam</h3>
+<h4>BLOKA 1 — Web UI bilan repo yaratish (faqat brauzer)</h4>
 <ol>
-<li><strong>Edit</strong>: faylni o'zgartirasiz (yangi qator yozasiz)</li>
-<li><strong>Add</strong>: o'zgarishlarni "staging" ga qo'shasiz (<code>git add</code>)</li>
-<li><strong>Commit</strong>: snapshot saqlaysiz xabar bilan (<code>git commit -m "..."</code>)</li>
-<li><strong>Push</strong>: serverga yuborasiz (<code>git push</code>)</li>
+<li>github.com'da ro'yxatdan o'ting (agar hisobingiz bo'lmasa)</li>
+<li>O'ng yuqorida <strong>+</strong> tugmasini bosing → <strong>New repository</strong></li>
+<li>Repository name: <code>salom-dunyo</code></li>
+<li><strong>Public</strong> ni tanlang</li>
+<li><strong>Initialize with README</strong> ga ✓ qo'ying</li>
+<li><strong>Create repository</strong> bosing</li>
+</ol>
+<p>Tabriklayman — sizda birinchi publik repo bor. URL: <code>github.com/SIZNING-ISM/salom-dunyo</code>. Bu havolani do'stingizga yuboring — ular ko'radi.</p>
+
+<h4>BLOKA 2 — Web orqali faylni tahrirlash</h4>
+<ol>
+<li>Repo ichida <code>README.md</code> ga bosing</li>
+<li>O'ng yuqoridagi <strong>qalam</strong> ikonkasini bosing</li>
+<li>Matnni o'zgartiring:
+<pre><code># Salom dunyo!
+
+Men Aziz, dasturlashni o'rganmoqdaman.
+
+## Mening rejam
+- HTML/CSS o'rganish
+- JavaScript bilan tanishish
+- Birinchi sahifani GitHub Pages'ga joylashtirish</code></pre>
+</li>
+<li>Pastga tushing → <strong>Commit message</strong>: "README ni yangiladim" → <strong>Commit changes</strong></li>
+</ol>
+<p>Mana, sizning birinchi commit'ingiz. Repo bosh sahifasiga qayting — README yangilangan. Tarix uchun <strong>Commits</strong> tugmasini bosing — 2 ta commit ko'rinadi.</p>
+
+<h4>BLOKA 3 — Endi terminal bilan (lokal kompyuterda)</h4>
+<p>Terminalni oching:</p>
+<ul>
+<li><strong>Mac</strong>: Cmd+Space → "Terminal" → Enter</li>
+<li><strong>Windows</strong>: Win → "PowerShell" → Enter</li>
+<li><strong>Linux</strong>: Ctrl+Alt+T</li>
+</ul>
+<p>Avval terminalda yashashni o'rganamiz — 5 ta komanda:</p>
+<pre><code>pwd                  # qayerdaman? — masalan /home/aziz
+ls                   # nima bor shu papkada?
+cd Desktop           # Desktop papkasiga o'tdim
+mkdir loyihalar      # yangi papka yaratdim
+cd loyihalar         # ichkariga kirdim</code></pre>
+<p>Endi GitHub'dagi repo'ni shu kompyuterga ko'chiramiz. Repo sahifasidagi yashil <strong>Code</strong> tugmasini bosing → HTTPS URL'ni nusxa oling. Terminalda:</p>
+<pre><code>git config --global user.name "Sizning Ism"
+git config --global user.email "siz@example.com"
+
+git clone https://github.com/SIZNING-ISM/salom-dunyo.git
+cd salom-dunyo
+ls                   # README.md ko'rinadi — bu o'sha fayl!</code></pre>
+<p><strong>Hayrat 1:</strong> GitHub'dagi fayllar endi lokal kompyuteringizda. <code>cat README.md</code> bilan ichini ko'ring.</p>
+
+<p>Endi lokal o'zgarish kiritamiz va GitHub'ga qaytarib yuboramiz:</p>
+<pre><code># Yangi fayl qo'shamiz
+echo "Salom!" > hello.txt
+
+# Git ga nima o'zgarganini ko'rsating
+git status                   # hello.txt — Untracked
+
+# Stage'ga qo'shish
+git add hello.txt
+
+# Snapshot saqlash
+git commit -m "hello.txt qo'shildi"
+
+# GitHub'ga yuborish
+git push</code></pre>
+<p>Brauzerga qayting → repo sahifasini yangilang (<kbd>F5</kbd>) → <code>hello.txt</code> ro'yxatda paydo bo'ldi. Lokal terminalda yozgan fayl endi internetda jonli!</p>
+
+<h3>🐛 Ataylab xato — git add ni unutamiz</h3>
+<p>Yangi faylni qo'shing-u, lekin git add ni o'tkazib yuboring:</p>
+<pre><code>echo "yana bitta" > yangi.txt
+git commit -m "yangi.txt qo'shildi"</code></pre>
+<p>Natija: <code>nothing to commit, working tree clean</code> yoki <code>untracked files: yangi.txt</code> ogohlantirishi. Sababi: git fayllarni 2 bosqichda saqlaydi. Birinchi <strong>stage</strong> (git add) — qaysi fayllarni saqlashni tanlash; ikkinchi <strong>commit</strong> — snapshot olish. <code>git add</code>'siz commit topa olmaydi. Tuzating:</p>
+<pre><code>git add yangi.txt
+git commit -m "yangi.txt qo'shildi"
+git push</code></pre>
+
+<h3>Endi tushuntiramiz — Terminal va Git asoslari</h3>
+
+<h4>Terminal nima va nega kerak?</h4>
+<p>Terminal — kompyuter bilan <strong>matn orqali</strong> muloqot. Sichqoncha + tugma o'rniga — komandalar yozasiz. Boshida qiyin, lekin: tez, takrorlanadigan, masofadan ishlaydi (server admin uchun majburiy).</p>
+
+<h4>Eng muhim 10 ta terminal komandasi</h4>
+<table>
+<tr><th>Komanda</th><th>Vazifa</th><th>Misol</th></tr>
+<tr><td><code>pwd</code></td><td>Qayerdaman?</td><td><code>pwd</code> → <code>/home/aziz</code></td></tr>
+<tr><td><code>ls</code></td><td>Papkani ko'rsat</td><td><code>ls -lah</code></td></tr>
+<tr><td><code>cd</code></td><td>Papkaga o't</td><td><code>cd Documents</code></td></tr>
+<tr><td><code>cd ..</code></td><td>Yuqori papka</td><td><code>cd ..</code></td></tr>
+<tr><td><code>mkdir</code></td><td>Yangi papka</td><td><code>mkdir loyiha</code></td></tr>
+<tr><td><code>touch</code></td><td>Bo'sh fayl</td><td><code>touch index.html</code></td></tr>
+<tr><td><code>cat</code></td><td>Fayl ichini ko'rsat</td><td><code>cat README.md</code></td></tr>
+<tr><td><code>echo</code></td><td>Yozish (yoki faylga)</td><td><code>echo "hi" > a.txt</code></td></tr>
+<tr><td><code>rm</code></td><td>Faylni o'chir</td><td><code>rm old.txt</code></td></tr>
+<tr><td><code>mv</code></td><td>Ko'chirish / nom</td><td><code>mv a.txt b.txt</code></td></tr>
+</table>
+<p><strong>Pro maslahat</strong>: <kbd>Tab</kbd> avtotugatish — yarim yozsangiz Tab bosing, qolganini terminal o'zi yozadi.</p>
+
+<h4>Git ish jarayoni — 4 bosqich</h4>
+<ol>
+<li><strong>Edit</strong> — faylni o'zgartirasiz</li>
+<li><strong>Add</strong> — <code>git add</code> bilan stage'ga qo'yasiz ("buni saqlamoqchiman")</li>
+<li><strong>Commit</strong> — <code>git commit -m "xabar"</code> bilan snapshot</li>
+<li><strong>Push</strong> — <code>git push</code> bilan GitHub'ga yuborasiz</li>
 </ol>
 
-<h3>Eng muhim Git komandalari</h3>
-<pre><code># Yangi loyiha boshlash
+<pre class="mermaid">
+flowchart LR
+    E["working dir"] -->|git add| S["staging"]
+    S -->|git commit| L["local history"]
+    L -->|git push| R["remote GitHub"]
+    R -->|git pull| L
+</pre>
+
+<h4>Eng muhim git komandalari</h4>
+<pre><code># Loyiha boshida (bir marta)
+git config --global user.name "..."
+git config --global user.email "..."
+
+# Mavjud repo'ni olish
+git clone URL
+
+# Yangi (bo'sh) loyiha boshlash
 git init
 
-# Holatni ko'rish (nima o'zgargan)
+# Holatni ko'rish
 git status
 
-# Yangi fayllarni qo'shish
-git add .                    # hammasini
-git add index.html           # bittasini
-
-# Snapshot saqlash
-git commit -m "Birinchi sahifa"
-
-# Tarixni ko'rish
-git log --oneline
-
-# GitHub ga yuborish
-git push origin main</code></pre>
-
-<h3>GitHub — Git uchun "ijtimoiy tarmoq"</h3>
-<p><strong>GitHub</strong> — bu sizning kodingizni saqlash va boshqalar bilan ulashish uchun platforma. Hozir har dasturchi GitHub'da hisobga ega bo'lishi shart — bu sizning <em>portfoliyo</em>ngiz.</p>
-<ul>
-<li>Bepul hisob: <a href="https://github.com">github.com</a></li>
-<li>Loyihalaringizni yuklang — kelajakdagi ish beruvchilar ko'radi</li>
-<li>Boshqalar kodini o'qing — bu ham o'rganish</li>
-<li><strong>GitHub Pages</strong> — bepul vebsite hosting (keyingi darsda ishlatamiz)</li>
-</ul>
-
-<h3>Birinchi marta sozlash</h3>
-<pre><code>git config --global user.name "Sizning Ismingiz"
-git config --global user.email "siz@example.com"
-
-# Tekshirish
-git config --list</code></pre>
-<p>Bu komandalar git'ga sizning kim ekanligingizni aytadi — har commit shu ism bilan saqlanadi.</p>
-
-<h3>.gitignore — Git ga nimani saqlamaslikni aytish</h3>
-<p>Ba'zi fayllar git'da bo'lmasligi kerak: parollar, katta video fayllar, build natijalari.</p>
-<pre><code># .gitignore fayli
-.env                # parollar
-node_modules/       # JavaScript paketlar
-__pycache__/        # Python keshi
-*.log               # log fayllar</code></pre>
-
-<h3>Eng ko'p uchraydigan xatolar</h3>
-<ul>
-<li><strong><code>git push</code> rad etiladi</strong>: remote'da yangi commit bor. Avval <code>git pull</code> qiling.</li>
-<li><strong><code>git commit</code> ishlamaydi</strong>: <code>git add</code> qilmagansiz</li>
-<li><strong>Parolingizni so'raydi</strong>: GitHub endi parol qabul qilmaydi. <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens">Personal Access Token</a> ishlatish kerak.</li>
-</ul>
-"""
-
-L7_CODE = """\
-# Terminal + Git — birinchi loyiha yaratish
-
-# ─── Terminal komandalari ───────────────────────
-# Yangi papka yaratish va kirish
-mkdir mening-birinchi-saytim
-cd mening-birinchi-saytim
-
-# Fayl yaratish
-touch index.html
-touch README.md
-
-# Faylni o'zgartirish (nano yoki sizning muharriringiz)
-# nano index.html
-
-# Papkadagi fayllarni ko'rish
-ls -lah
-
-
-# ─── Git boshlash ───────────────────────────────
-# Birinchi marta — git ni sozlash (bir marta qilinadi)
-git config --global user.name "Sizning Ismingiz"
-git config --global user.email "siz@example.com"
-
-# Yangi loyiha — git tarixini boshlash
-git init
-
-# Holat
-git status
-
-# Hamma fayllarni qo'shish
-git add .
-
-# Snapshot saqlash
-git commit -m "Birinchi commit: bo'sh sahifa"
+# Stage va commit
+git add fayl.txt           # bittasini
+git add .                  # hammasini
+git commit -m "xabar"
 
 # Tarix
 git log --oneline
 
+# Sync
+git push                   # GitHub'ga yubor
+git pull                   # GitHub'dan ol</code></pre>
 
-# ─── GitHub ga yuborish ─────────────────────────
-# 1. github.com da yangi (bo'sh) repo yarating
-# 2. URL ni nusxa oling
-# 3. Local repo'ga remote sifatida qo'shing:
+<h4>.gitignore — git'ga nimani UNUTISHNI aytish</h4>
+<p>Ba'zi fayllar git'da bo'lmasligi kerak: parollar, katta build natijalari, paket papkalari.</p>
+<pre><code># .gitignore fayli
+.env                # maxfiy parollar
+node_modules/       # JS paketlari
+__pycache__/        # Python cache
+*.log               # log fayllar
+.DS_Store           # macOS xizmat fayli</code></pre>
 
-git remote add origin https://github.com/SIZNING-USERNAME/mening-birinchi-saytim.git
+<h4>Eng ko'p uchraydigan 3 ta xato</h4>
+<table>
+<tr><th>Xato</th><th>Sabab</th><th>Yechim</th></tr>
+<tr><td><code>nothing to commit</code></td><td><code>git add</code> qilmagansiz</td><td><code>git add</code> + qaytadan commit</td></tr>
+<tr><td><code>push rejected</code></td><td>Remote'da yangi commit bor</td><td><code>git pull</code> → keyin push</td></tr>
+<tr><td><code>Authentication failed</code></td><td>Parol ishlamaydi — token kerak</td><td>GitHub Settings → Personal Access Token</td></tr>
+</table>
 
-# Yuborish
-git branch -M main
-git push -u origin main
+<h3>📌 Bu darsdan keyin siz bilasizki</h3>
+<ul>
+<li>GitHub'da repo yaratish — web UI orqali ham, terminal orqali ham mumkin</li>
+<li>Terminal — pwd, ls, cd, mkdir, touch — kunlik komandalar</li>
+<li>Git workflow: edit → add → commit → push</li>
+<li><code>git add</code> va <code>git commit</code> alohida bosqichlar — stage qaysi fayllarni saqlashni boshqaradi</li>
+<li><code>.gitignore</code> bilan parollar va kesh git'ga tushmaydi</li>
+<li><code>git clone</code> — remote repo'ni lokal'ga ko'chiradi; <code>git push</code> — orqaga yuboradi</li>
+</ul>
+"""
 
-# Tabriklayman! Sizning kodingiz endi GitHub'da.
+L7_CODE = """\
+# ═══ DARS 7 — TERMINAL + GIT BIRINCHI SAYKLI ═══
+
+# ─── BLOKA 1: WEB UI orqali repo (brauzer) ──────
+# github.com → + → New repository
+# Name: salom-dunyo  → Public → Init with README → Create
+# Sizda endi: github.com/SIZNING-ISM/salom-dunyo
+
+# ─── BLOKA 2: Terminal asoslari ─────────────────
+pwd                              # qayerdaman?
+ls                               # nima bor?
+cd Desktop                       # papkaga o'tdim
+mkdir loyihalar && cd loyihalar  # yangi papka + ichkari
+
+# ─── BLOKA 3: Lokal sykl (clone → edit → push) ──
+git config --global user.name "Sizning Ism"
+git config --global user.email "siz@example.com"
+
+git clone https://github.com/SIZNING-ISM/salom-dunyo.git
+cd salom-dunyo
+ls                               # README.md — GitHub'dan keldi
+cat README.md                    # ichini ko'rish
+
+# Yangi fayl + commit + push
+echo "Salom!" > hello.txt
+git status                       # hello.txt — Untracked
+git add hello.txt
+git commit -m "hello.txt qo'shildi"
+git push                         # brauzerni F5 bosing — hello.txt jonli!
+
+# ─── XATO TUZOG'I: git add ni unutish ───────────
+echo "yana bitta" > yangi.txt
+git commit -m "yangi.txt qo'shildi"   # XATO: nothing to commit
+# Tuzatish:
+git add yangi.txt
+git commit -m "yangi.txt qo'shildi"
+git push
+
+# ─── Tez-tez kerak ──────────────────────────────
+git log --oneline                # tarix
+git status                       # nima o'zgargan
+git pull                         # remote'dan yangiliklar
 """
 
 
@@ -1982,44 +2053,49 @@ LESSONS = [
         "text": L7_TEXT, "code": L7_CODE, "lang": "bash",
         "video": "https://youtu.be/RGOj5yH7evk",
         "exercises": [
-            mc("Terminalda joriy papkani aniqlash uchun qaysi komanda?",
-               ["pwd", "cd", "ls", "where"],
-               "A", explanation="pwd — 'print working directory' qisqartmasi.",
+            mc("Terminalda `pwd` komandasi nima qiladi?",
+               ["Joriy ish papkasini ko'rsatadi (print working directory)",
+                "Parol o'rnatadi (password)",
+                "Fayllarni o'chiradi",
+                "Yangi papka yaratadi"],
+               "A", explanation="pwd = 'print working directory'. Har terminalda birinchi savol: 'qayerdaman?'",
                diff="Easy", pts=2),
-            mc("Git ish jarayonining to'g'ri tartibi qaysi?",
-               ["edit → add → commit → push",
-                "commit → add → edit → push",
-                "push → commit → add → edit",
-                "edit → commit → add → push"],
-               "A", diff="Easy", pts=2),
+            mc("Lokal o'zgarishni GitHub'da ko'rsatish uchun to'g'ri tartib qaysi?",
+               ["edit fayl → git add → git commit → git push",
+                "git push → edit fayl → git add → git commit",
+                "git commit → git add → edit fayl → git push",
+                "edit fayl → git commit → git push (git add kerak emas)"],
+               "A", hint='add — "saqlamoqchiman" deyish; commit — snapshot; push — GitHub\'ga jo\'natish.',
+               diff="Easy", pts=2),
             mc("Quyidagilardan qaysilari TO'G'RI Git komandalari?",
-               ["git init", "git add .", "git commit -m", "git push", "git delete"],
+               ["git clone URL",
+                "git status",
+                "git add .",
+                "git commit -m \"xabar\"",
+                "git delete fayl.txt"],
                "A,B,C,D", multi=True,
-               hint="git delete — bunday komanda yo'q. git rm bor.",
+               hint='git delete — yo\'q. Faylni o\'chirish: rm fayl.txt va keyin git add yoki git rm fayl.txt.',
                diff="Medium", pts=3),
-            mc("GitHub Pages nima?",
-               ["Bepul vebsite hosting (HTML/CSS/JS uchun)",
-                "GitHub'ning yangi versiyasi",
-                "Kommersiya hosting xizmati",
-                "Faqat dokumentatsiya uchun"],
-               "A", diff="Easy", pts=2),
-            dd("Birinchi marta git ni sozlash va birinchi commit qadamlari",
-               ["git config --global user.name \"Ismingiz\"",
-                "git config --global user.email \"siz@example.com\"",
-                "mkdir loyiha && cd loyiha",
-                "git init",
-                "echo \"Hello\" > README.md",
-                "git add README.md",
-                "git commit -m \"Birinchi commit\""],
+            dd("GitHub repo'ni klonlab birinchi o'zgarishni qaytarib yuborish qadamlarini tartiblang",
+               ["github.com'da repo yaratish (web UI)",
+                "Terminalda `git clone https://github.com/.../repo.git`",
+                "`cd repo` bilan ichkariga kirish",
+                "Faylni yaratish yoki tahrirlash (masalan `echo \"hi\" > hello.txt`)",
+                "`git add hello.txt` — stage'ga qo'shish",
+                "`git commit -m \"hello qo'shildi\"` — snapshot saqlash",
+                "`git push` — GitHub'ga yuborish"],
                diff="Medium", pts=3),
-            ti(".gitignore fayl nima va nima uchun kerak?",
-               ".gitignore — Git ga qaysi fayllar va papkalarni KUZATMASLIK kerakligini "
-               "aytadigan fayl. Loyiha ichidagi ba'zi narsalar Git'da bo'lmasligi kerak: "
-               "1) parol va maxfiy ma'lumotlar (.env fayl) — xavfsizlik; "
-               "2) katta paket fayllar (node_modules, __pycache__) — repo hajmini kichik tutish; "
-               "3) IDE va OS sozlamalari (.vscode, .DS_Store) — har odamning kompyuteri turlicha; "
-               "4) build natijalari (dist, build) — kerak bo'lganda qayta yaratiladi. "
-               ".gitignore yo'q bo'lsa, parollar GitHub'da xalqqa ko'rinib qoladi — eng katta xato.",
+            ti("`git add` va `git commit` nima uchun ALOHIDA bosqichlar? Nima uchun bittada qilmaydi?",
+               "Git fayllarni 3 ta zonada saqlaydi: 1) working directory — siz tahrir qilayotgan "
+               "joriy fayllar; 2) staging area — keyingi snapshot'ga qo'shmoqchi bo'lgan fayllar; "
+               "3) repository — saqlangan snapshotlar tarixi. git add fayl'ni working'dan "
+               "staging'ga ko'chiradi; git commit staging'dagi hammasini birgalikda snapshot "
+               "qiladi. Bu ajralishning sababi: bitta loyiha ustida ishlayotganda siz bir vaqtning "
+               "o'zida 10 ta faylni o'zgartirgan bo'lishingiz mumkin — lekin ulardan faqat 3 tasi "
+               "bir-biriga bog'liq va alohida commit'ga loyiq. git add bilan o'sha 3 tasini "
+               "tanlaysiz, commit qilasiz, keyin qolganlarini boshqa commit'da yuborasiz. "
+               "Bu — git'ning kuchli tomoni: tarixingiz toza va ma'noli bo'ladi, har commit bitta "
+               "fikrni anglatadi.",
                diff="Hard", pts=4),
         ],
     },
