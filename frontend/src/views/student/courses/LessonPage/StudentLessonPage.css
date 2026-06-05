@@ -852,6 +852,45 @@
     font-size: 13px; font-weight: 600; color: #d63031;
     font-family: 'Inter', sans-serif;
 }
+
+/* Read-only "thank you" state shown after submission. */
+.slp-feedback--done {
+    background: linear-gradient(135deg, rgba(0,184,148,0.08), rgba(0,206,201,0.04));
+    border-color: rgba(0,184,148,0.22);
+}
+.slp-feedback-stars--readonly {
+    cursor: default;
+}
+.slp-feedback-star.is-static {
+    font-size: 28px;
+    line-height: 1;
+    padding: 4px 6px;
+    color: var(--ink-12);
+    cursor: default;
+}
+.slp-feedback-star.is-static.is-on { color: #f5c518; }
+.slp-feedback-saved-comment {
+    position: relative;
+    padding: 12px 14px 12px 30px;
+    background: var(--surface);
+    border: 1px solid var(--ink-06);
+    border-left: 3px solid var(--green);
+    border-radius: var(--r-md, 12px);
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+.slp-feedback-quote {
+    position: absolute;
+    top: 4px; left: 10px;
+    font-size: 26px;
+    color: rgba(0,184,148,0.35);
+    line-height: 1;
+}
+
 @media (max-width: 600px) {
     .slp-feedback { padding: 18px 16px; }
     .slp-feedback-star { font-size: 26px; padding: 3px 4px; }

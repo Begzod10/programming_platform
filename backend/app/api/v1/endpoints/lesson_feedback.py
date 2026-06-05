@@ -33,7 +33,7 @@ router = APIRouter()
 @router.post(
     "/lessons/{lesson_id}/feedback",
     response_model=LessonFeedbackOut,
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_201_CREATED,
 )
 async def submit_lesson_feedback(
     lesson_id: int,
@@ -41,10 +41,11 @@ async def submit_lesson_feedback(
     current_student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ) -> LessonFeedbackOut:
-    """Upsert the student's feedback for a lesson.
+    """Submit lesson feedback — one shot per student per lesson.
 
-    Re-submitting overwrites the previous rating/comment so a student can
-    revise their score after revisiting a lesson.
+    Returns 409 if the student already left feedback for this lesson; the
+    teacher analytics signal is the student's *first impression*, so we
+    don't let it be edited after the fact (UI also locks).
     """
     lesson = (
         await db.execute(select(Lesson).where(Lesson.id == lesson_id))
@@ -61,23 +62,23 @@ async def submit_lesson_feedback(
         )
     ).scalar_one_or_none()
 
-    comment = (payload.comment or "").strip() or None
-
-    if existing is None:
-        existing = LessonFeedback(
-            student_id=current_student.id,
-            lesson_id=lesson_id,
-            rating=payload.rating,
-            comment=comment,
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Siz bu dars uchun bahoyingizni allaqachon yuborgansiz",
         )
-        db.add(existing)
-    else:
-        existing.rating = payload.rating
-        existing.comment = comment
 
+    comment = (payload.comment or "").strip() or None
+    feedback = LessonFeedback(
+        student_id=current_student.id,
+        lesson_id=lesson_id,
+        rating=payload.rating,
+        comment=comment,
+    )
+    db.add(feedback)
     await db.commit()
-    await db.refresh(existing)
-    return LessonFeedbackOut.model_validate(existing)
+    await db.refresh(feedback)
+    return LessonFeedbackOut.model_validate(feedback)
 
 
 @router.get(

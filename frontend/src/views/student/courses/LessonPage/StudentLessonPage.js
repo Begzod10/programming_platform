@@ -565,6 +565,39 @@ const LessonFeedbackWidget = ({lessonId}) => {
     const display = hover || rating;
     const labels = ['', 'Yaxshilash kerak', 'Sust', 'O\'rtacha', 'Yaxshi', 'Ajoyib'];
 
+    // Once the student has submitted feedback for this lesson, lock the widget
+    // into a read-only "thank you" state. We capture the first rating only —
+    // re-rating would dilute the teacher's analytics signal.
+    if (savedAt) {
+        return (
+            <div className="slp-feedback slp-feedback--done">
+                <div className="slp-feedback-head">
+                    <div className="slp-feedback-icon" aria-hidden="true">✅</div>
+                    <div>
+                        <h3 className="slp-feedback-title">Rahmat — bahoyingiz qabul qilindi!</h3>
+                        <p className="slp-feedback-sub">
+                            Sizning fikr-mulohazangiz darslarni yaxshilashga yordam beradi.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="slp-feedback-stars slp-feedback-stars--readonly" aria-label={`Sizning bahoyingiz: ${rating} yulduz`}>
+                    {[1, 2, 3, 4, 5].map(n => (
+                        <span key={n} className={`slp-feedback-star is-static ${n <= rating ? 'is-on' : ''}`} aria-hidden="true">★</span>
+                    ))}
+                    <span className="slp-feedback-star-label">{labels[rating]}</span>
+                </div>
+
+                {comment && (
+                    <div className="slp-feedback-saved-comment">
+                        <span className="slp-feedback-quote" aria-hidden="true">“</span>
+                        {comment}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     return (
         <div className="slp-feedback">
             <div className="slp-feedback-head">
@@ -618,11 +651,8 @@ const LessonFeedbackWidget = ({lessonId}) => {
                     onClick={handleSubmit}
                     disabled={!loaded || saving || !rating}
                 >
-                    {saving ? 'Yuborilmoqda...' : (savedAt ? 'Bahoni yangilash' : 'Yuborish')}
+                    {saving ? 'Yuborilmoqda...' : 'Yuborish'}
                 </button>
-                {savedAt && !error && (
-                    <span className="slp-feedback-saved">✓ Saqlandi — rahmat!</span>
-                )}
                 {error && <span className="slp-feedback-error">{error}</span>}
             </div>
         </div>
