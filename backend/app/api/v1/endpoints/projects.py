@@ -35,7 +35,7 @@ def get_project_service(db: AsyncSession = Depends(get_db)) -> ProjectService:
 
 async def _load_lesson_context_for_project(
     db: AsyncSession, *, project_id: int
-) -> dict | None:
+) -> Optional[dict]:
     """Resolve the lesson + course a project belongs to so the AI grader has
     real context. A project is linked to a lesson through `submissions`
     (submissions.project_id → submissions.lesson_id) — there is no direct
