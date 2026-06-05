@@ -493,18 +493,31 @@
 }
 
 /* ═══════════════════════════════════════
-   RESPONSIVE — Tablet (≤ 768px)
+   RESPONSIVE — Laptop (≤1024px)
 ═══════════════════════════════════════ */
-@media (max-width: 768px) {
-    .lp-lesson-header h1 { font-size: 26px; }
-    .lp-block-body { padding: 16px; }
+@media (max-width: 1024px) {
+    .lp-lesson-header h1 { font-size: 28px; }
+    .lp-block-body       { padding: 18px; }
+    .lp-blocks           { gap: 16px; }
 }
 
 /* ═══════════════════════════════════════
-   RESPONSIVE — Mobile (≤ 480px)
+   RESPONSIVE — Tablet (≤820px)
+═══════════════════════════════════════ */
+@media (max-width: 820px) {
+    .lp-lesson-header h1 { font-size: 26px; }
+    .lp-block-body       { padding: 16px; }
+    .lp-top-bar          { gap: 10px; }
+    .lp-top-actions      { flex-wrap: wrap; gap: 8px; }
+    .lp-breadcrumb       { font-size: 13px; }
+    .lp-breadcrumb-current { max-width: 200px; }
+}
+
+/* ═══════════════════════════════════════
+   RESPONSIVE — Mobile (≤480px)
 ═══════════════════════════════════════ */
 @media (max-width: 480px) {
-    /* Top bar: стекируем breadcrumb и actions */
+    /* Top bar: stack breadcrumb above actions */
     .lp-top-bar {
         flex-direction: column;
         align-items: flex-start;
@@ -524,8 +537,9 @@
     .lp-delete-btn {
         flex: 1;
         justify-content: center;
-        padding: 8px 10px;
+        padding: 9px 10px;
         font-size: 12px;
+        min-height: 40px;
     }
 
     .lp-nav-btns {
@@ -534,30 +548,48 @@
     }
 
     .lp-nav-btn {
-        padding: 8px 12px;
+        padding: 9px 12px;
         font-size: 12px;
+        min-height: 40px;
     }
 
-    /* Breadcrumb — скрываем длинный путь */
-    .lp-breadcrumb { font-size: 12px; }
+    /* Breadcrumb — truncate the deep "current" segment */
+    .lp-breadcrumb         { font-size: 12px; }
     .lp-breadcrumb-current { max-width: 130px; }
 
-    .lp-lesson-header h1 { font-size: 22px; }
-    .lp-lesson-header { margin-bottom: 20px; }
+    .lp-lesson-header h1   { font-size: 22px; line-height: 1.3; }
+    .lp-lesson-header      { margin-bottom: 20px; }
 
-    .lp-blocks { gap: 14px; }
+    .lp-blocks             { gap: 14px; }
+    .lp-block-header       { padding: 10px 14px; }
+    .lp-block-body         { padding: 14px; }
 
-    .lp-block-header { padding: 10px 14px; }
-    .lp-block-body { padding: 14px; }
+    /* Code block — readable font on phones */
+    .lp-code-block         { font-size: 12px; padding: 14px; line-height: 1.5; }
 
-    /* Code block — меньший шрифт */
-    .lp-code-block { font-size: 12px; padding: 14px; }
+    /* File card — stack on mobile */
+    .lp-file-card          { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .lp-file-download-btn  { width: 100%; text-align: center; min-height: 44px; }
 
-    /* File card — стекируем на мобиле */
-    .lp-file-card { flex-direction: column; align-items: flex-start; gap: 10px; }
-    .lp-file-download-btn { width: 100%; text-align: center; }
+    .lp-project-block      { padding: 14px; gap: 12px; }
+    .lp-mashq-block        { padding: 16px; gap: 12px; }
+    .lp-mashq-question     { font-size: 14.5px; }
+    .lp-mashq-textarea     { font-size: 13.5px; padding: 10px 12px; }
+}
 
-    .lp-project-block { padding: 14px; gap: 12px; }
+/* Very small phones (≤360px) — squeeze top-bar buttons further */
+@media (max-width: 360px) {
+    .lp-edit-btn,
+    .lp-delete-btn,
+    .lp-nav-btn       { padding: 8px 8px; font-size: 11.5px; }
+    .lp-lesson-header h1 { font-size: 20px; }
+}
+
+/* Mobile landscape — compress hero height so blocks start higher */
+@media (max-height: 500px) and (orientation: landscape) {
+    .lp-lesson-header h1 { font-size: 20px; }
+    .lp-lesson-header    { margin-bottom: 14px; }
+    .lp-blocks           { gap: 12px; }
 }
 /* ===== MASHQ BLOCK (teacher view) ===== */
 .lp-mashq-block {

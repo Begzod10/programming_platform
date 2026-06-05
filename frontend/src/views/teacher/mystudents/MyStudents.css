@@ -531,17 +531,27 @@
 }
 
 /* ═══════════════════════════════════════
-   RESPONSIVE — Tablet (≤ 768px)
+   RESPONSIVE — Laptop (≤1024px)
 ═══════════════════════════════════════ */
-@media (max-width: 768px) {
-  .ms-container { gap: 18px; }
-  .ms-header h2 { font-size: 22px; }
+@media (max-width: 1024px) {
+  .ms-container    { gap: 18px; }
+  .ms-header h2    { font-size: 23px; }
+  .ms-group-header { padding: 16px 18px; }
+  .ms-group-body   { padding: 14px 18px 20px; }
+}
+
+/* ═══════════════════════════════════════
+   RESPONSIVE — Tablet (≤820px)
+═══════════════════════════════════════ */
+@media (max-width: 820px) {
+  .ms-container    { gap: 16px; }
+  .ms-header h2    { font-size: 22px; }
   .ms-group-header { padding: 14px 16px; }
-  .ms-group-body  { padding: 14px 16px 18px; }
+  .ms-group-body   { padding: 14px 16px 18px; }
   .ms-modal-header { padding: 20px 20px 0; }
   .ms-modal-body   { padding: 18px 20px; }
   .ms-modal-footer { padding: 0 20px 20px; }
-  .ms-confirm { padding: 36px 28px 28px; }
+  .ms-confirm      { padding: 36px 28px 28px; }
 }
 
 /* ═══════════════════════════════════════
@@ -606,4 +616,21 @@
 
   .ms-avatar-picker { gap: 6px; }
   .ms-avatar-opt { width: 40px; height: 40px; font-size: 20px; }
+}
+
+/* Very small phones (≤360px) — squeeze further */
+@media (max-width: 360px) {
+  .ms-header h2     { font-size: 18px; }
+  .ms-group-header  { padding: 10px 12px; gap: 6px; }
+  .ms-group-icon    { width: 34px; height: 34px; font-size: 16px; }
+  .ms-student-row   { padding: 8px 8px; }
+  .ms-sr-name       { font-size: 11.5px; }
+  .ms-confirm       { padding: 24px 16px 20px; }
+}
+
+/* Mobile landscape — modal back to centered overlay */
+@media (max-height: 500px) and (orientation: landscape) {
+  .ms-modal     { max-height: 96vh; border-radius: 18px; }
+  .ms-confirm   { padding: 22px 22px 18px; }
+  .ms-group-body { padding-block: 10px 12px; }
 }

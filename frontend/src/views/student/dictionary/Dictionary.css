@@ -985,12 +985,22 @@
 /* ══════════════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════════════ */
+/* Laptop / tablet landscape (≤1024px) — sidebar narrows before stacking */
+@media (max-width: 1024px) {
+    .d-sidebar { width: 220px; min-width: 220px; }
+    .d-main    { padding: 22px; }
+    .d-grid    { gap: 14px; }
+}
+
+/* Off-grid tablet (≤900px) — kept from original */
 @media (max-width: 900px) {
     .d-sidebar { width: 200px; min-width: 200px; }
 }
 
-@media (max-width: 700px) {
-    .d-wrap { flex-direction: column; border-radius: 16px; }
+/* Tablet portrait / large phone (≤820px) — sidebar stacks above
+ * main as a horizontal pill row */
+@media (max-width: 820px) {
+    .d-wrap    { flex-direction: column; border-radius: 16px; }
     .d-sidebar {
         width: 100%;
         min-width: unset;
@@ -1000,20 +1010,38 @@
         padding: 16px;
     }
     .d-sidebar::after { display: none; }
-    .d-sidebar-logo { flex: 1 1 auto; }
+    .d-sidebar-logo    { flex: 1 1 auto; }
     .d-sidebar-counter { flex: 0 0 auto; }
-    .d-sidebar-stats, .d-lessons-nav, .d-sidebar-tip { flex: 1 1 100%; }
+    .d-sidebar-stats,
+    .d-lessons-nav,
+    .d-sidebar-tip     { flex: 1 1 100%; }
     .d-main { padding: 16px; }
     .d-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
 }
 
 @media (max-width: 480px) {
-    .d-grid { grid-template-columns: 1fr 1fr; }
-    .d-list-ctx { display: none; }
-    .d-modal { border-radius: 16px; }
-    .d-modal-header { padding: 18px 18px 14px; }
-    .d-modal-body { padding: 18px; }
-    .d-modal-footer { padding: 12px 18px 18px; }
-    .d-topbar-add span { display: none; }
-    .d-topbar-add { padding: 10px 14px; }
+    .d-grid           { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .d-list-ctx       { display: none; }
+    .d-modal          { border-radius: 16px; max-width: 100%; }
+    .d-modal-header   { padding: 18px 18px 14px; }
+    .d-modal-body     { padding: 18px; }
+    .d-modal-footer   { padding: 12px 18px 18px; flex-direction: column; gap: 8px; }
+    .d-modal-footer button { width: 100%; min-height: 44px; }
+    .d-topbar-add span{ display: none; }
+    .d-topbar-add     { padding: 10px 14px; min-width: 44px; min-height: 44px; }
+    .d-sidebar        { padding: 14px; gap: 10px; }
+}
+
+/* Very small phones (≤360px) — single-column card grid */
+@media (max-width: 360px) {
+    .d-grid { grid-template-columns: 1fr; }
+    .d-main { padding: 12px; }
+}
+
+/* Mobile landscape — restore the sidebar+main split for horizontal space */
+@media (max-height: 500px) and (orientation: landscape) {
+    .d-wrap    { flex-direction: row; }
+    .d-sidebar { width: 180px; min-width: 180px; flex-direction: column;
+                 flex-wrap: nowrap; padding: 12px; }
+    .d-main    { padding: 12px 14px; }
 }
