@@ -574,19 +574,37 @@
 }
 
 @media (max-width: 480px) {
-    .tr-filter-tabs { display: grid; grid-template-columns: 1fr 1fr; }
-    .tr-filter-tab { justify-content: space-between; }
-    .tr-table-header { display: none; }
-    .tr-row { grid-template-columns: 1fr; gap: 8px; padding: 14px 16px; }
+    .tr-filter-tabs   { display: grid; grid-template-columns: 1fr 1fr; }
+    .tr-filter-tab    { justify-content: space-between; min-height: 40px; }
+    .tr-table-header  { display: none; }
+    .tr-row           { grid-template-columns: 1fr; gap: 8px; padding: 14px 16px; }
     .tr-row > div:nth-child(n) { display: flex; }
-    .tr-col-main { flex-wrap: wrap; }
-    .tr-col-action { text-align: left; flex-wrap: wrap; }
-    .tr-action-btn { width: 100%; justify-content: center; }
-    .tr-overlay { align-items: flex-end; padding: 0; }
-    .tr-modal { border-radius: 24px 24px 0 0; max-height: 95vh; max-width: 100%; }
-    .tr-modal-footer { flex-direction: column; }
-    .tr-btn-cancel, .tr-btn-save { width: 100%; text-align: center; }
-    .tr-status-btns { flex-direction: column; }
-    .tr-grade-btns { gap: 6px; }
-    .tr-gbtn { flex: 1; width: auto; }
+    .tr-col-main      { flex-wrap: wrap; }
+    .tr-col-action    { text-align: left; flex-wrap: wrap; }
+    .tr-action-btn    { width: 100%; justify-content: center; min-height: 44px; }
+    .tr-overlay       { align-items: flex-end; padding: 0; }
+    .tr-modal         { border-radius: 24px 24px 0 0; max-height: 95vh; max-width: 100%; }
+    .tr-modal-footer  { flex-direction: column; gap: 8px; }
+    .tr-btn-cancel,
+    .tr-btn-save      { width: 100%; text-align: center; min-height: 44px; }
+    .tr-status-btns   { flex-direction: column; }
+    .tr-grade-btns    { gap: 6px; }
+    .tr-gbtn          { flex: 1; width: auto; min-height: 40px; }
+}
+
+/* Tiny phones (≤360px) — filter tabs become a single column,
+ * tighter modal padding */
+@media (max-width: 360px) {
+    .tr-filter-tabs   { grid-template-columns: 1fr; }
+    .tr-title-block h2{ font-size: 19px; }
+    .tr-modal-header  { padding: 16px; }
+    .tr-modal-body    { padding: 14px 16px; }
+    .tr-modal-footer  { padding: 14px 16px 18px; }
+}
+
+/* Mobile landscape — modal back to centered overlay (bottom sheet
+ * eats too much vertical room in short viewports) */
+@media (max-height: 500px) and (orientation: landscape) {
+    .tr-overlay { align-items: stretch; padding: 8px; }
+    .tr-modal   { max-height: 96vh; border-radius: 18px; }
 }

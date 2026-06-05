@@ -543,25 +543,49 @@
    RESPONSIVE
 ═══════════════════════════════════════════ */
 @media (max-width: 1024px) {
-  .sc-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .sc-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .sc-title { font-size: 28px; }
 }
 
-@media (max-width: 768px) {
-  .sc-header { flex-direction: column; align-items: flex-start; gap: 16px; }
-  .sc-header-right { width: 100%; flex-direction: column; align-items: stretch; gap: 10px; }
-  .sc-search-wrap { width: 100%; }
-  .sc-search { width: 100% !important; }
-  .sc-filters { width: 100%; justify-content: stretch; }
-  .sc-filter { flex: 1; text-align: center; }
-  .sc-title { font-size: 26px; }
-  .sc-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+/* Tablet portrait (≤820px) — header stacks, search/filter become
+ * full-width rows, grid drops to 2-up */
+@media (max-width: 820px) {
+  .sc-header        { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .sc-header-right  { width: 100%; flex-direction: column; align-items: stretch; gap: 10px; }
+  .sc-search-wrap   { width: 100%; }
+  .sc-search        { width: 100% !important; }
+  .sc-filters       { width: 100%; justify-content: stretch; flex-wrap: wrap; }
+  .sc-filter        { flex: 1 1 calc(33% - 6px); text-align: center; min-height: 40px; }
+  .sc-title         { font-size: 26px; }
+  .sc-grid          { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .sc-card-img-wrap { height: 140px; }
-  .sc-stats-bar { width: 100%; justify-content: space-around; }
-  .sc-stat-item { padding: 0 16px; }
+  .sc-stats-bar     { width: 100%; justify-content: space-around; }
+  .sc-stat-item     { padding: 0 16px; }
 }
 
+/* Mobile portrait (≤480px) — single-column grid, bigger card images
+ * since the card itself is wider on phone */
 @media (max-width: 480px) {
-  .sc-grid { grid-template-columns: 1fr; }
-  .sc-title { font-size: 22px; }
+  .sc-grid          { grid-template-columns: 1fr; gap: 12px; }
+  .sc-title         { font-size: 22px; line-height: 1.25; }
   .sc-card-img-wrap { height: 160px; }
+  .sc-filter        { flex: 1 1 calc(50% - 6px); font-size: 12.5px; padding-block: 9px; }
+  .sc-search        { padding: 11px 14px; font-size: 14px; }
+  .sc-stat-item     { padding: 0 10px; font-size: 12.5px; }
+}
+
+/* Tiny phones (≤360px) — filters stack to a single column */
+@media (max-width: 360px) {
+  .sc-title         { font-size: 19px; }
+  .sc-filter        { flex: 1 1 100%; }
+  .sc-card-img-wrap { height: 140px; }
+}
+
+/* Mobile landscape — grid back to 2-col since width is plenty */
+@media (max-height: 500px) and (orientation: landscape) {
+  .sc-grid          { grid-template-columns: repeat(2, 1fr); }
+  .sc-card-img-wrap { height: 120px; }
+  .sc-header-right  { flex-direction: row; align-items: center; }
+  .sc-search-wrap   { width: 60%; }
+  .sc-filters       { width: 40%; }
 }
