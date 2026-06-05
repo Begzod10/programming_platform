@@ -16,14 +16,15 @@ import Degrees        from './views/student/degrees/DegreeCard';
 import Dictionary     from './views/student/dictionary/Dictionary';
 
 // ── Teacher views ──
-import TeacherCourses        from './views/teacher/courses/TeacherCourses/TeacherCourses';
-import TeacherProfile        from './views/teacher/profile/TeacherProfile';
-import TeacherReview         from './views/teacher/teacherreview/TeacherReview';
-import MyStudents            from './views/teacher/mystudents/MyStudents';
-import StudentProfilePage    from './views/teacher/mystudents/StudentProfile'; // ← NEW
-import TeacherStatistics     from './views/teacher/statistics/TeacherStatistics';
-import TeacherFeedback       from './views/teacher/feedback/TeacherFeedback';
-import TeacherCertificates   from './views/teacher/TeacherCertificates/Teachercertificates';
+import TeacherCourses           from './views/teacher/courses/TeacherCourses/TeacherCourses';
+import TeacherProfile           from './views/teacher/profile/TeacherProfile';
+import TeacherReview            from './views/teacher/teacherreview/TeacherReview';
+import MyStudents               from './views/teacher/mystudents/MyStudents';
+import StudentProfilePage       from './views/teacher/mystudents/StudentProfile';
+import TeacherStatistics        from './views/teacher/statistics/TeacherStatistics';
+import TeacherFeedback          from './views/teacher/feedback/TeacherFeedback';
+import TeacherCertificates      from './views/teacher/TeacherCertificates/Teachercertificates';
+import TeacherStudentsRankings  from './views/teacher/StudentRankings/StudentRankings';
 
 /* ─── helpers ─── */
 function RootRedirect() {
@@ -106,11 +107,13 @@ function AppRouter() {
                 <Route path="profile"                                     element={<TeacherProfilePage />} />
                 <Route path="review"                                      element={<TeacherReview />} />
                 <Route path="students"                                    element={<MyStudents />} />
-                <Route path="students/:studentId"                         element={<StudentProfilePage />} /> {/* ← NEW */}
+                <Route path="students/:studentId"                         element={<StudentProfilePage />} />
                 <Route path="certificates"                                element={<TeacherCertificates />} />
                 <Route path="statistics"                                  element={<TeacherStatistics />} />
                 <Route path="feedback"                                    element={<TeacherFeedback />} />
+                <Route path="rankings"                                    element={<TeacherStudentsRankings />} /> {/* ← NEW */}
 
+                {/* Курсы */}
                 <Route path="courses"                                     element={<TeacherCourses />} />
                 <Route path="courses/:courseId"                           element={<TeacherCourses />} />
                 <Route path="courses/:courseId/lessons/new"               element={<TeacherCourses />} />
