@@ -122,14 +122,13 @@
 }
 
 /* ===== COURSE CARD =====
-   react-beautiful-dnd writes `transform` and `transition` inline on the
-   draggable element. If we also animate `transform` (via `transition: all`
-   or a hover translateY), every drag frame fights our own transition and
-   the card stutters. Rules:
-     • Only transition `box-shadow` and `border-color` on the card.
-     • Never set `transform` on the card itself outside the dragging state.
-     • While dragging, kill the transition entirely so the cursor follow
-       is exactly 1:1.
+   @dnd-kit puts `transform` and `transition` on the card via inline `style`
+   (set by useSortable). Rules to keep the drag smooth:
+     • Never animate `transform` from a CSS class — it would fight the
+       library's per-frame inline transform.
+     • Only transition `box-shadow` and `border-color` on the card itself.
+     • While dragging, opacity drops via inline style (set in JS) so the
+       neighbours' rearrangement animation reads clearly.
 */
 .tc-course-card {
     background: rgba(255,255,255,0.97);
@@ -139,17 +138,18 @@
     transition: box-shadow 0.25s ease, border-color 0.25s ease;
     cursor: pointer;
     position: relative;
+    /* Hint the GPU — dnd-kit will animate transform on this element. */
+    will-change: transform;
+    touch-action: manipulation;
 }
 .tc-course-card:hover {
     box-shadow: 0 16px 40px rgba(0,0,0,0.13);
     border-color: rgba(108,92,231,0.25);
 }
-/* While dragging: no extra transform (it would override the library's
-   translate), no transition (must be 1:1 with the cursor), only a
-   stronger shadow + tilted handle indicator below. */
+/* While dragging: stronger shadow only. No transform/transition overrides
+   here — dnd-kit owns both via inline style. */
 .tc-course-card--dragging {
     box-shadow: 0 24px 48px rgba(108,92,231,0.35);
-    transition: none !important;
     cursor: grabbing;
 }
 .tc-course-card--dragging:hover { box-shadow: 0 24px 48px rgba(108,92,231,0.35); }

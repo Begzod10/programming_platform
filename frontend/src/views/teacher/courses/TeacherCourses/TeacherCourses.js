@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import {
+    DndContext, closestCenter, PointerSensor, KeyboardSensor,
+    useSensor, useSensors,
+} from '@dnd-kit/core';
+import {
+    SortableContext, sortableKeyboardCoordinates,
+    rectSortingStrategy, useSortable, arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import './TeacherCourses.css';
 import LessonEditorPage from '../LessonEditor/LessonEditor';
 import CourseDetailPage from '../CourseModal/CourseModal';
@@ -148,6 +156,76 @@ const ChaptersModal = ({ chapters, onSave, onClose }) => {
 };
 
 /* ═══════════════════════════════════════════
+   SortableCourseCard — single card wired to dnd-kit's useSortable.
+   Extracted so each card calls the hook independently (a hook can't
+   live inside .map()'s callback otherwise).
+
+   Key points to keep the drag smooth:
+     • `transform` and `transition` come from useSortable — they go on
+       `style`, NOT on a CSS class. The library updates them per frame.
+     • While dragging this card, we also bump opacity for visual cue
+       and disable pointer events on inner clickables so the navigation
+       click doesn't fire on drag-release.
+═══════════════════════════════════════════ */
+const SortableCourseCard = ({ course, canReorder, navigate, onPublishToggle, onEdit, onDelete, onConfirmDelete }) => {
+    const {
+        attributes, listeners, setNodeRef,
+        transform, transition, isDragging,
+    } = useSortable({ id: String(course.id), disabled: !canReorder });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.6 : 1,
+        zIndex: isDragging ? 10 : 'auto',
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`tc-course-card${isDragging ? ' tc-course-card--dragging' : ''}`}
+            onClick={() => { if (!isDragging) navigate(`/teacher/courses/${course.id}`); }}
+            {...attributes}
+        >
+            {canReorder && (
+                <div
+                    className="tc-drag-handle"
+                    title="Удерживайте и перетащите, чтобы изменить порядок"
+                    onClick={e => e.stopPropagation()}
+                    {...listeners}
+                >
+                    ⋮⋮
+                </div>
+            )}
+            <div className="tc-course-preview">
+                <img src={course.image} alt={course.title} />
+                <div className="tc-course-overlay"><span className="tc-view-label">👁️ Открыть курс</span></div>
+            </div>
+            <div className="tc-course-info">
+                <div className="tc-course-header">
+                    <h3>{course.title}</h3>
+                    <div className="tc-course-actions">
+                        <button className={`tc-publish-btn ${course.is_published ? 'published' : 'draft'}`} onClick={e => onPublishToggle(course, e)}>
+                            <span className="tc-publish-dot" />{course.is_published ? 'Опубликован' : 'Черновик'}
+                        </button>
+                        <button className="tc-icon-btn tc-ediet-icon" onClick={e => onEdit(course, e)}>✏️</button>
+                        <button className="tc-icon-btn tc-delete-icon" onClick={e => { e.stopPropagation(); onConfirmDelete(course.id); }}>🗑️</button>
+                    </div>
+                </div>
+                <p>{course.description}</p>
+                <div className="tc-course-stats">
+                    <span className="tc-stat">📚 {course.lessons.length} уроков</span>
+                    <span className="tc-stat">👥 {course.studentsCount} студентов</span>
+                </div>
+                <button className="tc-open-course-btn" onClick={e => { e.stopPropagation(); navigate(`/teacher/courses/${course.id}`); }}>Открыть курс →</button>
+            </div>
+        </div>
+    );
+};
+
+
+/* ═══════════════════════════════════════════
    MAIN
 ═══════════════════════════════════════════ */
 const TeacherCourses = () => {
@@ -245,17 +323,26 @@ const TeacherCourses = () => {
     // which is confusing. Teachers can clear the filter to reorder freely.
     const canReorder = activeFilter === 'all';
 
-    const handleDragEnd = (result) => {
-        if (!result.destination) return;
-        if (result.source.index === result.destination.index) return;
-        if (!canReorder) return;
+    // dnd-kit sensors: PointerSensor with a small activation distance prevents
+    // micro-drags from firing on a normal click (so clicking the card body
+    // still navigates without triggering a reorder). KeyboardSensor gives us
+    // accessibility for free (Space/Enter to grab, arrows to move).
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    );
 
-        // Build new ordering on the FULL list (not just the filter view).
-        const next = Array.from(courses);
-        const [moved] = next.splice(result.source.index, 1);
-        next.splice(result.destination.index, 0, moved);
+    const handleDragEnd = (event) => {
+        if (!canReorder) return;
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = courses.findIndex(c => String(c.id) === String(active.id));
+        const newIndex = courses.findIndex(c => String(c.id) === String(over.id));
+        if (oldIndex === -1 || newIndex === -1) return;
 
         const prev = courses;
+        const next = arrayMove(courses, oldIndex, newIndex);
         const withOrder = next.map((c, i) => ({ ...c, display_order: i }));
         setCourses(withOrder);  // optimistic — UI updates immediately
 
@@ -489,69 +576,23 @@ const TeacherCourses = () => {
                             ℹ️ Чтобы изменить порядок курсов — снимите фильтр (Все курсы).
                         </div>
                     )}
-                    <DragDropContext onDragEnd={handleDragEnd}>
-                        <Droppable droppableId="teacher-courses" direction="horizontal">
-                            {(droppableProvided) => (
-                                <div
-                                    className="tc-courses-grid"
-                                    ref={droppableProvided.innerRef}
-                                    {...droppableProvided.droppableProps}
-                                >
-                                    {filteredCourses.map((course, index) => (
-                                        <Draggable
-                                            key={course.id}
-                                            draggableId={String(course.id)}
-                                            index={index}
-                                            isDragDisabled={!canReorder}
-                                        >
-                                            {(draggableProvided, snapshot) => (
-                                                <div
-                                                    ref={draggableProvided.innerRef}
-                                                    {...draggableProvided.draggableProps}
-                                                    className={`tc-course-card${snapshot.isDragging ? ' tc-course-card--dragging' : ''}`}
-                                                    onClick={() => navigate(`/teacher/courses/${course.id}`)}
-                                                >
-                                                    {canReorder && (
-                                                        <div
-                                                            className="tc-drag-handle"
-                                                            title="Удерживайте и перетащите, чтобы изменить порядок"
-                                                            onClick={e => e.stopPropagation()}
-                                                            {...draggableProvided.dragHandleProps}
-                                                        >
-                                                            ⋮⋮
-                                                        </div>
-                                                    )}
-                                                    <div className="tc-course-preview">
-                                                        <img src={course.image} alt={course.title} />
-                                                        <div className="tc-course-overlay"><span className="tc-view-label">👁️ Открыть курс</span></div>
-                                                    </div>
-                                                    <div className="tc-course-info">
-                                                        <div className="tc-course-header">
-                                                            <h3>{course.title}</h3>
-                                                            <div className="tc-course-actions">
-                                                                <button className={`tc-publish-btn ${course.is_published ? 'published' : 'draft'}`} onClick={e => toggleCoursePublish(course, e)}>
-                                                                    <span className="tc-publish-dot" />{course.is_published ? 'Опубликован' : 'Черновик'}
-                                                                </button>
-                                                                <button className="tc-icon-btn tc-ediet-icon" onClick={e => openEditCourse(course, e)}>✏️</button>
-                                                                <button className="tc-icon-btn tc-delete-icon" onClick={e => { e.stopPropagation(); setConfirmCourse(course.id); }}>🗑️</button>
-                                                            </div>
-                                                        </div>
-                                                        <p>{course.description}</p>
-                                                        <div className="tc-course-stats">
-                                                            <span className="tc-stat">📚 {course.lessons.length} уроков</span>
-                                                            <span className="tc-stat">👥 {course.studentsCount} студентов</span>
-                                                        </div>
-                                                        <button className="tc-open-course-btn" onClick={e => { e.stopPropagation(); navigate(`/teacher/courses/${course.id}`); }}>Открыть курс →</button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </Draggable>
-                                    ))}
-                                    {droppableProvided.placeholder}
-                                </div>
-                            )}
-                        </Droppable>
-                    </DragDropContext>
+                    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                        <SortableContext items={filteredCourses.map(c => String(c.id))} strategy={rectSortingStrategy}>
+                            <div className="tc-courses-grid">
+                                {filteredCourses.map(course => (
+                                    <SortableCourseCard
+                                        key={course.id}
+                                        course={course}
+                                        canReorder={canReorder}
+                                        navigate={navigate}
+                                        onPublishToggle={toggleCoursePublish}
+                                        onEdit={openEditCourse}
+                                        onConfirmDelete={setConfirmCourse}
+                                    />
+                                ))}
+                            </div>
+                        </SortableContext>
+                    </DndContext>
                 </>
             )}
 
