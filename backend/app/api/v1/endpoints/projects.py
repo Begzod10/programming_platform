@@ -7,6 +7,7 @@ from datetime import datetime
 from app.models.project import Project
 from app.models.lesson import Lesson
 from app.models.submission import Submission
+from app.models.course import Course
 
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.services.project_service import ProjectService
@@ -30,6 +31,49 @@ router = APIRouter()
 
 def get_project_service(db: AsyncSession = Depends(get_db)) -> ProjectService:
     return ProjectService(db)
+
+
+async def _load_lesson_context_for_project(
+    db: AsyncSession, *, project_id: int
+) -> dict | None:
+    """Resolve the lesson + course a project belongs to so the AI grader has
+    real context. A project is linked to a lesson through `submissions`
+    (submissions.project_id → submissions.lesson_id) — there is no direct
+    project.lesson_id column. If no such submission exists (standalone
+    project), returns None and the AI falls back to a generic persona.
+    """
+    sub_row = (await db.execute(
+        select(Submission.lesson_id)
+        .where(Submission.project_id == project_id)
+        .where(Submission.lesson_id.is_not(None))
+        .order_by(Submission.id.desc())
+        .limit(1)
+    )).first()
+    if not sub_row or sub_row[0] is None:
+        return None
+    lesson_id = sub_row[0]
+
+    lesson = (await db.execute(
+        select(Lesson).where(Lesson.id == lesson_id)
+    )).scalar_one_or_none()
+    if lesson is None:
+        return None
+
+    course = (await db.execute(
+        select(Course).where(Course.id == lesson.course_id)
+    )).scalar_one_or_none()
+
+    return {
+        "course_title": course.title if course else None,
+        "course_difficulty": course.difficulty_level if course else None,
+        "lesson_title": lesson.title,
+        "lesson_order": lesson.order,
+        "lesson_code_language": lesson.code_language,
+        "task_title": lesson.task_title,
+        "task_description": lesson.task_description,
+        "task_requirements": lesson.task_requirements,
+        "task_technologies": lesson.task_technologies,
+    }
 
 
 # ============================================================
@@ -229,6 +273,99 @@ async def update_grade(
     return await service.update_grade(project_id=project_id, grade=grade)
 
 
+@router.post("/{project_id}/regrade")
+async def regrade_project(
+        project_id: int,
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db),
+        service: ProjectService = Depends(get_project_service),
+):
+    """Loyihani qayta tekshirish — lesson/course konteksti bilan AI prompt'ni
+    qayta yuborib, eski "Python/Flask" hardkod tufayli noto'g'ri ball olgan
+    loyihalarni qayta baholaydi. Faqat instructor.
+    """
+    import zipfile
+    import io
+
+    project = await service.get_project(project_id=project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi!")
+    if not project.project_files:
+        raise HTTPException(status_code=400, detail="Loyihada fayl yo'q!")
+
+    zip_path = PROJECTS_UPLOAD_DIR / Path(project.project_files).name
+    if not zip_path.exists():
+        raise HTTPException(status_code=404, detail="ZIP fayl mavjud emas!")
+
+    code_content = ""
+    code_extensions = [
+        ".html", ".css", ".js", ".py",
+        ".ts", ".jsx", ".tsx", ".vue",
+        ".java", ".php", ".cpp", ".c",
+    ]
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            real_files = [n for n in zf.namelist() if not n.endswith("/")]
+            for name in real_files[:10]:
+                if any(name.endswith(ext) for ext in code_extensions):
+                    try:
+                        with zf.open(name) as f:
+                            code = f.read().decode("utf-8", errors="ignore")
+                            code_content += f"\n\n=== {name} ===\n{code[:2000]}"
+                    except Exception:
+                        pass
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Buzilgan ZIP fayl!")
+
+    technologies: list[str] = []
+    if project.technologies_used:
+        if isinstance(project.technologies_used, list):
+            technologies = project.technologies_used
+        else:
+            technologies = [project.technologies_used]
+
+    lesson_context = await _load_lesson_context_for_project(
+        db, project_id=project_id
+    )
+
+    ai_result = await analyze_project_with_grok(
+        title=project.title,
+        description=(project.description or "") + (
+            f"\n\nKod fayllari:\n{code_content}" if code_content else ""
+        ),
+        github_url=project.github_url or "ZIP fayl orqali yuklandi",
+        technologies=technologies,
+        difficulty_level=project.difficulty_level,
+        previous_points=project.points_earned or 0,
+        lesson_context=lesson_context,
+    )
+
+    if ai_result and not ai_result.get("error"):
+        db_project = (await db.execute(
+            select(Project).where(Project.id == project_id)
+        )).scalar_one_or_none()
+        if db_project:
+            db_project.grade = ai_result.get("grade")
+            db_project.points_earned = ai_result.get("points", 0)
+            db_project.instructor_feedback = ai_result.get("feedback", "")
+            db_project.status = "Under Review"
+            await db.commit()
+
+    return {
+        "message": "Loyiha qayta baholandi",
+        "lesson_context_used": lesson_context is not None,
+        "ai_review": {
+            "grade": ai_result.get("grade"),
+            "points": ai_result.get("points"),
+            "summary": ai_result.get("summary"),
+            "feedback": ai_result.get("feedback"),
+            "strengths": ai_result.get("strengths", []),
+            "improvements": ai_result.get("improvements", []),
+            "error": ai_result.get("error"),
+        },
+    }
+
+
 @router.patch("/{project_id}/difficulty")
 async def update_difficulty(
         project_id: int,
@@ -365,6 +502,13 @@ async def upload_project_zip(
         else:
             technologies = [project.technologies_used]
 
+    # Lesson + course context: without this the AI grades against a generic
+    # rubric and (historically, with a Python/Flask persona) marks down
+    # HTML/CSS submissions for "missing" Python code.
+    lesson_context = await _load_lesson_context_for_project(
+        db, project_id=project_id
+    )
+
     ai_result = await analyze_project_with_grok(
         title=project.title,
         description=project.description + (
@@ -373,7 +517,8 @@ async def upload_project_zip(
         github_url=project.github_url or "ZIP fayl orqali yuklandi",
         technologies=technologies,
         difficulty_level=project.difficulty_level,
-        previous_points=project.points_earned or 0
+        previous_points=project.points_earned or 0,
+        lesson_context=lesson_context,
     )
 
     # ✅ AI natijasini bazaga saqlash

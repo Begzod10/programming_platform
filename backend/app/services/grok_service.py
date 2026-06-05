@@ -315,6 +315,85 @@ def _format_authorship_block(authorship: Optional[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _format_lesson_context_block(
+    lesson_context: Optional[dict],
+    technologies: Optional[list[str]] = None,
+) -> tuple[str, str]:
+    """Render the parent lesson + course as a prompt section.
+
+    Returns (block_text, persona_hint). The persona_hint is injected into
+    the opening sentence so the AI takes on a teacher role that matches
+    the course (e.g. "HTML/CSS o'qituvchisi", "Python o'qituvchisi").
+    Defaults to a generic "dasturlash" persona when no context is given —
+    crucially NOT "Python/Flask", which previously caused HTML/CSS
+    submissions to be marked down for missing Python code.
+    """
+    def _clean(value) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
+
+    ctx = lesson_context or {}
+    course_title = _clean(ctx.get("course_title"))
+    course_difficulty = _clean(ctx.get("course_difficulty"))
+    lesson_title = _clean(ctx.get("lesson_title"))
+    lesson_order = ctx.get("lesson_order")
+    task_title = _clean(ctx.get("task_title"))
+    task_description = _clean(ctx.get("task_description"))
+    task_requirements = _clean(ctx.get("task_requirements"))
+    task_technologies = _clean(ctx.get("task_technologies"))
+    lesson_code_language = _clean(ctx.get("lesson_code_language"))
+
+    expected_stack: list[str] = []
+    for source in (task_technologies, course_title, lesson_code_language):
+        if source:
+            expected_stack.append(source)
+    if technologies:
+        expected_stack.extend(t for t in technologies if t)
+
+    persona_hint = "dasturlash"
+    for source in (task_technologies, course_title, lesson_code_language):
+        candidate = source.strip()
+        if candidate:
+            persona_hint = f"{candidate}"
+            break
+
+    if not (course_title or lesson_title or task_title or task_description
+            or task_requirements or task_technologies):
+        return ("", persona_hint)
+
+    lines = ["\n## DARS KONTEKSTI"]
+    if course_title:
+        lines.append(f"- Kurs: {course_title}")
+    if course_difficulty:
+        lines.append(f"- Kurs darajasi: {course_difficulty}")
+    if lesson_title:
+        order_part = f" (#{lesson_order})" if lesson_order is not None else ""
+        lines.append(f"- Dars{order_part}: {lesson_title}")
+    if lesson_code_language:
+        lines.append(f"- Dars asosiy tili: {lesson_code_language}")
+    if task_title:
+        lines.append(f"- Topshiriq nomi: {task_title}")
+    if task_description:
+        lines.append(f"- Topshiriq tavsifi:\n{task_description}")
+    if task_requirements:
+        lines.append(f"- Talablar:\n{task_requirements}")
+    if task_technologies:
+        lines.append(f"- Kutilayotgan texnologiyalar: {task_technologies}")
+
+    if expected_stack:
+        unique_stack = ", ".join(dict.fromkeys(s for s in expected_stack if s))
+        lines.append("")
+        lines.append(
+            f"KUTILAYOTGAN STACK: {unique_stack}. Faqat shu stack asosida baholang. "
+            "Boshqa kurslarning texnologiyalarini (masalan, agar bu HTML/CSS darsi bo'lsa, "
+            "Python/Flask) yo'qligi uchun ball PASAYTIRMANG."
+        )
+
+    lines.append("")
+    return ("\n".join(lines) + "\n", persona_hint)
+
+
 def _build_review_prompt(
     *,
     title: str,
@@ -326,6 +405,7 @@ def _build_review_prompt(
     repo_content: str,
     repo_summary: str,
     authorship: Optional[dict] = None,
+    lesson_context: Optional[dict] = None,
 ) -> str:
     technologies_str = ", ".join(technologies) if technologies else "ko'rsatilmagan"
 
@@ -349,12 +429,15 @@ def _build_review_prompt(
         )
 
     authorship_block = _format_authorship_block(authorship)
+    lesson_block, persona_hint = _format_lesson_context_block(lesson_context, technologies)
 
     return f"""
-Sen tajribali Python/Flask o'qituvchisisiz. O'quvchi loyihasini PASTDAGI ASL KOD asosida baholab ber. Faqat metadata (nomi, tavsifi) bo'yicha emas — ASL FAYLLAR TARKIBIGA qarab xulosa qil. AUTHORSHIP SIGNALS bo'limini ham e'tiborga ol — fork yoki copy-paste bo'lsa ball PASAYTIRING.
+Sen tajribali {persona_hint} o'qituvchisisiz. O'quvchi loyihasini PASTDAGI ASL KOD asosida baholab ber. Faqat metadata (nomi, tavsifi) bo'yicha emas — ASL FAYLLAR TARKIBIGA qarab xulosa qil. AUTHORSHIP SIGNALS bo'limini ham e'tiborga ol — fork yoki copy-paste bo'lsa ball PASAYTIRING.
+
+MUHIM: Loyihani faqat DARS KONTEKSTI ichida baholang. Dars qaysi texnologiyaga oid bo'lsa — faqat shu texnologiyani kuting. Agar dars HTML/CSS bo'lsa, Python yo'qligi uchun ball PASAYTIRMANG. Agar dars Python bo'lsa, HTML yo'qligi uchun ball PASAYTIRMANG. Boshqa kurslarning texnologiyalarini bu yerda talab QILMANG.
 
 {_INJECTION_GUARD}
-
+{lesson_block}
 ## METADATA
 <student_input>
 - Nomi: {title}
@@ -379,11 +462,11 @@ Faqat JSON qaytar (boshqa matn yozma):
 }}
 
 ## BAHOLASH MEZONLARI
-- A: 90-100 — Mukammal: kod toza, vazifaga to'liq mos, xatolar to'g'ri boshqarilgan, README mavjud
+- A: 90-100 — Mukammal: kod toza, dars topshirig'iga to'liq mos, xatolar to'g'ri boshqarilgan, README mavjud
 - B: 75-89  — Yaxshi: asosiy funksional ishlaydi, kichik kamchiliklar bor
 - C: 60-74  — O'rtacha: ishlaydi, lekin kod sifati past yoki ba'zi talablar bajarilmagan
 - D: 45-59  — Qoniqarsiz: jiddiy xatolar yoki katta qismi yo'q
-- F: 0-44   — Juda zaif: ishlamaydi, bo'sh yoki nomos
+- F: 0-44   — Juda zaif: ishlamaydi, bo'sh yoki dars topshirig'iga umuman mos kelmaydi
 """
 
 
@@ -537,6 +620,7 @@ async def analyze_project_with_grok(
         repo_content: str = "",
         repo_summary: str = "",
         authorship: Optional[dict] = None,
+        lesson_context: Optional[dict] = None,
 ) -> dict:
 
     """Grade a student project using the configured AI provider chain.
@@ -545,12 +629,19 @@ async def analyze_project_with_grok(
     backend answered. On total failure (all providers down / malformed
     responses), returns an error dict with grade=F / points=0 and an
     `error` field for the endpoint to detect.
+
+    `lesson_context` is an optional dict with keys:
+      course_title, course_difficulty, lesson_title, lesson_order,
+      lesson_code_language, task_title, task_description, task_requirements,
+      task_technologies. Pass it so the AI grades against the actual lesson
+      instead of an invented Python/Flask rubric.
     """
     prompt = _build_review_prompt(
         title=title, description=description, github_url=github_url,
         technologies=technologies, difficulty_level=difficulty_level,
         previous_points=previous_points, repo_content=repo_content,
         repo_summary=repo_summary, authorship=authorship,
+        lesson_context=lesson_context,
     )
 
     try:
