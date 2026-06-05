@@ -83,6 +83,12 @@ class Lesson(Base):
         cascade="all, delete-orphan"
     )
 
+    user_dictionaries = relationship(
+        "UserDictionary",
+        cascade="all, delete-orphan",
+        passive_deletes=True  # Сообщает SQLAlchemy доверить удаление базе данных, если настроен ON DELETE CASCADE в БД
+    )
+
     def __repr__(self) -> str:
         return f"<Lesson(id={self.id}, title={self.title}, course_id={self.course_id})>"
 

@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, delete
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 from typing import Optional, List
@@ -7,6 +7,7 @@ from typing import Optional, List
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.course import Course
 from app.models.user import Student
+from app.models.dictionary import UserDictionary
 from app.schemas.lesson import LessonCreate, LessonUpdate
 
 
@@ -17,7 +18,7 @@ async def get_lessons_by_course(db: AsyncSession, course_id: int) -> List[Lesson
         .order_by(Lesson.order)
         .options(
             selectinload(Lesson.exercises),
-            selectinload(Lesson.files)  # ✅ qo'shing
+            selectinload(Lesson.files)
         )
     )
     return result.scalars().all()
@@ -29,7 +30,7 @@ async def get_lesson_by_id(db: AsyncSession, lesson_id: int) -> Optional[Lesson]
         .where(Lesson.id == lesson_id)
         .options(
             selectinload(Lesson.exercises),
-            selectinload(Lesson.files)  # ✅ qo'shing
+            selectinload(Lesson.files)
         )
     )
     return result.scalar_one_or_none()
@@ -40,7 +41,7 @@ async def create_lesson(db: AsyncSession, course_id: int, data: LessonCreate) ->
     db.add(new_lesson)
     await db.commit()
     await db.refresh(new_lesson)
-    
+
     result = await db.execute(
         select(Lesson)
         .where(Lesson.id == new_lesson.id)
@@ -56,7 +57,7 @@ async def update_lesson(db: AsyncSession, lesson_id: int, data: LessonUpdate) ->
     for key, value in data.dict(exclude_unset=True).items():
         setattr(lesson, key, value)
     await db.commit()
-    
+
     result = await db.execute(
         select(Lesson)
         .where(Lesson.id == lesson_id)
@@ -69,6 +70,14 @@ async def delete_lesson(db: AsyncSession, lesson_id: int) -> bool:
     lesson = await get_lesson_by_id(db, lesson_id)
     if not lesson:
         return False
+
+    # 1. Tashqi kalit xatosini (ForeignKeyViolationError) oldini olish uchun
+    # user_dictionary jadvalidan shu darsga bog'langan barcha yozuvlarni o'chiramiz
+    await db.execute(
+        delete(UserDictionary).where(UserDictionary.lesson_id == lesson_id)
+    )
+
+    # 2. Endi darsning o'zini xavfsiz o'chirishimiz mumkin
     await db.delete(lesson)
     await db.commit()
     return True
@@ -92,7 +101,6 @@ async def complete_lesson(db: AsyncSession, lesson_id: int, student_id: int) -> 
         )
     )
     if existing.scalar_one_or_none():
-        # Agar allaqachon tugatilgan bo'lsa, xato bermasdan joriy progressni qaytaramiz?
         raise HTTPException(status_code=400, detail="Dars allaqachon tugatilgan")
 
     # LessonCompletion yaratish
@@ -100,7 +108,7 @@ async def complete_lesson(db: AsyncSession, lesson_id: int, student_id: int) -> 
     db.add(completion)
     await _ensure_student_enrolled(db, student_id, lesson.course_id)
 
-    # Studentga ball qo'shish (Ranking ham yangilanadi)
+    # Studentga ball qo'shish
     points_earned = 0
     if student_id and hasattr(lesson, "points_reward") and lesson.points_reward:
         from app.services.ranking_service import RankingService
@@ -129,11 +137,6 @@ async def complete_lesson(db: AsyncSession, lesson_id: int, student_id: int) -> 
     total_count = len(total_lessons)
     progress = int((completed_count / total_count) * 100) if total_count > 0 else 0
 
-    # CRITICAL: commit before reading total_points so the LessonCompletion +
-    # enrollment + ranking writes above actually persist. Previously this
-    # function only flushed; if the downstream certificate handler didn't issue
-    # a cert (i.e. non-final lessons), the session closed without committing
-    # and the completion was silently rolled back.
     await db.commit()
 
     # Student total points olish

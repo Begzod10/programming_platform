@@ -7,9 +7,7 @@ from app.db.base_class import Base
 
 class Submission(Base):
     __tablename__ = "submissions"
-    # Partial unique index: a student can only have one submission per lesson.
-    # NULL lesson_id (standalone projects) is allowed to repeat. Applied on
-    # fresh DBs via create_all; existing DBs need a manual migration.
+
     __table_args__ = (
         Index(
             "uq_submission_student_lesson",
