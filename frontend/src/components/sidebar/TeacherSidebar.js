@@ -15,6 +15,7 @@ function TeacherSidebar({ activeTab, onLogout }) {
         { id: 'courses',      label: 'Курсы',            icon: '📚' },
         { id: 'certificates', label: 'Сертификаты',      icon: '🏅' },
         { id: 'statistics',   label: 'Статистика',       icon: '📈' },
+        { id: 'feedback',     label: 'Отзывы',            icon: '⭐' },
     ];
 
     const handleTabClick = (id) => {
