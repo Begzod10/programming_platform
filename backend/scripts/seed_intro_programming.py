@@ -957,115 +957,187 @@ yosh = yosh + 1;   // 22
 # L6 — Brauzer, tarmoq, veb
 # ═════════════════════════════════════════════════════════════════════════════
 L6_TEXT = """\
-<h2>Brauzer, tarmoq va veb</h2>
+<h2>Brauzer va veb — so'rov-javob raqsi</h2>
 
 <pre class="mermaid">
 flowchart LR
-    B["brauzer client"] -->|HTTP GET URL| S["server"]
-    DNS["DNS lookup"] -->|domain ni IP ga| B
-    S -->|HTML CSS JS| B
-    B --> R["sahifani ko'rsatadi"]
-    B -.->|click form| S
+    B["brauzer"] -->|1 GET URL| DNS["DNS"]
+    DNS -->|2 IP qaytaradi| B
+    B -->|3 HTTP request| S["server"]
+    S -->|4 HTML CSS JS| B
+    B --> R["sahifa"]
 </pre>
 
-<p>Internet aslida juda sodda g'oyaga asoslangan: <strong>siz so'rov yuborasiz, server javob qaytaradi</strong>. Brauzer (Chrome, Firefox, Safari) — siz va server o'rtasidagi vositachi.</p>
+<h3>🏆 5 daqiqada g'alaba — internet jonli ko'rinadi</h3>
+<p>Hech narsa o'rnatmaymiz. Brauzer ichida har bir so'rov va javobni o'z ko'zingiz bilan ko'rasiz.</p>
 
-<h3>Sodda misol — google.com ga kirish</h3>
+<h4>BLOKA 1 — Network tab (so'rovlarni ushlash)</h4>
+<ol>
+<li>Yangi brauzer oynasi: <code>https://github.com</code> ga kiring</li>
+<li><kbd>F12</kbd> bosing → <strong>Network</strong> tabini tanlang</li>
+<li>Sahifani <kbd>Ctrl+R</kbd> (Mac: <kbd>Cmd+R</kbd>) bilan qayta yuklang</li>
+<li>Endi ro'yxat to'ldi — har bir qator bitta so'rov</li>
+</ol>
+<p>Har qatorda quyidagilar ko'rinadi:</p>
+<ul>
+<li><strong>Name</strong> — qaysi fayl (HTML, logo.png, style.css ...)</li>
+<li><strong>Status</strong> — 200 (OK), 304 (cached), 404 (topilmadi)</li>
+<li><strong>Type</strong> — document, script, image, font, xhr</li>
+<li><strong>Size</strong> — necha KB</li>
+<li><strong>Time</strong> — necha millisekund</li>
+</ul>
+<p>Birinchi qatorni bosing → o'ng paneldan <strong>Headers</strong> ni tanlang. Bu yerda <code>Request Method: GET</code>, <code>Status: 200</code>, <code>Content-Type: text/html</code> va boshqa "ko'rinmaydigan" muloqotni ko'rasiz. Mana — internet aslida shunday ko'rinadi.</p>
+
+<h4>BLOKA 2 — Konsoldan API ga so'rov</h4>
+<p>Endi siz brauzer bo'lasiz. <kbd>Console</kbd> tabiga o'ting va yozing:</p>
+<pre><code>// GitHub'ning ochiq API'sidan ma'lumot olamiz
+fetch("https://api.github.com/users/torvalds")
+    .then(r => r.json())
+    .then(data => {
+        console.log("Ism:", data.name);
+        console.log("Joy:", data.location);
+        console.log("Public repos:", data.public_repos);
+        console.log("Followers:", data.followers);
+    });</code></pre>
+<p><strong>Nima bo'ldi:</strong> sizning brauzer GitHub serveriga HTTP GET so'rov yubordi. Server JSON ko'rinishidagi ma'lumotni qaytardi. <code>fetch</code> — bu zamonaviy JavaScript komandasi, server bilan muloqot uchun. Network tabga qaytsangiz — yangi qator paydo bo'lgan: <code>torvalds</code>, Status 200, Type xhr.</p>
+
+<h4>BLOKA 3 — Sahifani jonli o'zgartirish</h4>
+<p>Hozir ham GitHub.com da turibsiz. Konsolda yozing:</p>
+<pre><code>// Sahifaning 3 qismini "qo'l bilan" o'zgartiramiz
+
+// 1. HTML strukturasini o'qing
+console.log(document.title);
+console.log(document.querySelectorAll("a").length, "ta havola bor");
+
+// 2. CSS — fonni o'zgartiring
+document.body.style.background = "linear-gradient(45deg, #ff6ec4, #7873f5)";
+
+// 3. JavaScript — tugma qo'shing
+let btn = document.createElement("button");
+btn.textContent = "Bosing!";
+btn.style.cssText = "position:fixed;top:20px;right:20px;padding:10px 20px;font-size:20px;z-index:9999";
+btn.onclick = () => alert("Sahifani men o'zgartirdim!");
+document.body.appendChild(btn);</code></pre>
+<p><strong>Nima bo'ldi:</strong> 3 ta qatorda 3 ta texnologiyaga tegdingiz — <strong>HTML</strong> (struktura), <strong>CSS</strong> (dizayn), <strong>JavaScript</strong> (interaktivlik). Sahifani <kbd>F5</kbd> bilan yangilasangiz — hammasi yo'qoladi, chunki o'zgarishlar faqat sizning brauzer xotirangizda edi, serverda emas.</p>
+
+<h3>🐛 Ataylab xato — 404 ni ko'ramiz</h3>
+<p>Konsolda yozing:</p>
+<pre><code>fetch("https://api.github.com/users/bumantxtaitarmiymis123abc")
+    .then(r => {
+        console.log("Status:", r.status);   // 404 chiqadi
+        console.log("OK?", r.ok);           // false
+        return r.json();
+    })
+    .then(data => console.log(data));</code></pre>
+<p>Status <strong>404 Not Found</strong> — bu foydalanuvchi mavjud emas. Eslab qoling: 404 — bu serverning aybi emas, sizning so'rovingiz noto'g'ri manzilga ketgan. Eng mashhur xato kodi.</p>
+
+<h3>Endi tushuntiramiz — internet qanday ishlaydi</h3>
+
+<h4>5 bosqichda google.com ochish</h4>
 <ol>
 <li>Siz <code>google.com</code> deb yozasiz</li>
-<li>Brauzer "google.com qayerda?" deb DNS server'ga so'raydi</li>
-<li>DNS javob qaytaradi: "google.com = 142.250.180.46" (IP manzil)</li>
-<li>Brauzer 142.250.180.46 ga HTTP so'rov yuboradi: "menga / sahifasini ber"</li>
-<li>Google server HTML, CSS, JavaScript ni qaytaradi</li>
-<li>Brauzer ularni o'qib, sizga sahifa ko'rsatadi</li>
+<li>Brauzer DNS server'ga so'raydi: "google.com qaysi IP?"</li>
+<li>DNS javob: "google.com = 142.250.180.46"</li>
+<li>Brauzer 142.250.180.46 ga HTTP GET / yuboradi</li>
+<li>Server HTML+CSS+JS qaytaradi → brauzer rasm chizadi</li>
 </ol>
-<p>Bularning hammasi 0.3 sekundda bo'ladi!</p>
+<p>Bu 0.3 sekundda bo'ladi. Har gal.</p>
 
-<h3>URL anatomiyasi</h3>
-<pre><code>https://www.example.com:443/blog/post-1?id=42&amp;source=email#section-2
-  ↑         ↑           ↑    ↑              ↑               ↑
-protokol   domain      port  path           query          fragment</code></pre>
-<ul>
-<li><strong>Protokol</strong>: <code>http://</code> (oddiy) yoki <code>https://</code> (xavfsiz, shifrlangan)</li>
-<li><strong>Domain</strong>: server nomi</li>
-<li><strong>Port</strong>: server qaysi "eshik"da kutmoqda (HTTP — 80, HTTPS — 443)</li>
-<li><strong>Path</strong>: server ichidagi resurs yo'li</li>
-<li><strong>Query</strong>: qo'shimcha parametrlar (key=value)</li>
-<li><strong>Fragment</strong>: sahifaning bir qismi (anchor)</li>
-</ul>
+<h4>URL anatomiyasi</h4>
+<pre><code>https://api.github.com:443/users/torvalds?tab=repos#main
+  ↑           ↑          ↑      ↑           ↑       ↑
+protokol    domain     port    path        query  fragment</code></pre>
 
-<h3>HTTP — internetning tili</h3>
-<p>Brauzer va server <strong>HTTP</strong> (HyperText Transfer Protocol) orqali muloqot qiladi. Asosiy "fe'llari":</p>
+<h4>HTTP methodlar (so'rov turlari)</h4>
 <table>
-<tr><th>Method</th><th>Ma'no</th><th>Misol</th></tr>
-<tr><td><code>GET</code></td><td>"Menga ber"</td><td>Sahifani yuklash</td></tr>
-<tr><td><code>POST</code></td><td>"Menga yangi yarating"</td><td>Forma yuborish</td></tr>
-<tr><td><code>PUT</code></td><td>"Buni yangilang"</td><td>Profilingizni o'zgartirish</td></tr>
-<tr><td><code>DELETE</code></td><td>"Buni o'chirib tashlang"</td><td>Postingizni o'chirish</td></tr>
+<tr><th>Method</th><th>Ma'no</th><th>Hayotiy misol</th></tr>
+<tr><td><code>GET</code></td><td>Menga ber</td><td>Sahifa yuklash, qidirish</td></tr>
+<tr><td><code>POST</code></td><td>Yangi yarating</td><td>Forma yuborish, ro'yxatdan o'tish</td></tr>
+<tr><td><code>PUT/PATCH</code></td><td>Mavjudni yangilang</td><td>Profil tahrirlash</td></tr>
+<tr><td><code>DELETE</code></td><td>O'chiring</td><td>Postni o'chirish</td></tr>
 </table>
 
-<h3>HTTP status kodlari</h3>
+<h4>HTTP status kodlari</h4>
 <ul>
 <li><strong>200 OK</strong> — hammasi yaxshi</li>
-<li><strong>301 Redirect</strong> — manzil o'zgargan, boshqa joyga o'ting</li>
-<li><strong>404 Not Found</strong> — resurs topilmadi (eng mashhur xato)</li>
-<li><strong>500 Server Error</strong> — serverda xato</li>
-<li><strong>403 Forbidden</strong> — sizga ruxsat yo'q</li>
+<li><strong>301 / 302</strong> — manzil o'zgargan, boshqa joyga yo'naltirildi</li>
+<li><strong>400 Bad Request</strong> — sizning so'rovingiz xato</li>
+<li><strong>401 Unauthorized</strong> — login qiling</li>
+<li><strong>403 Forbidden</strong> — login bor, lekin ruxsat yo'q</li>
+<li><strong>404 Not Found</strong> — yo'q, topilmadi</li>
+<li><strong>500 Internal Server Error</strong> — serverning aybi</li>
 </ul>
+<p>Qoida: <strong>2xx</strong> = yaxshi, <strong>3xx</strong> = yo'naltirish, <strong>4xx</strong> = sizning xato, <strong>5xx</strong> = serverning xato.</p>
 
-<h3>Sahifaning 3 qismi</h3>
-<p>Har bir veb-sahifa 3 ta texnologiyadan iborat:</p>
+<h4>Sahifaning 3 qismi (siz konsolda tegdingiz)</h4>
 <ul>
-<li>📄 <strong>HTML</strong> — struktura (sarlavhalar, paragraflar, tugmalar)</li>
-<li>🎨 <strong>CSS</strong> — dizayn (ranglar, shriftlar, joylashuv)</li>
-<li>⚡ <strong>JavaScript</strong> — interaktivlik (click qilganda nima bo'ladi)</li>
+<li>📄 <strong>HTML</strong> — struktura (sarlavha, paragraf, tugma)</li>
+<li>🎨 <strong>CSS</strong> — dizayn (rang, shrift, joylashuv)</li>
+<li>⚡ <strong>JavaScript</strong> — interaktivlik (click → nima bo'ladi)</li>
 </ul>
-<p>HTML — kostyum. CSS — kiyimning rangi va shakli. JavaScript — odam — harakat qiladi.</p>
 
-<h3>Frontend vs Backend</h3>
+<h4>Frontend vs Backend</h4>
 <table>
-<tr><th></th><th>Frontend (mijoz)</th><th>Backend (server)</th></tr>
+<tr><th></th><th>Frontend</th><th>Backend</th></tr>
 <tr><td>Qayerda</td><td>Sizning brauzeringizda</td><td>Uzoq serverda</td></tr>
-<tr><td>Til</td><td>HTML, CSS, JavaScript</td><td>Python, Java, Go, Node.js, PHP</td></tr>
-<tr><td>Ma'lumot</td><td>Hozir ko'rinayotgan ma'lumot</td><td>Baza, autentifikatsiya, logika</td></tr>
-<tr><td>Misol</td><td>Tugma, forma, animatsiya</td><td>Login tekshirish, postlarni saqlash</td></tr>
+<tr><td>Til</td><td>HTML, CSS, JavaScript</td><td>Python, Go, Node.js, Java, PHP</td></tr>
+<tr><td>Vazifa</td><td>Ko'rinish va interaktivlik</td><td>Ma'lumot, login, biznes logika</td></tr>
+</table>
+<p>Misol: Telegram'da xabar yozish — frontend. O'sha xabarni boshqa odamga yetkazish va saqlash — backend.</p>
+
+<h4>DevTools — har dasturchining oynasi</h4>
+<table>
+<tr><th>Tab</th><th>Nima uchun</th></tr>
+<tr><td><strong>Elements</strong></td><td>HTML+CSS ni o'qish va o'zgartirish</td></tr>
+<tr><td><strong>Console</strong></td><td>JS yozish, xatolarni ko'rish</td></tr>
+<tr><td><strong>Network</strong></td><td>Har so'rov-javobni kuzatish</td></tr>
+<tr><td><strong>Application</strong></td><td>localStorage, cookies, cache</td></tr>
 </table>
 
-<h3>DevTools — har dasturchining do'sti</h3>
-<p>Har brauzerda <strong>Developer Tools</strong> bor. F12 yoki Cmd+Option+I bilan oching:</p>
+<h3>📌 Bu darsdan keyin siz bilasizki</h3>
 <ul>
-<li><strong>Elements</strong> — HTML va CSS ni ko'rish va o'zgartirish</li>
-<li><strong>Console</strong> — JavaScript komandalarni yozish va xatolarni ko'rish</li>
-<li><strong>Network</strong> — har so'rov va javobni ko'rish</li>
-<li><strong>Application</strong> — saqlangan ma'lumotlar (cookies, localStorage)</li>
+<li>Internet — bu so'rov (GET/POST/PUT/DELETE) va javob (200/404/500)</li>
+<li>DNS — domen nomini IP manzilga o'giradi</li>
+<li>Network tab har bir so'rovni ko'rsatadi</li>
+<li><code>fetch()</code> bilan konsoldan API ga so'rov yuborasiz</li>
+<li>Sahifa = HTML + CSS + JavaScript</li>
+<li>Frontend brauzeringda, Backend serverda</li>
 </ul>
 """
 
 L6_CODE = """\
-# Brauzer DevTools — Console da yozib sinab ko'ring!
+// ═══ DARS 6 — BRAUZER KONSOLI BILAN INTERNETNI USHLASH ═══
+// github.com ga kiring → F12 → quyidagilarni sinab ko'ring
 
-# F12 bosing → Console tabini oching → quyidagi qatorlarni yozing:
+// ─── BLOKA 1: Network tab ───────────────────────────
+// Network tabini oching, Ctrl+R bilan yangilang
+// Har qatorni bosing — Headers/Response da nimalar borligini ko'ring
 
-# JavaScript Console misollari:
-# alert("Salom, dunyo!");
-# console.log("Bu konsolga chiqadi");
-# document.title    // sahifaning nomi
-# location.href     // joriy URL
-# document.body.style.background = "lightblue"   // fonni ko'k qiling!
+// ─── BLOKA 2: fetch() bilan API ga so'rov ───────────
+fetch("https://api.github.com/users/torvalds")
+    .then(r => r.json())
+    .then(data => {
+        console.log("Ism:", data.name);
+        console.log("Joy:", data.location);
+        console.log("Public repos:", data.public_repos);
+    });
 
-# Network tab da har resursni ko'rishingiz mumkin:
-#   Status (200 OK?)
-#   Type (HTML, CSS, JS, image)
-#   Size va Time
+// ─── BLOKA 3: Sahifaning 3 qismi (HTML+CSS+JS) ──────
+console.log(document.title);
+document.body.style.background = "linear-gradient(45deg, #ff6ec4, #7873f5)";
 
-# ─── HTTP so'rov yuborish — Python bilan ────────────
-import urllib.request
+let btn = document.createElement("button");
+btn.textContent = "Bosing!";
+btn.style.cssText = "position:fixed;top:20px;right:20px;padding:10px;z-index:9999";
+btn.onclick = () => alert("Sahifani men o'zgartirdim!");
+document.body.appendChild(btn);
 
-with urllib.request.urlopen("https://api.github.com") as response:
-    print("Status:", response.status)
-    print("Server:", response.headers.get("Server"))
-    # data = response.read()
-    # print(data[:200])
+// ─── XATO TUZOG'I: 404 ni ko'rish ───────────────────
+fetch("https://api.github.com/users/bumantxtaitarmiymis123abc")
+    .then(r => {
+        console.log("Status:", r.status);   // 404
+        console.log("OK?", r.ok);           // false
+    });
 """
 
 
@@ -1864,42 +1936,44 @@ LESSONS = [
         "text": L6_TEXT, "code": L6_CODE, "lang": "javascript",
         "video": "https://youtu.be/guvsH5OFizE",
         "exercises": [
-            mc("HTTP nima?",
-               ["Brauzer va server orasida muloqot qilish protokoli",
-                "Faqat HTML yuklash usuli",
-                "Internet provayder turi",
-                "Operatsion tizim"],
-               "A", diff="Easy", pts=2),
-            mc("HTTP status kodi 404 nimani anglatadi?",
-               ["Hammasi yaxshi",
-                "Resurs topilmadi",
-                "Server xatosi",
-                "Sizga ruxsat yo'q"],
-               "B", diff="Easy", pts=2),
-            mc("Veb-sahifaning 3 ta asosiy qismi qaysilar?",
-               ["HTML (struktura)",
-                "CSS (dizayn)",
-                "JavaScript (interaktivlik)",
-                "Python",
-                "PHP"],
-               "A,B,C", multi=True,
+            mc("DevTools'da Network tab nimani ko'rsatadi?",
+               ["Brauzer va server o'rtasidagi har bir so'rov va javob",
+                "Faqat xato xabarlarini",
+                "Faqat tezlik testini",
+                "Internet provayder ma'lumotlarini"],
+               "A", explanation='Network tab — har bir HTTP so\'rovni real-time ko\'rsatadi: Status, Type, Size, Time.',
+               diff="Easy", pts=2),
+            mc("Konsolda `fetch(\"https://api.github.com/users/yo'qodam123abc\")` qaytarsa, Status qanday bo'ladi?",
+               ["200", "301", "404", "500"],
+               "C", hint='Yo\'q foydalanuvchi → server "topilmadi" deydi.',
+               explanation='404 = Not Found. Server topa olmadi → 4xx oilasidagi xato (sizning so\'rovingiz xato).',
+               diff="Easy", pts=2),
+            mc("HTTP method'lar qaysilari mavjud va to'g'ri ishlatiladi?",
+               ["GET — ma'lumot olish (sahifa yuklash)",
+                "POST — yangi ma'lumot yaratish (forma yuborish)",
+                "PUT — mavjud ma'lumotni yangilash",
+                "DELETE — o'chirish",
+                "RUN — funksiyani ishga tushirish"],
+               "A,B,C,D", multi=True,
+               explanation='RUN — yo\'q. Asosiy 4 ta: GET, POST, PUT (yoki PATCH), DELETE.',
                diff="Medium", pts=3),
-            dd("URL ga kirishdagi qadamlarni tartiblang",
-               ["Foydalanuvchi URL ni yozadi",
-                "Brauzer DNS dan IP manzilni so'raydi",
-                "DNS IP manzilni qaytaradi",
-                "Brauzer serverga HTTP so'rov yuboradi",
-                "Server HTML, CSS, JS qaytaradi",
-                "Brauzer sahifani ko'rsatadi"],
+            dd("URL ga kirishdagi qadamlarni to'g'ri tartibda joylang",
+               ["Foydalanuvchi google.com yozadi",
+                "Brauzer DNS'dan google.com ning IP manzilini so'raydi",
+                "DNS IP manzilni qaytaradi (masalan 142.250.180.46)",
+                "Brauzer o'sha IP'ga HTTP GET / so'rovini yuboradi",
+                "Server HTML, CSS, JS faylarini qaytaradi",
+                "Brauzer fayllarni o'qib, sahifani ekranga chiqaradi"],
                diff="Medium", pts=3),
-            ti("Frontend va backend orasidagi farqni tushuntiring",
-               "Frontend — foydalanuvchi ko'radigan va bevosita o'zaro aloqa qiladigan qism. "
-               "Brauzerda ishlaydi. HTML, CSS, JavaScript tilllarida yoziladi. Misol: tugmalar, "
-               "formalar, animatsiyalar, ranglar. Backend — server tomonda ishlaydi, "
-               "foydalanuvchi ko'rmaydi. Ma'lumotlar bazasi, autentifikatsiya, biznes mantiq. "
-               "Python (Django, Flask), Java, Node.js, Go, PHP. Frontend so'raydi — backend "
-               "javob qaytaradi. Misol: Telegram'da xabar yozish — frontend; o'sha xabarni "
-               "boshqa foydalanuvchiga yetkazish, saqlash — backend.",
+            ti("Konsolda `document.body.style.background = \"red\"` yozsangiz — fon qizil bo'ladi. F5 bosgandan keyin nima uchun yana eski rangga qaytadi?",
+               "O'zgarish faqat sizning brauzeringizning operativ xotirasida sodir bo'ldi, "
+               "serverda emas. Brauzer sahifani ko'rsatish uchun serverdan HTML/CSS/JS ni yuklab "
+               "olib, o'zining xotirasida (DOM) rasm chizadi. Siz o'sha DOM'ga teging — faqat "
+               "lokal o'zgarish. F5 bosganingizda brauzer sahifani serverdan qaytadan yuklaydi — "
+               "asl HTML/CSS qaytadan keladi, sizning lokal o'zgarishlaringiz tushib qoladi. "
+               "Doimiy o'zgarish kerak bo'lsa — serverda saqlanishi kerak (backend), yoki "
+               "brauzer'ning localStorage'iga yozish kerak. Bu farq frontend va backend "
+               "ajralishining mohiyati: frontend — vaqtinchalik ko'rinish, backend — doimiy haqiqat.",
                diff="Hard", pts=4),
         ],
     },
