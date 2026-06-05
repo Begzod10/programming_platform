@@ -992,16 +992,13 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                              style={{width: `${((currentIndex + (isDone ? 1 : 0)) / allLessons.length) * 100}%`}}/>
                     </div>
                 </div>
-                <div className="slp-hero-right">
-                    {!projectSection && (
-                        <button className={`slp-complete-btn ${isDone ? 'done' : ''}`} onClick={handleComplete} disabled={isDone}>
-                            {isDone ? '✓ Урок пройден' : 'Отметить как пройденный'}
+                {!isDone && !projectSection && (
+                    <div className="slp-hero-right">
+                        <button className="slp-complete-btn" onClick={handleComplete}>
+                            Отметить как пройденный
                         </button>
-                    )}
-                    {projectSection && isDone && (
-                        <button className="slp-complete-btn done" disabled>✓ Урок пройден</button>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
 
             {/* ──────────── CONTENT BLOCKS ──────────── */}
