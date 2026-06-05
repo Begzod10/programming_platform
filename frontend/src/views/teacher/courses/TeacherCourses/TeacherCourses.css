@@ -121,20 +121,38 @@
     gap: 22px;
 }
 
-/* ===== COURSE CARD ===== */
+/* ===== COURSE CARD =====
+   react-beautiful-dnd writes `transform` and `transition` inline on the
+   draggable element. If we also animate `transform` (via `transition: all`
+   or a hover translateY), every drag frame fights our own transition and
+   the card stutters. Rules:
+     • Only transition `box-shadow` and `border-color` on the card.
+     • Never set `transform` on the card itself outside the dragging state.
+     • While dragging, kill the transition entirely so the cursor follow
+       is exactly 1:1.
+*/
 .tc-course-card {
     background: rgba(255,255,255,0.97);
     border: 1px solid rgba(0,0,0,0.07);
     border-radius: 22px; overflow: hidden;
     box-shadow: 0 4px 20px rgba(0,0,0,0.07);
-    transition: all 0.3s cubic-bezier(0.4,0,0.2,1); cursor: pointer;
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+    cursor: pointer;
     position: relative;
 }
-.tc-course-card:hover { transform: translateY(-5px); box-shadow: 0 16px 40px rgba(0,0,0,0.13); }
+.tc-course-card:hover {
+    box-shadow: 0 16px 40px rgba(0,0,0,0.13);
+    border-color: rgba(108,92,231,0.25);
+}
+/* While dragging: no extra transform (it would override the library's
+   translate), no transition (must be 1:1 with the cursor), only a
+   stronger shadow + tilted handle indicator below. */
 .tc-course-card--dragging {
     box-shadow: 0 24px 48px rgba(108,92,231,0.35);
-    transform: rotate(2deg) scale(1.02);
+    transition: none !important;
+    cursor: grabbing;
 }
+.tc-course-card--dragging:hover { box-shadow: 0 24px 48px rgba(108,92,231,0.35); }
 
 /* Drag handle — small grip in the top-left of each card, only visible
    on hover so it doesn't clutter the design. Clicking the handle does
