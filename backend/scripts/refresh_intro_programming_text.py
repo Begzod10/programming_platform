@@ -49,7 +49,7 @@ from scripts.seed_intro_programming import (  # noqa: E402
 # L4 (order=3): rewritten with 3-block JS console hook (sequence/condition/
 #               loop on google.com) — 3 swapped, 2 kept by title (the
 #               3-blocks mc and the cheksiz-sikl essay).
-ORPHAN_DELETE_LESSONS = {0, 1, 2, 3}
+ORPHAN_DELETE_LESSONS = {0, 1, 2, 3, 4}
 
 
 EXERCISE_TEXT_FIELDS = {

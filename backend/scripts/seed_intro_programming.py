@@ -797,121 +797,159 @@ for (let i = 0; i < ranglar.length; i++) {
 # L5 — O'zgaruvchilar va turlar (universal)
 # ═════════════════════════════════════════════════════════════════════════════
 L5_TEXT = """\
-<h2>O'zgaruvchilar va turlar — universal tushuncha</h2>
+<h2>O'zgaruvchilar — qutichalarga yorliq yopishtiramiz</h2>
 
 <pre class="mermaid">
 flowchart LR
-    L1["ism = Aziz"] -->|str| B1["text quticha"]
-    L2["yosh = 20"] -->|number| B2["int quticha"]
-    L3["talaba = True"] -->|bool| B3["true false quticha"]
-    L4["ranglar = qizil ko'k"] -->|list| B4["array quticha"]
-    B1 --> CODE["dasturlar"]
+    L1["ism = Aziz"] -->|string| B1["matn quticha"]
+    L2["yosh = 20"] -->|number| B2["son quticha"]
+    L3["talaba = true"] -->|boolean| B3["ha yoki yoq"]
+    L4["ranglar = qizil kok"] -->|array| B4["royhat quticha"]
+    B1 --> CODE["dastur xotirasi"]
     B2 --> CODE
     B3 --> CODE
     B4 --> CODE
 </pre>
 
-<p>Har bir dasturlash tilida (Python, JavaScript, Java, C, Rust, Go ...) bitta tushuncha bor: <strong>o'zgaruvchi</strong>. Bu — qiymatni saqlash uchun nom. Tilning sintaksisi farq qiladi, lekin g'oya bir xil.</p>
+<h3>🏆 5 daqiqada g'alaba — brauzer konsoli bizning xotiramiz</h3>
+<p>Hech narsa o'rnatmaymiz. Yangi brauzer oynasi oching → URL qatoriga <code>about:blank</code> yozing → <kbd>F12</kbd> bosing → <strong>Console</strong> tabini tanlang. Endi kompyuter sizning komandalaringizni eshitishga tayyor.</p>
 
-<h3>O'zgaruvchi = quticha + yorliq</h3>
-<p>Tasavvur qiling: sizda quticha bor, unga yorliq yopishtirdingiz. Yorliq — bu nom (<code>yosh</code>). Quticha ichidagi narsa — qiymat (<code>20</code>).</p>
-<pre><code>yosh = 20
-#  ↑    ↑
-#  yorliq  qiymat
-#  (nom)</code></pre>
-<p>Kelajakda <code>yosh</code> deganingizda — Python (yoki JS yoki har qanday til) qutichaga qaraydi va ichidagi qiymatni qaytaradi.</p>
-
-<h3>5 ta universal tur</h3>
-<table>
-<tr><th>Tur</th><th>Nima saqlaydi</th><th>Misol</th></tr>
-<tr><td><strong>Integer (int)</strong></td><td>Butun son</td><td>20, -5, 1000</td></tr>
-<tr><td><strong>Float</strong></td><td>Kasr son</td><td>3.14, -0.5, 99.99</td></tr>
-<tr><td><strong>String (str)</strong></td><td>Matn — tirnoq ichida</td><td>"Salom", 'A'</td></tr>
-<tr><td><strong>Boolean (bool)</strong></td><td>True yoki False</td><td>True, False</td></tr>
-<tr><td><strong>List / Array</strong></td><td>Bir nechta qiymat birga</td><td>[1, 2, 3], ["a", "b"]</td></tr>
-</table>
-
-<h3>Sintaksis 3 ta tilda</h3>
-<pre><code># Python
-ism = "Aziz"
-yosh = 20
-ranglar = ["qizil", "ko'k"]
-
-# JavaScript
+<h4>BLOKA 1 — Qutichalarga ism beramiz</h4>
+<p>Pastdagi kodni nusxalang va konsolga yopishtiring (Enter bosing):</p>
+<pre><code>// Har bir qatorda: yorliq = qiymat
 let ism = "Aziz";
 let yosh = 20;
-let ranglar = ["qizil", "ko'k"];
+let boy = 1.75;
+let talaba = true;
+let ranglar = ["qizil", "ko'k", "yashil"];
 
-# Java
-String ism = "Aziz";
-int yosh = 20;
-String[] ranglar = {"qizil", "ko'k"};</code></pre>
-<p>Farq: Java da <strong>tur</strong> oldindan yoziladi (<code>String</code>, <code>int</code>), Python va JS da — yo'q. Java <strong>statically typed</strong>, Python/JS — <strong>dynamically typed</strong>.</p>
+// Endi yorliq nomini yozing — quticha ichidagi qiymat qaytadi
+console.log(ism);
+console.log(yosh, "yosh,", boy, "metr");
+console.log("Sevimli ranglar:", ranglar);
+console.log("Talaba?", talaba);</code></pre>
+<p><strong>Nima bo'ldi:</strong> 5 ta o'zgaruvchi yaratdingiz. Har biri — yorliq yopishtirilgan quticha. <code>console.log</code> qutichalarga qarab, ichidagi qiymatlarni ko'rsatadi. Brauzer xotirasi sizning komandangizni eslab qoldi.</p>
 
-<h3>O'zgaruvchi qiymatini o'zgartirish</h3>
-<p>"O'zgaruvchi" deyilishining sababi — qiymati o'zgarishi mumkin:</p>
-<pre><code>yosh = 20         # quticha ichida 20
-yosh = 21         # endi quticha ichida 21
-yosh = yosh + 1   # eski qiymat + 1 = 22</code></pre>
-<p>Bu eng ko'p uchraydigan amal: <code>x = x + 1</code> — qiymatga 1 qo'shish va qaytarib quticha ichiga qo'yish.</p>
+<h4>BLOKA 2 — Turlarni "ko'rish"</h4>
+<p>Konsolda <code>typeof</code> komandasi har bir qiymatning turi nima ekanligini aytib beradi:</p>
+<pre><code>console.log(typeof ism);      // "string"
+console.log(typeof yosh);     // "number"
+console.log(typeof talaba);   // "boolean"
+console.log(typeof ranglar);  // "object"  (massiv ham object)
+console.log(Array.isArray(ranglar));  // true — bu massiv</code></pre>
+<p><strong>5 ta universal tur:</strong> string (matn), number (son), boolean (rost/yolg'on), array (ro'yxat), object (obyekt). Bu turlar deyarli har bir dasturlash tilida bor — Python, Java, Go, C++ — faqat nomi biroz boshqacha.</p>
 
-<h3>Const va var — o'zgarmas qutichalar</h3>
-<p>Ba'zi tillarda <strong>o'zgarmas</strong> qutichalar bor:</p>
+<h4>BLOKA 3 — Tabriknoma robotini quramiz</h4>
+<p>Foydalanuvchidan ma'lumot olamiz va shaxsiy javob qaytaramiz:</p>
+<pre><code>let foydaIsm = prompt("Ismingizni kiriting:");
+let foydaYosh = Number(prompt("Yoshingizni kiriting:"));
+let keyingiYil = foydaYosh + 1;
+
+if (foydaYosh >= 18) {
+    alert(foydaIsm + ", siz voyaga yetgansiz! Kelgusi yil " + keyingiYil + " yoshda bo'lasiz.");
+} else {
+    let qolgan = 18 - foydaYosh;
+    alert(foydaIsm + ", siz hali bolasiz. " + qolgan + " yildan keyin voyaga yetasiz.");
+}</code></pre>
+<p>3 ta qutichada uchta turli tur: <code>foydaIsm</code> — string, <code>foydaYosh</code> — number, <code>keyingiYil</code> — number. Kompyuter qiymatlarni eslab, ular bilan amallar bajarib, javob qurdi.</p>
+
+<h3>🐛 Ataylab xato — eng mashhur "tuzoq"</h3>
+<p>Quyidagi qatorlarni konsolga yopishtiring va natijaga qarang:</p>
+<pre><code>let a = "5";    // matn — tirnoq ichida!
+let b = 3;      // son
+console.log(a + b);   // Nima chiqdi?</code></pre>
+<p>Javob: <code>"53"</code> chiqdi, <code>8</code> emas. Sababi: <code>a</code> ichida matn ("5"), shuning uchun JavaScript <code>+</code> ni qo'shish emas — <strong>yopishtirish</strong> deb tushundi ("5" yoniga "3" yopishtirdi).</p>
+<p><strong>Tuzatish:</strong> matnni avval songa aylantiring:</p>
+<pre><code>console.log(Number(a) + b);   // 8 — endi to'g'ri qo'shildi</code></pre>
+<p>Bu xato yangi boshlovchilarning №1 hayratlanish manbai. Endi siz uni biladigan birinchilardansiz.</p>
+
+<h3>Endi tushuntiramiz — turlar nima uchun muhim</h3>
+
+<h4>O'zgaruvchi = yorliqli quticha</h4>
+<p>Kod yozayotganingizda, har bir qiymat (son, matn, ha/yo'q) xotirada qaerdadir saqlanadi. Siz <strong>yorliq</strong> yopishtirasiz — keyin shu yorliq bo'yicha qiymatga murojaat qilasiz.</p>
+<pre><code>let yosh = 20;     // quticha yaratildi, yorliq yopishtirildi, ichida 20
+yosh = 21;         // o'sha qutichaga endi 21 qo'yildi (qiymat o'zgardi)
+yosh = yosh + 1;   // o'qing → 1 qo'shing → qaytarib qo'ying = 22</code></pre>
+
+<h4>Dynamic vs Static — turni kim tekshiradi?</h4>
+<table>
+<tr><th>Til</th><th>Sintaksis</th><th>Qoida</th></tr>
+<tr><td>JavaScript</td><td><code>let yosh = 20;</code></td><td>Tur avtomatik — dynamic</td></tr>
+<tr><td>Python</td><td><code>yosh = 20</code></td><td>Tur avtomatik — dynamic</td></tr>
+<tr><td>Java</td><td><code>int yosh = 20;</code></td><td>Tur oldindan e'lon — static</td></tr>
+<tr><td>Go</td><td><code>var yosh int = 20</code></td><td>Static (yoki <code>:=</code> bilan auto)</td></tr>
+</table>
+<p><strong>Static</strong>: kompilator boshida turni biladi → xatoni dasturdan oldin tutadi. <strong>Dynamic</strong>: tezroq yoziladi, lekin xato faqat ishga tushganda chiqadi (yuqoridagi <code>"5" + 3</code> kabi).</p>
+
+<h4>Nom qoidalari (deyarli har bir tilda bir xil)</h4>
 <ul>
-<li>JavaScript: <code>const PI = 3.14</code> — bir marta beriladi, qayta o'zgarmaydi</li>
-<li>Python: katta harf nomi — odat (<code>PI = 3.14</code>), texnik majburiy emas</li>
-<li>Java: <code>final int PI = 3</code></li>
+<li>✅ Harf yoki <code>_</code> bilan boshlanadi: <code>yosh</code>, <code>_temp</code></li>
+<li>❌ Raqamdan boshlanmaydi: <code>1ism</code> — xato</li>
+<li>❌ Bo'sh joy yo'q: <code>mening yoshim</code> — xato</li>
+<li>❌ Tilning kalit so'zlari: <code>let</code>, <code>if</code>, <code>class</code> — ishlatilmaydi</li>
+<li>✅ Tushunarli, ma'noli: <code>foydaYoshi</code> > <code>fY</code></li>
 </ul>
-<p>Qachon kerak? Doimiy qiymatlar uchun: pi, soliq foizi, maksimum yosh.</p>
 
-<h3>O'zgaruvchi nomi qoidalari (deyarli barcha tilda bir xil)</h3>
+<h4>Yaxshi nom — kelajakdagi sizga sovg'a</h4>
+<p>"Kod bir marta yoziladi, lekin 100 marta o'qiladi" — tajribali dasturchilar qoidasi.</p>
+<pre><code>// Yomon — 3 oydan keyin tushunmaysiz
+let x = 25;
+let y = x * 0.12;
+
+// Yaxshi — bir qarashda aniq
+let mahsulotNarxi = 25;
+let soliqSummasi = mahsulotNarxi * 0.12;</code></pre>
+
+<h3>📌 Bu darsdan keyin siz bilasizki</h3>
 <ul>
-<li>✅ Harf yoki <code>_</code> bilan boshlanadi</li>
-<li>❌ Raqamdan boshlanmaydi: <code>1ism</code> noto'g'ri</li>
-<li>❌ Bo'sh joy yo'q: <code>mening yoshim</code> noto'g'ri</li>
-<li>✅ Tushunarli nom: <code>foydalanuvchi_yoshi</code>, <code>fY</code> emas</li>
-<li>❌ Tilning kalit so'zlari: <code>class</code>, <code>if</code>, <code>function</code> ishlatilmaydi</li>
+<li>O'zgaruvchi — qiymatni saqlash uchun yorliqli quticha</li>
+<li>5 ta universal tur bor: string, number, boolean, array, object</li>
+<li><code>typeof</code> bilan turini ko'rasiz</li>
+<li><code>"5" + 3</code> = <code>"53"</code> — chunki matn bilan son qo'shilganda matnga aylanadi</li>
+<li>Static til (Java, Go) turini oldindan biladi; dynamic til (JS, Python) — ish vaqtida aniqlaydi</li>
+<li>Nom qoidalari va yaxshi nom = yaxshi kod</li>
 </ul>
-
-<h3>Yaxshi nom — yaxshi kod</h3>
-<p>Tajribali dasturchi qoidasi: "Kod bir marta yoziladi, lekin 100 marta o'qiladi". Yaxshi nom = yaxshi o'qiladigan kod = kelajakdagi siz uchun rahmat.</p>
-<pre><code># Yomon
-x = 25
-y = x * 0.12
-
-# Yaxshi
-mahsulot_narxi = 25
-soliq_summasi = mahsulot_narxi * 0.12</code></pre>
 """
 
 L5_CODE = """\
-# Universal pseudo-kod misollar — turli tillarda ko'rib chiqing
+// ═══ DARS 5 — KONSOLDA TUSHUNCHALARNI SINASH ═══
+// about:blank → F12 → Console → pastdagilarni yopishtiring
 
-# ─── Asosiy turlar ──────────────────────────────────
-ism = "Aziz"           # string
-yosh = 20              # integer
-boy = 1.75             # float
-talaba = True          # boolean
-ranglar = ["qizil", "ko'k", "yashil"]  # list
+// ─── BLOKA 1: Qutichalarga yorliq yopishtirish ───────
+let ism = "Aziz";
+let yosh = 20;
+let boy = 1.75;
+let talaba = true;
+let ranglar = ["qizil", "ko'k", "yashil"];
 
-# ─── Amallar ────────────────────────────────────────
-yangi_yosh = yosh + 5              # 25
-to'liq_ism = ism + " Karimov"      # "Aziz Karimov"
-ranglar_soni = len(ranglar)        # 3
+console.log(ism);
+console.log(yosh, "yosh,", boy, "metr");
+console.log("Sevimli ranglar:", ranglar);
 
-# ─── Shart ──────────────────────────────────────────
-if yosh >= 18:
-    print(f"{ism} voyaga yetgan")
-else:
-    print(f"{ism} hali bola")
+// ─── BLOKA 2: Turlarni ko'rish ───────────────────────
+console.log(typeof ism);       // "string"
+console.log(typeof yosh);      // "number"
+console.log(typeof talaba);    // "boolean"
+console.log(Array.isArray(ranglar));  // true
 
-# ─── Sikl ───────────────────────────────────────────
-for rang in ranglar:
-    print("Rang:", rang)
+// ─── BLOKA 3: Interaktiv tabriknoma ──────────────────
+let foydaIsm = prompt("Ismingiz?");
+let foydaYosh = Number(prompt("Yoshingiz?"));
+if (foydaYosh >= 18) {
+    alert(foydaIsm + ", voyaga yetgansiz!");
+} else {
+    alert(foydaIsm + ", " + (18 - foydaYosh) + " yil qolgan.");
+}
 
-# Bu Python sintaksisi. JavaScript da bir xil mantiq:
-# if (yosh >= 18) { ... }
-# for (let rang of ranglar) { ... }
+// ─── XATO TUZOG'I: matn + son = matn ─────────────────
+let a = "5";
+let b = 3;
+console.log(a + b);          // "53" — yopishtirildi
+console.log(Number(a) + b);  // 8 — to'g'ri qo'shildi
+
+// ─── O'zgartirish mumkin (shuning uchun "o'zgaruvchi") ─
+yosh = 21;
+yosh = yosh + 1;   // 22
 """
 
 
@@ -1786,40 +1824,38 @@ LESSONS = [
     },
     {
         "order": 4, "title": "5-O'zgaruvchilar va turlar (universal)",
-        "text": L5_TEXT, "code": L5_CODE, "lang": "python",
+        "text": L5_TEXT, "code": L5_CODE, "lang": "javascript",
         "video": "https://youtu.be/v6Bm9JzkAv4",
         "exercises": [
-            mc("O'zgaruvchi nima?",
-               ["Qiymatni saqlash uchun nom (yorliqlangan quticha)",
-                "Algoritm turi",
-                "Funksiya nomi",
-                "Fayl turi"],
-               "A", diff="Easy", pts=2),
+            mc("Brauzer konsolida `typeof \"Aziz\"` qaysi natijani qaytaradi?",
+               ['"string"', '"number"', '"text"', '"object"'],
+               "A", explanation='Tirnoq ichidagi qiymat — har doim string turidagi.',
+               diff="Easy", pts=2),
             mc("Quyidagilardan qaysilari TO'G'RI o'zgaruvchi nomi?",
-               ["yosh", "foydalanuvchi_yoshi", "1ism", "user-name", "userName"],
+               ["yosh", "foydaYoshi", "1ism", "user-name", "_temp"],
                "A,B,E", multi=True,
-               hint="Raqamdan boshlanmaslik va '-' belgisi bo'lmasligi kerak.",
+               hint="Raqamdan boshlanmaslik va '-' belgisi bo'lmasligi kerak. _ ruxsat etilgan.",
                diff="Medium", pts=3),
-            mc("Statically typed va dynamically typed til farqi qaysi?",
-               ["Statically — tur oldindan e'lon qilinadi; dynamically — tur avtomatik aniqlanadi",
-                "Statically — sekin, dynamically — tez",
-                "Statically — eski, dynamically — yangi",
-                "Hech qanday farq yo'q"],
-               "A", hint="Java (statically): int yosh = 20. Python (dynamically): yosh = 20.",
+            mc("`let a = \"5\"; let b = 3; console.log(a + b);` — konsolda nima chiqadi?",
+               ['"53"', "8", '"8"', "Xato (TypeError)"],
+               "A",
+               explanation='a — string. String + number → JavaScript ikkalasini ham stringga aylantirib yopishtiradi. Number(a) + b qilsangiz 8 chiqadi.',
+               hint='Yodda tuting: matn bilan son qo\'shilsa — yopishtirish bo\'ladi.',
                diff="Medium", pts=3),
-            dd("Universal turlarni misol bilan moslang",
-               ["Integer — 20",
-                "Float — 3.14",
-                "String — \"Salom\"",
-                "Boolean — True",
-                "List — [1, 2, 3]"],
+            dd("Qiymatni mos turga ulang",
+               ['number — 20',
+                'string — "Aziz"',
+                'boolean — true',
+                'array — [1, 2, 3]',
+                'object — { ism: "Aziz" }'],
                diff="Medium", pts=3),
-            ti("Nima uchun yaxshi nom yaxshi koddir?",
-               "\"Kod bir marta yoziladi, lekin 100 marta o'qiladi\" — tajribali dasturchilar "
-               "shu qoidaga amal qiladi. Yaxshi nom: 1) sizning va kelajakdagi sizning vaqtingizni "
-               "tejaydi; 2) jamoa a'zolari kodni tezroq tushunadi; 3) hujjatlash kerak emas, kod o'zi "
-               "tushuntiradi; 4) bug topish osonlashadi. \"x = 25 * 0.12\" yomon — x nima? 0.12 "
-               "nima? \"soliq_summasi = mahsulot_narxi * SOLIQ_FOIZI\" yaxshi — har biri aniq.",
+            ti("`yosh = yosh + 1` qatori nima qiladi? Bosqichma-bosqich tushuntiring.",
+               "Bu qator 3 bosqichda ishlaydi: 1) o'ng tomon hisoblanadi — kompyuter yosh "
+               "qutichasidan eski qiymatni o'qiydi (masalan 20) va unga 1 qo'shadi (20 + 1 = 21); "
+               "2) natija (21) vaqtinchalik xotirada turadi; 3) chap tomondagi yosh qutichasiga "
+               "yangi qiymat (21) yoziladi — eski qiymat o'chiriladi. Natijada yosh qutichasi "
+               "ichida endi 21 turadi. Bu naqsh dasturlashda eng ko'p uchraydigan amal — counter "
+               "(hisoblagich) oshirish, ball qo'shish, indeks oldinga siljitish va h.k.",
                diff="Hard", pts=4),
         ],
     },
