@@ -1381,99 +1381,167 @@ L8_TEXT = """\
 
 <pre class="mermaid">
 flowchart LR
-    F["index.html"] --> R["git repo"]
-    R -->|git push| GH["GitHub"]
-    GH -->|Pages enabled| URL["yourname.github.io"]
+    F["index.html"] --> LOCAL["dbl click brauzer"]
+    F --> REPO["git push"]
+    REPO --> GH["GitHub"]
+    GH -->|Pages on| URL["yourname.github.io"]
     URL --> WORLD["publik URL"]
-    YOU["siz"] -.->|share link| FR["do'stlar ish beruvchilar"]
 </pre>
 
-<p>Mana, kursning yakuniy darsi. Endi biz hammasini birga ishlatamiz: HTML (struktura), Git (saqlash), GitHub (uzoq saqlash) va <strong>GitHub Pages</strong> (bepul hosting). 30 daqiqada — sizning birinchi sahifangiz internetda yashaydi.</p>
+<h3>🏆 5 daqiqada g'alaba — kompyuterda jonli sahifa</h3>
+<p>Hech qanday tarmoq, hosting yoki server kerak emas. Brauzeringiz HTML faylni <strong>to'g'ridan-to'g'ri</strong> ochib, sahifani ko'rsata oladi.</p>
 
-<h3>GitHub Pages nima?</h3>
-<p>GitHub Pages — bu bepul vebsite hosting xizmati. Repo ichidagi HTML/CSS/JS fayllarni avtomatik publik URL ga joylashtiradi. Format: <code>yourusername.github.io/repo-nomi</code>.</p>
-<p>Bu — talabalar uchun <strong>oltin</strong>: hech qanday hosting to'lovi yo'q, oddiy, ishonchli. Real veb-saytlar GitHub Pages'da joylashgan: jamoa loyihalari, blog, dokumentatsiya.</p>
-
-<h3>4 qadam — internetga chiqish</h3>
-
-<h4>1️⃣ HTML sahifani yarating</h4>
-<p>Oddiy "About me" sahifasini yozing. Ko'p narsa kerak emas — sodda va aniq.</p>
+<h4>BLOKA 1 — Yangi fayl, jonli sahifa</h4>
+<ol>
+<li>Ish stolida yangi papka yarating: <code>mening-sahifam</code></li>
+<li>O'sha papka ichida yangi matn fayli yarating, nomini <strong>aynan</strong> <code>index.html</code> qo'ying (txt emas!)</li>
+<li>Fayl ichini quyidagicha to'ldiring (Notepad, TextEdit, VS Code — har qanday muharrir):</li>
+</ol>
 <pre><code>&lt;!DOCTYPE html&gt;
 &lt;html lang="uz"&gt;
 &lt;head&gt;
     &lt;meta charset="UTF-8"&gt;
-    &lt;title&gt;Aziz Karimov — Frontend talabasi&lt;/title&gt;
-    &lt;style&gt;
-        body {
-            font-family: sans-serif;
-            max-width: 600px;
-            margin: 40px auto;
-            padding: 0 20px;
-            line-height: 1.6;
-        }
-        h1 { color: #6c5ce7; }
-        a { color: #6c5ce7; }
-    &lt;/style&gt;
+    &lt;title&gt;Mening birinchi sahifam&lt;/title&gt;
 &lt;/head&gt;
 &lt;body&gt;
-    &lt;h1&gt;Salom, men Aziz! 👋&lt;/h1&gt;
-    &lt;p&gt;Men 20 yoshli talaba va dasturlashni o'rganmoqdaman.&lt;/p&gt;
-    &lt;h2&gt;Hozir o'rganayotganlarim&lt;/h2&gt;
-    &lt;ul&gt;
-        &lt;li&gt;HTML va CSS&lt;/li&gt;
-        &lt;li&gt;JavaScript&lt;/li&gt;
-        &lt;li&gt;Python&lt;/li&gt;
-    &lt;/ul&gt;
-    &lt;h2&gt;Aloqa&lt;/h2&gt;
-    &lt;p&gt;Telegram: &lt;a href="https://t.me/aziz"&gt;@aziz&lt;/a&gt;&lt;/p&gt;
-    &lt;p&gt;GitHub: &lt;a href="https://github.com/aziz"&gt;github.com/aziz&lt;/a&gt;&lt;/p&gt;
+    &lt;h1&gt;Salom, dunyo!&lt;/h1&gt;
+    &lt;p&gt;Mana, mening birinchi sahifam.&lt;/p&gt;
 &lt;/body&gt;
 &lt;/html&gt;</code></pre>
+<p>Faylni saqlang. Endi <strong>fayl ustiga ikki marta bosing</strong> — brauzer ochiladi va sahifangizni ko'rsatadi. URL qatorida: <code>file:///.../mening-sahifam/index.html</code>. Tabriklayman — sizda jonli HTML sahifa bor.</p>
 
-<h4>2️⃣ Git va GitHub'ga joylash</h4>
-<pre><code># Loyiha papkasi ichida
-git init
+<h4>BLOKA 2 — Dizayn qo'shamiz (CSS)</h4>
+<p><code>&lt;/title&gt;</code> dan keyin va <code>&lt;/head&gt;</code> dan oldin <code>&lt;style&gt;</code> blokini qo'shing:</p>
+<pre><code>&lt;style&gt;
+    body {
+        font-family: sans-serif;
+        max-width: 600px;
+        margin: 60px auto;
+        padding: 0 20px;
+        color: #1a1a2e;
+        background: linear-gradient(135deg, #fafafd, #e8e9f7);
+        line-height: 1.6;
+    }
+    h1 {
+        color: #6c5ce7;
+        font-size: 3em;
+        margin-bottom: 10px;
+    }
+&lt;/style&gt;</code></pre>
+<p>Faylni saqlang (<kbd>Ctrl+S</kbd>) → brauzerda <kbd>F5</kbd> bosing. Mana, dizayn paydo bo'ldi — gradient fon, katta binafsha sarlavha. CSS sahifaning "kostyumi".</p>
+
+<h4>BLOKA 3 — Interaktivlik qo'shamiz (JS)</h4>
+<p><code>&lt;/body&gt;</code> dan oldin tugma va JavaScript qo'shing:</p>
+<pre><code>&lt;button id="say-hi"&gt;Bosing!&lt;/button&gt;
+&lt;p id="output"&gt;&lt;/p&gt;
+
+&lt;script&gt;
+    let count = 0;
+    document.getElementById("say-hi").onclick = () =&gt; {
+        count = count + 1;
+        document.getElementById("output").textContent =
+            "Siz tugmani " + count + " marta bosdingiz!";
+    };
+&lt;/script&gt;</code></pre>
+<p>Saqlang → F5 → tugmani bir necha marta bosing. Hisoblagich oshib boradi. <strong>3 ta texnologiya birga ishlamoqda</strong>: HTML (struktura), CSS (rang), JavaScript (interaktivlik).</p>
+
+<h3>🐛 Ataylab xato — kichik harf masalasi</h3>
+<p>Sinab ko'ring: papka ichida fayl nomini <code>Index.HTML</code> qiling. Brauzer URL qatorida <code>index.html</code> deb yozing va Enter bosing. Linux/Mac da — <strong>404 yoki ochilmaydi</strong>; Windows da — ochiladi. Sababi: serverlar (va Linux) <strong>katta-kichik harflarga sezgir</strong>. <code>Index.HTML</code> ≠ <code>index.html</code>. GitHub Pages — Linux serverda turadi. Qoida: fayl nomlari har doim kichik harfda, bo'sh joysiz, <code>my-page.html</code> ko'rinishida.</p>
+
+<h3>Endi internetga chiqaramiz — GitHub Pages 4 qadam</h3>
+
+<h4>1️⃣ Lokal repo'ni tayyorlang</h4>
+<p>Terminalni <code>mening-sahifam</code> papkasi ichida oching. Avvalgi darsdagi git komandalarini ishlating:</p>
+<pre><code>git init
 git add .
-git commit -m "Birinchi sahifa: about me"
+git commit -m "Birinchi sahifa"</code></pre>
 
-# GitHub'da yangi repo yarating: about-me yoki yourname.github.io
-# Keyin local ni unga ulang:
-git remote add origin https://github.com/USERNAME/about-me.git
+<h4>2️⃣ GitHub'da repo yarating</h4>
+<p>github.com → + → New repository. Tavsiya: nomini aynan <strong><code>SIZNING-USERNAME.github.io</code></strong> qo'ying (kichik harflarda). Bu maxsus nom — URL'ingiz <code>https://SIZNING-USERNAME.github.io/</code> bo'ladi (root URL).</p>
+
+<h4>3️⃣ Lokalni GitHub'ga ulang</h4>
+<pre><code>git remote add origin https://github.com/SIZNING-USERNAME/SIZNING-USERNAME.github.io.git
 git branch -M main
 git push -u origin main</code></pre>
 
-<h4>3️⃣ GitHub Pages ni yoqing</h4>
+<h4>4️⃣ Pages'ni yoqing (faqat boshqa nom uchun)</h4>
+<p>Agar repo nomi <code>SIZNING-USERNAME.github.io</code> bo'lsa — Pages avtomatik yoqiladi. Boshqa nom (masalan <code>about-me</code>) bo'lsa:</p>
 <ol>
-<li>GitHub'da repo sahifasiga kiring</li>
-<li><strong>Settings</strong> → <strong>Pages</strong> bo'limi</li>
-<li>"Branch" ni <code>main</code> ga qo'ying va Save</li>
-<li>1-2 daqiqa kuting</li>
+<li>Repo → <strong>Settings</strong> → <strong>Pages</strong></li>
+<li>Source: Deploy from a branch</li>
+<li>Branch: <code>main</code> → <code>/ (root)</code> → Save</li>
+<li>1–2 daqiqa kuting</li>
+<li>Yashil banner: "Your site is live at <strong>https://SIZNING-USERNAME.github.io/about-me/</strong>"</li>
 </ol>
+<p>Bu URL'ni do'stlaringizga yuboring. Resume'ga qo'shing. Telegram'da ulashing. <strong>Internetda sizning izingiz bor</strong> — kompyuteringiz o'chsa ham, sahifa ishlaydi.</p>
 
-<h4>4️⃣ URL ni oling va ulashing!</h4>
-<p>Settings → Pages'da yashil tasma paydo bo'ladi: "Your site is live at <strong>https://USERNAME.github.io/about-me/</strong>"</p>
-<p>Bu — sizning sahifangiz. Telegram'da ulashing. Resume'ga qo'shing. Birinchi haqiqiy onlayn izingiz.</p>
+<h3>Endi tushuntiramiz — nima sodir bo'ldi</h3>
 
-<h3>Maxsus repo: <code>USERNAME.github.io</code></h3>
-<p>Agar repo nomingizni aynan <code>SIZNING-USERNAME.github.io</code> qilsangiz, URL <code>https://SIZNING-USERNAME.github.io/</code> bo'ladi — bu sizning "asosiy" sahifangiz. Tavsiya etamiz.</p>
-
-<h3>Keyingi qadam — qaysi kursni tanlay?</h3>
-<p>Tabriklaymiz! Siz dasturlash dunyosiga kirdingiz. Endi yo'lni tanlash vaqti:</p>
+<h4>3 ta texnologiya qanday birga ishlaydi</h4>
 <table>
-<tr><th>Agar siz ...</th><th>Keyingi kurs</th></tr>
-<tr><td>Vizual natija va veb-saytlarni sevsangiz</td><td>📘 <strong>HTML CSS</strong> kursi</td></tr>
-<tr><td>Saytlarni jonlantirmoqchi bo'lsangiz</td><td>📗 <strong>Javascript</strong> kursi</td></tr>
-<tr><td>Keng imkoniyatlarni va AI'ni xohlasangiz</td><td>📕 <strong>Python Asoslari</strong></td></tr>
-<tr><td>Python'ni bilsangiz va veb-ilovalar quring</td><td>📓 <strong>Python Flask</strong></td></tr>
+<tr><th>Texnologiya</th><th>Vazifa</th><th>Misol</th></tr>
+<tr><td>HTML</td><td>Sahifa <strong>tuzilishi</strong></td><td><code>&lt;h1&gt;</code>, <code>&lt;p&gt;</code>, <code>&lt;button&gt;</code></td></tr>
+<tr><td>CSS</td><td>Sahifa <strong>ko'rinishi</strong></td><td>rang, shrift, joylashuv</td></tr>
+<tr><td>JavaScript</td><td>Sahifa <strong>xulq-atvori</strong></td><td>click, hisoblagich, animatsiya</td></tr>
 </table>
 
-<h3>3 ta yakuniy maslahat</h3>
-<ol>
-<li><strong>Har kuni 30 daqiqa</strong> — haftada 3 soatdan ko'ra yaxshi</li>
-<li><strong>Loyiha quring</strong> — faqat o'qish — yetarli emas. Yozish, buzish, qayta qurish</li>
-<li><strong>Sabr qiling</strong> — birinchi 3 oy — eng qiyin. Keyin oson bo'lib boradi</li>
-</ol>
-<p>Yo'lda omad! Endi haqiqiy o'rganish boshlanadi. 🚀</p>
+<h4>HTML eng kamida nima kerak?</h4>
+<ul>
+<li><code>&lt;!DOCTYPE html&gt;</code> — brauzerga "bu HTML5"</li>
+<li><code>&lt;html&gt;</code> — butun sahifaning idishi</li>
+<li><code>&lt;head&gt;</code> — sahifa haqida ma'lumot (title, meta, CSS)</li>
+<li><code>&lt;body&gt;</code> — ko'rinadigan tarkib</li>
+</ul>
+
+<h4>file:// vs https://</h4>
+<ul>
+<li><code>file:///home/aziz/.../index.html</code> — fayl bevosita siz turgan kompyuterdan ochilgan. Faqat siz ko'rasiz.</li>
+<li><code>https://aziz.github.io/</code> — internetdagi server'dan, dunyodagi har kim ko'radi.</li>
+</ul>
+<p>Lokal sinov uchun <code>file://</code> yetarli. Lekin <code>fetch()</code> va boshqa "haqiqiy" funksiyalar faqat <code>http(s)://</code> da to'liq ishlaydi.</p>
+
+<h4>GitHub Pages — nima yaxshi, nima yo'q</h4>
+<table>
+<tr><th>✅ Ishlaydi</th><th>❌ Ishlamaydi</th></tr>
+<tr><td>HTML, CSS, JavaScript</td><td>Python, Node, PHP (backend)</td></tr>
+<tr><td>Statik sahifa</td><td>Ma'lumotlar bazasi (PostgreSQL, ...)</td></tr>
+<tr><td>API'larga so'rov (frontend)</td><td>Login tizimi (server logikasi)</td></tr>
+<tr><td>To'liq bepul</td><td>Real-time websocket server</td></tr>
+</table>
+<p>GitHub Pages — frontend uchun mukammal. Backend kerak bo'lsa — keyingi kurslar (Python Flask, Node) buni qoplaydi.</p>
+
+<h3>🎓 CAPSTONE topshiriq</h3>
+<p>"About me" sahifa yarating va GitHub Pages'ga joylang. Minimum talablar:</p>
+<ul>
+<li>Sarlavha (ism) + 1 abzats tanishuv</li>
+<li>2 ta ro'yxat: hozir o'rganayotganlaringiz, kelajak maqsadlar</li>
+<li>Aloqa havolalari (Telegram, email, GitHub)</li>
+<li>O'z CSS dizayningiz — kamida rang va shrift tanlangan</li>
+<li>Mobile'da yaxshi ko'rinadi (<code>viewport</code> meta tegi va max-width)</li>
+<li>Real publik URL: <code>https://SIZNING-USERNAME.github.io/...</code></li>
+</ul>
+<p>O'qituvchiga URL'ni yuboring → tasdiqlanadi.</p>
+
+<h3>🧭 Keyingi qadam — qaysi kursni tanlay?</h3>
+<table>
+<tr><th>Agar siz...</th><th>Keyingi kurs</th></tr>
+<tr><td>Vizual sahifa va dizaynni sevsangiz</td><td>📘 <strong>HTML CSS</strong> chuqurroq</td></tr>
+<tr><td>Saytni jonlantirishni xohlasangiz</td><td>📗 <strong>JavaScript</strong></td></tr>
+<tr><td>Universal til va AI yo'lini xohlasangiz</td><td>📕 <strong>Python Asoslari</strong></td></tr>
+<tr><td>Backend va veb-ilovalar quring</td><td>📓 <strong>Python Flask</strong></td></tr>
+</table>
+
+<h3>📌 Bu darsdan keyin siz bilasizki</h3>
+<ul>
+<li><code>index.html</code> faylini yaratib, brauzerda ochish — server kerak emas</li>
+<li>HTML + CSS + JS — 3 texnologiya bir sahifada birga ishlaydi</li>
+<li>Fayl nomlari kichik harf, bo'sh joysiz — chunki GitHub Pages = Linux server</li>
+<li>GitHub Pages bepul, statik sahifalar uchun</li>
+<li>Maxsus repo <code>username.github.io</code> — root URL beradi</li>
+<li>Endi sizda dunyo ko'radigan publik URL bor</li>
+</ul>
+
+<p>Yo'lda omad! 🚀 Endi haqiqiy o'rganish boshlanadi — har kuni 30 daqiqa, har hafta yangi loyiha.</p>
 """
 
 L8_CODE = """\
@@ -2104,39 +2172,44 @@ LESSONS = [
         "text": L8_TEXT, "code": L8_CODE, "lang": "html",
         "video": "https://youtu.be/2MsN8gpT6jY",
         "exercises": [
-            mc("GitHub Pages qaysi turdagi sahifalar uchun ishlatiladi?",
-               ["Statik (HTML, CSS, JS) sahifalar",
-                "Faqat Wordpress saytlar",
-                "Server-side rendered ilovalar",
-                "Faqat dokumentatsiya"],
-               "A", explanation="GitHub Pages statik HTML/CSS/JS uchun. Backend (Python, Node) yo'q.",
+            mc("`index.html` faylini ish stolida yaratib, ustiga ikki marta bossangiz — nima bo'ladi?",
+               ["Brauzer ochiladi va sahifani ko'rsatadi (file:// URL)",
+                "Hech narsa — server kerak",
+                "Faqat matn muharririda ochiladi",
+                "Internet aloqasi tekshiriladi"],
+               "A", explanation='Brauzer HTML faylni to\'g\'ridan-to\'g\'ri rasm chiza oladi — server ham, internet ham kerak emas.',
                diff="Easy", pts=2),
-            mc("Repo nomi <username>.github.io bo'lsa, URL qanday bo'ladi?",
-               ["https://username.github.io/",
-                "https://github.com/username/",
-                "https://username.github.com/",
-                "https://pages.github.io/username/"],
-               "A", hint="Maxsus format — root URL beradi.",
-               diff="Medium", pts=3),
             mc("HTML sahifa eng kamida qaysi teglarga ega bo'lishi kerak?",
                ["<!DOCTYPE html>", "<html>", "<head>", "<body>", "<title>"],
                "A,B,C,D,E", multi=True,
+               explanation='5 ta ham majburiy minimum: DOCTYPE → html → head (title bilan) → body.',
                diff="Medium", pts=3),
-            dd("GitHub Pages bilan sahifani ishga tushirish qadamlari",
-               ["Local'da index.html yaratish",
-                "git init va commit",
-                "GitHub'da yangi repo yaratish",
-                "git push origin main",
-                "Settings → Pages → branch tanlash",
-                "Yashil URL paydo bo'lishini kutish"],
+            mc("Repo nomi `aziz.github.io` bo'lsa, GitHub Pages URL'i qanday bo'ladi?",
+               ["https://aziz.github.io/",
+                "https://github.com/aziz/",
+                "https://aziz.github.com/",
+                "https://pages.github.io/aziz/"],
+               "A", hint='Maxsus repo nomi — root URL beradi (boshqa repo nomlari /repo-nomi/ qo\'shadi).',
                diff="Medium", pts=3),
-            ti("Sizning birinchi GitHub Pages sahifangiz qanday bo'lishi kerak — strategiya?",
-               "Mening birinchi GitHub Pages sahifam — bu mening dunyoga \"birinchi xat\"im. "
-               "Maqsadlar: 1) o'zimni qisqacha tanishtirish — kim, qayerdan, nima o'rganmoqdaman; "
-               "2) hozirgi va kelajakdagi o'qishim/maqsadlarim; 3) ulanish ma'lumotlari — Telegram, "
-               "GitHub, email; 4) loyihalar uchun joy qoldirish — keyinroq qo'shaman. Dizayn: sodda, "
-               "o'qishga oson, mobile-friendly. Ranglar: 1-2 ta asosiy + neutral. Shrift: standart "
-               "system fontlardan biri. Bu sahifa keyinchalik portfolio ga aylanadi.",
+            dd("Lokal HTML faylni publik GitHub Pages URL'ga aylantirish qadamlarini tartiblang",
+               ["Lokal'da `index.html` faylini yaratish va tahrir qilish",
+                "Terminalda `git init`, `git add .`, `git commit -m \"...\"`",
+                "github.com'da yangi repo yaratish (preferred: username.github.io)",
+                "`git remote add origin URL` va `git push -u origin main`",
+                "Repo Settings → Pages → branch=main → Save (agar maxsus nom emas bo'lsa)",
+                "1-2 daqiqa kutish — yashil banner'da publik URL paydo bo'ladi"],
+               diff="Medium", pts=3),
+            ti("Lokal'da `index.html` ishladi, GitHub Pages'ga push'dan keyin 404 chiqdi. Nima uchun va qanday topish/tuzatish?",
+               "Eng ko'p sabab — fayl nomida katta-kichik harf. Lokal kompyuter (ayniqsa Windows va "
+               "macOS default) fayl nomlarida katta-kichikni e'tiborga olmaydi: Index.HTML va "
+               "index.html bir xil deb biladi. GitHub Pages — Linux serverda turadi, Linux'da "
+               "Index.HTML va index.html — IKKI XIL fayl. Brauzer `https://username.github.io/` "
+               "ga kirganda server faqat `index.html` nomli faylni qidiradi — agar Index.HTML "
+               "bo'lsa, topa olmay 404 qaytaradi. Yechim: 1) `git mv Index.HTML index.html` "
+               "bilan kichik harflarga o'zgartirish; 2) commit + push; 3) brauzerda hard refresh "
+               "(Ctrl+Shift+R). Qoida: barcha fayl va papka nomlarini kichik harf + chiziqcha "
+               "ko'rinishida (`about-me.html`, `images/`) saqlash. Bu hosil odat butun "
+               "professional dasturlash uchun standard.",
                diff="Hard", pts=4),
         ],
     },
