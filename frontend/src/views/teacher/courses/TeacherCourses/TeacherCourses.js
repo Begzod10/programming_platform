@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import './TeacherCourses.css';
 import LessonEditorPage from '../LessonEditor/LessonEditor';
 import CourseDetailPage from '../CourseModal/CourseModal';
@@ -239,6 +240,36 @@ const TeacherCourses = () => {
 
     const filteredCourses = courses.filter(c => activeFilter === 'all' || c.lessons.some(l => l.chapter === activeFilter));
 
+    // Drag-only-allowed when no chapter filter is applied — otherwise a reorder
+    // inside the filtered view would silently shuffle the hidden courses too,
+    // which is confusing. Teachers can clear the filter to reorder freely.
+    const canReorder = activeFilter === 'all';
+
+    const handleDragEnd = (result) => {
+        if (!result.destination) return;
+        if (result.source.index === result.destination.index) return;
+        if (!canReorder) return;
+
+        // Build new ordering on the FULL list (not just the filter view).
+        const next = Array.from(courses);
+        const [moved] = next.splice(result.source.index, 1);
+        next.splice(result.destination.index, 0, moved);
+
+        const prev = courses;
+        const withOrder = next.map((c, i) => ({ ...c, display_order: i }));
+        setCourses(withOrder);  // optimistic — UI updates immediately
+
+        const payload = {
+            items: withOrder.map((c, i) => ({ id: Number(c.id), display_order: i })),
+        };
+        request(`${API_URL}v1/courses/reorder`, 'PUT', JSON.stringify(payload), headers())
+            .catch(() => {
+                // Server rejected (auth, ownership, network). Roll back the UI
+                // so the teacher doesn't see a fake ordering that won't survive a refresh.
+                setCourses(prev);
+            });
+    };
+
     /* ── Course CRUD ── */
     const openAddCourse = () => {
         setEditingCourse(null);
@@ -452,34 +483,76 @@ const TeacherCourses = () => {
             ) : filteredCourses.length === 0 ? (
                 <div className="tc-empty"><div className="tc-empty-icon">📭</div><p>Курсов пока нет</p></div>
             ) : (
-                <div className="tc-courses-grid">
-                    {filteredCourses.map(course => (
-                        <div key={course.id} className="tc-course-card" onClick={() => navigate(`/teacher/courses/${course.id}`)}>
-                            <div className="tc-course-preview">
-                                <img src={course.image} alt={course.title} />
-                                <div className="tc-course-overlay"><span className="tc-view-label">👁️ Открыть курс</span></div>
-                            </div>
-                            <div className="tc-course-info">
-                                <div className="tc-course-header">
-                                    <h3>{course.title}</h3>
-                                    <div className="tc-course-actions">
-                                        <button className={`tc-publish-btn ${course.is_published ? 'published' : 'draft'}`} onClick={e => toggleCoursePublish(course, e)}>
-                                            <span className="tc-publish-dot" />{course.is_published ? 'Опубликован' : 'Черновик'}
-                                        </button>
-                                        <button className="tc-icon-btn tc-ediet-icon" onClick={e => openEditCourse(course, e)}>✏️</button>
-                                        <button className="tc-icon-btn tc-delete-icon" onClick={e => { e.stopPropagation(); setConfirmCourse(course.id); }}>🗑️</button>
-                                    </div>
-                                </div>
-                                <p>{course.description}</p>
-                                <div className="tc-course-stats">
-                                    <span className="tc-stat">📚 {course.lessons.length} уроков</span>
-                                    <span className="tc-stat">👥 {course.studentsCount} студентов</span>
-                                </div>
-                                <button className="tc-open-course-btn" onClick={e => { e.stopPropagation(); navigate(`/teacher/courses/${course.id}`); }}>Открыть курс →</button>
-                            </div>
+                <>
+                    {!canReorder && (
+                        <div className="tc-reorder-hint">
+                            ℹ️ Чтобы изменить порядок курсов — снимите фильтр (Все курсы).
                         </div>
-                    ))}
-                </div>
+                    )}
+                    <DragDropContext onDragEnd={handleDragEnd}>
+                        <Droppable droppableId="teacher-courses" direction="horizontal">
+                            {(droppableProvided) => (
+                                <div
+                                    className="tc-courses-grid"
+                                    ref={droppableProvided.innerRef}
+                                    {...droppableProvided.droppableProps}
+                                >
+                                    {filteredCourses.map((course, index) => (
+                                        <Draggable
+                                            key={course.id}
+                                            draggableId={String(course.id)}
+                                            index={index}
+                                            isDragDisabled={!canReorder}
+                                        >
+                                            {(draggableProvided, snapshot) => (
+                                                <div
+                                                    ref={draggableProvided.innerRef}
+                                                    {...draggableProvided.draggableProps}
+                                                    className={`tc-course-card${snapshot.isDragging ? ' tc-course-card--dragging' : ''}`}
+                                                    onClick={() => navigate(`/teacher/courses/${course.id}`)}
+                                                >
+                                                    {canReorder && (
+                                                        <div
+                                                            className="tc-drag-handle"
+                                                            title="Удерживайте и перетащите, чтобы изменить порядок"
+                                                            onClick={e => e.stopPropagation()}
+                                                            {...draggableProvided.dragHandleProps}
+                                                        >
+                                                            ⋮⋮
+                                                        </div>
+                                                    )}
+                                                    <div className="tc-course-preview">
+                                                        <img src={course.image} alt={course.title} />
+                                                        <div className="tc-course-overlay"><span className="tc-view-label">👁️ Открыть курс</span></div>
+                                                    </div>
+                                                    <div className="tc-course-info">
+                                                        <div className="tc-course-header">
+                                                            <h3>{course.title}</h3>
+                                                            <div className="tc-course-actions">
+                                                                <button className={`tc-publish-btn ${course.is_published ? 'published' : 'draft'}`} onClick={e => toggleCoursePublish(course, e)}>
+                                                                    <span className="tc-publish-dot" />{course.is_published ? 'Опубликован' : 'Черновик'}
+                                                                </button>
+                                                                <button className="tc-icon-btn tc-ediet-icon" onClick={e => openEditCourse(course, e)}>✏️</button>
+                                                                <button className="tc-icon-btn tc-delete-icon" onClick={e => { e.stopPropagation(); setConfirmCourse(course.id); }}>🗑️</button>
+                                                            </div>
+                                                        </div>
+                                                        <p>{course.description}</p>
+                                                        <div className="tc-course-stats">
+                                                            <span className="tc-stat">📚 {course.lessons.length} уроков</span>
+                                                            <span className="tc-stat">👥 {course.studentsCount} студентов</span>
+                                                        </div>
+                                                        <button className="tc-open-course-btn" onClick={e => { e.stopPropagation(); navigate(`/teacher/courses/${course.id}`); }}>Открыть курс →</button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </Draggable>
+                                    ))}
+                                    {droppableProvided.placeholder}
+                                </div>
+                            )}
+                        </Droppable>
+                    </DragDropContext>
+                </>
             )}
 
             {showCourseModal && ReactDOM.createPortal(
