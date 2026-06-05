@@ -430,6 +430,7 @@ def _build_review_prompt(
 
     authorship_block = _format_authorship_block(authorship)
     lesson_block, persona_hint = _format_lesson_context_block(lesson_context, technologies)
+    encouragement_block = _format_encouragement_block(difficulty_level)
 
     return f"""
 Sen tajribali {persona_hint} o'qituvchisisiz. O'quvchi loyihasini PASTDAGI ASL KOD asosida baholab ber. Faqat metadata (nomi, tavsifi) bo'yicha emas — ASL FAYLLAR TARKIBIGA qarab xulosa qil. AUTHORSHIP SIGNALS bo'limini ham e'tiborga ol — fork yoki copy-paste bo'lsa ball PASAYTIRING.
@@ -437,7 +438,7 @@ Sen tajribali {persona_hint} o'qituvchisisiz. O'quvchi loyihasini PASTDAGI ASL K
 MUHIM: Loyihani faqat DARS KONTEKSTI ichida baholang. Dars qaysi texnologiyaga oid bo'lsa — faqat shu texnologiyani kuting. Agar dars HTML/CSS bo'lsa, Python yo'qligi uchun ball PASAYTIRMANG. Agar dars Python bo'lsa, HTML yo'qligi uchun ball PASAYTIRMANG. Boshqa kurslarning texnologiyalarini bu yerda talab QILMANG.
 
 {_INJECTION_GUARD}
-{lesson_block}
+{lesson_block}{encouragement_block}
 ## METADATA
 <student_input>
 - Nomi: {title}
@@ -455,18 +456,48 @@ Faqat JSON qaytar (boshqa matn yozma):
 {{
     "grade": "A | B | C | D | F",
     "points": 0-100 orasidagi son,
-    "feedback": "Batafsil fikr (o'zbek). KOD ASOSIDA — qaysi fayl, qaysi qator yaxshi/yomon ekanini ayt.",
+    "feedback": "Batafsil fikr (o'zbek). Avval o'quvchi NIMA QILGANINI maqtab ayting (kamida 2 ta yutuq), keyin yetishmagan narsalarni do'stona, undamoqchi tarzda eslatib o'ting. KOD ASOSIDA — qaysi fayl, qaysi qator yaxshi/yomon ekanini ayt.",
     "strengths": ["kuchli tomon 1", "kuchli tomon 2"],
     "improvements": ["yaxshilash kerak 1", "yaxshilash kerak 2"],
-    "summary": "1-2 jumla xulosa (o'zbek)"
+    "summary": "1-2 jumla xulosa (o'zbek) — birinchi navbatda IJOBIY"
 }}
 
 ## BAHOLASH MEZONLARI
-- A: 90-100 — Mukammal: kod toza, dars topshirig'iga to'liq mos, xatolar to'g'ri boshqarilgan, README mavjud
+- A: 90-100 — Mukammal: kod toza, dars topshirig'iga to'liq mos, xatolar to'g'ri boshqarilgan
 - B: 75-89  — Yaxshi: asosiy funksional ishlaydi, kichik kamchiliklar bor
 - C: 60-74  — O'rtacha: ishlaydi, lekin kod sifati past yoki ba'zi talablar bajarilmagan
 - D: 45-59  — Qoniqarsiz: jiddiy xatolar yoki katta qismi yo'q
 - F: 0-44   — Juda zaif: ishlamaydi, bo'sh yoki dars topshirig'iga umuman mos kelmaydi
+"""
+
+
+def _format_encouragement_block(difficulty_level: str) -> str:
+    """Render the beginner-friendly grading guidance for Easy lessons.
+
+    For Easy/beginner work the AI defaulted to checklist grading: every
+    missing requirement chipped points until C felt like an upper bound.
+    Pedagogically wrong for someone's first project — the goal is
+    momentum, not compliance audit. So we explicitly lift the floor and
+    tell the grader to weight encouragement over completeness.
+
+    Medium/Hard lessons keep the standard rubric (returns empty string).
+    """
+    level = (difficulty_level or "").strip().lower()
+    if level not in ("easy", "beginner", "boshlang'ich", "boshlangich"):
+        return ""
+
+    return """
+## BEGINNER-FRIENDLY REJIM (Easy)
+Bu loyiha BEGINNER darajasi — o'quvchi hali o'rganmoqda. Baholashda quyidagi qoidalar QATTIQ:
+
+1. AVVAL YUTUQLARNI sanab o'tish — kamida 2 ta "kuchli tomon" yoz. Topshiriqdagi har bir bajarilgan element bu yutuq.
+2. Yetishmagan talablar uchun jazoni YUMSHATING — har bir yetishmagan element uchun ko'pi bilan 5-8 ball ayiring (ilgari 15-20 edi). Asosiy struktura ishlaganida ball 70 dan past tushmasin.
+3. "improvements" bo'limini buyruq sifatida emas, do'stona maslahat sifatida yozing ("keyingi safar X qo'shib ko'ring", "bunga yana Y qo'shsangiz, undan ham yaxshi bo'ladi").
+4. Agar kod ishlaydigan bo'lsa va topshiriqning yarmidan ko'pi bajarilgan bo'lsa — kamida B (75+) ball bering. C/D ni faqat haqiqatan ko'p qism bajarilmaganida ishlating.
+5. Ozgina sintaksis xatolari (yopilmagan teg, kichik typo) uchun 2-3 ball ayiring, 10-15 emas.
+6. FEEDBACK tilingiz iliq va undamoqchi bo'lsin. "Yo'q", "noto'g'ri", "talab bajarilmagan" o'rniga: "shuni qo'shsangiz to'liq bo'ladi", "deyarli yetdingiz", "keyingi qadam — ..."
+
+MAQSAD: O'quvchi natijani ko'rgach davom etishni xohlasin. Mukammallik emas, harakat va asoslar muhim.
 """
 
 
