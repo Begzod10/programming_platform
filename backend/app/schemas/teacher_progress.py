@@ -47,3 +47,23 @@ class TeacherStudentProgressDetail(TeacherStudentProgress):
     enrollment_date: datetime
     created_at: datetime
     is_active: bool
+
+
+class TeacherStudentRanking(BaseModel):
+    student_id: int
+    username: str
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    current_level: str
+    total_points: int
+    global_rank: Optional[int] = None
+    current_course: Optional[str] = None
+    best_course: Optional[str] = None
+    best_course_points: int = 0
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TeacherStudentRankingList(BaseModel):
+    total: int
+    items: List[TeacherStudentRanking]
+    model_config = ConfigDict(from_attributes=True)

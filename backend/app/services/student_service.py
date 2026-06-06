@@ -169,6 +169,84 @@ class StudentService:
 
         return data
 
+    async def get_teacher_students_ranking(
+            self,
+            teacher_id: int,
+            skip: int = 0,
+            limit: int = 10,
+            search: Optional[str] = None,
+    ) -> dict:
+        query = (
+            select(Student)
+            .options(
+                selectinload(Student.groups),
+                selectinload(Student.enrolled_courses),
+            )
+            .join(Student.groups)
+            .where(Group.teacher_id == teacher_id)
+            .distinct()
+        )
+
+        if search:
+            query = query.where(
+                or_(
+                    Student.username.ilike(f"%{search}%"),
+                    Student.full_name.ilike(f"%{search}%"),
+                )
+            )
+
+        total = await self.db.scalar(
+            select(func.count()).select_from(query.subquery())
+        ) or 0
+        
+        result = await self.db.execute(
+            query.order_by(Student.total_points.desc()).offset(skip).limit(limit)
+        )
+        students = result.scalars().all()
+
+        items = []
+        for student in students:
+            # Get course progress data to find best course
+            course_items = [
+                await self._build_course_progress_dto(course, student.id)
+                for course in (await self._get_student_courses_for_progress(student))
+            ]
+            
+            best_course = None
+            best_course_points = 0
+            current_course = None
+            
+            if course_items:
+                # Best course is the one with highest earned_points
+                best_item = max(course_items, key=lambda x: x["earned_points"])
+                best_course = best_item["course_title"]
+                best_course_points = best_item["earned_points"]
+                
+                # Current course is the first one (most recently added/active)
+                current_course = course_items[0]["course_title"]
+
+            items.append({
+                "student_id": student.id,
+                "username": student.username,
+                "full_name": student.full_name,
+                "avatar_url": student.avatar_url,
+                "current_level": (
+                    student.current_level.value
+                    if hasattr(student.current_level, "value")
+                    else str(student.current_level)
+                ),
+                "total_points": student.total_points or 0,
+                "global_rank": student.global_rank,
+                "current_course": current_course,
+                "best_course": best_course,
+                "best_course_points": best_course_points,
+            })
+
+        return {
+            "total": total,
+            "items": items,
+        }
+
     async def _get_student_courses_for_progress(self, student: Student) -> List[Course]:
         courses_by_id = {
             course.id: course
