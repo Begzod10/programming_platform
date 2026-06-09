@@ -118,10 +118,42 @@ async def get_my_dictionary(
         db: AsyncSession = Depends(get_db),
         current_user: Student = Depends(get_current_student)
 ):
-    result = await db.execute(
-        select(UserDictionary).where(UserDictionary.student_id == current_user.id)
-    )
-    return result.scalars().all()
+    """Return every saved word with the lesson + course title joined in.
+
+    The frontend uses lesson_title / course_title to render a hierarchical
+    sidebar filter (course → lessons). Doing the join here is one query
+    cheaper than the frontend fetching lessons and courses separately just
+    to label what it already has.
+    """
+    rows = (await db.execute(
+        select(
+            UserDictionary,
+            Lesson.title.label("lesson_title"),
+            Lesson.course_id.label("course_id"),
+            Course.title.label("course_title"),
+        )
+        .outerjoin(Lesson, Lesson.id == UserDictionary.lesson_id)
+        .outerjoin(Course, Course.id == Lesson.course_id)
+        .where(UserDictionary.student_id == current_user.id)
+        .order_by(UserDictionary.created_at.desc())
+    )).all()
+
+    out: List[DictionaryOut] = []
+    for word, lesson_title, course_id, course_title in rows:
+        out.append(DictionaryOut(
+            id=word.id,
+            word=word.word,
+            context=word.context,
+            lesson_id=word.lesson_id,
+            lesson_title=lesson_title,
+            course_id=course_id,
+            course_title=course_title,
+            review_count=word.review_count,
+            correct_count=word.correct_count,
+            incorrect_count=word.incorrect_count,
+            created_at=word.created_at,
+        ))
+    return out
 
 
 @router.delete("/{word_id}")

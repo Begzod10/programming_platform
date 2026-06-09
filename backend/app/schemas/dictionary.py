@@ -19,6 +19,9 @@ class DictionaryOut(BaseModel):
     word: str
     context: Optional[str]
     lesson_id: Optional[int] = None
+    lesson_title: Optional[str] = None
+    course_id: Optional[int] = None
+    course_title: Optional[str] = None
     review_count: int
     correct_count: int
     incorrect_count: int

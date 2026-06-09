@@ -89,14 +89,71 @@ export default function Dictionary() {
         setFormError('');
     };
 
-    const lessons = [...new Set(words.map(w => w.lesson_id).filter(Boolean))].sort((a, b) => a - b);
+    /* ── Scope tree ──
+       Build a course → lessons hierarchy from the words themselves so
+       the sidebar reflects exactly what the student has saved (no extra
+       round-trip to /courses or /lessons just to render the filter). */
+    const scopeTree = (() => {
+        const byCourse = new Map();   // course_id → { id, title, total, lessons: Map }
+        let manual = 0;
+        for (const w of words) {
+            if (!w.lesson_id) { manual += 1; continue; }
+            const cid = w.course_id || 0;
+            let course = byCourse.get(cid);
+            if (!course) {
+                course = {
+                    id: cid,
+                    title: w.course_title || (cid ? `Kurs #${cid}` : 'Eski darslar'),
+                    total: 0,
+                    lessons: new Map(),
+                };
+                byCourse.set(cid, course);
+            }
+            course.total += 1;
+            let lesson = course.lessons.get(w.lesson_id);
+            if (!lesson) {
+                lesson = {
+                    id: w.lesson_id,
+                    title: w.lesson_title || `${w.lesson_id}-dars`,
+                    count: 0,
+                };
+                course.lessons.set(w.lesson_id, lesson);
+            }
+            lesson.count += 1;
+        }
+        // Sort courses by title, lessons by id (preserves curriculum order).
+        const courses = [...byCourse.values()]
+            .map(c => ({ ...c, lessons: [...c.lessons.values()].sort((a, b) => a.id - b.id) }))
+            .sort((a, b) => a.title.localeCompare(b.title));
+        return { courses, manual };
+    })();
+
+    const lessons = scopeTree.courses.flatMap(c => c.lessons.map(l => l.id));
+
+    /* Filter encoding:
+         'all'              — no scope filter
+         'manual'           — words with no lesson_id
+         'c:<course_id>'    — every word in that course
+         'l:<lesson_id>'    — single lesson (preserves the original UX)            */
+    const matchesScope = (w) => {
+        if (filter === 'all') return true;
+        if (filter === 'manual') return !w.lesson_id;
+        if (filter.startsWith('c:')) {
+            const cid = Number(filter.slice(2));
+            return Number(w.course_id || 0) === cid;
+        }
+        if (filter.startsWith('l:')) {
+            return String(w.lesson_id) === filter.slice(2);
+        }
+        // Legacy bare lesson id ("13") — kept so old links still work
+        return String(w.lesson_id) === String(filter);
+    };
 
     const filtered = words.filter(w => {
         const matchSearch =
             w.word.toLowerCase().includes(search.toLowerCase()) ||
             (w.context || '').toLowerCase().includes(search.toLowerCase());
-        const matchLesson = filter === 'all' || String(w.lesson_id) === String(filter);
-        return matchSearch && matchLesson;
+        return matchSearch && matchesScope(w);
     });
 
     if (loading) return (
@@ -217,10 +274,12 @@ export default function Dictionary() {
                     </div>
                 </div>
 
-                {/* Lesson filters */}
-                {lessons.length > 0 && (
+                {/* Scope filter — Hammasi / Qo'lda / Course → Lessons hierarchy.
+                    Course headers filter every lesson in that course at once;
+                    individual lessons drill down further. */}
+                {(scopeTree.courses.length > 0 || scopeTree.manual > 0) && (
                     <div className="d-lessons-nav">
-                        <div className="d-lessons-label">Darslar</div>
+                        <div className="d-lessons-label">Kurslar va darslar</div>
                         <button
                             className={`d-lesson-item ${filter === 'all' ? 'active' : ''}`}
                             onClick={() => setFilter('all')}
@@ -229,19 +288,47 @@ export default function Dictionary() {
                             Hammasi
                             <span className="d-lesson-count">{words.length}</span>
                         </button>
-                        {lessons.map(lid => (
+                        {scopeTree.manual > 0 && (
                             <button
-                                key={lid}
-                                className={`d-lesson-item ${String(filter) === String(lid) ? 'active' : ''}`}
-                                onClick={() => setFilter(String(lid))}
+                                className={`d-lesson-item ${filter === 'manual' ? 'active' : ''}`}
+                                onClick={() => setFilter('manual')}
                             >
                                 <span className="d-lesson-dot" />
-                                {lid}-dars
-                                <span className="d-lesson-count">
-                                    {words.filter(w => String(w.lesson_id) === String(lid)).length}
-                                </span>
+                                Qo'lda qo'shilgan
+                                <span className="d-lesson-count">{scopeTree.manual}</span>
                             </button>
-                        ))}
+                        )}
+                        {scopeTree.courses.map((c) => {
+                            const courseKey = `c:${c.id}`;
+                            return (
+                                <div key={c.id} className="d-course-group">
+                                    <button
+                                        className={`d-lesson-item d-course-item ${filter === courseKey ? 'active' : ''}`}
+                                        onClick={() => setFilter(courseKey)}
+                                        title={c.title}
+                                    >
+                                        <span className="d-lesson-dot" />
+                                        <span className="d-course-name">{c.title}</span>
+                                        <span className="d-lesson-count">{c.total}</span>
+                                    </button>
+                                    {c.lessons.map((l) => {
+                                        const lessonKey = `l:${l.id}`;
+                                        return (
+                                            <button
+                                                key={l.id}
+                                                className={`d-lesson-item d-lesson-child ${filter === lessonKey ? 'active' : ''}`}
+                                                onClick={() => setFilter(lessonKey)}
+                                                title={l.title}
+                                            >
+                                                <span className="d-lesson-dot" />
+                                                <span className="d-lesson-child-name">{l.title}</span>
+                                                <span className="d-lesson-count">{l.count}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
 

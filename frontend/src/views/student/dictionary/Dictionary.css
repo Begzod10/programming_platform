@@ -1189,3 +1189,64 @@
     word-break: normal;
     hyphens: auto;
 }
+
+/* ── Course → Lessons hierarchy in sidebar ───────────────────────────
+   Course header is bold + flush left; nested lessons indent + use a
+   thinner dot so the eye reads the tree at a glance. */
+.d-course-group {
+    display: flex;
+    flex-direction: column;
+    margin-top: 8px;
+}
+
+.d-course-item {
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.01em;
+}
+.d-course-item:hover {
+    background: rgba(108, 92, 231, 0.08);
+}
+.d-course-item.active {
+    background: rgba(108, 92, 231, 0.14);
+    color: var(--d-purple);
+}
+
+.d-course-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.d-lesson-child {
+    margin-left: 14px;
+    padding-left: 14px;
+    border-left: 1.5px solid rgba(15, 23, 42, 0.08);
+    border-radius: 0 8px 8px 0;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--d-ink-soft, rgba(15, 23, 42, 0.6));
+}
+.d-lesson-child .d-lesson-dot {
+    width: 5px;
+    height: 5px;
+    background: rgba(15, 23, 42, 0.22);
+}
+.d-lesson-child.active {
+    border-left-color: var(--d-purple);
+    background: rgba(108, 92, 231, 0.08);
+    color: var(--d-purple);
+}
+.d-lesson-child.active .d-lesson-dot {
+    background: var(--d-purple);
+}
+
+.d-lesson-child-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
