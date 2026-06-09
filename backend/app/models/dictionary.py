@@ -22,6 +22,10 @@ class UserDictionary(Base):
     correct_count = Column(Integer, default=0, nullable=False)
     incorrect_count = Column(Integer, default=0, nullable=False)
 
+    # AI-extracted grammatical category — nullable since old rows pre-date
+    # this and not every entry maps cleanly (code identifiers, phrases).
+    part_of_speech = Column(String(40), nullable=True)
+
     # SM-2 spaced-repetition state (ported from life_tracker). Defaults
     # match srs.DEFAULT_EASE so existing rows behave like a brand-new card
     # once the migration runs and backfills the columns with the defaults.

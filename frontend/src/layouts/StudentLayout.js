@@ -5,8 +5,9 @@ import StatsCard from '../views/student/stats/StatsCard';
 import { useAuth } from '../context/AuthContext';
 import { API_URL, useHttp, headers } from '../api/search/base';
 
-// Табы в которых НЕ показываем stats-grid
-const NO_STATS_PATHS = ['/student/courses'];
+// Tabs where the welcome banner + stats grid get out of the way so the
+// page's own header can lead the eye. Match by prefix.
+const NO_HEADER_PATHS = ['/student/courses', '/student/dictionary'];
 
 function StudentLayout() {
     const { user, logout } = useAuth();
@@ -18,7 +19,7 @@ function StudentLayout() {
     const path = location.pathname; // например /student/courses/123/lessons/456
     const segment = path.split('/')[2] || 'profile'; // 'courses', 'projects', 'rankings' и т.д.
 
-    const hideStats = path.startsWith('/student/courses');
+    const hideHeader = NO_HEADER_PATHS.some((p) => path.startsWith(p));
 
     useEffect(() => {
         Promise.all([
@@ -42,28 +43,29 @@ function StudentLayout() {
             <Sidebar activeTab={segment} onLogout={logout} role="student" />
 
             <main className="content-area">
-                <header className="main-header">
-                    <h1>Добро пожаловать, {user?.name || user?.username}!</h1>
-                </header>
-
-                {!hideStats && (
-                    <section className="stats-grid">
-                        <StatsCard
-                            title="Баллы"
-                            value={stats.points !== null ? stats.points : '...'}
-                            icon="⭐" color="#ffcc00"
-                        />
-                        <StatsCard
-                            title="Место"
-                            value={stats.rank !== null ? `${stats.rank}` : '...'}
-                            icon="🏆" color="#00c2ff"
-                        />
-                        <StatsCard
-                            title="Проекты"
-                            value={stats.approved !== null ? stats.approved : '...'}
-                            icon="📁" color="#4caf50"
-                        />
-                    </section>
+                {!hideHeader && (
+                    <>
+                        <header className="main-header">
+                            <h1>Добро пожаловать, {user?.name || user?.username}!</h1>
+                        </header>
+                        <section className="stats-grid">
+                            <StatsCard
+                                title="Баллы"
+                                value={stats.points !== null ? stats.points : '...'}
+                                icon="⭐" color="#ffcc00"
+                            />
+                            <StatsCard
+                                title="Место"
+                                value={stats.rank !== null ? `${stats.rank}` : '...'}
+                                icon="🏆" color="#00c2ff"
+                            />
+                            <StatsCard
+                                title="Проекты"
+                                value={stats.approved !== null ? stats.approved : '...'}
+                                icon="📁" color="#4caf50"
+                            />
+                        </section>
+                    </>
                 )}
 
                 <div className={`page-container ${segment === 'profile' ? '' : 'scrollable'}`}>

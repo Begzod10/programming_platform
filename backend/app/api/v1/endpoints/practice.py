@@ -23,12 +23,39 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
 from app.dependencies import get_current_student
+from app.models.course import Course
 from app.models.dictionary import PracticeSession, UserDictionary
+from app.models.lesson import Lesson
 from app.models.user import Student
 from app.services import srs
 
 
 router = APIRouter()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Scope helpers — narrow word queries by category/course/lesson.
+# Mirrors life_tracker's folder/module scope using student_platform's
+# category → course → lesson hierarchy.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _apply_scope(stmt, *, category_id=None, course_id=None, lesson_id=None):
+    """Layer scope filters onto a UserDictionary select. The narrowest
+    provided filter wins — lesson > course > category — but they compose,
+    so passing both course and lesson is fine (lesson must belong to it)."""
+    if lesson_id is not None:
+        return stmt.where(UserDictionary.lesson_id == lesson_id)
+    if course_id is not None:
+        return stmt.join(
+            Lesson, Lesson.id == UserDictionary.lesson_id
+        ).where(Lesson.course_id == course_id)
+    if category_id is not None:
+        return stmt.join(
+            Lesson, Lesson.id == UserDictionary.lesson_id
+        ).join(
+            Course, Course.id == Lesson.course_id
+        ).where(Course.category_id == category_id)
+    return stmt
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -67,6 +94,9 @@ async def get_practice_words(
     count: int = Query(default=10, ge=1, le=200),
     due_only: bool = Query(default=False),
     weak_only: bool = Query(default=False),
+    category_id: Optional[int] = Query(default=None),
+    course_id: Optional[int] = Query(default=None),
+    lesson_id: Optional[int] = Query(default=None),
     ids: Optional[str] = Query(
         default=None,
         description=(
@@ -113,6 +143,12 @@ async def get_practice_words(
 
     now = datetime.utcnow()
     base = select(Word).where(Word.student_id == current_user.id)
+    base = _apply_scope(
+        base,
+        category_id=category_id,
+        course_id=course_id,
+        lesson_id=lesson_id,
+    )
 
     if due_only:
         base = base.where(
@@ -222,16 +258,25 @@ async def submit_result(
 
 @router.get("/due-counts")
 async def get_due_counts(
+    category_id: Optional[int] = Query(default=None),
+    course_id: Optional[int] = Query(default=None),
+    lesson_id: Optional[int] = Query(default=None),
     db: AsyncSession = Depends(get_db),
     current_user: Student = Depends(get_current_student),
 ):
     now = datetime.utcnow()
-    from sqlalchemy import func as sql_func
+
+    def _scoped(stmt):
+        return _apply_scope(
+            stmt.where(UserDictionary.student_id == current_user.id),
+            category_id=category_id,
+            course_id=course_id,
+            lesson_id=lesson_id,
+        )
 
     due = (
         await db.execute(
-            select(sql_func.count(UserDictionary.id)).where(
-                UserDictionary.student_id == current_user.id,
+            _scoped(select(func.count(UserDictionary.id))).where(
                 or_(
                     UserDictionary.next_review_at.is_(None),
                     UserDictionary.next_review_at <= now,
@@ -242,8 +287,7 @@ async def get_due_counts(
 
     fragile = (
         await db.execute(
-            select(sql_func.count(UserDictionary.id)).where(
-                UserDictionary.student_id == current_user.id,
+            _scoped(select(func.count(UserDictionary.id))).where(
                 srs.is_fragile(UserDictionary),
             )
         )
@@ -251,9 +295,7 @@ async def get_due_counts(
 
     total = (
         await db.execute(
-            select(sql_func.count(UserDictionary.id)).where(
-                UserDictionary.student_id == current_user.id
-            )
+            _scoped(select(func.count(UserDictionary.id)))
         )
     ).scalar() or 0
 
@@ -489,21 +531,23 @@ async def judge_typed_answer(
 
 @router.get("/buckets")
 async def get_retention_buckets(
+    category_id: Optional[int] = Query(default=None),
+    course_id: Optional[int] = Query(default=None),
+    lesson_id: Optional[int] = Query(default=None),
     db: AsyncSession = Depends(get_db),
     current_user: Student = Depends(get_current_student),
 ):
     """Counts by retention bucket. Frontend uses these for a stacked bar
     so the student sees how many cards are fragile vs mastered at a glance."""
-    from sqlalchemy import func as sql_func
-
     label = srs.bucket_expr(UserDictionary).label("bucket")
-    rows = (
-        await db.execute(
-            select(label, sql_func.count().label("n"))
-            .where(UserDictionary.student_id == current_user.id)
-            .group_by(label)
-        )
-    ).all()
+    stmt = _apply_scope(
+        select(label, func.count().label("n"))
+        .where(UserDictionary.student_id == current_user.id),
+        category_id=category_id,
+        course_id=course_id,
+        lesson_id=lesson_id,
+    ).group_by(label)
+    rows = (await db.execute(stmt)).all()
     out = {"fragile": 0, "learning": 0, "solid": 0, "mastered": 0}
     for bucket, n in rows:
         out[bucket] = n
@@ -749,6 +793,9 @@ async def get_stats(
 @router.get("/needs-review")
 async def get_needs_review(
     limit: int = Query(default=10, ge=1, le=50),
+    category_id: Optional[int] = Query(default=None),
+    course_id: Optional[int] = Query(default=None),
+    lesson_id: Optional[int] = Query(default=None),
     db: AsyncSession = Depends(get_db),
     current_user: Student = Depends(get_current_student),
 ):
@@ -767,11 +814,13 @@ async def get_needs_review(
 
     # Pull a generous pool then rank in Python — the priority ladder mixes
     # boolean and computed-ratio comparisons that SQL would over-complicate.
-    pool = (
-        await db.execute(
-            select(Word).where(Word.student_id == current_user.id)
-        )
-    ).scalars().all()
+    pool_stmt = _apply_scope(
+        select(Word).where(Word.student_id == current_user.id),
+        category_id=category_id,
+        course_id=course_id,
+        lesson_id=lesson_id,
+    )
+    pool = (await db.execute(pool_stmt)).scalars().all()
 
     def tier(w):
         if (w.review_count or 0) == 0:
@@ -817,3 +866,64 @@ async def get_needs_review(
     )
 
     return {"items": out, "total": needs_total}
+
+
+@router.get("/breakdown")
+async def get_breakdown(
+    category_id: Optional[int] = Query(default=None),
+    course_id: Optional[int] = Query(default=None),
+    lesson_id: Optional[int] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+    current_user: Student = Depends(get_current_student),
+):
+    """Distribution by difficulty (derived from the parent course's
+    `difficulty_level`) and by AI-extracted part_of_speech.
+
+    Mirrors life_tracker's by_difficulty / by_part_of_speech blocks. The
+    difficulty comes from the course tier rather than a per-word column —
+    in this codebase words inherit difficulty from the lesson they were
+    captured in, so words from a "Beginner" course bucket as Beginner.
+    Words with no lesson_id (manually added, no source) bucket as
+    "noma'lum".
+    """
+    Word = UserDictionary
+
+    base = _apply_scope(
+        select(
+            Word.id,
+            Word.part_of_speech,
+            Course.difficulty_level,
+        )
+        .outerjoin(Lesson, Lesson.id == Word.lesson_id)
+        .outerjoin(Course, Course.id == Lesson.course_id)
+        .where(Word.student_id == current_user.id),
+        category_id=category_id,
+        course_id=course_id,
+        lesson_id=lesson_id,
+    )
+
+    rows = (await db.execute(base)).all()
+
+    by_difficulty: dict[str, int] = {}
+    by_pos: dict[str, int] = {}
+    for _wid, pos, diff in rows:
+        diff_key = diff or "noma'lum"
+        pos_key = (pos or "noma'lum").lower()
+        by_difficulty[diff_key] = by_difficulty.get(diff_key, 0) + 1
+        by_pos[pos_key] = by_pos.get(pos_key, 0) + 1
+
+    # Sort PoS descending so the dominant grammatical category reads first.
+    # Difficulty keeps a curriculum-friendly order: Beginner → Expert,
+    # unknown at the end.
+    diff_order = ["Beginner", "Intermediate", "Advanced", "Expert"]
+    by_difficulty_sorted = {
+        **{k: by_difficulty[k] for k in diff_order if k in by_difficulty},
+        **{k: v for k, v in by_difficulty.items() if k not in diff_order},
+    }
+    by_pos_sorted = dict(sorted(by_pos.items(), key=lambda x: -x[1]))
+
+    return {
+        "total": len(rows),
+        "by_difficulty": by_difficulty_sorted,
+        "by_part_of_speech": by_pos_sorted,
+    }

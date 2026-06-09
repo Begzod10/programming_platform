@@ -1326,3 +1326,157 @@
 .pr-needs-tag--new   { background: rgba(108, 92, 231, 0.14); color: #6c5ce7; }
 .pr-needs-tag--low   { background: rgba(244, 63, 94, 0.14);  color: #be123c; }
 .pr-needs-tag--stale { background: rgba(245, 158, 11, 0.18); color: #b45309; }
+
+/* ════════════════════════════════════════════════════════════════════
+   SCOPE PICKER + BREAKDOWN PANEL
+   ════════════════════════════════════════════════════════════════════ */
+
+.pr-scope {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.pr-scope-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.pr-scope-lbl {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(15, 23, 42, 0.55);
+}
+
+.pr-scope-select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid rgba(15, 23, 42, 0.12);
+    border-radius: 12px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 13.5px;
+    color: #0f172a;
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.pr-scope-select:focus {
+    outline: none;
+    border-color: var(--d-purple, #6c5ce7);
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.15);
+}
+.pr-scope-select:disabled {
+    background: rgba(15, 23, 42, 0.04);
+    color: rgba(15, 23, 42, 0.35);
+    cursor: not-allowed;
+}
+
+.pr-scope-clear {
+    align-self: end;
+    padding: 10px 14px;
+    background: rgba(244, 63, 94, 0.1);
+    color: #be123c;
+    border: 1.5px solid rgba(244, 63, 94, 0.25);
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+.pr-scope-clear:hover {
+    background: rgba(244, 63, 94, 0.18);
+    border-color: rgba(244, 63, 94, 0.45);
+}
+
+/* ── Breakdown panel — by-difficulty + by-PoS side by side ──────────── */
+.pr-breakdown {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+}
+
+.pr-breakdown-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pr-breakdown-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(15, 23, 42, 0.55);
+}
+
+.pr-breakdown-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pr-breakdown-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pr-breakdown-row-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 13px;
+}
+
+.pr-breakdown-name {
+    color: #0f172a;
+    font-weight: 700;
+    text-transform: capitalize;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.pr-breakdown-count {
+    color: rgba(15, 23, 42, 0.55);
+    font-weight: 700;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+.pr-breakdown-pct {
+    color: rgba(15, 23, 42, 0.4);
+    font-weight: 600;
+}
+
+.pr-breakdown-track {
+    height: 7px;
+    background: rgba(15, 23, 42, 0.06);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.pr-breakdown-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pr-breakdown-empty {
+    font-size: 12.5px;
+    color: rgba(15, 23, 42, 0.4);
+    font-style: italic;
+    padding: 8px 0;
+}
+
+@media (max-width: 720px) {
+    .pr-scope { grid-template-columns: 1fr; }
+    .pr-scope-clear { width: 100%; }
+    .pr-breakdown { grid-template-columns: 1fr; gap: 18px; }
+}

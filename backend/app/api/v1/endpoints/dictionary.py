@@ -87,6 +87,7 @@ async def add_word(
     # the sense that fits the lesson — "Panel" in a JS lesson is the DevTools
     # panel, not a generic sidebar.
     context = data.context
+    part_of_speech = None
     if not context:
         try:
             ai_result = await explain_word_with_ai(
@@ -98,6 +99,9 @@ async def add_word(
                 ),
             )
             context = ai_result.get("short_definition") or ai_result.get("definition") or ""
+            pos_raw = (ai_result.get("part_of_speech") or "").strip().lower()
+            if pos_raw and len(pos_raw) <= 40:
+                part_of_speech = pos_raw
         except Exception:
             context = ""
 
@@ -106,6 +110,7 @@ async def add_word(
         word=safe_word,
         context=context,
         lesson_id=lesson_id,
+        part_of_speech=part_of_speech,
     )
     db.add(word)
     await db.commit()

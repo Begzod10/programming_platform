@@ -547,6 +547,80 @@ function QueuePreview({ words }) {
 
 
 /* ═══════════════════════════════════════════════════════════════════════
+   SCOPE PICKER — category/course/lesson narrowing
+   Mirrors life_tracker's folder/module ScopePicker using the
+   category → course → lesson chain that already lives on the words.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function ScopePicker({ tree, scope, onChange }) {
+    if (!tree.length) return null;
+
+    // Flatten the tree into select options for the two dropdowns. A more
+    // elaborate tree-control would be overkill for the 1-3 courses most
+    // students have words in.
+    const allCourses = tree.flatMap((cat) => cat.courses);
+    const activeCourse = allCourses.find((c) => c.id === scope.course_id);
+
+    return (
+        <section className="pr-section">
+            <h3 className="pr-section-title">Doira (ixtiyoriy)</h3>
+            <div className="pr-scope">
+                <label className="pr-scope-field">
+                    <span className="pr-scope-lbl">Kurs</span>
+                    <select
+                        className="pr-scope-select"
+                        value={scope.course_id || ''}
+                        onChange={(e) => {
+                            const v = e.target.value;
+                            onChange({
+                                category_id: null,
+                                course_id: v ? Number(v) : null,
+                                lesson_id: null,
+                            });
+                        }}
+                    >
+                        <option value="">Barchasi</option>
+                        {allCourses.map((c) => (
+                            <option key={c.id} value={c.id}>{c.title}</option>
+                        ))}
+                    </select>
+                </label>
+                <label className="pr-scope-field">
+                    <span className="pr-scope-lbl">Dars</span>
+                    <select
+                        className="pr-scope-select"
+                        value={scope.lesson_id || ''}
+                        onChange={(e) => {
+                            const v = e.target.value;
+                            onChange({
+                                ...scope,
+                                lesson_id: v ? Number(v) : null,
+                            });
+                        }}
+                        disabled={!activeCourse}
+                    >
+                        <option value="">
+                            {activeCourse ? 'Barcha darslar' : 'Avval kursni tanlang'}
+                        </option>
+                        {(activeCourse?.lessons || []).map((l) => (
+                            <option key={l.id} value={l.id}>{l.title}</option>
+                        ))}
+                    </select>
+                </label>
+                {(scope.course_id || scope.lesson_id) && (
+                    <button
+                        type="button"
+                        className="pr-scope-clear"
+                        onClick={() => onChange({ category_id: null, course_id: null, lesson_id: null })}
+                    >Tozalash</button>
+                )}
+            </div>
+        </section>
+    );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
    FIRE STREAK — in-drill gamification
    Consecutive correct answers grow a counter shown as a top-right badge.
    At level 1 (3-4), 2 (5-7), 3 (8+) a full-screen radial fire overlay
@@ -653,10 +727,46 @@ function FireBadge({ streak }) {
    STATISTIKA — read-only dashboard fed by /v1/dictionary/practice/stats
    ═══════════════════════════════════════════════════════════════════════ */
 
+/* Small horizontal-bar list used by the Taqsimot panel. Keeps the
+   render dumb so by_difficulty / by_part_of_speech share the same shape. */
+function BreakdownBars({ items, total, palette }) {
+    const entries = Object.entries(items);
+    if (!entries.length || total === 0) {
+        return <div className="pr-breakdown-empty">Yo'q</div>;
+    }
+    return (
+        <div className="pr-breakdown-bars">
+            {entries.map(([key, n], i) => {
+                const pct = Math.round((n / total) * 100);
+                return (
+                    <div key={key} className="pr-breakdown-row">
+                        <div className="pr-breakdown-row-head">
+                            <span className="pr-breakdown-name">{key}</span>
+                            <span className="pr-breakdown-count">
+                                {n} <span className="pr-breakdown-pct">· {pct}%</span>
+                            </span>
+                        </div>
+                        <div className="pr-breakdown-track">
+                            <div
+                                className="pr-breakdown-fill"
+                                style={{
+                                    width: `${pct}%`,
+                                    background: palette[i % palette.length],
+                                }}
+                            />
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
 function Statistika() {
     const { request } = useHttp();
     const [stats, setStats]         = useState(null);
     const [needsReview, setNeedsReview] = useState({ items: [], total: 0 });
+    const [breakdown, setBreakdown] = useState({ total: 0, by_difficulty: {}, by_part_of_speech: {} });
     const [loading, setLoading]     = useState(true);
     const [error, setError]         = useState('');
 
@@ -666,11 +776,13 @@ function Statistika() {
         Promise.all([
             request(`${BASE}/stats`, 'GET', null, headers()),
             request(`${BASE}/needs-review?limit=10`, 'GET', null, headers()).catch(() => ({ items: [], total: 0 })),
+            request(`${BASE}/breakdown`, 'GET', null, headers()).catch(() => ({ total: 0, by_difficulty: {}, by_part_of_speech: {} })),
         ])
-            .then(([s, nr]) => {
+            .then(([s, nr, br]) => {
                 if (cancelled) return;
                 setStats(s || null);
                 setNeedsReview(nr || { items: [], total: 0 });
+                setBreakdown(br || { total: 0, by_difficulty: {}, by_part_of_speech: {} });
                 setError('');
             })
             .catch(() => {
@@ -807,6 +919,31 @@ function Statistika() {
                 </div>
             </section>
 
+            {/* ── Taqsimot — by-difficulty + by-PoS ─────────────────── */}
+            {breakdown.total > 0 && (
+                <section className="pr-section">
+                    <h3 className="pr-section-title">Taqsimot</h3>
+                    <div className="pr-breakdown">
+                        <div className="pr-breakdown-col">
+                            <div className="pr-breakdown-label">Daraja</div>
+                            <BreakdownBars
+                                items={breakdown.by_difficulty}
+                                total={breakdown.total}
+                                palette={['#10b981', '#6c5ce7', '#f43f5e', '#0d9488', '#475569']}
+                            />
+                        </div>
+                        <div className="pr-breakdown-col">
+                            <div className="pr-breakdown-label">So'z turi</div>
+                            <BreakdownBars
+                                items={breakdown.by_part_of_speech}
+                                total={breakdown.total}
+                                palette={['#6c5ce7', '#0d9488', '#f59e0b', '#f43f5e', '#475569']}
+                            />
+                        </div>
+                    </div>
+                </section>
+            )}
+
             {/* ── Mashq qilingani yaxshi ── top-N words to study next ──
                 Order matches the backend's ladder: never-reviewed first,
                 then struggling, then long-time-no-see. */}
@@ -862,6 +999,12 @@ export default function Practice() {
     const [phase,     setPhase]     = useState('pick');   // 'pick' | 'drill' | 'recap'
     const [mode,      setMode]      = useState('flashcard');
     const [filter,    setFilter]    = useState('all');
+
+    /* Scope — category/course/lesson narrowing. Mirrors life_tracker's
+       folder/module ScopePicker; we use the category → course → lesson
+       chain that already lives on the dictionary words. */
+    const [scope,     setScope]     = useState({ category_id: null, course_id: null, lesson_id: null });
+    const [scopeTree, setScopeTree] = useState([]); // [{id, name, courses:[{id, title, lessons:[...]}]}]
     const [counts,    setCounts]    = useState({ due: 0, fragile: 0, total: 0 });
     const [active,    setActive]    = useState(null);
     const [buckets,   setBuckets]   = useState({ fragile: 0, learning: 0, solid: 0, mastered: 0 });
@@ -893,13 +1036,24 @@ export default function Practice() {
     const [busy,      setBusy]      = useState(false);
     const [error,     setError]     = useState('');
 
+    /* Serialise the scope into URL params reused everywhere. */
+    const scopeQS = () => {
+        const p = new URLSearchParams();
+        if (scope.category_id) p.set('category_id', String(scope.category_id));
+        if (scope.course_id)   p.set('course_id',   String(scope.course_id));
+        if (scope.lesson_id)   p.set('lesson_id',   String(scope.lesson_id));
+        return p;
+    };
+
     /* ── load all pre-drill surfaces in parallel ── */
     const reloadAll = useCallback(() => {
         const wrap = (url) => request(`${BASE}${url}`, 'GET', null, headers()).catch(() => null);
+        const sqs = scopeQS().toString();
+        const q = sqs ? `?${sqs}` : '';
         Promise.all([
-            wrap('/due-counts'),
+            wrap(`/due-counts${q}`),
             wrap('/session/active'),
-            wrap('/buckets'),
+            wrap(`/buckets${q}`),
             wrap('/leeches?limit=10'),
             wrap('/history?limit=5'),
         ]).then(([c, a, b, l, h]) => {
@@ -909,19 +1063,63 @@ export default function Practice() {
             setLeeches(Array.isArray(l) ? l : []);
             setHistory(Array.isArray(h) ? h : []);
         });
-    }, [request]);
+    }, [request, scope]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => { reloadAll(); }, [reloadAll]);
 
-    /* ── preview the queue when the filter changes (or on mount) ── */
+    /* ── build the scope tree from the dictionary list itself, so it only
+       offers categories/courses/lessons the student actually has words in. */
     useEffect(() => {
-        const params = new URLSearchParams({ count: String(DEFAULT_COUNT) });
+        request(`${API_URL}v1/dictionary/`, 'GET', null, headers())
+            .then((rows) => {
+                if (!Array.isArray(rows)) { setScopeTree([]); return; }
+                const cats = new Map(); // id → {id, name, courses: Map}
+                for (const w of rows) {
+                    // Words can lack a course/category (manual entries). Skip
+                    // them — they're scoped via the "All" choice anyway.
+                    if (!w.course_id) continue;
+                    // We don't have category info on the word; group all
+                    // courses without a known category under "Boshqa".
+                    const cid = 0;
+                    let cat = cats.get(cid);
+                    if (!cat) {
+                        cat = { id: null, name: 'Hammasi', courses: new Map() };
+                        cats.set(cid, cat);
+                    }
+                    let course = cat.courses.get(w.course_id);
+                    if (!course) {
+                        course = { id: w.course_id, title: w.course_title || `Kurs #${w.course_id}`, lessons: new Map() };
+                        cat.courses.set(w.course_id, course);
+                    }
+                    if (w.lesson_id && !course.lessons.has(w.lesson_id)) {
+                        course.lessons.set(w.lesson_id, {
+                            id: w.lesson_id,
+                            title: w.lesson_title || `${w.lesson_id}-dars`,
+                        });
+                    }
+                }
+                const out = [...cats.values()].map((cat) => ({
+                    id: cat.id,
+                    name: cat.name,
+                    courses: [...cat.courses.values()]
+                        .map((c) => ({ ...c, lessons: [...c.lessons.values()].sort((a, b) => a.id - b.id) }))
+                        .sort((a, b) => a.title.localeCompare(b.title)),
+                }));
+                setScopeTree(out);
+            })
+            .catch(() => setScopeTree([]));
+    }, [request]);
+
+    /* ── preview the queue when the filter / scope changes ── */
+    useEffect(() => {
+        const params = scopeQS();
+        params.set('count', String(DEFAULT_COUNT));
         if (filter === 'due')  params.set('due_only',  'true');
         if (filter === 'weak') params.set('weak_only', 'true');
         request(`${BASE}/words?${params.toString()}`, 'GET', null, headers())
             .then((data) => setPreview(Array.isArray(data) ? data : []))
             .catch(() => setPreview([]));
-    }, [filter, request]);
+    }, [filter, scope, request]); // eslint-disable-line react-hooks/exhaustive-deps
 
     /* ── start a fresh drill ── */
     const start = useCallback(async () => {
@@ -929,7 +1127,8 @@ export default function Practice() {
         setBusy(true);
         setError('');
         try {
-            const params = new URLSearchParams({ count: String(DEFAULT_COUNT) });
+            const params = scopeQS();
+            params.set('count', String(DEFAULT_COUNT));
             if (filter === 'due')  params.set('due_only',  'true');
             if (filter === 'weak') params.set('weak_only', 'true');
             const data = await request(
@@ -1355,6 +1554,8 @@ export default function Practice() {
                     {filter === 'all' && 'Saqlangan barcha so\'zlardan random tanlanadi.'}
                 </p>
             </section>
+
+            <ScopePicker tree={scopeTree} scope={scope} onChange={setScope} />
 
             <QueuePreview words={preview} />
 

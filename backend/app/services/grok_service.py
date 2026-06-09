@@ -680,7 +680,8 @@ Faqat JSON formatida javob ber (boshqa hech narsa yozma):
     "short_definition": "1 jumlada qisqa ta'rif (O'ZBEK TILIDA, dars konteksti bo'yicha)",
     "full_explanation": "Batafsil tushuntirish (O'ZBEK TILIDA, 3-5 jumla)",
     "example": "Misol yoki qo'llanilishi (O'ZBEK TILIDA)",
-    "category": "masalan: Belgilash tili, Freymvork, Kutubxona va h.k. (O'ZBEK TILIDA)"
+    "category": "masalan: Belgilash tili, Freymvork, Kutubxona va h.k. (O'ZBEK TILIDA)",
+    "part_of_speech": "ot, fe'l, sifat, ibora, atama, kod yoki noma'lum — qaysi biri mos tushsa"
 }}
 """
 
@@ -690,6 +691,7 @@ Faqat JSON formatida javob ber (boshqa hech narsa yozma):
         "full_explanation": "",
         "example": "",
         "category": "",
+        "part_of_speech": "",
     }
 
     text = await _ask_ai(prompt)
