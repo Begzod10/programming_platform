@@ -628,23 +628,56 @@ async def analyze_project_with_grok(
 # Dictionary word explanation
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def explain_word_with_ai(word: str) -> dict:
-    """AI yordamida so'zni O'ZBEK TILIDA tushuntiradi."""
+async def explain_word_with_ai(
+    word: str,
+    *,
+    course_title: str = "",
+    lesson_title: str = "",
+    lesson_excerpt: str = "",
+) -> dict:
+    """AI yordamida so'zni O'ZBEK TILIDA tushuntiradi.
+
+    The optional course/lesson hints scope the meaning. The same word means
+    different things in different courses — "Panel" in a JS course is the
+    DevTools panel, in a UI course it's a sidebar panel. Passing the lesson
+    context lets the model pick the right sense.
+    """
     safe_word = (word or "").strip()
     if not safe_word:
         return {"word": "", "translation": "", "definition": "", "examples": [], "error": "Empty word"}
     if len(safe_word) > 80:
         safe_word = safe_word[:80]
 
+    # Trim the excerpt — we just need 1-2 sentences for disambiguation, not
+    # the whole lesson. Anything longer just burns tokens for marginal gain.
+    excerpt_clean = (lesson_excerpt or "").strip().replace("\n", " ")[:400]
+
+    context_lines = []
+    if course_title:
+        context_lines.append(f"Kurs: {course_title}")
+    if lesson_title:
+        context_lines.append(f"Dars: {lesson_title}")
+    if excerpt_clean:
+        context_lines.append(f"Darsdagi qism: \"{excerpt_clean}\"")
+    context_block = "\n".join(context_lines)
+
+    if context_block:
+        scope_hint = (
+            f"\nKonteksti — quyidagi darsdan olingan. Ushbu kontekst doirasida "
+            f"tushuntiring:\n{context_block}\n"
+        )
+    else:
+        scope_hint = ""
+
     prompt = f"""
 Sen dasturlash va texnologiyalar bo'yicha o'zbek tilida izohlovchi o'qituvchisisiz.
 "{safe_word}" so'zini yoki texnologiyasini faqat O'ZBEK TILIDA tushuntir.
 Barcha javoblar — ta'rif, misol, kategoriya — faqat O'ZBEK TILIDA bo'lsin.
-
+{scope_hint}
 Faqat JSON formatida javob ber (boshqa hech narsa yozma):
 {{
     "word": "{safe_word}",
-    "short_definition": "1 jumlada qisqa ta'rif (O'ZBEK TILIDA)",
+    "short_definition": "1 jumlada qisqa ta'rif (O'ZBEK TILIDA, dars konteksti bo'yicha)",
     "full_explanation": "Batafsil tushuntirish (O'ZBEK TILIDA, 3-5 jumla)",
     "example": "Misol yoki qo'llanilishi (O'ZBEK TILIDA)",
     "category": "masalan: Belgilash tili, Freymvork, Kutubxona va h.k. (O'ZBEK TILIDA)"

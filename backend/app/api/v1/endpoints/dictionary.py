@@ -6,6 +6,7 @@ from typing import List
 
 from app.db.session import get_db
 from app.models import Lesson
+from app.models.course import Course
 from app.models.dictionary import UserDictionary
 from app.models.user import Student
 from app.dependencies import get_current_student
@@ -51,10 +52,22 @@ async def add_word(
         )
 
     lesson_id = data.lesson_id
+    lesson_obj: Lesson | None = None
+    course_title = ""
     if lesson_id:
-        lesson = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
-        if not lesson.scalar_one_or_none():
+        lesson_obj = (
+            await db.execute(select(Lesson).where(Lesson.id == lesson_id))
+        ).scalar_one_or_none()
+        if not lesson_obj:
             lesson_id = None
+        elif lesson_obj.course_id:
+            course_row = (
+                await db.execute(
+                    select(Course.title).where(Course.id == lesson_obj.course_id)
+                )
+            ).scalar_one_or_none()
+            if course_row:
+                course_title = course_row
 
     dup_q = select(UserDictionary).where(
         UserDictionary.student_id == current_user.id,
@@ -69,11 +82,21 @@ async def add_word(
     if existing:
         return existing
 
-    # Context yo'q bo'lsa AI dan o'zbek tilidagi ta'rif olish
+    # Context yo'q bo'lsa AI dan o'zbek tilidagi ta'rif olish.
+    # Lesson + course title are passed as scope hints so the model returns
+    # the sense that fits the lesson — "Panel" in a JS lesson is the DevTools
+    # panel, not a generic sidebar.
     context = data.context
     if not context:
         try:
-            ai_result = await explain_word_with_ai(safe_word)
+            ai_result = await explain_word_with_ai(
+                safe_word,
+                course_title=course_title,
+                lesson_title=(lesson_obj.title if lesson_obj else ""),
+                lesson_excerpt=(
+                    (lesson_obj.text_content or "")[:400] if lesson_obj else ""
+                ),
+            )
             context = ai_result.get("short_definition") or ai_result.get("definition") or ""
         except Exception:
             context = ""

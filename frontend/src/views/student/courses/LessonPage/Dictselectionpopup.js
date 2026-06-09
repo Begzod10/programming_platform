@@ -48,55 +48,89 @@ export default function DictSelectionPopup({ lessonId }) {
     const hide = useCallback(() => setPopup(null), []);
 
     useEffect(() => {
-        const onSelection = () => {
-            requestAnimationFrame(() => {
-                const sel  = window.getSelection();
-                // Strip outer whitespace + trailing punctuation that the
-                // mouse cursor commonly picks up at sentence edges.
-                const raw  = sel?.toString().trim() || '';
-                const word = raw.replace(/^[.,!?;:•·«»"'()\[\]{}—–-]+|[.,!?;:•·«»"'()\[\]{}—–-]+$/g, '').trim();
+        // Walk up from a text/element node to the nearest Element so .closest()
+        // can run. anchorNode is usually a Text node; older browsers may also
+        // hand back null inside shadow / iframe boundaries.
+        const elementFor = (node) => {
+            if (!node) return null;
+            return node.nodeType === 1 ? node : node.parentElement;
+        };
 
-                if (!word || word.length < 2) { hide(); return; }
+        const evaluate = () => {
+            const sel = window.getSelection();
+            if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+                // Don't tear down the popup on a transient collapse — the user
+                // may have just clicked the button itself. The mousedown handler
+                // owns hide() for the click-outside case.
+                return;
+            }
 
-                // Dictionary entries are meant to be a single word or a
-                // tight phrase, not a whole sentence. Mirrors the backend
-                // validation (max 40 chars, max 3 words).
-                const tooLong  = word.length > 40;
-                const tooManyWords = word.split(/\s+/).length > 3;
+            // Strip outer whitespace + trailing punctuation that mouse cursors
+            // commonly pick up at sentence edges.
+            const raw  = sel.toString().trim();
+            const word = raw.replace(/^[.,!?;:•·«»"'()\[\]{}—–-]+|[.,!?;:•·«»"'()\[\]{}—–-]+$/g, '').trim();
 
-                const anchor = sel.anchorNode?.parentElement;
-                if (!anchor?.closest('.slp-container')) { hide(); return; }
+            if (!word || word.length < 2) { hide(); return; }
 
-                const range = sel.getRangeAt(0);
-                const rect  = range.getBoundingClientRect();
+            // Dictionary entries are meant to be a single word or a tight
+            // phrase, not a whole sentence. Mirrors the backend validation.
+            const tooLong  = word.length > 40;
+            const tooManyWords = word.split(/\s+/).length > 3;
 
-                // Контекст — предложение из ближайшего блока
-                let ctx = '';
-                const block = anchor.closest(
-                    '.slp-text-content, .slp-ex-question, .slp-ex-fill-text, .slp-project-desc'
-                );
-                if (block) {
-                    const sentences = (block.innerText || '').split(/[.!?]/);
-                    const found = sentences.find(s => s.toLowerCase().includes(word.toLowerCase()));
-                    ctx = found ? found.trim().substring(0, 120) : '';
-                }
+            const anchor = elementFor(sel.anchorNode);
+            const focus  = elementFor(sel.focusNode);
+            // Either endpoint inside the lesson container is enough — selections
+            // that start in a code block and end in body text shouldn't be lost.
+            const inLesson =
+                anchor?.closest('.slp-container') ||
+                focus?.closest('.slp-container');
+            if (!inLesson) { hide(); return; }
 
-                setPopup({
-                    x:       rect.left + rect.width / 2 + window.scrollX,
-                    y:       rect.top  + window.scrollY - 10,
-                    word,
-                    context: ctx,
-                    done:    false,
-                    saving:  false,
-                    error:   false,
-                    invalid: tooLong || tooManyWords,
-                    invalidReason: tooLong
-                        ? "Juda uzun (40 belgigacha)"
-                        : tooManyWords
-                            ? "Faqat 1-3 ta so'z"
-                            : null,
-                });
+            const range = sel.getRangeAt(0);
+            const rect  = range.getBoundingClientRect();
+            // Browsers occasionally return a 0×0 rect for collapsed/intra-token
+            // selections in styled <pre> blocks; bail rather than render a
+            // floating popup at (0, 0).
+            if (rect.width === 0 && rect.height === 0) { hide(); return; }
+
+            // Context — pull the sentence around the selected word from the
+            // nearest narrative block. Code blocks intentionally don't match;
+            // their text is rarely useful as a dictionary gloss.
+            let ctx = '';
+            const block = (anchor || focus)?.closest(
+                '.slp-text-content, .slp-ex-question, .slp-ex-fill-text, .slp-project-desc'
+            );
+            if (block) {
+                const sentences = (block.innerText || '').split(/[.!?]/);
+                const found = sentences.find(s => s.toLowerCase().includes(word.toLowerCase()));
+                ctx = found ? found.trim().substring(0, 120) : '';
+            }
+
+            setPopup({
+                x:       rect.left + rect.width / 2 + window.scrollX,
+                y:       rect.top  + window.scrollY - 10,
+                word,
+                context: ctx,
+                done:    false,
+                saving:  false,
+                error:   false,
+                invalid: tooLong || tooManyWords,
+                invalidReason: tooLong
+                    ? "Juda uzun (40 belgigacha)"
+                    : tooManyWords
+                        ? "Faqat 1-3 ta so'z"
+                        : null,
             });
+        };
+
+        // `selectionchange` is the authoritative signal — it fires whenever the
+        // selection actually updates, regardless of how (mouseup, dblclick word
+        // selection, keyboard shift-arrow, touch handles). Debounced by RAF so
+        // we don't thrash during drag-extend.
+        let raf = 0;
+        const onSelectionChange = () => {
+            if (raf) cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(() => { raf = 0; evaluate(); });
         };
 
         const onMouseDown = (e) => {
@@ -104,13 +138,12 @@ export default function DictSelectionPopup({ lessonId }) {
             hide();
         };
 
-        document.addEventListener('mouseup',   onSelection);
-        document.addEventListener('touchend',  onSelection);
-        document.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('selectionchange', onSelectionChange);
+        document.addEventListener('mousedown',       onMouseDown);
         return () => {
-            document.removeEventListener('mouseup',   onSelection);
-            document.removeEventListener('touchend',  onSelection);
-            document.removeEventListener('mousedown', onMouseDown);
+            if (raf) cancelAnimationFrame(raf);
+            document.removeEventListener('selectionchange', onSelectionChange);
+            document.removeEventListener('mousedown',       onMouseDown);
         };
     }, [hide]);
 
