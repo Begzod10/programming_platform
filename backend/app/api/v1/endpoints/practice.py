@@ -744,3 +744,76 @@ async def get_stats(
             "accuracy": overall_acc,
         },
     }
+
+
+@router.get("/needs-review")
+async def get_needs_review(
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    current_user: Student = Depends(get_current_student),
+):
+    """Top-N words the student should study next.
+
+    Priority ladder (best signal first):
+      1. Never reviewed (review_count = 0)
+      2. Reviewed but with accuracy < 70% (struggling)
+      3. Long-time-no-see (next_review_at past, or null)
+
+    Within each tier, oldest first. Returned shape mirrors what the
+    Statistika panel renders directly.
+    """
+    Word = UserDictionary
+    now = datetime.utcnow()
+
+    # Pull a generous pool then rank in Python — the priority ladder mixes
+    # boolean and computed-ratio comparisons that SQL would over-complicate.
+    pool = (
+        await db.execute(
+            select(Word).where(Word.student_id == current_user.id)
+        )
+    ).scalars().all()
+
+    def tier(w):
+        if (w.review_count or 0) == 0:
+            return 0
+        if w.review_count > 0:
+            acc = (w.correct_count or 0) / w.review_count
+            if acc < 0.7:
+                return 1
+        return 2
+
+    def sort_key(w):
+        rc = w.review_count or 0
+        acc = (w.correct_count or 0) / rc if rc > 0 else 0.0
+        created = w.created_at or datetime(1970, 1, 1)
+        return (tier(w), acc, created)
+
+    ranked = sorted(pool, key=sort_key)
+    selected = ranked[:limit]
+
+    out = []
+    for w in selected:
+        rc = w.review_count or 0
+        acc = round((w.correct_count or 0) / rc * 100) if rc > 0 else None
+        out.append({
+            "id": w.id,
+            "word": w.word,
+            "context": w.context,
+            "lesson_id": w.lesson_id,
+            "review_count": rc,
+            "accuracy": acc,
+            "lapses": w.lapses or 0,
+            "interval_days": w.interval_days or 0,
+            "next_review_at": w.next_review_at.isoformat() if w.next_review_at else None,
+        })
+
+    # Also surface how many words match the "needs review" predicate so the
+    # UI can show "N more" beside the list without a second round-trip.
+    needs_total = sum(
+        1 for w in pool
+        if (w.review_count or 0) == 0
+        or ((w.review_count or 0) > 0
+            and (w.correct_count or 0) / (w.review_count or 1) < 0.7)
+    )
+
+    return {"items": out, "total": needs_total}

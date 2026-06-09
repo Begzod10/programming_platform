@@ -173,31 +173,29 @@ function FlashcardMode({ word, onAnswer }) {
 }
 
 
-/* Quiz+ mode — MCQ by default, but the student can toggle to typed
-   "Spelling" sub-mode mid-drill if they want a harder check on a given
-   card. Sub-mode is sticky for the rest of the drill until toggled back. */
-function QuizMode({ word, subMode, onSubModeChange, onAnswer, request }) {
-    const isSpelling = subMode === 'spelling';
+/* Quiz+ — life_tracker's two-pass design: recognition pass (MCQ over the
+   whole queue) followed by a recall pass (typed Spelling over the same
+   queue). A word only counts as "correct" if it passed BOTH passes.
+   The orchestrator drives which pass via the `qpPass` prop; the user
+   doesn't toggle. */
+function QuizMode({ word, qpPass, onAnswer, request }) {
+    const isSpelling = qpPass === 'spelling';
     return (
         <div className="pr-card pr-quiz">
-            <div className="pr-quiz-modeline">
-                <button
-                    className={`pr-sub ${!isSpelling ? 'active' : ''}`}
-                    onClick={() => onSubModeChange('quiz')}
-                    type="button"
-                >MCQ</button>
-                <button
-                    className={`pr-sub ${isSpelling ? 'active' : ''}`}
-                    onClick={() => onSubModeChange('spelling')}
-                    type="button"
-                >Yozish</button>
+            <div className="pr-quiz-modeline pr-quiz-modeline--locked">
+                <span className={`pr-sub ${!isSpelling ? 'active' : ''}`}>
+                    1. Tanish (MCQ)
+                </span>
+                <span className={`pr-sub ${isSpelling ? 'active' : ''}`}>
+                    2. Eslab qolish (Yozish)
+                </span>
             </div>
             {isSpelling
                 ? <TypedAnswer
                     word={word}
                     request={request}
                     onAnswer={onAnswer}
-                    promptLabel="Ma'no:"
+                    promptLabel="So'zni yozing — birinchi raundda ko'rdingiz"
                     showContext
                 />
                 : <MCQ word={word} onAnswer={onAnswer} />
@@ -549,22 +547,130 @@ function QueuePreview({ words }) {
 
 
 /* ═══════════════════════════════════════════════════════════════════════
+   FIRE STREAK — in-drill gamification
+   Consecutive correct answers grow a counter shown as a top-right badge.
+   At level 1 (3-4), 2 (5-7), 3 (8+) a full-screen radial fire overlay
+   activates behind the card. Resets on any wrong answer.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+const FIRE_OVERLAY_ID = 'pr-fire-overlay';
+const FIRE_KEYFRAMES_ID = 'pr-fire-keyframes';
+
+const fireLevelFor = (streak) => {
+    if (streak >= 8) return 3;
+    if (streak >= 5) return 2;
+    if (streak >= 3) return 1;
+    return 0;
+};
+
+function ensureFireKeyframes() {
+    if (typeof document === 'undefined') return;
+    if (document.getElementById(FIRE_KEYFRAMES_ID)) return;
+    const s = document.createElement('style');
+    s.id = FIRE_KEYFRAMES_ID;
+    s.textContent = `
+        @keyframes pr-fire-pulse {
+            0%, 100% { opacity: 0.85; transform: scaleY(1); }
+            20%      { opacity: 1;    transform: scaleY(1.04); }
+            50%      { opacity: 0.72; transform: scaleY(0.97); }
+            75%      { opacity: 0.94; transform: scaleY(1.02); }
+        }
+        @keyframes pr-fire-wave {
+            0%, 100% { transform: translateX(0)    scaleX(1);    opacity: 0.9; }
+            33%      { transform: translateX(1.5%) scaleX(1.02); opacity: 1;   }
+            66%      { transform: translateX(-1%)  scaleX(0.98); opacity: 0.8; }
+        }
+        @keyframes pr-fire-ember {
+            0%, 100% { opacity: 0.45; }
+            40%      { opacity: 0.8; }
+            70%      { opacity: 0.55; }
+        }
+        @keyframes pr-fire-glow {
+            0%, 100% { box-shadow: 0 0 18px 6px rgba(255, 50, 0, 0.65), 0 0 40px 14px rgba(255, 90, 0, 0.35); }
+            50%      { box-shadow: 0 0 28px 10px rgba(255, 70, 0, 0.8), 0 0 55px 20px rgba(255, 120, 0, 0.45); }
+        }
+        @keyframes pr-fire-badge-in {
+            from { transform: scale(0.7); opacity: 0; }
+            to   { transform: scale(1);   opacity: 1; }
+        }
+    `;
+    document.head.appendChild(s);
+}
+
+function useFireOverlay(level) {
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+        ensureFireKeyframes();
+        const existing = document.getElementById(FIRE_OVERLAY_ID);
+        if (level === 0) {
+            existing?.remove();
+            return;
+        }
+
+        const el = existing || (() => {
+            const d = document.createElement('div');
+            d.id = FIRE_OVERLAY_ID;
+            document.body.appendChild(d);
+            return d;
+        })();
+
+        const a1 = Math.min(0.58 + level * 0.05, 0.78);
+        const a2 = Math.min(0.32 + level * 0.04, 0.52);
+        el.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9998;';
+        el.innerHTML = `
+            <div style="position:absolute;inset:0;
+                background:
+                    radial-gradient(ellipse at 50% 120%, rgba(255,45,0,${a1}) 0%, rgba(255,105,0,${a2}) 24%, rgba(160,22,0,0.09) 52%, transparent 74%),
+                    radial-gradient(ellipse at 18% 114%, rgba(255,60,0,${a2 * 0.8}) 0%, transparent 35%),
+                    radial-gradient(ellipse at 82% 114%, rgba(255,60,0,${a2 * 0.8}) 0%, transparent 35%);
+                animation: pr-fire-pulse 1.9s ease-in-out infinite;"></div>
+            <div style="position:absolute;inset:0;
+                background: radial-gradient(ellipse at 50% 118%, rgba(255,25,0,0.28) 0%, transparent 48%);
+                animation: pr-fire-wave 2.4s ease-in-out infinite;"></div>
+            <div style="position:absolute;bottom:0;left:0;right:0;height:40vh;
+                background: linear-gradient(to top, rgba(200,15,0,0.55) 0%, rgba(255,70,0,0.22) 35%, transparent 80%);
+                animation: pr-fire-ember 2.9s ease-in-out infinite;"></div>
+            <div style="position:absolute;bottom:0;left:0;right:0;height:4px;
+                background: rgba(255,35,0,0.95);
+                animation: pr-fire-glow 1.7s ease-in-out infinite;"></div>
+        `;
+
+        return () => { document.getElementById(FIRE_OVERLAY_ID)?.remove(); };
+    }, [level]);
+}
+
+function FireBadge({ streak }) {
+    if (streak === 0) return null;
+    return (
+        <div className="pr-fire-badge" key={streak}>
+            🔥 {streak}
+        </div>
+    );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
    STATISTIKA — read-only dashboard fed by /v1/dictionary/practice/stats
    ═══════════════════════════════════════════════════════════════════════ */
 
 function Statistika() {
     const { request } = useHttp();
-    const [stats, setStats] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
+    const [stats, setStats]         = useState(null);
+    const [needsReview, setNeedsReview] = useState({ items: [], total: 0 });
+    const [loading, setLoading]     = useState(true);
+    const [error, setError]         = useState('');
 
     useEffect(() => {
         let cancelled = false;
         setLoading(true);
-        request(`${BASE}/stats`, 'GET', null, headers())
-            .then((data) => {
+        Promise.all([
+            request(`${BASE}/stats`, 'GET', null, headers()),
+            request(`${BASE}/needs-review?limit=10`, 'GET', null, headers()).catch(() => ({ items: [], total: 0 })),
+        ])
+            .then(([s, nr]) => {
                 if (cancelled) return;
-                setStats(data || null);
+                setStats(s || null);
+                setNeedsReview(nr || { items: [], total: 0 });
                 setError('');
             })
             .catch(() => {
@@ -700,6 +806,43 @@ function Statistika() {
                     </div>
                 </div>
             </section>
+
+            {/* ── Mashq qilingani yaxshi ── top-N words to study next ──
+                Order matches the backend's ladder: never-reviewed first,
+                then struggling, then long-time-no-see. */}
+            {needsReview.items.length > 0 && (
+                <section className="pr-section">
+                    <div className="pr-section-head">
+                        <h3 className="pr-section-title">Mashq qilingani yaxshi</h3>
+                        {needsReview.total > needsReview.items.length && (
+                            <span className="pr-section-more">
+                                yana {needsReview.total - needsReview.items.length}
+                            </span>
+                        )}
+                    </div>
+                    <div className="pr-needs">
+                        {needsReview.items.map((w) => {
+                            let tag, tagCls;
+                            if (w.review_count === 0) {
+                                tag = 'Yangi'; tagCls = 'new';
+                            } else if (w.accuracy !== null && w.accuracy < 70) {
+                                tag = `${w.accuracy}%`; tagCls = 'low';
+                            } else {
+                                tag = 'Eski'; tagCls = 'stale';
+                            }
+                            return (
+                                <div key={w.id} className="pr-needs-row">
+                                    <strong className="pr-needs-word">{w.word}</strong>
+                                    {w.context && (
+                                        <span className="pr-needs-ctx">{w.context}</span>
+                                    )}
+                                    <span className={`pr-needs-tag pr-needs-tag--${tagCls}`}>{tag}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+            )}
         </div>
     );
 }
@@ -718,7 +861,6 @@ export default function Practice() {
     const [tab,       setTab]       = useState('drill');  // 'drill' | 'stats'
     const [phase,     setPhase]     = useState('pick');   // 'pick' | 'drill' | 'recap'
     const [mode,      setMode]      = useState('flashcard');
-    const [subMode,   setSubMode]   = useState('quiz');   // Quiz+ only
     const [filter,    setFilter]    = useState('all');
     const [counts,    setCounts]    = useState({ due: 0, fragile: 0, total: 0 });
     const [active,    setActive]    = useState(null);
@@ -734,6 +876,19 @@ export default function Practice() {
     const [correct,   setCorrect]   = useState(0);
     const [missed,    setMissed]    = useState([]); // word ids missed in current chunk
     const [round,     setRound]     = useState(1);
+
+    /* Quiz+ two-pass state. life_tracker's design: MCQ over the whole queue
+       first (recognition), then typed Spelling over the same queue (recall).
+       A word counts as "correct" only if it passed BOTH passes. */
+    const [qpPass,    setQpPass]    = useState('mcq'); // 'mcq' | 'spelling'
+    const [qpMcqOk,   setQpMcqOk]   = useState([]);    // word ids passed MCQ pass
+    const [qpSpellOk, setQpSpellOk] = useState([]);    // word ids passed Spelling pass
+
+    /* In-drill fire streak — consecutive correct answers. Drives FireBadge
+       + a full-screen overlay at higher levels. */
+    const [fireStreak, setFireStreak] = useState(0);
+    const fireLevel = phase === 'drill' ? fireLevelFor(fireStreak) : 0;
+    useFireOverlay(fireLevel);
     const [sessionId, setSessionId] = useState(null);
     const [busy,      setBusy]      = useState(false);
     const [error,     setError]     = useState('');
@@ -792,8 +947,11 @@ export default function Practice() {
             setCorrect(0);
             setMissed([]);
             setRound(1);
+            setQpPass('mcq');
+            setQpMcqOk([]);
+            setQpSpellOk([]);
+            setFireStreak(0);
             setSessionId(s.id);
-            setSubMode('quiz');
             setPhase('drill');
         } catch {
             setError("Yuklab bo'lmadi — keyinroq urinib ko'ring");
@@ -820,9 +978,12 @@ export default function Practice() {
             setCorrect(snap.correct || 0);
             setMissed(snap.missed || []);
             setRound(snap.round || 1);
+            setQpPass(snap.qpPass || 'mcq');
+            setQpMcqOk(snap.qpMcqOk || []);
+            setQpSpellOk(snap.qpSpellOk || []);
+            setFireStreak(0);
             setSessionId(active.id);
             setMode(active.mode);
-            setSubMode(snap.subMode || 'quiz');
             setPhase('drill');
         } catch {
             setError("Sessiyani tiklab bo'lmadi");
@@ -847,7 +1008,9 @@ export default function Practice() {
             correct,
             missed,
             round,
-            subMode,
+            qpPass,
+            qpMcqOk,
+            qpSpellOk,
             queue: queue.map((q) => ({ id: q.word.id, replay: q.replay })),
             // word_ids kept for backward compat with old resume snapshots
             word_ids: queue.map((q) => q.word.id),
@@ -858,40 +1021,82 @@ export default function Practice() {
             JSON.stringify({ progress: snap }),
             headers(),
         ).catch(() => {});
-    }, [phase, sessionId, pos, correct, missed, round, subMode, queue, request]);
+    }, [phase, sessionId, pos, correct, missed, round, qpPass, qpMcqOk, qpSpellOk, queue, request]);
 
-    /* ── card answered ── */
+    /* ── card answered ──
+       Quiz+ branches here: instead of finalising on the first answer, we
+       track per-pass correctness sets and finalise the word only after both
+       passes have run over it. */
     const onAnswer = useCallback(async ({ grade, was_correct }) => {
         const item = queue[pos];
         if (!item) return;
-        const wasMiss = !was_correct;
 
-        // Only count toward score on the FIRST attempt (round 1, non-replay).
-        const isReplayItem = item.replay;
-        if (!isReplayItem && was_correct) {
-            setCorrect((c) => c + 1);
-        }
+        // Fire streak — consecutive correct counter. Resets on any wrong.
+        setFireStreak((s) => was_correct ? s + 1 : 0);
 
-        // Track miss for end-of-chunk replay (only first-pass misses; replay
-        // misses go back through normal SRS but don't trigger another loop).
-        let newMissed = missed;
-        if (!isReplayItem && wasMiss) {
-            newMissed = [...missed, item.word.id];
-            setMissed(newMissed);
-        }
-
-        // Submit SRS update (fire-and-forget; the UI keeps moving).
+        // Submit SRS update (fire-and-forget; the UI keeps moving). Quiz+
+        // submits twice per word (once per pass) so the SRS sees both signals.
         request(
             `${BASE}/result`, 'POST',
             JSON.stringify({ word_id: item.word.id, grade, was_correct }),
             headers(),
         ).catch(() => {});
 
+        /* ════ Quiz+ two-pass branch ════════════════════════════════════ */
+        if (mode === 'quiz') {
+            // Record the answer in the current pass set.
+            const newMcqOk   = qpPass === 'mcq'      && was_correct ? [...qpMcqOk, item.word.id]   : qpMcqOk;
+            const newSpellOk = qpPass === 'spelling' && was_correct ? [...qpSpellOk, item.word.id] : qpSpellOk;
+            if (qpPass === 'mcq')      setQpMcqOk(newMcqOk);
+            if (qpPass === 'spelling') setQpSpellOk(newSpellOk);
+
+            const nextPos = pos + 1;
+            const endOfPass = nextPos >= queue.length;
+
+            if (endOfPass && qpPass === 'mcq') {
+                // Switch to spelling pass; reset to the start of the queue.
+                setQpPass('spelling');
+                setPos(0);
+                return;
+            }
+
+            if (endOfPass && qpPass === 'spelling') {
+                // Both passes done — finalise. A word counts correct only
+                // if it appeared in BOTH the MCQ and Spelling correct sets.
+                const okSet = new Set(newMcqOk.filter((id) => newSpellOk.includes(id)));
+                const chunkCorrect = okSet.size;
+                const total = queue.length;
+                try {
+                    await request(
+                        `${BASE}/session/${sessionId}/complete`,
+                        'PUT',
+                        JSON.stringify({ total_words: total, correct: chunkCorrect }),
+                        headers(),
+                    );
+                } catch {}
+                setCorrect(chunkCorrect);
+                setActive(null);
+                setPhase('recap');
+                reloadAll();
+                return;
+            }
+
+            setPos(nextPos);
+            return;
+        }
+
+        /* ════ Other modes: chunked rounds + replay-missed ═══════════════ */
+        const isReplayItem = item.replay;
+        if (!isReplayItem && was_correct) setCorrect((c) => c + 1);
+
+        let newMissed = missed;
+        if (!isReplayItem && !was_correct) {
+            newMissed = [...missed, item.word.id];
+            setMissed(newMissed);
+        }
+
         const nextPos = pos + 1;
         const endOfQueue = nextPos >= queue.length;
-
-        // End of a chunk (every CHUNK_SIZE words on the FIRST pass) → splice
-        // the missed cards back in as a replay round before continuing.
         const endOfChunk = !isReplayItem && nextPos % CHUNK_SIZE === 0;
         const finalChunkOfRun = nextPos === queue.filter((q) => !q.replay).length;
 
@@ -901,7 +1106,6 @@ export default function Practice() {
                 .map((id) => idToWord[id])
                 .filter(Boolean)
                 .map((word) => ({ word, replay: true }));
-            // Insert replays right after the current chunk boundary.
             const left  = queue.slice(0, nextPos);
             const right = queue.slice(nextPos);
             setQueue([...left, ...replayItems, ...right]);
@@ -929,7 +1133,7 @@ export default function Practice() {
         } else {
             setPos(nextPos);
         }
-    }, [queue, pos, correct, missed, sessionId, request, reloadAll]);
+    }, [queue, pos, correct, missed, sessionId, mode, qpPass, qpMcqOk, qpSpellOk, request, reloadAll]);
 
     const goPick = useCallback(() => {
         setPhase('pick');
@@ -938,6 +1142,10 @@ export default function Practice() {
         setCorrect(0);
         setMissed([]);
         setRound(1);
+        setQpPass('mcq');
+        setQpMcqOk([]);
+        setQpSpellOk([]);
+        setFireStreak(0);
         setSessionId(null);
     }, []);
 
@@ -948,23 +1156,39 @@ export default function Practice() {
         const item = queue[pos];
         if (!item) return null;
         const word = item.word;
-        const firstPassTotal = queue.filter((q) => !q.replay).length;
-        const firstPassDone  = queue.slice(0, pos).filter((q) => !q.replay).length;
+
+        // Quiz+ pos/total reads against the queue itself per pass; other
+        // modes hide replay items from the visible counter so accuracy
+        // matches what the recap will show.
+        const isQuizPlus = mode === 'quiz';
+        const total = isQuizPlus
+            ? queue.length
+            : queue.filter((q) => !q.replay).length;
+        const done = isQuizPlus
+            ? pos
+            : queue.slice(0, pos).filter((q) => !q.replay).length;
 
         return (
             <div className="pr-root pr-root--drill">
+                <FireBadge streak={fireStreak} />
+
                 <header className="pr-drill-head">
                     <button className="pr-back" onClick={goPick}>← Chiqish</button>
                     <div className="pr-progress">
                         <div className="pr-progress-text">
-                            {firstPassDone + 1} / {firstPassTotal}
-                            {item.replay && <span className="pr-replay-tag"> · qaytarish</span>}
-                            {round > 1 && !item.replay && <span className="pr-round-tag"> · raund {round}</span>}
+                            {done + 1} / {total}
+                            {isQuizPlus && (
+                                <span className={`pr-pass-tag pr-pass-tag--${qpPass}`}>
+                                    {' · '}{qpPass === 'mcq' ? 'Raund 1: MCQ' : 'Raund 2: Yozish'}
+                                </span>
+                            )}
+                            {!isQuizPlus && item.replay && <span className="pr-replay-tag"> · qaytarish</span>}
+                            {!isQuizPlus && round > 1 && !item.replay && <span className="pr-round-tag"> · raund {round}</span>}
                         </div>
                         <div className="pr-progress-bar">
                             <div
                                 className="pr-progress-fill"
-                                style={{ width: `${((firstPassDone + 1) / firstPassTotal) * 100}%` }}
+                                style={{ width: `${((done + 1) / total) * 100}%` }}
                             />
                         </div>
                     </div>
@@ -974,7 +1198,7 @@ export default function Practice() {
                 </header>
 
                 {mode === 'flashcard' && <FlashcardMode key={word.id} word={word} onAnswer={onAnswer} />}
-                {mode === 'quiz'      && <QuizMode      key={word.id} word={word} subMode={subMode} onSubModeChange={setSubMode} onAnswer={onAnswer} request={request} />}
+                {mode === 'quiz'      && <QuizMode      key={`${word.id}-${qpPass}`} word={word} qpPass={qpPass} onAnswer={onAnswer} request={request} />}
                 {mode === 'spelling'  && <SpellingMode  key={word.id} word={word} onAnswer={onAnswer} request={request} />}
                 {mode === 'listening' && <ListeningMode key={word.id} word={word} onAnswer={onAnswer} request={request} />}
                 {mode === 'cloze'     && <ClozeMode     key={word.id} word={word} onAnswer={onAnswer} request={request} />}

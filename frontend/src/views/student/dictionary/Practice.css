@@ -1211,3 +1211,118 @@
     .pr-week         { gap: 6px; }
     .pr-week-bar-wrap{ height: 80px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   FIRE STREAK BADGE + QUIZ+ TWO-PASS + NEEDS-REVIEW PANEL
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Fire badge (top-right, fixed) ───────────────────────────────────── */
+.pr-fire-badge {
+    position: fixed;
+    top: 5.5rem;
+    right: 1rem;
+    z-index: 9999;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(210, 50, 0, 0.28);
+    border: 1px solid rgba(255, 130, 0, 0.65);
+    color: rgb(255, 210, 70);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 800;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 0 22px rgba(255, 70, 0, 0.5);
+    animation: pr-fire-badge-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Lift card above the fire overlay so it stays readable */
+.pr-root--drill .pr-card,
+.pr-root--drill .pr-drill-head { position: relative; z-index: 9999; }
+
+/* ── Quiz+ pass indicator row (locked, no toggle in two-pass design) ── */
+.pr-quiz-modeline--locked {
+    background: rgba(15, 23, 42, 0.04);
+    padding: 4px;
+}
+.pr-quiz-modeline--locked .pr-sub {
+    cursor: default;
+    pointer-events: none;
+}
+
+.pr-pass-tag {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.pr-pass-tag--mcq      { background: rgba(108, 92, 231, 0.16); color: #6c5ce7; }
+.pr-pass-tag--spelling { background: rgba(245, 158, 11, 0.18); color: #b45309; }
+
+/* ── Needs-review panel (Statistika) ─────────────────────────────────── */
+.pr-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+.pr-section-head .pr-section-title { margin: 0; }
+.pr-section-more {
+    font-size: 12px;
+    font-weight: 700;
+    color: rgba(15, 23, 42, 0.45);
+}
+
+.pr-needs {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pr-needs-row {
+    display: grid;
+    grid-template-columns: minmax(80px, auto) 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 9px 4px;
+    border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+.pr-needs-row:first-child { border-top: none; }
+
+.pr-needs-word {
+    color: #0f172a;
+    font-weight: 700;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+
+.pr-needs-ctx {
+    color: rgba(15, 23, 42, 0.55);
+    font-size: 12.5px;
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.pr-needs-tag {
+    flex-shrink: 0;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+}
+.pr-needs-tag--new   { background: rgba(108, 92, 231, 0.14); color: #6c5ce7; }
+.pr-needs-tag--low   { background: rgba(244, 63, 94, 0.14);  color: #be123c; }
+.pr-needs-tag--stale { background: rgba(245, 158, 11, 0.18); color: #b45309; }
