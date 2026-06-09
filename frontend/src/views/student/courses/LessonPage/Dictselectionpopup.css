@@ -72,17 +72,23 @@
 .dsp-btn:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
 
 /* States */
-.dsp-done {
-    font-size: 13px;
-    font-weight: 800;
+.dsp-done,
+.dsp-err {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     color: #fff;
     padding: 2px 4px;
 }
-.dsp-err {
-    font-size: 12px;
-    font-weight: 700;
-    color: #fff;
-    padding: 2px 4px;
+.dsp-done { font-size: 13px; font-weight: 800; }
+.dsp-err  { font-size: 12px; font-weight: 700; }
+
+/* SVG icons inside the popup inherit text colour and align to the baseline */
+.dsp-btn svg,
+.dsp-done svg,
+.dsp-err svg {
+    flex-shrink: 0;
+    display: block;
 }
 
 /* Spinner */

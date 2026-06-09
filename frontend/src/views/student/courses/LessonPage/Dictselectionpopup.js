@@ -3,7 +3,7 @@
  * ──────────────────
  * Подключается ОДИН РАЗ в StudentLessonPage.
  * Слушает mouseup/touchend — если выделен текст внутри .slp-container,
- * показывает всплывающую кнопку "📖 Lug'atga qo'shish".
+ * показывает всплывающую кнопку с иконкой книги + "Lug'atga qo'shish".
  * При нажатии сразу сохраняет слово через API и диспатчит dict:word-added.
  *
  * Props:
@@ -13,6 +13,30 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
 import './Dictselectionpopup.css';
+
+// Inline SVG icons — emojis render as missing-glyph boxes on some
+// Linux/Windows systems without a color emoji font installed.
+const BookIcon = (props) => (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+         stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </svg>
+);
+const CheckIcon = (props) => (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+         stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <polyline points="20 6 9 17 4 12" />
+    </svg>
+);
+const WarnIcon = (props) => (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+         stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+);
 
 const BASE = `${API_URL}v1/dictionary/`;
 
@@ -110,9 +134,9 @@ export default function DictSelectionPopup({ lessonId }) {
             style={{ left: popup.x, top: popup.y }}
         >
             {popup.done ? (
-                <span className="dsp-done">✓ Qo'shildi!</span>
+                <span className="dsp-done"><CheckIcon /> Qo'shildi!</span>
             ) : popup.error ? (
-                <span className="dsp-err">⚠ Xatolik</span>
+                <span className="dsp-err"><WarnIcon /> Xatolik</span>
             ) : (
                 <>
                     <span className="dsp-word">«{popup.word}»</span>
@@ -123,7 +147,7 @@ export default function DictSelectionPopup({ lessonId }) {
                     >
                         {popup.saving
                             ? <span className="dsp-spin" />
-                            : '📖 Lug\'atga qo\'shish'
+                            : <><BookIcon /> Lug'atga qo'shish</>
                         }
                     </button>
                 </>
