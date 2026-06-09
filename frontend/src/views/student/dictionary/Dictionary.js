@@ -196,13 +196,16 @@ export default function Dictionary() {
                     </div>
                 </div>
 
-                <div className="d-sidebar-counter">
-                    <span className="d-counter-num">{words.length}</span>
-                    <span className="d-counter-label">so'z saqlangan</span>
-                </div>
-
-                {/* Stats mini */}
+                {/* Single compact stat strip — the big counter pill was redundant
+                    with the "Hammasi N" lesson filter directly below it, and the
+                    sidebar "+ So'z qo'shish" duplicated the topbar action. Kept
+                    a tighter mini-stats row so dars/natija counts stay visible. */}
                 <div className="d-sidebar-stats">
+                    <div className="d-sstat">
+                        <span className="d-sstat-val">{words.length}</span>
+                        <span className="d-sstat-key">so'z</span>
+                    </div>
+                    <div className="d-sstat-div" />
                     <div className="d-sstat">
                         <span className="d-sstat-val">{lessons.length}</span>
                         <span className="d-sstat-key">dars</span>
@@ -213,12 +216,6 @@ export default function Dictionary() {
                         <span className="d-sstat-key">natija</span>
                     </div>
                 </div>
-
-                {/* ✅ Qo'shish tugmasi sidebarда */}
-                <button className="d-add-btn" onClick={() => setShowModal(true)}>
-                    <span className="d-add-plus">+</span>
-                    So'z qo'shish
-                </button>
 
                 {/* Lesson filters */}
                 {lessons.length > 0 && (

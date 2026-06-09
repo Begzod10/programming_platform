@@ -1074,3 +1074,118 @@
     color: #6c5ce7;
     border-bottom-color: #6c5ce7;
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   LIGHT-THEME POLISH PASS
+   Unifies the sidebar with the main pane (dark-on-light split was
+   competing with the dashboard header), tightens spacing, and fixes
+   long single-token words that wrapped mid-character.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Surface tokens (light) ─────────────────────────────────────────── */
+.d-wrap {
+    --d-surface:        #ffffff;
+    --d-surface-soft:   #f8fafc;
+    --d-surface-strong: #f1f5f9;
+    --d-ink-soft:       rgba(15, 23, 42, 0.62);
+    --d-ink-muted:      rgba(15, 23, 42, 0.45);
+    --d-rule:           rgba(15, 23, 42, 0.08);
+    background: var(--d-surface);
+    box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+}
+
+/* ── Sidebar: light surface, dark text, no gradient blob ────────────── */
+.d-sidebar {
+    background: var(--d-surface-soft);
+    border-right: 1px solid var(--d-rule);
+    gap: 18px;
+    padding: 24px 18px;
+}
+.d-sidebar::after { display: none; }
+
+.d-sidebar-icon {
+    /* Drop the float animation — purely decorative motion competes with
+       the actual content for attention. */
+    filter: none;
+    animation: none;
+}
+.d-sidebar-title { color: #0f172a; }
+.d-sidebar-hint  { color: var(--d-ink-muted); font-weight: 500; }
+
+.d-sidebar-stats {
+    background: var(--d-surface);
+    border: 1px solid var(--d-rule);
+    padding: 12px 10px;
+}
+.d-sstat-val { color: #0f172a; font-size: 18px; }
+.d-sstat-key { color: var(--d-ink-muted); font-weight: 700; }
+.d-sstat-div { background: var(--d-rule); }
+
+.d-lessons-label { color: var(--d-ink-muted); }
+.d-lesson-item {
+    color: var(--d-ink-soft);
+}
+.d-lesson-item:hover {
+    background: rgba(108, 92, 231, 0.06);
+    color: #0f172a;
+}
+.d-lesson-item.active {
+    background: rgba(108, 92, 231, 0.12);
+    color: var(--d-purple);
+}
+.d-lesson-item.active .d-lesson-dot { background: var(--d-purple); }
+.d-lesson-count {
+    background: rgba(15, 23, 42, 0.06);
+    color: var(--d-ink-soft);
+}
+.d-lesson-item.active .d-lesson-count {
+    background: rgba(108, 92, 231, 0.22);
+    color: var(--d-purple);
+}
+
+/* ── Sidebar tip: inline hint, not a card ──────────────────────────── */
+.d-sidebar-tip {
+    background: transparent;
+    border: 1px dashed rgba(15, 23, 42, 0.14);
+    border-radius: 12px;
+    padding: 12px 14px;
+}
+.d-sidebar-tip p {
+    color: var(--d-ink-soft);
+    font-size: 12px;
+    line-height: 1.5;
+}
+.d-sidebar-tip p strong { color: var(--d-purple); }
+
+/* ── Main pane: neutral surface (was faint lilac) ───────────────────── */
+.d-main {
+    background: var(--d-surface);
+}
+
+/* ── Tab strip: louder, anchored to a clear baseline ────────────────── */
+.d-tabs {
+    padding: 6px 24px 0;
+    border-bottom: 1px solid var(--d-rule);
+}
+.d-tab {
+    padding: 12px 6px;
+    margin-right: 18px;
+    font-size: 14px;
+    letter-spacing: 0.01em;
+    border-bottom-width: 3px;
+}
+.d-tab.active { color: var(--d-purple); }
+
+/* ── Cards: real fill (auto-fit instead of auto-fill) + safer wrap ─── */
+.d-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+}
+.d-card-word {
+    /* `break-word` keeps long words on one line until they overflow.
+       Long single tokens like "console.log" then break at character
+       boundaries instead of being pushed to a second hyphen-less line. */
+    overflow-wrap: anywhere;
+    word-break: normal;
+    hyphens: auto;
+}
