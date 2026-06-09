@@ -19,6 +19,7 @@ from app.api.v1.endpoints.teacher import students as teacher_students
 from app.api.v1.endpoints.teacher import statistics as teacher_statistics
 from app.api.v1.endpoints.teacher import course_access as teacher_course_access
 from app.api.v1.endpoints import dictionary
+from app.api.v1.endpoints import practice as dict_practice
 api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
@@ -38,4 +39,5 @@ api_router.include_router(teacher_students.router, prefix="/teacher/students", t
 api_router.include_router(teacher_statistics.router, prefix="/teacher", tags=["Teacher - Statistics"])
 api_router.include_router(teacher_course_access.router, prefix="/teacher/courses", tags=["Teacher - Course Access"])
 api_router.include_router(dictionary.router, prefix="/dictionary", tags=["dictionary"])
+api_router.include_router(dict_practice.router, prefix="/dictionary/practice", tags=["dictionary-practice"])
 api_router.include_router(lesson_feedback.router, prefix="", tags=["Lesson Feedback"])

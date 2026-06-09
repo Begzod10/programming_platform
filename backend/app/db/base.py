@@ -20,7 +20,7 @@ from app.models.group import Group
 from app.models.exercise import Exercise, ExerciseSubmission
 from app.models.quiz import Quiz, Question, StudentQuizResult
 from app.models.video_watch import VideoWatch
-from app.models.dictionary import UserDictionary
+from app.models.dictionary import UserDictionary, PracticeSession
 from app.models.lesson_feedback import LessonFeedback
 
 __all__ = [
@@ -47,5 +47,6 @@ __all__ = [
     "StudentQuizResult",
     "VideoWatch",
     "UserDictionary",
+    "PracticeSession",
     "LessonFeedback",
 ]

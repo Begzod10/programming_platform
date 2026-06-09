@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import './Dictionary.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
+import Practice from './Practice';
 
 const BASE = `${API_URL}v1/dictionary/`;
 
@@ -15,6 +16,7 @@ export default function Dictionary() {
     const [toast,    setToast]    = useState('');
     const [filter,   setFilter]   = useState('all');
     const [view,     setView]     = useState('grid');
+    const [tab,      setTab]      = useState('words'); // 'words' | 'practice'
 
     // ✅ Modal state
     const [showModal, setShowModal] = useState(false);
@@ -255,6 +257,24 @@ export default function Dictionary() {
             {/* ── Main ── */}
             <main className="d-main">
 
+                {/* Tab strip — "So'zlar" (existing) | "Mashq" (SRS practice) */}
+                <div className="d-tabs">
+                    <button
+                        className={`d-tab ${tab === 'words' ? 'active' : ''}`}
+                        onClick={() => setTab('words')}
+                    >
+                        📒 So'zlar
+                    </button>
+                    <button
+                        className={`d-tab ${tab === 'practice' ? 'active' : ''}`}
+                        onClick={() => setTab('practice')}
+                    >
+                        🎯 Mashq
+                    </button>
+                </div>
+
+                {tab === 'practice' ? <Practice /> : <>
+
                 {/* Top bar */}
                 <div className="d-topbar">
                     <div className="d-search-wrap">
@@ -417,6 +437,7 @@ export default function Dictionary() {
                     </div>
                 )}
 
+                </>}
             </main>
         </div>
     );

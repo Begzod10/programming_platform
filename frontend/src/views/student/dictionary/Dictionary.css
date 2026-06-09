@@ -1045,3 +1045,32 @@
                  flex-wrap: nowrap; padding: 12px; }
     .d-main    { padding: 12px 14px; }
 }
+/* ── Tab strip — "So'zlar" / "Mashq" ─────────────────────────────────
+   Sits at the top of the main pane so the user can switch between the
+   word list and the SM-2 practice drill without leaving the page. */
+.d-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 14px 20px 0;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+    margin-bottom: 0;
+}
+
+.d-tab {
+    background: transparent;
+    border: none;
+    padding: 10px 18px;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(15, 23, 42, 0.55);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+    margin-bottom: -1px;
+}
+.d-tab:hover { color: #0f172a; }
+.d-tab.active {
+    color: #6c5ce7;
+    border-bottom-color: #6c5ce7;
+}

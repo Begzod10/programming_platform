@@ -1,5 +1,5 @@
 from typing import Optional
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean, Float, JSON
 from sqlalchemy.orm import relationship, mapped_column, Mapped
 from datetime import datetime
 from app.db.base_class import Base
@@ -22,8 +22,46 @@ class UserDictionary(Base):
     correct_count = Column(Integer, default=0, nullable=False)
     incorrect_count = Column(Integer, default=0, nullable=False)
 
+    # SM-2 spaced-repetition state (ported from life_tracker). Defaults
+    # match srs.DEFAULT_EASE so existing rows behave like a brand-new card
+    # once the migration runs and backfills the columns with the defaults.
+    ease_factor = Column(Float, default=2.5, nullable=False, server_default="2.5")
+    interval_days = Column(Integer, default=0, nullable=False, server_default="0")
+    reps = Column(Integer, default=0, nullable=False, server_default="0")
+    lapses = Column(Integer, default=0, nullable=False, server_default="0")
+    next_review_at = Column(DateTime, nullable=True, index=True)
+
     student = relationship("Student", back_populates="dictionary_words")
     lesson = relationship("Lesson", back_populates="user_dictionaries")
+
+
+class PracticeSession(Base):
+    """One Mashq session — created when the user picks a mode, finalised
+    when they finish (or abandoned via DELETE).
+
+    `progress` stores the per-mode in-flight state so a student can close
+    the tab and resume where they left off (chunk index, answered word ids,
+    sub-mode within Quiz+, etc.). It's an opaque JSON blob the frontend
+    owns the schema of; the backend just passes it through.
+    """
+
+    __tablename__ = "dict_practice_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    student_id = Column(
+        Integer,
+        ForeignKey("students.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    mode = Column(String(20), nullable=False)
+    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    completed_at = Column(DateTime, nullable=True)
+    total_words = Column(Integer, default=0, nullable=False)
+    correct = Column(Integer, default=0, nullable=False)
+    progress = Column(JSON, nullable=True)
+
+    student = relationship("Student")
 
 
 class QuizSession(Base):
