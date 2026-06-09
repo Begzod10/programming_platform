@@ -589,3 +589,57 @@
   .sc-search-wrap   { width: 60%; }
   .sc-filters       { width: 40%; }
 }
+/* ─── LOCKED COURSE CARD ──────────────────────────────────────────
+   Hard-lock policy: students that haven't been assigned see a muted
+   card with a lock badge instead of a progress ring. */
+.sc-card--locked {
+  cursor: not-allowed;
+  filter: grayscale(0.15);
+}
+
+.sc-card--locked:hover {
+  transform: none;
+  box-shadow: 0 3px 16px rgba(0, 0, 0, 0.06);
+  border-color: rgba(15, 13, 30, 0.07);
+}
+
+.sc-card--locked .sc-card-img,
+.sc-card--locked .sc-card-img-placeholder {
+  filter: saturate(0.6) brightness(0.92);
+}
+.sc-card--locked:hover .sc-card-img { transform: none; }
+
+.sc-card--locked .sc-card-img-overlay {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.15) 0%, rgba(15, 23, 42, 0.55) 100%);
+}
+
+.sc-lock-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+}
+
+.sc-card-btn--locked {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  border: 1px dashed #cbd5e1 !important;
+}
+.sc-card-btn--locked:hover {
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  transform: none !important;
+}

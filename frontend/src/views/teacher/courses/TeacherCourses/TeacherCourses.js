@@ -14,6 +14,7 @@ import './TeacherCourses.css';
 import LessonEditorPage from '../LessonEditor/LessonEditor';
 import CourseDetailPage from '../CourseModal/CourseModal';
 import LessonPage from '../LessonPage/LessonPage';
+import AssignStudentsModal from '../AssignStudentsModal/AssignStudentsModal';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
 
 const INITIAL_CHAPTERS = ['Basic', 'Advanced', 'Test'];
@@ -167,7 +168,7 @@ const ChaptersModal = ({ chapters, onSave, onClose }) => {
        and disable pointer events on inner clickables so the navigation
        click doesn't fire on drag-release.
 ═══════════════════════════════════════════ */
-const SortableCourseCard = ({ course, canReorder, navigate, onPublishToggle, onEdit, onDelete, onConfirmDelete }) => {
+const SortableCourseCard = ({ course, canReorder, navigate, onPublishToggle, onEdit, onDelete, onConfirmDelete, onAssign }) => {
     const {
         attributes, listeners, setNodeRef,
         transform, transition, isDragging,
@@ -218,7 +219,15 @@ const SortableCourseCard = ({ course, canReorder, navigate, onPublishToggle, onE
                     <span className="tc-stat">📚 {course.lessons.length} уроков</span>
                     <span className="tc-stat">👥 {course.studentsCount} студентов</span>
                 </div>
-                <button className="tc-open-course-btn" onClick={e => { e.stopPropagation(); navigate(`/teacher/courses/${course.id}`); }}>Открыть курс →</button>
+                <div className="tc-course-cta">
+                    <button
+                        className="tc-assign-btn"
+                        onClick={e => { e.stopPropagation(); onAssign?.(course); }}
+                    >
+                        👥 Talabalarni boshqarish
+                    </button>
+                    <button className="tc-open-course-btn" onClick={e => { e.stopPropagation(); navigate(`/teacher/courses/${course.id}`); }}>Открыть курс →</button>
+                </div>
             </div>
         </div>
     );
@@ -258,6 +267,7 @@ const TeacherCourses = () => {
     const [showCourseModal,  setShowCourseModal]  = useState(false);
     const [showChapterModal, setShowChapterModal] = useState(false);
     const [editingCourse,    setEditingCourse]    = useState(null);
+    const [assignCourse,     setAssignCourse]     = useState(null);
     const [newCourse,        setNewCourse]        = useState({
         title: '', description: '', image: '', difficulty_level: 'Beginner', duration_weeks: '4', max_points: '100',
     });
@@ -588,6 +598,7 @@ const TeacherCourses = () => {
                                         onPublishToggle={toggleCoursePublish}
                                         onEdit={openEditCourse}
                                         onConfirmDelete={setConfirmCourse}
+                                        onAssign={setAssignCourse}
                                     />
                                 ))}
                             </div>
@@ -619,6 +630,13 @@ const TeacherCourses = () => {
 
             {showChapterModal && <ChaptersModal chapters={chapters} onSave={setChapters} onClose={() => setShowChapterModal(false)} />}
             {confirmCourse && <ConfirmModal title="Удалить курс?" text="Это действие нельзя отменить. Все уроки тоже будут удалены." onConfirm={() => doDeleteCourse(confirmCourse)} onClose={() => setConfirmCourse(null)} />}
+            {assignCourse && (
+                <AssignStudentsModal
+                    course={assignCourse}
+                    onClose={() => setAssignCourse(null)}
+                    onChanged={() => { /* counts refresh on next page load */ }}
+                />
+            )}
         </div>
     );
 };

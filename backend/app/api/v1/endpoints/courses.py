@@ -219,26 +219,11 @@ async def enroll_course(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db),
 ):
-    """Kursga yozilish"""
-    res = await db.execute(
-        select(Course).options(selectinload(Course.students)).where(Course.id == course_id)
+    """Self-enrollment is disabled — a teacher must assign access."""
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Kursga yozilish o'qituvchi tomonidan amalga oshiriladi.",
     )
-    course = res.scalar_one_or_none()
-
-    if not course:
-        raise HTTPException(404, "Kurs topilmadi")
-
-    student_res = await db.execute(
-        select(Student).options(selectinload(Student.enrolled_courses)).where(Student.id == current_student.id)
-    )
-    student = student_res.scalar_one()
-
-    if any(c.id == course.id for c in student.enrolled_courses):
-        raise HTTPException(400, "Siz allaqachon yozilgansiz")
-
-    student.enrolled_courses.append(course)
-    await db.commit()
-    return {"message": "Kursga muvaffaqiyatli yozildingiz"}
 
 
 @router.post("/{course_id}/upload-image", response_model=CourseImageUploadResponse)

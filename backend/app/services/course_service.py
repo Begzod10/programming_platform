@@ -274,6 +274,7 @@ class CourseService:
             "progress_percentage": 0,
             "lessons_count": 0,
             "students_count": 0,
+            "is_enrolled": False,
         }
 
         # Instructor nomi (xavfsiz)
@@ -309,5 +310,18 @@ class CourseService:
             data["progress_percentage"] = await CourseService.calc_progress(
                 db, course.id, student_id
             )
+
+        # Hard-lock: instructor and enrolled students get is_enrolled=True.
+        if student_id:
+            if course.instructor_id == student_id:
+                data["is_enrolled"] = True
+            else:
+                enrolled_res = await db.execute(
+                    select(sc_table.c.course_id).where(
+                        sc_table.c.course_id == course.id,
+                        sc_table.c.student_id == student_id,
+                    )
+                )
+                data["is_enrolled"] = enrolled_res.first() is not None
 
         return data

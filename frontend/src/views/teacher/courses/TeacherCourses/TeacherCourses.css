@@ -259,6 +259,30 @@
 }
 .tc-open-course-btn:hover { box-shadow: 0 5px 18px rgba(108,92,231,0.4); transform: translateY(-1px); }
 
+.tc-course-cta {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+
+.tc-assign-btn {
+    width: 100%;
+    background: #fff;
+    color: #0f766e;
+    border: 1.5px solid rgba(13,148,136,0.35);
+    padding: 10px;
+    border-radius: 12px;
+    font-size: 13px; font-weight: 700;
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.08s ease;
+    font-family: 'Inter', sans-serif;
+}
+.tc-assign-btn:hover {
+    background: rgba(13,148,136,0.07);
+    border-color: #0d9488;
+}
+.tc-assign-btn:active { transform: translateY(1px); }
+
 /* ===== MODAL OVERLAY — всегда через Portal (document.body) ===== */
 .tc-modal-overlay {
     position: fixed;

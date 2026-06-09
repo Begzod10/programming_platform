@@ -58,6 +58,7 @@ class CourseRead(CourseBase):
     lessons_count: int = 0
     students_count: int = 0
     prerequisite_course_id: Optional[int] = None
+    is_enrolled: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -171,15 +171,20 @@ async def _calc_course_progress(
 
 
 async def _ensure_enrolled(db: AsyncSession, student_id: int, course_id: int):
+    """Hard-lock: only enrolled students or the course instructor may proceed."""
+    course_res = await db.execute(select(Course).where(Course.id == course_id))
+    course = course_res.scalar_one_or_none()
+    if course and course.instructor_id == student_id:
+        return
+
     stmt = select(Student).options(selectinload(Student.enrolled_courses)).where(Student.id == student_id)
     res = await db.execute(stmt)
     student = res.scalar_one()
     if not any(c.id == course_id for c in student.enrolled_courses):
-        course_res = await db.execute(select(Course).where(Course.id == course_id))
-        course = course_res.scalar_one_or_none()
-        if course:
-            student.enrolled_courses.append(course)
-            await db.flush()
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Bu kursga kirish ruxsati yo'q. O'qituvchi sizni qo'shishi kerak.",
+        )
 
 
 async def _add_points(db: AsyncSession, student_id: int, points: int) -> int:
@@ -214,6 +219,8 @@ async def get_lessons(
         db: AsyncSession = Depends(get_db),
         current_student: Optional[Student] = Depends(get_current_student_optional)
 ):
+    if current_student:
+        await _ensure_enrolled(db, current_student.id, course_id)
     lessons = await lesson_service.get_lessons_by_course(db, course_id)
 
     completed_ids: set = set()
@@ -252,6 +259,8 @@ async def get_lesson(
         db: AsyncSession = Depends(get_db),
         current_student: Optional[Student] = Depends(get_current_student_optional)
 ):
+    if current_student:
+        await _ensure_enrolled(db, current_student.id, course_id)
     lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
     if not lesson or lesson.course_id != course_id:
         raise HTTPException(status_code=404, detail="Dars topilmadi")
@@ -321,6 +330,12 @@ async def complete_lesson(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
+    lesson_lookup = await db.execute(select(Lesson.course_id).where(Lesson.id == lesson_id))
+    course_id_row = lesson_lookup.scalar_one_or_none()
+    if course_id_row is None:
+        raise HTTPException(status_code=404, detail="Dars topilmadi")
+    await _ensure_enrolled(db, current_student.id, course_id_row)
+
     result = await lesson_service.complete_lesson(db, lesson_id, current_student.id)
     course_id = result.get("course_id")
 
@@ -345,6 +360,7 @@ async def is_lesson_completed(
     lesson = lesson_res.scalar_one_or_none()
     if not lesson:
         raise HTTPException(status_code=404, detail="Dars topilmadi")
+    await _ensure_enrolled(db, current_student.id, lesson.course_id)
 
     comp_res = await db.execute(
         select(LessonCompletion).where(
@@ -401,6 +417,7 @@ async def mark_video_watched(
     lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
     if not lesson or lesson.course_id != course_id:
         raise HTTPException(status_code=404, detail="Dars topilmadi")
+    await _ensure_enrolled(db, current_student.id, course_id)
 
     existing = await db.execute(
         select(VideoWatch).where(

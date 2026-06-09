@@ -79,9 +79,25 @@ const CourseCard = ({ course, onOpen }) => {
         : Math.round(course.progress_percentage || 0);
     const circumference = 2 * Math.PI * 20;
     const dash = (progress / 100) * circumference;
+    // Default to enrolled when the field is missing — old payloads don't carry
+    // is_enrolled and we don't want to lock everyone retroactively.
+    const isLocked = course.is_enrolled === false;
+
+    const handleOpen = (e) => {
+        if (isLocked) {
+            e?.stopPropagation?.();
+            return;
+        }
+        onOpen();
+    };
 
     return (
-        <div className="sc-card" onClick={onOpen}>
+        <div
+            className={`sc-card${isLocked ? ' sc-card--locked' : ''}`}
+            onClick={handleOpen}
+            aria-disabled={isLocked || undefined}
+            title={isLocked ? "Bu kursga kirish ruxsati yo'q — o'qituvchidan so'rang" : undefined}
+        >
             <div className="sc-card-img-wrap">
                 {course.image
                     ? <img src={course.image} alt={course.title} className="sc-card-img" />
@@ -89,16 +105,27 @@ const CourseCard = ({ course, onOpen }) => {
                 }
                 <div className="sc-card-img-overlay" />
                 {course.difficulty_level && <span className="sc-card-diff">{course.difficulty_level}</span>}
-                <div className="sc-ring-wrap">
-                    <svg viewBox="0 0 50 50" className="sc-ring-svg">
-                        <circle cx="25" cy="25" r="20" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="4" />
-                        <circle cx="25" cy="25" r="20" fill="none"
-                            stroke={progress === 100 ? '#00d49e' : '#a29bfe'} strokeWidth="4" strokeLinecap="round"
-                            strokeDasharray={`${dash} ${circumference}`} transform="rotate(-90 25 25)"
-                            style={{ transition: 'stroke-dasharray 0.6s ease' }} />
-                    </svg>
-                    <span className="sc-ring-label">{progress}%</span>
-                </div>
+                {isLocked && (
+                    <div className="sc-lock-badge" aria-label="Yopiq">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                            <rect x="4" y="11" width="16" height="10" rx="2" />
+                            <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                        </svg>
+                        <span>Yopiq</span>
+                    </div>
+                )}
+                {!isLocked && (
+                    <div className="sc-ring-wrap">
+                        <svg viewBox="0 0 50 50" className="sc-ring-svg">
+                            <circle cx="25" cy="25" r="20" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="4" />
+                            <circle cx="25" cy="25" r="20" fill="none"
+                                stroke={progress === 100 ? '#00d49e' : '#a29bfe'} strokeWidth="4" strokeLinecap="round"
+                                strokeDasharray={`${dash} ${circumference}`} transform="rotate(-90 25 25)"
+                                style={{ transition: 'stroke-dasharray 0.6s ease' }} />
+                        </svg>
+                        <span className="sc-ring-label">{progress}%</span>
+                    </div>
+                )}
             </div>
             <div className="sc-card-body">
                 <h3 className="sc-card-title">{course.title}</h3>
@@ -113,22 +140,34 @@ const CourseCard = ({ course, onOpen }) => {
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
                         {total} уроков
                     </span>
-                    {completedCnt > 0 && (
+                    {!isLocked && completedCnt > 0 && (
                         <span className="sc-meta-pill done">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
                             {completedCnt} пройдено
                         </span>
                     )}
                 </div>
-                <div className="sc-card-progress">
-                    <div className="sc-prog-track">
-                        <div className={`sc-prog-fill ${progress === 100 ? 'complete' : ''}`} style={{ width: `${progress}%` }} />
+                {!isLocked && (
+                    <div className="sc-card-progress">
+                        <div className="sc-prog-track">
+                            <div className={`sc-prog-fill ${progress === 100 ? 'complete' : ''}`} style={{ width: `${progress}%` }} />
+                        </div>
+                        <span className="sc-prog-text">{completedCnt}/{total}</span>
                     </div>
-                    <span className="sc-prog-text">{completedCnt}/{total}</span>
-                </div>
-                <button className="sc-card-btn" onClick={(e) => { e.stopPropagation(); onOpen(); }}>
-                    {progress === 100 ? '↺ Повторить' : progress > 0 ? 'Продолжить →' : 'Начать →'}
-                </button>
+                )}
+                {isLocked ? (
+                    <button
+                        className="sc-card-btn sc-card-btn--locked"
+                        onClick={(e) => e.stopPropagation()}
+                        disabled
+                    >
+                        🔒 Ruxsat kerak
+                    </button>
+                ) : (
+                    <button className="sc-card-btn" onClick={(e) => { e.stopPropagation(); onOpen(); }}>
+                        {progress === 100 ? '↺ Повторить' : progress > 0 ? 'Продолжить →' : 'Начать →'}
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -175,6 +214,7 @@ const StudentCourses = () => {
                         image: c.image_url || '',
                         studentsCount: c.students_count || 0,
                         progress_percentage: c.progress_percentage || 0,
+                        is_enrolled: c.is_enrolled !== false,
                         lessons: [],
                     }));
                 loadedRef.current.clear();
