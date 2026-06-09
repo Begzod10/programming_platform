@@ -658,3 +658,288 @@
     .pr-recap-stats { gap: 10px; padding: 14px 18px; }
     .pr-recap-num { font-size: 22px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   PRE-DRILL SURFACES — buckets, leech alert, history, queue preview
+   Added in the "remaining-features" port from life_tracker.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── Retention buckets bar ───────────────────────────────────────────── */
+.pr-buckets {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pr-buckets-bar {
+    display: flex;
+    height: 12px;
+    background: rgba(15, 23, 42, 0.06);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.pr-buckets-seg {
+    height: 100%;
+    transition: width 0.3s ease;
+}
+.pr-buckets-seg:first-child { border-radius: 999px 0 0 999px; }
+.pr-buckets-seg:last-child  { border-radius: 0 999px 999px 0; }
+.pr-buckets-seg:only-child  { border-radius: 999px; }
+
+.pr-buckets-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+}
+
+.pr-buckets-lg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: rgba(15, 23, 42, 0.65);
+}
+.pr-buckets-lg strong {
+    margin-left: auto;
+    color: #0f172a;
+    font-weight: 800;
+    font-size: 13px;
+}
+
+.pr-buckets-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    flex-shrink: 0;
+}
+
+/* ── Leech alert ─────────────────────────────────────────────────────── */
+.pr-leech {
+    padding: 16px 18px;
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.08), rgba(244, 63, 94, 0.02));
+    border: 1px solid rgba(244, 63, 94, 0.28);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pr-leech-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #be123c;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+}
+
+.pr-leech-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pr-leech-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 10px;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    font-size: 13.5px;
+}
+
+.pr-leech-row strong { color: #0f172a; font-weight: 700; }
+
+.pr-leech-meta {
+    color: rgba(15, 23, 42, 0.55);
+    font-size: 12px;
+}
+
+.pr-leech-hint {
+    margin: 0;
+    font-size: 12px;
+    color: rgba(15, 23, 42, 0.6);
+    font-style: italic;
+    line-height: 1.5;
+}
+
+/* ── History strip ───────────────────────────────────────────────────── */
+.pr-history {
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, 0.07);
+    border-radius: 16px;
+    padding: 14px 18px;
+}
+
+.pr-history-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(15, 23, 42, 0.55);
+    margin-bottom: 8px;
+}
+
+.pr-history-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pr-history-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 14px;
+    align-items: center;
+    padding: 8px 4px;
+    border-top: 1px solid rgba(15, 23, 42, 0.06);
+    font-size: 13.5px;
+}
+.pr-history-row:first-child { border-top: none; }
+
+.pr-history-mode {
+    color: #0f172a;
+    font-weight: 600;
+}
+
+.pr-history-score {
+    color: rgba(15, 23, 42, 0.55);
+    font-variant-numeric: tabular-nums;
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.pr-history-pct {
+    min-width: 50px;
+    text-align: right;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+}
+.pr-history-pct.ok  { color: #047857; }
+.pr-history-pct.mid { color: #b45309; }
+.pr-history-pct.bad { color: #be123c; }
+
+/* ── Queue preview ───────────────────────────────────────────────────── */
+.pr-queue {
+    background: rgba(108, 92, 231, 0.04);
+    border: 1px solid rgba(108, 92, 231, 0.18);
+    border-radius: 16px;
+    padding: 14px 18px;
+}
+
+.pr-queue-label {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--d-purple, #6c5ce7);
+    margin-bottom: 8px;
+}
+
+.pr-queue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pr-queue-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 4px;
+    border-top: 1px solid rgba(15, 23, 42, 0.06);
+    font-size: 14px;
+}
+.pr-queue-row:first-child { border-top: none; }
+
+.pr-queue-word {
+    color: #0f172a;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+    flex: 1;
+    min-width: 0;
+    padding-right: 10px;
+}
+
+.pr-queue-tag {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.04em;
+}
+.pr-queue-tag--new    { background: rgba(108, 92, 231, 0.12); color: #6c5ce7; }
+.pr-queue-tag--learn  { background: rgba(245, 158, 11, 0.15); color: #b45309; }
+.pr-queue-tag--solid  { background: rgba(16, 185, 129, 0.12); color: #047857; }
+.pr-queue-tag--master { background: rgba(13, 148, 136, 0.12); color: #0d9488; }
+.pr-queue-tag--weak   { background: rgba(244, 63, 94, 0.12);  color: #be123c; }
+
+/* ── Quiz+ sub-mode toggle (MCQ ↔ Spelling) ──────────────────────────── */
+.pr-quiz-modeline {
+    display: flex;
+    gap: 4px;
+    margin: 0 auto 18px;
+    padding: 3px;
+    background: rgba(15, 23, 42, 0.05);
+    border-radius: 999px;
+    width: fit-content;
+}
+
+.pr-sub {
+    border: none;
+    background: transparent;
+    color: rgba(15, 23, 42, 0.55);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.pr-sub:hover { color: #0f172a; }
+.pr-sub.active {
+    background: #fff;
+    color: var(--d-purple, #6c5ce7);
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+/* ── AI fallback tag in typed-answer feedback ────────────────────────── */
+.pr-ai-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 8px;
+    padding: 1px 7px;
+    background: rgba(108, 92, 231, 0.16);
+    color: #6c5ce7;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+/* ── Replay / round tags on the drill header ─────────────────────────── */
+.pr-replay-tag,
+.pr-round-tag {
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.pr-replay-tag {
+    background: rgba(245, 158, 11, 0.15);
+    color: #b45309;
+}
+.pr-round-tag {
+    background: rgba(108, 92, 231, 0.14);
+    color: var(--d-purple, #6c5ce7);
+}

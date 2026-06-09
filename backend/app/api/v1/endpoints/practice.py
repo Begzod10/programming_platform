@@ -409,6 +409,139 @@ async def discard_session(
     await db.commit()
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# AI judge for typed answers — synonyms / paraphrases / missing function words
+# ─────────────────────────────────────────────────────────────────────────────
+
+class JudgeAnswerRequest(BaseModel):
+    user_input: str = Field(..., max_length=200)
+    target: str = Field(..., max_length=200)
+    definition: Optional[str] = Field(None, max_length=400)
+
+
+@router.post("/judge-answer")
+async def judge_typed_answer(
+    body: JudgeAnswerRequest,
+    current_user: Student = Depends(get_current_student),
+):
+    """Last-resort judge for typed answers when the local Levenshtein matcher
+    rejects them. Designed for cases like target="qo'shimcha funksiya" and
+    typed="qo'shimcha funksiyalar" — essentially correct but rejected by edit
+    distance because of the suffix.
+
+    Returns {"ok": bool, "verdict": "yes"|"close"|"no", "reason": str}. Falls
+    back to {"ok": false, ...} when no AI provider is configured or the call
+    fails — the caller then keeps its local rejection.
+    """
+    from app.services.grok_service import _ask_ai
+    from app.config import settings
+
+    user_input = body.user_input.strip()
+    target = body.target.strip()
+    if not user_input or not target:
+        raise HTTPException(400, "user_input va target majburiy")
+
+    has_provider = any([
+        getattr(settings, "GROK_API_KEY", None),
+        getattr(settings, "GEMINI_API_KEY", None),
+        getattr(settings, "OPENAI_API_KEY", None),
+    ])
+    if not has_provider:
+        return {"ok": False, "verdict": "no", "reason": "AI sozlanmagan"}
+
+    definition = (body.definition or "").strip()[:400]
+    prompt = (
+        "Sen lug'at javoblarini baholaysiz. O'quvchi maqsadli so'z yoki "
+        "iborani yozishi kerak edi. Quyidagi javobni baholang — sinonimlarni, "
+        "uzun so'zlardagi 1 ta belgi xatosini va ko'p so'zli iboralarda "
+        "yo'qotilgan yordamchi so'zlarni (artikllar, predloglar) qabul qiling. "
+        "Ma'noni o'zgartiruvchi yoki noto'g'ri so'z tanlangan javoblarni rad eting.\n\n"
+        f"Maqsad: {target}\n"
+        f"Ta'rif / izoh: {definition or '(yo''q)'}\n"
+        f"O'quvchi yozdi: {user_input}\n\n"
+        "Faqat BIR so'z qaytaring (katta harf bilan): YES (asosan to'g'ri), "
+        "CLOSE (ma'nosi yaqin, qisman to'g'ri), yoki NO."
+    )
+
+    try:
+        raw = await _ask_ai(prompt)
+    except Exception as e:
+        return {"ok": False, "verdict": "no", "reason": f"ai_error: {type(e).__name__}"}
+
+    if not raw:
+        return {"ok": False, "verdict": "no", "reason": "AI bo'sh javob qaytardi"}
+
+    token = raw.strip().upper().split()[:1]
+    verdict = token[0] if token else "NO"
+    if verdict not in ("YES", "CLOSE", "NO"):
+        verdict = "NO"
+
+    return {
+        "ok": verdict in ("YES", "CLOSE"),
+        "verdict": verdict.lower(),
+        "reason": raw[:200],
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Retention buckets + leeches — surfacing struggle words
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/buckets")
+async def get_retention_buckets(
+    db: AsyncSession = Depends(get_db),
+    current_user: Student = Depends(get_current_student),
+):
+    """Counts by retention bucket. Frontend uses these for a stacked bar
+    so the student sees how many cards are fragile vs mastered at a glance."""
+    from sqlalchemy import func as sql_func
+
+    label = srs.bucket_expr(UserDictionary).label("bucket")
+    rows = (
+        await db.execute(
+            select(label, sql_func.count().label("n"))
+            .where(UserDictionary.student_id == current_user.id)
+            .group_by(label)
+        )
+    ).all()
+    out = {"fragile": 0, "learning": 0, "solid": 0, "mastered": 0}
+    for bucket, n in rows:
+        out[bucket] = n
+    return out
+
+
+@router.get("/leeches")
+async def get_leeches(
+    limit: int = Query(default=10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    current_user: Student = Depends(get_current_student),
+):
+    """Cards forgotten LEECH_LAPSES+ times. Surface so the student can
+    pause, rewrite the entry, or study them deliberately."""
+    rows = (
+        await db.execute(
+            select(UserDictionary)
+            .where(
+                UserDictionary.student_id == current_user.id,
+                UserDictionary.lapses >= srs.LEECH_LAPSES,
+            )
+            .order_by(UserDictionary.lapses.desc(), UserDictionary.ease_factor.asc())
+            .limit(limit)
+        )
+    ).scalars().all()
+    return [
+        {
+            "id": w.id,
+            "word": w.word,
+            "context": w.context,
+            "lapses": w.lapses,
+            "ease_factor": w.ease_factor,
+            "interval_days": w.interval_days,
+        }
+        for w in rows
+    ]
+
+
 @router.get("/history")
 async def get_history(
     limit: int = Query(default=10, ge=1, le=100),
