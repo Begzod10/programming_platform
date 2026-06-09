@@ -34,6 +34,22 @@
 .dsp-popup.error {
     background: linear-gradient(135deg, #e05260, #c0392b);
 }
+/* Amber, not red — reads as guidance ("pick a shorter word") rather than
+   "something broke." Sentence-length selections land here. */
+.dsp-popup.invalid {
+    background: linear-gradient(135deg, #d97706, #b45309);
+}
+
+.dsp-invalid {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 2px 4px;
+}
+.dsp-invalid svg { flex-shrink: 0; display: block; }
 
 /* Word preview */
 .dsp-word {

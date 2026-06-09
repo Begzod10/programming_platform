@@ -6,7 +6,10 @@ from datetime import datetime
 # ─── LUG'AT SHÉMALARI ─────────────────────────────────
 
 class DictionaryCreate(BaseModel):
-    word: str = Field(..., max_length=80, description="Lug'atga qo'shilayotgan so'z")
+    word: str = Field(
+        ..., min_length=1, max_length=40,
+        description="Lug'atga qo'shilayotgan so'z (1-3 ta so'z, 40 belgigacha)",
+    )
     context: Optional[str] = Field(None, description="So'zning ma'nosi yoki tarjimasi")
     lesson_id: Optional[int] = None
 

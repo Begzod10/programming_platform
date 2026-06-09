@@ -23,7 +23,7 @@ class UserDictionary(Base):
     incorrect_count = Column(Integer, default=0, nullable=False)
 
     student = relationship("Student", back_populates="dictionary_words")
-    lesson = relationship("Lesson")
+    lesson = relationship("Lesson", back_populates="user_dictionaries")
 
 
 class QuizSession(Base):

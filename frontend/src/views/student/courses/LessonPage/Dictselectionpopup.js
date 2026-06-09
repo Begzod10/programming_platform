@@ -51,9 +51,18 @@ export default function DictSelectionPopup({ lessonId }) {
         const onSelection = () => {
             requestAnimationFrame(() => {
                 const sel  = window.getSelection();
-                const word = sel?.toString().trim();
+                // Strip outer whitespace + trailing punctuation that the
+                // mouse cursor commonly picks up at sentence edges.
+                const raw  = sel?.toString().trim() || '';
+                const word = raw.replace(/^[.,!?;:•·«»"'()\[\]{}—–-]+|[.,!?;:•·«»"'()\[\]{}—–-]+$/g, '').trim();
 
-                if (!word || word.length < 2 || word.length > 80) { hide(); return; }
+                if (!word || word.length < 2) { hide(); return; }
+
+                // Dictionary entries are meant to be a single word or a
+                // tight phrase, not a whole sentence. Mirrors the backend
+                // validation (max 40 chars, max 3 words).
+                const tooLong  = word.length > 40;
+                const tooManyWords = word.split(/\s+/).length > 3;
 
                 const anchor = sel.anchorNode?.parentElement;
                 if (!anchor?.closest('.slp-container')) { hide(); return; }
@@ -80,6 +89,12 @@ export default function DictSelectionPopup({ lessonId }) {
                     done:    false,
                     saving:  false,
                     error:   false,
+                    invalid: tooLong || tooManyWords,
+                    invalidReason: tooLong
+                        ? "Juda uzun (40 belgigacha)"
+                        : tooManyWords
+                            ? "Faqat 1-3 ta so'z"
+                            : null,
                 });
             });
         };
@@ -100,7 +115,7 @@ export default function DictSelectionPopup({ lessonId }) {
     }, [hide]);
 
     const handleAdd = async () => {
-        if (!popup || popup.saving || popup.done) return;
+        if (!popup || popup.saving || popup.done || popup.invalid) return;
 
         // Снимаем выделение сразу
         window.getSelection()?.removeAllRanges();
@@ -130,13 +145,17 @@ export default function DictSelectionPopup({ lessonId }) {
     return (
         <div
             ref={btnRef}
-            className={`dsp-popup ${popup.done ? 'done' : ''} ${popup.error ? 'error' : ''}`}
+            className={`dsp-popup ${popup.done ? 'done' : ''} ${popup.error ? 'error' : ''} ${popup.invalid ? 'invalid' : ''}`}
             style={{ left: popup.x, top: popup.y }}
         >
             {popup.done ? (
                 <span className="dsp-done"><CheckIcon /> Qo'shildi!</span>
             ) : popup.error ? (
                 <span className="dsp-err"><WarnIcon /> Xatolik</span>
+            ) : popup.invalid ? (
+                <span className="dsp-invalid">
+                    <WarnIcon /> {popup.invalidReason}
+                </span>
             ) : (
                 <>
                     <span className="dsp-word">«{popup.word}»</span>

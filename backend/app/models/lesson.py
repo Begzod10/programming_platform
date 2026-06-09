@@ -85,6 +85,7 @@ class Lesson(Base):
 
     user_dictionaries = relationship(
         "UserDictionary",
+        back_populates="lesson",
         cascade="all, delete-orphan",
         passive_deletes=True  # Сообщает SQLAlchemy доверить удаление базе данных, если настроен ON DELETE CASCADE в БД
     )

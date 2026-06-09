@@ -29,11 +29,26 @@ async def add_word(
         db: AsyncSession = Depends(get_db),
         current_user: Student = Depends(get_current_student)
 ):
-    safe_word = (data.word or "").strip()
+    # Strip outer whitespace and any trailing punctuation a careless mouse
+    # selection might have grabbed (period, comma, semicolon, etc.).
+    safe_word = (data.word or "").strip().strip(".,!?;:•·«»\"'()[]{}—–-")
     if not safe_word:
-        raise HTTPException(status_code=422, detail="Word is required")
-    if len(safe_word) > 80:
-        safe_word = safe_word[:80]
+        raise HTTPException(status_code=422, detail="So'z bo'sh bo'lishi mumkin emas")
+
+    # Dictionary entries are meant to be a word or a tight phrase, not a
+    # whole sentence. Enforce both a length cap and a max word count so a
+    # caller that bypasses the frontend popup can't pollute the vocabulary
+    # with sentence-sized rows.
+    if len(safe_word) > 40:
+        raise HTTPException(
+            status_code=422,
+            detail="Lug'atga faqat qisqa so'z yoki ibora qo'shing (40 belgi gacha).",
+        )
+    if len(safe_word.split()) > 3:
+        raise HTTPException(
+            status_code=422,
+            detail="Lug'atga 3 ta so'zdan ko'pini qo'shib bo'lmaydi.",
+        )
 
     lesson_id = data.lesson_id
     if lesson_id:
