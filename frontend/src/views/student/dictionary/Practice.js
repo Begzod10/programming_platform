@@ -549,12 +549,173 @@ function QueuePreview({ words }) {
 
 
 /* ═══════════════════════════════════════════════════════════════════════
+   STATISTIKA — read-only dashboard fed by /v1/dictionary/practice/stats
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function Statistika() {
+    const { request } = useHttp();
+    const [stats, setStats] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+        request(`${BASE}/stats`, 'GET', null, headers())
+            .then((data) => {
+                if (cancelled) return;
+                setStats(data || null);
+                setError('');
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setError("Statistikani yuklab bo'lmadi");
+            })
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [request]);
+
+    if (loading) {
+        return <div className="pr-stats-loading">Yuklanmoqda…</div>;
+    }
+    if (error || !stats) {
+        return <div className="pr-error">{error || 'Maʼlumot topilmadi'}</div>;
+    }
+
+    const { streak, last_7_days, mode_breakdown, totals } = stats;
+
+    // Scale the bar heights against the busiest day in the window so the
+    // shape of the week reads correctly even on a light workload.
+    const maxWordsDay = Math.max(1, ...last_7_days.map((d) => d.words));
+
+    const dayLabel = (iso) => {
+        const d = new Date(iso);
+        // Local short weekday label — Uzbek shortcodes.
+        const days = ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh'];
+        return days[d.getDay()];
+    };
+
+    return (
+        <div className="pr-stats">
+            {/* ── Streak hero ─────────────────────────────────────────── */}
+            <div className={`pr-streak ${streak.current > 0 ? 'pr-streak--alive' : ''}`}>
+                <div className="pr-streak-flame">🔥</div>
+                <div className="pr-streak-body">
+                    <div className="pr-streak-num">{streak.current}</div>
+                    <div className="pr-streak-lbl">
+                        {streak.current === 0 ? 'Bugundan boshlang' : 'kunlik streak'}
+                    </div>
+                </div>
+                <div className="pr-streak-meta">
+                    <div>
+                        <span className="pr-streak-meta-num">{streak.longest}</span>
+                        <span className="pr-streak-meta-lbl">eng uzun</span>
+                    </div>
+                    <div>
+                        <span className="pr-streak-meta-num">
+                            {streak.today_practised ? '✓' : '–'}
+                        </span>
+                        <span className="pr-streak-meta-lbl">bugun</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── 7-day activity bar chart ────────────────────────────── */}
+            <section className="pr-section">
+                <h3 className="pr-section-title">Oxirgi 7 kun</h3>
+                <div className="pr-week">
+                    {last_7_days.map((d) => {
+                        const h = (d.words / maxWordsDay) * 100;
+                        return (
+                            <div key={d.date} className="pr-week-col">
+                                <div className="pr-week-bar-wrap">
+                                    <div
+                                        className={`pr-week-bar ${d.words === 0 ? 'pr-week-bar--empty' : ''}`}
+                                        style={{ height: `${Math.max(h, 4)}%` }}
+                                        title={`${d.date}: ${d.words} so'z · ${d.accuracy}%`}
+                                    />
+                                </div>
+                                <div className="pr-week-label">{dayLabel(d.date)}</div>
+                                <div className="pr-week-num">{d.words || ''}</div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </section>
+
+            {/* ── Mode-accuracy breakdown ─────────────────────────────── */}
+            {mode_breakdown.length > 0 && (
+                <section className="pr-section">
+                    <h3 className="pr-section-title">Rejimlar bo'yicha aniqlik</h3>
+                    <div className="pr-modebars">
+                        {mode_breakdown.map((m) => {
+                            const meta = MODES.find((x) => x.key === m.mode);
+                            return (
+                                <div key={m.mode} className="pr-modebar">
+                                    <div className="pr-modebar-head">
+                                        <span className="pr-modebar-icon">{meta?.icon || '🔸'}</span>
+                                        <span className="pr-modebar-name">{meta?.label || m.mode}</span>
+                                        <span className="pr-modebar-pct">{m.accuracy}%</span>
+                                    </div>
+                                    <div className="pr-modebar-track">
+                                        <div
+                                            className="pr-modebar-fill"
+                                            style={{ width: `${m.accuracy}%` }}
+                                        />
+                                    </div>
+                                    <div className="pr-modebar-foot">
+                                        {m.sessions} sessiya · {m.words} so'z
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+            )}
+
+            {/* ── Totals card ─────────────────────────────────────────── */}
+            <section className="pr-section">
+                <h3 className="pr-section-title">Umumiy</h3>
+                <div className="pr-totals">
+                    <div className="pr-total">
+                        <div className="pr-total-num">{totals.words}</div>
+                        <div className="pr-total-lbl">jami so'z</div>
+                    </div>
+                    <div className="pr-total">
+                        <div className="pr-total-num">{totals.mastered}</div>
+                        <div className="pr-total-lbl">o'zlashtirilgan</div>
+                        <div className="pr-total-sub">{totals.mastery_pct}%</div>
+                    </div>
+                    <div className="pr-total">
+                        <div className="pr-total-num">{totals.sessions}</div>
+                        <div className="pr-total-lbl">sessiya</div>
+                    </div>
+                    <div className="pr-total">
+                        <div className="pr-total-num">{totals.drilled}</div>
+                        <div className="pr-total-lbl">mashq</div>
+                    </div>
+                    <div className="pr-total">
+                        <div className="pr-total-num">{totals.accuracy}%</div>
+                        <div className="pr-total-lbl">o'rtacha aniqlik</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
    ORCHESTRATOR — phases, chunked rounds, replay-missed pass
    ═══════════════════════════════════════════════════════════════════════ */
 
 export default function Practice() {
     const { request } = useHttp();
 
+    /* Top tab — 'drill' shows the pick/drill/recap phase machinery, 'stats'
+       shows the read-only Statistika dashboard. The toggle is only visible
+       on the pick phase so it doesn't compete for attention mid-drill. */
+    const [tab,       setTab]       = useState('drill');  // 'drill' | 'stats'
     const [phase,     setPhase]     = useState('pick');   // 'pick' | 'drill' | 'recap'
     const [mode,      setMode]      = useState('flashcard');
     const [subMode,   setSubMode]   = useState('quiz');   // Quiz+ only
@@ -865,6 +1026,28 @@ export default function Practice() {
     /* ── pick phase ── */
     return (
         <div className="pr-root pr-root--pick">
+            {/* Sub-tabs — Boshlash (default) vs Statistika dashboard.
+                Only rendered on the pick phase; drill / recap don't need it. */}
+            <div className="pr-subtabs">
+                <button
+                    className={`pr-subtab ${tab === 'drill' ? 'active' : ''}`}
+                    onClick={() => setTab('drill')}
+                >
+                    🎯 Boshlash
+                </button>
+                <button
+                    className={`pr-subtab ${tab === 'stats' ? 'active' : ''}`}
+                    onClick={() => setTab('stats')}
+                >
+                    📊 Statistika
+                </button>
+            </div>
+
+            {tab === 'stats' && <Statistika />}
+
+            {tab === 'drill' && <>
+
+
             {error && (
                 <div className="pr-error">
                     {error}
@@ -971,6 +1154,8 @@ export default function Practice() {
                             : "Mashqni boshlash"}
                 </button>
             </div>
+
+            </>}
         </div>
     );
 }

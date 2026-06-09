@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import json
 import random
-from datetime import datetime
+from datetime import datetime, timedelta, date
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, select, update
+from sqlalchemy import or_, select, update, func, cast, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -560,3 +560,187 @@ async def get_history(
         )
     ).scalars().all()
     return [_session_dict(s) for s in rows]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Statistika — aggregate dashboard for the Statistika sub-tab
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _compute_streaks(dates: List[date], today: date) -> tuple[int, int]:
+    """Walk distinct completion dates to compute (current_streak, longest_streak).
+
+    Current streak counts back from today; the user gets credit for yesterday
+    if they haven't practised yet today (otherwise the streak would die at
+    midnight before they had a chance to drill). Longest is the max run
+    anywhere in history.
+    """
+    if not dates:
+        return 0, 0
+    days = sorted(set(dates), reverse=True)
+
+    # Current streak: today, or yesterday-as-grace
+    current = 0
+    if days[0] == today:
+        expected = today
+    elif days[0] == today - timedelta(days=1):
+        expected = today - timedelta(days=1)
+    else:
+        current = 0
+        expected = None
+
+    if expected is not None:
+        for d in days:
+            if d == expected:
+                current += 1
+                expected = expected - timedelta(days=1)
+            else:
+                break
+
+    # Longest streak: scan ascending, count consecutive
+    asc = sorted(set(dates))
+    longest = 1
+    run = 1
+    for i in range(1, len(asc)):
+        if asc[i] - asc[i - 1] == timedelta(days=1):
+            run += 1
+            longest = max(longest, run)
+        else:
+            run = 1
+    return current, longest
+
+
+@router.get("/stats")
+async def get_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: Student = Depends(get_current_student),
+):
+    """Aggregate practice statistics for the Statistika tab.
+
+    Returns:
+      - streak:           current + longest daily streak
+      - last_7_days:      one entry per day for the past week
+      - mode_breakdown:   sessions/words/accuracy per mode
+      - totals:           sessions, words drilled, mastered, mastery %
+    """
+    now = datetime.utcnow()
+    today = now.date()
+    seven_ago_dt = datetime(today.year, today.month, today.day) - timedelta(days=6)
+
+    # ── Distinct completed-session dates (for streak) ────────────────────
+    date_rows = (
+        await db.execute(
+            select(cast(PracticeSession.completed_at, Date).label("d"))
+            .where(
+                PracticeSession.student_id == current_user.id,
+                PracticeSession.completed_at.isnot(None),
+            )
+            .group_by("d")
+        )
+    ).all()
+    dates = [r[0] for r in date_rows if r[0] is not None]
+    current_streak, longest_streak = _compute_streaks(dates, today)
+
+    # ── Last 7 days activity (per-day counts) ────────────────────────────
+    seven_rows = (
+        await db.execute(
+            select(
+                cast(PracticeSession.completed_at, Date).label("d"),
+                func.count(PracticeSession.id).label("sessions"),
+                func.coalesce(func.sum(PracticeSession.total_words), 0).label("words"),
+                func.coalesce(func.sum(PracticeSession.correct), 0).label("correct"),
+            )
+            .where(
+                PracticeSession.student_id == current_user.id,
+                PracticeSession.completed_at.isnot(None),
+                PracticeSession.completed_at >= seven_ago_dt,
+            )
+            .group_by("d")
+        )
+    ).all()
+    by_date = {r.d: r for r in seven_rows}
+    last_7_days = []
+    for i in range(7):
+        d = today - timedelta(days=6 - i)
+        row = by_date.get(d)
+        words = int(row.words) if row else 0
+        correct = int(row.correct) if row else 0
+        last_7_days.append({
+            "date": d.isoformat(),
+            "sessions": int(row.sessions) if row else 0,
+            "words": words,
+            "correct": correct,
+            "accuracy": round((correct / words) * 100) if words else 0,
+        })
+
+    # ── Per-mode breakdown over all-time completed sessions ──────────────
+    mode_rows = (
+        await db.execute(
+            select(
+                PracticeSession.mode,
+                func.count(PracticeSession.id).label("sessions"),
+                func.coalesce(func.sum(PracticeSession.total_words), 0).label("words"),
+                func.coalesce(func.sum(PracticeSession.correct), 0).label("correct"),
+            )
+            .where(
+                PracticeSession.student_id == current_user.id,
+                PracticeSession.completed_at.isnot(None),
+            )
+            .group_by(PracticeSession.mode)
+        )
+    ).all()
+    mode_breakdown = []
+    for r in mode_rows:
+        words = int(r.words)
+        correct = int(r.correct)
+        mode_breakdown.append({
+            "mode": r.mode,
+            "sessions": int(r.sessions),
+            "words": words,
+            "correct": correct,
+            "accuracy": round((correct / words) * 100) if words else 0,
+        })
+    # Sort by sessions desc so the most-used mode reads first
+    mode_breakdown.sort(key=lambda x: x["sessions"], reverse=True)
+
+    # ── Totals ───────────────────────────────────────────────────────────
+    total_words = (
+        await db.execute(
+            select(func.count(UserDictionary.id)).where(
+                UserDictionary.student_id == current_user.id
+            )
+        )
+    ).scalar() or 0
+
+    # "Mastered" matches the bucket_expr: interval > SOLID_MAX_INT and not fragile
+    mastered = (
+        await db.execute(
+            select(func.count(UserDictionary.id)).where(
+                UserDictionary.student_id == current_user.id,
+                UserDictionary.interval_days > srs.SOLID_MAX_INT,
+                ~srs.is_fragile(UserDictionary),
+            )
+        )
+    ).scalar() or 0
+
+    total_sessions = sum(r["sessions"] for r in mode_breakdown)
+    total_drilled = sum(r["words"] for r in mode_breakdown)
+    total_correct = sum(r["correct"] for r in mode_breakdown)
+    overall_acc = round((total_correct / total_drilled) * 100) if total_drilled else 0
+
+    return {
+        "streak": {
+            "current": current_streak,
+            "longest": longest_streak,
+            "today_practised": today in by_date,
+        },
+        "last_7_days": last_7_days,
+        "mode_breakdown": mode_breakdown,
+        "totals": {
+            "words": total_words,
+            "mastered": mastered,
+            "mastery_pct": round((mastered / total_words) * 100) if total_words else 0,
+            "sessions": total_sessions,
+            "drilled": total_drilled,
+            "accuracy": overall_acc,
+        },
+    }

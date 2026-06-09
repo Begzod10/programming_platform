@@ -943,3 +943,271 @@
     background: rgba(108, 92, 231, 0.14);
     color: var(--d-purple, #6c5ce7);
 }
+
+/* ════════════════════════════════════════════════════════════════════
+   STATISTIKA — dashboard styles
+   ════════════════════════════════════════════════════════════════════ */
+
+.pr-subtabs {
+    display: flex;
+    gap: 6px;
+    padding: 4px;
+    background: rgba(15, 23, 42, 0.05);
+    border-radius: 14px;
+    width: fit-content;
+}
+
+.pr-subtab {
+    background: transparent;
+    border: none;
+    padding: 8px 18px;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: rgba(15, 23, 42, 0.55);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+.pr-subtab:hover { color: #0f172a; }
+.pr-subtab.active {
+    background: #fff;
+    color: var(--d-purple, #6c5ce7);
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+}
+
+.pr-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.pr-stats-loading {
+    padding: 60px 20px;
+    text-align: center;
+    color: rgba(15, 23, 42, 0.5);
+    font-size: 14px;
+    font-style: italic;
+}
+
+/* ── Streak hero ─────────────────────────────────────────────────────── */
+.pr-streak {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 22px;
+    padding: 22px 26px;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(67, 56, 202, 0.85));
+    color: #fff;
+    border-radius: 20px;
+    box-shadow: 0 18px 40px rgba(67, 56, 202, 0.22);
+}
+
+.pr-streak-flame {
+    font-size: 44px;
+    line-height: 1;
+    filter: grayscale(0.8) brightness(1.2);
+    opacity: 0.5;
+    transition: filter 0.3s ease, opacity 0.3s ease;
+}
+.pr-streak--alive .pr-streak-flame {
+    filter: none;
+    opacity: 1;
+    animation: pr-flame 1.6s ease-in-out infinite;
+}
+
+@keyframes pr-flame {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.08); }
+}
+
+.pr-streak-body {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+.pr-streak-num {
+    font-size: 56px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1;
+}
+.pr-streak-lbl {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.pr-streak-meta {
+    display: flex;
+    gap: 18px;
+}
+.pr-streak-meta > div {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+}
+.pr-streak-meta-num {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
+}
+.pr-streak-meta-lbl {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.65);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* ── 7-day activity bar chart ────────────────────────────────────────── */
+.pr-week {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+    align-items: end;
+    min-height: 140px;
+}
+
+.pr-week-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.pr-week-bar-wrap {
+    width: 100%;
+    height: 100px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.pr-week-bar {
+    width: 70%;
+    background: linear-gradient(180deg, #8b7cf8, #6c5ce7);
+    border-radius: 6px 6px 2px 2px;
+    transition: height 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.25);
+}
+.pr-week-bar--empty {
+    background: rgba(15, 23, 42, 0.08);
+    box-shadow: none;
+}
+
+.pr-week-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(15, 23, 42, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.pr-week-num {
+    font-size: 12px;
+    font-weight: 700;
+    color: #0f172a;
+    height: 14px;
+}
+
+/* ── Mode-accuracy bars ──────────────────────────────────────────────── */
+.pr-modebars {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.pr-modebar {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.pr-modebar-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+.pr-modebar-icon { font-size: 16px; }
+.pr-modebar-name { font-weight: 700; color: #0f172a; flex: 1; }
+.pr-modebar-pct {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--d-purple, #6c5ce7);
+}
+
+.pr-modebar-track {
+    height: 8px;
+    background: rgba(15, 23, 42, 0.06);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.pr-modebar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6c5ce7, #a29bfe);
+    border-radius: 999px;
+    transition: width 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pr-modebar-foot {
+    font-size: 11.5px;
+    color: rgba(15, 23, 42, 0.55);
+}
+
+/* ── Totals grid ─────────────────────────────────────────────────────── */
+.pr-totals {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 14px;
+}
+
+.pr-total {
+    padding: 14px 16px;
+    background: rgba(108, 92, 231, 0.05);
+    border: 1px solid rgba(108, 92, 231, 0.16);
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pr-total-num {
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+
+.pr-total-lbl {
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(15, 23, 42, 0.55);
+}
+
+.pr-total-sub {
+    font-size: 12px;
+    color: var(--d-purple, #6c5ce7);
+    font-weight: 700;
+    margin-top: 2px;
+}
+
+@media (max-width: 640px) {
+    .pr-streak {
+        grid-template-columns: auto 1fr;
+        grid-template-areas: 'flame body' 'meta meta';
+        gap: 16px;
+    }
+    .pr-streak-flame { grid-area: flame; font-size: 36px; }
+    .pr-streak-body  { grid-area: body; }
+    .pr-streak-meta  { grid-area: meta; justify-content: space-between; }
+    .pr-streak-num   { font-size: 44px; }
+    .pr-week         { gap: 6px; }
+    .pr-week-bar-wrap{ height: 80px; }
+}
