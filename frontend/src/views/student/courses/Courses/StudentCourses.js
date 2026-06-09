@@ -195,10 +195,12 @@ const StudentCourses = () => {
     // /student/courses/:courseId/lessons/:id  → view = 'lesson'
     const view = lessonId ? 'lesson' : courseId ? 'course' : 'list';
 
-    const [courses,  setCourses]  = useState([]);
-    const [loading,  setLoading]  = useState(true);
-    const [filter,   setFilter]   = useState('all');
-    const [search,   setSearch]   = useState('');
+    const [courses,    setCourses]    = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [loading,    setLoading]    = useState(true);
+    const [filter,     setFilter]     = useState('all');
+    const [categoryFilter, setCategoryFilter] = useState('all');
+    const [search,     setSearch]     = useState('');
 
     const loadedRef = useRef(new Set());
 
@@ -225,6 +227,13 @@ const StudentCourses = () => {
     }, []); // eslint-disable-line
 
     useEffect(() => { fetchCourses(); }, []); // eslint-disable-line
+
+    /* ── fetch categories so the chip row matches the teacher page ── */
+    useEffect(() => {
+        request(`${API_URL}v1/categories/`, 'GET', null, headers())
+            .then((data) => setCategories(Array.isArray(data) ? data : []))
+            .catch(() => setCategories([]));
+    }, [request]);
 
     /* ── load lessons for a course ── */
     const loadLessons = useCallback(async (cId) => {
@@ -334,7 +343,20 @@ const StudentCourses = () => {
             if (filter === 'done') return (c.progress_percentage || 0) === 100;
             return true;
         })
+        .filter((c) => {
+            if (categoryFilter === 'all') return true;
+            if (categoryFilter === 'uncategorized') return !c.category_id;
+            return c.category_id === categoryFilter;
+        })
         .filter((c) => !search || c.title?.toLowerCase().includes(search.toLowerCase()));
+
+    /* Live category course counts — only count published courses the student
+       can actually see, so a chip never claims more than the list shows. */
+    const categoryCounts = categories.map((cat) => ({
+        ...cat,
+        live_count: courses.filter((c) => c.category_id === cat.id).length,
+    })).filter((cat) => cat.live_count > 0);
+    const uncategorizedCount = courses.filter((c) => !c.category_id).length;
 
     /* ══ LESSON VIEW ══ */
     if (view === 'lesson') {
@@ -401,6 +423,35 @@ const StudentCourses = () => {
                     </div>
                 </div>
             </div>
+
+            {!loading && categoryCounts.length > 0 && (
+                <div className="sc-category-bar">
+                    <span className="sc-category-label">Категория:</span>
+                    <button
+                        className={`sc-category-chip ${categoryFilter === 'all' ? 'active' : ''}`}
+                        onClick={() => setCategoryFilter('all')}
+                    >Все</button>
+                    {categoryCounts.map((cat) => (
+                        <button
+                            key={cat.id}
+                            className={`sc-category-chip ${categoryFilter === cat.id ? 'active' : ''}`}
+                            onClick={() => setCategoryFilter(categoryFilter === cat.id ? 'all' : cat.id)}
+                        >
+                            {cat.name}
+                            <span className="sc-category-count">{cat.live_count}</span>
+                        </button>
+                    ))}
+                    {uncategorizedCount > 0 && (
+                        <button
+                            className={`sc-category-chip ${categoryFilter === 'uncategorized' ? 'active' : ''}`}
+                            onClick={() => setCategoryFilter(categoryFilter === 'uncategorized' ? 'all' : 'uncategorized')}
+                        >
+                            Без категории
+                            <span className="sc-category-count">{uncategorizedCount}</span>
+                        </button>
+                    )}
+                </div>
+            )}
 
             {!loading && courses.length > 0 && (
                 <div className="sc-stats-bar">

@@ -643,3 +643,81 @@
   color: #64748b !important;
   transform: none !important;
 }
+
+/* ─── CATEGORY CHIP BAR (student-facing) ─────────────────────────────
+   Sits between the page header and the stats card. Different visual
+   treatment from .sc-filters so the two filters read as separate
+   dimensions instead of a continued group. */
+.sc-category-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.sc-category-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: rgba(15, 13, 30, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.sc-category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid rgba(15, 13, 30, 0.1);
+  border-radius: 999px;
+  background: #fff;
+  color: rgba(15, 13, 30, 0.65);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, transform 0.08s ease;
+  white-space: nowrap;
+}
+
+.sc-category-chip:hover {
+  border-color: rgba(108, 92, 231, 0.4);
+  color: #6c5ce7;
+  background: rgba(108, 92, 231, 0.04);
+}
+
+.sc-category-chip:active { transform: translateY(1px); }
+
+.sc-category-chip.active {
+  background: rgba(108, 92, 231, 0.12);
+  border-color: rgba(108, 92, 231, 0.45);
+  color: #6c5ce7;
+}
+
+.sc-category-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(108, 92, 231, 0.14);
+  color: #6c5ce7;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.sc-category-chip.active .sc-category-count {
+  background: rgba(108, 92, 231, 0.28);
+  color: #4c3fcf;
+}
+
+@media (max-width: 640px) {
+  .sc-category-bar { gap: 6px; }
+  .sc-category-chip { padding: 7px 12px; font-size: 12.5px; }
+}
