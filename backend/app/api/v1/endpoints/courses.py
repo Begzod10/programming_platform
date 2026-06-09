@@ -59,17 +59,20 @@ async def get_courses(
         request: Request,
         skip: int = Query(0, ge=0),
         limit: int = Query(10, ge=1, le=100),
+        category_id: Optional[int] = Query(None),
         db: AsyncSession = Depends(get_db)
 ):
     student_id = await _get_id_from_auth(request)
 
     query = (
         select(Course)
-        .options(selectinload(Course.instructor))
+        .options(selectinload(Course.instructor), selectinload(Course.category))
         .where(Course.is_active == True)
         .order_by(Course.display_order.asc(), Course.id.asc())
         .offset(skip).limit(limit)
     )
+    if category_id is not None:
+        query = query.where(Course.category_id == category_id)
 
     result = await db.execute(query)
     courses = result.scalars().all()
@@ -88,7 +91,8 @@ async def get_my_courses(
         .options(
             selectinload(Course.instructor),
             selectinload(Course.lessons),
-            selectinload(Course.students)
+            selectinload(Course.students),
+            selectinload(Course.category),
         )
         .where(Course.instructor_id == current_teacher.id)
         .order_by(Course.display_order.asc(), Course.id.asc())

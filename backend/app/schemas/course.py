@@ -14,6 +14,10 @@ class CourseBase(BaseModel):
     thumbnail_url: Optional[str] = None
     video_intro_url: Optional[str] = None
     syllabus_url: Optional[str] = None
+    # Either pick an existing category (category_id) or type a name
+    # (category_name) that the backend will auto-create if missing.
+    category_id: Optional[int] = None
+    category_name: Optional[str] = Field(None, max_length=80)
 
     @field_validator("difficulty_level")
     @classmethod
@@ -39,6 +43,8 @@ class CourseUpdate(BaseModel):
     prerequisite_course_id: Optional[int] = None
     image_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
+    category_id: Optional[int] = None
+    category_name: Optional[str] = Field(None, max_length=80)
 
     video_intro_url: Optional[str] = None
     syllabus_url: Optional[str] = None
@@ -59,6 +65,8 @@ class CourseRead(CourseBase):
     students_count: int = 0
     prerequisite_course_id: Optional[int] = None
     is_enrolled: bool = False
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

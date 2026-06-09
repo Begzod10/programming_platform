@@ -1,13 +1,73 @@
+import re
+import unicodedata
 from typing import List, Optional
 from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from fastapi import HTTPException
 
+from app.models.category import Category
 from app.models.course import Course
 from app.models.user import Student
 from app.schemas.course import CourseCreate, CourseUpdate
 from app.models.lesson import Lesson, LessonCompletion
+
+
+def _slugify(value: str) -> str:
+    """Plain ASCII slug — collapses non-alphanumerics into single dashes."""
+    norm = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    norm = re.sub(r"[^a-zA-Z0-9]+", "-", norm).strip("-").lower()
+    return norm or "kat"
+
+
+async def resolve_category(
+    db: AsyncSession,
+    *,
+    category_id: Optional[int],
+    category_name: Optional[str],
+    created_by_id: Optional[int] = None,
+) -> Optional[int]:
+    """Return a category id, creating one by name if needed.
+
+    Priority: explicit category_id wins. Otherwise the name is matched
+    case-insensitively; if no match, a new row is inserted (auto-create).
+    Returns None if neither input is provided — uncategorized is allowed.
+    """
+    if category_id is not None:
+        res = await db.execute(select(Category.id).where(Category.id == category_id))
+        if res.scalar_one_or_none() is None:
+            raise HTTPException(404, "Kategoriya topilmadi")
+        return category_id
+
+    if not category_name:
+        return None
+    name = category_name.strip()
+    if not name:
+        return None
+
+    res = await db.execute(
+        select(Category).where(func.lower(Category.name) == name.lower())
+    )
+    existing = res.scalar_one_or_none()
+    if existing:
+        return existing.id
+
+    base_slug = _slugify(name)
+    slug = base_slug
+    suffix = 2
+    # Slug collisions are rare but possible (e.g. two names that ASCII to
+    # the same value). Append a counter rather than mutating the name.
+    while True:
+        clash = await db.execute(select(Category.id).where(Category.slug == slug))
+        if clash.scalar_one_or_none() is None:
+            break
+        slug = f"{base_slug}-{suffix}"
+        suffix += 1
+
+    new_cat = Category(name=name, slug=slug, created_by_id=created_by_id)
+    db.add(new_cat)
+    await db.flush()
+    return new_cat.id
 
 
 class CourseService:
@@ -49,7 +109,11 @@ class CourseService:
         """ID bo'yicha kurs"""
         query = (
             select(Course)
-            .options(selectinload(Course.students), selectinload(Course.lessons))
+            .options(
+                selectinload(Course.students),
+                selectinload(Course.lessons),
+                selectinload(Course.category),
+            )
             .where(Course.id == course_id)
         )
         result = await self.db.execute(query)
@@ -69,6 +133,15 @@ class CourseService:
                 status_code=400,
                 detail="Kursning maksimal balli 0 dan katta bo'lishi kerak"
             )
+
+        category_name = data.pop("category_name", None)
+        category_id = data.pop("category_id", None)
+        data["category_id"] = await resolve_category(
+            self.db,
+            category_id=category_id,
+            category_name=category_name,
+            created_by_id=instructor_id,
+        )
 
         new_course = Course(**data)
         self.db.add(new_course)
@@ -113,6 +186,19 @@ class CourseService:
         update_data = course_data.model_dump(exclude_unset=True)
         old_title = course.title
         new_title = update_data.get("title")
+
+        # Category fields are resolved together: explicit id beats name,
+        # and a non-empty name auto-creates if missing. Empty name + no id
+        # clears the assignment so the course becomes uncategorized.
+        if "category_id" in update_data or "category_name" in update_data:
+            cat_id = update_data.pop("category_id", None)
+            cat_name = update_data.pop("category_name", None)
+            update_data["category_id"] = await resolve_category(
+                self.db,
+                category_id=cat_id,
+                category_name=cat_name,
+                created_by_id=instructor_id,
+            )
 
         for key, value in update_data.items():
             setattr(course, key, value)
@@ -275,7 +361,14 @@ class CourseService:
             "lessons_count": 0,
             "students_count": 0,
             "is_enrolled": False,
+            "category_id": getattr(course, "category_id", None),
+            "category_name": None,
         }
+        try:
+            if course.category:
+                data["category_name"] = course.category.name
+        except Exception:
+            pass
 
         # Instructor nomi (xavfsiz)
         try:

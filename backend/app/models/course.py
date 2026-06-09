@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from app.models.user import Student
     from app.models.lesson import Lesson
     from app.models.student_achievement import CourseCertificate
+    from app.models.category import Category
 
 student_courses = Table(
     "student_courses",
@@ -36,6 +37,13 @@ class Course(Base):
     prerequisite_course_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("courses.id", ondelete="SET NULL"),
         nullable=True
+    )
+
+    # Single-category classification (nullable — uncategorized is allowed).
+    category_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("categories.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
 
     image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
@@ -92,6 +100,12 @@ class Course(Base):
         remote_side="Course.id",
         foreign_keys="[Course.prerequisite_course_id]",
         uselist=False
+    )
+
+    category: Mapped[Optional["Category"]] = relationship(
+        "Category",
+        back_populates="courses",
+        lazy="selectin",
     )
 
     @property

@@ -17,7 +17,9 @@ import LessonPage from '../LessonPage/LessonPage';
 import AssignStudentsModal from '../AssignStudentsModal/AssignStudentsModal';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
 
-const INITIAL_CHAPTERS = ['Basic', 'Advanced', 'Test'];
+// Category state is loaded from the backend (categories table). The previous
+// hardcoded `INITIAL_CHAPTERS` list was removed in favor of real categories
+// you can create, rename, and assign to courses.
 
 // ФИКС: сравниваем id через String() — бэкенд может вернуть number, useParams всегда string
 const sameId = (a, b) => String(a) === String(b);
@@ -120,35 +122,134 @@ const ConfirmModal = ({ title, text, onConfirm, onClose }) => {
         document.body
     );
 };
-const ChaptersModal = ({ chapters, onSave, onClose }) => {
-    const [list, setList] = useState([...chapters]);
-    const [input, setInput] = useState('');
+/* CategoriesModal — real CRUD against /v1/categories.
+   Each row supports inline rename + delete; the input at the bottom creates
+   a new category. Category count next to the name shows current usage. */
+const CategoriesModal = ({ categories, onClose, onChanged, request }) => {
+    const [items, setItems]   = useState(categories);
+    const [input, setInput]   = useState('');
+    const [editing, setEditing] = useState({}); // id → draft name
+    const [busyId, setBusyId] = useState(null);
+    const [error, setError]   = useState(null);
+
+    useEffect(() => { setItems(categories); }, [categories]);
+
     useEffect(() => {
         const h = e => { if (e.key === 'Escape') onClose(); };
         document.addEventListener('keydown', h);
         return () => document.removeEventListener('keydown', h);
     }, [onClose]);
-    const add = () => { const v = input.trim(); if (v && !list.includes(v)) { setList(l => [...l, v]); setInput(''); } };
+
+    const safe = (p) => p.catch((e) => { setError("Operatsiya bajarilmadi"); throw e; });
+
+    const add = async () => {
+        const v = input.trim();
+        if (!v) return;
+        if (items.some(c => c.name.toLowerCase() === v.toLowerCase())) {
+            setError('Bu nom allaqachon mavjud');
+            return;
+        }
+        setBusyId(-1);
+        try {
+            const created = await safe(request(
+                `${API_URL}v1/categories/`, 'POST', JSON.stringify({ name: v }), headers(),
+            ));
+            setItems(arr => [...arr, { ...created, courses_count: 0 }].sort((a, b) => a.name.localeCompare(b.name)));
+            setInput('');
+            setError(null);
+            onChanged?.();
+        } finally { setBusyId(null); }
+    };
+
+    const rename = async (cat) => {
+        const draft = (editing[cat.id] ?? '').trim();
+        if (!draft || draft === cat.name) { setEditing(p => { const n = { ...p }; delete n[cat.id]; return n; }); return; }
+        setBusyId(cat.id);
+        try {
+            const updated = await safe(request(
+                `${API_URL}v1/categories/${cat.id}`, 'PUT', JSON.stringify({ name: draft }), headers(),
+            ));
+            setItems(arr => arr.map(c => c.id === cat.id ? { ...c, ...updated } : c).sort((a, b) => a.name.localeCompare(b.name)));
+            setEditing(p => { const n = { ...p }; delete n[cat.id]; return n; });
+            setError(null);
+            onChanged?.();
+        } finally { setBusyId(null); }
+    };
+
+    const remove = async (cat) => {
+        if (!window.confirm(`"${cat.name}" kategoriyasini o'chirish? Kurslar uncategorized bo'ladi.`)) return;
+        setBusyId(cat.id);
+        try {
+            await safe(request(
+                `${API_URL}v1/categories/${cat.id}`, 'DELETE', null, headers(),
+            ));
+            setItems(arr => arr.filter(c => c.id !== cat.id));
+            setError(null);
+            onChanged?.();
+        } finally { setBusyId(null); }
+    };
+
     return ReactDOM.createPortal(
         <div className="tc-modal-overlay" onClick={onClose}>
             <div className="tc-modal" onClick={e => e.stopPropagation()}>
-                <h3>📚 Управление разделами</h3>
+                <h3>📚 Kategoriyalar</h3>
+
                 <div className="tc-chapter-list">
-                    {list.length === 0 && <p className="tc-chapter-empty">Разделов пока нет</p>}
-                    {list.map((ch, i) => (
-                        <div key={i} className="tc-chapter-item">
-                            <span>📁 {ch}</span>
-                            <button className="tc-chapter-item-del" onClick={() => setList(l => l.filter((_, j) => j !== i))}>✕</button>
-                        </div>
-                    ))}
+                    {items.length === 0 && <p className="tc-chapter-empty">Kategoriyalar yo'q</p>}
+                    {items.map(cat => {
+                        const isEditing = editing[cat.id] !== undefined;
+                        return (
+                            <div key={cat.id} className="tc-chapter-item">
+                                {isEditing ? (
+                                    <input
+                                        autoFocus
+                                        value={editing[cat.id]}
+                                        onChange={e => setEditing(p => ({ ...p, [cat.id]: e.target.value }))}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter') rename(cat);
+                                            if (e.key === 'Escape') setEditing(p => { const n = { ...p }; delete n[cat.id]; return n; });
+                                        }}
+                                        onBlur={() => rename(cat)}
+                                        disabled={busyId === cat.id}
+                                    />
+                                ) : (
+                                    <span
+                                        onClick={() => setEditing(p => ({ ...p, [cat.id]: cat.name }))}
+                                        style={{ cursor: 'pointer' }}
+                                        title="Tahrirlash uchun bosing"
+                                    >
+                                        📁 {cat.name}
+                                        <span style={{ opacity: 0.55, fontWeight: 500, marginLeft: 8 }}>
+                                            {cat.courses_count || 0} kurs
+                                        </span>
+                                    </span>
+                                )}
+                                <button
+                                    className="tc-chapter-item-del"
+                                    onClick={() => remove(cat)}
+                                    disabled={busyId === cat.id}
+                                >✕</button>
+                            </div>
+                        );
+                    })}
                 </div>
+
+                {error && <p className="tc-chapter-empty" style={{ color: '#be123c' }}>{error}</p>}
+
                 <div className="tc-chapter-add-row">
-                    <input placeholder="Basic, Advanced..." value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && add()} />
-                    <button className="tc-chapter-add-btn" onClick={add}>+ Добавить</button>
+                    <input
+                        placeholder="Yangi kategoriya nomi…"
+                        value={input}
+                        onChange={e => setInput(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && add()}
+                        disabled={busyId === -1}
+                    />
+                    <button className="tc-chapter-add-btn" onClick={add} disabled={busyId === -1 || !input.trim()}>
+                        + Qo'shish
+                    </button>
                 </div>
                 <div className="tc-modal-actions">
-                    <button className="tc-cancel-btn" onClick={onClose}>Отмена</button>
-                    <button className="tc-save-btn" onClick={() => { onSave(list); onClose(); }}>Сохранить</button>
+                    <button className="tc-cancel-btn" onClick={onClose}>Yopish</button>
                 </div>
             </div>
         </div>,
@@ -259,7 +360,7 @@ const TeacherCourses = () => {
         :                      'course';
 
     const [courses,          setCourses]          = useState([]);
-    const [chapters,         setChapters]         = useState(INITIAL_CHAPTERS);
+    const [categories,       setCategories]       = useState([]);
     const [loading,          setLoading]          = useState(true);
     const [activeFilter,     setActiveFilter]     = useState('all');
     const [confirmCourse,    setConfirmCourse]    = useState(null);
@@ -269,7 +370,7 @@ const TeacherCourses = () => {
     const [editingCourse,    setEditingCourse]    = useState(null);
     const [assignCourse,     setAssignCourse]     = useState(null);
     const [newCourse,        setNewCourse]        = useState({
-        title: '', description: '', image: '', difficulty_level: 'Beginner', duration_weeks: '4', max_points: '100',
+        title: '', description: '', image: '', difficulty_level: 'Beginner', duration_weeks: '4', max_points: '100', category_name: '',
     });
 
     // ФИКС: sameId для поиска курса и урока
@@ -281,6 +382,12 @@ const TeacherCourses = () => {
     const editingLesson = isEdit ? activeLesson : null;
 
     /* ── Initial load ── */
+    const loadCategories = () => {
+        request(`${API_URL}v1/categories/`, 'GET', null, headers())
+            .then(data => setCategories(Array.isArray(data) ? data : []))
+            .catch(() => setCategories([]));
+    };
+
     useEffect(() => {
         request(`${API_URL}v1/courses/my`, 'GET', null, headers())
             .then(data => {
@@ -290,7 +397,8 @@ const TeacherCourses = () => {
             })
             .catch(() => setCourses([]))
             .finally(() => setLoading(false));
-    }, []);
+        loadCategories();
+    }, []); // eslint-disable-line
 
     /* ── Load lessons when courseId changes ── */
     const loadLessons = (cId) => {
@@ -326,9 +434,13 @@ const TeacherCourses = () => {
         }
     };
 
-    const filteredCourses = courses.filter(c => activeFilter === 'all' || c.lessons.some(l => l.chapter === activeFilter));
+    const filteredCourses = courses.filter(c => {
+        if (activeFilter === 'all') return true;
+        if (activeFilter === 'uncategorized') return !c.category_id;
+        return c.category_id === activeFilter;
+    });
 
-    // Drag-only-allowed when no chapter filter is applied — otherwise a reorder
+    // Drag-only-allowed when no category filter is applied — otherwise a reorder
     // inside the filtered view would silently shuffle the hidden courses too,
     // which is confusing. Teachers can clear the filter to reorder freely.
     const canReorder = activeFilter === 'all';
@@ -370,25 +482,57 @@ const TeacherCourses = () => {
     /* ── Course CRUD ── */
     const openAddCourse = () => {
         setEditingCourse(null);
-        setNewCourse({ title: '', description: '', image: '', difficulty_level: 'Beginner', duration_weeks: '4', max_points: '100' });
+        setNewCourse({
+            title: '', description: '', image: '',
+            difficulty_level: 'Beginner', duration_weeks: '4', max_points: '100',
+            category_name: '',
+        });
         setShowCourseModal(true);
     };
     const openEditCourse = (course, e) => {
         e.stopPropagation();
         setEditingCourse(course);
-        setNewCourse({ title: course.title, description: course.description, image: course.image, difficulty_level: course.difficulty_level || 'Beginner', duration_weeks: course.duration_weeks || '4', max_points: course.max_points || '100' });
+        setNewCourse({
+            title: course.title,
+            description: course.description,
+            image: course.image,
+            difficulty_level: course.difficulty_level || 'Beginner',
+            duration_weeks: course.duration_weeks || '4',
+            max_points: course.max_points || '100',
+            category_name: course.category_name || '',
+        });
         setShowCourseModal(true);
     };
     const saveCourse = () => {
         if (!newCourse.title.trim() || !newCourse.description.trim()) return;
         const user = JSON.parse(localStorage.getItem('user') || '{}');
-        const body = { title: newCourse.title, description: newCourse.description, image_url: newCourse.image, instructor_id: user.id, difficulty_level: newCourse.difficulty_level || 'Beginner', duration_weeks: Number(newCourse.duration_weeks) || 4, max_points: Number(newCourse.max_points) || 100, is_active: true };
+        const body = {
+            title: newCourse.title,
+            description: newCourse.description,
+            image_url: newCourse.image,
+            instructor_id: user.id,
+            difficulty_level: newCourse.difficulty_level || 'Beginner',
+            duration_weeks: Number(newCourse.duration_weeks) || 4,
+            max_points: Number(newCourse.max_points) || 100,
+            is_active: true,
+            // Backend auto-creates the category if no row matches this name.
+            // Empty string clears the assignment to "uncategorized".
+            category_name: newCourse.category_name?.trim() || null,
+        };
         if (editingCourse) {
             request(`${API_URL}v1/courses/${editingCourse.id}`, 'PUT', JSON.stringify(body), headers())
-                .then(res => { setCourses(cs => cs.map(c => sameId(c.id, editingCourse.id) ? { ...c, ...res, image: res.image_url || '' } : c)); setShowCourseModal(false); }).catch(() => {});
+                .then(res => {
+                    setCourses(cs => cs.map(c => sameId(c.id, editingCourse.id) ? { ...c, ...res, image: res.image_url || '' } : c));
+                    setShowCourseModal(false);
+                    loadCategories();
+                }).catch(() => {});
         } else {
             request(`${API_URL}v1/courses/`, 'POST', JSON.stringify(body), headers())
-                .then(res => { setCourses(cs => [...cs, { ...res, image: res.image_url || '', studentsCount: 0, lessons: [] }]); setShowCourseModal(false); }).catch(() => {});
+                .then(res => {
+                    setCourses(cs => [...cs, { ...res, image: res.image_url || '', studentsCount: 0, lessons: [] }]);
+                    setShowCourseModal(false);
+                    loadCategories();
+                }).catch(() => {});
         }
     };
     const toggleCoursePublish = (course, e) => {
@@ -474,7 +618,7 @@ const TeacherCourses = () => {
                 <LessonEditorPage
                     course={activeCourse}
                     lesson={null}
-                    chapters={chapters}
+                    chapters={categories.map(c => c.name)}
                     onSave={saveLesson}
                     onClose={() => navigate(`/teacher/courses/${activeCourse.id}`)}
                 />
@@ -491,7 +635,7 @@ const TeacherCourses = () => {
                 <LessonEditorPage
                     course={activeCourse}
                     lesson={editingLesson}
-                    chapters={chapters}
+                    chapters={categories.map(c => c.name)}
                     onSave={saveLesson}
                     onClose={() => navigate(`/teacher/courses/${activeCourse.id}`)}
                 />
@@ -562,17 +706,37 @@ const TeacherCourses = () => {
                     <p className="tc-subtitle">Создавайте курсы и добавляйте уроки для студентов</p>
                 </div>
                 <div className="tc-header-actions">
-                    <button className="tc-chapter-btn" onClick={() => setShowChapterModal(true)}>📚 Разделы</button>
+                    <button className="tc-chapter-btn" onClick={() => setShowChapterModal(true)}>📚 Категории</button>
                     <button className="tc-add-btn" onClick={openAddCourse}>➕ Создать курс</button>
                 </div>
             </div>
 
             <div className="tc-filter-bar">
                 <span className="tc-filter-label">Фильтр:</span>
-                <button className={`tc-filter-chip ${activeFilter === 'all' ? 'active' : ''}`} onClick={() => setActiveFilter('all')}>Все курсы</button>
-                {chapters.map(ch => (
-                    <button key={ch} className={`tc-filter-chip ${activeFilter === ch ? 'active' : ''}`} onClick={() => setActiveFilter(activeFilter === ch ? 'all' : ch)}>{ch}</button>
+                <button
+                    className={`tc-filter-chip ${activeFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setActiveFilter('all')}
+                >Все курсы</button>
+                {categories.map(cat => (
+                    <button
+                        key={cat.id}
+                        className={`tc-filter-chip ${activeFilter === cat.id ? 'active' : ''}`}
+                        onClick={() => setActiveFilter(activeFilter === cat.id ? 'all' : cat.id)}
+                    >
+                        {cat.name}
+                        {cat.courses_count > 0 && (
+                            <span className="tc-filter-count">{cat.courses_count}</span>
+                        )}
+                    </button>
                 ))}
+                {courses.some(c => !c.category_id) && (
+                    <button
+                        className={`tc-filter-chip ${activeFilter === 'uncategorized' ? 'active' : ''}`}
+                        onClick={() => setActiveFilter(activeFilter === 'uncategorized' ? 'all' : 'uncategorized')}
+                    >
+                        Без категории
+                    </button>
+                )}
             </div>
 
             {loading ? (
@@ -614,6 +778,17 @@ const TeacherCourses = () => {
                         <input placeholder="Название курса *" value={newCourse.title} onChange={e => setNewCourse(p => ({ ...p, title: e.target.value }))} />
                         <textarea placeholder="Описание курса *" value={newCourse.description} onChange={e => setNewCourse(p => ({ ...p, description: e.target.value }))} />
                         <input placeholder="URL изображения" value={newCourse.image} onChange={e => setNewCourse(p => ({ ...p, image: e.target.value }))} />
+                        <div className="tc-form-row">
+                            <input
+                                placeholder="Категория (mavjud bo'lmasa avto-yaratamiz)"
+                                value={newCourse.category_name}
+                                onChange={e => setNewCourse(p => ({ ...p, category_name: e.target.value }))}
+                                list="tc-cat-options"
+                            />
+                            <datalist id="tc-cat-options">
+                                {categories.map(c => <option key={c.id} value={c.name} />)}
+                            </datalist>
+                        </div>
                         <select value={newCourse.difficulty_level} onChange={e => setNewCourse(p => ({ ...p, difficulty_level: e.target.value }))}>
                             <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
                         </select>
@@ -628,7 +803,14 @@ const TeacherCourses = () => {
                 document.body
             )}
 
-            {showChapterModal && <ChaptersModal chapters={chapters} onSave={setChapters} onClose={() => setShowChapterModal(false)} />}
+            {showChapterModal && (
+                <CategoriesModal
+                    categories={categories}
+                    onClose={() => setShowChapterModal(false)}
+                    onChanged={loadCategories}
+                    request={request}
+                />
+            )}
             {confirmCourse && <ConfirmModal title="Удалить курс?" text="Это действие нельзя отменить. Все уроки тоже будут удалены." onConfirm={() => doDeleteCourse(confirmCourse)} onClose={() => setConfirmCourse(null)} />}
             {assignCourse && (
                 <AssignStudentsModal

@@ -5,6 +5,7 @@
 from app.db.base_class import Base
 
 from app.models.user import Student
+from app.models.category import Category
 from app.models.course import Course
 from app.models.project import Project
 from app.models.submission import Submission
@@ -25,6 +26,7 @@ from app.models.lesson_feedback import LessonFeedback
 __all__ = [
     "Base",
     "Student",
+    "Category",
     "Course",
     "Project",
     "Submission",
