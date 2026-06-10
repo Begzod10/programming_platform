@@ -362,6 +362,37 @@
   color: #00a87a;
 }
 
+.sc-meta-pill--proj {
+  background: rgba(108, 92, 231, 0.08);
+  border-color: rgba(108, 92, 231, 0.22);
+  color: #6c5ce7;
+}
+.sc-meta-pill--proj.partial {
+  background: rgba(245, 158, 11, 0.10);
+  border-color: rgba(245, 158, 11, 0.28);
+  color: #b45309;
+}
+
+.sc-prereq-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.06), rgba(108, 92, 231, 0.04));
+  border: 1px solid rgba(244, 63, 94, 0.18);
+  border-radius: 12px;
+  font-size: 11.5px;
+  color: rgba(15, 13, 30, 0.7);
+  line-height: 1.35;
+}
+.sc-prereq-icon { font-size: 14px; flex-shrink: 0; }
+.sc-prereq-text strong { color: #f43f5e; font-variant-numeric: tabular-nums; }
+
+.sc-card--prereq-locked .sc-lock-badge {
+  background: rgba(244, 63, 94, 0.92);
+}
+
 /* progress */
 .sc-card-progress {
   display: flex;

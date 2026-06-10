@@ -79,9 +79,25 @@ const CourseCard = ({ course, onOpen }) => {
         : Math.round(course.progress_percentage || 0);
     const circumference = 2 * Math.PI * 20;
     const dash = (progress / 100) * circumference;
-    // Default to enrolled when the field is missing — old payloads don't carry
-    // is_enrolled and we don't want to lock everyone retroactively.
-    const isLocked = course.is_enrolled === false;
+
+    // Project totals (course-level loyiha o'rtacha foizi). Backend already
+    // returns a default-true is_passed for courses without project-lessons,
+    // so the chip just hides itself when there are no projects to grade.
+    const proj = course.project_progress || {};
+    const hasProjects     = (proj.lessons_with_project || 0) > 0;
+    const projectAvg      = Math.round(proj.average_points || 0);
+    const projectPassed   = !!proj.is_passed;
+    const projectThreshold = proj.threshold || 90;
+
+    // Two different "locked" reasons:
+    //   1) Teacher hasn't enrolled the student (existing hard-lock).
+    //   2) Prerequisite course's project average is below the gate.
+    // Default is_locked to false when the field is missing — old payloads
+    // and instructor views don't carry it.
+    const enrollLocked = course.is_enrolled === false;
+    const prereqLocked = course.is_locked === true;
+    const isLocked     = enrollLocked || prereqLocked;
+    const prereqAvg    = course.prerequisite_average_points;
 
     const handleOpen = (e) => {
         if (isLocked) {
@@ -91,12 +107,19 @@ const CourseCard = ({ course, onOpen }) => {
         onOpen();
     };
 
+    const lockTitle = enrollLocked
+        ? "Bu kursga kirish ruxsati yo'q — o'qituvchidan so'rang"
+        : prereqLocked
+            ? `Oldingi kursni tugating: loyihalar o'rtachasi ≥${projectThreshold}% bo'lishi kerak`
+                + (prereqAvg != null ? ` (hozir ${prereqAvg}%)` : '')
+            : undefined;
+
     return (
         <div
-            className={`sc-card${isLocked ? ' sc-card--locked' : ''}`}
+            className={`sc-card${isLocked ? ' sc-card--locked' : ''}${prereqLocked ? ' sc-card--prereq-locked' : ''}`}
             onClick={handleOpen}
             aria-disabled={isLocked || undefined}
-            title={isLocked ? "Bu kursga kirish ruxsati yo'q — o'qituvchidan so'rang" : undefined}
+            title={lockTitle}
         >
             <div className="sc-card-img-wrap">
                 {course.image
@@ -111,7 +134,7 @@ const CourseCard = ({ course, onOpen }) => {
                             <rect x="4" y="11" width="16" height="10" rx="2" />
                             <path d="M8 11V7a4 4 0 0 1 8 0v4" />
                         </svg>
-                        <span>Yopiq</span>
+                        <span>{prereqLocked ? 'Oldingi kursni tugating' : 'Yopiq'}</span>
                     </div>
                 )}
                 {!isLocked && (
@@ -146,7 +169,28 @@ const CourseCard = ({ course, onOpen }) => {
                             {completedCnt} пройдено
                         </span>
                     )}
+                    {!isLocked && hasProjects && (
+                        <span
+                            className={`sc-meta-pill sc-meta-pill--proj ${projectPassed ? 'done' : projectAvg > 0 ? 'partial' : ''}`}
+                            title={`Loyihalar o'rtachasi: ${projectAvg}% · o'tish chegarasi ≥${projectThreshold}%`}
+                        >
+                            🎯 Loyiha: {projectAvg}%
+                        </span>
+                    )}
                 </div>
+
+                {/* Prerequisite-locked hint — shows the prior course's score so
+                    the student knows exactly what's gating them. */}
+                {prereqLocked && (
+                    <div className="sc-prereq-hint">
+                        <span className="sc-prereq-icon">🔒</span>
+                        <span className="sc-prereq-text">
+                            Oldingi kurs loyihalari o'rtacha
+                            {' '}<strong>{prereqAvg != null ? `${prereqAvg}%` : '—'}</strong>
+                            {' '}— kerak ≥<strong>{projectThreshold}%</strong>
+                        </span>
+                    </div>
+                )}
                 {!isLocked && (
                     <div className="sc-card-progress">
                         <div className="sc-prog-track">
@@ -161,7 +205,9 @@ const CourseCard = ({ course, onOpen }) => {
                         onClick={(e) => e.stopPropagation()}
                         disabled
                     >
-                        🔒 Ruxsat kerak
+                        {prereqLocked
+                            ? `🔒 Oldin kursni tugating (≥${projectThreshold}%)`
+                            : '🔒 Ruxsat kerak'}
                     </button>
                 ) : (
                     <button className="sc-card-btn" onClick={(e) => { e.stopPropagation(); onOpen(); }}>

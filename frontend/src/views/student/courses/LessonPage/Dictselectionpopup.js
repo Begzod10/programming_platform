@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
 import './Dictselectionpopup.css';
 
@@ -186,7 +187,16 @@ export default function DictSelectionPopup({ lessonId }) {
 
     if (!popup) return null;
 
-    return (
+    // Render into document.body so `position: fixed` is anchored to the
+    // viewport, NOT to any positioned/transformed ancestor of where this
+    // component happens to be mounted. CSS spec: a `transform`, `filter`,
+    // `perspective`, or `will-change: transform` on an ancestor turns that
+    // ancestor into the containing block for fixed-positioned descendants
+    // — so the popup would drift to the corner of that ancestor instead
+    // of sitting next to the selection. Lesson pages have mermaid SVGs and
+    // card-entry animations that trigger this; portaling sidesteps all of
+    // it.
+    const node = (
         <div
             ref={btnRef}
             className={`dsp-popup ${popup.done ? 'done' : ''} ${popup.error ? 'error' : ''} ${popup.invalid ? 'invalid' : ''}`}
@@ -218,4 +228,6 @@ export default function DictSelectionPopup({ lessonId }) {
             <div className="dsp-arrow" />
         </div>
     );
+
+    return createPortal(node, document.body);
 }

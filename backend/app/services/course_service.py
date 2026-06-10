@@ -330,6 +330,117 @@ class CourseService:
         # min() — completed hech qachon total dan oshmaydi (xavfsizlik uchun)
         return int(min(completed, total) / total * 100)
 
+    # ─────────────────────────────────────────────────────────────────────────
+    #  KURS LOYIHALAR (PROJECTS) PROGRESSI
+    #
+    #  Lesson-larning ba'zilarida `project_id` bo'lishi mumkin. Talaba shu
+    #  loyihaga submission yuboradi va o'qituvchi `Project.points_earned`
+    #  ga ball qo'yadi (0-100).
+    #
+    #  course_project_progress:
+    #    - lessons_with_project — kursdagi loyihali darslar soni
+    #    - submitted            — talaba yuborgan loyihalar soni
+    #    - reviewed             — o'qituvchi tekshirib bo'lgan loyihalar
+    #    - passed               — points_earned >= PASS_THRESHOLD (90)
+    #    - sum_points           — barcha tekshirilgan loyihalar ball yig'indisi
+    #    - average_points       — sum_points / lessons_with_project
+    #                              (TEKSHIRILMAGAN loyiha = 0 ball deb hisoblanadi —
+    #                              o'rtacha kurs to'liq tugaganda 100% bo'lishi mumkin)
+    #    - is_passed            — kurs umumiy o'tildi? (avg >= 90 VA hammasi passed)
+    #
+    #  Loyiha bo'lmagan kurs (lessons_with_project == 0) avtomatik o'tilgan
+    #  hisoblanadi (is_passed = True) — prerequisitni gate qilmaslik uchun.
+    # ─────────────────────────────────────────────────────────────────────────
+    PROJECT_PASS_THRESHOLD = 90
+
+    @staticmethod
+    async def calc_project_progress(
+        db: AsyncSession,
+        course_id: int,
+        student_id: int,
+    ) -> dict:
+        """Average project percentage across all project-lessons in a course."""
+        from app.models.submission import Submission
+        from app.models.project import Project
+
+        # All project-bearing lessons in this course.
+        lesson_rows = (
+            await db.execute(
+                select(Lesson.id, Lesson.project_id)
+                .where(
+                    Lesson.course_id == course_id,
+                    Lesson.is_active == True,
+                    Lesson.project_id.isnot(None),
+                )
+            )
+        ).all()
+        lesson_ids = [r[0] for r in lesson_rows]
+        total = len(lesson_ids)
+
+        empty = {
+            "lessons_with_project": 0,
+            "submitted": 0,
+            "reviewed": 0,
+            "passed": 0,
+            "sum_points": 0,
+            "average_points": 0,
+            "is_passed": True,   # nothing to pass → no gate
+            "threshold": CourseService.PROJECT_PASS_THRESHOLD,
+        }
+        if total == 0:
+            return empty
+
+        # Student's submissions for those lessons (one per lesson by uniqueness
+        # constraint). Join through to the authoritative Project row for the
+        # current status / points.
+        rows = (
+            await db.execute(
+                select(
+                    Submission.lesson_id,
+                    Submission.status.label("sub_status"),
+                    Submission.points_earned.label("sub_points"),
+                    Project.status.label("proj_status"),
+                    Project.points_earned.label("proj_points"),
+                )
+                .join(Project, Project.id == Submission.project_id)
+                .where(
+                    Submission.student_id == student_id,
+                    Submission.lesson_id.in_(lesson_ids),
+                )
+            )
+        ).all()
+
+        submitted = len(rows)
+        reviewed = 0
+        passed = 0
+        sum_points = 0
+        for r in rows:
+            status = r.proj_status or r.sub_status
+            points = r.proj_points if r.proj_points is not None else (r.sub_points or 0)
+            if status in ("Approved", "Rejected"):
+                reviewed += 1
+                sum_points += int(points or 0)
+                if status == "Approved" and int(points or 0) >= CourseService.PROJECT_PASS_THRESHOLD:
+                    passed += 1
+
+        average_points = int(round(sum_points / total)) if total > 0 else 0
+        is_passed = (
+            total > 0
+            and passed == total
+            and average_points >= CourseService.PROJECT_PASS_THRESHOLD
+        )
+
+        return {
+            "lessons_with_project": total,
+            "submitted": submitted,
+            "reviewed": reviewed,
+            "passed": passed,
+            "sum_points": sum_points,
+            "average_points": average_points,
+            "is_passed": is_passed,
+            "threshold": CourseService.PROJECT_PASS_THRESHOLD,
+        }
+
     @staticmethod
     async def build_dto(db: AsyncSession, course: Course, student_id: Optional[int] = None):
         """
@@ -363,6 +474,18 @@ class CourseService:
             "is_enrolled": False,
             "category_id": getattr(course, "category_id", None),
             "category_name": None,
+            "project_progress": {
+                "lessons_with_project": 0,
+                "submitted": 0,
+                "reviewed": 0,
+                "passed": 0,
+                "sum_points": 0,
+                "average_points": 0,
+                "is_passed": True,
+                "threshold": CourseService.PROJECT_PASS_THRESHOLD,
+            },
+            "is_locked": False,
+            "prerequisite_average_points": None,
         }
         try:
             if course.category:
@@ -416,5 +539,26 @@ class CourseService:
                     )
                 )
                 data["is_enrolled"] = enrolled_res.first() is not None
+
+        # Loyihalar progressi va kurslar orasidagi unlock-gate. Instructor
+        # ko'rinishida ham hisoblaymiz (lekin gate qo'llanilmaydi — o'qituvchi
+        # hech qachon "locked" emas).
+        if student_id and total_lessons > 0:
+            project_progress = await CourseService.calc_project_progress(
+                db, course.id, student_id
+            )
+            data["project_progress"] = project_progress
+
+            # Prerequisite gate: agar oldindan tugatilishi kerak bo'lgan
+            # kurs bo'lsa va u o'tilmagan bo'lsa — bu kurs locked.
+            if (
+                course.prerequisite_course_id
+                and course.instructor_id != student_id
+            ):
+                prereq_progress = await CourseService.calc_project_progress(
+                    db, course.prerequisite_course_id, student_id
+                )
+                data["prerequisite_average_points"] = prereq_progress["average_points"]
+                data["is_locked"] = not prereq_progress["is_passed"]
 
         return data

@@ -51,6 +51,20 @@ class CourseUpdate(BaseModel):
 
 
 
+class CourseProjectProgress(BaseModel):
+    """Aggregate project performance across all project-bearing lessons
+    in a course, for a single student. Drives both the visible
+    'kurs loyihasi: X%' chip on the card and the prerequisite gate."""
+    lessons_with_project: int = 0
+    submitted: int = 0
+    reviewed: int = 0
+    passed: int = 0
+    sum_points: int = 0
+    average_points: int = 0
+    is_passed: bool = True
+    threshold: int = 90
+
+
 class CourseRead(CourseBase):
     id: int
     instructor_id: int
@@ -67,6 +81,10 @@ class CourseRead(CourseBase):
     is_enrolled: bool = False
     category_id: Optional[int] = None
     category_name: Optional[str] = None
+    # Course-level project totals + prerequisite unlock gate (per student).
+    project_progress: CourseProjectProgress = CourseProjectProgress()
+    is_locked: bool = False
+    prerequisite_average_points: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 

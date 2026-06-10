@@ -611,13 +611,92 @@ async def analyze_project_with_grok(
         logger.info("[ai-chain] used %s after %d fallthrough(s): %s",
                     provider, len(attempts), "; ".join(attempts))
 
-    try:
-        parsed["points"] = max(0, min(100, int(parsed.get("points", 0))))
-    except (TypeError, ValueError):
-        parsed["points"] = 0
-
+    parsed = _normalize_grading_result(parsed, difficulty_level=difficulty_level)
     parsed["provider"] = provider
     return parsed
+
+
+_VALID_GRADES = {"A", "B", "C", "D", "F"}
+
+# Uzbek positive-sentiment signals used to detect when an AI returned a
+# score on a 0-10 scale despite a clearly positive verdict. Keep this in
+# sync with the encouragement section of _build_review_prompt.
+_POSITIVE_SIGNALS = (
+    "yaxshi", "to'g'ri", "to`g`ri", "mukammal", "a'lo", "alo",
+    "ajoyib", "yetarli", "ishlaydi", "yutuq", "tashkil etilgan",
+    "mos keladi", "ifodalangan",
+)
+
+
+def _derive_grade_from_points(pts: int) -> str:
+    """Map a 0-100 score back to the A/B/C/D/F bucket used by the prompt."""
+    if pts >= 90:
+        return "A"
+    if pts >= 75:
+        return "B"
+    if pts >= 60:
+        return "C"
+    if pts >= 45:
+        return "D"
+    return "F"
+
+
+def _normalize_grading_result(result: dict, *, difficulty_level: str = "") -> dict:
+    """Defensive post-processing of the AI grader's JSON.
+
+    Caught in the wild:
+      - `grade: "8"`           — number where a letter was asked
+      - `grade: "8/10"`        — fraction notation
+      - `points: 8`            — 0-10 scale while system expects 0-100
+        (a passing student gets gated at 90/100 → 8 fails them outright)
+      - grade and points disagree because the model re-reasoned mid-output
+
+    We don't second-guess the AI's verdict. We just fix the obvious format
+    slips so that a positive review can't fail a student over a typo, and
+    derive the letter grade from the points when the field is unusable.
+    """
+    if not isinstance(result, dict):
+        return result
+    out = dict(result)
+
+    # ── Points: clamp + scale-up if obviously on a 0-10 scale ────────
+    raw = out.get("points", 0)
+    try:
+        pts = int(float(raw))
+    except (TypeError, ValueError):
+        pts = 0
+    if 0 < pts <= 10:
+        # Scale-up signal: positive feedback paired with a tiny score.
+        feedback = (out.get("feedback") or "").lower()
+        summary = (out.get("summary") or "").lower()
+        if any(s in feedback or s in summary for s in _POSITIVE_SIGNALS):
+            pts = pts * 10
+    pts = max(0, min(100, pts))
+    out["points"] = pts
+
+    # ── Grade letter: validate and derive when invalid ───────────────
+    raw_grade = str(out.get("grade") or "").strip().upper()
+    # Strip "/10" or "/100" suffixes that show up when the model used a
+    # fraction notation.
+    raw_grade = raw_grade.split("/", 1)[0].strip()
+    if raw_grade in _VALID_GRADES:
+        # Sanity check: if the model said "A" but points say 30, trust
+        # the points side (the prompt buckets points → grade). Otherwise
+        # respect what the model picked.
+        derived = _derive_grade_from_points(pts)
+        if derived != raw_grade and abs(_VALID_GRADES_ORDER.get(raw_grade, 5)
+                                       - _VALID_GRADES_ORDER.get(derived, 5)) > 1:
+            out["grade"] = derived
+        else:
+            out["grade"] = raw_grade
+    else:
+        out["grade"] = _derive_grade_from_points(pts)
+
+    return out
+
+
+# Cheap ordering for grade-vs-derived sanity check above. A is best.
+_VALID_GRADES_ORDER = {"A": 0, "B": 1, "C": 2, "D": 3, "F": 4}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
