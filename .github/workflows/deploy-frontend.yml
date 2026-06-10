@@ -1,0 +1,113 @@
+name: Deploy Frontend
+
+# Build the React frontend in GitHub Actions instead of on the prod box.
+# Earlier deploys ran `npm run build` directly on the production server and
+# OOM-killed mid-build, leaving a half-written `build/` directory and a broken
+# site. GH Actions runners have 7 GB RAM and 4 cores — comfortable margin —
+# and we just rsync the finished artefact to prod.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   SSH_HOST         — prod IP or hostname (e.g. 5.129.242.151)
+#   SSH_USER         — SSH login (e.g. root or www-data)
+#   SSH_PRIVATE_KEY  — the private key whose public half is in
+#                      ~/.ssh/authorized_keys on prod (use a dedicated key,
+#                      not your personal one — easier to revoke)
+#   SSH_PORT         — optional; defaults to 22 if absent
+
+on:
+  push:
+    branches: [server]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+    # Lets you click "Run workflow" in the Actions tab — handy for forcing a
+    # rebuild without pushing a code change (e.g. after rotating a key).
+
+# Serialise deploys. If two pushes land in quick succession we want them to
+# run one-after-the-other, not race for the same rsync target.
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Build production bundle
+        working-directory: frontend
+        env:
+          REACT_APP_API_URL: https://tech.gennis.uz/
+          # CRA treats warnings as errors when CI=true. Runners set CI=true by
+          # default, so we override — production builds shouldn't fail on a
+          # lint warning that's already in the codebase.
+          CI: 'false'
+          # Match the same headroom the prod deploy script used to set.
+          NODE_OPTIONS: --max-old-space-size=4096
+          # Source maps are useless on prod and roughly double the bundle
+          # size on disk. Drop them.
+          GENERATE_SOURCEMAP: 'false'
+        run: npm run build
+
+      - name: Verify build artefact
+        # Catch the worst silent failure mode early: build exited 0 but
+        # produced nothing usable. If index.html is missing, fail loudly here
+        # instead of rsync-ing an empty directory over prod.
+        run: |
+          test -f frontend/build/index.html || { echo "::error::build/index.html missing — aborting deploy"; exit 1; }
+          echo "Build size:"
+          du -sh frontend/build
+          ls -la frontend/build
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST:        ${{ secrets.SSH_HOST }}
+          SSH_PORT:        ${{ secrets.SSH_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Pin the host key so a MITM can't quietly swap the prod box.
+          # First run will populate; subsequent runs reuse the same fingerprint.
+          PORT="${SSH_PORT:-22}"
+          ssh-keyscan -p "$PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Rsync build to prod
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          PORT="${SSH_PORT:-22}"
+          # --delete keeps the destination tidy. The trailing slash on the
+          # source path is load-bearing — without it rsync would create a
+          # nested build/ directory inside the target.
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -p $PORT -o StrictHostKeyChecking=yes" \
+            frontend/build/ \
+            "$SSH_USER@$SSH_HOST:/var/www/tech_gennis/frontend/build/"
+
+      - name: Cleanup SSH key
+        if: always()
+        # Belt-and-suspenders: runners are ephemeral, but explicit cleanup
+        # means a failed run still doesn't leave the key in the cache.
+        run: rm -f ~/.ssh/deploy_key
