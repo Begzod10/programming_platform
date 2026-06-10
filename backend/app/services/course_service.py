@@ -341,17 +341,22 @@ class CourseService:
     #    - lessons_with_project — kursdagi loyihali darslar soni
     #    - submitted            — talaba yuborgan loyihalar soni
     #    - reviewed             — o'qituvchi tekshirib bo'lgan loyihalar
-    #    - passed               — points_earned >= PASS_THRESHOLD (90)
+    #    - passed               — har bir loyiha alohida o'tdi: Approved
+    #                              (o'qituvchi tasdiqlagan) YOKI points >= 75
+    #                              (B daraja, auto-pass). Bu lessons.py dagi
+    #                              passed-logikasi bilan bir xil.
     #    - sum_points           — barcha tekshirilgan loyihalar ball yig'indisi
     #    - average_points       — sum_points / lessons_with_project
-    #                              (TEKSHIRILMAGAN loyiha = 0 ball deb hisoblanadi —
-    #                              o'rtacha kurs to'liq tugaganda 100% bo'lishi mumkin)
-    #    - is_passed            — kurs umumiy o'tildi? (avg >= 90 VA hammasi passed)
+    #    - is_passed            — kurs umumiy o'tildi? Har bir loyiha alohida
+    #                              o'tgan bo'lsa (passed == total) — kurs tugadi.
+    #                              Yagona avg gate qo'shimcha to'siq edi:
+    #                              o'qituvchi har bir loyihani Approve qilsa-yu,
+    #                              o'rtacha 89 chiqsa — keyingi kurs ochilmasdi.
     #
     #  Loyiha bo'lmagan kurs (lessons_with_project == 0) avtomatik o'tilgan
     #  hisoblanadi (is_passed = True) — prerequisitni gate qilmaslik uchun.
     # ─────────────────────────────────────────────────────────────────────────
-    PROJECT_PASS_THRESHOLD = 90
+    PROJECT_PASS_THRESHOLD = 75
 
     @staticmethod
     async def calc_project_progress(
@@ -416,19 +421,28 @@ class CourseService:
         sum_points = 0
         for r in rows:
             status = r.proj_status or r.sub_status
-            points = r.proj_points if r.proj_points is not None else (r.sub_points or 0)
+            points = int(
+                (r.proj_points if r.proj_points is not None else r.sub_points)
+                or 0
+            )
             if status in ("Approved", "Rejected"):
                 reviewed += 1
-                sum_points += int(points or 0)
-                if status == "Approved" and int(points or 0) >= CourseService.PROJECT_PASS_THRESHOLD:
-                    passed += 1
+                sum_points += points
+            # Mirror lessons.py: teacher's Approve is the gate; otherwise the
+            # auto-pass threshold (75 = B grade) clears it. Rejected never
+            # counts as passed.
+            if status == "Approved" or (
+                status not in ("Rejected", "Draft", None)
+                and points >= CourseService.PROJECT_PASS_THRESHOLD
+            ):
+                passed += 1
 
         average_points = int(round(sum_points / total)) if total > 0 else 0
-        is_passed = (
-            total > 0
-            and passed == total
-            and average_points >= CourseService.PROJECT_PASS_THRESHOLD
-        )
+        # If every project-lesson cleared individually, the course is done —
+        # no extra avg gate. The earlier `avg >= 90` requirement silently
+        # locked the next course on students whose lessons were all
+        # teacher-Approved at B grade.
+        is_passed = total > 0 and passed == total
 
         return {
             "lessons_with_project": total,
