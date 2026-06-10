@@ -380,15 +380,20 @@ def _format_lesson_context_block(
     task_technologies = _clean(ctx.get("task_technologies"))
     lesson_code_language = _clean(ctx.get("lesson_code_language"))
 
+    # Build the "expected stack" the AI is told to grade against. The lesson's
+    # own signals (task_technologies, lesson_code_language) win over the
+    # course title — otherwise the AI demands every tech mentioned in the
+    # course name even when that lesson doesn't cover it yet. Lesson 1 of an
+    # "HTML/CSS" course is HTML only; the AI must not ask for CSS there.
     expected_stack: list[str] = []
-    for source in (task_technologies, course_title, lesson_code_language):
+    for source in (task_technologies, lesson_code_language):
         if source:
             expected_stack.append(source)
     if technologies:
         expected_stack.extend(t for t in technologies if t)
 
     persona_hint = "dasturlash"
-    for source in (task_technologies, course_title, lesson_code_language):
+    for source in (task_technologies, lesson_code_language, course_title):
         candidate = source.strip()
         if candidate:
             persona_hint = f"{candidate}"
@@ -421,9 +426,12 @@ def _format_lesson_context_block(
         unique_stack = ", ".join(dict.fromkeys(s for s in expected_stack if s))
         lines.append("")
         lines.append(
-            f"KUTILAYOTGAN STACK: {unique_stack}. Faqat shu stack asosida baholang. "
-            "Boshqa kurslarning texnologiyalarini (masalan, agar bu HTML/CSS darsi bo'lsa, "
-            "Python/Flask) yo'qligi uchun ball PASAYTIRMANG."
+            f"KUTILAYOTGAN STACK (faqat SHU DARS uchun): {unique_stack}. "
+            "Faqat shu stack asosida baholang. Kurs nomida boshqa texnologiyalar bo'lishi mumkin, "
+            "lekin shu dars hali ularni o'tmagan — shu sababli ularni TALAB QILMANG va "
+            "\"qo'shing\" deb maslahat BERMANG. Misol: kurs \"HTML/CSS\" deb nomlangan bo'lsa-yu, "
+            "shu dars faqat HTML bo'lsa — CSS yo'qligi uchun ball pasaytirmang va CSS qo'shishni "
+            "tavsiya qilmang."
         )
 
     lines.append("")
@@ -472,10 +480,12 @@ def _build_review_prompt(
 
 Sen tajribali {persona_hint} o'qituvchisisiz. O'quvchi loyihasini PASTDAGI ASL KOD asosida baholab ber. Faqat metadata (nomi, tavsifi) bo'yicha emas — ASL FAYLLAR TARKIBIGA qarab xulosa qil. AUTHORSHIP SIGNALS bo'limini ham e'tiborga ol — fork yoki copy-paste bo'lsa ball PASAYTIRING.
 
-MUHIM: Loyihani faqat DARS KONTEKSTI ichida baholang. Dars qaysi texnologiyaga oid bo'lsa — faqat shu texnologiyani kuting. Agar dars HTML/CSS bo'lsa, Python yo'qligi uchun ball PASAYTIRMANG. Agar dars Python bo'lsa, HTML yo'qligi uchun ball PASAYTIRMANG. Boshqa kurslarning texnologiyalarini bu yerda talab QILMANG.
-
-Sen tajribali Python/Flask o'qituvchisisiz. O'quvchi loyihasini PASTDAGI ASL KOD asosida baholab ber.
->>>>>>> e9e035b (ozgardi)
+MUHIM — DARS DOIRASI:
+- Loyihani faqat DARS KONTEKSTI ichida baholang. Faqat shu DARSDA o'tilgan texnologiyani kuting.
+- Kurs nomida bir nechta texnologiya bor bo'lsa ham (masalan "HTML/CSS Asoslari"), shu KONKRET DARSDA o'tilmagan texnologiyani TALAB QILMANG.
+- Misol: agar dars "HTML asoslari" bo'lsa va faqat HTML o'tilgan bo'lsa — CSS yo'qligi uchun ball PASAYTIRMANG va "CSS qo'shing" deb maslahat BERMANG (CSS keyingi darsda o'tiladi).
+- Agar dars HTML/CSS bo'lsa, JavaScript yo'qligi uchun ball PASAYTIRMANG. Agar dars Python bo'lsa, HTML yo'qligi uchun ball PASAYTIRMANG.
+- "Keyingi safar X qo'shing" turidagi maslahatni faqat SHU DARSDA o'tilgan texnologiyaning chuqurroq qismi bo'yicha bering, kurs hali boshlanmagan boshqa texnologiya bo'yicha emas.
 
 {_INJECTION_GUARD}
 {lesson_block}{encouragement_block}
@@ -538,20 +548,6 @@ Bu loyiha BEGINNER darajasi — o'quvchi hali o'rganmoqda. Baholashda quyidagi q
 6. FEEDBACK tilingiz iliq va undamoqchi bo'lsin. "Yo'q", "noto'g'ri", "talab bajarilmagan" o'rniga: "shuni qo'shsangiz to'liq bo'ladi", "deyarli yetdingiz", "keyingi qadam — ..."
 
 MAQSAD: O'quvchi natijani ko'rgach davom etishni xohlasin. Mukammallik emas, harakat va asoslar muhim.
-=======
-    "feedback": "Batafsil fikr (o'zbek tilida).",
-    "strengths": ["kuchli tomon 1", "kuchli tomon 2"],
-    "improvements": ["yaxshilash kerak 1", "yaxshilash kerak 2"],
-    "summary": "1-2 jumla xulosa (o'zbek tilida)"
-}}
-
-## BAHOLASH MEZONLARI
-- A: 90-100 — Mukammal
-- B: 75-89  — Yaxshi
-- C: 60-74  — O'rtacha
-- D: 45-59  — Qoniqarsiz
-- F: 0-44   — Juda zaif
->>>>>>> e9e035b (ozgardi)
 """
 
 

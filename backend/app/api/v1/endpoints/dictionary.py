@@ -36,19 +36,22 @@ async def add_word(
     if not safe_word:
         raise HTTPException(status_code=422, detail="So'z bo'sh bo'lishi mumkin emas")
 
-    # Dictionary entries are meant to be a word or a tight phrase, not a
-    # whole sentence. Enforce both a length cap and a max word count so a
-    # caller that bypasses the frontend popup can't pollute the vocabulary
-    # with sentence-sized rows.
-    if len(safe_word) > 40:
+    # Dictionary entries are meant to be a word, a tight phrase, or a short
+    # programming-glossary line (e.g. `<a> — Giperhavola (Link)`). The
+    # length cap and word count keep callers that bypass the lesson popup
+    # from polluting the vocabulary with sentence-sized rows, but the
+    # ceilings are tuned for glossary entries — not for the much stricter
+    # auto-selection popup, which still enforces its own 40-char / 3-word
+    # limit because there the user might have selected accidentally.
+    if len(safe_word) > 80:
         raise HTTPException(
             status_code=422,
-            detail="Lug'atga faqat qisqa so'z yoki ibora qo'shing (40 belgi gacha).",
+            detail="Lug'atga faqat qisqa so'z yoki ibora qo'shing (80 belgi gacha).",
         )
-    if len(safe_word.split()) > 3:
+    if len(safe_word.split()) > 6:
         raise HTTPException(
             status_code=422,
-            detail="Lug'atga 3 ta so'zdan ko'pini qo'shib bo'lmaydi.",
+            detail="Lug'atga 6 ta so'zdan ko'pini qo'shib bo'lmaydi.",
         )
 
     lesson_id = data.lesson_id

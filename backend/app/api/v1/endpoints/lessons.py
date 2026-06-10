@@ -350,6 +350,67 @@ async def complete_lesson(
     }
 
 
+@router.get("/lessons/{lesson_id}/my-exercise-submissions")
+async def get_my_exercise_submissions(
+        lesson_id: int,
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """Latest submission per exercise for this lesson.
+
+    One row per exercise the student has attempted in this lesson — the most
+    recent submission only. Used by the lesson page to hydrate ExerciseCard
+    state after a refresh: render the saved answer + score + checkmark, but
+    let the student still resubmit if they want.
+    """
+    from app.models.exercise import Exercise, ExerciseSubmission
+
+    lesson_res = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
+    lesson = lesson_res.scalar_one_or_none()
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Dars topilmadi")
+    await _ensure_enrolled(db, current_student.id, lesson.course_id)
+
+    ex_id_rows = (
+        await db.execute(
+            select(Exercise.id).where(Exercise.lesson_id == lesson_id)
+        )
+    ).all()
+    ex_ids = [r[0] for r in ex_id_rows]
+    if not ex_ids:
+        return []
+
+    # Latest submission per exercise. Cheaper than DISTINCT ON for the small
+    # per-lesson volume — pull all rows, dedupe in Python keeping the newest.
+    rows = (
+        await db.execute(
+            select(ExerciseSubmission)
+            .where(
+                ExerciseSubmission.student_id == current_student.id,
+                ExerciseSubmission.exercise_id.in_(ex_ids),
+            )
+            .order_by(ExerciseSubmission.submitted_at.desc())
+        )
+    ).scalars().all()
+
+    latest_by_ex: dict[int, ExerciseSubmission] = {}
+    for s in rows:
+        if s.exercise_id not in latest_by_ex:
+            latest_by_ex[s.exercise_id] = s
+
+    return [
+        {
+            "exercise_id": s.exercise_id,
+            "student_answer": s.student_answer,
+            "is_correct": s.is_correct,
+            "score": s.score,
+            "ai_feedback": s.ai_feedback,
+            "submitted_at": s.submitted_at.isoformat() if s.submitted_at else None,
+        }
+        for s in latest_by_ex.values()
+    ]
+
+
 @router.get("/lessons/{lesson_id}/is-completed")
 async def is_lesson_completed(
         lesson_id: int,

@@ -513,6 +513,42 @@
     background: rgba(0,184,148,0.1); padding: 3px 12px; border-radius: 20px;
     animation: slpPop 0.4s var(--t-spring);
 }
+
+/* "Already submitted" indicator — visible after a refresh so the student
+   sees that their previous answer is saved. Inputs stay editable. */
+.slp-ex-done-badge {
+    font-size: 11px; font-weight: 800; padding: 3px 12px; border-radius: 20px;
+    letter-spacing: 0.01em;
+    display: inline-flex; align-items: center; gap: 4px;
+    border: 1.5px solid transparent;
+}
+.slp-ex-done-badge.ok {
+    color: var(--green); background: rgba(0,184,148,0.10);
+    border-color: rgba(0,184,148,0.25);
+}
+.slp-ex-done-badge.bad {
+    color: var(--orange); background: rgba(225,112,85,0.10);
+    border-color: rgba(225,112,85,0.25);
+}
+.slp-ex-done-badge.pending {
+    color: var(--purple); background: var(--purple-bg);
+    border-color: rgba(108,92,231,0.25);
+}
+
+.slp-ex-section-done {
+    font-size: 11px; font-weight: 800; color: var(--green);
+    background: rgba(0,184,148,0.10);
+    border: 1px solid rgba(0,184,148,0.22);
+    padding: 3px 10px; border-radius: 20px;
+    margin-left: 4px;
+}
+
+/* Soft tint on the whole card so completed items read at a glance, but
+   don't visually compete with the active in-session state classes. */
+.slp-ex-card.has-previous:not(.state-correct):not(.state-wrong):not(.state-submitted) {
+    border-color: rgba(0,184,148,0.25);
+    background: linear-gradient(160deg, rgba(0,184,148,0.025), var(--surface));
+}
 .slp-ex-type-label { font-size: 11px; font-weight: 600; color: var(--ink-45); margin-left: auto; }
 .slp-ex-card-title { font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.35; }
 

@@ -77,7 +77,17 @@ export default function Dictionary() {
             setForm({ word: '', context: '' });
             showToast("So'z qo'shildi ✓");
         } catch (e) {
-            setFormError("Xatolik yuz berdi, qayta urinib ko'ring");
+            // Surface the actual backend reason (length / word count / dup /
+            // schema validation) instead of a generic "xatolik" — the popup
+            // path already does this; the manual dialog was hiding it.
+            const detail = e?.response?.data?.detail;
+            let msg = "Xatolik yuz berdi, qayta urinib ko'ring";
+            if (typeof detail === 'string' && detail.trim()) {
+                msg = detail;
+            } else if (Array.isArray(detail) && detail[0]?.msg) {
+                msg = detail[0].msg;
+            }
+            setFormError(msg);
         } finally {
             setAdding(false);
         }
