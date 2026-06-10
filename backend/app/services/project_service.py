@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Minimum project score (0-100) to consider a submission "passing".
 # Mirrors PROJECT_PASS_THRESHOLD in app/api/v1/endpoints/lessons.py.
-PROJECT_PASS_THRESHOLD = 90
+PROJECT_PASS_THRESHOLD = 75
 
 
 class ProjectService:

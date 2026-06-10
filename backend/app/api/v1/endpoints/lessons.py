@@ -205,8 +205,13 @@ async def _subtract_points(db: AsyncSession, student_id: int, points: int) -> in
     return student.total_points if student else 0
 
 
-# Minimum project score (0-100) to unlock the next lesson.
-PROJECT_PASS_THRESHOLD = 90
+# Minimum project score (0-100) to unlock the next lesson WHEN the teacher
+# hasn't explicitly approved yet (status="Under Review"). Matches the B-grade
+# bucket in the AI prompt ("Yaxshi: asosiy funksional ishlaydi"). A teacher's
+# Approve verdict always passes, regardless of score — their judgement is the
+# gate. Earlier value (90) was effectively requiring an A and silently
+# blocking students whose work was good enough for the lesson.
+PROJECT_PASS_THRESHOLD = 75
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -541,9 +546,9 @@ async def submit_lesson_project(
     existing_sub = existing_res.scalar_one_or_none()
 
     # Re-submission path: an existing submission may be replaced ONLY if the
-    # teacher reviewed it and the result is failing — Rejected outright, or
-    # Approved with a score below PROJECT_PASS_THRESHOLD. Pending and passing
-    # submissions stay locked.
+    # teacher explicitly Rejected it. An Approved project is locked regardless
+    # of score — the teacher's verdict is the gate. Pending submissions stay
+    # locked too, so the student waits instead of spamming uploads.
     if existing_sub is not None:
         proj_res = await db.execute(
             select(Project).where(Project.id == existing_sub.project_id)
@@ -552,11 +557,7 @@ async def submit_lesson_project(
         proj_status = existing_project.status if existing_project else existing_sub.status
         prev_points = existing_project.points_earned if existing_project else 0
         can_resubmit = (
-                existing_project is not None
-                and (
-                        proj_status == "Rejected"
-                        or (proj_status == "Approved" and prev_points < PROJECT_PASS_THRESHOLD)
-                )
+            existing_project is not None and proj_status == "Rejected"
         )
         if not can_resubmit:
             if proj_status == "Submitted":
@@ -714,7 +715,16 @@ async def get_lesson_submission(
     grade = project.grade if project else None
     feedback = project.instructor_feedback if project else None
     reviewed = proj_status in ("Approved", "Rejected")
-    passed = proj_status == "Approved" and points_earned >= PROJECT_PASS_THRESHOLD
+    # Two paths to "passed":
+    #   1. Teacher approved — their verdict is the gate, score is informational.
+    #   2. AI graded only (Under Review / Submitted) but score is high enough
+    #      that we don't need to wait for a teacher to release the lesson.
+    # Rejected always fails regardless of score.
+    passed = (
+        proj_status == "Approved"
+        or (proj_status not in ("Rejected", "Draft")
+            and points_earned >= PROJECT_PASS_THRESHOLD)
+    )
     can_resubmit = reviewed and not passed
 
     return {
