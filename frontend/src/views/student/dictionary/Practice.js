@@ -986,6 +986,307 @@ function Statistika() {
 
 
 /* ═══════════════════════════════════════════════════════════════════════
+   HISTORY — drill-results sub-tab with by-date / by-month / averages
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function formatDateShort(iso) {
+    // "2026-06-10" → "10 Iyn"
+    const months = ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn',
+                    'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek'];
+    const d = new Date(iso + 'T00:00:00');
+    return `${d.getDate()} ${months[d.getMonth()]}`;
+}
+
+function formatMonth(key) {
+    // "2026-06" → "Iyun 2026"
+    const months = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
+                    'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
+    const [y, m] = key.split('-');
+    return `${months[Number(m) - 1]} ${y}`;
+}
+
+function formatDateTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatDuration(seconds) {
+    if (seconds == null) return '—';
+    if (seconds < 60) return `${seconds}s`;
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return s ? `${m}m ${s}s` : `${m}m`;
+}
+
+function Sparkline({ points, accessor = (d) => d.words, ariaLabel }) {
+    // Compact inline SVG sparkline. Width is intrinsic via viewBox.
+    if (!points.length) return null;
+    const W = 600, H = 60, PAD = 4;
+    const max = Math.max(1, ...points.map(accessor));
+    const step = (W - PAD * 2) / Math.max(1, points.length - 1);
+    const path = points
+        .map((p, i) => {
+            const x = PAD + i * step;
+            const y = H - PAD - (accessor(p) / max) * (H - PAD * 2);
+            return `${i === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`;
+        })
+        .join(' ');
+    const area = `${path} L${PAD + (points.length - 1) * step},${H - PAD} L${PAD},${H - PAD} Z`;
+    return (
+        <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className="pr-spark"
+            preserveAspectRatio="none"
+            aria-label={ariaLabel || ''}
+        >
+            <path d={area} className="pr-spark-fill" />
+            <path d={path} className="pr-spark-line" />
+        </svg>
+    );
+}
+
+function PeriodBars({ points, accessor, labelFor }) {
+    // Horizontal bars — one per period bucket. Picks the busiest bucket as
+    // the 100% reference so quiet weeks still register visually.
+    const max = Math.max(1, ...points.map(accessor));
+    return (
+        <div className="pr-period">
+            {points.map((p, i) => {
+                const v = accessor(p);
+                const w = (v / max) * 100;
+                return (
+                    <div key={i} className="pr-period-row">
+                        <div className="pr-period-label">{labelFor(p)}</div>
+                        <div className="pr-period-track">
+                            <div
+                                className={`pr-period-fill ${v === 0 ? 'pr-period-fill--empty' : ''}`}
+                                style={{ width: `${Math.max(w, v > 0 ? 4 : 0)}%` }}
+                            />
+                        </div>
+                        <div className="pr-period-val">
+                            <span className="pr-period-val-num">{p.sessions}</span>
+                            <span className="pr-period-val-sub">{p.words || 0} so'z · {p.accuracy || 0}%</span>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function History() {
+    const { request } = useHttp();
+    const [data, setData]     = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError]   = useState('');
+    const [grain, setGrain]   = useState('day');   // 'day' | 'month'
+    const [expanded, setExpanded] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+        request(`${BASE}/sessions-overview`, 'GET', null, headers())
+            .then((d) => {
+                if (cancelled) return;
+                setData(d);
+                setError('');
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setError("Tarixni yuklab bo'lmadi");
+            })
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [request]);
+
+    if (loading) return <div className="pr-stats-loading">Yuklanmoqda…</div>;
+    if (error || !data) return <div className="pr-error">{error || 'Maʼlumot topilmadi'}</div>;
+
+    const { totals, averages, by_date, by_month, recent } = data;
+
+    // For the by-day bars/sparkline we trim leading empty days so the chart
+    // doesn't always start with a wall of zeros. We keep at least the last 14.
+    const trimmedDays = (() => {
+        const firstActive = by_date.findIndex((d) => d.sessions > 0);
+        if (firstActive === -1) return by_date.slice(-14);
+        const start = Math.min(firstActive, by_date.length - 14);
+        return by_date.slice(Math.max(0, start));
+    })();
+
+    const visibleRecent = expanded ? recent : recent.slice(0, 5);
+
+    return (
+        <div className="pr-hist">
+            {/* ── Averages row ────────────────────────────────────────── */}
+            <section className="pr-section">
+                <h3 className="pr-section-title">O'rtacha ko'rsatkichlar</h3>
+                <div className="pr-avg-grid">
+                    <div className="pr-avg">
+                        <div className="pr-avg-num">{averages.per_session_accuracy}%</div>
+                        <div className="pr-avg-lbl">o'rtacha aniqlik</div>
+                    </div>
+                    <div className="pr-avg">
+                        <div className="pr-avg-num">{averages.per_session_words}</div>
+                        <div className="pr-avg-lbl">so'z / mashq</div>
+                    </div>
+                    <div className="pr-avg">
+                        <div className="pr-avg-num">
+                            {averages.per_session_minutes || '—'}
+                            {averages.per_session_minutes ? <span className="pr-avg-unit">m</span> : null}
+                        </div>
+                        <div className="pr-avg-lbl">vaqt / mashq</div>
+                    </div>
+                    <div className="pr-avg">
+                        <div className="pr-avg-num">{averages.sessions_per_week}</div>
+                        <div className="pr-avg-lbl">mashq / hafta</div>
+                    </div>
+                    <div className="pr-avg">
+                        <div className="pr-avg-num">{averages.active_days_in_window}</div>
+                        <div className="pr-avg-lbl">faol kun ({data.window.days}d)</div>
+                    </div>
+                </div>
+            </section>
+
+            {/* ── Sparkline of activity ───────────────────────────────── */}
+            {trimmedDays.length > 1 && (
+                <section className="pr-section">
+                    <h3 className="pr-section-title">Faollik dinamikasi</h3>
+                    <Sparkline points={trimmedDays} ariaLabel="Kunlik so'z hajmi" />
+                    <div className="pr-spark-foot">
+                        <span>{formatDateShort(trimmedDays[0].date)}</span>
+                        <span>{formatDateShort(trimmedDays[trimmedDays.length - 1].date)}</span>
+                    </div>
+                </section>
+            )}
+
+            {/* ── Grain toggle + period bars ──────────────────────────── */}
+            <section className="pr-section">
+                <div className="pr-section-head">
+                    <h3 className="pr-section-title">
+                        {grain === 'day' ? "Kunlik natijalar" : "Oylik natijalar"}
+                    </h3>
+                    <div className="pr-grain">
+                        <button
+                            className={`pr-grain-btn ${grain === 'day' ? 'active' : ''}`}
+                            onClick={() => setGrain('day')}
+                        >
+                            Kun
+                        </button>
+                        <button
+                            className={`pr-grain-btn ${grain === 'month' ? 'active' : ''}`}
+                            onClick={() => setGrain('month')}
+                        >
+                            Oy
+                        </button>
+                    </div>
+                </div>
+                {grain === 'day' ? (
+                    <PeriodBars
+                        points={[...trimmedDays].reverse()}
+                        accessor={(d) => d.sessions}
+                        labelFor={(d) => formatDateShort(d.date)}
+                    />
+                ) : (
+                    <PeriodBars
+                        points={[...by_month].reverse()}
+                        accessor={(d) => d.sessions}
+                        labelFor={(d) => formatMonth(d.month)}
+                    />
+                )}
+            </section>
+
+            {/* ── Lifetime totals ──────────────────────────────────────── */}
+            <section className="pr-section">
+                <h3 className="pr-section-title">Umumiy hisob</h3>
+                <div className="pr-totals">
+                    <div className="pr-total">
+                        <div className="pr-total-num">{totals.sessions}</div>
+                        <div className="pr-total-lbl">mashqlar</div>
+                    </div>
+                    <div className="pr-total">
+                        <div className="pr-total-num">{totals.words}</div>
+                        <div className="pr-total-lbl">jami so'z</div>
+                    </div>
+                    <div className="pr-total">
+                        <div className="pr-total-num">{totals.correct}</div>
+                        <div className="pr-total-lbl">to'g'ri javob</div>
+                    </div>
+                    <div className="pr-total">
+                        <div className="pr-total-num">{totals.accuracy}%</div>
+                        <div className="pr-total-lbl">aniqlik</div>
+                    </div>
+                    <div className="pr-total">
+                        <div className="pr-total-num">{totals.active_days}</div>
+                        <div className="pr-total-lbl">faol kun</div>
+                    </div>
+                    {totals.minutes > 0 && (
+                        <div className="pr-total">
+                            <div className="pr-total-num">
+                                {totals.minutes >= 60
+                                    ? `${Math.floor(totals.minutes / 60)}s ${totals.minutes % 60}d`
+                                    : `${totals.minutes}d`}
+                            </div>
+                            <div className="pr-total-lbl">jami vaqt</div>
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* ── Recent sessions list ─────────────────────────────────── */}
+            {recent.length > 0 && (
+                <section className="pr-section">
+                    <div className="pr-section-head">
+                        <h3 className="pr-section-title">Mashqlar ro'yxati</h3>
+                        {recent.length > 5 && (
+                            <button
+                                className="pr-section-more pr-section-more--btn"
+                                onClick={() => setExpanded((v) => !v)}
+                            >
+                                {expanded ? 'Kamroq' : `Yana ${recent.length - 5} ta`}
+                            </button>
+                        )}
+                    </div>
+                    <div className="pr-sess-list">
+                        {visibleRecent.map((s) => {
+                            const meta = MODES.find((m) => m.key === s.mode);
+                            const pct = s.accuracy;
+                            const cls = pct >= 80 ? 'ok' : pct >= 50 ? 'mid' : 'bad';
+                            return (
+                                <div key={s.id} className="pr-sess-row">
+                                    <div className="pr-sess-mode">
+                                        <span className="pr-sess-mode-icon" aria-hidden>
+                                            {meta?.icon || '🔸'}
+                                        </span>
+                                        <span className="pr-sess-mode-name">
+                                            {meta?.label || s.mode}
+                                        </span>
+                                    </div>
+                                    <div className="pr-sess-when">
+                                        {formatDateTime(s.completed_at || s.started_at)}
+                                    </div>
+                                    <div className="pr-sess-dur">
+                                        {formatDuration(s.duration_seconds)}
+                                    </div>
+                                    <div className="pr-sess-score">
+                                        {s.correct}/{s.total_words}
+                                    </div>
+                                    <div className={`pr-sess-pct pr-sess-pct--${cls}`}>
+                                        {pct}%
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </section>
+            )}
+        </div>
+    );
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
    ORCHESTRATOR — phases, chunked rounds, replay-missed pass
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -995,7 +1296,7 @@ export default function Practice() {
     /* Top tab — 'drill' shows the pick/drill/recap phase machinery, 'stats'
        shows the read-only Statistika dashboard. The toggle is only visible
        on the pick phase so it doesn't compete for attention mid-drill. */
-    const [tab,       setTab]       = useState('drill');  // 'drill' | 'stats'
+    const [tab,       setTab]       = useState('drill');  // 'drill' | 'stats' | 'hist'
     const [phase,     setPhase]     = useState('pick');   // 'pick' | 'drill' | 'recap'
     const [mode,      setMode]      = useState('flashcard');
     const [filter,    setFilter]    = useState('all');
@@ -1464,9 +1765,16 @@ export default function Practice() {
                 >
                     📊 Statistika
                 </button>
+                <button
+                    className={`pr-subtab ${tab === 'hist' ? 'active' : ''}`}
+                    onClick={() => setTab('hist')}
+                >
+                    📜 Tarix
+                </button>
             </div>
 
             {tab === 'stats' && <Statistika />}
+            {tab === 'hist' && <History />}
 
             {tab === 'drill' && <>
 

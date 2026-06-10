@@ -628,6 +628,55 @@ async def analyze_project_with_grok(
 # Dictionary word explanation
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _looks_like_keyword_stew(text: str) -> bool:
+    """Reject AI outputs that are a list of bare terms rather than a sentence.
+
+    Symptom we hit in prod: model echoes lesson keywords ("content appearance
+    behavior HTML structure tags Browser CSS …") instead of defining the word.
+    Heuristic: short token-soup with no verb-like Uzbek word AND fewer than 3
+    multi-letter words separated by spaces is almost certainly junk.
+    """
+    s = (text or "").strip()
+    if not s:
+        return True
+    # Strip leading/trailing quote chars the model sometimes wraps things in
+    s = s.strip("\"'«»“”").strip()
+    # A real sentence has spaces AND at least one of these Uzbek connective
+    # tokens (verb, copula, conjunction) — keyword soups have none of these.
+    UZ_SIGNAL = (" — ", " bu ", " bo'l", " hisoblan", " ishlat",
+                 " yaratil", " yordam", " uchun ", " sifatida", " ya'ni ",
+                 " bilan ", " orqali ", " ko'rsat", " saqla", " tasvirl")
+    has_signal = any(sig in s.lower() for sig in UZ_SIGNAL)
+    if has_signal:
+        return False
+    # No signal AND token-style soup (many short capitalised English words
+    # back-to-back) → reject.
+    tokens = s.split()
+    if len(tokens) >= 6:
+        alpha_only = [t for t in tokens if t.isalpha()]
+        if alpha_only and len(alpha_only) / len(tokens) > 0.7:
+            return True
+    return False
+
+
+def _sanity_check_explanation(parsed: dict, word: str, excerpt: str) -> bool:
+    """True if the parsed explanation looks usable; False to retry/fallback."""
+    if not isinstance(parsed, dict):
+        return False
+    sd = (parsed.get("short_definition") or "").strip()
+    if not sd:
+        return False
+    if len(sd) < 8:
+        return False
+    # Don't accept the lesson excerpt being echoed back verbatim.
+    ex_norm = (excerpt or "").strip().lower()[:80]
+    if ex_norm and ex_norm in sd.lower():
+        return False
+    if _looks_like_keyword_stew(sd):
+        return False
+    return True
+
+
 async def explain_word_with_ai(
     word: str,
     *,
@@ -641,6 +690,13 @@ async def explain_word_with_ai(
     different things in different courses — "Panel" in a JS course is the
     DevTools panel, in a UI course it's a sidebar panel. Passing the lesson
     context lets the model pick the right sense.
+
+    Reliability layers:
+      1. Strict prompt — the word is centred; excerpt is supporting hint only.
+      2. JSON-only output enforced + parsed defensively.
+      3. Sanity check rejects keyword stews / excerpt echoes.
+      4. One retry with a "you produced X — try again, focus on the word"
+         feedback prompt if the first response fails sanity.
     """
     safe_word = (word or "").strip()
     if not safe_word:
@@ -648,40 +704,50 @@ async def explain_word_with_ai(
     if len(safe_word) > 80:
         safe_word = safe_word[:80]
 
-    # Trim the excerpt — we just need 1-2 sentences for disambiguation, not
-    # the whole lesson. Anything longer just burns tokens for marginal gain.
-    excerpt_clean = (lesson_excerpt or "").strip().replace("\n", " ")[:400]
+    # Trim the excerpt hard — 150 chars is enough to disambiguate sense; more
+    # and the model starts repeating lesson keywords instead of defining the
+    # word. (Symptom in prod: "JavaScript" and "HTML" got identical contexts
+    # because the same 400-char lesson body dominated both prompts.)
+    excerpt_clean = (lesson_excerpt or "").strip().replace("\n", " ")[:150]
 
-    context_lines = []
+    scope_lines = []
     if course_title:
-        context_lines.append(f"Kurs: {course_title}")
+        scope_lines.append(f"Kurs nomi: {course_title}")
     if lesson_title:
-        context_lines.append(f"Dars: {lesson_title}")
+        scope_lines.append(f"Dars nomi: {lesson_title}")
     if excerpt_clean:
-        context_lines.append(f"Darsdagi qism: \"{excerpt_clean}\"")
-    context_block = "\n".join(context_lines)
+        scope_lines.append(f"Dars kontekstidan parcha (faqat ma'no aniqlash uchun): \"{excerpt_clean}\"")
+    scope_block = ("\n".join(scope_lines) + "\n") if scope_lines else ""
 
-    if context_block:
-        scope_hint = (
-            f"\nKonteksti — quyidagi darsdan olingan. Ushbu kontekst doirasida "
-            f"tushuntiring:\n{context_block}\n"
+    def _build_prompt(retry_feedback: str = "") -> str:
+        feedback_block = (
+            f"\nOldingi javobing yaroqsiz edi: {retry_feedback}\n"
+            f"Endi qaytadan, FAQAT \"{safe_word}\" so'zi haqida yoz.\n"
+            if retry_feedback else ""
         )
-    else:
-        scope_hint = ""
-
-    prompt = f"""
+        return f"""\
 Sen dasturlash va texnologiyalar bo'yicha o'zbek tilida izohlovchi o'qituvchisisiz.
-"{safe_word}" so'zini yoki texnologiyasini faqat O'ZBEK TILIDA tushuntir.
-Barcha javoblar — ta'rif, misol, kategoriya — faqat O'ZBEK TILIDA bo'lsin.
-{scope_hint}
-Faqat JSON formatida javob ber (boshqa hech narsa yozma):
+
+VAZIFA: Quyidagi bitta so'z yoki atamani O'ZBEK TILIDA tushuntir.
+
+SO'Z: "{safe_word}"
+
+{scope_block}MUHIM QOIDALAR:
+- Faqat "{safe_word}" so'zi/atamasi haqida yoz, dars matnini takrorlama.
+- Javob to'liq O'ZBEK TILIDA bo'lsin (atamalar nomi ingliz qolishi mumkin).
+- "short_definition" — 1 ta to'liq jumla, fe'l bilan, gap tuzilishi bilan.
+  Misol: "JavaScript — bu veb-sahifalarga dinamiklik qo'shadigan dasturlash tili."
+  YOMON misol: "content appearance behavior HTML tags" (faqat so'zlar ro'yxati).
+- Boshqa kalit so'zlarni ro'yxatlab tashlamang.
+{feedback_block}
+FAQAT QUYIDAGI JSON FORMATIDA JAVOB BER (boshqa hech narsa yozma, hatto ```json belgisini ham):
 {{
     "word": "{safe_word}",
-    "short_definition": "1 jumlada qisqa ta'rif (O'ZBEK TILIDA, dars konteksti bo'yicha)",
-    "full_explanation": "Batafsil tushuntirish (O'ZBEK TILIDA, 3-5 jumla)",
-    "example": "Misol yoki qo'llanilishi (O'ZBEK TILIDA)",
-    "category": "masalan: Belgilash tili, Freymvork, Kutubxona va h.k. (O'ZBEK TILIDA)",
-    "part_of_speech": "ot, fe'l, sifat, ibora, atama, kod yoki noma'lum — qaysi biri mos tushsa"
+    "short_definition": "1 ta to'liq jumla — '{safe_word}' nimaligini aytib bersin",
+    "full_explanation": "3-5 jumla — batafsil tushuntirish",
+    "example": "1 ta amaliy misol yoki qo'llanilish",
+    "category": "masalan: Dasturlash tili, Belgilash tili, Freymvork, Kutubxona, Atama",
+    "part_of_speech": "ot | fe'l | sifat | ibora | atama | kod"
 }}
 """
 
@@ -694,14 +760,41 @@ Faqat JSON formatida javob ber (boshqa hech narsa yozma):
         "part_of_speech": "",
     }
 
-    text = await _ask_ai(prompt)
-    if text:
-        parsed = _parse_json(text)
-        if parsed:
-            return parsed
-        return {**fallback, "short_definition": text.strip()[:500]}
+    # First attempt
+    text = await _ask_ai(_build_prompt())
+    parsed = _parse_json(text) if text else None
+    if parsed and _sanity_check_explanation(parsed, safe_word, excerpt_clean):
+        return parsed
 
-    return {**fallback, "short_definition": "AI xizmati hozirda mavjud emas."}
+    # One retry with explicit feedback about what was wrong
+    feedback_reason = ""
+    if parsed is None:
+        feedback_reason = "JSON formatda emas edi"
+    elif not (parsed.get("short_definition") or "").strip():
+        feedback_reason = "short_definition bo'sh edi"
+    elif _looks_like_keyword_stew(parsed.get("short_definition", "")):
+        feedback_reason = "to'liq jumla emas — faqat so'zlar ro'yxati edi"
+    else:
+        feedback_reason = "dars matnini takrorlading"
+
+    logger.warning(
+        "explain_word_with_ai: retrying for word=%r reason=%s",
+        safe_word, feedback_reason,
+    )
+    text2 = await _ask_ai(_build_prompt(retry_feedback=feedback_reason))
+    parsed2 = _parse_json(text2) if text2 else None
+    if parsed2 and _sanity_check_explanation(parsed2, safe_word, excerpt_clean):
+        return parsed2
+
+    # Both attempts failed sanity. Prefer a clean empty over a junk string —
+    # the frontend renders "" as no-context, which is better than gibberish.
+    logger.warning(
+        "explain_word_with_ai: both attempts failed sanity for word=%r",
+        safe_word,
+    )
+    if not text and not text2:
+        return {**fallback, "short_definition": "AI xizmati hozirda mavjud emas."}
+    return fallback
 
 
 # ─────────────────────────────────────────────────────────────────────────────

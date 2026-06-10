@@ -266,17 +266,119 @@ flowchart LR
     SW --> D["default"]
 </pre>
 
-<h2 data-path-to-node="4">3-Dars: Mantiqiy operatorlar va Switch-case</h2><h3 data-path-to-node="5">1. Mantiqiy operatorlar (Logical Operators)</h3><p data-path-to-node="6">O'quvchilarga hayotiy misol: <i data-path-to-node="6" data-index-in-node="29">"Agarda sizda bilet bo'lsa <b data-path-to-node="6" data-index-in-node="56">VA</b> pasportingiz bo'lsa, samolyotga chiqasiz"</i> yoki <i data-path-to-node="6" data-index-in-node="106">"Agarda pulingiz bo'lsa <b data-path-to-node="6" data-index-in-node="130">YOKI</b> plastik kartangiz bo'lsa, supermarketdan narsa ololasiz"</i>.</p><p data-path-to-node="7">JavaScript-da bular 3 ta asosiy belgidan iborat:</p><ul data-path-to-node="8"><li><p data-path-to-node="8,0,0"><b data-path-to-node="8,0,0" data-index-in-node="0"><code data-path-to-node="8,0,0" data-index-in-node="0">&amp;&amp;</code> (VA / AND):</b> Hamma shartlar to'g'ri bo'lsagina ishlaydi.</p></li><li><p data-path-to-node="8,1,0"><b data-path-to-node="8,1,0" data-index-in-node="0"><code data-path-to-node="8,1,0" data-index-in-node="0">||</code> (YOKI / OR):</b> Shartlardan kamida bittasi to'g'ri bo'lsa ham ishlaydi.</p></li><li><p data-path-to-node="8,2,0"><b data-path-to-node="8,2,0" data-index-in-node="0"><code data-path-to-node="8,2,0" data-index-in-node="0">!</code> (EMAS / NOT):</b> Shartni teskarisiga o'zgartiradi (rostni yolg'on, yolg'onni rost qiladi).</p></li></ul>
+<h2>3-Dars: Mantiqiy operatorlar va Switch-case</h2>
+
+<h3>1. Mantiqiy operatorlar (Logical Operators)</h3>
+<p>Bu darsda biz bir nechta shartni bitta <code>if</code> ichida birlashtirishni va katta <code>else if</code> zanjirlarini tozaroq <code>switch-case</code> konstruksiyasi bilan almashtirishni o'rganamiz.</p>
+<p>Hayotiy misollar bilan boshlaymiz:</p>
+<ul>
+  <li><i>"Agar sizda <b>bilet</b> bo'lsa <b>VA</b> pasportingiz bo'lsa, samolyotga chiqasiz"</i> — ikkala shart ham kerak.</li>
+  <li><i>"Agar pulingiz bo'lsa <b>YOKI</b> plastik kartangiz bo'lsa, supermarketdan xarid qilasiz"</i> — bittasi yetadi.</li>
+  <li><i>"Agar yomg'ir yog'ayotgan bo'lmasa, ko'chaga chiqamiz"</i> — shartni teskarisiga aylantiramiz.</li>
+</ul>
+<p>JavaScript-da bular 3 ta asosiy belgidan iborat:</p>
+<ul>
+  <li><b><code>&amp;&amp;</code> (VA / AND)</b> — har ikki shart ham <code>true</code> bo'lsa, natija <code>true</code>. Aks holda <code>false</code>.</li>
+  <li><b><code>||</code> (YOKI / OR)</b> — shartlardan kamida bittasi <code>true</code> bo'lsa, natija <code>true</code>.</li>
+  <li><b><code>!</code> (EMAS / NOT)</b> — <code>true</code> ni <code>false</code> ga, <code>false</code> ni <code>true</code> ga aylantiradi.</li>
+</ul>
+
+<h4>Ustuvorlik (operator precedence)</h4>
+<p>Bitta qatorda <code>&amp;&amp;</code> va <code>||</code> aralash kelsa, JavaScript avval <b><code>&amp;&amp;</code> ni</b> hisoblaydi, keyin <b><code>||</code> ni</b>. Buni o'zgartirish uchun qavslar <code>( )</code> ishlatiladi — qavs ichidagi ifoda har doim birinchi bajariladi.</p>
+
+<h4>Qat'iy taqqoslash <code>===</code></h4>
+<p>JavaScript-da ikki xil tenglik bor: <code>==</code> qiymatlarni solishtiradi, ammo turini o'zgartirib yuboradi (<code>"10" == 10</code> → <code>true</code>). <code>===</code> esa qiymat <b>va</b> turni birga tekshiradi (<code>"10" === 10</code> → <code>false</code>). <b>Doim <code>===</code> dan foydalaning</b> — kutilmagan xatolarning oldini oladi.</p>
+
+<h3>2. Switch-case operatori</h3>
+<p>Bitta qiymatni ko'p variantlar bilan solishtirishga to'g'ri kelganda <code>if / else if / else</code> zanjiri uzun va o'qish qiyin bo'ladi. Shu sababli <b>switch-case</b> ishlatiladi — bir nechta variantni tartibli ko'rinishda yozish imkonini beradi.</p>
+<p>Hayotiy misol: foydalanuvchi haftaning kun raqamini kiritsa (1–7), unga kun nomini chiqarib berish kerak. <code>if</code> bilan 7 ta tarmoq yozish o'rniga, <code>switch</code> bilan kompakt yozamiz.</p>
+
+<h4>Sintaksis</h4>
+<p>Konstruksiyaning umumiy ko'rinishi quyidagicha:</p>
+<ul>
+  <li><code>switch (qiymat) { ... }</code> — qavs ichidagi qiymat har bir <code>case</code> bilan <b>qat'iy</b> (<code>===</code>) solishtiriladi.</li>
+  <li><code>case "X":</code> — agar qiymat <code>"X"</code> ga teng bo'lsa, shu yerdagi kodlar ishlaydi.</li>
+  <li><code>break;</code> — <b>juda muhim</b>. <code>break</code> yozilmasa, dastur <b>keyingi <code>case</code> ga ham tushib ketadi</b> (bu "fall-through" deyiladi va ko'pincha xato hisoblanadi).</li>
+  <li><code>default:</code> — hech qaysi <code>case</code> mos kelmasa, <code>default</code> bloki ishlaydi. Bu <code>else</code> ga o'xshaydi va ko'pincha xato xabari yoki standart javob uchun ishlatiladi.</li>
+</ul>
+
+<h4>Bir nechta case'ni birlashtirish</h4>
+<p>Bitta natijani bir nechta qiymat uchun ishlatish kerak bo'lsa, <code>case</code> larni ketma-ket <code>break</code> siz yozish mumkin — bu <b>"intentional fall-through"</b> deyiladi:</p>
+<pre><code>switch (kun) {
+  case "Shanba":
+  case "Yakshanba":
+    console.log("Dam olish kuni");
+    break;
+  default:
+    console.log("Ish kuni");
+}</code></pre>
+
+<h4>Qachon <code>switch</code>, qachon <code>if</code>?</h4>
+<ul>
+  <li><b><code>switch</code></b> — bitta qiymatni <b>ko'p aniq variantlar</b> bilan solishtirganda (3+ variant).</li>
+  <li><b><code>if / else if</code></b> — diapazon, oraliq yoki murakkab mantiqiy shartlar (<code>x &gt; 10 &amp;&amp; y &lt; 5</code>) tekshirilganda.</li>
+</ul>
 """
 
 L2_CODE = """\
+// ── 1. Mantiqiy operatorlar ─────────────────────────────────────────────
+
 let pul = true;
 let karta = false;
 
-// YOKI (||) operatori: Bittasi to'g'ri bo'lsa ham yetarli
+// YOKI (||) — bittasi to'g'ri bo'lsa yetarli
 if (pul || karta) {
     console.log("Xarid qilishingiz mumkin.");
 }
+
+// VA (&&) — ikkalasi ham true bo'lishi kerak
+let bilet = true;
+let pasport = true;
+if (bilet && pasport) {
+    console.log("Samolyotga chiqing.");
+}
+
+// EMAS (!) — shartni teskariga aylantiradi
+let yomgir = false;
+if (!yomgir) {
+    console.log("Ko'chaga chiqishimiz mumkin.");
+}
+
+// Qat'iy taqqoslash (===) qiymat + turni birga tekshiradi
+console.log("10" == 10);   // true  (== — turini o'zgartiradi)
+console.log("10" === 10);  // false (=== — turi ham muhim)
+
+
+// ── 2. Switch-case ─────────────────────────────────────────────────────
+
+let kunRaqami = 3;
+
+switch (kunRaqami) {
+    case 1:
+        console.log("Dushanba");
+        break;
+    case 2:
+        console.log("Seshanba");
+        break;
+    case 3:
+        console.log("Chorshanba");
+        break;
+    case 4:
+        console.log("Payshanba");
+        break;
+    case 5:
+        console.log("Juma");
+        break;
+    case 6:
+    case 7:
+        // Bir nechta case'ni birlashtirish — break yo'q, pastga "tushadi"
+        console.log("Dam olish kuni");
+        break;
+    default:
+        // Hech qaysi case mos kelmasa shu blok ishlaydi
+        console.log("Noto'g'ri kun raqami (1-7 bo'lishi kerak)");
+}
+// Natija: "Chorshanba"
 """
 
 L3_TEXT = """\
@@ -289,11 +391,99 @@ flowchart TB
     PROJ --> NEXT["Modul 2 ga otish"]
 </pre>
 
-<b data-path-to-node="4" data-index-in-node="0">Mavzular:</b> Oʻzgaruvchilar, maʼlumot turlari, <code data-path-to-node="4" data-index-in-node="44">if-else</code> shartlari, mantiqiy operatorlar va <code data-path-to-node="4" data-index-in-node="87">switch-case</code>
+<h2>1-Takrorlash Bloki (1, 2 va 3-Darslar bo'yicha)</h2>
+<p>Birinchi modul yakunida o'tilgan asosiy bilimlarni jamlab olamiz. Bu blokda yangi mavzu yo'q — biror joyni unutgan bo'lsangiz, tegishli darsga qaytib o'qib, keyin pastdagi savollarga javob bering.</p>
+
+<h3>1. O'zgaruvchilar va ma'lumot turlari (Modul 1, 1-Dars)</h3>
+<ul>
+  <li><b><code>let</code></b> — qiymati keyinchalik <b>o'zgarishi mumkin</b> bo'lgan o'zgaruvchi (eng ko'p ishlatiladi).</li>
+  <li><b><code>const</code></b> — qiymati bir marta berilgandan keyin <b>o'zgarmaydigan</b> doimiy (constant). Masalan, <code>const PI = 3.14;</code>.</li>
+  <li><code>var</code> — eski standart, hozirgi loyihalarda ishlatilmaydi.</li>
+</ul>
+<p>Asosiy ma'lumot turlari:</p>
+<ul>
+  <li><b><code>string</code></b> — matn, qo'shtirnoq ichida: <code>"Salom"</code>, <code>'Aziz'</code>.</li>
+  <li><b><code>number</code></b> — son, tirnoqsiz: <code>10</code>, <code>3.14</code>.</li>
+  <li><b><code>boolean</code></b> — mantiqiy qiymat: <code>true</code> yoki <code>false</code>.</li>
+  <li><b><code>null</code></b> / <b><code>undefined</code></b> — "qiymat yo'q" turlari.</li>
+</ul>
+
+<h3>2. Shartli operatorlar — <code>if / else if / else</code> (2-Dars)</h3>
+<p>Dasturning ma'lum bir qismini faqat ma'lum shart bajarilganda ishga tushirish uchun ishlatiladi.</p>
+<ul>
+  <li><code>if (shart) { ... }</code> — shart <code>true</code> bo'lsa, blok ichidagi kod ishlaydi.</li>
+  <li><code>else if (boshqa shart)</code> — birinchi shart bajarilmasa, ikkinchisini tekshiradi.</li>
+  <li><code>else { ... }</code> — yuqoridagi shartlarning hech biri to'g'ri bo'lmasa, shu blok ishlaydi.</li>
+</ul>
+
+<h3>3. Mantiqiy operatorlar va qat'iy taqqoslash (3-Dars)</h3>
+<ul>
+  <li><code>&amp;&amp;</code> (VA) — har ikki shart <code>true</code> bo'lganda ishlaydi.</li>
+  <li><code>||</code> (YOKI) — kamida bittasi <code>true</code> bo'lganda ishlaydi.</li>
+  <li><code>!</code> (EMAS) — qiymatni teskariga aylantiradi.</li>
+  <li><code>===</code> — qiymat <b>va</b> turini birga tekshiradi (har doim shuni ishlating).</li>
+  <li><code>==</code> — faqat qiymatni tekshiradi, turini o'zgartiradi (kutilmagan natijalar beradi).</li>
+</ul>
+<p><b>Ustuvorlik:</b> <code>&amp;&amp;</code> har doim <code>||</code> dan oldin hisoblanadi.</p>
+
+<h3>4. <code>switch-case</code> operatori (3-Dars)</h3>
+<p>Bitta qiymatni ko'p variantlar bilan solishtirish uchun ishlatiladi — uzun <code>else if</code> zanjirlarini almashtiradi.</p>
+<ul>
+  <li>Har bir <code>case</code> oxiriga <b><code>break</code></b> yozish shart, aks holda dastur keyingi case'larga ham tushib ketadi.</li>
+  <li><b><code>default</code></b> bloki — switch'ning <code>else</code> qismi: hech qaysi case mos kelmaganda ishlaydi.</li>
+  <li>Bir nechta <code>case</code> ketma-ket <code>break</code> siz yozilsa, ular bitta kodga "ulanadi" (intentional fall-through).</li>
+</ul>
+
+<h3>5. Tekshirish savollari (o'zingizni sinab ko'ring)</h3>
+<ol>
+  <li>Qaysi kalit so'z bilan e'lon qilingan o'zgaruvchining qiymatini keyinchalik o'zgartirib bo'lmaydi?</li>
+  <li><code>if (x === "10")</code> shart <code>x = 10</code> bo'lganda bajariladimi? Nima uchun?</li>
+  <li><code>true &amp;&amp; false || true</code> ifodaning natijasi qanday va nima uchun?</li>
+  <li><code>switch (rang) { case "qizil": ...; case "ko'k": ...; }</code> da <code>break</code> qo'yilmasa nima bo'ladi?</li>
+  <li><code>if</code> qachon afzal, <code>switch</code> qachon afzal?</li>
+</ol>
+
+<p>Quyidagi kod blokida bu uchta dars birga ishlatilgan — diqqat bilan o'qing va har bir qatordagi kalit so'zni o'zingizga tushuntirib bera olishingizga ishonch hosil qiling. So'ngra mashqlarga o'ting.</p>
 """
 
 L3_CODE = """\
+// ── Modul 1 takrorlash: uchta darsni birlashtirgan kichik dastur ────────
+//
+// Ssenariy: kafe buyurtmasi. Foydalanuvchi ovqat turi va to'lov usulini
+// tanlaydi. Dastur yetarli pul borligini tekshiradi va xabar chiqaradi.
 
+const SOLIH_NARX = 25000;      // const — o'zgarmaydigan narx
+let buyurtmaTuri = "lavash";   // string
+let toLovUsuli  = "naqd";      // string
+let pulMiqdori  = 30000;       // number — hamyondagi pul
+let bonusKarta  = false;       // boolean — chegirma kartasi bormi?
+
+// 1) if / else if / else + mantiqiy operatorlar
+if (buyurtmaTuri === "lavash" && (pulMiqdori >= SOLIH_NARX || bonusKarta)) {
+    console.log("Buyurtmangiz qabul qilindi.");
+} else if (!bonusKarta && pulMiqdori < SOLIH_NARX) {
+    console.log("Mablag' yetarli emas.");
+} else {
+    console.log("Boshqa taom tanlang.");
+}
+
+// 2) switch-case — to'lov usuli bo'yicha xabar
+switch (toLovUsuli) {
+    case "naqd":
+        console.log("Naqd to'lov qabul qilindi.");
+        break;
+    case "karta":
+    case "click":
+    case "payme":
+        // Bir nechta case birlashtirilgan — barchasi onlayn to'lov
+        console.log("Onlayn to'lov qayta ishlanmoqda...");
+        break;
+    default:
+        console.log("Noma'lum to'lov usuli.");
+}
+// Kutilgan natija:
+//   "Buyurtmangiz qabul qilindi."
+//   "Naqd to'lov qabul qilindi."
 """
 
 L4_TEXT = """\
@@ -859,6 +1049,28 @@ LESSONS = [
                 "difficulty_level": "Medium",
                 "points": 4,
                 "expected_answer": "Yolg'on (false) qiymatga",
+            },
+            {
+                "exercise_type": "text_input",
+                "title": "switch-case ichidagi har bir case oxiriga break yozish nima uchun muhim?",
+                "description": "switch-case ichidagi har bir case oxiriga break yozish nima uchun muhim?",
+                "is_multiple_select": False,
+                "hint": "break — switch'dan chiqib ketish buyrug'i.",
+                "explanation": "break bo'lmasa dastur keyingi case'lar ichiga ham 'tushib ketadi' (fall-through) va kerak bo'lmagan kodlarni ham bajaradi.",
+                "difficulty_level": "Medium",
+                "points": 3,
+                "expected_answer": "break yozilmasa, dastur shu case'dan keyingi case'larga ham tushib ketib (fall-through) ularning kodini ham bajaradi. break esa switch'dan darhol chiqib ketishni ta'minlaydi.",
+            },
+            {
+                "exercise_type": "text_input",
+                "title": "switch-case operatorida agar berilgan variantlarning (case) hech biri qiymatga to'g'ri kelmasa, qaysi blok ishga tushadi?",
+                "description": "switch-case operatorida agar berilgan variantlarning (case) hech biri qiymatga to'g'ri kelmasa, qaysi blok ishga tushadi?",
+                "is_multiple_select": False,
+                "hint": "if-else'dagi else'ga o'xshash blok.",
+                "explanation": "default bloki — switch ichidagi 'else' rolini bajaradi: hech qaysi case mos kelmaganda ishlaydi.",
+                "difficulty_level": "Easy",
+                "points": 2,
+                "expected_answer": "default bloki",
             },
         ],
     },

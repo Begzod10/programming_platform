@@ -790,6 +790,245 @@ async def get_stats(
     }
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Sessions overview — drill-results history with by-date / by-month / averages
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/sessions-overview")
+async def get_sessions_overview(
+    days: int = Query(default=30, ge=7, le=180),
+    months: int = Query(default=6, ge=3, le=24),
+    recent_limit: int = Query(default=20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: Student = Depends(get_current_student),
+):
+    """Aggregated history of completed practice sessions.
+
+    Powers the Tarix sub-tab — gives the student a calendar-style view of
+    their drilling activity: per-day buckets for the last `days`, per-month
+    buckets for the last `months`, averages, and the recent N sessions.
+    """
+    now = datetime.utcnow()
+    today = now.date()
+    day_window_start = datetime(today.year, today.month, today.day) - timedelta(days=days - 1)
+
+    # First month of the rolling month window — anchor at the 1st of
+    # (today.month - (months - 1)).
+    anchor_month = today.month - (months - 1)
+    anchor_year = today.year
+    while anchor_month <= 0:
+        anchor_month += 12
+        anchor_year -= 1
+    month_window_start = datetime(anchor_year, anchor_month, 1)
+
+    base_filter = [
+        PracticeSession.student_id == current_user.id,
+        PracticeSession.completed_at.isnot(None),
+    ]
+
+    # ── By-date (last `days` days) ───────────────────────────────────────
+    day_rows = (
+        await db.execute(
+            select(
+                cast(PracticeSession.completed_at, Date).label("d"),
+                func.count(PracticeSession.id).label("sessions"),
+                func.coalesce(func.sum(PracticeSession.total_words), 0).label("words"),
+                func.coalesce(func.sum(PracticeSession.correct), 0).label("correct"),
+            )
+            .where(*base_filter, PracticeSession.completed_at >= day_window_start)
+            .group_by("d")
+        )
+    ).all()
+    by_day_map = {r.d: r for r in day_rows}
+    by_date = []
+    for i in range(days):
+        d = today - timedelta(days=days - 1 - i)
+        row = by_day_map.get(d)
+        words = int(row.words) if row else 0
+        correct = int(row.correct) if row else 0
+        by_date.append({
+            "date": d.isoformat(),
+            "sessions": int(row.sessions) if row else 0,
+            "words": words,
+            "correct": correct,
+            "accuracy": round((correct / words) * 100) if words else 0,
+        })
+
+    # ── By-month (last `months` months) ──────────────────────────────────
+    # Walk all completed sessions inside the window in Python — month
+    # boundary math via SQL is awkward across dialects and the volume per
+    # student stays small.
+    month_session_rows = (
+        await db.execute(
+            select(
+                PracticeSession.completed_at,
+                PracticeSession.total_words,
+                PracticeSession.correct,
+            )
+            .where(*base_filter, PracticeSession.completed_at >= month_window_start)
+        )
+    ).all()
+
+    # Pre-seed every month in the window so empty months still render
+    by_month_map: dict[str, dict] = {}
+    cur_y, cur_m = anchor_year, anchor_month
+    while True:
+        key = f"{cur_y:04d}-{cur_m:02d}"
+        by_month_map[key] = {
+            "month": key, "sessions": 0, "words": 0, "correct": 0,
+            "active_days": set(),
+        }
+        if cur_y == today.year and cur_m == today.month:
+            break
+        cur_m += 1
+        if cur_m > 12:
+            cur_m = 1
+            cur_y += 1
+
+    for row in month_session_rows:
+        ts: datetime = row.completed_at
+        key = f"{ts.year:04d}-{ts.month:02d}"
+        if key not in by_month_map:
+            continue
+        bucket = by_month_map[key]
+        bucket["sessions"] += 1
+        bucket["words"] += int(row.total_words or 0)
+        bucket["correct"] += int(row.correct or 0)
+        bucket["active_days"].add(ts.date())
+
+    by_month = []
+    for key in sorted(by_month_map.keys()):
+        b = by_month_map[key]
+        words = b["words"]
+        correct = b["correct"]
+        by_month.append({
+            "month": key,
+            "sessions": b["sessions"],
+            "words": words,
+            "correct": correct,
+            "accuracy": round((correct / words) * 100) if words else 0,
+            "active_days": len(b["active_days"]),
+        })
+
+    # ── Lifetime totals + averages (over completed sessions) ─────────────
+    totals_row = (
+        await db.execute(
+            select(
+                func.count(PracticeSession.id).label("sessions"),
+                func.coalesce(func.sum(PracticeSession.total_words), 0).label("words"),
+                func.coalesce(func.sum(PracticeSession.correct), 0).label("correct"),
+                func.min(PracticeSession.started_at).label("first"),
+            )
+            .where(*base_filter)
+        )
+    ).first()
+
+    sessions_total = int(totals_row.sessions or 0)
+    words_total = int(totals_row.words or 0)
+    correct_total = int(totals_row.correct or 0)
+    first_seen: Optional[datetime] = totals_row.first
+
+    # Sum of (completed_at - started_at) in seconds for sessions that have
+    # both endpoints. Falls back to 0 when nothing matches.
+    duration_rows = (
+        await db.execute(
+            select(PracticeSession.started_at, PracticeSession.completed_at)
+            .where(
+                *base_filter,
+                PracticeSession.started_at.isnot(None),
+            )
+        )
+    ).all()
+    total_seconds = 0
+    duration_samples = 0
+    for r in duration_rows:
+        if r.started_at and r.completed_at and r.completed_at > r.started_at:
+            delta = (r.completed_at - r.started_at).total_seconds()
+            # Clamp absurd values (e.g. tabs left open) so the average
+            # stays representative of a real drill.
+            if 5 <= delta <= 3600:
+                total_seconds += delta
+                duration_samples += 1
+
+    avg_session_minutes = round(total_seconds / duration_samples / 60, 1) if duration_samples else 0
+    avg_session_words = round(words_total / sessions_total, 1) if sessions_total else 0
+    avg_session_accuracy = round((correct_total / words_total) * 100) if words_total else 0
+
+    # Distinct active days (lifetime)
+    active_days_lifetime = (
+        await db.execute(
+            select(func.count(func.distinct(cast(PracticeSession.completed_at, Date))))
+            .where(*base_filter)
+        )
+    ).scalar() or 0
+
+    # Distinct active days within the day window
+    active_days_window = sum(1 for d in by_date if d["sessions"] > 0)
+
+    # Sessions per week — anchor on the first completed session.
+    if first_seen:
+        weeks_active = max(1.0, (now - first_seen).total_seconds() / (7 * 86400))
+        sessions_per_week = round(sessions_total / weeks_active, 1)
+    else:
+        sessions_per_week = 0
+
+    # ── Recent N sessions ────────────────────────────────────────────────
+    recent_rows = (
+        await db.execute(
+            select(PracticeSession)
+            .where(*base_filter)
+            .order_by(PracticeSession.started_at.desc())
+            .limit(recent_limit)
+        )
+    ).scalars().all()
+    recent_sessions = []
+    for s in recent_rows:
+        duration_s = None
+        if s.started_at and s.completed_at and s.completed_at > s.started_at:
+            duration_s = int((s.completed_at - s.started_at).total_seconds())
+        accuracy = (
+            round((s.correct / s.total_words) * 100)
+            if s.total_words else 0
+        )
+        recent_sessions.append({
+            "id": s.id,
+            "mode": s.mode,
+            "total_words": s.total_words,
+            "correct": s.correct,
+            "accuracy": accuracy,
+            "started_at": s.started_at.isoformat() if s.started_at else None,
+            "completed_at": s.completed_at.isoformat() if s.completed_at else None,
+            "duration_seconds": duration_s,
+        })
+
+    return {
+        "window": {
+            "days": days,
+            "months": months,
+            "from_date": by_date[0]["date"] if by_date else None,
+            "to_date": by_date[-1]["date"] if by_date else None,
+        },
+        "totals": {
+            "sessions": sessions_total,
+            "words": words_total,
+            "correct": correct_total,
+            "accuracy": avg_session_accuracy,
+            "active_days": int(active_days_lifetime),
+            "minutes": round(total_seconds / 60) if total_seconds else 0,
+        },
+        "averages": {
+            "per_session_words": avg_session_words,
+            "per_session_accuracy": avg_session_accuracy,
+            "per_session_minutes": avg_session_minutes,
+            "sessions_per_week": sessions_per_week,
+            "active_days_in_window": active_days_window,
+        },
+        "by_date": by_date,
+        "by_month": by_month,
+        "recent": recent_sessions,
+    }
+
+
 @router.get("/needs-review")
 async def get_needs_review(
     limit: int = Query(default=10, ge=1, le=50),

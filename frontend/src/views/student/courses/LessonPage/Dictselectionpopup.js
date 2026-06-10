@@ -106,9 +106,12 @@ export default function DictSelectionPopup({ lessonId }) {
                 ctx = found ? found.trim().substring(0, 120) : '';
             }
 
+            // Viewport coordinates — paired with `position: fixed` on the
+            // popup. Avoids picking up offsets from positioned ancestors
+            // (the lesson wrapper, modal overlays, transformed parents).
             setPopup({
-                x:       rect.left + rect.width / 2 + window.scrollX,
-                y:       rect.top  + window.scrollY - 10,
+                x:       rect.left + rect.width / 2,
+                y:       rect.top  - 10,
                 word,
                 context: ctx,
                 done:    false,
@@ -138,12 +141,20 @@ export default function DictSelectionPopup({ lessonId }) {
             hide();
         };
 
+        // With `position: fixed`, scrolling would leave the popup floating
+        // over the wrong content. Re-anchor by re-evaluating from the live
+        // selection rect (rather than hiding outright, so the user can
+        // still scroll a tiny bit without losing the popup).
+        const onScroll = () => onSelectionChange();
+
         document.addEventListener('selectionchange', onSelectionChange);
         document.addEventListener('mousedown',       onMouseDown);
+        window.addEventListener('scroll', onScroll, { passive: true, capture: true });
         return () => {
             if (raf) cancelAnimationFrame(raf);
             document.removeEventListener('selectionchange', onSelectionChange);
             document.removeEventListener('mousedown',       onMouseDown);
+            window.removeEventListener('scroll', onScroll, { capture: true });
         };
     }, [hide]);
 
