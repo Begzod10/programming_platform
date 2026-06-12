@@ -64,15 +64,27 @@ def _apply_scope(stmt, *, category_id=None, course_id=None, lesson_id=None):
 
 def _serialize(word: UserDictionary, pool: list[UserDictionary]) -> dict:
     distractors = [w for w in pool if w.id != word.id]
-    sample = random.sample(distractors, min(3, len(distractors)))
-    options = [word.word] + [d.word for d in sample]
+    # Word-side distractors (old direction: context → pick the word).
+    word_sample = random.sample(distractors, min(3, len(distractors)))
+    options = [word.word] + [d.word for d in word_sample]
     random.shuffle(options)
+
+    # Context-side distractors (new direction: word → pick its meaning).
+    # Filter to entries that actually have a context, otherwise the choice
+    # is meaningless. If we can't gather 3 real distractors we fall back
+    # to whatever we have; the FE can still render fewer choices.
+    ctx_pool = [w for w in distractors if (w.context or "").strip()]
+    ctx_sample = random.sample(ctx_pool, min(3, len(ctx_pool)))
+    context_options = [word.context or ""] + [d.context for d in ctx_sample]
+    random.shuffle(context_options)
+
     return {
         "id": word.id,
         "word": word.word,
         "context": word.context or "",
         "lesson_id": word.lesson_id,
         "options": options,
+        "context_options": context_options,
         # SRS state — surfaced so the UI can label cards
         # ("never reviewed", "fragile", etc.) in the queue preview.
         "interval_days": word.interval_days,

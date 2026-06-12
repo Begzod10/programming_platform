@@ -204,15 +204,35 @@ function QuizMode({ word, qpPass, onAnswer, request }) {
     );
 }
 
-/* MCQ — extracted so Quiz+ can mount it conditionally without duplicating
-   the option-grid markup. */
+/* MCQ — show the word, ask the student to pick its meaning. This is the
+   natural flashcard direction. For entries with no saved context we fall
+   back to the old "context → pick word" direction so the card is still
+   usable. */
 function MCQ({ word, onAnswer }) {
     const [picked, setPicked] = useState(null);
     useEffect(() => { setPicked(null); }, [word.id]);
 
+    // Decide direction once per word. Meaning-side MCQ needs a real context
+    // AND at least one extra distractor to be a fair test.
+    const ctxOpts = Array.isArray(word.context_options) ? word.context_options : [];
+    const meaningMode =
+        Boolean((word.context || '').trim()) &&
+        ctxOpts.filter(o => (o || '').trim()).length >= 2;
+
+    const prompt = meaningMode
+        ? "Bu so'zning ma'nosi qaysi?"
+        : "Bu ma'noga qaysi so'z mos keladi?";
+
+    const center = meaningMode
+        ? <span className="pr-quiz-word">{word.word}</span>
+        : (word.context || <em>Konteskt yo'q — taxminan tanlang</em>);
+
+    const opts = meaningMode ? ctxOpts : (word.options || []);
+    const correctValue = meaningMode ? word.context : word.word;
+
     const pick = (opt) => {
         if (picked !== null) return;
-        const correct = opt === word.word;
+        const correct = opt === correctValue;
         setPicked(opt);
         setTimeout(() => onAnswer({
             grade: correct ? 2 : 0,
@@ -222,13 +242,13 @@ function MCQ({ word, onAnswer }) {
 
     return (
         <>
-            <div className="pr-quiz-prompt">Bu ma'noga qaysi so'z mos keladi?</div>
-            <div className="pr-quiz-ctx">
-                {word.context || <em>Konteskt yo'q — taxminan tanlang</em>}
+            <div className="pr-quiz-prompt">{prompt}</div>
+            <div className={`pr-quiz-ctx ${meaningMode ? 'pr-quiz-ctx--word' : ''}`}>
+                {center}
             </div>
-            <div className="pr-quiz-opts">
-                {(word.options || []).map((opt) => {
-                    const isCorrect = opt === word.word;
+            <div className={`pr-quiz-opts ${meaningMode ? 'pr-quiz-opts--meanings' : ''}`}>
+                {opts.map((opt, idx) => {
+                    const isCorrect = opt === correctValue;
                     const isPicked = opt === picked;
                     const cls = picked === null
                         ? ''
@@ -239,7 +259,7 @@ function MCQ({ word, onAnswer }) {
                                 : 'pr-opt--dim';
                     return (
                         <button
-                            key={opt}
+                            key={`${idx}-${opt}`}
                             className={`pr-opt ${cls}`}
                             onClick={() => pick(opt)}
                             disabled={picked !== null}

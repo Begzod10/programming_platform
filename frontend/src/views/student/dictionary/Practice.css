@@ -504,6 +504,37 @@
 }
 .pr-opt--dim { opacity: 0.45; }
 
+/* ── Meaning-side MCQ: show the word large, list contexts as choices ─ */
+.pr-quiz-ctx--word {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    color: #0f172a;
+    margin: 18px 0 26px;
+    line-height: 1.2;
+    word-break: break-word;
+}
+.pr-quiz-ctx--word .pr-quiz-word {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(108, 92, 231, 0.12) 0%, rgba(108, 92, 231, 0.04) 100%);
+    border: 1px solid rgba(108, 92, 231, 0.22);
+}
+.pr-quiz-opts--meanings .pr-opt {
+    align-items: flex-start;
+    padding: 14px 18px;
+    font-size: 14.5px;
+    font-weight: 500;
+    line-height: 1.5;
+    white-space: normal;
+    word-break: break-word;
+}
+.pr-quiz-opts--meanings .pr-opt > span:first-child {
+    flex: 1;
+    text-align: left;
+}
+
 /* ── Typed (Spelling / Listening / Cloze) ─────────────────────────── */
 .pr-typed-hint {
     font-size: 11.5px;
