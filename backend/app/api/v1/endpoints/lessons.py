@@ -794,15 +794,14 @@ async def get_lesson_submission(
     grade = project.grade if project else None
     feedback = project.instructor_feedback if project else None
     reviewed = proj_status in ("Approved", "Rejected")
-    # Two paths to "passed":
-    #   1. Teacher approved — their verdict is the gate, score is informational.
-    #   2. AI graded only (Under Review / Submitted) but score is high enough
-    #      that we don't need to wait for a teacher to release the lesson.
-    # Rejected always fails regardless of score.
+    # Pass = score clears the threshold AND status isn't an explicit fail/draft.
+    # The teacher's "Approved" action alone is NOT a pass signal — the review
+    # endpoint marks every reviewed project Approved regardless of score, so
+    # we trust the points they entered as the real verdict (matches what the
+    # student sees in the "X/100" badge).
     passed = (
-        proj_status == "Approved"
-        or (proj_status not in ("Rejected", "Draft")
-            and points_earned >= PROJECT_PASS_THRESHOLD)
+        points_earned >= PROJECT_PASS_THRESHOLD
+        and proj_status not in ("Rejected", "Draft")
     )
     can_resubmit = reviewed and not passed
 

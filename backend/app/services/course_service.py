@@ -428,12 +428,13 @@ class CourseService:
             if status in ("Approved", "Rejected"):
                 reviewed += 1
                 sum_points += points
-            # Mirror lessons.py: teacher's Approve is the gate; otherwise the
-            # auto-pass threshold (75 = B grade) clears it. Rejected never
-            # counts as passed.
-            if status == "Approved" or (
-                status not in ("Rejected", "Draft", None)
-                and points >= CourseService.PROJECT_PASS_THRESHOLD
+            # Mirror lessons.py: pass requires the score to clear the
+            # threshold (75 = B). Rejected/Draft never count as passed. The
+            # teacher's "Approved" alone is informational — the score they
+            # entered is the real verdict.
+            if (
+                points >= CourseService.PROJECT_PASS_THRESHOLD
+                and status not in ("Rejected", "Draft", None)
             ):
                 passed += 1
 
