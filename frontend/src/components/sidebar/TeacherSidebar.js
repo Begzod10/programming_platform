@@ -36,14 +36,15 @@ function TeacherSidebar({ activeTab, onLogout }) {
     });
 
     const menuItems = [
-        { id: 'profile',      label: 'Профиль',         icon: '👨‍🏫', section: 'main' },
-        { id: 'review',       label: 'Проверка работ',  icon: '📥',   section: 'main' },
-        { id: 'students',     label: 'Мои Студенты',    icon: '👥',   section: 'main' },
-        { id: 'courses',      label: 'Курсы',           icon: '📚',   section: 'main' },
-        { id: 'rankings',     label: 'Таблица лидеров', icon: '🏆',   section: 'insights' },
-        { id: 'certificates', label: 'Сертификаты',     icon: '🏅',   section: 'insights' },
-        { id: 'statistics',   label: 'Статистика',      icon: '📈',   section: 'insights' },
-        { id: 'feedback',     label: 'Отзывы',          icon: '⭐',   section: 'insights' },
+        { id: 'profile',        label: 'Профиль',         icon: '👨‍🏫', section: 'main' },
+        { id: 'review',         label: 'Проверка работ',  icon: '📥',   section: 'main' },
+        { id: 'students',       label: 'Мои Студенты',    icon: '👥',   section: 'main' },
+        { id: 'courses',        label: 'Курсы',           icon: '📚',   section: 'main' },
+        { id: 'rankings',       label: 'Таблица лидеров', icon: '🏆',   section: 'insights' },
+        { id: 'project-rating', label: 'Топ проектов',    icon: '🏗️',  section: 'insights' },
+        { id: 'certificates',   label: 'Сертификаты',     icon: '🏅',   section: 'insights' },
+        { id: 'statistics',     label: 'Статистика',      icon: '📈',   section: 'insights' },
+        { id: 'feedback',       label: 'Отзывы',          icon: '⭐',   section: 'insights' },
     ];
 
     const sections = [

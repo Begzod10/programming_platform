@@ -1,0 +1,38 @@
+/* Course-filter dropdown — sits inline with the period chips and matches
+   their height, but uses a neutral surface to signal "filter" vs "tab".
+   The rest of the leaderboard chrome comes from StudentRankings.css. */
+.tsr-course-select {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid var(--border-md, rgba(26, 26, 46, 0.13));
+    background: var(--surface-2, #f7f6ff);
+    color: var(--text-hi, #1a1a2e);
+    border-radius: 999px;
+    padding: 8px 36px 8px 16px;
+    font: 600 13px/1 'Space Grotesk', sans-serif;
+    cursor: pointer;
+    transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%231a1a2e' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    background-size: 11px;
+    max-width: 240px;
+    margin-left: auto;
+}
+.tsr-course-select:hover {
+    border-color: var(--accent, #6C5CE7);
+    background-color: #fff;
+}
+.tsr-course-select:focus-visible {
+    outline: none;
+    border-color: var(--accent, #6C5CE7);
+    box-shadow: 0 0 0 3px var(--accent-glow, rgba(108, 92, 231, 0.22));
+}
+
+@media (max-width: 720px) {
+    .tsr-course-select {
+        margin-left: 0;
+        max-width: 100%;
+        width: 100%;
+    }
+}

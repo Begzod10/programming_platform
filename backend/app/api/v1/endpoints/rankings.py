@@ -1,12 +1,163 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.services.ranking_service import RankingService
 from app.schemas.ranking import LeaderboardItem, MyRankingRead, RankingUpdate
 from app.models.user import Student
-from typing import List, Literal
+from typing import List, Literal, Optional
 
 router = APIRouter()
+
+
+# ── Project-only leaderboard ──────────────────────────────────────────
+# Window applies to projects.reviewed_at (falling back to submitted_at) so
+# the rankings reflect the work that landed inside the window — not just
+# total lifetime project points.
+_PROJECT_WINDOW_SQL = {
+    "all":   "",
+    "day":   "AND COALESCE(p.reviewed_at, p.submitted_at) >= NOW() - INTERVAL '1 day'",
+    "week":  "AND COALESCE(p.reviewed_at, p.submitted_at) >= NOW() - INTERVAL '7 days'",
+    "month": "AND COALESCE(p.reviewed_at, p.submitted_at) >= NOW() - INTERVAL '30 days'",
+}
+
+
+@router.get("/project-leaderboard")
+async def get_project_leaderboard(
+        period: Literal["all", "day", "week", "month"] = Query("all"),
+        course_id: Optional[int] = Query(None, description="Restrict ranking to a single course"),
+        search: Optional[str] = Query(None, description="Filter by username or full name (ILIKE)"),
+        skip: int = Query(0, ge=0),
+        limit: int = Query(50, ge=1, le=100),
+        db: AsyncSession = Depends(get_db),
+):
+    """Leaderboard ranked by SUM(projects.points_earned).
+
+    Only counts projects whose status is reviewed (Approved / Submitted /
+    Under Review). Draft and Rejected are excluded. Each row also carries
+    the student's strongest course in the window so the FE can render the
+    same "best_course +N" pill as the points-leaderboard.
+    """
+    window_clause = _PROJECT_WINDOW_SQL[period]
+    course_clause = "AND l.course_id = :course_id" if course_id is not None else ""
+    search_clause = (
+        "AND (st.username ILIKE :search OR COALESCE(st.full_name, '') ILIKE :search)"
+        if search else ""
+    )
+
+    params = {"skip": skip, "limit": limit}
+    if course_id is not None:
+        params["course_id"] = course_id
+    if search:
+        params["search"] = f"%{search.strip()}%"
+
+    # totals CTE: per-student aggregate within the window/course filter
+    sql = text(f"""
+        WITH project_rows AS (
+            SELECT
+                s.student_id,
+                p.points_earned,
+                l.course_id,
+                c.title AS course_title
+            FROM submissions s
+            JOIN projects p ON p.id = s.project_id
+            JOIN lessons  l ON l.id = s.lesson_id
+            JOIN courses  c ON c.id = l.course_id
+            WHERE p.status IN ('Approved', 'Submitted', 'Under Review')
+              {window_clause}
+              {course_clause}
+        ),
+        totals AS (
+            SELECT
+                pr.student_id,
+                SUM(pr.points_earned)::int           AS project_points,
+                COUNT(*)::int                        AS projects_count,
+                ROUND(AVG(pr.points_earned)::numeric, 1) AS avg_grade
+            FROM project_rows pr
+            GROUP BY pr.student_id
+        ),
+        per_course AS (
+            SELECT
+                pr.student_id,
+                pr.course_id,
+                pr.course_title,
+                SUM(pr.points_earned)::int AS course_points,
+                ROW_NUMBER() OVER (
+                    PARTITION BY pr.student_id
+                    ORDER BY SUM(pr.points_earned) DESC
+                ) AS course_rank
+            FROM project_rows pr
+            GROUP BY pr.student_id, pr.course_id, pr.course_title
+        ),
+        ranked AS (
+            SELECT
+                t.student_id,
+                st.username,
+                st.full_name,
+                st.avatar_url,
+                st.current_level,
+                t.project_points,
+                t.projects_count,
+                t.avg_grade,
+                pc.course_title AS best_course,
+                pc.course_points AS best_course_points,
+                RANK() OVER (ORDER BY t.project_points DESC, t.projects_count DESC) AS rank
+            FROM totals t
+            JOIN students st ON st.id = t.student_id
+            LEFT JOIN per_course pc
+                   ON pc.student_id = t.student_id AND pc.course_rank = 1
+            WHERE 1 = 1
+              {search_clause}
+        )
+        SELECT
+            rank, student_id, username, full_name, avatar_url, current_level,
+            project_points, projects_count, avg_grade,
+            best_course, best_course_points,
+            COUNT(*) OVER ()::int AS total_count
+        FROM ranked
+        ORDER BY rank ASC, project_points DESC
+        OFFSET :skip
+        LIMIT :limit
+    """)
+
+    rows = (await db.execute(sql, params)).mappings().all()
+    total = rows[0]["total_count"] if rows else 0
+    items = [
+        {
+            "rank":              r["rank"],
+            "student_id":        r["student_id"],
+            "username":          r["username"],
+            "full_name":         r["full_name"],
+            "avatar_url":        r["avatar_url"],
+            "current_level":     r["current_level"],
+            "project_points":    int(r["project_points"] or 0),
+            "projects_count":    int(r["projects_count"] or 0),
+            "avg_grade":         float(r["avg_grade"] or 0),
+            "best_course":       r["best_course"],
+            "best_course_points": int(r["best_course_points"] or 0) if r["best_course_points"] is not None else None,
+        }
+        for r in rows
+    ]
+    return {"items": items, "total": total, "period": period, "course_id": course_id}
+
+
+@router.get("/project-leaderboard/courses")
+async def list_courses_for_filter(
+        db: AsyncSession = Depends(get_db),
+):
+    """Lightweight courses list for the leaderboard's course-filter dropdown."""
+    sql = text("""
+        SELECT c.id, c.title
+        FROM courses c
+        WHERE EXISTS (
+            SELECT 1 FROM lessons l
+            JOIN submissions s ON s.lesson_id = l.id
+            WHERE l.course_id = c.id
+        )
+        ORDER BY c.title
+    """)
+    rows = (await db.execute(sql)).mappings().all()
+    return [{"id": r["id"], "title": r["title"]} for r in rows]
 
 
 # ========== STUDENT ENDPOINTS ==========

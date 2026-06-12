@@ -25,6 +25,7 @@ import TeacherStatistics        from './views/teacher/statistics/TeacherStatisti
 import TeacherFeedback          from './views/teacher/feedback/TeacherFeedback';
 import TeacherCertificates      from './views/teacher/TeacherCertificates/Teachercertificates';
 import TeacherStudentsRankings  from './views/teacher/StudentRankings/StudentRankings';
+import ProjectLeaderboard       from './views/shared/ProjectLeaderboard/ProjectLeaderboard';
 
 /* ─── helpers ─── */
 function RootRedirect() {
@@ -85,6 +86,7 @@ function AppRouter() {
                 <Route path="profile"                                     element={<StudentProfilePageWrapper />} />
                 <Route path="projects"                                    element={<MyProjects />} />
                 <Route path="rankings"                                    element={<Leaderboard />} />
+                <Route path="project-rating"                              element={<ProjectLeaderboard role="student" />} />
                 <Route path="degrees"                                     element={<Degrees />} />
                 <Route path="dictionary"                                  element={<Dictionary />} />
 
@@ -112,6 +114,7 @@ function AppRouter() {
                 <Route path="statistics"                                  element={<TeacherStatistics />} />
                 <Route path="feedback"                                    element={<TeacherFeedback />} />
                 <Route path="rankings"                                    element={<TeacherStudentsRankings />} /> {/* ← NEW */}
+                <Route path="project-rating"                              element={<ProjectLeaderboard role="teacher" />} />
 
                 {/* Курсы */}
                 <Route path="courses"                                     element={<TeacherCourses />} />

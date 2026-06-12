@@ -36,12 +36,13 @@ function Sidebar({ activeTab, onLogout, role }) {
     });
 
     const menuItems = [
-        { id: 'profile',    label: 'Профиль',     icon: '👤', section: 'main' },
-        { id: 'projects',   label: 'Мои Проекты', icon: '💻', section: 'main' },
-        { id: 'courses',    label: 'Курсы',       icon: '📚', section: 'main' },
-        { id: 'rankings',   label: 'Рейтинг',     icon: '🏆', section: 'main' },
-        { id: 'degrees',    label: 'Сертификаты', icon: '🎓', section: 'achievements' },
-        { id: 'dictionary', label: 'Словарь',     icon: '📖', section: 'achievements' },
+        { id: 'profile',        label: 'Профиль',     icon: '👤',  section: 'main' },
+        { id: 'projects',       label: 'Мои Проекты', icon: '💻',  section: 'main' },
+        { id: 'courses',        label: 'Курсы',       icon: '📚',  section: 'main' },
+        { id: 'rankings',       label: 'Рейтинг',     icon: '🏆',  section: 'main' },
+        { id: 'project-rating', label: 'Топ проектов', icon: '🏗️', section: 'main' },
+        { id: 'degrees',        label: 'Сертификаты', icon: '🎓',  section: 'achievements' },
+        { id: 'dictionary',     label: 'Словарь',     icon: '📖',  section: 'achievements' },
     ];
 
     const sections = [
