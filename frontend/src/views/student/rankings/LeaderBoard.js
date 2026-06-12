@@ -3,10 +3,10 @@ import './LeaderBoard.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 
 const TABS = [
-    { key: 'all',     label: 'Barcha vaqt', icon: '∞' },
-    { key: 'monthly', label: 'Oy',           icon: '◑' },
-    { key: 'weekly',  label: 'Hafta',        icon: '◔' },
-    { key: 'daily',   label: 'Bugun',        icon: '○' },
+    { key: 'all',     label: 'Всё время',     icon: '∞' },
+    { key: 'monthly', label: 'Месяц',         icon: '◑' },
+    { key: 'weekly',  label: 'Неделя',        icon: '◔' },
+    { key: 'daily',   label: 'Сегодня',       icon: '○' },
 ];
 
 const PODIUM_COLORS = [
@@ -73,7 +73,7 @@ export default function Leaderboard() {
         setError('');
         request(`${API_URL}v1/rankings/leaderboard?period=${period}&limit=50`, 'GET', null, headers())
             .then(res => setData(Array.isArray(res) ? res : []))
-            .catch(() => setError("Reytingni yuklab bo'lmadi"))
+            .catch(() => setError('Не удалось загрузить рейтинг'))
             .finally(() => setLoading(false));
     };
 
@@ -132,8 +132,8 @@ export default function Leaderboard() {
                     <div className="lb-title-block">
                         <span className="lb-trophy">🏆</span>
                         <div>
-                            <h2 className="lb-title">Reyting</h2>
-                            <p className="lb-subtitle">{data.length} ta talaba</p>
+                            <h2 className="lb-title">Рейтинг</h2>
+                            <p className="lb-subtitle">{data.length} студентов</p>
                         </div>
                     </div>
                     <div className="lb-tabs">
@@ -154,7 +154,7 @@ export default function Leaderboard() {
                 {myRank && (
                     <div className="lb-myrank">
                         <div className="lb-myrank-left">
-                            <span className="lb-myrank-label">Mening o'rnim</span>
+                            <span className="lb-myrank-label">Моё место</span>
                             <span className="lb-myrank-pos">{getMyRankValue()}</span>
                         </div>
                         <div className="lb-myrank-right">
@@ -171,20 +171,20 @@ export default function Leaderboard() {
                 {loading ? (
                     <div className="lb-state">
                         <div className="lb-spinner" />
-                        <p>Yuklanmoqda…</p>
+                        <p>Загрузка…</p>
                     </div>
                 ) : error ? (
                     <div className="lb-state lb-state--error">
                         <span className="lb-state-icon">⚠</span>
                         <p>{error}</p>
                         <button className="lb-retry" onClick={() => fetchRanking(activeTab)}>
-                            Qayta urinish
+                            Повторить
                         </button>
                     </div>
                 ) : data.length === 0 ? (
                     <div className="lb-state">
                         <span className="lb-state-icon">📭</span>
-                        <p>Hozircha ma'lumot yo'q</p>
+                        <p>Пока нет данных</p>
                     </div>
                 ) : (
                     <>
@@ -201,7 +201,7 @@ export default function Leaderboard() {
                         <div className="lb-list">
                             {rest.map((student, idx) => {
                                 const rank = student.rank ?? idx + 4;
-                                const name = student.full_name || student.username || 'Talaba';
+                                const name = student.full_name || student.username || 'Студент';
                                 const pts  = getPoints(student);
                                 const pct  = data.length > 0 ? (pts / (getPoints(data[0]) || 1)) * 100 : 0;
 
@@ -230,7 +230,7 @@ export default function Leaderboard() {
                                                 <div className="lb-item-meta">
                                                     {student.level && <span className="lb-badge">{student.level}</span>}
                                                     {student.projects_completed > 0 && (
-                                                        <span className="lb-badge lb-badge--dim">📁 {student.projects_completed} loyiha</span>
+                                                        <span className="lb-badge lb-badge--dim">📁 {student.projects_completed} проектов</span>
                                                     )}
                                                 </div>
                                             )}

@@ -333,6 +333,17 @@
 
 .tc-modal-actions { display: flex; gap: 12px; margin-top: 10px; }
 
+.tc-modal-error {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #b42323;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    font-weight: 600;
+    margin-top: 4px;
+}
+
 .tc-cancel-btn, .tc-save-btn {
     flex: 1; padding: 12px; border-radius: 12px;
     font-size: 15px; font-weight: 700;
@@ -343,6 +354,12 @@
 .tc-cancel-btn:hover { background: rgba(26,26,46,0.12); }
 .tc-save-btn { background: linear-gradient(135deg, #6c5ce7, #a29bfe); color: white; box-shadow: 0 4px 15px rgba(108,92,231,0.3); }
 .tc-save-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(108,92,231,0.45); }
+.tc-cancel-btn:disabled, .tc-save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
 
 /* ===== CHAPTERS MODAL ===== */
 .tc-chapter-list {

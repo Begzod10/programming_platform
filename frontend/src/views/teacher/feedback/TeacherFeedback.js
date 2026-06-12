@@ -58,8 +58,8 @@ function TeacherFeedback() {
                 if (cancelled) return;
                 setOverviewError(
                     e?.status === 403
-                        ? 'Bu kurs sizga tegishli emas.'
-                        : 'Ma\'lumotlarni yuklab bo\'lmadi.',
+                        ? 'Этот курс вам не принадлежит.'
+                        : 'Не удалось загрузить данные.',
                 );
             })
             .finally(() => { if (!cancelled) setOverviewLoading(false); });
@@ -109,17 +109,17 @@ function TeacherFeedback() {
     return (
         <div className="tfb-root">
             <header className="tfb-header">
-                <h1 className="tfb-title">📊 Darslar bo'yicha o'quvchilar bahosi</h1>
+                <h1 className="tfb-title">📊 Оценки студентов по урокам</h1>
                 <p className="tfb-subtitle">
-                    Har bir dars bo'yicha o'rtacha yulduz, javoblar soni va izohlar.
-                    Pastdagi reytingdagi darslarni qayta ko'rib chiqing.
+                    Средняя оценка, количество ответов и комментарии по каждому уроку.
+                    Обратите внимание на уроки с низким рейтингом.
                 </p>
             </header>
 
             {courseLoading ? (
-                <div className="tfb-empty">Yuklanmoqda...</div>
+                <div className="tfb-empty">Загрузка...</div>
             ) : courses.length === 0 ? (
-                <div className="tfb-empty">Sizda kurs yo'q.</div>
+                <div className="tfb-empty">У вас нет курсов.</div>
             ) : (
                 <>
                     <div className="tfb-course-tabs">
@@ -136,18 +136,18 @@ function TeacherFeedback() {
                     </div>
 
                     {overviewLoading ? (
-                        <div className="tfb-empty">Yuklanmoqda...</div>
+                        <div className="tfb-empty">Загрузка...</div>
                     ) : overviewError ? (
                         <div className="tfb-empty tfb-error">{overviewError}</div>
                     ) : !overview ? null : (
                         <>
                             <div className="tfb-summary">
                                 <div className="tfb-summary-card">
-                                    <div className="tfb-summary-label">Jami javoblar</div>
+                                    <div className="tfb-summary-label">Всего ответов</div>
                                     <div className="tfb-summary-value">{totalResponses}</div>
                                 </div>
                                 <div className="tfb-summary-card">
-                                    <div className="tfb-summary-label">Kurs o'rtacha</div>
+                                    <div className="tfb-summary-label">Средняя по курсу</div>
                                     <div className="tfb-summary-value">
                                         {courseAvg != null
                                             ? <><span className="tfb-rating-star">★</span> {courseAvg.toFixed(2)}</>
@@ -155,14 +155,14 @@ function TeacherFeedback() {
                                     </div>
                                 </div>
                                 <div className="tfb-summary-card">
-                                    <div className="tfb-summary-label">Darslar</div>
+                                    <div className="tfb-summary-label">Уроков</div>
                                     <div className="tfb-summary-value">{lessons.length}</div>
                                 </div>
                             </div>
 
                             {totalResponses === 0 ? (
                                 <div className="tfb-empty">
-                                    Hozircha hech kim baho qo'ymagan. Talabalar dars oxirida baholashlari mumkin.
+                                    Пока никто не оставил оценку. Студенты могут оценивать урок после прохождения.
                                 </div>
                             ) : (
                                 <div className="tfb-lessons">
@@ -203,7 +203,7 @@ function LessonRow({lesson, expanded, onToggle, comments, commentsLoading}) {
                         <strong>{average_rating != null ? average_rating.toFixed(2) : '—'}</strong>
                     </div>
                     <div className="tfb-lesson-stat tfb-lesson-count">
-                        {response_count} javob
+                        {response_count} ответов
                     </div>
                     <div className="tfb-lesson-arrow">{expanded ? '▾' : '▸'}</div>
                 </div>
@@ -228,11 +228,11 @@ function LessonRow({lesson, expanded, onToggle, comments, commentsLoading}) {
                     </div>
 
                     <div className="tfb-comments">
-                        <h4 className="tfb-comments-title">Oxirgi izohlar</h4>
+                        <h4 className="tfb-comments-title">Последние комментарии</h4>
                         {commentsLoading ? (
-                            <div className="tfb-empty-soft">Yuklanmoqda...</div>
+                            <div className="tfb-empty-soft">Загрузка...</div>
                         ) : !comments || comments.length === 0 ? (
-                            <div className="tfb-empty-soft">Izohlar yo'q.</div>
+                            <div className="tfb-empty-soft">Комментариев нет.</div>
                         ) : (
                             <ul className="tfb-comments-list">
                                 {comments.map(c => (
@@ -250,7 +250,7 @@ function LessonRow({lesson, expanded, onToggle, comments, commentsLoading}) {
                                         </div>
                                         {c.comment
                                             ? <p className="tfb-comment-text">{c.comment}</p>
-                                            : <p className="tfb-comment-text tfb-muted">— izoh yo'q —</p>}
+                                            : <p className="tfb-comment-text tfb-muted">— без комментария —</p>}
                                     </li>
                                 ))}
                             </ul>

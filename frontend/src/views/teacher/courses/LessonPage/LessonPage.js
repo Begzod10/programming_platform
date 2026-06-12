@@ -445,7 +445,19 @@ const LessonPage = ({ lesson, course, allLessons, onBack, onNavigate, onEdit, on
                                                     <div className="lp-file-name">{section.fileName}</div>
                                                     {section.fileSize && <div className="lp-file-size">{section.fileSize}</div>}
                                                 </div>
-                                                <button className="lp-file-download-btn">⬇ Скачать</button>
+                                                {section.fileUrl ? (
+                                                    <a
+                                                        className="lp-file-download-btn"
+                                                        href={section.fileUrl}
+                                                        download={section.fileName}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                    >⬇ Скачать</a>
+                                                ) : (
+                                                    <span className="lp-file-pending" title="Файл сохранён в метаданных, но не загружен на сервер">
+                                                        Не загружен
+                                                    </span>
+                                                )}
                                             </div>
                                         ) : (
                                             <div style={{ color: 'rgba(26,26,46,0.3)', fontSize: 13 }}>Файл не добавлен</div>

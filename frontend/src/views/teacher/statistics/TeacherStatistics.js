@@ -95,25 +95,30 @@ function TeacherStatistics() {
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) {
-            setError('Token topilmadi. Qayta kiring.');
+            setError('Сессия истекла. Войдите заново.');
             setLoading(false);
             return;
         }
 
         fetch(`${API_URL}v1/teacher/statistics`, {
-            headers: headers(), // [REFACTOR] Use shared headers()
+            headers: headers(),
         })
             .then((res) => {
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return res.json();
             })
             .then(setData)
-            .catch((err) => setError(err.message))
+            .catch(() => setError('Не удалось загрузить статистику'))
             .finally(() => setLoading(false));
     }, []);
 
     if (loading) return <div className="stats-loading">Загрузка статистики...</div>;
-    if (error) return <div className="stats-error">Ошибка: {error}</div>;
+    if (error) return (
+        <div className="stats-error">
+            <p>⚠ {error}</p>
+            <button onClick={() => window.location.reload()}>Повторить</button>
+        </div>
+    );
     if (!data) return null;
 
     return (

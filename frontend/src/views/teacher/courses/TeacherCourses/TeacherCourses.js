@@ -473,6 +473,8 @@ const TeacherCourses = () => {
     const [confirmCourse,    setConfirmCourse]    = useState(null);
     const [confirmLesson,    setConfirmLesson]    = useState(null);
     const [showCourseModal,  setShowCourseModal]  = useState(false);
+    const [savingCourse,     setSavingCourse]     = useState(false);
+    const [courseSaveError,  setCourseSaveError]  = useState('');
     const [showChapterModal, setShowChapterModal] = useState(false);
     const [editingCourse,    setEditingCourse]    = useState(null);
     const [assignCourse,     setAssignCourse]     = useState(null);
@@ -523,6 +525,20 @@ const TeacherCourses = () => {
     useEffect(() => {
         if (courseId) loadLessons(courseId);
     }, [courseId]); // eslint-disable-line
+
+    // Escape closes the course-create/edit modal (matching other modals in
+    // this view). Guarded so a save in flight can't be interrupted.
+    useEffect(() => {
+        if (!showCourseModal) return;
+        const onKey = (e) => {
+            if (e.key === 'Escape' && !savingCourse) {
+                setShowCourseModal(false);
+                setCourseSaveError('');
+            }
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [showCourseModal, savingCourse]);
 
     /* ── Exercise sync ── */
     const syncExercises = async (cId, lId, oldExercises, newExercises) => {
@@ -611,7 +627,11 @@ const TeacherCourses = () => {
         setShowCourseModal(true);
     };
     const saveCourse = () => {
-        if (!newCourse.title.trim() || !newCourse.description.trim()) return;
+        if (savingCourse) return; // guard against double-click
+        if (!newCourse.title.trim() || !newCourse.description.trim()) {
+            setCourseSaveError('Заполните название и описание');
+            return;
+        }
         const user = JSON.parse(localStorage.getItem('user') || '{}');
         const body = {
             title: newCourse.title,
@@ -626,20 +646,28 @@ const TeacherCourses = () => {
             // Empty string clears the assignment to "uncategorized".
             category_name: newCourse.category_name?.trim() || null,
         };
+        setSavingCourse(true);
+        setCourseSaveError('');
+        const onErr = () => setCourseSaveError('Не удалось сохранить курс. Попробуйте ещё раз.');
+        const finish = () => setSavingCourse(false);
         if (editingCourse) {
             request(`${API_URL}v1/courses/${editingCourse.id}`, 'PUT', JSON.stringify(body), headers())
                 .then(res => {
                     setCourses(cs => cs.map(c => sameId(c.id, editingCourse.id) ? { ...c, ...res, image: res.image_url || '' } : c));
                     setShowCourseModal(false);
                     loadCategories();
-                }).catch(() => {});
+                })
+                .catch(onErr)
+                .finally(finish);
         } else {
             request(`${API_URL}v1/courses/`, 'POST', JSON.stringify(body), headers())
                 .then(res => {
                     setCourses(cs => [...cs, { ...res, image: res.image_url || '', studentsCount: 0, lessons: [] }]);
                     setShowCourseModal(false);
                     loadCategories();
-                }).catch(() => {});
+                })
+                .catch(onErr)
+                .finally(finish);
         }
     };
     const toggleCoursePublish = (course, e) => {
@@ -879,7 +907,7 @@ const TeacherCourses = () => {
             )}
 
             {showCourseModal && ReactDOM.createPortal(
-                <div className="tc-modal-overlay" onClick={() => setShowCourseModal(false)}>
+                <div className="tc-modal-overlay" onClick={() => !savingCourse && setShowCourseModal(false)}>
                     <div className="tc-modal" onClick={e => e.stopPropagation()}>
                         <h3>{editingCourse ? '✏️ Редактировать курс' : '➕ Создать новый курс'}</h3>
                         <input placeholder="Название курса *" value={newCourse.title} onChange={e => setNewCourse(p => ({ ...p, title: e.target.value }))} />
@@ -896,9 +924,14 @@ const TeacherCourses = () => {
                         </select>
                         <input type="number" placeholder="Количество недель" value={newCourse.duration_weeks} onChange={e => setNewCourse(p => ({ ...p, duration_weeks: e.target.value }))} />
                         <input type="number" placeholder="Максимум баллов" value={newCourse.max_points} onChange={e => setNewCourse(p => ({ ...p, max_points: e.target.value }))} />
+                        {courseSaveError && (
+                            <div className="tc-modal-error" role="alert">⚠ {courseSaveError}</div>
+                        )}
                         <div className="tc-modal-actions">
-                            <button className="tc-cancel-btn" onClick={() => setShowCourseModal(false)}>Отмена</button>
-                            <button className="tc-save-btn" onClick={saveCourse}>{editingCourse ? 'Сохранить' : 'Создать'}</button>
+                            <button className="tc-cancel-btn" disabled={savingCourse} onClick={() => setShowCourseModal(false)}>Отмена</button>
+                            <button className="tc-save-btn" disabled={savingCourse} onClick={saveCourse}>
+                                {savingCourse ? 'Сохранение…' : (editingCourse ? 'Сохранить' : 'Создать')}
+                            </button>
                         </div>
                     </div>
                 </div>,
