@@ -575,6 +575,13 @@ async def complete_lesson(
     cert = await achievement_service.award_certificate(db, current_student.id, course_id)
     progress = await _calc_course_progress(db, course_id, current_student.id)
 
+    try:
+        from app.services.streak_service import bump_streak
+        await bump_streak(db, current_student.id)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+
     return {
         **result,
         **progress,

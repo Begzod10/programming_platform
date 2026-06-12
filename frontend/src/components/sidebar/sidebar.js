@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
 import { useTranslation } from '../../i18n/useTranslation';
+import StreakBadge from './StreakBadge';
 
 const COLLAPSED_KEY = 'sidebar:collapsed';
 
@@ -127,6 +128,8 @@ function Sidebar({ activeTab, onLogout, role }) {
                         <span className="sidebar-brand__sub">IT Platform</span>
                     </div>
                 </div>
+
+                <StreakBadge collapsed={isCollapsed} />
 
                 <nav className="sidebar-menu" aria-label="Главное меню">
                     {sections.map(sec => {

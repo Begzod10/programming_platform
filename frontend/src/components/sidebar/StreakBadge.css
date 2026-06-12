@@ -1,0 +1,155 @@
+/* ===== Streak Badge ===== */
+/* Sits between the sidebar brand and the menu — full-width when sidebar
+   is expanded, compact pill when collapsed. */
+
+.streak-badge {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    margin: 0 0 14px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(255, 138, 0, 0.18), rgba(255, 78, 0, 0.10));
+    border: 1px solid rgba(255, 138, 0, 0.28);
+    color: #ffd9b8;
+    position: relative;
+    z-index: 1;
+    font-family: 'Inter', sans-serif;
+    animation: streakIn 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes streakIn {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.streak-badge.is-dormant {
+    background: linear-gradient(135deg, rgba(120, 90, 60, 0.18), rgba(80, 60, 40, 0.10));
+    border-color: rgba(180, 140, 90, 0.22);
+    color: rgba(255, 217, 184, 0.72);
+}
+
+.streak-badge__flame-wrap {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: rgba(255, 138, 0, 0.18);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.streak-badge.is-live .streak-badge__flame-wrap {
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.14),
+        0 0 16px rgba(255, 140, 0, 0.45);
+}
+.streak-badge.is-dormant .streak-badge__flame-wrap {
+    background: rgba(120, 90, 60, 0.18);
+    filter: saturate(0.55);
+}
+
+.streak-badge__flame {
+    font-size: 18px;
+    line-height: 1;
+    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', 'Segoe UI Symbol', sans-serif;
+}
+.streak-badge.is-live .streak-badge__flame {
+    animation: streakFlicker 1.6s ease-in-out infinite alternate;
+}
+@keyframes streakFlicker {
+    from { transform: scale(1)    rotate(-2deg); }
+    to   { transform: scale(1.08) rotate(2deg); }
+}
+
+.streak-badge__alert {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #f87171;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 0 0 2px #14152b;
+    animation: streakPulse 1.6s ease-in-out infinite;
+}
+@keyframes streakPulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.18); }
+}
+
+.streak-badge__body {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+.streak-badge__count-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+.streak-badge__count {
+    font-weight: 800;
+    font-size: 15px;
+    line-height: 1;
+    color: #fff;
+    font-variant-numeric: tabular-nums;
+}
+.streak-badge__unit {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 217, 184, 0.7);
+    letter-spacing: 0.2px;
+}
+.streak-badge__sub {
+    font-size: 10.5px;
+    font-weight: 500;
+    color: rgba(255, 217, 184, 0.62);
+    letter-spacing: 0.1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.streak-badge.is-dormant .streak-badge__sub {
+    color: rgba(248, 113, 113, 0.85);
+    font-weight: 600;
+}
+
+/* ===== Collapsed mini variant ===== */
+
+.streak-badge--mini {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin: 0 0 12px;
+    padding: 6px 8px;
+    border-radius: 10px;
+}
+.streak-badge--mini .streak-badge__count {
+    font-size: 13px;
+}
+.streak-badge--mini .streak-badge__flame {
+    font-size: 14px;
+}
+
+/* ===== Mobile/tablet collapsed sidebar ===== */
+@media (max-width: 860px) {
+    .streak-badge {
+        padding: 6px 8px;
+        gap: 4px;
+        justify-content: center;
+        margin: 0 0 12px;
+    }
+    .streak-badge__body,
+    .streak-badge__flame-wrap { display: none; }
+    .streak-badge .streak-badge__flame { display: inline; font-size: 14px; }
+    .streak-badge .streak-badge__count { display: inline; font-size: 13px; }
+    .streak-badge__unit, .streak-badge__sub, .streak-badge__alert { display: none; }
+}

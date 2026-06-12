@@ -241,6 +241,21 @@ async def my_ranking(
     )
 
 
+@router.get("/my-streak")
+async def my_streak(
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db),
+):
+    """Daily-activity streak summary for the sidebar flame widget.
+
+    Returns the lazily-evaluated current streak (drops to 0 if the
+    student missed yesterday), longest-ever streak, and whether today
+    has already been credited.
+    """
+    from app.services.streak_service import get_streak
+    return await get_streak(db, current_student.id)
+
+
 @router.get("/my-stats")
 async def get_my_stats(
         current_student: Student = Depends(get_current_student),

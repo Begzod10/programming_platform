@@ -235,7 +235,14 @@ async def quiz_complete_session(
         current_user: Student = Depends(get_current_student)
 ):
     """5 ta so'z tugagandan so'ng seansni yakunlash va ochkoni hisoblash"""
-    return await dictionary_service.complete_session(session_id, current_user.id, db)
+    result = await dictionary_service.complete_session(session_id, current_user.id, db)
+    try:
+        from app.services.streak_service import bump_streak
+        await bump_streak(db, current_user.id)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+    return result
 
 
 # ─── KUNLIK TAKRORLASH APILAR (SWIPE & AI) ─────────

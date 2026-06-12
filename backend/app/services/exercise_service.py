@@ -291,6 +291,15 @@ async def submit_exercise(
 
     if is_correct:
         await _maybe_auto_complete_lesson(db, exercise.lesson_id, student_id)
+        # Streak only counts correct work — a wrong submission shouldn't
+        # protect the flame. Failures must be local to the streak system
+        # so they can't break the user-facing submission flow.
+        try:
+            from app.services.streak_service import bump_streak
+            await bump_streak(db, student_id)
+            await db.commit()
+        except Exception:
+            await db.rollback()
 
     return submission
 

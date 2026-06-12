@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional, TYPE_CHECKING
 import enum
 from sqlalchemy.orm import validates
 from sqlalchemy import (
-    String, Integer, Boolean, DateTime, Enum, Text, func, ForeignKey
+    String, Integer, Boolean, DateTime, Date, Enum, Text, func, ForeignKey
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -68,6 +68,14 @@ class Student(Base):
     )
     total_points: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     global_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # Daily-activity streak. Bumped by streak_service.bump_streak() whenever
+    # the student does meaningful work (exercise submit, lesson complete,
+    # project submit, dictionary quiz). Read-heavy field — denormalized on
+    # the row so the FE streak widget renders without a join.
+    current_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    longest_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_activity_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
     # Status fields
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
