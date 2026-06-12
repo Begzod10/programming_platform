@@ -3,10 +3,37 @@ import { useNavigate } from 'react-router-dom';
 import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
 
+const COLLAPSED_KEY = 'sidebar:collapsed';
+
+function ChevronIcon({ direction = 'left' }) {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{
+                transform: direction === 'right' ? 'rotate(180deg)' : 'none',
+                transition: 'transform 0.25s ease',
+                width: '100%',
+                height: '100%',
+            }}
+        >
+            <polyline points="15 6 9 12 15 18" />
+        </svg>
+    );
+}
+
 function Sidebar({ activeTab, onLogout, role }) {
     const navigate = useNavigate();
     const { request } = useHttp();
     const [isOpen, setIsOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(() => {
+        try { return localStorage.getItem(COLLAPSED_KEY) === '1'; }
+        catch { return false; }
+    });
 
     const menuItems = [
         { id: 'profile',    label: 'Профиль',     icon: '👤', section: 'main' },
@@ -27,6 +54,14 @@ function Sidebar({ activeTab, onLogout, role }) {
         setIsOpen(false);
     };
 
+    const toggleCollapsed = () => {
+        setIsCollapsed(prev => {
+            const next = !prev;
+            try { localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0'); } catch {}
+            return next;
+        });
+    };
+
     useEffect(() => {
         const onResize = () => { if (window.innerWidth > 600) setIsOpen(false); };
         window.addEventListener('resize', onResize);
@@ -45,6 +80,12 @@ function Sidebar({ activeTab, onLogout, role }) {
             });
     };
 
+    const sidebarClass = [
+        'sidebar',
+        isOpen ? 'open' : '',
+        isCollapsed ? 'collapsed' : '',
+    ].filter(Boolean).join(' ');
+
     return (
         <>
             <div className="sidebar-hamburger" onClick={() => setIsOpen(o => !o)}>
@@ -53,7 +94,17 @@ function Sidebar({ activeTab, onLogout, role }) {
                 <span style={{ transform: isOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none' }} />
             </div>
             <div className={`sidebar-overlay ${isOpen ? 'open' : ''}`} onClick={() => setIsOpen(false)} />
-            <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
+            <aside className={sidebarClass}>
+                <button
+                    type="button"
+                    className="sidebar-toggle"
+                    onClick={toggleCollapsed}
+                    aria-label={isCollapsed ? 'Развернуть меню' : 'Свернуть меню'}
+                    title={isCollapsed ? 'Развернуть' : 'Свернуть'}
+                >
+                    <ChevronIcon direction={isCollapsed ? 'right' : 'left'} />
+                </button>
+
                 <div className="sidebar-brand">
                     <div className="sidebar-brand__mark" aria-hidden="true">G</div>
                     <div className="sidebar-brand__text">
@@ -79,6 +130,7 @@ function Sidebar({ activeTab, onLogout, role }) {
                                                 className={`menu-item ${isActive ? 'active' : ''}`}
                                                 onClick={() => handleTabClick(item.id)}
                                                 aria-current={isActive ? 'page' : undefined}
+                                                title={isCollapsed ? item.label : undefined}
                                             >
                                                 <span className="menu-item__rail" aria-hidden="true" />
                                                 <span className="menu-item__icon" aria-hidden="true">{item.icon}</span>
@@ -92,7 +144,11 @@ function Sidebar({ activeTab, onLogout, role }) {
                     })}
                 </nav>
 
-                <button className="logout-btn-side" onClick={handleLogout}>
+                <button
+                    className="logout-btn-side"
+                    onClick={handleLogout}
+                    title={isCollapsed ? 'Выйти' : undefined}
+                >
                     <span className="logout-btn-side__icon" aria-hidden="true">🚪</span>
                     <span className="logout-btn-side__label">Выйти</span>
                 </button>
