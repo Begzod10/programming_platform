@@ -188,15 +188,24 @@ class StudentService:
             "all":   Student.total_points,
         }.get(period, Student.total_points)
 
+        # Teacher membership via an EXISTS-style subquery (each student
+        # appears once even when in multiple groups under this teacher) so
+        # the outer SELECT doesn't need DISTINCT — Postgres rejects ORDER BY
+        # on joined columns under SELECT DISTINCT.
+        teacher_students_subq = (
+            select(Student.id)
+            .join(Student.groups)
+            .where(Group.teacher_id == teacher_id)
+            .subquery()
+        )
+
         query = (
             select(Student)
             .options(
                 selectinload(Student.groups),
                 selectinload(Student.enrolled_courses),
             )
-            .join(Student.groups)
-            .where(Group.teacher_id == teacher_id)
-            .distinct()
+            .where(Student.id.in_(select(teacher_students_subq.c.id)))
         )
 
         if search:

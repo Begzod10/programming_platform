@@ -707,9 +707,10 @@ def _looks_like_keyword_stew(text: str) -> bool:
     """Reject AI outputs that are a list of bare terms rather than a sentence.
 
     Symptom we hit in prod: model echoes lesson keywords ("content appearance
-    behavior HTML structure tags Browser CSS …") instead of defining the word.
-    Heuristic: short token-soup with no verb-like Uzbek word AND fewer than 3
-    multi-letter words separated by spaces is almost certainly junk.
+    behavior HTML structure tags Browser CSS …") instead of defining the word,
+    or returns short comma-lists like "Frontend, Backend, JavaScript, HTML".
+    Heuristic: no Uzbek connective tissue (verb/copula/etc.) AND most tokens
+    are bare alpha terms → almost certainly stew.
     """
     s = (text or "").strip()
     if not s:
@@ -717,18 +718,24 @@ def _looks_like_keyword_stew(text: str) -> bool:
     # Strip leading/trailing quote chars the model sometimes wraps things in
     s = s.strip("\"'«»“”").strip()
     # A real sentence has spaces AND at least one of these Uzbek connective
-    # tokens (verb, copula, conjunction) — keyword soups have none of these.
+    # tokens (verb, copula) — keyword soups have none of these. Do NOT add
+    # weak conjunctions like "va"/"yoki": they appear in pure lists too
+    # ("HTML va CSS") and would let stew slip through.
     UZ_SIGNAL = (" — ", " bu ", " bo'l", " hisoblan", " ishlat",
                  " yaratil", " yordam", " uchun ", " sifatida", " ya'ni ",
-                 " bilan ", " orqali ", " ko'rsat", " saqla", " tasvirl")
+                 " bilan ", " orqali ", " ko'rsat", " saqla", " tasvirl",
+                 " qil", " bera", " beri", " maydon", " ramka", " degan ")
     has_signal = any(sig in s.lower() for sig in UZ_SIGNAL)
     if has_signal:
         return False
-    # No signal AND token-style soup (many short capitalised English words
-    # back-to-back) → reject.
-    tokens = s.split()
-    if len(tokens) >= 6:
-        alpha_only = [t for t in tokens if t.isalpha()]
+    # No signal — strip per-token punctuation (commas, periods) so
+    # "Frontend, Backend" counts as bare alpha tokens. Threshold lowered to
+    # 4 tokens so short comma-lists are caught too.
+    PUNCT = ",.;:!?·•«»\"'()[]{}—–-"
+    tokens = [t.strip(PUNCT) for t in s.split()]
+    tokens = [t for t in tokens if t]
+    if len(tokens) >= 4:
+        alpha_only = [t for t in tokens if t.replace("-", "").isalpha()]
         if alpha_only and len(alpha_only) / len(tokens) > 0.7:
             return True
     return False

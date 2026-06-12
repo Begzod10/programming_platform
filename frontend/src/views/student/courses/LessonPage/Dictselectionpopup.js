@@ -73,10 +73,11 @@ export default function DictSelectionPopup({ lessonId }) {
 
             if (!word || word.length < 2) { hide(); return; }
 
-            // Dictionary entries are meant to be a single word or a tight
-            // phrase, not a whole sentence. Mirrors the backend validation.
-            const tooLong  = word.length > 40;
-            const tooManyWords = word.split(/\s+/).length > 3;
+            // Dictionary entries are meant to be a word or a short phrase,
+            // not a whole sentence. Limits mirror the backend exactly
+            // (DictionaryCreate.word: max 80 chars + 6 words).
+            const tooLong  = word.length > 80;
+            const tooManyWords = word.split(/\s+/).length > 6;
 
             const anchor = elementFor(sel.anchorNode);
             const focus  = elementFor(sel.focusNode);
@@ -120,9 +121,9 @@ export default function DictSelectionPopup({ lessonId }) {
                 error:   false,
                 invalid: tooLong || tooManyWords,
                 invalidReason: tooLong
-                    ? "Juda uzun (40 belgigacha)"
+                    ? "Juda uzun (80 belgigacha)"
                     : tooManyWords
-                        ? "Faqat 1-3 ta so'z"
+                        ? "Faqat 1-6 ta so'z"
                         : null,
             });
         };
