@@ -72,15 +72,14 @@ async def add_word(
             if course_row:
                 course_title = course_row
 
+    # Global dedup per student: one entry per word, regardless of which lesson
+    # (or manual add) it was first saved from. Re-adding the same word from a
+    # different lesson silently returns the original row instead of creating a
+    # duplicate that pollutes the lug'at list.
     dup_q = select(UserDictionary).where(
         UserDictionary.student_id == current_user.id,
         func.lower(UserDictionary.word) == safe_word.lower(),
     )
-    if lesson_id is None:
-        dup_q = dup_q.where(UserDictionary.lesson_id.is_(None))
-    else:
-        dup_q = dup_q.where(UserDictionary.lesson_id == lesson_id)
-
     existing = (await db.execute(dup_q)).scalars().first()
     if existing:
         return existing
