@@ -61,6 +61,47 @@
     background: var(--header-bg);
     flex-shrink: 0;
 }
+
+/* ── Period chip row ─────────────────────────────────────────── */
+.tsr-period-row {
+    display: flex;
+    gap: 6px;
+    padding: 0 28px 16px;
+    flex-wrap: wrap;
+}
+.tsr-period-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.04);
+    color: rgba(255, 255, 255, 0.68);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease,
+                transform 0.05s ease, box-shadow 0.15s ease;
+}
+.tsr-period-chip:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.22);
+}
+.tsr-period-chip:active { transform: scale(0.97); }
+.tsr-period-chip.is-active {
+    background: linear-gradient(135deg, rgba(139, 123, 255, 0.32) 0%, rgba(91, 103, 255, 0.18) 100%);
+    border-color: rgba(139, 123, 255, 0.45);
+    color: #fff;
+    box-shadow: 0 6px 18px -8px rgba(91, 103, 255, 0.6);
+}
+.tsr-period-chip:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(139, 123, 255, 0.32);
+}
 .tsr-header-inner {
     display: flex;
     align-items: center;
@@ -454,6 +495,9 @@
     .tsr-search-wrap { width: 100%; }
     .tsr-search { width: 100%; }
     .tsr-search:focus { width: 100%; }
+    .tsr-period-row { padding: 0 18px 14px; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+    .tsr-period-row::-webkit-scrollbar { display: none; }
+    .tsr-period-chip { flex-shrink: 0; }
     .tsr-podium { padding: 24px 12px 0; }
     .tsr-avatar--lg { width: 46px; height: 46px; }
     .tsr-item { padding: 10px 18px; }

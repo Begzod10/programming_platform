@@ -18,20 +18,30 @@ from app.services.student_service import StudentService
 router = APIRouter()
 
 
+VALID_PERIODS = ("day", "week", "month", "all")
+
+
 @router.get("/rankings", response_model=TeacherStudentRankingList)
 async def get_students_rankings(
         skip: int = Query(0, ge=0),
         limit: int = Query(10, ge=1, le=100),
         search: str = Query(None),
+        period: str = Query(
+            "all",
+            description="day | week | month | all — which Ranking bucket to read",
+        ),
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
+    if period not in VALID_PERIODS:
+        period = "all"
     service = StudentService(db)
     return await service.get_teacher_students_ranking(
         current_teacher.id,
         skip=skip,
         limit=limit,
         search=search,
+        period=period,
     )
 
 

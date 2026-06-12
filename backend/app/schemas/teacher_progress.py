@@ -56,6 +56,10 @@ class TeacherStudentRanking(BaseModel):
     avatar_url: Optional[str] = None
     current_level: str
     total_points: int
+    # Points for the selected period (== total_points when period is 'all').
+    # Surfaced so the FE can render the bar relative to the visible window
+    # instead of lifetime totals.
+    period_points: int = 0
     global_rank: Optional[int] = None
     current_course: Optional[str] = None
     best_course: Optional[str] = None
@@ -65,5 +69,6 @@ class TeacherStudentRanking(BaseModel):
 
 class TeacherStudentRankingList(BaseModel):
     total: int
+    period: str = "all"
     items: List[TeacherStudentRanking]
     model_config = ConfigDict(from_attributes=True)

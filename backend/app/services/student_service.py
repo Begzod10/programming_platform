@@ -175,7 +175,19 @@ class StudentService:
             skip: int = 0,
             limit: int = 10,
             search: Optional[str] = None,
+            period: str = "all",
     ) -> dict:
+        # Map the period to the Ranking bucket column we sort + return on.
+        # 'all' reads from Student.total_points (lifetime) because the
+        # Ranking.total_points mirror can drift if a student exists without
+        # a Ranking row yet.
+        period_column = {
+            "day":   Ranking.daily_points,
+            "week":  Ranking.weekly_points,
+            "month": Ranking.monthly_points,
+            "all":   Student.total_points,
+        }.get(period, Student.total_points)
+
         query = (
             select(Student)
             .options(
@@ -198,11 +210,31 @@ class StudentService:
         total = await self.db.scalar(
             select(func.count()).select_from(query.subquery())
         ) or 0
-        
-        result = await self.db.execute(
-            query.order_by(Student.total_points.desc()).offset(skip).limit(limit)
-        )
+
+        # For period buckets we need Ranking joined; LEFT JOIN so students
+        # with no Ranking row still appear (treated as 0 points).
+        if period != "all":
+            query = (
+                query.outerjoin(Ranking, Ranking.student_id == Student.id)
+                .order_by(period_column.desc().nullslast(), Student.total_points.desc())
+            )
+        else:
+            query = query.order_by(Student.total_points.desc())
+
+        result = await self.db.execute(query.offset(skip).limit(limit))
         students = result.scalars().all()
+
+        # Side-load period points in one query keyed by student_id so we
+        # avoid N+1.
+        period_points_by_id: dict[int, int] = {}
+        if students and period != "all":
+            ids = [s.id for s in students]
+            rows = await self.db.execute(
+                select(Ranking.student_id, period_column).where(
+                    Ranking.student_id.in_(ids)
+                )
+            )
+            period_points_by_id = {sid: int(p or 0) for sid, p in rows.all()}
 
         items = []
         for student in students:
@@ -225,6 +257,12 @@ class StudentService:
                 # Current course is the first one (most recently added/active)
                 current_course = course_items[0]["course_title"]
 
+            total_pts = student.total_points or 0
+            if period == "all":
+                period_pts = total_pts
+            else:
+                period_pts = period_points_by_id.get(student.id, 0)
+
             items.append({
                 "student_id": student.id,
                 "username": student.username,
@@ -235,7 +273,8 @@ class StudentService:
                     if hasattr(student.current_level, "value")
                     else str(student.current_level)
                 ),
-                "total_points": student.total_points or 0,
+                "total_points": total_pts,
+                "period_points": period_pts,
                 "global_rank": student.global_rank,
                 "current_course": current_course,
                 "best_course": best_course,
@@ -244,6 +283,7 @@ class StudentService:
 
         return {
             "total": total,
+            "period": period,
             "items": items,
         }
 

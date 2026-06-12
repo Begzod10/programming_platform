@@ -4,6 +4,13 @@ import { API_URL, useHttp, headers } from '../../../api/search/base';
 
 const LIMIT = 50;
 
+const PERIOD_OPTIONS = [
+    { key: 'all',   label: 'Всё время' },
+    { key: 'month', label: 'В этом месяце' },
+    { key: 'week',  label: 'На неделе' },
+    { key: 'day',   label: 'Сегодня' },
+];
+
 const PODIUM_COLORS = [
     { bg: '#FFD93D', text: '#7A5800', glow: 'rgba(255,217,61,0.4)',  medal: '🥇', ring: 'conic-gradient(#ffd700,#ffec6e,#f9ca24,#e6b800,#ffd700)' },
     { bg: '#B8C4CC', text: '#3A4A52', glow: 'rgba(184,196,204,0.4)', medal: '🥈', ring: 'conic-gradient(#b2bec3,#dfe6e9,#9eaab0,#cdd5da,#b2bec3)' },
@@ -76,16 +83,18 @@ export default function TeacherStudentsRankings() {
     const [error,   setError]   = useState('');
     const [search,  setSearch]  = useState('');
     const [page,    setPage]    = useState(0);
+    const [period,  setPeriod]  = useState('all');
 
     const searchTimer = useRef(null);
     const bodyRef     = useRef(null);
 
-    const fetchData = (skip, searchVal) => {
+    const fetchData = (skip, searchVal, periodVal) => {
         setLoading(true);
         setError('');
         const q = searchVal ? `&search=${encodeURIComponent(searchVal)}` : '';
+        const p = `&period=${encodeURIComponent(periodVal || 'all')}`;
         request(
-            `${API_URL}v1/teacher/students/rankings?skip=${skip}&limit=${LIMIT}${q}`,
+            `${API_URL}v1/teacher/students/rankings?skip=${skip}&limit=${LIMIT}${q}${p}`,
             'GET', null, headers()
         )
             .then(res => { setItems(res.items || []); setTotal(res.total || 0); })
@@ -93,21 +102,35 @@ export default function TeacherStudentsRankings() {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { fetchData(0, ''); }, []);
+    useEffect(() => { fetchData(0, '', 'all'); }, []);
 
     const handleSearch = (e) => {
         const val = e.target.value;
         setSearch(val);
         setPage(0);
         clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => fetchData(0, val), 420);
+        searchTimer.current = setTimeout(() => fetchData(0, val, period), 420);
+    };
+
+    const handlePeriod = (next) => {
+        if (next === period) return;
+        setPeriod(next);
+        setPage(0);
+        fetchData(0, search, next);
+        bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handlePage = (p) => {
         setPage(p);
-        fetchData(p * LIMIT, search);
+        fetchData(p * LIMIT, search, period);
         bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     };
+
+    // When the teacher selects a time-period, use that period's points for
+    // ranking display so the bar reflects the visible window — not lifetime.
+    const ptsOf = (s) => period === 'all'
+        ? (s.total_points ?? 0)
+        : (s.period_points ?? 0);
 
     const top3 = items.slice(0, 3);
     const rest = items.slice(3);
@@ -115,8 +138,10 @@ export default function TeacherStudentsRankings() {
         ? [{ s: top3[1], rank: 2 }, { s: top3[0], rank: 1 }, { s: top3[2], rank: 3 }]
         : top3.map((s, i) => ({ s, rank: i + 1 }));
 
-    const maxPts   = items[0]?.total_points || 1;
-    const showPodium = page === 0 && !search && top3.length >= 1;
+    const maxPts = ptsOf(items[0] || {}) || 1;
+    // Hide the podium when filtering by a short window — too many ties at 0
+    // make the gold/silver/bronze treatment misleading.
+    const showPodium = period === 'all' && page === 0 && !search && top3.length >= 1;
 
     const pages = Math.ceil(total / LIMIT);
     const pageButtons = () => {
@@ -138,7 +163,7 @@ export default function TeacherStudentsRankings() {
                         <div>
                             <h2 className="tsr-title">Таблица лидеров</h2>
                             <p className="tsr-subtitle">
-                                {total > 0 ? `${total} студентов` : 'Рейтинг по баллам'}
+                                {total > 0 ? `${total} студентов · ${PERIOD_OPTIONS.find(p => p.key === period)?.label || ''}` : 'Рейтинг по баллам'}
                             </p>
                         </div>
                     </div>
@@ -152,9 +177,23 @@ export default function TeacherStudentsRankings() {
                             onChange={handleSearch}
                         />
                         {search && (
-                            <button className="tsr-search-clear" onClick={() => { setSearch(''); fetchData(0, ''); setPage(0); }}>✕</button>
+                            <button className="tsr-search-clear" onClick={() => { setSearch(''); fetchData(0, '', period); setPage(0); }}>✕</button>
                         )}
                     </div>
+                </div>
+                <div className="tsr-period-row" role="tablist" aria-label="Период">
+                    {PERIOD_OPTIONS.map(opt => (
+                        <button
+                            key={opt.key}
+                            type="button"
+                            role="tab"
+                            aria-selected={period === opt.key}
+                            className={`tsr-period-chip ${period === opt.key ? 'is-active' : ''}`}
+                            onClick={() => handlePeriod(opt.key)}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -172,7 +211,7 @@ export default function TeacherStudentsRankings() {
                     <div className="tsr-state tsr-state--error">
                         <span className="tsr-state-icon">⚠️</span>
                         <p>{error}</p>
-                        <button className="tsr-retry" onClick={() => fetchData(page * LIMIT, search)}>Повторить</button>
+                        <button className="tsr-retry" onClick={() => fetchData(page * LIMIT, search, period)}>Повторить</button>
                     </div>
                 )}
 
@@ -197,9 +236,13 @@ export default function TeacherStudentsRankings() {
                         {/* ── LIST ── */}
                         <div className="tsr-list">
                             {listItems.map((s, idx) => {
-                                const rank   = s.global_rank ?? (page * LIMIT + (showPodium ? idx + 4 : idx + 1));
+                                // When filtering by period, rank by visible-window points order;
+                                // global_rank is lifetime and would be misleading here.
+                                const rank   = period === 'all'
+                                    ? (s.global_rank ?? (page * LIMIT + (showPodium ? idx + 4 : idx + 1)))
+                                    : (page * LIMIT + idx + 1);
                                 const name   = s.full_name || s.username || 'Студент';
-                                const pts    = s.total_points ?? 0;
+                                const pts    = ptsOf(s);
                                 const pct    = Math.min(100, (pts / maxPts) * 100);
                                 const bestPts = s.best_course_points;
 
