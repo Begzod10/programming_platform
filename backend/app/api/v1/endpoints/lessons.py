@@ -339,15 +339,18 @@ async def get_lessons(
     # payload — it doesn't call the detail endpoint per click — so the
     # full set of natural-language fields has to be translated here.
     # Each lesson is wrapped in try/except so one slow/AI failure can't
-    # take down the whole course list.
+    # take down the whole course list. The whole phase is also capped at
+    # a hard wall-clock budget so a slow AI never 504s the catalogue.
     if lang:
+        import asyncio as _asyncio
         from app.services.translation_service import (
             translate_fields, translate_json_blob,
         )
-        for lesson, dto in zip(lessons, result):
+
+        async def _translate_one(lesson, dto):
             src_lang = getattr(lesson, "source_lang", None) or "uz"
             if lang == src_lang:
-                continue
+                return
             try:
                 translated = await translate_fields(
                     db,
@@ -384,7 +387,20 @@ async def get_lessons(
                 # Don't let a missing translation_cache table or an AI
                 # failure 500 the entire course list — just serve this
                 # lesson in its source language.
-                continue
+                return
+
+        try:
+            await _asyncio.wait_for(
+                _asyncio.gather(
+                    *[_translate_one(l, d) for l, d in zip(lessons, result)],
+                    return_exceptions=True,
+                ),
+                timeout=12.0,
+            )
+        except _asyncio.TimeoutError:
+            # Past the budget — ship whatever was translated already and
+            # the rest stays in the source language. Better than a 504.
+            pass
 
     return result
 

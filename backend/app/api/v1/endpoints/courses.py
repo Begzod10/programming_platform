@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -8,6 +10,14 @@ from fastapi import APIRouter, Depends, Query, HTTPException, status, UploadFile
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+
+logger = logging.getLogger(__name__)
+
+# Hard wall-clock cap on the total time spent translating a catalogue
+# response. Past this we bail and ship the source-language text rather
+# than letting the gateway 504 — a slightly mistranslated card beats a
+# blank page.
+CATALOGUE_TRANSLATION_BUDGET_S = 8.0
 
 from app.config import settings
 from app.services.course_service import CourseService
@@ -110,8 +120,26 @@ async def get_courses(
     courses = result.scalars().all()
 
     dtos = [await CourseService.build_dto(db, c, student_id) for c in courses]
-    for c, dto in zip(courses, dtos):
-        await _translate_course_dto(db, dto, c, lang)
+
+    # Parallel translation across the catalogue + a hard timeout. The old
+    # version awaited each course's translation sequentially — 12 courses
+    # × multi-second AI calls put the request well past Nginx's 30s window
+    # and returned 504. asyncio.gather + a single wait_for keeps the total
+    # latency bounded by the slowest single call.
+    if lang:
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(
+                    *[_translate_course_dto(db, dto, c, lang) for c, dto in zip(courses, dtos)],
+                    return_exceptions=True,
+                ),
+                timeout=CATALOGUE_TRANSLATION_BUDGET_S,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "courses: translation budget exceeded (%.1fs) for lang=%s — "
+                "returning source strings", CATALOGUE_TRANSLATION_BUDGET_S, lang,
+            )
     return dtos
 
 

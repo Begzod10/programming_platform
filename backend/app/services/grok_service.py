@@ -316,6 +316,45 @@ def _strip_outer_quotes(s: str) -> str:
     return s
 
 
+async def _call_openai_translate(
+    prompt: str, *, is_json: bool = False,
+) -> Optional[str]:
+    """Direct OpenAI call tuned for translation.
+
+    Translation is quality-sensitive and predictable in shape, so we skip
+    the Grok→Gemini→OpenAI fallback chain (which often retries multiple
+    slow providers before settling) and hit gpt-4.1 directly. This keeps
+    p95 latency tight enough for the catalogue endpoint to fit inside a
+    single request budget.
+    """
+    if not settings.OPENAI_API_KEY:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=30.0, proxy=settings.HTTP_PROXY or None) as client:
+            payload = {
+                "model": "gpt-4.1",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.1,
+                "max_tokens": 2000,
+            }
+            if is_json:
+                payload["response_format"] = {"type": "json_object"}
+            response = await client.post(
+                settings.openai_chat_url,
+                headers={
+                    "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            if response.status_code != 200:
+                return None
+            return response.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        print(f"OpenAI translate xato: {e}")
+        return None
+
+
 async def translate_text_with_ai(
     text: str,
     *,
@@ -385,7 +424,11 @@ SOURCE:
 {src}
 """
 
-    result = await _ask_ai(prompt)
+    # Translation goes straight to GPT-4.1 (premium model, no fallback
+    # chain) — quality matters more than provider redundancy here, and the
+    # fallback chain often blocks for 10+ s waiting on a degraded Grok
+    # before settling on OpenAI anyway.
+    result = await _call_openai_translate(prompt, is_json=is_json)
     if not result:
         return None
     out = result.strip()
