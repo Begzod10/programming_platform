@@ -1,11 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 from typing import List, Optional
 import json
 import logging
 
 from app.models.exercise import Exercise, ExerciseSubmission
+from app.models.lesson import Lesson, LessonCompletion
 from app.schemas.exercise import ExerciseCreate, ExerciseUpdate, ExerciseSubmitRequest
 from app.services.grok_service import ProviderError, call_chain, parse_ai_json
 
@@ -286,7 +288,68 @@ async def submit_exercise(
     db.add(submission)
     await db.commit()
     await db.refresh(submission)
+
+    if is_correct:
+        await _maybe_auto_complete_lesson(db, exercise.lesson_id, student_id)
+
     return submission
+
+
+async def _maybe_auto_complete_lesson(
+        db: AsyncSession,
+        lesson_id: int,
+        student_id: int,
+) -> None:
+    """Insert LessonCompletion if a project-less lesson is fully solved.
+
+    Triggered after a correct ExerciseSubmission. For lessons that have a
+    project (task_title or project_id set), completion is driven by the
+    project-submit flow instead — this is a no-op there.
+    """
+    lesson_res = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
+    lesson = lesson_res.scalar_one_or_none()
+    if lesson is None or lesson.has_project:
+        return
+
+    existing = await db.execute(
+        select(LessonCompletion).where(
+            LessonCompletion.student_id == student_id,
+            LessonCompletion.lesson_id == lesson_id,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        return
+
+    ex_ids_rows = await db.execute(
+        select(Exercise.id).where(Exercise.lesson_id == lesson_id)
+    )
+    ex_ids = [r[0] for r in ex_ids_rows.all()]
+    if not ex_ids:
+        return
+
+    correct_rows = await db.execute(
+        select(ExerciseSubmission.exercise_id)
+        .where(
+            ExerciseSubmission.student_id == student_id,
+            ExerciseSubmission.exercise_id.in_(ex_ids),
+            ExerciseSubmission.is_correct == True,
+        )
+        .distinct()
+    )
+    correct_ids = {r[0] for r in correct_rows.all()}
+    if len(correct_ids) < len(ex_ids):
+        return
+
+    db.add(LessonCompletion(student_id=student_id, lesson_id=lesson_id))
+    if lesson.points_reward and lesson.points_reward > 0:
+        from app.services.ranking_service import RankingService
+        await RankingService(db).add_points_to_student(student_id, lesson.points_reward)
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Concurrent request inserted the completion first — fine, rollback the
+        # extra points award via the unique constraint hit.
+        await db.rollback()
 
 
 async def get_my_submissions(db: AsyncSession, student_id: int, exercise_id: int) -> List[ExerciseSubmission]:

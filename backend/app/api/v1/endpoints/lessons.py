@@ -329,17 +329,96 @@ async def delete_lesson(
 #  LESSON COMPLETION
 # ─────────────────────────────────────────────────────────────────────────────
 
+async def _check_completion_gate(
+        db: AsyncSession,
+        lesson: Lesson,
+        student_id: int,
+) -> None:
+    """Raise 400 if the student hasn't met the requirements to complete this lesson.
+
+    Gate rules:
+      - Lesson has a project: a non-Draft Submission must exist for this lesson.
+      - Lesson has no project: every exercise in the lesson must have at least
+        one correct ExerciseSubmission by this student.
+    """
+    from app.models.exercise import Exercise, ExerciseSubmission
+
+    if lesson.has_project:
+        sub_res = await db.execute(
+            select(Submission.status)
+            .where(
+                Submission.lesson_id == lesson.id,
+                Submission.student_id == student_id,
+            )
+        )
+        statuses = [s for (s,) in sub_res.all()]
+        if not any(st and st != "Draft" for st in statuses):
+            raise HTTPException(
+                status_code=400,
+                detail="Avval shu darsning loyihasini topshiring",
+            )
+        return
+
+    ex_ids_rows = await db.execute(
+        select(Exercise.id).where(Exercise.lesson_id == lesson.id)
+    )
+    ex_ids = [r[0] for r in ex_ids_rows.all()]
+    if not ex_ids:
+        # Project-less, exercise-less lesson — nothing to gate on. The teacher
+        # might mark it complete from another path; we don't block here.
+        return
+
+    correct_rows = await db.execute(
+        select(ExerciseSubmission.exercise_id)
+        .where(
+            ExerciseSubmission.student_id == student_id,
+            ExerciseSubmission.exercise_id.in_(ex_ids),
+            ExerciseSubmission.is_correct == True,
+        )
+        .distinct()
+    )
+    correct_ids = {r[0] for r in correct_rows.all()}
+    missing = len(ex_ids) - len(correct_ids)
+    if missing > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Hali {missing} ta mashq to'g'ri yechilmagan",
+        )
+
+
 @router.post("/lessons/{lesson_id}/complete")
 async def complete_lesson(
         lesson_id: int,
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    lesson_lookup = await db.execute(select(Lesson.course_id).where(Lesson.id == lesson_id))
-    course_id_row = lesson_lookup.scalar_one_or_none()
-    if course_id_row is None:
+    lesson_res = await db.execute(select(Lesson).where(Lesson.id == lesson_id))
+    lesson = lesson_res.scalar_one_or_none()
+    if lesson is None:
         raise HTTPException(status_code=404, detail="Dars topilmadi")
-    await _ensure_enrolled(db, current_student.id, course_id_row)
+    await _ensure_enrolled(db, current_student.id, lesson.course_id)
+
+    # Idempotent: if already complete, return success without re-awarding points.
+    existing = await db.execute(
+        select(LessonCompletion).where(
+            LessonCompletion.student_id == current_student.id,
+            LessonCompletion.lesson_id == lesson_id,
+        )
+    )
+    already = existing.scalar_one_or_none()
+    if already is not None:
+        progress = await _calc_course_progress(db, lesson.course_id, current_student.id)
+        cert = await achievement_service.award_certificate(db, current_student.id, lesson.course_id)
+        return {
+            "message": "Dars allaqachon tugatilgan",
+            "course_id": lesson.course_id,
+            "already_completed": True,
+            **progress,
+            "certificate_issued": cert is not None,
+            "certificate_id": cert.id if cert else None,
+        }
+
+    await _check_completion_gate(db, lesson, current_student.id)
 
     result = await lesson_service.complete_lesson(db, lesson_id, current_student.id)
     course_id = result.get("course_id")

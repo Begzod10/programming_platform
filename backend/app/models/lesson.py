@@ -93,6 +93,20 @@ class Lesson(Base):
     def __repr__(self) -> str:
         return f"<Lesson(id={self.id}, title={self.title}, course_id={self.course_id})>"
 
+    @property
+    def has_project(self) -> bool:
+        """True if this lesson asks the student to submit a project.
+
+        Used by the lesson-completion gate to decide how to unlock the next
+        lesson:
+          - has_project=True  → require a Submission (not Draft/Rejected)
+          - has_project=False → require every exercise correctly answered
+        """
+        if self.project_id is not None:
+            return True
+        title = (self.task_title or "").strip()
+        return bool(title)
+
 
 class LessonCompletion(Base):
     """Dars tugatilganligini kuzatish"""
