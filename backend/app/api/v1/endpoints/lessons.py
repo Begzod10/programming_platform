@@ -205,6 +205,29 @@ async def _subtract_points(db: AsyncSession, student_id: int, points: int) -> in
     return student.total_points if student else 0
 
 
+async def _try_auto_ai_review(db: AsyncSession, project: Project) -> None:
+    """Best-effort AI grading after a lesson project is submitted.
+
+    Wrapped here so a missing key, an HTTP timeout, or a malformed AI
+    response can never break the student's submission flow. Logs the
+    failure and lets the project sit at status="Submitted" for the
+    teacher to review manually.
+    """
+    if project is None or not project.github_url:
+        return
+    try:
+        # Lazy import — keeps the cold-start cost out of lessons module
+        # load and avoids circular import via the projects router.
+        from app.services.ai_review_service import run_ai_review_for_project
+        await run_ai_review_for_project(db, project, raise_on_error=False)
+    except Exception:
+        # Service returns a {"success": False} dict on its known failure
+        # modes; an uncaught exception here means something truly unexpected
+        # (e.g. network library blew up). Swallow and let the teacher
+        # review path keep working.
+        pass
+
+
 # Minimum project score (0-100) to unlock the next lesson WHEN the teacher
 # hasn't explicitly approved yet (status="Under Review"). Matches the B-grade
 # bucket in the AI prompt ("Yaxshi: asosiy funksional ishlaydi"). A teacher's
@@ -677,6 +700,11 @@ async def submit_lesson_project(
 
         await db.commit()
 
+        # Re-run AI on resubmission too so a fresh attempt gets graded
+        # without waiting on a teacher. The service handles the previous
+        # points reversal internally.
+        await _try_auto_ai_review(db, existing_project)
+
         student_res = await db.execute(
             select(Student).where(Student.id == current_student.id)
         )
@@ -744,6 +772,12 @@ async def submit_lesson_project(
         # the row lock holding), turn the DB error into a clean 400.
         await db.rollback()
         raise HTTPException(status_code=400, detail="Bu dars allaqachon topshirilgan")
+
+    # Auto-trigger AI review so GitHub-URL submissions don't wait for a
+    # teacher just to get a first grade. raise_on_error=False keeps any AI
+    # failure from breaking the submission: project stays at "Submitted"
+    # / "На проверке" and the teacher can review manually.
+    await _try_auto_ai_review(db, new_project)
 
     cert = await achievement_service.award_certificate(db, current_student.id, course_id)
 
