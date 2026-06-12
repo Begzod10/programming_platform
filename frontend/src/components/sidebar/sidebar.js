@@ -36,17 +36,18 @@ function Sidebar({ activeTab, onLogout, role }) {
     });
 
     const menuItems = [
-        { id: 'profile',        label: 'Профиль',     icon: '👤',  section: 'main' },
-        { id: 'projects',       label: 'Мои Проекты', icon: '💻',  section: 'main' },
-        { id: 'courses',        label: 'Курсы',       icon: '📚',  section: 'main' },
-        { id: 'rankings',       label: 'Рейтинг',     icon: '🏆',  section: 'main' },
-        { id: 'project-rating', label: 'Топ проектов', icon: '🏗️', section: 'main' },
-        { id: 'degrees',        label: 'Сертификаты', icon: '🎓',  section: 'achievements' },
-        { id: 'dictionary',     label: 'Словарь',     icon: '📖',  section: 'achievements' },
+        { id: 'profile',        label: 'Профиль',         icon: '👤',  section: 'main' },
+        { id: 'projects',       label: 'Мои Проекты',     icon: '💻',  section: 'main' },
+        { id: 'courses',        label: 'Курсы',           icon: '📚',  section: 'main' },
+        { id: 'dictionary',     label: 'Словарь',         icon: '📖',  section: 'main' },
+        { id: 'rankings',       label: 'Таблица лидеров', icon: '🏆',  section: 'insights' },
+        { id: 'project-rating', label: 'Топ проектов',    icon: '🏗️', section: 'insights' },
+        { id: 'degrees',        label: 'Сертификаты',     icon: '🎓',  section: 'achievements' },
     ];
 
     const sections = [
         { key: 'main',         title: 'Обучение' },
+        { key: 'insights',     title: 'Аналитика' },
         { key: 'achievements', title: 'Достижения' },
     ];
 
