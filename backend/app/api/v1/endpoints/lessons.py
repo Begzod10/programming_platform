@@ -238,6 +238,63 @@ PROJECT_PASS_THRESHOLD = 75
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+#  STUDENT LESSON FILE DOWNLOAD
+# ─────────────────────────────────────────────────────────────────────────────
+# Matches the URL the FE has always been calling. The earlier file-download
+# endpoint (further down, /{lesson_id}/files/{file_id}/download) is
+# instructor-only and keyed on file_id; the FE only has file_name from the
+# lesson sections payload, so it needs this name-keyed counterpart with
+# get_current_student auth + enrolment check.
+
+@router.get("/courses/{course_id}/lessons/{lesson_id}/download")
+async def download_lesson_file_for_student(
+        course_id: int,
+        lesson_id: int,
+        file_name: str,
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db),
+):
+    # Validate the lesson belongs to the course before checking enrolment so
+    # cross-course downloads can't sneak through a forged course_id.
+    lesson_res = await db.execute(
+        select(Lesson).where(Lesson.id == lesson_id)
+    )
+    lesson = lesson_res.scalar_one_or_none()
+    if not lesson or lesson.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Dars topilmadi")
+
+    await _ensure_enrolled(db, current_student.id, course_id)
+
+    # Lookup is keyed on the original filename the student sees in the
+    # lesson section. Multiple uploads with the same display name pick the
+    # newest by created_at, mirroring how the FE renders them.
+    file_row = (
+        await db.execute(
+            select(LessonFile)
+            .where(
+                LessonFile.lesson_id == lesson_id,
+                LessonFile.original_name == file_name,
+            )
+            .order_by(LessonFile.created_at.desc())
+        )
+    ).scalars().first()
+    if not file_row:
+        raise HTTPException(status_code=404, detail="Fayl topilmadi")
+
+    # saved_name is server-issued (UUID-based), so this resolve can't
+    # escape LESSONS_FILES_DIR via a crafted file_name query string.
+    filepath = LESSONS_FILES_DIR / file_row.saved_name
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="Fayl serverda topilmadi")
+
+    return FileResponse(
+        path=str(filepath),
+        filename=file_row.original_name,
+        media_type="application/octet-stream",
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  LESSON CRUD
 # ─────────────────────────────────────────────────────────────────────────────
 
