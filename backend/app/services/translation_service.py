@@ -215,19 +215,37 @@ async def translate_fields(
 
 # Keys whose values are natural-language strings the student reads.
 # Anything outside this set stays untouched — id/type/url/code/etc.
+# This list is derived from a census of every string key actually used
+# in production sections_json blobs; if you add a new field on the
+# teacher editor that holds prose, add it here too.
 _TRANSLATABLE_KEYS = {
-    "label", "text", "content", "question", "hint", "prompt",
-    "answer", "correctAnswer", "description", "title",
-    "explanation", "feedback", "placeholder",
+    # Lesson body / sections
+    "html", "label", "text", "content", "title", "description",
+    # Exercise prompt + author guidance
+    "question", "prompt", "hint", "explanation",
+    # Author's reference answer (shown to students after grading)
+    "expected_answer",
+    # Generic UI fields a future editor might add
+    "answer", "correctAnswer", "feedback", "placeholder",
 }
 
 # Keys whose values are NEVER translated even if they happen to look
-# like text. Belt-and-braces — anything not in _TRANSLATABLE_KEYS is
-# already skipped by the walker.
+# like text. These are identifiers, code, taxonomy tags, or grading
+# data the student is supposed to match verbatim.
 _NEVER_TRANSLATE_KEYS = {
+    # Identifiers and structural tags
     "type", "id", "url", "videoUrl", "imgUrl", "image", "src",
-    "code", "codeLanguage", "fileName", "fileSize", "icon",
-    "color", "bg", "fontFamily",
+    # Code + programming language tag
+    "code", "codeLanguage", "lang",
+    # Files
+    "fileName", "fileSize",
+    # Styling
+    "icon", "color", "bg", "fontFamily",
+    # Exercise grading data (must match exactly)
+    "correct_answers", "correct_order", "exercise_type", "difficulty_level",
+    # Choice arrays stored as JSON strings; translating them would
+    # break the matching logic on the frontend
+    "options", "drag_items",
 }
 
 
