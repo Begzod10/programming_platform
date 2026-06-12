@@ -32,34 +32,34 @@ const Degrees = () => {
 
         const earnedItem = earnedMap.get(item.name);
 
-        // Попробуй все возможные поля — уточни у бэкендщика какое именно
         const courseId = earnedItem?.course_id
             ?? earnedItem?.courseId
             ?? earnedItem?.course
             ?? item.course_id
             ?? null;
 
-        // [REFACTOR] console.log('earnedItem full:', JSON.stringify(earnedItem));
-        // [REFACTOR] console.log('courseId resolved:', courseId);
-
-        if (!courseId) {
-            setError('Не удалось определить курс. Проверь консоль → earnedItem full.');
-            return;
-        }
-
         setDownloading(item.achievement_id);
         setError(null);
 
-        try {
-            // check-and-earn на всякий случай (идемпотентный — безопасно вызывать повторно)
-            await fetch(
-                `${API_URL}v1/achievements/check-and-earn-certificate?course_id=${courseId}`,
-                { method: 'POST', headers: headers() }
-            ).catch(() => {}); // не блокируем скачивание если уже выдан
+        // Achievements that aren't tied to a single course (e.g. the platform-
+        // wide "Full Stack Developer" badge) download via the badge endpoint;
+        // course-tied certificates use the course endpoint which embeds the
+        // course title in the PDF.
+        const downloadUrl = courseId
+            ? `${API_URL}v1/achievements/course/${courseId}/download`
+            : `${API_URL}v1/achievements/${item.achievement_id}/download`;
 
-            // Скачиваем PDF
+        try {
+            if (courseId) {
+                // check-and-earn na vsyakii sluchai (idempotent)
+                await fetch(
+                    `${API_URL}v1/achievements/check-and-earn-certificate?course_id=${courseId}`,
+                    { method: 'POST', headers: headers() }
+                ).catch(() => {});
+            }
+
             const res = await fetch(
-                `${API_URL}v1/achievements/course/${courseId}/download`,
+                downloadUrl,
                 {
                     method: 'GET',
                     headers: { ...headers(), Accept: 'application/pdf' },

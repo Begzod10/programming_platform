@@ -21,7 +21,12 @@ class AchievementCreate(AchievementBase):
     @field_validator("criteria_type")
     @classmethod
     def validate_criteria_type(cls, v: str) -> str:
-        allowed = ["project_count", "points_threshold"]
+        allowed = [
+            "project_count",
+            "points_threshold",
+            "course_completion",
+            "all_courses_completed",
+        ]
         if v not in allowed:
             raise ValueError(f"criteria_type must be one of: {allowed}")
         return v

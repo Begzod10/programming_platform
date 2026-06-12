@@ -18,6 +18,72 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, Union
 
 
+FULLSTACK_NAME = "Full Stack Developer"
+FULLSTACK_DESC = (
+    "Platformadagi barcha kurslarni muvaffaqiyatli tugatdingiz — Full Stack "
+    "Developer darajasiga erishdingiz."
+)
+FULLSTACK_POINTS_REWARD = 500
+
+
+async def _get_or_create_fullstack_achievement(db: AsyncSession) -> Achievement:
+    """Return the platform-wide 'Full Stack Developer' Achievement row.
+
+    Self-seeds on first call so there is no separate manual data step. The
+    row carries criteria_type='all_courses_completed' and criteria_value=0
+    (sentinel — the all-courses check ignores the value).
+    """
+    res = await db.execute(
+        select(Achievement).where(Achievement.criteria_type == "all_courses_completed").limit(1)
+    )
+    existing = res.scalar_one_or_none()
+    if existing is not None:
+        return existing
+
+    ach = Achievement(
+        name=FULLSTACK_NAME,
+        description=FULLSTACK_DESC,
+        badge_image_url="",
+        points_reward=FULLSTACK_POINTS_REWARD,
+        criteria_type="all_courses_completed",
+        criteria_value=0,
+        course_id=None,
+    )
+    db.add(ach)
+    await db.commit()
+    await db.refresh(ach)
+    return ach
+
+
+async def _all_published_courses_complete(db: AsyncSession, student_id: int) -> bool:
+    """True iff the student holds a CourseCertificate for every published
+    + active course that has at least one active lesson. Courses with no
+    active lessons can't be completed and are skipped so a stub course
+    doesn't block the badge."""
+    from app.models.course import Course
+
+    course_res = await db.execute(
+        select(Course.id).where(
+            Course.is_active == True,
+            Course.is_published == True,
+            select(func.count(Lesson.id))
+                .where(Lesson.course_id == Course.id, Lesson.is_active == True)
+                .scalar_subquery() > 0,
+        )
+    )
+    required_ids = {r[0] for r in course_res.all()}
+    if not required_ids:
+        return False
+
+    cert_res = await db.execute(
+        select(CourseCertificate.course_id).where(
+            CourseCertificate.student_id == student_id
+        )
+    )
+    held = {r[0] for r in cert_res.all()}
+    return required_ids.issubset(held)
+
+
 async def get_all_achievements(db: AsyncSession) -> List[Achievement]:
     """Barcha achievementlarni olish"""
     result = await db.execute(select(Achievement).order_by(Achievement.points_reward))
@@ -83,6 +149,10 @@ async def check_and_award_achievements(db: AsyncSession, student_id: int) -> Lis
     )
     completed_projects = projects_result.scalar() or 0
 
+    # Make sure the Full-Stack achievement row exists so the check below sees
+    # it on first run. Idempotent.
+    await _get_or_create_fullstack_achievement(db)
+
     achievements = await get_all_achievements(db)
 
     awarded = []
@@ -97,16 +167,19 @@ async def check_and_award_achievements(db: AsyncSession, student_id: int) -> Lis
             is_complete = await check_course_completion(db, student_id, ach.course_id)
             if is_complete:
                 should_award = True
+        elif ach.criteria_type == "all_courses_completed":
+            if await _all_published_courses_complete(db, student_id):
+                should_award = True
 
         if should_award:
             result = await award_achievement(db, student_id, ach.id)
             if result:
                 awarded.append(result)
-            
+
             # AGAR BU KURS SERTIFIKATI BO'LSA - Rasmiy sertifikatni ham beramiz
             if ach.criteria_type == "course_completion" and ach.course_id:
                 await award_certificate(db, student_id, ach.course_id)
-                
+
     return awarded
 
 
@@ -172,6 +245,18 @@ async def award_certificate(
     await db.commit()
     await db.refresh(cert)
     print(f"🎓 Sertifikat berildi: student={student_id}, course={course_id}, cert_id={cert.id}")
+
+    # 4. Did this just complete the whole platform? If so, mint the
+    # Full-Stack Developer achievement immediately — no need to wait for
+    # the next periodic check_and_award sweep.
+    try:
+        if await _all_published_courses_complete(db, student_id):
+            fullstack = await _get_or_create_fullstack_achievement(db)
+            await award_achievement(db, student_id, fullstack.id)
+    except Exception as e:
+        # Failing the bonus award must never roll back the course certificate.
+        print(f"⚠️  Fullstack check failed for student={student_id}: {e}")
+
     return cert
 
 
