@@ -344,15 +344,19 @@ async def _check_completion_gate(
     from app.models.exercise import Exercise, ExerciseSubmission
 
     if lesson.has_project:
+        # Authoritative status lives on Project (the teacher reviews the
+        # Project row, not the Submission). Submission.status stays "Draft"
+        # forever in the current write-path, so we must look through the join.
         sub_res = await db.execute(
-            select(Submission.status)
+            select(Submission.status, Project.status)
+            .outerjoin(Project, Project.id == Submission.project_id)
             .where(
                 Submission.lesson_id == lesson.id,
                 Submission.student_id == student_id,
             )
         )
-        statuses = [s for (s,) in sub_res.all()]
-        if not any(st and st != "Draft" for st in statuses):
+        statuses = [(p_st or s_st) for (s_st, p_st) in sub_res.all()]
+        if not any(st and st not in ("Draft",) for st in statuses):
             raise HTTPException(
                 status_code=400,
                 detail="Avval shu darsning loyihasini topshiring",
