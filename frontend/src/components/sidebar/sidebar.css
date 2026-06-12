@@ -1,50 +1,100 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-/* ===== SIDEBAR ===== */
+/* ===== SIDEBAR SHELL ===== */
 .sidebar {
-    width: 240px;
-    min-width: 240px;
+    --sb-bg-1: #14152b;
+    --sb-bg-2: #1c1d3a;
+    --sb-text:   rgba(255, 255, 255, 0.62);
+    --sb-text-hi: #ffffff;
+    --sb-muted: rgba(255, 255, 255, 0.36);
+    --sb-stroke: rgba(255, 255, 255, 0.06);
+    --sb-stroke-hi: rgba(255, 255, 255, 0.12);
+    --sb-accent: #8b7bff;
+    --sb-accent-2: #5b67ff;
+    --sb-danger: #f87171;
+
+    width: 248px;
+    min-width: 248px;
     height: 100vh;
     margin-left: 16px;
-    background: rgba(26,26,46,0.88);
-    backdrop-filter: blur(26px);
-    -webkit-backdrop-filter: blur(26px);
-    border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.07);
+    background:
+        radial-gradient(120% 60% at 0% 0%, rgba(139, 123, 255, 0.18), transparent 60%),
+        linear-gradient(180deg, var(--sb-bg-2) 0%, var(--sb-bg-1) 100%);
+    border-radius: 22px;
+    border: 1px solid var(--sb-stroke);
     display: flex;
     flex-direction: column;
-    padding: 24px 14px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+    padding: 22px 14px 18px;
+    box-shadow:
+        0 24px 60px -28px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.05);
     position: relative;
     overflow: hidden;
     flex-shrink: 0;
     font-family: 'Inter', sans-serif;
     transition: width 0.3s ease;
     z-index: 50;
+    /* Emoji-safe font stack so icons always render even on systems w/o emoji in default fonts */
+    font-feature-settings: "ss01";
 }
 
 .sidebar::before {
     content: '';
     position: absolute;
-    top: 0; left: 0; right: 0; height: 35%;
-    background: linear-gradient(180deg, rgba(108,92,231,0.08) 0%, transparent 100%);
+    inset: -40% -40% auto auto;
+    width: 70%;
+    height: 70%;
+    background: radial-gradient(circle at 50% 50%, rgba(139, 123, 255, 0.16), transparent 60%);
+    filter: blur(20px);
     pointer-events: none;
-    border-radius: 20px 20px 0 0;
 }
 
-/* ===== LOGO ===== */
-.sidebar-logo h2 {
-    color: #fff;
-    font-size: 17px;
-    font-weight: 800;
-    letter-spacing: -0.3px;
-    margin: 0 0 24px;
-    text-align: center;
+/* ===== BRAND ===== */
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 6px 16px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--sb-stroke);
     position: relative;
     z-index: 1;
-    padding-bottom: 18px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-    line-height: 1.3;
+}
+.sidebar-brand__mark {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+    border-radius: 11px;
+    background: linear-gradient(135deg, var(--sb-accent) 0%, var(--sb-accent-2) 100%);
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-weight: 800;
+    font-size: 17px;
+    letter-spacing: -0.4px;
+    box-shadow:
+        0 8px 18px -6px rgba(91, 103, 255, 0.6),
+        inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.sidebar-brand__text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+    min-width: 0;
+}
+.sidebar-brand__title {
+    color: var(--sb-text-hi);
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.2px;
+}
+.sidebar-brand__sub {
+    color: var(--sb-muted);
+    font-weight: 500;
+    font-size: 11px;
+    margin-top: 2px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
 }
 
 /* ===== MENU ===== */
@@ -52,131 +102,197 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 14px;
     position: relative;
     z-index: 1;
     overflow-y: auto;
     scrollbar-width: none;
+    padding-right: 2px;
 }
 .sidebar-menu::-webkit-scrollbar { display: none; }
 
+.sidebar-section { display: flex; flex-direction: column; gap: 4px; }
+.sidebar-section__label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--sb-muted);
+    padding: 0 12px 4px;
+}
+.sidebar-section__items { display: flex; flex-direction: column; gap: 2px; }
+
 .menu-item {
+    --rail-h: 0%;
+    position: relative;
     display: flex;
     align-items: center;
-    padding: 12px 14px;
-    border-radius: 13px;
-    color: rgba(255,255,255,0.6);
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    color: var(--sb-text);
+    background: transparent;
+    border: 1px solid transparent;
     cursor: pointer;
+    font-family: inherit;
     font-weight: 500;
     font-size: 13.5px;
-    transition: all 0.2s;
-    border: 1px solid transparent;
+    text-align: left;
+    transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease, border-color 0.18s ease;
     user-select: none;
     white-space: nowrap;
 }
-.menu-item:hover {
-    background: rgba(255,255,255,0.08);
-    border-color: rgba(255,255,255,0.1);
-    color: #fff;
+.menu-item__rail {
+    position: absolute;
+    left: -2px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: var(--rail-h);
+    background: linear-gradient(180deg, var(--sb-accent) 0%, var(--sb-accent-2) 100%);
+    border-radius: 0 4px 4px 0;
+    transition: height 0.22s ease;
+    box-shadow: 0 0 12px rgba(139, 123, 255, 0.55);
 }
-.menu-item.active {
-    background: rgba(255,255,255,0.95);
-    color: #1a1a2e;
-    border-color: transparent;
-    box-shadow: 0 4px 14px rgba(108,92,231,0.22);
-    font-weight: 700;
-}
-.menu-item .icon {
-    margin-right: 11px;
-    font-size: 17px;
+.menu-item__icon {
     width: 22px;
-    text-align: center;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    font-size: 16px;
     flex-shrink: 0;
-    transition: transform 0.2s;
+    /* Emoji-safe rendering */
+    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', 'Segoe UI Symbol', 'EmojiOne Color', 'Android Emoji', sans-serif;
+    transition: transform 0.2s ease;
 }
-.menu-item:hover:not(.active) .icon { transform: scale(1.12); }
-.menu-item.active .icon { filter: drop-shadow(0 1px 3px rgba(108,92,231,0.4)); }
+.menu-item__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.menu-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--sb-text-hi);
+}
+.menu-item:hover .menu-item__icon { transform: scale(1.08); }
+.menu-item:focus-visible {
+    outline: none;
+    border-color: rgba(139, 123, 255, 0.5);
+    box-shadow: 0 0 0 3px rgba(139, 123, 255, 0.18);
+}
+
+.menu-item.active {
+    --rail-h: 60%;
+    color: var(--sb-text-hi);
+    background:
+        linear-gradient(90deg, rgba(139, 123, 255, 0.16) 0%, rgba(91, 103, 255, 0.06) 100%);
+    border-color: rgba(139, 123, 255, 0.22);
+    font-weight: 600;
+}
+.menu-item.active .menu-item__icon {
+    filter: drop-shadow(0 2px 8px rgba(139, 123, 255, 0.5));
+}
 
 /* ===== LOGOUT ===== */
 .logout-btn-side {
-    background: rgba(239,85,85,0.12);
-    border: 1px solid rgba(239,85,85,0.25);
-    padding: 11px;
-    border-radius: 13px;
-    color: rgba(255,255,255,0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: rgba(248, 113, 113, 0.08);
+    border: 1px solid rgba(248, 113, 113, 0.22);
+    padding: 11px 14px;
+    border-radius: 12px;
+    color: rgba(255, 255, 255, 0.78);
     cursor: pointer;
-    font-size: 13.5px;
+    font-size: 13px;
     font-weight: 600;
     font-family: 'Inter', sans-serif;
-    transition: all 0.2s;
+    transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.05s ease;
     position: relative;
     z-index: 1;
-    margin-top: 12px;
+    margin-top: 14px;
     flex-shrink: 0;
 }
+.logout-btn-side__icon {
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    font-size: 15px;
+    font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', 'Segoe UI Symbol', 'EmojiOne Color', 'Android Emoji', sans-serif;
+}
 .logout-btn-side:hover {
-    background: rgba(239,85,85,0.22);
-    border-color: rgba(239,85,85,0.42);
+    background: rgba(248, 113, 113, 0.16);
+    border-color: rgba(248, 113, 113, 0.42);
     color: #fff;
-    box-shadow: 0 4px 14px rgba(239,85,85,0.28);
 }
-.logout-btn-side:active { transform: scale(0.97); }
+.logout-btn-side:active { transform: scale(0.98); }
 
-/* ============================================================
-   TABLET — 1100px: немного уже
-   ============================================================ */
+/* ===========================================================
+   TABLET — 1100px
+   =========================================================== */
 @media (max-width: 1100px) {
-    .sidebar { width: 210px; min-width: 210px; padding: 20px 12px; }
-    .sidebar-logo h2 { font-size: 15px; }
-    .menu-item { font-size: 13px; padding: 11px 12px; }
+    .sidebar { width: 220px; min-width: 220px; padding: 20px 12px 16px; }
+    .sidebar-brand__title { font-size: 14px; }
+    .menu-item { font-size: 13px; padding: 10px 11px; }
 }
 
-/* ============================================================
-   SMALL TABLET — 860px: только иконки
-   ============================================================ */
+/* ===========================================================
+   SMALL TABLET — 860px: icons only
+   =========================================================== */
 @media (max-width: 860px) {
-    .sidebar { width: 68px; min-width: 68px; padding: 20px 10px; border-radius: 16px; }
-
-    .sidebar-logo h2 {
-        font-size: 0;
-        padding-bottom: 14px;
-        margin-bottom: 18px;
+    .sidebar {
+        width: 72px;
+        min-width: 72px;
+        padding: 18px 10px 14px;
+        border-radius: 18px;
     }
-    .sidebar-logo h2::after {
-        content: 'G';
-        font-size: 22px;
-        font-weight: 900;
-        color: #fff;
+
+    .sidebar-brand {
+        justify-content: center;
+        gap: 0;
+        padding: 0 0 14px;
+        margin-bottom: 12px;
+    }
+    .sidebar-brand__text { display: none; }
+    .sidebar-brand__mark { width: 38px; height: 38px; font-size: 18px; }
+
+    .sidebar-section__label {
+        font-size: 0;
+        padding: 0;
+        margin: 0 12px 2px;
+        height: 1px;
+        background: var(--sb-stroke);
     }
 
     .menu-item {
-        padding: 12px;
+        padding: 11px;
         justify-content: center;
-        border-radius: 12px;
+        gap: 0;
     }
-    .menu-item .icon { margin-right: 0; font-size: 20px; width: auto; }
-    .menu-item .label { display: none; }
+    .menu-item__label { display: none; }
+    .menu-item__icon { font-size: 19px; }
 
     .logout-btn-side {
-        padding: 12px;
-        font-size: 0;
-        text-align: center;
+        padding: 11px;
+        gap: 0;
     }
-    .logout-btn-side::after { content: '🚪'; font-size: 18px; }
+    .logout-btn-side__label { display: none; }
+    .logout-btn-side__icon { font-size: 16px; }
 }
 
-/* ============================================================
-   MOBILE — 600px: hamburger overlay drawer
-   ============================================================ */
-
-/* Кнопка гамбургер — показывается только на мобиле */
+/* ===========================================================
+   MOBILE — 600px: hamburger drawer
+   =========================================================== */
 .sidebar-hamburger {
     display: none;
     position: fixed;
     top: 14px; left: 14px;
     width: 42px; height: 42px;
-    background: rgba(26,26,46,0.92);
-    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(20, 21, 43, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 12px;
     z-index: 200;
     align-items: center;
@@ -186,7 +302,7 @@
     gap: 5px;
     padding: 10px;
     backdrop-filter: blur(12px);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 .sidebar-hamburger span {
     display: block;
@@ -196,47 +312,51 @@
     transition: all 0.3s;
 }
 
-/* Overlay затемнение */
 .sidebar-overlay {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0, 0, 0, 0.5);
     z-index: 149;
     backdrop-filter: blur(2px);
 }
 
 @media (max-width: 600px) {
-    /* Скрываем обычный сайдбар, делаем drawer */
     .sidebar {
         position: fixed;
-        top: 0; left: -280px;
-        width: 260px !important;
-        min-width: 260px !important;
+        top: 0; left: -300px;
+        width: 268px !important;
+        min-width: 268px !important;
         height: 100vh;
         margin: 0;
-        border-radius: 0 20px 20px 0;
+        border-radius: 0 22px 22px 0;
         z-index: 150;
-        transition: left 0.3s cubic-bezier(0.4,0,0.2,1);
-        padding: 28px 16px;
+        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 28px 16px 20px;
     }
-
     .sidebar.open { left: 0; }
-
     .sidebar-hamburger { display: flex; }
     .sidebar-overlay.open { display: block; }
 
-    /* Показываем лейблы снова */
-    .menu-item .label { display: block; }
-    .menu-item .icon { margin-right: 11px; font-size: 17px; width: 22px; }
-    .menu-item { justify-content: flex-start; padding: 13px 16px; }
+    /* Restore full layout in drawer */
+    .sidebar-brand { justify-content: flex-start; gap: 12px; padding: 4px 6px 16px; }
+    .sidebar-brand__text { display: flex; }
 
-    .sidebar-logo h2 { font-size: 17px; }
-    .sidebar-logo h2::after { content: none; }
+    .sidebar-section__label {
+        font-size: 10px;
+        padding: 0 12px 4px;
+        margin: 0;
+        height: auto;
+        background: transparent;
+        color: var(--sb-muted);
+    }
 
-    .logout-btn-side { font-size: 13.5px; padding: 12px; }
-    .logout-btn-side::after { content: none; }
+    .menu-item { padding: 12px 14px; justify-content: flex-start; gap: 12px; }
+    .menu-item__label { display: block; }
+    .menu-item__icon { font-size: 17px; }
 
-    /* Content area добавляем padding-top для hamburger */
+    .logout-btn-side { padding: 12px 14px; gap: 10px; }
+    .logout-btn-side__label { display: inline; }
+
     .content-area { padding-top: 68px !important; }
 }
