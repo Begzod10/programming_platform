@@ -110,7 +110,7 @@ const StudentProfilePage = () => {
           setProgress(prog);
         }
       })
-      .catch(() => isMounted && setError("Ma'lumotlarni yuklashda xatolik yuz berdi"))
+      .catch(() => isMounted && setError('Не удалось загрузить данные студента. Попробуйте позже.'))
       .finally(() => isMounted && setLoading(false));
 
     return () => { isMounted = false; };
@@ -225,12 +225,12 @@ const StudentProfilePage = () => {
       {/* ════ STATS ROW ════ */}
       <div className="spp-stats-row">
         {[
-          { icon:'⚡', val: d.total_points ?? p?.total_points ?? 0, lbl:'Umumiy ball',  color:'#6c5ce7' },
-          { icon:'💰', val: fmt(d.balance),                          lbl:'Balans',       color: balColor(d.balance) },
-          { icon:'📚', val: courses.length,                          lbl:'Kurslar',      color:'#0984e3' },
-          { icon:'🏆', val: achievements.length,                     lbl:'Yutuqlar',     color:'#e17055' },
-          { icon:'🌍', val: `#${globalRank}`,                        lbl:'Global rank',  color:'#00b894' },
-          { icon:'📈', val: `${avgProgress}%`,                       lbl:'Progress',     color:'#fd79a8' },
+          { icon:'⚡', val: d.total_points ?? p?.total_points ?? 0, lbl:'Всего баллов', color:'#6c5ce7' },
+          { icon:'💰', val: fmt(d.balance),                          lbl:'Баланс',       color: balColor(d.balance) },
+          { icon:'📚', val: courses.length,                          lbl:'Курсы',        color:'#0984e3' },
+          { icon:'🏆', val: achievements.length,                     lbl:'Достижения',   color:'#e17055' },
+          { icon:'🌍', val: `#${globalRank}`,                        lbl:'Место',        color:'#00b894' },
+          { icon:'📈', val: `${avgProgress}%`,                       lbl:'Прогресс',     color:'#fd79a8' },
         ].map(({ icon, val, lbl, color }, i) => (
           <div key={i} className="spp-stat-card" style={{ animationDelay:`${i*0.05}s` }}>
             <span className="spp-stat-icon">{icon}</span>

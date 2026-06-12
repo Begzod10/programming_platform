@@ -1674,7 +1674,29 @@ export default function Practice() {
 
     if (phase === 'drill') {
         const item = queue[pos];
-        if (!item) return null;
+        if (!item) {
+            // Position went out of bounds — usually because a stale queue
+            // pointer survived a config change. Don't leave the student
+            // staring at a blank screen; fall back to a recoverable state
+            // with a clear way back to the picker.
+            return (
+                <div className="pr-state pr-state--error" style={{ display:'flex', flexDirection:'column', gap:14, alignItems:'center', padding:'48px 24px', textAlign:'center' }}>
+                    <span style={{ fontSize: 40 }}>🧭</span>
+                    <h3 style={{ margin: 0 }}>Сессия прервана</h3>
+                    <p style={{ margin: 0, color: 'rgba(0,0,0,0.55)' }}>
+                        Что-то пошло не так с очередью практики. Вернитесь к выбору
+                        режима и начните заново — ваш прогресс сохранён.
+                    </p>
+                    <button
+                        className="pr-btn pr-btn--primary"
+                        onClick={goPick}
+                        style={{ marginTop: 6 }}
+                    >
+                        ← К выбору режима
+                    </button>
+                </div>
+            );
+        }
         const word = item.word;
 
         // Quiz+ pos/total reads against the queue itself per pass; other

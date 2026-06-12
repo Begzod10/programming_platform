@@ -272,6 +272,7 @@ const FileCard = ({ file, onDelete, onCodeSaved, apiBaseUrl, lessonId }) => {
   const [expanded, setExpanded] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const lang = getLang(file.filename || file.name || '');
   const meta = getLangMeta(lang);
@@ -287,13 +288,15 @@ const FileCard = ({ file, onDelete, onCodeSaved, apiBaseUrl, lessonId }) => {
       }
       onDelete(file.id || file._localId);
     } catch {
-      alert('Ошибка удаления');
+      setErrorMsg('Не удалось удалить файл. Попробуйте ещё раз.');
+      setTimeout(() => setErrorMsg(''), 5000);
       setDeleting(false);
     }
   };
 
   const handleCodeChange = async (newCode) => {
     setSaving(true);
+    setErrorMsg('');
     try {
       if (apiBaseUrl && lessonId && file.id) {
         const resp = await fetch(`${apiBaseUrl}/${lessonId}/files/${file.id}`, {
@@ -308,8 +311,9 @@ const FileCard = ({ file, onDelete, onCodeSaved, apiBaseUrl, lessonId }) => {
         // Offline mode — just propagate locally
         onCodeSaved && onCodeSaved(file.id || file._localId, newCode, null);
       }
-    } catch (err) {
-      alert(`Ошибка сохранения: ${err.message}`);
+    } catch {
+      setErrorMsg('Не удалось сохранить код. Изменения остались только локально.');
+      setTimeout(() => setErrorMsg(''), 6000);
     } finally {
       setSaving(false);
     }
@@ -317,6 +321,23 @@ const FileCard = ({ file, onDelete, onCodeSaved, apiBaseUrl, lessonId }) => {
 
   return (
     <div className={`efu-file-card ${expanded ? '' : 'efu-file-card--collapsed'}`}>
+      {errorMsg && (
+        <div
+          role="alert"
+          style={{
+            margin: '10px 14px 0',
+            padding: '8px 12px',
+            borderRadius: 8,
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            color: '#b42323',
+            fontSize: 12.5,
+            fontWeight: 600,
+          }}
+        >
+          ⚠ {errorMsg}
+        </div>
+      )}
       <div className="efu-file-card-head">
         <div className="efu-file-card-head-left">
           <span className="efu-file-lang-icon" style={{ background: meta.bg, color: meta.color }}>
@@ -388,15 +409,28 @@ const FileCard = ({ file, onDelete, onCodeSaved, apiBaseUrl, lessonId }) => {
 const UploadZone = ({ onFiles, uploading }) => {
   const inputRef = useRef(null);
   const [dragOver, setDragOver] = useState(false);
+  const [rejectedNames, setRejectedNames] = useState([]);
 
   const ACCEPTED = '.html,.htm,.css,.js,.jsx,.ts,.tsx,.py,.java,.cpp,.c,.rs,.go,.sql,.sh,.json,.md,.xml,.yaml,.yml,.php,.rb,.swift,.kt';
 
   const handleFiles = (fileList) => {
-    const files = Array.from(fileList).filter(f => {
+    const incoming = Array.from(fileList);
+    const accepted = [];
+    const rejected = [];
+    for (const f of incoming) {
       const ext = getExt(f.name);
-      return Object.keys(LANG_MAP).includes(ext);
-    });
-    if (files.length) onFiles(files);
+      if (Object.keys(LANG_MAP).includes(ext)) accepted.push(f);
+      else rejected.push(f.name);
+    }
+    if (rejected.length) {
+      setRejectedNames(rejected);
+      // Self-clear after a beat so the warning doesn't stick once the
+      // teacher has had a chance to read it.
+      setTimeout(() => setRejectedNames([]), 6000);
+    } else {
+      setRejectedNames([]);
+    }
+    if (accepted.length) onFiles(accepted);
   };
 
   return (
@@ -433,6 +467,28 @@ const UploadZone = ({ onFiles, uploading }) => {
             ))}
             <span className="efu-hint-chip efu-hint-chip--more">+ещё</span>
           </div>
+          {rejectedNames.length > 0 && (
+            <div
+              className="efu-upload-reject"
+              role="alert"
+              onClick={e => e.stopPropagation()}
+              style={{
+                marginTop: 14,
+                padding: '10px 14px',
+                borderRadius: 10,
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                color: '#b42323',
+                fontSize: 13,
+                fontWeight: 600,
+                textAlign: 'left',
+              }}
+            >
+              ⚠ Эти файлы не поддерживаются и были пропущены:&nbsp;
+              {rejectedNames.slice(0, 3).join(', ')}
+              {rejectedNames.length > 3 && ` и ещё ${rejectedNames.length - 3}`}
+            </div>
+          )}
         </>
       )}
     </div>

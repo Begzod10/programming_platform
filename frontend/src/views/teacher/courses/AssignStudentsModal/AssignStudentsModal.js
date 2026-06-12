@@ -26,6 +26,7 @@ const AssignStudentsModal = ({ course, onClose, onChanged }) => {
     const [loading, setLoading]             = useState(false);
     const [busy, setBusy]                   = useState(false);
     const [error, setError]                 = useState(null);
+    const [confirmUnassign, setConfirmUnassign] = useState(null); // {id, name} or null
 
     const debouncedSearch = useDebounced(search, 250);
 
@@ -246,10 +247,13 @@ const AssignStudentsModal = ({ course, onClose, onChanged }) => {
                                     {s.is_enrolled ? (
                                         <button
                                             className="asm-btn asm-btn--danger asm-btn--sm"
-                                            onClick={() => unassignOne(s.id)}
+                                            onClick={() => setConfirmUnassign({
+                                                id: s.id,
+                                                name: s.full_name || s.username || `#${s.id}`,
+                                            })}
                                             disabled={busy}
                                         >
-                                            Olib tashlash
+                                            Удалить
                                         </button>
                                     ) : (
                                         <button
@@ -257,7 +261,7 @@ const AssignStudentsModal = ({ course, onClose, onChanged }) => {
                                             onClick={() => assign({ studentIds: [s.id] })}
                                             disabled={busy}
                                         >
-                                            Ulash
+                                            Добавить
                                         </button>
                                     )}
                                 </div>
@@ -267,8 +271,53 @@ const AssignStudentsModal = ({ course, onClose, onChanged }) => {
                 </div>
 
                 <footer className="asm-foot">
-                    <button className="asm-btn asm-btn--ghost" onClick={onClose}>Yopish</button>
+                    <button className="asm-btn asm-btn--ghost" onClick={onClose}>Закрыть</button>
                 </footer>
+
+                {confirmUnassign && (
+                    <div
+                        className="asm-overlay"
+                        style={{ background: 'rgba(0,0,0,0.55)', zIndex: 10 }}
+                        onClick={() => !busy && setConfirmUnassign(null)}
+                    >
+                        <div
+                            className="asm-modal"
+                            onClick={e => e.stopPropagation()}
+                            style={{ maxWidth: 420, padding: 24, gap: 14, display: 'flex', flexDirection: 'column' }}
+                        >
+                            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>
+                                Удалить студента из курса?
+                            </h3>
+                            <p style={{ margin: 0, color: 'rgba(26,26,46,0.7)', fontSize: 14 }}>
+                                <b>{confirmUnassign.name}</b> потеряет доступ к курсу.
+                                Прогресс сохранится, но возобновить занятия можно будет только
+                                после повторного назначения.
+                            </p>
+                            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                                <button
+                                    className="asm-btn asm-btn--ghost"
+                                    style={{ flex: 1 }}
+                                    disabled={busy}
+                                    onClick={() => setConfirmUnassign(null)}
+                                >
+                                    Отмена
+                                </button>
+                                <button
+                                    className="asm-btn asm-btn--danger"
+                                    style={{ flex: 1 }}
+                                    disabled={busy}
+                                    onClick={async () => {
+                                        const id = confirmUnassign.id;
+                                        await unassignOne(id);
+                                        setConfirmUnassign(null);
+                                    }}
+                                >
+                                    {busy ? 'Удаление…' : 'Удалить'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>,
         document.body,

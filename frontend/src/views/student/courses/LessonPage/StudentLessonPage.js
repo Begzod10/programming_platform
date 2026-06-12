@@ -752,6 +752,8 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [projectSaving, setProjectSaving] = useState(false);
     const [projectError, setProjectError] = useState('');
     const [downloadingFile, setDownloadingFile] = useState(null);
+    const [fileDownloadError, setFileDownloadError] = useState('');
+    const [completing, setCompleting] = useState(false);
     const [activeSection, setActiveSection] = useState(null);
     // Map of exercise_id -> latest submission { is_correct, score, ai_feedback,
     // student_answer, submitted_at }. Hydrates ExerciseCard state after a
@@ -926,7 +928,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             a.remove();
             window.URL.revokeObjectURL(blobUrl);
         } catch {
-            alert('Ошибка при скачивании файла.');
+            setFileDownloadError('Не удалось скачать файл. Попробуйте ещё раз.');
+            // Auto-clear so a transient error doesn't stick around forever.
+            setTimeout(() => setFileDownloadError(''), 5000);
         } finally {
             setDownloadingFile(null);
         }
@@ -947,7 +951,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     };
 
     const handleComplete = async () => {
-        if (!lesson.completed) {
+        // Guard against double-click: the user can rapid-fire the button
+        // while onComplete()'s optimistic API call is still in flight.
+        if (completing || lesson.completed || justCompleted) return;
+        setCompleting(true);
+        try {
             onComplete();
             setJustCompleted(true);
             const isLastLesson = currentIndex === allLessons.length - 1;
@@ -961,6 +969,8 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                     console.warn('check-and-earn-certificate failed:', e);
                 }
             }
+        } finally {
+            setCompleting(false);
         }
     };
 
@@ -1139,8 +1149,12 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 </div>
                 {!isDone && !projectSection && (
                     <div className="slp-hero-right">
-                        <button className="slp-complete-btn" onClick={handleComplete}>
-                            Отметить как пройденный
+                        <button
+                            className="slp-complete-btn"
+                            onClick={handleComplete}
+                            disabled={completing}
+                        >
+                            {completing ? 'Сохранение…' : 'Отметить как пройденный'}
                         </button>
                     </div>
                 )}
@@ -1245,6 +1259,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                 </button>
                                             </div>
                                         ) : <div className="slp-file-empty">Файл не добавлен</div>
+                                    )}
+                                    {section.type === 'file' && fileDownloadError && (
+                                        <div className="slp-file-error" role="alert">
+                                            ⚠ {fileDownloadError}
+                                        </div>
                                     )}
 
                                     {section.type === 'exercise' && (
@@ -1390,8 +1409,12 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                         Следующий урок →
                     </button>
                 ) : !isDone && !projectSection ? (
-                    <button className="slp-bottom-btn complete" onClick={handleComplete}>
-                        ✓ Отметить и продолжить
+                    <button
+                        className="slp-bottom-btn complete"
+                        onClick={handleComplete}
+                        disabled={completing}
+                    >
+                        {completing ? '⏳ Сохранение…' : '✓ Отметить и продолжить'}
                     </button>
                 ) : isDone && !nextLesson ? (
                     <button className="slp-bottom-btn done-label" disabled>🎉 Курс завершён!</button>

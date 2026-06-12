@@ -125,6 +125,7 @@ function TeacherReview() {
 
     const [projects, setProjects] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(null);
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState('all');
     const [detail, setDetail] = useState(null);
@@ -136,12 +137,23 @@ function TeacherReview() {
     const [points, setPoints] = useState('');
     const [status, setStatus] = useState('Approved');
 
-    useEffect(() => {
+    const fetchProjects = () => {
+        setLoading(true);
+        setLoadError(null);
         request(`${API_URL}v1/project/`, 'GET', null, headers())
-            .then(data => setProjects(Array.isArray(data) ? data : []))
-            .catch(() => setProjects([]))
+            .then(data => {
+                setProjects(Array.isArray(data) ? data : []);
+            })
+            .catch(() => {
+                setProjects([]);
+                setLoadError('Не удалось загрузить проекты');
+            })
             .finally(() => setLoading(false));
-    }, []);
+    };
+
+    useEffect(() => {
+        fetchProjects();
+    }, []); // eslint-disable-line
 
     const openDetail = (p) => {
         setDetail(p);
@@ -238,6 +250,22 @@ function TeacherReview() {
             {/* Table */}
             {loading ? (
                 <div className="tr-loading"><div className="tr-spinner" /><p>Загрузка...</p></div>
+            ) : loadError ? (
+                <div className="tr-empty" role="alert" style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+                    <span>⚠ {loadError}</span>
+                    <button
+                        onClick={fetchProjects}
+                        style={{
+                            padding: '8px 18px',
+                            borderRadius: 8,
+                            border: 'none',
+                            background: 'linear-gradient(135deg, #6c5ce7, #a29bfe)',
+                            color: '#fff',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                        }}
+                    >Повторить</button>
+                </div>
             ) : filtered.length === 0 ? (
                 <div className="tr-empty">📭 Проектов не найдено</div>
             ) : (

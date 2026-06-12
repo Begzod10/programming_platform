@@ -345,6 +345,16 @@
 .slp-file-dl-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px var(--purple-glow); }
 .slp-file-dl-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .slp-file-empty { font-size: 13px; color: var(--ink-30); }
+.slp-file-error {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    color: #b42323;
+    font-size: 13px;
+    font-weight: 600;
+}
 
 /* EMPTY */
 .slp-empty {

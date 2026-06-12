@@ -1,4 +1,4 @@
-import React, {useState, useRef, useEffect} from 'react';
+import React, {useState, useRef, useEffect, useMemo} from 'react';
 import './LessonEditor.css';
 import './LessonEditor.additions.css';
 import {SECTION_TYPES, getYTId} from '../../../../constants/courseUtils';
@@ -623,13 +623,43 @@ const SectionsList = ({sections, onReorder, onUpdate, onDelete, onMoveUp, onMove
    MAIN EXPORT: LESSON EDITOR PAGE
 ───────────────────────────────────────────── */
 const LessonEditorPage = ({course, lesson, chapters, onSave, onClose, apiBaseUrl = '/api/v1'}) => {
-    const [form, setForm] = useState({
+    const initialForm = useMemo(() => ({
         title: lesson?.title || '',
         chapter: lesson?.chapter || '',
         image: lesson?.image || '',
         sections: lesson?.sections ? lesson.sections.map(s => ({...s})) : [],
-    });
+    }), [lesson]);
+    const [form, setForm] = useState(initialForm);
     const [saving, setSaving] = useState(false);
+
+    // Track whether the form has been touched since open. Used to prompt the
+    // teacher before discarding work via Cancel/back.
+    const isDirty = useMemo(
+        () => JSON.stringify(form) !== JSON.stringify(initialForm),
+        [form, initialForm],
+    );
+
+    const guardedClose = () => {
+        if (saving) return; // never interrupt a save in flight
+        if (isDirty) {
+            const ok = window.confirm(
+                'У вас есть несохранённые изменения. Закрыть без сохранения?',
+            );
+            if (!ok) return;
+        }
+        onClose();
+    };
+
+    // Block browser back/refresh while there are unsaved edits.
+    useEffect(() => {
+        if (!isDirty) return;
+        const onBeforeUnload = (e) => {
+            e.preventDefault();
+            e.returnValue = '';
+        };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }, [isDirty]);
 
     const setField = (key, val) => setForm(f => ({...f, [key]: val}));
     const addSection = (type) => setField('sections', [...form.sections, makeSection(type)]);
@@ -654,7 +684,7 @@ const LessonEditorPage = ({course, lesson, chapters, onSave, onClose, apiBaseUrl
         <div className="lep-page">
             <div className="lep-header">
                 <div className="lep-header-left">
-                    <button className="lep-back-btn" onClick={onClose} title="Назад">
+                    <button className="lep-back-btn" onClick={guardedClose} title="Назад">
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                             <path d="M11 4L6 9L11 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
@@ -665,7 +695,7 @@ const LessonEditorPage = ({course, lesson, chapters, onSave, onClose, apiBaseUrl
                     </div>
                 </div>
                 <div className="lep-header-right">
-                    <button className="lep-cancel-btn" onClick={onClose}>Отмена</button>
+                    <button className="lep-cancel-btn" onClick={guardedClose}>Отмена</button>
                     <button className="lep-save-btn" onClick={handleSave} disabled={saving || !form.title.trim()}>
                         {saving
                             ? <><span className="lep-spinner"/>Сохранение...</>

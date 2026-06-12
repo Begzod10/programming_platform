@@ -135,8 +135,8 @@ const MyStudents = () => {
     <div className="ms-container">
       <div className="ms-header">
         <div>
-          <h2>Mening talabalarim</h2>
-          <p className="ms-subtitle">Gennis'dagi guruhlar va talabalar</p>
+          <h2>Мои студенты</h2>
+          <p className="ms-subtitle">Группы и студенты в Gennis</p>
         </div>
       </div>
 

@@ -451,8 +451,13 @@ function MyProjects() {
             .then(() => {
                 setProjects(p => p.map(pr => pr.id === projectId ? { ...pr, status: 'Submitted' } : pr));
                 setDetail(d => d ? { ...d, status: 'Submitted' } : d);
+                setUploadMsg('✅ Проект отправлен на проверку');
+                setTimeout(() => setUploadMsg(''), 4000);
             })
-            .catch(() => alert('Ошибка при отправке'));
+            .catch(() => {
+                setUploadMsg('❌ Не удалось отправить. Попробуйте ещё раз.');
+                setTimeout(() => setUploadMsg(''), 5000);
+            });
     };
 
     const handleDelete = (projectId) => {
@@ -461,8 +466,13 @@ function MyProjects() {
             .then(() => {
                 setProjects(p => p.filter(pr => pr.id !== projectId));
                 setDetail(null);
+                setUploadMsg('✅ Проект удалён');
+                setTimeout(() => setUploadMsg(''), 4000);
             })
-            .catch(() => alert('Ошибка при удалении'));
+            .catch(() => {
+                setUploadMsg('❌ Не удалось удалить. Попробуйте ещё раз.');
+                setTimeout(() => setUploadMsg(''), 5000);
+            });
     };
 
     const handleZipUpload = (projectId, file) => {
