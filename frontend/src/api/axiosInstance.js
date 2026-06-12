@@ -25,11 +25,32 @@ const processQueue = (error, token = null) => {
 };
 
 // ── Request interceptor: attach access token ──
+// Endpoints whose responses carry teacher-authored natural-language
+// content. We auto-append ?lang=ru|uz so the backend can lazily translate
+// + cache. Adding it to unrelated endpoints is harmless (FastAPI ignores
+// unknown query params) but scoping keeps server logs readable.
+const TRANSLATABLE_PATTERNS = [
+    /\/v1\/courses\/?(\?|$)/,
+    /\/v1\/courses\/\d+($|\?)/,
+    /\/v1\/courses\/\d+\/lessons(\?|$)/,
+    /\/v1\/courses\/\d+\/lessons\/\d+($|\?)/,
+    /\/v1\/courses\/\d+\/lessons\/\d+\/exercises(\?|$)/,
+    /\/v1\/lessons\/\d+\/exercises(\?|$)/,
+];
+
 axiosInstance.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
         if (token) {
             config.headers['Authorization'] = `Bearer ${token}`;
+        }
+        const method = (config.method || 'get').toLowerCase();
+        if (method === 'get') {
+            const url = config.url || '';
+            if (TRANSLATABLE_PATTERNS.some((re) => re.test(url))) {
+                const lang = localStorage.getItem('lang') || 'uz';
+                config.params = { ...(config.params || {}), lang };
+            }
         }
         return config;
     },

@@ -42,6 +42,15 @@ class Lesson(Base):
     image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     file_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     sections_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # ISO-639-1 of the language the teacher authored this row in. Used by
+    # the translation cache to know what direction to translate when a
+    # student requests a different lang. Defaults to 'uz' because the bulk
+    # of existing content was authored in Uzbek.
+    source_lang: Mapped[str] = mapped_column(
+        String(8), nullable=False, default="uz", server_default="uz",
+    )
+
     # Project relationship
     project_id: Mapped[Optional[int]] = mapped_column(
         Integer,

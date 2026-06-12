@@ -54,12 +54,39 @@ async def _get_id_from_auth(request: Request) -> Optional[int]:
         return None
 
 
+async def _translate_course_dto(db, dto, course, lang: Optional[str]) -> None:
+    """Lazily translate title + description on the DTO when the student
+    asked for a different language than the row's source. Mutates the DTO
+    in place. Safe to call with lang=None — it just returns."""
+    if not lang:
+        return
+    src_lang = getattr(course, "source_lang", None) or "uz"
+    if lang == src_lang:
+        return
+    from app.services.translation_service import translate_fields
+    translated = await translate_fields(
+        db,
+        entity_type="course",
+        entity_id=course.id,
+        target_lang=lang,
+        source_lang=src_lang,
+        fields={
+            "title": getattr(dto, "title", None),
+            "description": getattr(dto, "description", None),
+        },
+    )
+    for k, v in translated.items():
+        if v:
+            setattr(dto, k, v)
+
+
 @router.get("/", response_model=List[CourseRead])
 async def get_courses(
         request: Request,
         skip: int = Query(0, ge=0),
         limit: int = Query(10, ge=1, le=100),
         category_id: Optional[int] = Query(None),
+        lang: Optional[str] = Query(None),
         db: AsyncSession = Depends(get_db)
 ):
     student_id = await _get_id_from_auth(request)
@@ -77,7 +104,10 @@ async def get_courses(
     result = await db.execute(query)
     courses = result.scalars().all()
 
-    return [await CourseService.build_dto(db, c, student_id) for c in courses]
+    dtos = [await CourseService.build_dto(db, c, student_id) for c in courses]
+    for c, dto in zip(courses, dtos):
+        await _translate_course_dto(db, dto, c, lang)
+    return dtos
 
 
 @router.get("/my", response_model=List[CourseRead])
@@ -146,6 +176,7 @@ async def reorder_courses(
 async def get_course(
         course_id: int,
         request: Request,
+        lang: Optional[str] = Query(None),
         db: AsyncSession = Depends(get_db),
 ):
     """Bitta kurs haqida to'liq ma'lumot"""
@@ -167,7 +198,9 @@ async def get_course(
     if not course:
         raise HTTPException(status_code=404, detail="Kurs topilmadi")
 
-    return await CourseService.build_dto(db, course, student_id)
+    dto = await CourseService.build_dto(db, course, student_id)
+    await _translate_course_dto(db, dto, course, lang)
+    return dto
 
 
 @router.post("/", response_model=CourseRead, status_code=status.HTTP_201_CREATED)

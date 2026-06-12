@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const COLLAPSED_KEY = 'sidebar:collapsed';
 
@@ -29,11 +30,23 @@ function ChevronIcon({ direction = 'left' }) {
 function Sidebar({ activeTab, onLogout, role }) {
     const navigate = useNavigate();
     const { request } = useHttp();
+    const { lang, toggleLang } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(() => {
         try { return localStorage.getItem(COLLAPSED_KEY) === '1'; }
         catch { return false; }
     });
+
+    // Force a remount of pages that fetched data before the toggle flipped
+    // — the easiest way is to reload, since cached query state in many
+    // pages is component-local. Cheap to do; the dev server / SW caches
+    // bring the page back fast.
+    const handleLangToggle = () => {
+        toggleLang();
+        // Defer reload until the languageChange event has dispatched and
+        // localStorage is committed.
+        setTimeout(() => { window.location.reload(); }, 30);
+    };
 
     const menuItems = [
         { id: 'profile',        label: 'Профиль',         icon: '👤',  section: 'main' },
@@ -145,6 +158,27 @@ function Sidebar({ activeTab, onLogout, role }) {
                         );
                     })}
                 </nav>
+
+                <div className="sidebar-lang">
+                    <button
+                        type="button"
+                        className={`sidebar-lang__pill ${lang === 'uz' ? 'is-active' : ''}`}
+                        onClick={() => { if (lang !== 'uz') handleLangToggle(); }}
+                        title="O'zbekcha"
+                        aria-pressed={lang === 'uz'}
+                    >
+                        UZ
+                    </button>
+                    <button
+                        type="button"
+                        className={`sidebar-lang__pill ${lang === 'ru' ? 'is-active' : ''}`}
+                        onClick={() => { if (lang !== 'ru') handleLangToggle(); }}
+                        title="Русский"
+                        aria-pressed={lang === 'ru'}
+                    >
+                        RU
+                    </button>
+                </div>
 
                 <button
                     className="logout-btn-side"

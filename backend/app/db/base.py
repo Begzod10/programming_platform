@@ -22,6 +22,7 @@ from app.models.quiz import Quiz, Question, StudentQuizResult
 from app.models.video_watch import VideoWatch
 from app.models.dictionary import UserDictionary, PracticeSession
 from app.models.lesson_feedback import LessonFeedback
+from app.models.translation_cache import TranslationCache
 
 __all__ = [
     "Base",
@@ -49,4 +50,5 @@ __all__ = [
     "UserDictionary",
     "PracticeSession",
     "LessonFeedback",
+    "TranslationCache",
 ]

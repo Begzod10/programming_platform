@@ -51,6 +51,12 @@ class Course(Base):
     video_intro_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     syllabus_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
+    # Language the catalogue copy is authored in. Drives the translation
+    # cache the same way Lesson.source_lang does.
+    source_lang: Mapped[str] = mapped_column(
+        String(8), nullable=False, default="uz", server_default="uz",
+    )
+
     # Teacher-controlled display position — lower = earlier in lists.
     # Multiple courses may share the same value; ties break by id.
     display_order: Mapped[int] = mapped_column(

@@ -301,6 +301,7 @@ async def download_lesson_file_for_student(
 @router.get("/courses/{course_id}/lessons", response_model=List[LessonRead])
 async def get_lessons(
         course_id: int,
+        lang: Optional[str] = None,
         db: AsyncSession = Depends(get_db),
         current_student: Optional[Student] = Depends(get_current_student_optional)
 ):
@@ -334,6 +335,29 @@ async def get_lessons(
 
         result.append(lesson_data)
 
+    # List view only needs title + chapter translated; the heavy fields
+    # (text_content, sections_json) are loaded by the lesson detail endpoint.
+    if lang:
+        from app.services.translation_service import translate_fields
+        for lesson, dto in zip(lessons, result):
+            src_lang = getattr(lesson, "source_lang", None) or "uz"
+            if lang == src_lang:
+                continue
+            translated = await translate_fields(
+                db,
+                entity_type="lesson",
+                entity_id=lesson.id,
+                target_lang=lang,
+                source_lang=src_lang,
+                fields={
+                    "title": lesson.title,
+                    "chapter": lesson.chapter,
+                },
+            )
+            for k, v in translated.items():
+                if v:
+                    setattr(dto, k, v)
+
     return result
 
 
@@ -341,6 +365,7 @@ async def get_lessons(
 async def get_lesson(
         course_id: int,
         lesson_id: int,
+        lang: Optional[str] = None,
         db: AsyncSession = Depends(get_db),
         current_student: Optional[Student] = Depends(get_current_student_optional)
 ):
@@ -351,6 +376,46 @@ async def get_lesson(
         raise HTTPException(status_code=404, detail="Dars topilmadi")
 
     res = LessonRead.model_validate(lesson)
+
+    # Translate natural-language fields lazily when the student requests
+    # a different language than the lesson was authored in. The service
+    # short-circuits when source == target and caches everything else.
+    src_lang = getattr(lesson, "source_lang", None) or "uz"
+    if lang and lang != src_lang:
+        from app.services.translation_service import (
+            translate_fields, translate_json_blob,
+        )
+        translated = await translate_fields(
+            db,
+            entity_type="lesson",
+            entity_id=lesson.id,
+            target_lang=lang,
+            source_lang=src_lang,
+            fields={
+                "title": lesson.title,
+                "chapter": lesson.chapter,
+                "text_content": lesson.text_content,
+                "task_title": lesson.task_title,
+                "task_description": lesson.task_description,
+                "task_requirements": lesson.task_requirements,
+                "task_technologies": lesson.task_technologies,
+            },
+        )
+        for k, v in translated.items():
+            if v is not None:
+                setattr(res, k, v)
+
+        if lesson.sections_json:
+            new_sections = await translate_json_blob(
+                db,
+                entity_type="lesson",
+                entity_id=lesson.id,
+                target_lang=lang,
+                source_text=lesson.sections_json,
+                source_lang=src_lang,
+            )
+            if new_sections:
+                res.sections_json = new_sections
 
     if current_student:
         comp_res = await db.execute(

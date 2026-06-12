@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 
 from app.dependencies import get_db, get_current_student, get_current_teacher
 from app.services import exercise_service
@@ -15,10 +15,69 @@ from app.models.user import Student
 router = APIRouter()
 
 
+async def _translate_exercise_dto(db, dto, lang: Optional[str]) -> None:
+    """Translate the student-visible fields of one exercise. `drag_items`
+    and `options` are JSON arrays — translated as JSON blobs so the
+    structure is preserved."""
+    if not lang or lang == "uz":
+        return
+    from app.services.translation_service import (
+        translate_fields, translate_json_blob,
+    )
+    # Lesson source_lang is the closest signal we have; exercises don't
+    # own a source_lang of their own yet.
+    src_lang = "uz"
+    translated = await translate_fields(
+        db,
+        entity_type="exercise",
+        entity_id=dto.id,
+        target_lang=lang,
+        source_lang=src_lang,
+        fields={
+            "title": dto.title,
+            "description": dto.description,
+            "hint": dto.hint,
+        },
+    )
+    for k, v in translated.items():
+        if v:
+            setattr(dto, k, v)
+
+    for json_field in ("drag_items", "options"):
+        src = getattr(dto, json_field, None)
+        if src:
+            new_val = await translate_json_blob(
+                db,
+                entity_type="exercise",
+                entity_id=dto.id,
+                target_lang=lang,
+                source_text=src,
+                source_lang=src_lang,
+                field_name=json_field,
+            )
+            if new_val:
+                setattr(dto, json_field, new_val)
+
+
 @router.get("/{lesson_id}/exercises", response_model=List[ExerciseRead])
-async def get_exercises(lesson_id: int, db: AsyncSession = Depends(get_db)):
+async def get_exercises(
+        lesson_id: int,
+        lang: Optional[str] = None,
+        db: AsyncSession = Depends(get_db),
+):
     """Dars mashqlari — GET /courses/{course_id}/lessons/{lesson_id}/exercises"""
-    return await exercise_service.get_exercises_by_lesson(db, lesson_id)
+    exercises = await exercise_service.get_exercises_by_lesson(db, lesson_id)
+    if lang and lang != "uz":
+        # ORM rows can't have setattr applied if they were re-validated by
+        # response_model — but the service returns ORM Exercise objects,
+        # which Pydantic will coerce. Translate via Pydantic models for
+        # safety.
+        from app.schemas.exercise import ExerciseRead
+        dtos = [ExerciseRead.model_validate(e) for e in exercises]
+        for dto in dtos:
+            await _translate_exercise_dto(db, dto, lang)
+        return dtos
+    return exercises
 
 
 @router.post("/{lesson_id}/exercises", response_model=ExerciseRead)
