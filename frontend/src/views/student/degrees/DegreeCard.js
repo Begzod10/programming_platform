@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './DegreeCard.css';
-import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { API_URL, useHttp, headers, resolveImageUrl } from '../../../api/search/base';
 
 const Degrees = () => {
     const { request } = useHttp();
@@ -158,7 +158,7 @@ const Degrees = () => {
                                 <div className={`deg-icon-wrap ${isUnlocked ? '' : 'locked-icon'}`}>
                                     {isUnlocked
                                         ? (item.badge_image_url
-                                            ? <img src={item.badge_image_url} alt="" />
+                                            ? <img src={resolveImageUrl(item.badge_image_url)} alt="" />
                                             : <span>🏆</span>)
                                         : <span>🔒</span>
                                     }

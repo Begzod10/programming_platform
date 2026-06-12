@@ -24,26 +24,31 @@ FULLSTACK_DESC = (
     "Developer darajasiga erishdingiz."
 )
 FULLSTACK_POINTS_REWARD = 500
+FULLSTACK_BADGE_URL = "/static/badges/fullstack.svg"
 
 
 async def _get_or_create_fullstack_achievement(db: AsyncSession) -> Achievement:
     """Return the platform-wide 'Full Stack Developer' Achievement row.
 
-    Self-seeds on first call so there is no separate manual data step. The
-    row carries criteria_type='all_courses_completed' and criteria_value=0
-    (sentinel — the all-courses check ignores the value).
+    Self-seeds on first call so there is no separate manual data step. If
+    the row already exists with a missing badge URL (e.g. from a build
+    before the SVG asset shipped), backfill the URL transparently.
     """
     res = await db.execute(
         select(Achievement).where(Achievement.criteria_type == "all_courses_completed").limit(1)
     )
     existing = res.scalar_one_or_none()
     if existing is not None:
+        if not (existing.badge_image_url or "").strip():
+            existing.badge_image_url = FULLSTACK_BADGE_URL
+            await db.commit()
+            await db.refresh(existing)
         return existing
 
     ach = Achievement(
         name=FULLSTACK_NAME,
         description=FULLSTACK_DESC,
-        badge_image_url="",
+        badge_image_url=FULLSTACK_BADGE_URL,
         points_reward=FULLSTACK_POINTS_REWARD,
         criteria_type="all_courses_completed",
         criteria_value=0,

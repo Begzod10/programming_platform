@@ -16,6 +16,7 @@ from app.db import base  # noqa: F401  ensures all models register on Base.metad
 from fastapi.staticfiles import StaticFiles
 
 UPLOAD_ROOT = Path(settings.UPLOAD_DIR)
+STATIC_ROOT = Path(__file__).resolve().parent / "static"
 
 
 @asynccontextmanager
@@ -91,6 +92,10 @@ def create_application() -> FastAPI:
 
     app.include_router(api_router, prefix=settings.API_V1_PREFIX)
     app.mount("/uploads", StaticFiles(directory=str(UPLOAD_ROOT)), name="uploads")
+    if STATIC_ROOT.exists():
+        # Serve badges, certificate templates, and other small bundled assets
+        # the FE references via `/static/...` (e.g. achievement badge images).
+        app.mount("/static", StaticFiles(directory=str(STATIC_ROOT)), name="static")
     register_exception_handlers(app)
 
     return app

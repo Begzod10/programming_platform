@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="Full Stack Developer badge">
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"  stop-color="#8b7bff"/>
+      <stop offset="0.55" stop-color="#5b67ff"/>
+      <stop offset="1"  stop-color="#3b2dc6"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd166"/>
+      <stop offset="1" stop-color="#f3a712"/>
+    </linearGradient>
+    <linearGradient id="ribbonShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8801a"/>
+      <stop offset="1" stop-color="#8a4d05"/>
+    </linearGradient>
+    <linearGradient id="layerFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#dad7ff" stop-opacity="0.7"/>
+    </linearGradient>
+    <linearGradient id="layerMid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd166"/>
+      <stop offset="1" stop-color="#f3a712"/>
+    </linearGradient>
+    <linearGradient id="layerBack" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#00d4a0"/>
+      <stop offset="1" stop-color="#00956d"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.4" r="0.65">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="0.7" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.2"/>
+    </filter>
+  </defs>
+
+  <!-- Outer shield -->
+  <path d="M120 8 L210 36 V128 C210 178 168 212 120 232 C72 212 30 178 30 128 V36 Z"
+        fill="url(#shield)" stroke="#2a1f7a" stroke-width="2"/>
+
+  <!-- Inner bevel -->
+  <path d="M120 22 L196 46 V128 C196 170 162 200 120 218 C78 200 44 170 44 128 V46 Z"
+        fill="none" stroke="#a59aff" stroke-width="1.2" stroke-opacity="0.55"/>
+
+  <!-- Top halo -->
+  <ellipse cx="120" cy="84" rx="78" ry="48" fill="url(#halo)"/>
+
+  <!-- Stack of three layers (back → front) -->
+  <g transform="translate(120 112)">
+    <!-- back layer -->
+    <g transform="translate(0 24)">
+      <ellipse cx="0" cy="2" rx="58" ry="10" fill="#1a1357" opacity="0.4" filter="url(#soft)"/>
+      <path d="M-56 0 L0 -18 L56 0 L0 18 Z" fill="url(#layerBack)" stroke="#005f43" stroke-width="1.4"/>
+      <path d="M-56 0 L0 18 L56 0" fill="none" stroke="#003f2c" stroke-opacity="0.55" stroke-width="1"/>
+    </g>
+    <!-- middle layer -->
+    <g transform="translate(0 4)">
+      <path d="M-56 0 L0 -18 L56 0 L0 18 Z" fill="url(#layerMid)" stroke="#7a4a04" stroke-width="1.4"/>
+      <path d="M-56 0 L0 18 L56 0" fill="none" stroke="#5a3502" stroke-opacity="0.55" stroke-width="1"/>
+    </g>
+    <!-- front layer -->
+    <g transform="translate(0 -16)">
+      <path d="M-56 0 L0 -18 L56 0 L0 18 Z" fill="url(#layerFront)" stroke="#3b2dc6" stroke-width="1.4"/>
+      <path d="M-56 0 L0 18 L56 0" fill="none" stroke="#3b2dc6" stroke-opacity="0.45" stroke-width="1"/>
+      <!-- code chevrons on the top layer -->
+      <g transform="translate(0 -8)" fill="none" stroke="#3b2dc6" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="-22,4 -32,12 -22,20"/>
+        <polyline points="22,4 32,12 22,20"/>
+        <line x1="-8" y1="0" x2="8" y2="20"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Top star arc -->
+  <g fill="#ffd166" stroke="#a55b05" stroke-width="0.8">
+    <polygon points="120,52 122.9,60.9 132.3,60.9 124.7,66.4 127.6,75.3 120,69.8 112.4,75.3 115.3,66.4 107.7,60.9 117.1,60.9"/>
+    <polygon transform="translate(-30,8) scale(0.65)" points="120,52 122.9,60.9 132.3,60.9 124.7,66.4 127.6,75.3 120,69.8 112.4,75.3 115.3,66.4 107.7,60.9 117.1,60.9"/>
+    <polygon transform="translate(30,8) scale(0.65)" points="120,52 122.9,60.9 132.3,60.9 124.7,66.4 127.6,75.3 120,69.8 112.4,75.3 115.3,66.4 107.7,60.9 117.1,60.9"/>
+  </g>
+
+  <!-- Bottom ribbon -->
+  <g>
+    <!-- left tail -->
+    <path d="M40 178 L70 188 L60 210 L36 196 Z" fill="url(#ribbonShade)"/>
+    <!-- right tail -->
+    <path d="M200 178 L170 188 L180 210 L204 196 Z" fill="url(#ribbonShade)"/>
+    <!-- main banner -->
+    <path d="M50 174 H190 V204 H50 Z" fill="url(#ribbon)" stroke="#a55b05" stroke-width="1.2"/>
+    <path d="M50 174 H190" stroke="#fff3c8" stroke-opacity="0.7" stroke-width="1"/>
+  </g>
+
+  <!-- Banner text -->
+  <text x="120" y="195" text-anchor="middle"
+        font-family="'Space Grotesk', 'Inter', system-ui, sans-serif"
+        font-weight="800" font-size="15" letter-spacing="2.2"
+        fill="#3a2003">FULL STACK</text>
+</svg>
