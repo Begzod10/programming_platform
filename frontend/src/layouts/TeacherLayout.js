@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 const SCROLLABLE_SEGMENTS = ['students', 'review', 'statistics', 'courses', 'certificates', 'feedback'];
 
 function TeacherLayout() {
-    const { user, logout } = useAuth();
+    const { logout } = useAuth();
     const location = useLocation();
 
     // Определяем активный таб по URL: /teacher/courses/123 → 'courses'
@@ -18,10 +18,6 @@ function TeacherLayout() {
             <TeacherSidebar activeTab={segment} onLogout={logout} />
 
             <main className="content-area">
-                <header className="main-header">
-                    <h1>Добро пожаловать, {user?.name || user?.username}!</h1>
-                </header>
-
                 <div className={`page-container ${isScrollable ? 'scrollable' : ''}`}>
                     {/* Дочерний роут рендерится сюда */}
                     <Outlet />
