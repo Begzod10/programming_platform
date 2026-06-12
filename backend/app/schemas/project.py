@@ -60,8 +60,8 @@ class ProjectBase(BaseModel):
         v = v.strip()
         if len(v) < 3:
             raise ValueError("Sarlavha kamida 3 ta belgidan iborat bo'lishi kerak")
-        if len(v) > 200:
-            raise ValueError("Sarlavha 200 ta belgidan oshmasligi kerak")
+        if len(v) > 500:
+            raise ValueError("Sarlavha 500 ta belgidan oshmasligi kerak")
         return v
 
     @field_validator("description", mode="before")

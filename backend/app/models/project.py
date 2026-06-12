@@ -17,7 +17,7 @@ class Project(Base):
         ForeignKey("students.id", ondelete="CASCADE"),
         nullable=False
     )
-    title: Mapped[str] = mapped_column(String(150), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     github_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     live_demo_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
