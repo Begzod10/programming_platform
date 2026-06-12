@@ -5,6 +5,7 @@ import './StudentLessonPage.css';
 import {SECTION_TYPES, getYTId} from '../../../../constants/courseUtils';
 import {API_URL, useHttp, headers} from '../../../../api/search/base';
 import DictSelectionPopup from '../LessonPage/Dictselectionpopup';
+import LessonDictionaryDrawer from './LessonDictionaryDrawer';
 import StudentProjectFiles from '../StudentProjectPreview/StudentProjectPreview';
 
 // One-time Mermaid init at module load. startOnLoad:false because we trigger
@@ -1533,6 +1534,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             )}
 
             <DictSelectionPopup lessonId={lesson.id}/>
+            <LessonDictionaryDrawer lessonId={lesson.id}/>
         </div>
     );
 };
