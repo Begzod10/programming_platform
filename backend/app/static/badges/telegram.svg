@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" role="img" aria-label="TELEGRAM BOT badge">
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"    stop-color="#5fc7f4"/>
+      <stop offset="0.55" stop-color="#229ED9"/>
+      <stop offset="1"    stop-color="#0a4c70"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd166"/>
+      <stop offset="1" stop-color="#f3a712"/>
+    </linearGradient>
+    <linearGradient id="ribbonShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c8801a"/>
+      <stop offset="1" stop-color="#8a4d05"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0.5" cy="0.4" r="0.65">
+      <stop offset="0"   stop-color="#ffffff" stop-opacity="0.3"/>
+      <stop offset="0.7" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Outer shield -->
+  <path d="M120 8 L210 36 V128 C210 178 168 212 120 232 C72 212 30 178 30 128 V36 Z"
+        fill="url(#shield)" stroke="#0a4c70" stroke-width="2"/>
+  <!-- Inner bevel -->
+  <path d="M120 22 L196 46 V128 C196 170 162 200 120 218 C78 200 44 170 44 128 V46 Z"
+        fill="none" stroke="#c4e9fa" stroke-width="1.2" stroke-opacity="0.7"/>
+  <!-- Top halo -->
+  <ellipse cx="120" cy="84" rx="78" ry="48" fill="url(#halo)"/>
+
+  <!-- Three star arc -->
+  <g fill="#ffd166" stroke="#a55b05" stroke-width="0.8">
+    <polygon points="120,52 122.9,60.9 132.3,60.9 124.7,66.4 127.6,75.3 120,69.8 112.4,75.3 115.3,66.4 107.7,60.9 117.1,60.9"/>
+    <polygon transform="translate(-30,8) scale(0.65)" points="120,52 122.9,60.9 132.3,60.9 124.7,66.4 127.6,75.3 120,69.8 112.4,75.3 115.3,66.4 107.7,60.9 117.1,60.9"/>
+    <polygon transform="translate(30,8) scale(0.65)" points="120,52 122.9,60.9 132.3,60.9 124.7,66.4 127.6,75.3 120,69.8 112.4,75.3 115.3,66.4 107.7,60.9 117.1,60.9"/>
+  </g>
+
+  <!-- Center icon -->
+  <g transform="translate(120 120)">
+    <g>
+                <!-- paper plane -->
+                <path d="M-42 -6 L42 -28 L26 30 L4 18 L-6 28 L-2 12 z" fill="#fff" stroke="#0a4c70" stroke-width="1.5"/>
+                <path d="M4 18 L26 -16" stroke="#0a4c70" stroke-width="1.5" fill="none"/>
+            </g>
+  </g>
+
+  <!-- Bottom ribbon -->
+  <g>
+    <path d="M40 178 L70 188 L60 210 L36 196 Z" fill="url(#ribbonShade)"/>
+    <path d="M200 178 L170 188 L180 210 L204 196 Z" fill="url(#ribbonShade)"/>
+    <path d="M50 174 H190 V204 H50 Z" fill="url(#ribbon)" stroke="#a55b05" stroke-width="1.2"/>
+    <path d="M50 174 H190" stroke="#fff3c8" stroke-opacity="0.7" stroke-width="1"/>
+  </g>
+
+  <text x="120" y="195" text-anchor="middle"
+        font-family="'Space Grotesk','Inter',system-ui,sans-serif"
+        font-weight="800" font-size="12" letter-spacing="1.6"
+        fill="#3a2003">TELEGRAM BOT</text>
+</svg>

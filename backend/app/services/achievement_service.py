@@ -27,6 +27,72 @@ FULLSTACK_POINTS_REWARD = 500
 FULLSTACK_BADGE_URL = "/static/badges/fullstack.svg"
 
 
+# Course title → badge slug. Match is case-insensitive substring on the
+# course title; first hit wins. Patterns are ordered most-specific first
+# so 'react' doesn't get clobbered by a hypothetical 'r' pattern.
+_COURSE_BADGE_PATTERNS = [
+    ("react",        "react"),
+    ("postgres",     "sql"),
+    ("sql",          "sql"),
+    ("telegram",     "telegram"),
+    ("aiogram",      "telegram"),
+    ("github",       "git"),
+    ("git",          "git"),
+    ("flask",        "python"),
+    ("django",       "python"),
+    ("python",       "python"),
+    ("javascript",   "javascript"),
+    (" js ",         "javascript"),
+    ("html",         "html-css"),
+    ("css",          "html-css"),
+    ("dasturlash",   "intro"),
+    ("asoslar",      "intro"),
+    ("kirish",       "intro"),
+]
+
+
+def _badge_url_for_course_title(title: str) -> str:
+    """Map a course title to its bundled badge URL, or '' if no rule fits."""
+    if not title:
+        return ""
+    needle = f" {title.lower()} "
+    for pattern, slug in _COURSE_BADGE_PATTERNS:
+        if pattern in needle:
+            return f"/static/badges/{slug}.svg"
+    return ""
+
+
+# URLs known to be placeholder values from earlier seed data — we treat
+# these as "no badge" and overwrite when a real one is available.
+_PLACEHOLDER_BADGE_URLS = {"", "/static/default_badge.png"}
+
+
+async def _backfill_course_badge_urls(db: AsyncSession) -> int:
+    """Walk course-completion achievements with empty/placeholder badge URLs
+    and set them to the matching bundled badge based on the course title.
+    Returns the number of rows updated. Idempotent."""
+    from app.models.course import Course
+
+    res = await db.execute(
+        select(Achievement, Course.title)
+        .outerjoin(Course, Course.id == Achievement.course_id)
+        .where(Achievement.criteria_type == "course_completion")
+    )
+    updated = 0
+    for ach, course_title in res.all():
+        existing = (ach.badge_image_url or "").strip()
+        if existing not in _PLACEHOLDER_BADGE_URLS:
+            continue
+        url = _badge_url_for_course_title(course_title or ach.name)
+        if not url or url == existing:
+            continue
+        ach.badge_image_url = url
+        updated += 1
+    if updated:
+        await db.commit()
+    return updated
+
+
 async def _get_or_create_fullstack_achievement(db: AsyncSession) -> Achievement:
     """Return the platform-wide 'Full Stack Developer' Achievement row.
 
@@ -157,6 +223,10 @@ async def check_and_award_achievements(db: AsyncSession, student_id: int) -> Lis
     # Make sure the Full-Stack achievement row exists so the check below sees
     # it on first run. Idempotent.
     await _get_or_create_fullstack_achievement(db)
+    # Auto-attach bundled badge URLs to any course-completion achievement
+    # row that still points at a placeholder. Idempotent and cheap (one
+    # SELECT + an UPDATE only when a row actually changes).
+    await _backfill_course_badge_urls(db)
 
     achievements = await get_all_achievements(db)
 
