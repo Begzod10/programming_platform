@@ -296,6 +296,23 @@ function Profile({user: initialUser, onLogout}) {
                                     onClick={() => { setEditMode(true); setError(''); }}>
                                 ✏️ {t('edit')}
                             </button>
+                            {profile?.username && (
+                                <button
+                                    className="lang-toggle-btn"
+                                    onClick={() => {
+                                        const url = `${window.location.origin}/u/${profile.username}`;
+                                        navigator.clipboard?.writeText(url)
+                                            .then(() => {
+                                                setSuccess('Ссылка на ваш публичный профиль скопирована');
+                                                setTimeout(() => setSuccess(''), 3000);
+                                            })
+                                            .catch(() => {});
+                                    }}
+                                    title="Поделиться публичным профилем"
+                                >
+                                    🔗 Поделиться профилем
+                                </button>
+                            )}
                             <button className="lang-toggle-btn" onClick={toggleLang}>
                                 🌐 {lang === 'uz' ? 'Русский' : "O'zbekcha"}
                             </button>

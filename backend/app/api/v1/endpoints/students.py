@@ -10,6 +10,11 @@ from app.config import settings
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.schemas.user import UserRead, UserUpdate
 from app.schemas.project import ProjectRead
+from app.schemas.public_profile import (
+    PublicProfile,
+    PublicAchievement,
+    PublicCertificate,
+)
 from app.services.project_service import ProjectService
 from app.services.student_service import StudentService
 from app.models.user import Student
@@ -18,6 +23,92 @@ router = APIRouter()
 
 UPLOAD_DIR = Path(settings.UPLOAD_DIR) / "avatars"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@router.get("/public/{username}", response_model=PublicProfile)
+async def get_public_profile(
+        username: str,
+        db: AsyncSession = Depends(get_db),
+):
+    """Public student profile — no auth required.
+
+    The response is shaped by PublicProfile in schemas/public_profile.py;
+    every field there is intentionally public-safe. Email, phone, balance,
+    and Gennis-issued tokens are excluded by construction (not by filter)
+    so a future change to UserRead can't accidentally widen this surface.
+    """
+    from sqlalchemy import func
+    from sqlalchemy.orm import selectinload
+    from app.models.project import Project
+    from app.models.student_achievement import (
+        StudentAchievement,
+        CourseCertificate,
+    )
+
+    res = await db.execute(
+        select(Student).where(
+            func.lower(Student.username) == username.lower(),
+            Student.is_active == True,
+        )
+    )
+    student = res.scalar_one_or_none()
+    if student is None:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    proj_res = await db.execute(
+        select(func.count(Project.id)).where(
+            Project.student_id == student.id,
+            Project.status == "Approved",
+        )
+    )
+    projects_approved = proj_res.scalar() or 0
+
+    cert_res = await db.execute(
+        select(CourseCertificate)
+        .where(CourseCertificate.student_id == student.id)
+        .options(selectinload(CourseCertificate.course))
+        .order_by(CourseCertificate.issued_at.desc())
+    )
+    certificates = [
+        PublicCertificate(
+            course_title=c.course.title if c.course else "",
+            issued_at=c.issued_at,
+        )
+        for c in cert_res.scalars().all()
+        if c.course is not None
+    ]
+
+    ach_res = await db.execute(
+        select(StudentAchievement)
+        .where(StudentAchievement.student_id == student.id)
+        .options(selectinload(StudentAchievement.achievement))
+        .order_by(StudentAchievement.earned_at.desc())
+    )
+    achievements = [
+        PublicAchievement(
+            name=sa.achievement.name if sa.achievement else "—",
+            description=(sa.achievement.description if sa.achievement else None),
+            badge_image_url=(sa.achievement.badge_image_url if sa.achievement else None),
+            points_reward=(sa.achievement.points_reward if sa.achievement else 0),
+            earned_at=sa.earned_at,
+        )
+        for sa in ach_res.scalars().all()
+        if sa.achievement is not None
+    ]
+
+    return PublicProfile(
+        username=student.username,
+        full_name=student.full_name,
+        avatar_url=student.avatar_url,
+        current_level=(getattr(student.current_level, "value", student.current_level) or "Beginner"),
+        total_points=student.total_points or 0,
+        current_streak=student.current_streak or 0,
+        longest_streak=student.longest_streak or 0,
+        joined_at=student.created_at,
+        projects_approved=projects_approved,
+        certificates=certificates,
+        achievements=achievements,
+    )
 
 
 @router.get("/me", response_model=UserRead)

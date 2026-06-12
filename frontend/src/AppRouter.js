@@ -26,6 +26,7 @@ import TeacherFeedback          from './views/teacher/feedback/TeacherFeedback';
 import TeacherCertificates      from './views/teacher/TeacherCertificates/Teachercertificates';
 import TeacherStudentsRankings  from './views/teacher/StudentRankings/StudentRankings';
 import ProjectLeaderboard       from './views/shared/ProjectLeaderboard/ProjectLeaderboard';
+import PublicProfile            from './views/public/PublicProfile/PublicProfile';
 
 /* ─── helpers ─── */
 function RootRedirect() {
@@ -72,6 +73,9 @@ function AppRouter() {
             {/* Auth */}
             <Route path="/login"    element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+
+            {/* Public profile (no auth) — sharable URL: /u/<username> */}
+            <Route path="/u/:username" element={<PublicProfile />} />
 
             {/* ══════════ STUDENT ══════════ */}
             <Route
