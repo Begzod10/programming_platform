@@ -488,10 +488,12 @@ export default function Dictionary() {
                                         className="d-card-del"
                                         onClick={() => handleDelete(item.id)}
                                         disabled={deleting === item.id}
+                                        aria-label={`Удалить слово ${item.word}`}
+                                        title="Удалить слово"
                                     >
                                         {deleting === item.id
                                             ? <span className="d-spin" />
-                                            : <svg viewBox="0 0 20 20" fill="none">
+                                            : <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
                                                 <path d="M7 4h6M4 7h12M6 7l1 9h6l1-9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
                                               </svg>
                                         }
@@ -516,15 +518,17 @@ export default function Dictionary() {
                                 <div className="d-list-word">{item.word}</div>
                                 <div className="d-list-ctx">{item.context || '—'}</div>
                                 {item.lesson_id
-                                    ? <span className="d-list-tag">{item.lesson_id}-dars</span>
-                                    : <span className="d-list-tag manual">✍️ qo'lda</span>
+                                    ? <span className="d-list-tag">Урок {item.lesson_id}</span>
+                                    : <span className="d-list-tag manual">✍️ вручную</span>
                                 }
                                 <button
                                     className="d-list-del"
                                     onClick={() => handleDelete(item.id)}
                                     disabled={deleting === item.id}
+                                    aria-label={`Удалить слово ${item.word}`}
+                                    title="Удалить слово"
                                 >
-                                    {deleting === item.id ? <span className="d-spin" /> : '✕'}
+                                    {deleting === item.id ? <span className="d-spin" aria-hidden="true" /> : '✕'}
                                 </button>
                             </div>
                         ))}

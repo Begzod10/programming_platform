@@ -85,9 +85,15 @@ function Login({ onLogin, onGoRegister }) {
                     disabled={loading}
                     autoComplete="current-password"
                 />
-                <span className="password-toggle-icon" onClick={() => setShowPassword(v => !v)}>
-                    <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
-                </span>
+                <button
+                    type="button"
+                    className="password-toggle-icon"
+                    onClick={() => setShowPassword(v => !v)}
+                    aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                    title={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                >
+                    <i className={showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'} aria-hidden="true"></i>
+                </button>
             </div>
 
             {error && <p className="login-error">{error}</p>}

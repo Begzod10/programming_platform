@@ -415,16 +415,27 @@ function MyProjects() {
         try {
             const res = await request(`${API_URL}v1/project/${detail.id}`, 'PUT', JSON.stringify(buildBody()), headers());
 
+            // The project metadata save is the primary action; ZIP upload is
+            // a separate request. Don't silently swallow ZIP failures — the
+            // student needs to know the file didn't go through.
+            let zipUploadFailed = false;
             if (uploadMethod === 'zip' && formZipFile) {
                 try {
                     await uploadZipForProject(res.id, formZipFile);
-                } catch (_) {}
+                } catch (_) {
+                    zipUploadFailed = true;
+                }
             }
 
             setProjects(p => p.map(pr => pr.id === res.id ? res : pr));
             setDetail(res);
             setEditModal(false);
             setFormZipFile(null);
+
+            if (zipUploadFailed) {
+                setUploadMsg('⚠️ Проект сохранён, но ZIP не загрузился. Загрузите файл ещё раз.');
+                setTimeout(() => setUploadMsg(''), 6000);
+            }
         } catch {
             setApiError('Ошибка при обновлении проекта');
         } finally {

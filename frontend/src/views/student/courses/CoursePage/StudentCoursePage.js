@@ -29,12 +29,22 @@ const LessonCard = ({ lesson, index, isLocked, onOpen }) => {
     ? {}
     : { background: lesson.color || THUMB_COLORS[(index - 1) % THUMB_COLORS.length] };
 
+  // Locked cards stay tab-reachable as a presentational button so keyboard
+  // users can read the lock reason from the title attribute / screen reader
+  // label. They just can't activate it.
+  const lockedLabel = isLocked
+    ? 'Заблокировано — сначала завершите предыдущий урок'
+    : undefined;
+
   return (
     <div
       className={`scp-lesson-card${lesson.completed ? ' is-done' : ''}${isLocked ? ' is-locked' : ''}`}
       onClick={isLocked ? undefined : onOpen}
-      role={isLocked ? undefined : 'button'}
-      tabIndex={isLocked ? undefined : 0}
+      role="button"
+      tabIndex={0}
+      aria-disabled={isLocked || undefined}
+      aria-label={lockedLabel}
+      title={lockedLabel}
       onKeyDown={isLocked ? undefined : (e) => e.key === 'Enter' && onOpen()}
     >
       {/* ── Thumbnail ── */}

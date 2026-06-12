@@ -311,8 +311,11 @@ export default function ProjectLeaderboard({ role = 'student' }) {
                                                     </span>
                                                 )}
                                                 {s.avg_grade > 0 && (
-                                                    <span className="tsr-chip tsr-chip--course">
-                                                        ⌀ {s.avg_grade}
+                                                    <span
+                                                        className="tsr-chip tsr-chip--course"
+                                                        title="Средний балл по проектам"
+                                                    >
+                                                        Ср. {s.avg_grade}
                                                     </span>
                                                 )}
                                                 {s.best_course && (

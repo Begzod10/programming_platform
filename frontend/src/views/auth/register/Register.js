@@ -115,9 +115,15 @@ function Register({ onLogin, onGoLogin }) {
                     className={errors.password ? 'input-error' : ''}
                     autoComplete="new-password"
                 />
-                <span className="password-toggle-icon" onClick={() => setShowPassword(!showPassword)}>
-                    <i className={showPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
-                </span>
+                <button
+                    type="button"
+                    className="password-toggle-icon"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                    title={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                >
+                    <i className={showPassword ? 'fas fa-eye-slash' : 'fas fa-eye'} aria-hidden="true"></i>
+                </button>
                 {errors.password && <span className="field-error">{errors.password}</span>}
             </div>
 
@@ -133,9 +139,15 @@ function Register({ onLogin, onGoLogin }) {
                     className={errors.confirmPassword ? 'input-error' : ''}
                     autoComplete="new-password"
                 />
-                <span className="password-toggle-icon" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
-                    <i className={showConfirmPassword ? "fas fa-eye-slash" : "fas fa-eye"}></i>
-                </span>
+                <button
+                    type="button"
+                    className="password-toggle-icon"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    aria-label={showConfirmPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                    title={showConfirmPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                >
+                    <i className={showConfirmPassword ? 'fas fa-eye-slash' : 'fas fa-eye'} aria-hidden="true"></i>
+                </button>
                 {errors.confirmPassword && <span className="field-error">{errors.confirmPassword}</span>}
             </div>
 

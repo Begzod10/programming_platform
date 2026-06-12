@@ -240,13 +240,24 @@ body { margin: 0; }
     color: rgba(26, 26, 46, 0.4);
     font-size: 16px;
     z-index: 10;
-    transition: color 0.2s;
+    transition: color 0.2s, box-shadow 0.2s;
     display: flex;
     align-items: center;
+    /* Reset native <button> styling so the toggle looks the same as before */
+    background: transparent;
+    border: none;
+    padding: 0;
+    border-radius: 6px;
+    line-height: 0;
 }
 
 .password-toggle-icon:hover {
     color: #6c5ce7;
+}
+.password-toggle-icon:focus-visible {
+    outline: none;
+    color: #6c5ce7;
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.25);
 }
 
 /* Чтобы ошибка не перекрывала иконку, если она выводится под инпутом */
