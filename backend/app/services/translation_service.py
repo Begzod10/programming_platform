@@ -213,6 +213,51 @@ async def translate_fields(
     return out
 
 
+# Keys whose values are natural-language strings the student reads.
+# Anything outside this set stays untouched — id/type/url/code/etc.
+_TRANSLATABLE_KEYS = {
+    "label", "text", "content", "question", "hint", "prompt",
+    "answer", "correctAnswer", "description", "title",
+    "explanation", "feedback", "placeholder",
+}
+
+# Keys whose values are NEVER translated even if they happen to look
+# like text. Belt-and-braces — anything not in _TRANSLATABLE_KEYS is
+# already skipped by the walker.
+_NEVER_TRANSLATE_KEYS = {
+    "type", "id", "url", "videoUrl", "imgUrl", "image", "src",
+    "code", "codeLanguage", "fileName", "fileSize", "icon",
+    "color", "bg", "fontFamily",
+}
+
+
+def _collect_translatable_strings(node, out: list[tuple[list, str]], path: list = None) -> None:
+    """Walk a parsed JSON tree, collecting every string value under a
+    translatable key. `out` accumulates (path, source_string) pairs so we
+    can write the translation back to the exact spot it came from."""
+    if path is None:
+        path = []
+    if isinstance(node, dict):
+        for k, v in node.items():
+            if k in _NEVER_TRANSLATE_KEYS:
+                continue
+            child_path = path + [k]
+            if k in _TRANSLATABLE_KEYS and isinstance(v, str) and v.strip():
+                out.append((child_path, v))
+            else:
+                _collect_translatable_strings(v, out, child_path)
+    elif isinstance(node, list):
+        for i, item in enumerate(node):
+            _collect_translatable_strings(item, out, path + [i])
+
+
+def _set_at_path(tree, path: list, value) -> None:
+    node = tree
+    for step in path[:-1]:
+        node = node[step]
+    node[path[-1]] = value
+
+
 async def translate_json_blob(
     db: AsyncSession,
     *,
@@ -223,12 +268,23 @@ async def translate_json_blob(
     source_lang: str,
     field_name: str = "sections_json",
 ) -> Optional[str]:
-    """Translate a JSON string (e.g. lesson.sections_json) wholesale.
+    """Translate the natural-language strings inside a JSON document.
 
-    The model is told to preserve structure and only translate known
-    natural-language keys. If the AI returns something that's not valid
-    JSON the source is returned unchanged — better that than a parse error
-    on the FE.
+    The old version asked the model to round-trip the whole JSON, which
+    was fragile — gpt-4.1 frequently emitted commentary, dropped keys,
+    or escaped quotes incorrectly, and the json.loads() guard then made
+    us throw the translation away and return source. Result: lesson
+    bodies appeared untranslated and the cache was never written, so
+    every render paid the AI cost again.
+
+    The new approach:
+      1. Parse the source as JSON locally.
+      2. Walk the tree, collecting every string under a translatable key.
+      3. Send just those strings (no structure) to translate_fields-style
+         batched calls — small, fast, and the parser never gets involved.
+      4. Stitch the translations back into the tree at their exact path.
+      5. Re-serialize. Output is GUARANTEED to be valid JSON because we
+         never let the model touch the structure.
     """
     if _should_skip(source_text):
         return source_text
@@ -244,35 +300,60 @@ async def translate_json_blob(
     if cached is not None:
         return cached
 
-    try:
-        translated = await translate_text_with_ai(
-            source_text or "", source_lang=source_lang,
-            target_lang=target_lang, is_json=True,
-        )
-    except Exception:
-        logger.exception(
-            "translate_json_blob: AI call failed for %s/%s/%s",
-            entity_type, entity_id, target_lang,
-        )
-        return source_text
-
-    if not translated:
-        return source_text
-
-    # Sanity-check it's still valid JSON — if not, fall back to source.
     import json
     try:
-        json.loads(translated)
+        tree = json.loads(source_text or "null")
     except Exception:
+        # Source isn't valid JSON — can't safely modify it.
         logger.warning(
-            "translate_json_blob: AI returned non-JSON for %s/%s/%s",
-            entity_type, entity_id, target_lang,
+            "translate_json_blob: source not valid JSON for %s/%s",
+            entity_type, entity_id,
         )
         return source_text
+
+    pairs: list[tuple[list, str]] = []
+    _collect_translatable_strings(tree, pairs)
+    if not pairs:
+        # Nothing to translate — write the source as the "translation" so
+        # we don't keep re-checking on every request.
+        await _write_cached(
+            db, entity_type, entity_id, target_lang, field_name,
+            source_hash, source_text or "",
+        )
+        try: await db.commit()
+        except Exception: await db.rollback()
+        return source_text
+
+    async def _translate_one(s: str) -> Optional[str]:
+        try:
+            from app.services.grok_service import translate_text_with_ai
+            return await translate_text_with_ai(
+                s, source_lang=source_lang, target_lang=target_lang,
+            )
+        except Exception:
+            logger.exception(
+                "translate_json_blob: per-string AI call failed for %s/%s",
+                entity_type, entity_id,
+            )
+            return None
+
+    results = await asyncio.gather(
+        *[_translate_one(src) for _, src in pairs],
+        return_exceptions=False,
+    )
+
+    # Apply translations back into the parsed tree at their original path.
+    # Any string we couldn't translate stays in source language — partial
+    # translation beats none.
+    for (path, src), translated in zip(pairs, results):
+        if translated and translated.strip() and translated.strip() != src.strip():
+            _set_at_path(tree, path, translated)
+
+    out = json.dumps(tree, ensure_ascii=False)
 
     await _write_cached(
         db, entity_type, entity_id, target_lang, field_name,
-        source_hash, translated,
+        source_hash, out,
     )
     try:
         await db.commit()
@@ -282,4 +363,4 @@ async def translate_json_blob(
             "translate_json_blob: cache commit failed for %s/%s/%s",
             entity_type, entity_id, target_lang,
         )
-    return translated
+    return out
