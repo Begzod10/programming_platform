@@ -335,28 +335,56 @@ async def get_lessons(
 
         result.append(lesson_data)
 
-    # List view only needs title + chapter translated; the heavy fields
-    # (text_content, sections_json) are loaded by the lesson detail endpoint.
+    # The StudentCourses page renders lessons directly from this list
+    # payload — it doesn't call the detail endpoint per click — so the
+    # full set of natural-language fields has to be translated here.
+    # Each lesson is wrapped in try/except so one slow/AI failure can't
+    # take down the whole course list.
     if lang:
-        from app.services.translation_service import translate_fields
+        from app.services.translation_service import (
+            translate_fields, translate_json_blob,
+        )
         for lesson, dto in zip(lessons, result):
             src_lang = getattr(lesson, "source_lang", None) or "uz"
             if lang == src_lang:
                 continue
-            translated = await translate_fields(
-                db,
-                entity_type="lesson",
-                entity_id=lesson.id,
-                target_lang=lang,
-                source_lang=src_lang,
-                fields={
-                    "title": lesson.title,
-                    "chapter": lesson.chapter,
-                },
-            )
-            for k, v in translated.items():
-                if v:
-                    setattr(dto, k, v)
+            try:
+                translated = await translate_fields(
+                    db,
+                    entity_type="lesson",
+                    entity_id=lesson.id,
+                    target_lang=lang,
+                    source_lang=src_lang,
+                    fields={
+                        "title":             lesson.title,
+                        "chapter":           lesson.chapter,
+                        "text_content":      lesson.text_content,
+                        "task_title":        lesson.task_title,
+                        "task_description":  lesson.task_description,
+                        "task_requirements": lesson.task_requirements,
+                        "task_technologies": lesson.task_technologies,
+                    },
+                )
+                for k, v in translated.items():
+                    if v is not None:
+                        setattr(dto, k, v)
+
+                if lesson.sections_json:
+                    new_sections = await translate_json_blob(
+                        db,
+                        entity_type="lesson",
+                        entity_id=lesson.id,
+                        target_lang=lang,
+                        source_text=lesson.sections_json,
+                        source_lang=src_lang,
+                    )
+                    if new_sections:
+                        dto.sections_json = new_sections
+            except Exception:
+                # Don't let a missing translation_cache table or an AI
+                # failure 500 the entire course list — just serve this
+                # lesson in its source language.
+                continue
 
     return result
 
@@ -380,42 +408,48 @@ async def get_lesson(
     # Translate natural-language fields lazily when the student requests
     # a different language than the lesson was authored in. The service
     # short-circuits when source == target and caches everything else.
+    # Wrapped in try/except so the page never 500s if the translation_cache
+    # table is missing (migration not yet run) or the AI is down.
     src_lang = getattr(lesson, "source_lang", None) or "uz"
     if lang and lang != src_lang:
-        from app.services.translation_service import (
-            translate_fields, translate_json_blob,
-        )
-        translated = await translate_fields(
-            db,
-            entity_type="lesson",
-            entity_id=lesson.id,
-            target_lang=lang,
-            source_lang=src_lang,
-            fields={
-                "title": lesson.title,
-                "chapter": lesson.chapter,
-                "text_content": lesson.text_content,
-                "task_title": lesson.task_title,
-                "task_description": lesson.task_description,
-                "task_requirements": lesson.task_requirements,
-                "task_technologies": lesson.task_technologies,
-            },
-        )
-        for k, v in translated.items():
-            if v is not None:
-                setattr(res, k, v)
-
-        if lesson.sections_json:
-            new_sections = await translate_json_blob(
+        try:
+            from app.services.translation_service import (
+                translate_fields, translate_json_blob,
+            )
+            translated = await translate_fields(
                 db,
                 entity_type="lesson",
                 entity_id=lesson.id,
                 target_lang=lang,
-                source_text=lesson.sections_json,
                 source_lang=src_lang,
+                fields={
+                    "title": lesson.title,
+                    "chapter": lesson.chapter,
+                    "text_content": lesson.text_content,
+                    "task_title": lesson.task_title,
+                    "task_description": lesson.task_description,
+                    "task_requirements": lesson.task_requirements,
+                    "task_technologies": lesson.task_technologies,
+                },
             )
-            if new_sections:
-                res.sections_json = new_sections
+            for k, v in translated.items():
+                if v is not None:
+                    setattr(res, k, v)
+
+            if lesson.sections_json:
+                new_sections = await translate_json_blob(
+                    db,
+                    entity_type="lesson",
+                    entity_id=lesson.id,
+                    target_lang=lang,
+                    source_text=lesson.sections_json,
+                    source_lang=src_lang,
+                )
+                if new_sections:
+                    res.sections_json = new_sections
+        except Exception:
+            # Fall back to source language silently.
+            pass
 
     if current_student:
         comp_res = await db.execute(

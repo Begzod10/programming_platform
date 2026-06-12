@@ -57,27 +57,32 @@ async def _get_id_from_auth(request: Request) -> Optional[int]:
 async def _translate_course_dto(db, dto, course, lang: Optional[str]) -> None:
     """Lazily translate title + description on the DTO when the student
     asked for a different language than the row's source. Mutates the DTO
-    in place. Safe to call with lang=None — it just returns."""
+    in place. Safe to call with lang=None — it just returns. Failures
+    fall back to the source string so a missing migration or AI hiccup
+    can't 500 the catalogue."""
     if not lang:
         return
     src_lang = getattr(course, "source_lang", None) or "uz"
     if lang == src_lang:
         return
-    from app.services.translation_service import translate_fields
-    translated = await translate_fields(
-        db,
-        entity_type="course",
-        entity_id=course.id,
-        target_lang=lang,
-        source_lang=src_lang,
-        fields={
-            "title": getattr(dto, "title", None),
-            "description": getattr(dto, "description", None),
-        },
-    )
-    for k, v in translated.items():
-        if v:
-            setattr(dto, k, v)
+    try:
+        from app.services.translation_service import translate_fields
+        translated = await translate_fields(
+            db,
+            entity_type="course",
+            entity_id=course.id,
+            target_lang=lang,
+            source_lang=src_lang,
+            fields={
+                "title": getattr(dto, "title", None),
+                "description": getattr(dto, "description", None),
+            },
+        )
+        for k, v in translated.items():
+            if v:
+                setattr(dto, k, v)
+    except Exception:
+        pass
 
 
 @router.get("/", response_model=List[CourseRead])

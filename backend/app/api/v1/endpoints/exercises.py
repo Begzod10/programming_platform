@@ -18,45 +18,46 @@ router = APIRouter()
 async def _translate_exercise_dto(db, dto, lang: Optional[str]) -> None:
     """Translate the student-visible fields of one exercise. `drag_items`
     and `options` are JSON arrays — translated as JSON blobs so the
-    structure is preserved."""
+    structure is preserved. Failures fall back to source silently."""
     if not lang or lang == "uz":
         return
-    from app.services.translation_service import (
-        translate_fields, translate_json_blob,
-    )
-    # Lesson source_lang is the closest signal we have; exercises don't
-    # own a source_lang of their own yet.
-    src_lang = "uz"
-    translated = await translate_fields(
-        db,
-        entity_type="exercise",
-        entity_id=dto.id,
-        target_lang=lang,
-        source_lang=src_lang,
-        fields={
-            "title": dto.title,
-            "description": dto.description,
-            "hint": dto.hint,
-        },
-    )
-    for k, v in translated.items():
-        if v:
-            setattr(dto, k, v)
+    try:
+        from app.services.translation_service import (
+            translate_fields, translate_json_blob,
+        )
+        src_lang = "uz"
+        translated = await translate_fields(
+            db,
+            entity_type="exercise",
+            entity_id=dto.id,
+            target_lang=lang,
+            source_lang=src_lang,
+            fields={
+                "title": dto.title,
+                "description": dto.description,
+                "hint": dto.hint,
+            },
+        )
+        for k, v in translated.items():
+            if v:
+                setattr(dto, k, v)
 
-    for json_field in ("drag_items", "options"):
-        src = getattr(dto, json_field, None)
-        if src:
-            new_val = await translate_json_blob(
-                db,
-                entity_type="exercise",
-                entity_id=dto.id,
-                target_lang=lang,
-                source_text=src,
-                source_lang=src_lang,
-                field_name=json_field,
-            )
-            if new_val:
-                setattr(dto, json_field, new_val)
+        for json_field in ("drag_items", "options"):
+            src = getattr(dto, json_field, None)
+            if src:
+                new_val = await translate_json_blob(
+                    db,
+                    entity_type="exercise",
+                    entity_id=dto.id,
+                    target_lang=lang,
+                    source_text=src,
+                    source_lang=src_lang,
+                    field_name=json_field,
+                )
+                if new_val:
+                    setattr(dto, json_field, new_val)
+    except Exception:
+        pass
 
 
 @router.get("/{lesson_id}/exercises", response_model=List[ExerciseRead])
