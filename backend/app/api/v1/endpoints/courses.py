@@ -68,7 +68,10 @@ def _translate_course_dto(dto, course, lang: Optional[str]) -> None:
     for field_name in ("title", "description"):
         tr = ts.get("course", course.id, lang, field_name)
         if tr:
-            setattr(dto, field_name, tr)
+            if isinstance(dto, dict):
+                dto[field_name] = tr
+            else:
+                setattr(dto, field_name, tr)
 
 
 @router.get("/", response_model=List[CourseRead])
