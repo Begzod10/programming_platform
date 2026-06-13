@@ -1,7 +1,7 @@
 import random
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import select, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, noload, load_only
@@ -12,7 +12,8 @@ from app.models.team_game import GameSession, GameTeam, GameTeamMember, SessionS
 from app.models.user import Student
 from app.schemas.team_game import (
     GameSessionRead, GameSessionCreate, GameTeamRead,
-    TeamMemberRead, ScoreUpdate,
+    TeamMemberRead, ScoreUpdate, StudentRead,
+    StartSessionBody,
 )
 from app.ws.manager import manager
 
@@ -209,10 +210,57 @@ async def get_session(
     return _build_session_read(session, sid, ctitle)
 
 
+# ── Teacher: list available students for a session ────────────────────────────
+@router.get("/{session_id}/students", response_model=List[StudentRead])
+async def get_session_students(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    session = (await db.execute(
+        select(GameSession).where(GameSession.id == session_id)
+    )).scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.created_by != teacher.id:
+        raise HTTPException(status_code=403, detail="Not your session")
+
+    from app.models.user import UserRole
+    if session.course_id:
+        from app.models.course import student_courses
+        rows = (await db.execute(
+            select(Student)
+            .join(student_courses, Student.id == student_courses.c.student_id)
+            .where(
+                student_courses.c.course_id == session.course_id,
+                Student.role == UserRole.student,
+                Student.is_active == True,
+            )
+            .order_by(Student.full_name)
+        )).scalars().all()
+    else:
+        rows = (await db.execute(
+            select(Student)
+            .where(Student.role == UserRole.student, Student.is_active == True)
+            .order_by(Student.full_name)
+        )).scalars().all()
+
+    return [
+        StudentRead(
+            id=s.id,
+            full_name=s.full_name or None,
+            username=s.username,
+            avatar_url=s.avatar_url or None,
+        )
+        for s in rows
+    ]
+
+
 # ── Teacher: start session ─────────────────────────────────────────────────────
 @router.post("/{session_id}/start", response_model=GameSessionRead)
 async def start_session(
     session_id: int,
+    body: Optional[StartSessionBody] = Body(default=None),
     db: AsyncSession = Depends(get_db),
     teacher: Student = Depends(get_current_teacher),
 ):
@@ -230,38 +278,47 @@ async def start_session(
     if session.status != SessionStatus.pending:
         raise HTTPException(status_code=400, detail="Session already started or completed")
 
-    from app.models.user import UserRole
-    if session.course_id:
-        from app.models.course import student_courses
-        enroll_res = await db.execute(
-            select(student_courses.c.student_id)
-            .join(Student, Student.id == student_courses.c.student_id)
-            .where(
-                student_courses.c.course_id == session.course_id,
-                Student.role == UserRole.student,
-                Student.is_active == True,
-            )
-        )
-        student_ids = [r[0] for r in enroll_res.all()]
-    else:
-        stu_res = await db.execute(
-            select(Student.id).where(Student.role == UserRole.student, Student.is_active == True)
-        )
-        student_ids = [r[0] for r in stu_res.all()]
-
-    if not student_ids:
-        raise HTTPException(status_code=400, detail="No students to assign")
-
     for team in session.teams:
         for m in list(team.members):
             await db.delete(m)
     await db.flush()
 
-    random.shuffle(student_ids)
-    teams = list(session.teams)
-    for i, sid in enumerate(student_ids):
-        team = teams[i % len(teams)]
-        db.add(GameTeamMember(team_id=team.id, student_id=sid))
+    if body and body.assignments:
+        # Manual assignment supplied by teacher
+        team_ids = {t.id for t in session.teams}
+        for item in body.assignments:
+            if item.team_id not in team_ids:
+                raise HTTPException(status_code=400, detail=f"Team {item.team_id} not in this session")
+            for sid in item.student_ids:
+                db.add(GameTeamMember(team_id=item.team_id, student_id=sid))
+    else:
+        # Random assignment fallback
+        from app.models.user import UserRole
+        if session.course_id:
+            from app.models.course import student_courses
+            enroll_res = await db.execute(
+                select(student_courses.c.student_id)
+                .join(Student, Student.id == student_courses.c.student_id)
+                .where(
+                    student_courses.c.course_id == session.course_id,
+                    Student.role == UserRole.student,
+                    Student.is_active == True,
+                )
+            )
+            student_ids = [r[0] for r in enroll_res.all()]
+        else:
+            stu_res = await db.execute(
+                select(Student.id).where(Student.role == UserRole.student, Student.is_active == True)
+            )
+            student_ids = [r[0] for r in stu_res.all()]
+
+        if not student_ids:
+            raise HTTPException(status_code=400, detail="No students to assign")
+
+        random.shuffle(student_ids)
+        teams = list(session.teams)
+        for i, sid in enumerate(student_ids):
+            db.add(GameTeamMember(team_id=teams[i % len(teams)].id, student_id=sid))
 
     session.status = SessionStatus.active
     await db.commit()

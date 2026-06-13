@@ -39,6 +39,23 @@ class GameSessionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class StudentRead(BaseModel):
+    id:         int
+    full_name:  Optional[str] = None
+    username:   Optional[str] = None
+    avatar_url: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TeamAssignmentItem(BaseModel):
+    team_id:     int
+    student_ids: List[int]
+
+
+class StartSessionBody(BaseModel):
+    assignments: Optional[List[TeamAssignmentItem]] = None
+
+
 class GameSessionCreate(BaseModel):
     title:       str           = Field(..., min_length=2, max_length=255)
     description: Optional[str] = None

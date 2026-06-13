@@ -139,10 +139,149 @@ function CreateSessionModal({ onClose, onCreated }) {
     );
 }
 
+// ── Divide Teams Modal ────────────────────────────────────────────────────────
+function DivideTeamsModal({ session, onClose, onStarted }) {
+    const [students, setStudents] = useState([]);
+    const [assignments, setAssignments] = useState({}); // studentId → teamId
+    const [loading, setLoading] = useState(true);
+    const [starting, setStarting] = useState(false);
+    const [error, setError] = useState('');
+
+    const teams = session.teams || [];
+
+    // Fetch available students
+    useEffect(() => {
+        fetch(`${API_URL}v1/game-sessions/${session.id}/students`, { headers: headers() })
+            .then(r => r.json())
+            .then(data => {
+                const list = Array.isArray(data) ? data : [];
+                setStudents(list);
+                // Pre-distribute randomly as default
+                const map = {};
+                list.forEach((s, i) => { map[s.id] = teams[i % teams.length]?.id; });
+                setAssignments(map);
+            })
+            .catch(() => setError('Не удалось загрузить студентов'))
+            .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [session.id]);
+
+    const randomize = () => {
+        const shuffled = [...students].sort(() => Math.random() - 0.5);
+        const map = {};
+        shuffled.forEach((s, i) => { map[s.id] = teams[i % teams.length]?.id; });
+        setAssignments(map);
+    };
+
+    const setTeam = (studentId, teamId) => {
+        setAssignments(prev => ({ ...prev, [studentId]: teamId }));
+    };
+
+    const start = async () => {
+        setStarting(true);
+        setError('');
+        try {
+            const assignmentList = teams.map(t => ({
+                team_id: t.id,
+                student_ids: students.filter(s => assignments[s.id] === t.id).map(s => s.id),
+            }));
+            const res = await fetch(`${API_URL}v1/game-sessions/${session.id}/start`, {
+                method: 'POST',
+                headers: { ...headers(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assignments: assignmentList }),
+            });
+            if (!res.ok) {
+                const d = await res.json();
+                setError(d.detail || 'Ошибка запуска');
+                return;
+            }
+            onStarted();
+            onClose();
+        } catch {
+            setError('Ошибка сети');
+        } finally {
+            setStarting(false);
+        }
+    };
+
+    const counts = teams.map(t => students.filter(s => assignments[s.id] === t.id).length);
+    const unassigned = students.filter(s => !assignments[s.id]).length;
+
+    return (
+        <div className="tg-modal-overlay" onClick={onClose}>
+            <div className="tg-modal tg-divide-modal" onClick={e => e.stopPropagation()}>
+                <div className="tg-divide-header">
+                    <h2>Разделить на команды</h2>
+                    <button className="tg-btn-secondary" onClick={randomize} title="Перемешать случайно">
+                        🔀 Случайно
+                    </button>
+                </div>
+
+                {error && <p className="tg-error">{error}</p>}
+
+                {loading ? (
+                    <div className="tg-loading">Загрузка студентов...</div>
+                ) : (
+                    <>
+                        <div className="tg-divide-cols">
+                            {teams.map((team, ti) => (
+                                <div key={team.id} className="tg-divide-col">
+                                    <div className="tg-divide-col-header" style={{ borderBottomColor: team.color }}>
+                                        <span style={{ color: team.color, fontWeight: 700 }}>{team.name}</span>
+                                        <span className="tg-divide-count">{counts[ti]}</span>
+                                    </div>
+                                    <div className="tg-divide-list">
+                                        {students.filter(s => assignments[s.id] === team.id).map(s => (
+                                            <div key={s.id} className="tg-divide-student">
+                                                <span className="tg-divide-avatar" style={{ background: team.color }}>
+                                                    {(s.full_name || s.username || '?')[0].toUpperCase()}
+                                                </span>
+                                                <span className="tg-divide-name">{s.full_name || s.username}</span>
+                                                <div className="tg-divide-arrows">
+                                                    {teams.filter(t => t.id !== team.id).map(other => (
+                                                        <button
+                                                            key={other.id}
+                                                            className="tg-divide-move"
+                                                            style={{ color: other.color, borderColor: other.color }}
+                                                            onClick={() => setTeam(s.id, other.id)}
+                                                            title={`Переместить в ${other.name}`}
+                                                        >→ {other.name.replace('Team ', '')}</button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        {unassigned > 0 && (
+                            <p className="tg-error">{unassigned} студентов без команды</p>
+                        )}
+                    </>
+                )}
+
+                <div className="tg-modal-actions">
+                    <button className="tg-btn-secondary" onClick={onClose}>Отмена</button>
+                    <button
+                        className="tg-btn-primary"
+                        disabled={starting || loading || unassigned > 0}
+                        onClick={start}
+                    >
+                        {starting ? 'Запуск...' : '▶ Начать игру'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+// ── Session Card ──────────────────────────────────────────────────────────────
 function SessionCard({ initialSession }) {
     const [session, setSession] = useState(initialSession);
     const [actionLoading, setActionLoading] = useState(false);
     const [delta, setDelta] = useState({});
+    const [showDivide, setShowDivide] = useState(false);
 
     const handleWsUpdate = useCallback((data) => setSession(data), []);
     useSessionSocket(session.id, handleWsUpdate);
@@ -157,7 +296,6 @@ function SessionCard({ initialSession }) {
                 const d = await res.json();
                 alert(d.detail || 'Ошибка');
             }
-            // No need to refetch — WS broadcast will update state
         } finally {
             setActionLoading(false);
         }
@@ -173,6 +311,7 @@ function SessionCard({ initialSession }) {
     const sortedTeams = [...(session.teams || [])].sort((a, b) => b.score - a.score);
 
     return (
+        <>
         <div className={`tg-card tg-card--${session.status}`}>
             <div className="tg-card-header">
                 <div>
@@ -186,7 +325,7 @@ function SessionCard({ initialSession }) {
                 </div>
                 <div className="tg-card-actions">
                     {session.status === 'pending' && (
-                        <button className="tg-btn-primary" disabled={actionLoading} onClick={() => act('/start')}>
+                        <button className="tg-btn-primary" disabled={actionLoading} onClick={() => setShowDivide(true)}>
                             ▶ Старт
                         </button>
                     )}
@@ -237,6 +376,14 @@ function SessionCard({ initialSession }) {
                 ))}
             </div>
         </div>
+        {showDivide && (
+            <DivideTeamsModal
+                session={session}
+                onClose={() => setShowDivide(false)}
+                onStarted={() => setShowDivide(false)}
+            />
+        )}
+        </>
     );
 }
 
