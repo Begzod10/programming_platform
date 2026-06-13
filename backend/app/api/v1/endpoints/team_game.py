@@ -230,14 +230,20 @@ async def start_session(
     if session.status != SessionStatus.pending:
         raise HTTPException(status_code=400, detail="Session already started or completed")
 
+    from app.models.user import UserRole
     if session.course_id:
         from app.models.course import student_courses
         enroll_res = await db.execute(
-            select(student_courses.c.student_id).where(student_courses.c.course_id == session.course_id)
+            select(student_courses.c.student_id)
+            .join(Student, Student.id == student_courses.c.student_id)
+            .where(
+                student_courses.c.course_id == session.course_id,
+                Student.role == UserRole.student,
+                Student.is_active == True,
+            )
         )
         student_ids = [r[0] for r in enroll_res.all()]
     else:
-        from app.models.user import UserRole
         stu_res = await db.execute(
             select(Student.id).where(Student.role == UserRole.student, Student.is_active == True)
         )
