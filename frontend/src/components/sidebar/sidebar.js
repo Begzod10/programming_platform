@@ -31,7 +31,7 @@ function ChevronIcon({ direction = 'left' }) {
 function Sidebar({ activeTab, onLogout, role }) {
     const navigate = useNavigate();
     const { request } = useHttp();
-    const { lang, toggleLang } = useTranslation();
+    const { t, lang, toggleLang } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(() => {
         try { return localStorage.getItem(COLLAPSED_KEY) === '1'; }
@@ -50,19 +50,20 @@ function Sidebar({ activeTab, onLogout, role }) {
     };
 
     const menuItems = [
-        { id: 'profile',        label: 'Профиль',         icon: '👤',  section: 'main' },
-        { id: 'projects',       label: 'Мои Проекты',     icon: '💻',  section: 'main' },
-        { id: 'courses',        label: 'Курсы',           icon: '📚',  section: 'main' },
-        { id: 'dictionary',     label: 'Словарь',         icon: '📖',  section: 'main' },
-        { id: 'rankings',       label: 'Таблица лидеров', icon: '🏆',  section: 'insights' },
-        { id: 'project-rating', label: 'Топ проектов',    icon: '🏗️', section: 'insights' },
-        { id: 'degrees',        label: 'Сертификаты',     icon: '🎓',  section: 'achievements' },
+        { id: 'profile',        label: t('profile'),       icon: '👤',  section: 'main' },
+        { id: 'projects',       label: t('my_projects'),   icon: '💻',  section: 'main' },
+        { id: 'courses',        label: t('courses'),       icon: '📚',  section: 'main' },
+        { id: 'dictionary',     label: t('dictionary'),    icon: '📖',  section: 'main' },
+        { id: 'team-game',      label: t('team_game'),     icon: '🎮',  section: 'main' },
+        { id: 'rankings',       label: t('rankings'),      icon: '🏆',  section: 'insights' },
+        { id: 'project-rating', label: t('top_projects'),  icon: '🏗️', section: 'insights' },
+        { id: 'degrees',        label: t('certificates'),  icon: '🎓',  section: 'achievements' },
     ];
 
     const sections = [
-        { key: 'main',         title: 'Обучение' },
-        { key: 'insights',     title: 'Аналитика' },
-        { key: 'achievements', title: 'Достижения' },
+        { key: 'main',         title: t('section_learning') },
+        { key: 'insights',     title: t('section_analytics') },
+        { key: 'achievements', title: t('section_achievements') },
     ];
 
     const handleTabClick = (id) => {
@@ -186,10 +187,10 @@ function Sidebar({ activeTab, onLogout, role }) {
                 <button
                     className="logout-btn-side"
                     onClick={handleLogout}
-                    title={isCollapsed ? 'Выйти' : undefined}
+                    title={isCollapsed ? t('logout') : undefined}
                 >
                     <span className="logout-btn-side__icon" aria-hidden="true">🚪</span>
-                    <span className="logout-btn-side__label">Выйти</span>
+                    <span className="logout-btn-side__label">{t('logout')}</span>
                 </button>
             </aside>
         </>

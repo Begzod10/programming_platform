@@ -11,7 +11,7 @@ const translations = {
     edit: "Tahrirlash",
     delete: "O'chirish",
     search: "Qidirish...",
-    
+
     // Sidebar
     profile: "Profil",
     review: "Ishlarni tekshirish",
@@ -21,7 +21,14 @@ const translations = {
     certificates: "Sertifikatlar",
     my_projects: "Mening loyihalarim",
     statistics: "Statistika",
-    
+    dictionary: "Lug'at",
+    team_game: "Jamoa o'yinlari",
+    top_projects: "Top loyihalar",
+    logout: "Chiqish",
+    section_learning: "Ta'lim",
+    section_analytics: "Tahlil",
+    section_achievements: "Yutuqlar",
+
     // Profile
     full_name: "To'liq ism",
     bio: "O'zim haqimda",
@@ -38,7 +45,7 @@ const translations = {
     avatar_url: "Avatar havolasi",
     profile_updated: "Profil yangilandi ✅",
     save_error: "Saqlashda xatolik",
-    
+
     // My Students
     groups: "Guruhlar",
     students: "Talabalar",
@@ -47,19 +54,35 @@ const translations = {
     no_students: "Talabalar topilmadi",
     group_search: "Guruh nomi bo'yicha qidirish...",
     student_search: "Talabani qidirish...",
-    
-    // Courses
+
+    // Courses list
     my_courses: "Mening kurslarim",
     continue: "Davom ettirish",
     completed: "Yakunlandi",
     lessons: "Darslar",
-    
+
+    // Course page
+    all_courses: "Barcha kurslar",
+    course_programme: "Kurs dasturi",
+    lessons_label: "Darslar",
+    of: "dan",
+    passed: "o'tildi",
+    done_badge: "✓ O'tildi",
+    locked_msg: "Bloklangan — avvalgi darsni tugatish kerak",
+    tag_video: "▶ Video",
+    tag_project: "🚀 Loyiha",
+    continue_learning: "O'qishni davom ettirish →",
+    start_course: "Kursni boshlash →",
+    course_done: "🎉 Kurs tugatildi!",
+    no_lessons: "Hozircha darslar yo'q",
+    students_count: "talaba",
+
     // Rankings
     all_time: "Barcha vaqt",
     monthly: "Oy",
     weekly: "Hafta",
     my_rank: "Mening o'rnim",
-    
+
     // Language Toggle
     lang_btn: "Tilni o'zgartirish",
     ru: "Русский",
@@ -77,7 +100,7 @@ const translations = {
     edit: "Редактировать",
     delete: "Удалить",
     search: "Поиск...",
-    
+
     // Sidebar
     profile: "Профиль",
     review: "Проверка работ",
@@ -87,7 +110,14 @@ const translations = {
     certificates: "Сертификаты",
     my_projects: "Мои проекты",
     statistics: "Статистика",
-    
+    dictionary: "Словарь",
+    team_game: "Командные игры",
+    top_projects: "Топ проектов",
+    logout: "Выйти",
+    section_learning: "Обучение",
+    section_analytics: "Аналитика",
+    section_achievements: "Достижения",
+
     // Profile
     full_name: "Полное имя",
     bio: "О себе",
@@ -104,7 +134,7 @@ const translations = {
     avatar_url: "Ссылка на аватар",
     profile_updated: "Профиль обновлен ✅",
     save_error: "Ошибка сохранения",
-    
+
     // My Students
     groups: "Группы",
     students: "Студенты",
@@ -113,19 +143,35 @@ const translations = {
     no_students: "Студенты не найдены",
     group_search: "Поиск по названию группы...",
     student_search: "Поиск студента...",
-    
-    // Courses
+
+    // Courses list
     my_courses: "Мои курсы",
     continue: "Продолжить",
     completed: "Завершено",
     lessons: "Уроки",
-    
+
+    // Course page
+    all_courses: "Все курсы",
+    course_programme: "Программа курса",
+    lessons_label: "Уроки",
+    of: "из",
+    passed: "пройдено",
+    done_badge: "✓ Пройдено",
+    locked_msg: "Заблокировано — сначала завершите предыдущий урок",
+    tag_video: "▶ Видео",
+    tag_project: "🚀 Проект",
+    continue_learning: "Продолжить обучение →",
+    start_course: "Начать курс →",
+    course_done: "🎉 Курс завершён!",
+    no_lessons: "Уроков пока нет",
+    students_count: "студентов",
+
     // Rankings
     all_time: "Все время",
     monthly: "Месяц",
     weekly: "Неделя",
     my_rank: "Мое место",
-    
+
     // Language Toggle
     lang_btn: "Сменить язык",
     ru: "Русский",
