@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import uuid
@@ -12,12 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 logger = logging.getLogger(__name__)
-
-# Hard wall-clock cap on the total time spent translating a catalogue
-# response. Past this we bail and ship the source-language text rather
-# than letting the gateway 504 — a slightly mistranslated card beats a
-# blank page.
-CATALOGUE_TRANSLATION_BUDGET_S = 8.0
 
 from app.config import settings
 from app.services.course_service import CourseService
@@ -64,35 +57,18 @@ async def _get_id_from_auth(request: Request) -> Optional[int]:
         return None
 
 
-async def _translate_course_dto(db, dto, course, lang: Optional[str]) -> None:
-    """Lazily translate title + description on the DTO when the student
-    asked for a different language than the row's source. Mutates the DTO
-    in place. Safe to call with lang=None — it just returns. Failures
-    fall back to the source string so a missing migration or AI hiccup
-    can't 500 the catalogue."""
+def _translate_course_dto(dto, course, lang: Optional[str]) -> None:
+    """Apply in-memory translations for title + description. No DB or AI calls."""
     if not lang:
         return
     src_lang = getattr(course, "source_lang", None) or "uz"
     if lang == src_lang:
         return
-    try:
-        from app.services.translation_service import translate_fields
-        translated = await translate_fields(
-            db,
-            entity_type="course",
-            entity_id=course.id,
-            target_lang=lang,
-            source_lang=src_lang,
-            fields={
-                "title": getattr(dto, "title", None),
-                "description": getattr(dto, "description", None),
-            },
-        )
-        for k, v in translated.items():
-            if v:
-                setattr(dto, k, v)
-    except Exception:
-        pass
+    from app.services import translation_store as ts
+    for field_name in ("title", "description"):
+        tr = ts.get("course", course.id, lang, field_name)
+        if tr:
+            setattr(dto, field_name, tr)
 
 
 @router.get("/", response_model=List[CourseRead])
@@ -127,19 +103,8 @@ async def get_courses(
     # and returned 504. asyncio.gather + a single wait_for keeps the total
     # latency bounded by the slowest single call.
     if lang:
-        try:
-            await asyncio.wait_for(
-                asyncio.gather(
-                    *[_translate_course_dto(db, dto, c, lang) for c, dto in zip(courses, dtos)],
-                    return_exceptions=True,
-                ),
-                timeout=CATALOGUE_TRANSLATION_BUDGET_S,
-            )
-        except asyncio.TimeoutError:
-            logger.warning(
-                "courses: translation budget exceeded (%.1fs) for lang=%s — "
-                "returning source strings", CATALOGUE_TRANSLATION_BUDGET_S, lang,
-            )
+        for c, dto in zip(courses, dtos):
+            _translate_course_dto(dto, c, lang)
     return dtos
 
 
@@ -232,7 +197,7 @@ async def get_course(
         raise HTTPException(status_code=404, detail="Kurs topilmadi")
 
     dto = await CourseService.build_dto(db, course, student_id)
-    await _translate_course_dto(db, dto, course, lang)
+    _translate_course_dto(dto, course, lang)
     return dto
 
 

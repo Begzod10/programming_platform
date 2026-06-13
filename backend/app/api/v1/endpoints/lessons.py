@@ -335,72 +335,17 @@ async def get_lessons(
 
         result.append(lesson_data)
 
-    # The StudentCourses page renders lessons directly from this list
-    # payload — it doesn't call the detail endpoint per click — so the
-    # full set of natural-language fields has to be translated here.
-    # Each lesson is wrapped in try/except so one slow/AI failure can't
-    # take down the whole course list. The whole phase is also capped at
-    # a hard wall-clock budget so a slow AI never 504s the catalogue.
-    if lang:
-        import asyncio as _asyncio
-        from app.services.translation_service import (
-            translate_fields, translate_json_blob,
-        )
-
-        async def _translate_one(lesson, dto):
-            src_lang = getattr(lesson, "source_lang", None) or "uz"
-            if lang == src_lang:
-                return
-            try:
-                translated = await translate_fields(
-                    db,
-                    entity_type="lesson",
-                    entity_id=lesson.id,
-                    target_lang=lang,
-                    source_lang=src_lang,
-                    fields={
-                        "title":             lesson.title,
-                        "chapter":           lesson.chapter,
-                        "text_content":      lesson.text_content,
-                        "task_title":        lesson.task_title,
-                        "task_description":  lesson.task_description,
-                        "task_requirements": lesson.task_requirements,
-                        "task_technologies": lesson.task_technologies,
-                    },
-                )
-                for k, v in translated.items():
-                    if v is not None:
-                        setattr(dto, k, v)
-
-                if lesson.sections_json:
-                    new_sections = await translate_json_blob(
-                        db,
-                        entity_type="lesson",
-                        entity_id=lesson.id,
-                        target_lang=lang,
-                        source_text=lesson.sections_json,
-                        source_lang=src_lang,
-                    )
-                    if new_sections:
-                        dto.sections_json = new_sections
-            except Exception:
-                # Don't let a missing translation_cache table or an AI
-                # failure 500 the entire course list — just serve this
-                # lesson in its source language.
-                return
-
-        try:
-            await _asyncio.wait_for(
-                _asyncio.gather(
-                    *[_translate_one(l, d) for l, d in zip(lessons, result)],
-                    return_exceptions=True,
-                ),
-                timeout=12.0,
-            )
-        except _asyncio.TimeoutError:
-            # Past the budget — ship whatever was translated already and
-            # the rest stays in the source language. Better than a 504.
-            pass
+    if lang and lang != "uz":
+        from app.services import translation_store as ts
+        for lesson, dto in zip(lessons, result):
+            for field_name in ("title", "chapter", "text_content", "task_title",
+                               "task_description", "task_requirements", "task_technologies"):
+                tr = ts.get("lesson", lesson.id, lang, field_name)
+                if tr is not None:
+                    setattr(dto, field_name, tr)
+            tr_sections = ts.get("lesson", lesson.id, lang, "sections_json")
+            if tr_sections:
+                dto.sections_json = tr_sections
 
     return result
 
@@ -426,46 +371,16 @@ async def get_lesson(
     # short-circuits when source == target and caches everything else.
     # Wrapped in try/except so the page never 500s if the translation_cache
     # table is missing (migration not yet run) or the AI is down.
-    src_lang = getattr(lesson, "source_lang", None) or "uz"
-    if lang and lang != src_lang:
-        try:
-            from app.services.translation_service import (
-                translate_fields, translate_json_blob,
-            )
-            translated = await translate_fields(
-                db,
-                entity_type="lesson",
-                entity_id=lesson.id,
-                target_lang=lang,
-                source_lang=src_lang,
-                fields={
-                    "title": lesson.title,
-                    "chapter": lesson.chapter,
-                    "text_content": lesson.text_content,
-                    "task_title": lesson.task_title,
-                    "task_description": lesson.task_description,
-                    "task_requirements": lesson.task_requirements,
-                    "task_technologies": lesson.task_technologies,
-                },
-            )
-            for k, v in translated.items():
-                if v is not None:
-                    setattr(res, k, v)
-
-            if lesson.sections_json:
-                new_sections = await translate_json_blob(
-                    db,
-                    entity_type="lesson",
-                    entity_id=lesson.id,
-                    target_lang=lang,
-                    source_text=lesson.sections_json,
-                    source_lang=src_lang,
-                )
-                if new_sections:
-                    res.sections_json = new_sections
-        except Exception:
-            # Fall back to source language silently.
-            pass
+    if lang and lang != "uz":
+        from app.services import translation_store as ts
+        for field_name in ("title", "chapter", "text_content", "task_title",
+                           "task_description", "task_requirements", "task_technologies"):
+            tr = ts.get("lesson", lesson.id, lang, field_name)
+            if tr is not None:
+                setattr(res, field_name, tr)
+        tr_sections = ts.get("lesson", lesson.id, lang, "sections_json")
+        if tr_sections:
+            res.sections_json = tr_sections
 
     if current_student:
         comp_res = await db.execute(

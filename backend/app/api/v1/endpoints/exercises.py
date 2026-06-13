@@ -15,49 +15,15 @@ from app.models.user import Student
 router = APIRouter()
 
 
-async def _translate_exercise_dto(db, dto, lang: Optional[str]) -> None:
-    """Translate the student-visible fields of one exercise. `drag_items`
-    and `options` are JSON arrays — translated as JSON blobs so the
-    structure is preserved. Failures fall back to source silently."""
+def _translate_exercise_dto(dto, lang: Optional[str]) -> None:
+    """Apply in-memory translations for one exercise. No DB or AI calls."""
     if not lang or lang == "uz":
         return
-    try:
-        from app.services.translation_service import (
-            translate_fields, translate_json_blob,
-        )
-        src_lang = "uz"
-        translated = await translate_fields(
-            db,
-            entity_type="exercise",
-            entity_id=dto.id,
-            target_lang=lang,
-            source_lang=src_lang,
-            fields={
-                "title": dto.title,
-                "description": dto.description,
-                "hint": dto.hint,
-            },
-        )
-        for k, v in translated.items():
-            if v:
-                setattr(dto, k, v)
-
-        for json_field in ("drag_items", "options"):
-            src = getattr(dto, json_field, None)
-            if src:
-                new_val = await translate_json_blob(
-                    db,
-                    entity_type="exercise",
-                    entity_id=dto.id,
-                    target_lang=lang,
-                    source_text=src,
-                    source_lang=src_lang,
-                    field_name=json_field,
-                )
-                if new_val:
-                    setattr(dto, json_field, new_val)
-    except Exception:
-        pass
+    from app.services import translation_store as ts
+    for field_name in ("title", "description", "hint", "drag_items", "options"):
+        tr = ts.get("exercise", dto.id, lang, field_name)
+        if tr:
+            setattr(dto, field_name, tr)
 
 
 @router.get("/{lesson_id}/exercises", response_model=List[ExerciseRead])
@@ -69,14 +35,10 @@ async def get_exercises(
     """Dars mashqlari — GET /courses/{course_id}/lessons/{lesson_id}/exercises"""
     exercises = await exercise_service.get_exercises_by_lesson(db, lesson_id)
     if lang and lang != "uz":
-        # ORM rows can't have setattr applied if they were re-validated by
-        # response_model — but the service returns ORM Exercise objects,
-        # which Pydantic will coerce. Translate via Pydantic models for
-        # safety.
         from app.schemas.exercise import ExerciseRead
         dtos = [ExerciseRead.model_validate(e) for e in exercises]
         for dto in dtos:
-            await _translate_exercise_dto(db, dto, lang)
+            _translate_exercise_dto(dto, lang)
         return dtos
     return exercises
 
