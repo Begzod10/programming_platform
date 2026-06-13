@@ -14,6 +14,7 @@ import MyProjects     from './views/student/projects/MyProjects';
 import Leaderboard    from './views/student/rankings/LeaderBoard';
 import Degrees        from './views/student/degrees/DegreeCard';
 import Dictionary     from './views/student/dictionary/Dictionary';
+import StudentTeamGame from './views/student/teamgame/StudentTeamGame';
 
 // ── Teacher views ──
 import TeacherCourses           from './views/teacher/courses/TeacherCourses/TeacherCourses';
@@ -25,6 +26,7 @@ import TeacherStatistics        from './views/teacher/statistics/TeacherStatisti
 import TeacherFeedback          from './views/teacher/feedback/TeacherFeedback';
 import TeacherCertificates      from './views/teacher/TeacherCertificates/Teachercertificates';
 import TeacherStudentsRankings  from './views/teacher/StudentRankings/StudentRankings';
+import TeacherTeamGame          from './views/teacher/teamgame/TeacherTeamGame';
 import ProjectLeaderboard       from './views/shared/ProjectLeaderboard/ProjectLeaderboard';
 import PublicProfile            from './views/public/PublicProfile/PublicProfile';
 
@@ -93,6 +95,7 @@ function AppRouter() {
                 <Route path="project-rating"                              element={<ProjectLeaderboard role="student" />} />
                 <Route path="degrees"                                     element={<Degrees />} />
                 <Route path="dictionary"                                  element={<Dictionary />} />
+                <Route path="team-game"                                   element={<StudentTeamGame />} />
 
                 {/* Курсы */}
                 <Route path="courses"                                     element={<StudentCourses />} />
@@ -119,6 +122,7 @@ function AppRouter() {
                 <Route path="feedback"                                    element={<TeacherFeedback />} />
                 <Route path="rankings"                                    element={<TeacherStudentsRankings />} /> {/* ← NEW */}
                 <Route path="project-rating"                              element={<ProjectLeaderboard role="teacher" />} />
+                <Route path="team-game"                                   element={<TeacherTeamGame />} />
 
                 {/* Курсы */}
                 <Route path="courses"                                     element={<TeacherCourses />} />

@@ -40,6 +40,7 @@ function TeacherSidebar({ activeTab, onLogout }) {
         { id: 'review',         label: 'Проверка работ',  icon: '📥',   section: 'main' },
         { id: 'students',       label: 'Мои Студенты',    icon: '👥',   section: 'main' },
         { id: 'courses',        label: 'Курсы',           icon: '📚',   section: 'main' },
+        { id: 'team-game',      label: 'Командные игры',  icon: '🎮',   section: 'main' },
         { id: 'rankings',       label: 'Таблица лидеров', icon: '🏆',   section: 'insights' },
         { id: 'project-rating', label: 'Топ проектов',    icon: '🏗️',  section: 'insights' },
         { id: 'certificates',   label: 'Сертификаты',     icon: '🏅',   section: 'insights' },

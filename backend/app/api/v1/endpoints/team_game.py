@@ -1,0 +1,343 @@
+import random
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from sqlalchemy import select, text as sa_text
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload, noload, load_only
+
+from app.core.security import decode_access_token
+from app.dependencies import get_db, get_current_teacher, get_current_student_optional
+from app.models.team_game import GameSession, GameTeam, GameTeamMember, SessionStatus
+from app.models.user import Student
+from app.schemas.team_game import (
+    GameSessionRead, GameSessionCreate, GameTeamRead,
+    TeamMemberRead, ScoreUpdate,
+)
+from app.ws.manager import manager
+
+router = APIRouter()
+
+TEAM_NAMES = [
+    ("Alpha",   "#e74c3c"), ("Beta",    "#3498db"), ("Gamma",   "#2ecc71"),
+    ("Delta",   "#f39c12"), ("Epsilon", "#9b59b6"), ("Zeta",    "#1abc9c"),
+    ("Eta",     "#e67e22"), ("Theta",   "#e91e63"), ("Iota",    "#00bcd4"),
+    ("Kappa",   "#8bc34a"),
+]
+
+
+def _load_opts():
+    return [
+        selectinload(GameSession.teams).selectinload(GameTeam.members).selectinload(
+            GameTeamMember.student
+        ).options(
+            load_only(Student.id, Student.full_name, Student.username, Student.avatar_url)
+        ),
+        noload(GameSession.course),
+        noload(GameSession.creator),
+    ]
+
+
+async def _course_title(db: AsyncSession, course_id: Optional[int]) -> Optional[str]:
+    if not course_id:
+        return None
+    row = (await db.execute(sa_text("SELECT title FROM courses WHERE id = :id"), {"id": course_id})).first()
+    return row[0] if row else None
+
+
+def _build_session_read(session: GameSession, student_id: Optional[int] = None,
+                        course_title: Optional[str] = None) -> GameSessionRead:
+    my_team_id = None
+    teams_out = []
+    for team in session.teams:
+        member_ids = {m.student_id for m in team.members}
+        if student_id and student_id in member_ids:
+            my_team_id = team.id
+        members = [
+            TeamMemberRead(
+                id=m.id,
+                student_id=m.student_id,
+                full_name=getattr(m.student, "full_name", None) or getattr(m.student, "username", ""),
+                username=getattr(m.student, "username", None),
+                avatar_url=getattr(m.student, "avatar_url", None),
+            )
+            for m in team.members
+        ]
+        teams_out.append(GameTeamRead(id=team.id, name=team.name, color=team.color,
+                                      score=team.score, members=members))
+    teams_out.sort(key=lambda t: -t.score)
+    return GameSessionRead(
+        id=session.id,
+        title=session.title,
+        description=session.description,
+        game_type=session.game_type,
+        status=session.status,
+        course_id=session.course_id,
+        course_title=course_title,
+        created_by=session.created_by,
+        team_count=session.team_count,
+        teams=teams_out,
+        created_at=session.created_at,
+        updated_at=session.updated_at,
+        my_team_id=my_team_id,
+    )
+
+
+async def _fetch_session(db: AsyncSession, session_id: int) -> GameSession:
+    result = await db.execute(
+        select(GameSession).where(GameSession.id == session_id).options(*_load_opts())
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Game session not found")
+    return session
+
+
+async def _fetch_and_build(db: AsyncSession, session_id: int,
+                           student_id: Optional[int] = None) -> GameSessionRead:
+    session = await _fetch_session(db, session_id)
+    ctitle  = await _course_title(db, session.course_id)
+    return _build_session_read(session, student_id, ctitle)
+
+
+async def _broadcast_session(db: AsyncSession, session_id: int) -> None:
+    read = await _fetch_and_build(db, session_id)
+    await manager.broadcast(session_id, {"type": "session_update", "data": read.model_dump(mode="json")})
+
+
+# ── WebSocket: real-time session updates ──────────────────────────────────────
+@router.websocket("/{session_id}/ws")
+async def session_ws(
+    session_id: int,
+    websocket: WebSocket,
+    token: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    user_id = decode_access_token(token) if token else None
+    if user_id is None:
+        await websocket.close(code=4001)
+        return
+
+    await manager.connect(session_id, websocket)
+    try:
+        read = await _fetch_and_build(db, session_id, student_id=user_id)
+        await websocket.send_json({"type": "session_update", "data": read.model_dump(mode="json")})
+    except Exception:
+        pass
+
+    try:
+        while True:
+            msg = await websocket.receive_text()
+            if msg == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        manager.disconnect(session_id, websocket)
+
+
+# ── Teacher: create session ────────────────────────────────────────────────────
+@router.post("", response_model=GameSessionRead, status_code=status.HTTP_201_CREATED)
+async def create_session(
+    body: GameSessionCreate,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    session = GameSession(
+        title=body.title,
+        description=body.description,
+        game_type=body.game_type,
+        course_id=body.course_id,
+        created_by=teacher.id,
+        team_count=body.team_count,
+        status=SessionStatus.pending,
+    )
+    db.add(session)
+    await db.flush()
+
+    names = TEAM_NAMES[:body.team_count]
+    random.shuffle(names)
+    for name, color in names:
+        db.add(GameTeam(session_id=session.id, name=f"Team {name}", color=color))
+
+    await db.commit()
+    return await _fetch_and_build(db, session.id)
+
+
+# ── List sessions ──────────────────────────────────────────────────────────────
+@router.get("", response_model=List[GameSessionRead])
+async def list_sessions(
+    course_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    current_student: Optional[Student] = Depends(get_current_student_optional),
+):
+    q = select(GameSession).options(*_load_opts()).order_by(GameSession.created_at.desc())
+    if course_id:
+        q = q.where(GameSession.course_id == course_id)
+    if current_student:
+        q = q.where(GameSession.status != SessionStatus.completed)
+    result = await db.execute(q)
+    sessions = result.scalars().all()
+    sid = current_student.id if current_student else None
+
+    # Batch-fetch course titles to avoid N+1
+    course_ids = list({s.course_id for s in sessions if s.course_id})
+    titles: dict[int, str] = {}
+    if course_ids:
+        rows = (await db.execute(
+            sa_text("SELECT id, title FROM courses WHERE id = ANY(:ids)"),
+            {"ids": course_ids}
+        )).all()
+        titles = {r[0]: r[1] for r in rows}
+
+    return [_build_session_read(s, sid, titles.get(s.course_id)) for s in sessions]
+
+
+# ── Get single session ─────────────────────────────────────────────────────────
+@router.get("/{session_id}", response_model=GameSessionRead)
+async def get_session(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_student: Optional[Student] = Depends(get_current_student_optional),
+):
+    result = await db.execute(
+        select(GameSession).where(GameSession.id == session_id).options(*_load_opts())
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Game session not found")
+    sid    = current_student.id if current_student else None
+    ctitle = await _course_title(db, session.course_id)
+    return _build_session_read(session, sid, ctitle)
+
+
+# ── Teacher: start session ─────────────────────────────────────────────────────
+@router.post("/{session_id}/start", response_model=GameSessionRead)
+async def start_session(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    result = await db.execute(
+        select(GameSession)
+        .where(GameSession.id == session_id)
+        .with_for_update()
+        .options(*_load_opts())
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.created_by != teacher.id:
+        raise HTTPException(status_code=403, detail="Not your session")
+    if session.status != SessionStatus.pending:
+        raise HTTPException(status_code=400, detail="Session already started or completed")
+
+    if session.course_id:
+        from app.models.course import student_courses
+        enroll_res = await db.execute(
+            select(student_courses.c.student_id).where(student_courses.c.course_id == session.course_id)
+        )
+        student_ids = [r[0] for r in enroll_res.all()]
+    else:
+        from app.models.user import UserRole
+        stu_res = await db.execute(
+            select(Student.id).where(Student.role == UserRole.student, Student.is_active == True)
+        )
+        student_ids = [r[0] for r in stu_res.all()]
+
+    if not student_ids:
+        raise HTTPException(status_code=400, detail="No students to assign")
+
+    for team in session.teams:
+        for m in list(team.members):
+            await db.delete(m)
+    await db.flush()
+
+    random.shuffle(student_ids)
+    teams = list(session.teams)
+    for i, sid in enumerate(student_ids):
+        team = teams[i % len(teams)]
+        db.add(GameTeamMember(team_id=team.id, student_id=sid))
+
+    session.status = SessionStatus.active
+    await db.commit()
+
+    await _broadcast_session(db, session_id)
+    return await _fetch_and_build(db, session_id)
+
+
+# ── Teacher: update score ──────────────────────────────────────────────────────
+@router.patch("/{session_id}/score", response_model=GameSessionRead)
+async def update_score(
+    session_id: int,
+    body: ScoreUpdate,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    # Light ownership check — no need to load all teams/members yet
+    sess_row = (await db.execute(
+        select(GameSession.id, GameSession.created_by)
+        .where(GameSession.id == session_id)
+    )).first()
+    if not sess_row:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if sess_row.created_by != teacher.id:
+        raise HTTPException(status_code=403, detail="Not your session")
+
+    team_row = (await db.execute(
+        select(GameTeam.id)
+        .where(GameTeam.id == body.team_id, GameTeam.session_id == session_id)
+    )).first()
+    if not team_row:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    # Atomic update — no lost-update race between concurrent requests
+    await db.execute(
+        sa_text(
+            "UPDATE game_teams SET score = GREATEST(0, score + :delta) WHERE id = :team_id"
+        ),
+        {"delta": body.delta, "team_id": body.team_id},
+    )
+    await db.commit()
+
+    await _broadcast_session(db, session_id)
+    return await _fetch_and_build(db, session_id)
+
+
+# ── Teacher: complete session ──────────────────────────────────────────────────
+@router.post("/{session_id}/complete", response_model=GameSessionRead)
+async def complete_session(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    result = await db.execute(
+        select(GameSession).where(GameSession.id == session_id).options(*_load_opts())
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.created_by != teacher.id:
+        raise HTTPException(status_code=403, detail="Not your session")
+
+    session.status = SessionStatus.completed
+    await db.commit()
+
+    await _broadcast_session(db, session_id)
+    return await _fetch_and_build(db, session_id)
+
+
+# ── Teacher: delete session ────────────────────────────────────────────────────
+@router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    result = await db.execute(select(GameSession).where(GameSession.id == session_id))
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.created_by != teacher.id:
+        raise HTTPException(status_code=403, detail="Not your session")
+    await db.delete(session)
+    await db.commit()
+    await manager.broadcast(session_id, {"type": "session_deleted"})
