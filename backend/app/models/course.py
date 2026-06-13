@@ -48,6 +48,7 @@ class Course(Base):
 
     image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     thumbnail_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    color_accent: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
     video_intro_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     syllabus_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 

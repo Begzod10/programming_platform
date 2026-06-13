@@ -475,6 +475,7 @@ class CourseService:
             "max_points": course.max_points,
             "image_url": course.image_url,
             "thumbnail_url": getattr(course, "thumbnail_url", None),
+            "color_accent": getattr(course, "color_accent", None),
             "video_intro_url": getattr(course, "video_intro_url", None),
             "syllabus_url": getattr(course, "syllabus_url", None),
             "prerequisite_course_id": getattr(course, "prerequisite_course_id", None),

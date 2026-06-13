@@ -14,6 +14,7 @@ class CourseBase(BaseModel):
     thumbnail_url: Optional[str] = None
     video_intro_url: Optional[str] = None
     syllabus_url: Optional[str] = None
+    color_accent: Optional[str] = None
     # Either pick an existing category (category_id) or type a name
     # (category_name) that the backend will auto-create if missing.
     category_id: Optional[int] = None
@@ -45,9 +46,9 @@ class CourseUpdate(BaseModel):
     thumbnail_url: Optional[str] = None
     category_id: Optional[int] = None
     category_name: Optional[str] = Field(None, max_length=80)
-
     video_intro_url: Optional[str] = None
     syllabus_url: Optional[str] = None
+    color_accent: Optional[str] = None
 
 
 

@@ -19,15 +19,18 @@ const THUMB_COLORS = [
 /* ═══════════════════════════════════════════
    LESSON CARD
 ═══════════════════════════════════════════ */
-const LessonCard = ({ lesson, index, isLocked, onOpen }) => {
+const LessonCard = ({ lesson, index, isLocked, onOpen, accentColor }) => {
   const hasVideo   = lesson.sections?.some((s) => s.type === 'video');
   const hasProject = lesson.sections?.some((s) => s.type === 'project');
   const blockCount = lesson.sections?.length || 0;
 
-  /* thumb background: real image > custom color > default gradient */
+  /* thumb background: real image > custom color > accent gradient > default gradient */
+  const accentGrad = accentColor
+    ? `linear-gradient(135deg, ${accentColor}cc 0%, ${accentColor}55 100%)`
+    : null;
   const thumbStyle = lesson.image
     ? {}
-    : { background: lesson.color || THUMB_COLORS[(index - 1) % THUMB_COLORS.length] };
+    : { background: lesson.color || accentGrad || THUMB_COLORS[(index - 1) % THUMB_COLORS.length] };
 
   // Locked cards stay tab-reachable as a presentational button so keyboard
   // users can read the lock reason from the title attribute / screen reader
@@ -112,7 +115,7 @@ const LessonCard = ({ lesson, index, isLocked, onOpen }) => {
 /* ═══════════════════════════════════════════
    CHAPTER BLOCK
 ═══════════════════════════════════════════ */
-const ChapterBlock = ({ title, lessons, startIndex, allLessons, onOpenLesson }) => {
+const ChapterBlock = ({ title, lessons, startIndex, allLessons, onOpenLesson, accentColor }) => {
   const [open, setOpen] = useState(true);
   const done  = lessons.filter((l) => l.completed).length;
   const total = lessons.length;
@@ -147,6 +150,7 @@ const ChapterBlock = ({ title, lessons, startIndex, allLessons, onOpenLesson }) 
                 index={globalIdx + 1}
                 isLocked={isLocked}
                 onOpen={() => onOpenLesson(lesson)}
+                accentColor={accentColor}
               />
             );
           })}
@@ -209,9 +213,26 @@ const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
 
       {/* ── Hero ── */}
       <div className="scp-hero">
-        <div className="scp-hero-bg">
+        <div
+          className="scp-hero-bg"
+          style={course.color_accent ? {
+            background: `linear-gradient(135deg, ${course.color_accent}22 0%, #0d0d2b 100%)`
+          } : undefined}
+        >
           {course.image && <img src={course.image} alt="" className="scp-hero-bg-img" />}
-          <div className="scp-hero-bg-dim" />
+          <div
+            className="scp-hero-bg-dim"
+            style={course.color_accent ? {
+              background: `linear-gradient(135deg, ${course.color_accent}33 0%, rgba(10,8,30,0.95) 60%)`
+            } : undefined}
+          />
+          {course.color_accent && (
+            <div style={{
+              position: 'absolute', inset: 0,
+              background: `radial-gradient(ellipse at 80% 50%, ${course.color_accent}18 0%, transparent 65%)`,
+              pointerEvents: 'none',
+            }} />
+          )}
         </div>
 
         <div className="scp-hero-body">
@@ -315,6 +336,7 @@ const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
               startIndex={g.startIndex}
               allLessons={lessons}
               onOpenLesson={onOpenLesson}
+              accentColor={course.color_accent}
             />
           ))}
         </div>
