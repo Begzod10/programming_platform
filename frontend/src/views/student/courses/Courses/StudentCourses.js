@@ -4,6 +4,7 @@ import './StudentCourses.css';
 import StudentCoursePage from '../CoursePage/StudentCoursePage';
 import StudentLessonPage from '../LessonPage/StudentLessonPage';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
+import { useTranslation } from '../../../../i18n/useTranslation';
 
 /* ─── helpers ─── */
 // ФИКС: сравниваем id через String() потому что бэкенд может вернуть number, а useParams всегда string
@@ -231,6 +232,7 @@ const FullLoader = ({ text = 'Загрузка…' }) => (
 ═══════════════════════════════════════════ */
 const StudentCourses = () => {
     const { request }              = useHttp();
+    const { lang }                 = useTranslation();
     const navigate                 = useNavigate();
     const location                 = useLocation();
     const { courseId, lessonId }   = useParams(); // всегда строки или undefined
@@ -287,8 +289,10 @@ const StudentCourses = () => {
         if (loadedRef.current.has(String(cId))) return;
         loadedRef.current.add(String(cId));
 
+        const langParam = lang && lang !== 'uz' ? `&lang=${lang}` : '';
+
         try {
-            const raw  = await request(`${API_URL}v1/courses/${cId}/lessons?t=${Date.now()}`, 'GET', null, headers());
+            const raw  = await request(`${API_URL}v1/courses/${cId}/lessons?t=${Date.now()}${langParam}`, 'GET', null, headers());
             const list = (Array.isArray(raw) ? raw : []).filter((l) => l.is_published !== false);
 
             const built = await Promise.all(
@@ -307,7 +311,7 @@ const StudentCourses = () => {
                     let exercises = [];
                     try {
                         const ex = await request(
-                            `${API_URL}v1/courses/${cId}/lessons/${lesson.id}/exercises?t=${Date.now()}`,
+                            `${API_URL}v1/courses/${cId}/lessons/${lesson.id}/exercises?t=${Date.now()}${langParam}`,
                             'GET', null, headers()
                         );
                         exercises = (Array.isArray(ex) ? ex : []).filter((e) => e.is_active !== false);
@@ -332,12 +336,15 @@ const StudentCourses = () => {
             console.error(e);
             loadedRef.current.delete(String(cId));
         }
-    }, [request]);
+    }, [request, lang]);
 
-    // Грузим уроки когда courseId появляется в URL
+    // Грузим уроки когда courseId появляется в URL или меняется язык
     useEffect(() => {
-        if (courseId) loadLessons(courseId);
-    }, [courseId]); // eslint-disable-line
+        if (courseId) {
+            loadedRef.current.delete(String(courseId));
+            loadLessons(courseId);
+        }
+    }, [courseId, lang]); // eslint-disable-line
 
     /* ── mark complete ── */
     const markComplete = useCallback((lId) => {
