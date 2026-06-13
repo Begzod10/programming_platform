@@ -240,13 +240,20 @@ export default function StudentTeamGame() {
                                         <span className="stg-badge stg-badge--type">{GAME_TYPE_LABELS[s.game_type]}</span>
                                     </div>
                                 </div>
-                                <div className="stg-card-meta">
-                                    <span>👥 {s.team_count} команды</span>
-                                    {s.course_title && <span>📚 {s.course_title}</span>}
-                                    {myTeam && (
-                                        <span className="stg-my-team-pill" style={{ borderColor: myTeam.color, color: myTeam.color }}>
-                                            Вы: {myTeam.name}
-                                        </span>
+                                <div className="stg-card-bottom">
+                                    <div className="stg-card-meta">
+                                        <span>👥 {s.team_count} команды</span>
+                                        {s.course_title && <span>📚 {s.course_title}</span>}
+                                        {myTeam && (
+                                            <span className="stg-my-team-pill" style={{ borderColor: myTeam.color, color: myTeam.color }}>
+                                                Вы: {myTeam.name}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {s.status === 'active' && (
+                                        <button className="stg-join-btn" onClick={e => { e.stopPropagation(); openSession(s.id); }}>
+                                            Войти в игру →
+                                        </button>
                                     )}
                                 </div>
                             </div>

@@ -33,7 +33,14 @@
 .stg-badge--completed { background: #f1f5f9; color: #475569; }
 .stg-badge--type      { background: #e0e7ff; color: #3730a3; }
 
-.stg-card-meta { display: flex; gap: 14px; margin-top: 12px; font-size: 0.82rem; color: #64748b; flex-wrap: wrap; align-items: center; }
+.stg-card-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; flex-wrap: wrap; gap: 10px; }
+.stg-card-meta { display: flex; gap: 14px; font-size: 0.82rem; color: #64748b; flex-wrap: wrap; align-items: center; }
+.stg-join-btn {
+    background: #22c55e; color: #fff; border: none; border-radius: 8px;
+    padding: 7px 18px; font-size: 0.88rem; font-weight: 700; cursor: pointer;
+    white-space: nowrap; transition: background 0.2s;
+}
+.stg-join-btn:hover { background: #16a34a; }
 .stg-my-team-pill { border: 1.5px solid; border-radius: 12px; padding: 2px 10px; font-weight: 700; }
 
 /* Detail */
