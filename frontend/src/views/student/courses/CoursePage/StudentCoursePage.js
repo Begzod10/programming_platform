@@ -208,20 +208,21 @@ const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
         <div
           className="scp-hero-bg"
           style={course.color_accent ? {
-            background: `linear-gradient(135deg, ${course.color_accent}22 0%, #0d0d2b 100%)`
+            background: `linear-gradient(135deg, #0d0d2b 0%, ${course.color_accent}44 100%)`
           } : undefined}
         >
           {course.image && <img src={course.image} alt="" className="scp-hero-bg-img" />}
+          {/* strong dark overlay on the left (text side) — always opaque regardless of accent */}
           <div
             className="scp-hero-bg-dim"
             style={course.color_accent ? {
-              background: `linear-gradient(135deg, ${course.color_accent}33 0%, rgba(10,8,30,0.95) 60%)`
+              background: `linear-gradient(to right, rgba(10,8,30,0.96) 0%, rgba(10,8,30,0.75) 55%, rgba(10,8,30,0.2) 100%)`
             } : undefined}
           />
           {course.color_accent && (
             <div style={{
               position: 'absolute', inset: 0,
-              background: `radial-gradient(ellipse at 80% 50%, ${course.color_accent}18 0%, transparent 65%)`,
+              background: `radial-gradient(ellipse at 85% 50%, ${course.color_accent}30 0%, transparent 60%)`,
               pointerEvents: 'none',
             }} />
           )}
