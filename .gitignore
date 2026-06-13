@@ -39,3 +39,6 @@ Thumbs.db
 *.dump
 *.log
 instance/
+
+# Alembic migrations — managed on server, never committed
+backend/alembic/versions/
