@@ -8,13 +8,14 @@ import TeacherLayout from './layouts/TeacherLayout';
 import NotFound from './views/NotFound';
 
 // ── Student views ──
-import StudentCourses from './views/student/courses/Courses/StudentCourses';
-import Profile        from './views/student/profile/Profile';
-import MyProjects     from './views/student/projects/MyProjects';
-import Leaderboard    from './views/student/rankings/LeaderBoard';
-import Degrees        from './views/student/degrees/DegreeCard';
-import Dictionary     from './views/student/dictionary/Dictionary';
-import StudentTeamGame from './views/student/teamgame/StudentTeamGame';
+import StudentCourses    from './views/student/courses/Courses/StudentCourses';
+import Profile           from './views/student/profile/Profile';
+import MyProjects        from './views/student/projects/MyProjects';
+import Leaderboard       from './views/student/rankings/LeaderBoard';
+import Degrees           from './views/student/degrees/DegreeCard';
+import Dictionary        from './views/student/dictionary/Dictionary';
+import StudentTeamGame   from './views/student/teamgame/StudentTeamGame';
+import StudentCourseStats from './views/student/stats/StudentCourseStats';
 
 // ── Teacher views ──
 import TeacherCourses           from './views/teacher/courses/TeacherCourses/TeacherCourses';
@@ -96,6 +97,7 @@ function AppRouter() {
                 <Route path="degrees"                                     element={<Degrees />} />
                 <Route path="dictionary"                                  element={<Dictionary />} />
                 <Route path="team-game"                                   element={<StudentTeamGame />} />
+                <Route path="statistics"                                  element={<StudentCourseStats />} />
 
                 {/* Курсы */}
                 <Route path="courses"                                     element={<StudentCourses />} />

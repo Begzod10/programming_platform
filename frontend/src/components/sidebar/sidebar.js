@@ -55,6 +55,7 @@ function Sidebar({ activeTab, onLogout, role }) {
         { id: 'courses',        label: t('courses'),       icon: '📚',  section: 'main' },
         { id: 'dictionary',     label: t('dictionary'),    icon: '📖',  section: 'main' },
         { id: 'team-game',      label: t('team_game'),     icon: '🎮',  section: 'main' },
+        { id: 'statistics',     label: t('statistics') || 'Статистика', icon: '📊',  section: 'insights' },
         { id: 'rankings',       label: t('rankings'),      icon: '🏆',  section: 'insights' },
         { id: 'project-rating', label: t('top_projects'),  icon: '🏗️', section: 'insights' },
         { id: 'degrees',        label: t('certificates'),  icon: '🎓',  section: 'achievements' },
