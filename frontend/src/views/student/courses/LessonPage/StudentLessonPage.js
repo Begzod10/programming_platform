@@ -12,11 +12,23 @@ import StudentProjectFiles from '../StudentProjectPreview/StudentProjectPreview'
 // run() manually after each lesson's text section mounts.
 mermaid.initialize({
     startOnLoad: false,
-    theme: 'default',
+    theme: 'base',
     securityLevel: 'loose',
     flowchart: {useMaxWidth: true, htmlLabels: true},
     themeVariables: {
         fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
+        primaryColor: '#ede9ff',
+        primaryTextColor: '#3c2ca8',
+        primaryBorderColor: '#6c5ce7',
+        lineColor: '#6c5ce7',
+        secondaryColor: '#f0f0ff',
+        tertiaryColor: '#f8f7ff',
+        background: '#ffffff',
+        mainBkg: '#ede9ff',
+        nodeBorder: '#6c5ce7',
+        clusterBkg: '#f8f7ff',
+        titleColor: '#1a1a2e',
+        edgeLabelBackground: '#ffffff',
     },
 });
 

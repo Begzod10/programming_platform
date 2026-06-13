@@ -237,8 +237,65 @@
 /* TEXT */
 .slp-text-content { font-size: 15px; color: var(--ink); line-height: 1.78; }
 .slp-text-content h1,.slp-text-content h2,.slp-text-content h3 { color: var(--ink); margin-top: 0; }
+.slp-text-content h2 { font-size: 18px; font-weight: 700; margin: 20px 0 10px; }
+.slp-text-content h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
+.slp-text-content h4 { font-size: 14px; font-weight: 700; color: var(--ink); margin: 14px 0 6px; }
 .slp-text-content a { color: var(--purple); text-decoration: none; }
 .slp-text-content a:hover { text-decoration: underline; }
+.slp-text-content p { margin: 0 0 12px; }
+.slp-text-content ol,.slp-text-content ul { margin: 0 0 12px; padding-left: 22px; }
+.slp-text-content li { margin-bottom: 5px; }
+
+/* Inline code */
+.slp-text-content code {
+    background: rgba(108,92,231,0.1);
+    color: var(--purple);
+    border-radius: 5px;
+    padding: 2px 7px;
+    font-family: 'Fira Code','Courier New',monospace;
+    font-size: 0.875em;
+    font-weight: 500;
+}
+
+/* Block code (pre > code) — dark theme matching the code section style */
+.slp-text-content pre {
+    background: #0d0e1a;
+    border-radius: var(--r-md);
+    padding: 18px 22px;
+    overflow-x: auto;
+    margin: 14px 0;
+    position: relative;
+}
+.slp-text-content pre code {
+    background: none;
+    color: #a8ff78;
+    padding: 0;
+    border-radius: 0;
+    font-family: 'Fira Code','Courier New',monospace;
+    font-size: 13.5px;
+    line-height: 1.7;
+    white-space: pre;
+    font-weight: 400;
+}
+
+/* Tables */
+.slp-text-content table {
+    width: 100%; border-collapse: collapse; margin: 14px 0;
+    border-radius: var(--r-md); overflow: hidden;
+    border: 1px solid var(--ink-12);
+}
+.slp-text-content th {
+    background: rgba(108,92,231,0.08); color: var(--purple);
+    padding: 10px 14px; text-align: left;
+    border: 1px solid rgba(108,92,231,0.14);
+    font-size: 13px; font-weight: 700;
+}
+.slp-text-content td {
+    padding: 9px 14px; border: 1px solid var(--ink-12);
+    font-size: 14px; vertical-align: top;
+}
+.slp-text-content tr:nth-child(even) td { background: rgba(26,26,46,0.025); }
+.slp-text-content tr:hover td { background: rgba(108,92,231,0.03); }
 
 /* Mermaid diagram blocks rendered inside lesson text */
 .slp-text-content pre.mermaid {
