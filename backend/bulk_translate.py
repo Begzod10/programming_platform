@@ -27,7 +27,7 @@ TARGET_LANG = 'ru'
 SOURCE_LANG_DEFAULT = 'uz'
 # Previous run died at concurrency=24 with 95% 429-fail. Drop to 8.
 # Even gpt-4.1 with a tier-2 key tops out around 10 concurrent.
-CONCURRENCY = 8
+CONCURRENCY = 2
 COMMIT_EVERY = 50
 MAX_RETRIES = 6
 TIMEOUT_S = 60.0
@@ -43,9 +43,11 @@ Translate the following text from {_LANG_NAMES[SOURCE_LANG_DEFAULT]} to {_LANG_N
 
 RULES:
 - Output ONLY the translation. No commentary, no quotes around the result.
-- Keep technical terms in their accepted form (JavaScript, HTML, CSS).
+- Keep technical terms in their accepted form (JavaScript, HTML, CSS, Git, etc.).
 - Preserve markdown (**, *, lists, headings) and HTML tags exactly.
 - Inline code (`backticks`) stays in original casing/spelling.
+- If the input is a code block: translate ONLY comment lines (lines starting with # or //).
+  Leave all commands, variable names, strings inside echo/print, and code structure EXACTLY as-is.
 - If the source is already in {_LANG_NAMES[TARGET_LANG]}, return it unchanged.
 
 SOURCE:
@@ -242,8 +244,7 @@ async def main():
                 if tr and tr.strip() != src.strip():
                     _set_at_path(tree, path, tr)
                     mutated = True
-            if mutated or pairs:
-                # Write even if nothing changed — avoids re-checking forever
+            if mutated:
                 out = json.dumps(tree, ensure_ascii=False)
                 schedule("lesson", l["id"], "sections_json", l["sections_json"], out)
 

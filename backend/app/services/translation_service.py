@@ -220,7 +220,7 @@ async def translate_fields(
 # teacher editor that holds prose, add it here too.
 _TRANSLATABLE_KEYS = {
     # Lesson body / sections
-    "html", "label", "text", "content", "title", "description",
+    "html", "label", "text", "content", "title", "description", "code",
     # Exercise prompt + author guidance
     "question", "prompt", "hint", "explanation",
     # Author's reference answer (shown to students after grading)
@@ -235,8 +235,8 @@ _TRANSLATABLE_KEYS = {
 _NEVER_TRANSLATE_KEYS = {
     # Identifiers and structural tags
     "type", "id", "url", "videoUrl", "imgUrl", "image", "src",
-    # Code + programming language tag
-    "code", "codeLanguage", "lang",
+    # Programming language tag (not the code itself)
+    "codeLanguage", "lang",
     # Files
     "fileName", "fileSize",
     # Styling
