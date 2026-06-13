@@ -10,10 +10,10 @@
     --purple-glow: rgba(108,92,231,0.22);
     --green:       #00b894;
     --green-lt:    #00cec9;
-    --red:         #d63031;
+    --red:         #d63031;   /* destructive actions, hard errors (delete, server error) */
     --red-lt:      #ff7675;
     --red-bg:      rgba(255,118,117,0.1);
-    --orange:      #e17055;
+    --orange:      #e17055;   /* wrong answers, non-critical warnings (retry, hint) */
     --amber:       #f39c12;
     --amber-lt:    #fdcb6e;
     --pink:        #e84393;
@@ -32,6 +32,48 @@
     --t-fast:   0.15s ease;
     --t-mid:    0.25s cubic-bezier(0.4,0,0.2,1);
     --t-spring: 0.35s cubic-bezier(0.34,1.56,0.64,1);
+    /* syntax highlighting tokens — consumed by pre>code blocks */
+    --syn-keyword:  #c792ea;
+    --syn-string:   #c3e88d;
+    --syn-number:   #f78c6c;
+    --syn-comment:  #546e7a;
+    --syn-function: #82aaff;
+    --syn-operator: #89ddff;
+    --syn-constant: #ff9cac;
+    --syn-class:    #ffcb6b;
+    --syn-variable: #eeffff;
+    --syn-builtin:  #a8ff78;
+}
+
+/* ═══════════════════════════════════════════════
+   DARK MODE
+═══════════════════════════════════════════════ */
+:root[data-theme="dark"] {
+    --ink:       #eeeeff;
+    --ink-60:    rgba(238,238,255,0.6);
+    --ink-45:    rgba(238,238,255,0.45);
+    --ink-30:    rgba(238,238,255,0.3);
+    --ink-12:    rgba(238,238,255,0.12);
+    --ink-06:    rgba(238,238,255,0.06);
+    --surface:   #12121f;
+    --surface-2: #1a1a2e;
+    --purple-bg: rgba(108,92,231,0.18);
+    --red-bg:    rgba(255,118,117,0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --ink:       #eeeeff;
+        --ink-60:    rgba(238,238,255,0.6);
+        --ink-45:    rgba(238,238,255,0.45);
+        --ink-30:    rgba(238,238,255,0.3);
+        --ink-12:    rgba(238,238,255,0.12);
+        --ink-06:    rgba(238,238,255,0.06);
+        --surface:   #12121f;
+        --surface-2: #1a1a2e;
+        --purple-bg: rgba(108,92,231,0.18);
+        --red-bg:    rgba(255,118,117,0.18);
+    }
 }
 
 /* ═══════════════════════════════════════════════
@@ -73,11 +115,11 @@
     position: sticky;
     top: 0;
     z-index: 20;
-    background: #fff;
+    background: var(--surface);
     padding: 14px 4px;
     margin-left: -4px;
     margin-right: -4px;
-    border-bottom: 1px solid #eceef5;
+    border-bottom: 1px solid var(--ink-12);
     box-shadow: 0 6px 14px -10px rgba(40, 44, 90, 0.18);
     backdrop-filter: saturate(140%) blur(4px);
 }
@@ -91,7 +133,7 @@
 }
 .slp-bc-btn {
     background: none; border: none;
-    color: var(--ink-45); cursor: pointer;
+    color: var(--ink-60); cursor: pointer;
     font-size: 13px; font-family: 'Inter', sans-serif;
     padding: 4px 8px; border-radius: var(--r-sm);
     transition: var(--t-mid); font-weight: 500;
@@ -147,7 +189,7 @@
     display: inline-block; padding: 4px 14px;
     background: var(--purple-bg); border: 1px solid rgba(108,92,231,0.2);
     color: var(--purple); border-radius: 20px;
-    font-size: 11px; font-weight: 800; text-transform: uppercase;
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
     letter-spacing: 0.07em; width: fit-content;
 }
 
@@ -157,10 +199,10 @@
 }
 
 .slp-hero-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.slp-lesson-progress-text { font-size: 13px; color: var(--ink-45); font-weight: 500; }
+.slp-lesson-progress-text { font-size: 13px; color: var(--ink-60); font-weight: 500; }
 .slp-sections-count { font-size: 13px; color: var(--ink-30); }
 .slp-hero-done-badge {
-    font-size: 11px; font-weight: 800; color: var(--green);
+    font-size: 11px; font-weight: 700; color: var(--green);
     background: rgba(0,184,148,0.1); padding: 3px 10px;
     border-radius: 20px; animation: slpPop 0.4s var(--t-spring);
 }
@@ -188,6 +230,11 @@
 }
 .slp-complete-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 24px var(--purple-glow); }
 .slp-complete-btn:active { transform: scale(0.97); }
+.slp-complete-btn:focus-visible {
+    outline: 2.5px solid var(--purple-lt);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 5px var(--purple-glow);
+}
 .slp-complete-btn.done {
     background: linear-gradient(135deg, var(--green), var(--green-lt));
     box-shadow: 0 4px 16px rgba(0,184,148,0.3); cursor: default;
@@ -224,7 +271,7 @@
 
 .slp-block-labels { display: flex; flex-direction: column; gap: 1px; }
 .slp-block-type {
-    font-size: 10px; font-weight: 800; color: var(--ink-45);
+    font-size: 10px; font-weight: 700; color: var(--ink-60);
     text-transform: uppercase; letter-spacing: 0.07em;
 }
 .slp-block-title { font-size: 14px; font-weight: 600; color: var(--ink); }
@@ -235,9 +282,9 @@
 .slp-block-body { padding: 22px; }
 
 /* TEXT */
-.slp-text-content { font-size: 15px; color: var(--ink); line-height: 1.78; }
+.slp-text-content { font-size: 15px; color: var(--ink); line-height: 1.68; }
 .slp-text-content h1,.slp-text-content h2,.slp-text-content h3 { color: var(--ink); margin-top: 0; }
-.slp-text-content h2 { font-size: 18px; font-weight: 700; margin: 20px 0 10px; }
+.slp-text-content h2 { font-size: 20px; font-weight: 700; margin: 20px 0 10px; }
 .slp-text-content h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
 .slp-text-content h4 { font-size: 14px; font-weight: 700; color: var(--ink); margin: 14px 0 6px; }
 .slp-text-content a { color: var(--purple); text-decoration: none; }
@@ -390,7 +437,7 @@
 .slp-file-icon-wrap { font-size: 30px; flex-shrink: 0; }
 .slp-file-info { flex: 1; }
 .slp-file-name { font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 3px; }
-.slp-file-size { font-size: 12px; color: var(--ink-45); }
+.slp-file-size { font-size: 12px; color: var(--ink-60); }
 .slp-file-dl-btn {
     background: linear-gradient(135deg, var(--purple), var(--purple-lt));
     color: white; border: none; padding: 10px 20px;
@@ -421,7 +468,7 @@
     border: 1.5px dashed var(--ink-12);
 }
 .slp-empty-icon { font-size: 44px; opacity: 0.3; }
-.slp-empty p { font-size: 15px; color: var(--ink-45); margin: 0; }
+.slp-empty p { font-size: 15px; color: var(--ink-60); margin: 0; }
 
 /* ═══════════════════════════════════════════════
    UPLOAD METHOD SELECTOR
@@ -466,7 +513,7 @@
     width: 34px; height: 34px; border-radius: var(--r-sm);
     background: rgba(108,92,231,0.08);
     display: flex; align-items: center; justify-content: center;
-    color: var(--ink-45); flex-shrink: 0; transition: var(--t-mid);
+    color: var(--ink-60); flex-shrink: 0; transition: var(--t-mid);
 }
 .slp-method-icon-zip { background: rgba(0,184,148,0.08); }
 
@@ -475,10 +522,10 @@
     font-size: 14px; font-weight: 700; color: var(--ink);
     transition: var(--t-fast);
 }
-.slp-method-sub { font-size: 11px; color: var(--ink-45); font-weight: 500; }
+.slp-method-sub { font-size: 11px; color: var(--ink-60); font-weight: 500; }
 
 .slp-method-check {
-    font-size: 12px; font-weight: 800; color: var(--purple);
+    font-size: 12px; font-weight: 700; color: var(--purple);
     animation: checkPop 0.3s var(--t-spring) both;
     flex-shrink: 0; width: 22px; height: 22px;
     background: rgba(108,92,231,0.12); border-radius: 50%;
@@ -535,9 +582,9 @@
 }
 .slp-ex-section-left { display: flex; align-items: center; gap: 8px; }
 .slp-ex-section-icon { font-size: 18px; }
-.slp-ex-section-count { font-size: 13px; font-weight: 800; color: var(--purple); }
+.slp-ex-section-count { font-size: 13px; font-weight: 700; color: var(--purple); }
 .slp-ex-section-pts {
-    font-size: 12px; font-weight: 700; color: var(--ink-45);
+    font-size: 12px; font-weight: 700; color: var(--ink-60);
     background: rgba(108,92,231,0.08); padding: 3px 12px; border-radius: 20px;
 }
 .slp-ex-section-list { display: flex; flex-direction: column; gap: 14px; }
@@ -553,9 +600,9 @@
     animation: blockIn 0.4s ease both;
 }
 .slp-ex-card:hover { box-shadow: 0 6px 22px rgba(108,92,231,0.1); transform: translateY(-1px); }
-.slp-ex-card.state-correct  { border-color: var(--green); background: linear-gradient(160deg, rgba(0,184,148,0.04), var(--surface)); }
-.slp-ex-card.state-wrong    { border-color: var(--orange); background: linear-gradient(160deg, rgba(225,112,85,0.04), var(--surface)); }
-.slp-ex-card.state-submitted{ border-color: var(--purple); background: linear-gradient(160deg, rgba(108,92,231,0.04), var(--surface)); }
+.slp-ex-card.state-correct  { border-color: var(--green); background: linear-gradient(160deg, rgba(0,184,148,0.07), var(--surface)); }
+.slp-ex-card.state-wrong    { border-color: var(--orange); background: linear-gradient(160deg, rgba(225,112,85,0.07), var(--surface)); }
+.slp-ex-card.state-submitted{ border-color: var(--purple); background: linear-gradient(160deg, rgba(108,92,231,0.07), var(--surface)); }
 
 .slp-ex-card-head {
     display: flex; flex-direction: column; gap: 6px;
@@ -564,11 +611,11 @@
 }
 .slp-ex-card-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .slp-ex-num {
-    font-size: 11px; font-weight: 800; color: var(--ink-30);
+    font-size: 11px; font-weight: 700; color: var(--ink-30);
     background: var(--ink-06); padding: 3px 9px; border-radius: 20px; letter-spacing: 0.02em;
 }
 .slp-ex-diff-badge {
-    font-size: 10px; font-weight: 800; padding: 3px 10px; border-radius: 20px;
+    font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 20px;
     border: 1.5px solid currentColor; text-transform: uppercase; letter-spacing: 0.07em;
 }
 .slp-ex-pts-badge {
@@ -576,7 +623,7 @@
     background: var(--purple-bg); padding: 3px 10px; border-radius: 20px;
 }
 .slp-ex-score-badge {
-    font-size: 11px; font-weight: 800; color: var(--green);
+    font-size: 11px; font-weight: 700; color: var(--green);
     background: rgba(0,184,148,0.1); padding: 3px 12px; border-radius: 20px;
     animation: slpPop 0.4s var(--t-spring);
 }
@@ -584,7 +631,7 @@
 /* "Already submitted" indicator — visible after a refresh so the student
    sees that their previous answer is saved. Inputs stay editable. */
 .slp-ex-done-badge {
-    font-size: 11px; font-weight: 800; padding: 3px 12px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; padding: 3px 12px; border-radius: 20px;
     letter-spacing: 0.01em;
     display: inline-flex; align-items: center; gap: 4px;
     border: 1.5px solid transparent;
@@ -593,17 +640,19 @@
     color: var(--green); background: rgba(0,184,148,0.10);
     border-color: rgba(0,184,148,0.25);
 }
+.slp-ex-done-badge.ok::before  { content: '✓'; font-size: 10px; }
 .slp-ex-done-badge.bad {
     color: var(--orange); background: rgba(225,112,85,0.10);
     border-color: rgba(225,112,85,0.25);
 }
+.slp-ex-done-badge.bad::before { content: '✗'; font-size: 10px; }
 .slp-ex-done-badge.pending {
     color: var(--purple); background: var(--purple-bg);
     border-color: rgba(108,92,231,0.25);
 }
 
 .slp-ex-section-done {
-    font-size: 11px; font-weight: 800; color: var(--green);
+    font-size: 11px; font-weight: 700; color: var(--green);
     background: rgba(0,184,148,0.10);
     border: 1px solid rgba(0,184,148,0.22);
     padding: 3px 10px; border-radius: 20px;
@@ -616,7 +665,7 @@
     border-color: rgba(0,184,148,0.25);
     background: linear-gradient(160deg, rgba(0,184,148,0.025), var(--surface));
 }
-.slp-ex-type-label { font-size: 11px; font-weight: 600; color: var(--ink-45); margin-left: auto; }
+.slp-ex-type-label { font-size: 11px; font-weight: 600; color: var(--ink-60); margin-left: auto; }
 .slp-ex-card-title { font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.35; }
 
 .slp-ex-card-body { padding: 18px; display: flex; flex-direction: column; gap: 14px; }
@@ -654,18 +703,23 @@
 }
 .slp-ex-option-btn::after {
     content: ''; position: absolute; left: 0; top: 0; bottom: 0;
-    width: 3px; background: transparent; transition: background var(--t-fast);
-    border-radius: 0 2px 2px 0;
+    width: 5px; background: transparent; transition: background var(--t-fast);
+    border-radius: 0 3px 3px 0;
 }
 .slp-ex-option-btn:hover:not(:disabled) { border-color: rgba(108,92,231,0.3); background: rgba(108,92,231,0.04); transform: translateX(2px); }
 .slp-ex-option-btn:hover:not(:disabled)::after { background: rgba(108,92,231,0.4); }
 .slp-ex-option-btn.selected { border-color: var(--purple); background: rgba(108,92,231,0.06); font-weight: 600; }
 .slp-ex-option-btn.selected::after { background: var(--purple); }
 .slp-ex-option-btn:disabled { cursor: not-allowed; }
+.slp-ex-option-btn:focus-visible {
+    outline: 2.5px solid var(--purple);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--purple-glow);
+}
 .slp-ex-opt-letter {
     display: flex; align-items: center; justify-content: center;
     width: 28px; height: 28px; border-radius: var(--r-sm);
-    font-size: 12px; font-weight: 800; flex-shrink: 0;
+    font-size: 12px; font-weight: 700; flex-shrink: 0;
     background: rgba(108,92,231,0.08); color: var(--purple); transition: var(--t-mid);
 }
 .slp-ex-option-btn.selected .slp-ex-opt-letter { background: var(--purple); color: white; }
@@ -677,7 +731,7 @@
 .slp-ex-drag-wrap { display: flex; flex-direction: column; gap: 12px; }
 .slp-ex-dropzone-label,
 .slp-ex-drag-chips-label {
-    font-size: 10px; font-weight: 800; color: var(--ink-45);
+    font-size: 10px; font-weight: 700; color: var(--ink-60);
     text-transform: uppercase; letter-spacing: 0.07em;
 }
 .slp-ex-dropzone {
@@ -699,7 +753,7 @@
 .slp-dropped-num {
     display: flex; align-items: center; justify-content: center;
     width: 18px; height: 18px; background: rgba(255,255,255,0.25);
-    border-radius: 50%; font-size: 10px; font-weight: 800; flex-shrink: 0;
+    border-radius: 50%; font-size: 10px; font-weight: 700; flex-shrink: 0;
 }
 .slp-dropped-del { font-size: 10px; opacity: 0.55; transition: opacity var(--t-fast); }
 .slp-ex-dropped-chip:hover .slp-dropped-del { opacity: 1; }
@@ -770,7 +824,7 @@
     animation: slpFade 0.3s ease;
 }
 .slp-ex-ai-feedback-label {
-    font-size: 11px; font-weight: 800; color: var(--purple);
+    font-size: 11px; font-weight: 700; color: var(--purple);
     text-transform: uppercase; letter-spacing: 0.07em;
     display: flex; align-items: center; gap: 6px;
 }
@@ -827,7 +881,7 @@
 .slp-project-top { display: flex; align-items: flex-start; gap: 16px; }
 .slp-project-icon-wrap { font-size: 36px; flex-shrink: 0; line-height: 1; }
 .slp-project-info { flex: 1; }
-.slp-project-info h4 { margin: 0 0 5px; font-size: 17px; font-weight: 800; color: var(--ink); }
+.slp-project-info h4 { margin: 0 0 5px; font-size: 17px; font-weight: 700; color: var(--ink); }
 .slp-project-desc { margin: 0; font-size: 14px; color: var(--ink-60); line-height: 1.55; }
 .slp-project-check {
     font-size: 12px; font-weight: 700; color: var(--green);
@@ -840,7 +894,7 @@
     padding: 16px; display: flex; flex-direction: column; gap: 8px;
 }
 .slp-reqs-title {
-    font-size: 11px; font-weight: 800; color: var(--ink-45);
+    font-size: 11px; font-weight: 700; color: var(--ink-60);
     text-transform: uppercase; letter-spacing: 0.07em; margin-right: 8px;
 }
 .slp-reqs-text { font-size: 14px; color: var(--ink); line-height: 1.6; white-space: pre-wrap; }
@@ -1055,8 +1109,8 @@
     animation: slpSlide 0.3s var(--t-spring);
 }
 .slp-exit-icon { font-size: 48px; margin-bottom: 12px; animation: slpPop 0.4s var(--t-spring); }
-.slp-exit-modal h4 { margin: 0 0 6px; font-size: 20px; font-weight: 800; color: var(--ink); }
-.slp-exit-modal p  { margin: 0 0 24px; font-size: 13px; color: var(--ink-45); }
+.slp-exit-modal h4 { margin: 0 0 6px; font-size: 20px; font-weight: 700; color: var(--ink); }
+.slp-exit-modal p  { margin: 0 0 24px; font-size: 13px; color: var(--ink-60); }
 .slp-exit-actions  { display: flex; flex-direction: column; gap: 10px; }
 .slp-exit-opt {
     width: 100%; padding: 14px; border-radius: var(--r-lg); border: none;
@@ -1071,7 +1125,7 @@
 .slp-exit-opt.courses { background: var(--ink-06); color: var(--ink); border: 1.5px solid var(--ink-12); }
 .slp-exit-opt.courses:hover { background: var(--ink-12); }
 .slp-exit-cancel {
-    background: none; border: none; color: var(--ink-45);
+    background: none; border: none; color: var(--ink-60);
     font-size: 13px; font-weight: 600; cursor: pointer;
     font-family: 'Inter', sans-serif; padding: 6px; transition: var(--t-fast);
 }
@@ -1106,15 +1160,15 @@
     background: var(--purple-bg); border-radius: var(--r-lg);
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.slp-modal-header h3 { margin: 0 0 3px; font-size: 18px; font-weight: 800; color: var(--ink); }
-.slp-modal-header-sub { margin: 0; font-size: 12px; color: var(--ink-45); }
+.slp-modal-header h3 { margin: 0 0 3px; font-size: 18px; font-weight: 700; color: var(--ink); }
+.slp-modal-header-sub { margin: 0; font-size: 12px; color: var(--ink-60); }
 
 .slp-modal-close {
     background: var(--ink-06); border: none;
     width: 34px; height: 34px; border-radius: var(--r-sm);
     cursor: pointer; font-size: 14px; transition: var(--t-mid);
     display: flex; align-items: center; justify-content: center;
-    color: var(--ink-45); flex-shrink: 0; align-self: flex-start; margin-top: 4px;
+    color: var(--ink-60); flex-shrink: 0; align-self: flex-start; margin-top: 4px;
 }
 .slp-modal-close:hover { background: rgba(255,118,117,0.15); color: var(--red); transform: rotate(90deg); }
 
@@ -1132,7 +1186,7 @@
 /* Fields */
 .slp-modal-field { display: flex; flex-direction: column; gap: 7px; }
 .slp-modal-field label {
-    font-size: 11px; font-weight: 800; color: var(--ink-45);
+    font-size: 11px; font-weight: 700; color: var(--ink-60);
     text-transform: uppercase; letter-spacing: 0.06em;
     display: flex; align-items: center; gap: 7px;
 }
@@ -1187,7 +1241,7 @@
 .slp-dz-icon { font-size: 32px; line-height: 1; transition: transform var(--t-spring); }
 .slp-dz-icon.drag { transform: scale(1.2) rotate(-5deg); }
 .slp-dropzone:hover .slp-dz-icon { transform: translateY(-4px) scale(1.08); }
-.slp-dropzone-text { font-size: 14px; font-weight: 600; color: var(--ink-45); }
+.slp-dropzone-text { font-size: 14px; font-weight: 600; color: var(--ink-60); }
 .slp-dropzone-hint { font-size: 12px; color: var(--ink-30); }
 
 .slp-dropzone-selected {
@@ -1197,7 +1251,7 @@
 .slp-dz-file-icon { font-size: 24px; flex-shrink: 0; }
 .slp-dropzone-info { flex: 1; display: flex; flex-direction: column; gap: 2px; text-align: left; min-width: 0; }
 .slp-dropzone-name { font-size: 14px; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.slp-dropzone-size { font-size: 12px; font-weight: 600; color: var(--ink-45); }
+.slp-dropzone-size { font-size: 12px; font-weight: 600; color: var(--ink-60); }
 .slp-dropzone-size.over { color: var(--red); font-weight: 700; }
 .slp-dropzone-clear {
     pointer-events: all; background: rgba(255,118,117,0.12); border: none;
@@ -1343,4 +1397,20 @@
     .slp-lesson-hero h1 { font-size: 18px; margin-bottom: 6px; }
     .slp-modal          { max-height: 96vh; border-radius: var(--r-xl); }
     .slp-overlay        { padding: 6px; align-items: stretch; }
+}
+
+/* ═══════════════════════════════════════════════
+   REDUCED MOTION
+═══════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+    .slp-container,
+    .slp-block,
+    .slp-ex-card { animation: none !important; }
+    .slp-lesson-progress-bar { animation: none !important; }
+    .slp-ai-dot,
+    .slp-ai-pulse-dot { animation: none !important; }
+    .slp-block-icon-wrap { transition: none !important; }
+    *,
+    *::before,
+    *::after { transition-duration: 0.01ms !important; }
 }
