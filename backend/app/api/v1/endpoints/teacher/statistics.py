@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from datetime import datetime, timedelta, timezone
 from app.dependencies import get_db, get_current_instructor
-from app.models.user import Student, UserRole
+from app.models.user import Student, UserRole, StudentLevel
 from app.models.group import Group
 from app.models.project import Project
 
@@ -20,22 +20,22 @@ async def get_teacher_statistics(
     last_month_end = this_month_start
     two_months_ago_start = (last_month_start - timedelta(days=1)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-    # Jami studentlar
+    # Total students
     total_students = await db.scalar(
         select(func.count()).select_from(Student).where(Student.role == UserRole.student)
     )
 
-    # Faol guruhlar
+    # Active groups
     active_groups = await db.scalar(
         select(func.count()).select_from(Group)
     )
 
-    # O'rtacha ball (total_points bo'yicha)
+    # Average points
     avg_points = await db.scalar(
         select(func.avg(Student.total_points)).where(Student.role == UserRole.student)
     )
 
-    # Level bo'yicha taqsimot (reyting o'rniga)
+    # Advanced students (>=5000 points)
     advanced_count = await db.scalar(
         select(func.count()).select_from(Student).where(
             Student.role == UserRole.student,
@@ -43,14 +43,21 @@ async def get_teacher_statistics(
         )
     )
 
-    # Tekshirilgan ishlar (jami)
+    # All checked works (total)
     checked_works = await db.scalar(
         select(func.count()).select_from(Project).where(
             Project.status.in_(["Reviewed", "Approved"])
         )
     )
 
-    # Bu oy tekshirilgan ishlar
+    # Pending review
+    pending_works = await db.scalar(
+        select(func.count()).select_from(Project).where(
+            Project.status == "Submitted"
+        )
+    )
+
+    # This month checked
     this_month_checked = await db.scalar(
         select(func.count()).select_from(Project).where(
             Project.status.in_(["Reviewed", "Approved"]),
@@ -58,7 +65,7 @@ async def get_teacher_statistics(
         )
     )
 
-    # O'tgan oy tekshirilgan ishlar
+    # Last month checked
     last_month_checked = await db.scalar(
         select(func.count()).select_from(Project).where(
             Project.status.in_(["Reviewed", "Approved"]),
@@ -67,7 +74,7 @@ async def get_teacher_statistics(
         )
     )
 
-    # 2 oy oldingi tekshirilgan ishlar
+    # Two months ago checked
     two_months_ago_checked = await db.scalar(
         select(func.count()).select_from(Project).where(
             Project.status.in_(["Reviewed", "Approved"]),
@@ -76,21 +83,23 @@ async def get_teacher_statistics(
         )
     )
 
-    # O'sish foizi hisoblash
     def calc_growth(current, previous):
-        if previous == 0:
-            return "+0%"
-        growth = round(((current - previous) / previous) * 100)
+        c = current or 0
+        p = previous or 0
+        if p < 3:
+            return "N/A"
+        growth = round(((c - p) / p) * 100)
+        growth = max(-999, min(999, growth))
         return f"+{growth}%" if growth >= 0 else f"{growth}%"
 
-    this_month_growth = calc_growth(this_month_checked or 0, last_month_checked or 0)
-    last_month_growth = calc_growth(last_month_checked or 0, two_months_ago_checked or 0)
+    this_month_growth = calc_growth(this_month_checked, last_month_checked)
+    last_month_growth = calc_growth(last_month_checked, two_months_ago_checked)
 
-    avg_growth = round(((this_month_checked or 0) + (last_month_checked or 0)) / 2)
-    prev_avg = round(((last_month_checked or 0) + (two_months_ago_checked or 0)) / 2)
-    average_growth = calc_growth(avg_growth, prev_avg)
+    avg_growth_val = round(((this_month_checked or 0) + (last_month_checked or 0)) / 2)
+    prev_avg_val   = round(((last_month_checked or 0) + (two_months_ago_checked or 0)) / 2)
+    average_growth = calc_growth(avg_growth_val, prev_avg_val)
 
-    # Haftalik aktivlik (oxirgi 7 kun) — tekshirilgan ishlar (reviewed_at)
+    # Weekly activity (last 7 days)
     weekly_activity = []
     for i in range(6, -1, -1):
         day = now - timedelta(days=i)
@@ -107,16 +116,65 @@ async def get_teacher_statistics(
             "value": count or 0
         })
 
+    # Level breakdown
+    beginner_count = await db.scalar(
+        select(func.count()).select_from(Student).where(
+            Student.role == UserRole.student,
+            Student.current_level == StudentLevel.Beginner
+        )
+    )
+    intermediate_count = await db.scalar(
+        select(func.count()).select_from(Student).where(
+            Student.role == UserRole.student,
+            Student.current_level == StudentLevel.Intermediate
+        )
+    )
+
+    # Top 5 students by total_points
+    top_students_rows = (await db.execute(
+        select(Student.id, Student.full_name, Student.username, Student.total_points, Student.current_level)
+        .where(Student.role == UserRole.student, Student.is_active == True)
+        .order_by(Student.total_points.desc())
+        .limit(5)
+    )).all()
+
+    top_students = [
+        {
+            "id": r.id,
+            "name": r.full_name or r.username or f"Student #{r.id}",
+            "points": r.total_points,
+            "level": r.current_level.value if r.current_level else "Beginner",
+        }
+        for r in top_students_rows
+    ]
+
+    # Grade distribution
+    grade_rows = (await db.execute(
+        select(Project.grade, func.count().label("cnt"))
+        .where(Project.grade.isnot(None))
+        .group_by(Project.grade)
+        .order_by(Project.grade)
+    )).all()
+    grade_distribution = [{"grade": r.grade, "count": r.cnt} for r in grade_rows]
+
     return {
         "total_students": total_students or 0,
         "active_groups": active_groups or 0,
-        "average_points": round(float(avg_points or 0), 1),  # ball
-        "advanced_students": advanced_count or 0,             # Advanced darajali studentlar
+        "average_points": round(float(avg_points or 0), 1),
+        "advanced_students": advanced_count or 0,
         "checked_works": checked_works or 0,
+        "pending_works": pending_works or 0,
         "dynamics": [
             {"label": "Этот месяц", "value": this_month_growth},
             {"label": "Прошлый месяц", "value": last_month_growth},
             {"label": "Средний рост", "value": average_growth},
         ],
-        "weekly_activity": weekly_activity
+        "weekly_activity": weekly_activity,
+        "level_breakdown": {
+            "beginner": beginner_count or 0,
+            "intermediate": intermediate_count or 0,
+            "advanced": advanced_count or 0,
+        },
+        "top_students": top_students,
+        "grade_distribution": grade_distribution,
     }

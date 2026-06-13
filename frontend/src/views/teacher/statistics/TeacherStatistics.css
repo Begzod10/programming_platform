@@ -105,6 +105,48 @@
 }
 .positive { color: #00b894; }
 .negative { color: #d63031; }
+.neutral  { color: #94a3b8; }
+.pending-alert { color: #d97706; }
+
+/* LEVEL BARS */
+.level-bars { display: flex; flex-direction: column; gap: 12px; }
+.level-row  { display: flex; align-items: center; gap: 12px; }
+.level-label { font-size: 13px; color: rgba(26,26,46,0.65); min-width: 110px; }
+.level-track {
+    flex: 1; height: 10px; background: rgba(26,26,46,0.07);
+    border-radius: 6px; overflow: hidden;
+}
+.level-fill { height: 100%; border-radius: 6px; transition: width 0.5s ease; }
+.level-count {
+    font-size: 12px; font-weight: 700; padding: 2px 9px;
+    border-radius: 10px; min-width: 32px; text-align: center;
+}
+
+/* TOP STUDENTS */
+.top-students { display: flex; flex-direction: column; gap: 8px; }
+.top-student-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 10px; background: rgba(26,26,46,0.03);
+}
+.top-student-rank { font-size: 1.1rem; width: 26px; text-align: center; flex-shrink: 0; }
+.top-student-name { flex: 1; font-size: 13px; font-weight: 600; color: #1a1a2e; }
+.top-student-level {
+    font-size: 11px; font-weight: 600; padding: 2px 8px;
+    border-radius: 8px; white-space: nowrap;
+}
+.top-student-pts { font-size: 13px; font-weight: 700; color: #6c5ce7; white-space: nowrap; }
+
+/* GRADE DISTRIBUTION */
+.grade-bars { display: flex; flex-direction: column; gap: 10px; }
+.grade-row  { display: flex; align-items: center; gap: 10px; }
+.grade-label { font-size: 13px; font-weight: 600; min-width: 80px; }
+.grade-track {
+    flex: 1; height: 10px; background: rgba(26,26,46,0.07);
+    border-radius: 6px; overflow: hidden;
+}
+.grade-fill { height: 100%; border-radius: 6px; transition: width 0.5s ease; }
+.grade-count { font-size: 13px; font-weight: 700; color: #1a1a2e; min-width: 70px; text-align: right; }
+.grade-pct  { font-size: 11px; font-weight: 400; color: rgba(26,26,46,0.45); }
 
 /* CHART HEADER */
 .chart-header {
