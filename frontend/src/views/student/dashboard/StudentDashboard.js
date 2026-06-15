@@ -10,6 +10,8 @@ const LEVEL_META = {
     Advanced:     { ru: 'Продвинутый',uz: "Ilg'or",       color: '#166534', bg: '#f0fdf4' },
 };
 
+const QUIZ_DAILY_LIMIT = 2;
+
 function ProgressRing({ pct, size = 60, stroke = 6, color = '#6c5ce7' }) {
     const r = (size - stroke) / 2;
     const circ = 2 * Math.PI * r;
@@ -33,11 +35,30 @@ function ProgressRing({ pct, size = 60, stroke = 6, color = '#6c5ce7' }) {
     );
 }
 
+function DictSessionDot({ session, ru }) {
+    const score = session?.score ?? 0;
+    const done = session?.is_completed ?? false;
+    return (
+        <div className={`db-dict-dot ${done ? 'db-dict-dot--done' : 'db-dict-dot--empty'}`}>
+            {done ? (
+                <>
+                    <span className="db-dict-dot-score">{score}</span>
+                    <span className="db-dict-dot-label">{ru ? 'очков' : 'ball'}</span>
+                </>
+            ) : (
+                <span className="db-dict-dot-label">{ru ? 'осталась' : 'qoldi'}</span>
+            )}
+        </div>
+    );
+}
+
 export default function StudentDashboard() {
     const navigate = useNavigate();
     const { lang } = useTranslation();
     const [me, setMe] = useState(null);
     const [stats, setStats] = useState(null);
+    const [dictStatus, setDictStatus] = useState(null);
+    const [dictWords, setDictWords] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -47,9 +68,13 @@ export default function StudentDashboard() {
         Promise.all([
             fetch(`${API_URL}v1/student/me`, { headers: headers() }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
             fetch(`${API_URL}v1/student/me/course-stats`, { headers: headers() }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
-        ]).then(([meData, statsData]) => {
+            fetch(`${API_URL}v1/dictionary/quiz/status`, { headers: headers() }).then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch(`${API_URL}v1/dictionary/`, { headers: headers() }).then(r => r.ok ? r.json() : []).catch(() => []),
+        ]).then(([meData, statsData, dictStatusData, dictWordsData]) => {
             setMe(meData);
             setStats(statsData);
+            setDictStatus(dictStatusData);
+            setDictWords(Array.isArray(dictWordsData) ? dictWordsData : []);
         }).catch(e => setError(e.message)).finally(() => setLoading(false));
     }, []);
 
@@ -62,6 +87,21 @@ export default function StudentDashboard() {
     const lvl = LEVEL_META[profile.level] || LEVEL_META.Beginner;
     const displayName = me.full_name || me.username || '';
     const avatarSrc = resolveImageUrl(me.avatar_url);
+
+    // Dictionary stats
+    const totalWords = dictWords.length;
+    const totalCorrect = dictWords.reduce((s, w) => s + (w.correct_count || 0), 0);
+    const totalAttempts = dictWords.reduce((s, w) => s + (w.correct_count || 0) + (w.incorrect_count || 0), 0);
+    const accuracyPct = totalAttempts > 0 ? Math.round((totalCorrect / totalAttempts) * 100) : 0;
+    const practicedWords = dictWords.filter(w => (w.correct_count || 0) + (w.incorrect_count || 0) > 0).length;
+
+    const playedToday = dictStatus?.played_today ?? 0;
+    const todaySessions = dictStatus?.sessions ?? [];
+    const todayScore = todaySessions.reduce((s, sess) => s + (sess.score || 0), 0);
+    const allDone = playedToday >= QUIZ_DAILY_LIMIT;
+
+    // Build session slots: fill played sessions, pad with nulls for remaining
+    const sessionSlots = Array.from({ length: QUIZ_DAILY_LIMIT }, (_, i) => todaySessions[i] ?? null);
 
     return (
         <div className="db-page">
@@ -122,7 +162,7 @@ export default function StudentDashboard() {
                         <div className="db-overall-text">
                             <div className="db-overall-label">{ru ? 'Упражнения' : 'Mashqlar'}</div>
                             <div className="db-overall-sub">
-                                {overall.exercises_correct || 0}/{overall.exercises_total || 0} {ru ? 'верно' : 'to\'g\'ri'}
+                                {overall.exercises_correct || 0}/{overall.exercises_total || 0} {ru ? 'верно' : "to'g'ri"}
                             </div>
                         </div>
                     </div>
@@ -144,6 +184,78 @@ export default function StudentDashboard() {
                             <span className="db-pill-val" style={{ color: '#6c5ce7' }}>{(overall.total_points_from_projects || 0).toLocaleString()}</span>
                             <span className="db-pill-label">{ru ? 'Очков за проекты' : 'Loyihadan ball'}</span>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Dictionary practice ── */}
+            <div className="db-section item-fade-in">
+                <div className="db-section-header">
+                    <h2 className="db-section-title">📖 {ru ? 'Словарь и практика' : "Lug'at va mashq"}</h2>
+                    <button className="db-see-all" onClick={() => navigate('/student/dictionary')}>
+                        {ru ? 'Открыть →' : "Ochish →"}
+                    </button>
+                </div>
+                <div className="db-dict-card">
+
+                    {/* Left: overall word stats */}
+                    <div className="db-dict-left">
+                        <div className="db-dict-stat-row">
+                            <div className="db-dict-bignum">{totalWords}</div>
+                            <div className="db-dict-bignumlabel">{ru ? 'слов в словаре' : "so'z lug'atda"}</div>
+                        </div>
+                        <div className="db-dict-subrow">
+                            <span className="db-dict-sub">
+                                <span className="db-dict-sub-val" style={{ color: '#6c5ce7' }}>{practicedWords}</span>
+                                {' '}{ru ? 'отработано' : 'mashq qilingan'}
+                            </span>
+                        </div>
+                        {totalAttempts > 0 && (
+                            <div className="db-dict-accuracy-row">
+                                <ProgressRing pct={accuracyPct} size={52} stroke={5} color="#0ea5e9" />
+                                <div className="db-dict-accuracy-text">
+                                    <div className="db-dict-accuracy-label">{ru ? 'Точность' : 'Aniqlik'}</div>
+                                    <div className="db-dict-accuracy-sub">{totalCorrect}/{totalAttempts}</div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="db-dict-divider" />
+
+                    {/* Right: today's quiz sessions */}
+                    <div className="db-dict-right">
+                        <div className="db-dict-today-title">
+                            {ru ? 'Сегодня' : 'Bugun'}
+                            {allDone && (
+                                <span className="db-dict-done-badge">
+                                    {ru ? '✓ выполнено' : "✓ bajarildi"}
+                                </span>
+                            )}
+                        </div>
+                        <div className="db-dict-dots">
+                            {sessionSlots.map((sess, i) => (
+                                <DictSessionDot key={i} session={sess} ru={ru} />
+                            ))}
+                        </div>
+                        {todayScore > 0 && (
+                            <div className="db-dict-today-score">
+                                +{todayScore} {ru ? 'очков сегодня' : 'ball bugun'}
+                            </div>
+                        )}
+                        {totalWords === 0 ? (
+                            <p className="db-dict-hint">
+                                {ru ? 'Добавьте слова из уроков, чтобы начать практику' : "Mashq boshlash uchun darslardagi so'zlarni qo'shing"}
+                            </p>
+                        ) : !allDone ? (
+                            <button className="db-dict-play-btn" onClick={() => navigate('/student/dictionary')}>
+                                {ru ? '▶ Начать практику' : "▶ Mashqni boshlash"}
+                            </button>
+                        ) : (
+                            <p className="db-dict-hint">
+                                {ru ? 'Все сессии на сегодня завершены 🎉' : "Bugungi barcha sessiyalar tugadi 🎉"}
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>

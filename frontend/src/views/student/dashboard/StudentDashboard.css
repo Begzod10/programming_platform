@@ -147,6 +147,120 @@
 .db-pill-val   { font-size: 1.25rem; font-weight: 800; }
 .db-pill-label { font-size: 0.72rem; color: #64748b; }
 
+/* ── Dictionary card ── */
+.db-dict-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.08);
+    padding: 20px 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+.db-dict-left {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-width: 160px;
+}
+.db-dict-stat-row { display: flex; align-items: baseline; gap: 8px; }
+.db-dict-bignum {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: #6c5ce7;
+    line-height: 1;
+}
+.db-dict-bignumlabel { font-size: 0.8rem; color: #64748b; }
+.db-dict-subrow { font-size: 0.8rem; color: #64748b; }
+.db-dict-sub-val { font-weight: 700; }
+.db-dict-accuracy-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+}
+.db-dict-accuracy-label { font-size: 0.85rem; font-weight: 700; color: #1e293b; }
+.db-dict-accuracy-sub   { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+.db-dict-divider { width: 1px; align-self: stretch; background: #e2e8f0; flex-shrink: 0; min-height: 80px; }
+.db-dict-right {
+    flex: 1;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.db-dict-today-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.db-dict-done-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: #dcfce7;
+    color: #16a34a;
+    padding: 2px 10px;
+    border-radius: 10px;
+}
+.db-dict-dots {
+    display: flex;
+    gap: 10px;
+}
+.db-dict-dot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 68px;
+    border-radius: 12px;
+    gap: 2px;
+}
+.db-dict-dot--done {
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    color: #fff;
+}
+.db-dict-dot--empty {
+    background: #f1f5f9;
+    color: #94a3b8;
+    border: 2px dashed #cbd5e1;
+}
+.db-dict-dot-score {
+    font-size: 1.2rem;
+    font-weight: 800;
+    line-height: 1;
+}
+.db-dict-dot-label { font-size: 0.68rem; font-weight: 600; }
+.db-dict-today-score {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #6c5ce7;
+}
+.db-dict-play-btn {
+    align-self: flex-start;
+    background: #6c5ce7;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 9px 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+}
+.db-dict-play-btn:hover { background: #5b4bd4; transform: translateY(-1px); }
+.db-dict-hint {
+    margin: 0;
+    font-size: 0.78rem;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
 /* ── Courses grid ── */
 .db-courses-grid {
     display: grid;
