@@ -184,6 +184,17 @@ class ProjectService:
                     project.id, ai_result.get("grade"),
                     ai_result.get("new_points"), ai_result.get("provider"),
                 )
+            elif not ai_result.get("success"):
+                # AI failed (invalid URL, repo not found, provider error, etc.).
+                # Reset to "Rejected" so the student can fix and re-submit.
+                # "Submitted" would block re-submission permanently.
+                reason = ai_result.get("reason", "AI tekshirish muvaffaqiyatsiz")
+                project.status = "Rejected"
+                project.instructor_feedback = reason
+                await self.db.commit()
+                logger.warning(
+                    "[ai-auto] project=%d failed, set Rejected: %s", project.id, reason
+                )
             await self.db.refresh(project)
         except Exception as e:
             # Defense in depth — any unhandled exception in the AI path

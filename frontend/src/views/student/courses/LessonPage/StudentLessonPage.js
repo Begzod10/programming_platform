@@ -989,7 +989,14 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const validateProject = () => {
         const e = {};
         if (uploadMethod === 'github') {
-            if (!projectForm.github_url.trim()) e.github_url = 'Введите GitHub ссылку';
+            const url = projectForm.github_url.trim();
+            if (!url) {
+                e.github_url = 'Введите GitHub ссылку';
+            } else if (!/^https:\/\/github\.com\/[^/]+\/[^/]+/.test(url)) {
+                e.github_url = 'Введите корректную ссылку GitHub: https://github.com/ваш_логин/репозиторий';
+            } else if (/\/(username|your.?username|user|owner|имя_пользователя|ваш_логин|sizning_username|foydalanuvchi_nomi)\//i.test(url)) {
+                e.github_url = 'Пожалуйста, введите вашу реальную GitHub ссылку, а не пример';
+            }
         } else {
             if (!zipFile) {
                 e.zip = 'Выберите ZIP-файл';
