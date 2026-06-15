@@ -50,6 +50,7 @@ function Sidebar({ activeTab, onLogout, role }) {
     };
 
     const menuItems = [
+        { id: 'dashboard',      label: t('dashboard') || 'Dashboard', icon: '🏠', section: 'main' },
         { id: 'profile',        label: t('profile'),       icon: '👤',  section: 'main' },
         { id: 'projects',       label: t('my_projects'),   icon: '💻',  section: 'main' },
         { id: 'courses',        label: t('courses'),       icon: '📚',  section: 'main' },

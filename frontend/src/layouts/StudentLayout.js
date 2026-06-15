@@ -8,7 +8,7 @@ function StudentLayout() {
     const location = useLocation();
 
     const path = location.pathname;
-    const segment = path.split('/')[2] || 'profile';
+    const segment = path.split('/')[2] || 'dashboard';
 
     return (
         <div className="main-layout">

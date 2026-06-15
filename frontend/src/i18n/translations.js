@@ -13,6 +13,7 @@ const translations = {
     search: "Qidirish...",
 
     // Sidebar
+    dashboard: "Bosh sahifa",
     profile: "Profil",
     review: "Ishlarni tekshirish",
     my_students: "Mening talabalarim",
@@ -102,6 +103,7 @@ const translations = {
     search: "Поиск...",
 
     // Sidebar
+    dashboard: "Главная",
     profile: "Профиль",
     review: "Проверка работ",
     my_students: "Мои студенты",

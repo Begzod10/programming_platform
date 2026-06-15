@@ -8,6 +8,7 @@ import TeacherLayout from './layouts/TeacherLayout';
 import NotFound from './views/NotFound';
 
 // ── Student views ──
+import StudentDashboard  from './views/student/dashboard/StudentDashboard';
 import StudentCourses    from './views/student/courses/Courses/StudentCourses';
 import Profile           from './views/student/profile/Profile';
 import MyProjects        from './views/student/projects/MyProjects';
@@ -89,7 +90,8 @@ function AppRouter() {
                     </ProtectedRoute>
                 }
             >
-                <Route index                                              element={<Navigate to="profile" replace />} />
+                <Route index                                              element={<Navigate to="dashboard" replace />} />
+                <Route path="dashboard"                                   element={<StudentDashboard />} />
                 <Route path="profile"                                     element={<StudentProfilePageWrapper />} />
                 <Route path="projects"                                    element={<MyProjects />} />
                 <Route path="rankings"                                    element={<Leaderboard />} />
