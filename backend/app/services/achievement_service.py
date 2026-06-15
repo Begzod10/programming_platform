@@ -321,7 +321,45 @@ async def award_certificate(
     await db.refresh(cert)
     print(f"🎓 Sertifikat berildi: student={student_id}, course={course_id}, cert_id={cert.id}")
 
-    # 4. Did this just complete the whole platform? If so, mint the
+    # 4. Enroll the student in the next course by display_order.
+    try:
+        from app.models.course import Course, student_courses as sc_table
+        course_res = await db.execute(select(Course).where(Course.id == course_id))
+        current_course = course_res.scalar_one_or_none()
+        if current_course:
+            next_res = await db.execute(
+                select(Course)
+                .where(
+                    Course.display_order > current_course.display_order,
+                    Course.is_active == True,
+                    Course.is_published == True,
+                )
+                .order_by(Course.display_order)
+                .limit(1)
+            )
+            next_course = next_res.scalar_one_or_none()
+            if next_course:
+                already_res = await db.execute(
+                    select(sc_table.c.course_id).where(
+                        sc_table.c.course_id == next_course.id,
+                        sc_table.c.student_id == student_id,
+                    )
+                )
+                if already_res.first() is None:
+                    await db.execute(
+                        sc_table.insert().values(
+                            student_id=student_id, course_id=next_course.id
+                        )
+                    )
+                    await db.commit()
+                    print(
+                        f"🔓 Keyingi kurs ochildi: student={student_id}, "
+                        f"course={next_course.id} ({next_course.title})"
+                    )
+    except Exception as e:
+        print(f"⚠️  Next-course unlock failed for student={student_id}: {e}")
+
+    # 5. Did this just complete the whole platform? If so, mint the
     # Full-Stack Developer achievement immediately — no need to wait for
     # the next periodic check_and_award sweep.
     try:
