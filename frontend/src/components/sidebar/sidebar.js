@@ -50,10 +50,11 @@ function Sidebar({ activeTab, onLogout, role }) {
     };
 
     const menuItems = [
-        { id: 'dashboard',      label: t('dashboard') || 'Dashboard', icon: '🏠', section: 'main' },
-        { id: 'profile',        label: t('profile'),       icon: '👤',  section: 'main' },
-        { id: 'projects',       label: t('my_projects'),   icon: '💻',  section: 'main' },
-        { id: 'courses',        label: t('courses'),       icon: '📚',  section: 'main' },
+        { id: 'dashboard',      label: t('dashboard') || 'Dashboard',   icon: '🏠', section: 'main' },
+        { id: 'profile',        label: t('profile'),                    icon: '👤', section: 'main' },
+        { id: 'courses',        label: t('courses'),                    icon: '📚', section: 'main' },
+        { id: 'roadmap',        label: t('roadmap') || 'Roadmap',       icon: '🗺️',section: 'main' },
+        { id: 'projects',       label: t('my_projects'),                icon: '💻', section: 'main' },
         { id: 'dictionary',     label: t('dictionary'),    icon: '📖',  section: 'main' },
         { id: 'team-game',      label: t('team_game'),     icon: '🎮',  section: 'main' },
         { id: 'statistics',     label: t('statistics') || 'Статистика', icon: '📊',  section: 'insights' },

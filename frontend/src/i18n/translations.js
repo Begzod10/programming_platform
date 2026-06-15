@@ -14,6 +14,7 @@ const translations = {
 
     // Sidebar
     dashboard: "Bosh sahifa",
+    roadmap: "Yo'l xaritasi",
     profile: "Profil",
     review: "Ishlarni tekshirish",
     my_students: "Mening talabalarim",
@@ -104,6 +105,7 @@ const translations = {
 
     // Sidebar
     dashboard: "Главная",
+    roadmap: "Карта обучения",
     profile: "Профиль",
     review: "Проверка работ",
     my_students: "Мои студенты",

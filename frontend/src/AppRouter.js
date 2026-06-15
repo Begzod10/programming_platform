@@ -9,6 +9,7 @@ import NotFound from './views/NotFound';
 
 // ── Student views ──
 import StudentDashboard  from './views/student/dashboard/StudentDashboard';
+import CourseRoadmap     from './views/student/roadmap/CourseRoadmap';
 import StudentCourses    from './views/student/courses/Courses/StudentCourses';
 import Profile           from './views/student/profile/Profile';
 import MyProjects        from './views/student/projects/MyProjects';
@@ -102,6 +103,7 @@ function AppRouter() {
                 <Route path="statistics"                                  element={<StudentCourseStats />} />
 
                 {/* Курсы */}
+                <Route path="roadmap"                                      element={<CourseRoadmap />} />
                 <Route path="courses"                                     element={<StudentCourses />} />
                 <Route path="courses/:courseId"                           element={<StudentCourses />} />
                 <Route path="courses/:courseId/lessons/:lessonId"         element={<StudentCourses />} />
