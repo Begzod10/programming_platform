@@ -112,14 +112,25 @@ async def _get_or_create_fullstack_achievement(db: AsyncSession) -> Achievement:
     if len(rows) > 1:
         # Keep the first, delete the duplicates
         keeper = rows[0]
+        from app.models.student_achievement import StudentAchievement as SA
         for dup in rows[1:]:
-            # Re-point any student_achievements at the keeper before deletion
-            from app.models.student_achievement import StudentAchievement as SA
-            await db.execute(
-                SA.__table__.update()
-                .where(SA.__table__.c.achievement_id == dup.id)
-                .values(achievement_id=keeper.id)
+            # Re-point student_achievements to keeper, but if the student
+            # already holds the keeper achievement we must DELETE the dup row
+            # instead of updating (otherwise the unique constraint fires).
+            dup_sas_res = await db.execute(
+                select(SA).where(SA.achievement_id == dup.id)
             )
+            for dup_sa in dup_sas_res.scalars().all():
+                already_has = (await db.execute(
+                    select(SA).where(
+                        SA.student_id == dup_sa.student_id,
+                        SA.achievement_id == keeper.id,
+                    )
+                )).scalar_one_or_none()
+                if already_has:
+                    await db.delete(dup_sa)
+                else:
+                    dup_sa.achievement_id = keeper.id
             await db.delete(dup)
         await db.commit()
         await db.refresh(keeper)
