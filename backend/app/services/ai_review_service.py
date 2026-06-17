@@ -192,7 +192,9 @@ async def run_ai_review_for_project(
     if old_points > 0:
         await ranking_service.subtract_points_from_student(
             project.student_id, old_points)
-    if new_points > 0:
+    # Only award points for passing projects (≥75). Rejected submissions
+    # should not accumulate points — the student must fix and resubmit.
+    if new_points > 0 and new_points >= 75:
         await ranking_service.add_points_to_student(
             project.student_id, new_points)
 

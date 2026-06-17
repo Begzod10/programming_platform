@@ -209,21 +209,27 @@ class ProjectService:
         if not project:
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")
 
+        old_points = project.points_earned or 0
+
         project.instructor_feedback = feedback
         project.grade = grade
         project.points_earned = points
         project.status = "Approved"
         project.reviewed_at = datetime.utcnow()
 
-        # Studentga ball qo'shish
         student_result = await self.db.execute(
             select(Student).where(Student.id == project.student_id)
         )
         student = student_result.scalar_one_or_none()
-        if student and points > 0:
+        if student:
             from app.services.ranking_service import RankingService
             ranking_service = RankingService(self.db)
-            await ranking_service.add_points_to_student(student.id, points)
+            # Subtract whatever the student was previously credited (AI or
+            # earlier teacher review) before adding the new teacher score.
+            if old_points > 0:
+                await ranking_service.subtract_points_from_student(student.id, old_points)
+            if points > 0:
+                await ranking_service.add_points_to_student(student.id, points)
 
         await self.db.commit()
         await self.db.refresh(project)
