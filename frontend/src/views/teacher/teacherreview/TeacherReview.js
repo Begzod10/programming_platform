@@ -120,6 +120,27 @@ function ZipDownloadBtn({ projectId, projectTitle }) {
     );
 }
 
+function StudentAvatar({ student, size = 34 }) {
+    if (!student) return <div className="tr-user-mark" />;
+    const name = student.full_name || student.username || '?';
+    const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    if (student.avatar_url) {
+        return (
+            <img
+                src={student.avatar_url}
+                alt={name}
+                className="tr-avatar-img"
+                style={{ width: size, height: size }}
+            />
+        );
+    }
+    return (
+        <div className="tr-avatar-init" style={{ width: size, height: size, fontSize: size * 0.38 }}>
+            {initials}
+        </div>
+    );
+}
+
 function TeacherReview() {
     const { request } = useHttp();
 
@@ -283,7 +304,7 @@ function TeacherReview() {
                         {filtered.map(p => (
                             <div key={p.id} className="tr-row" onClick={() => openDetail(p)}>
                                 <div className="tr-col-main">
-                                    <div className="tr-user-mark" />
+                                    <StudentAvatar student={p.student} />
                                     <div>
                                         <div className="tr-student-name">{p.title}</div>
                                         <div className="tr-project-name">
@@ -293,6 +314,12 @@ function TeacherReview() {
                                                     onClick={e => e.stopPropagation()}>GitHub →</a>
                                                 : <span style={{ color: 'rgba(26,26,46,0.35)' }}>Нет ссылки</span>}
                                         </div>
+                                        {p.student && (
+                                            <div className="tr-student-info">
+                                                {p.student.full_name || p.student.username}
+                                                <span className="tr-student-email">{p.student.email}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <div>
@@ -341,9 +368,15 @@ function TeacherReview() {
 
                         <div className="tr-modal-header">
                             <div className="tr-modal-header-left">
-                                <div className="tr-modal-icon">📋</div>
+                                <StudentAvatar student={detail.student} size={40} />
                                 <div>
                                     <h3>{detail.title}</h3>
+                                    {detail.student && (
+                                        <div className="tr-modal-student">
+                                            👤 {detail.student.full_name || detail.student.username}
+                                            <span className="tr-student-email">{detail.student.email}</span>
+                                        </div>
+                                    )}
                                     <div className="tr-modal-meta">
                                         {detail.difficulty_level && (
                                             <span className={`tr-diff ${diffClass[detail.difficulty_level] || ''}`}>

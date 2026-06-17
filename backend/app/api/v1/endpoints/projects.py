@@ -12,7 +12,7 @@ from app.models.course import Course
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.services.project_service import ProjectService
 from app.services import achievement_service
-from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead
+from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead, ProjectReadWithStudent
 from app.models.user import Student
 from app.services.ranking_service import RankingService
 from fastapi.responses import FileResponse
@@ -54,7 +54,7 @@ async def create_project(
     return await service.create_project(student_id=current_student.id, data=payload)
 
 
-@router.get("/", response_model=List[ProjectRead])
+@router.get("/", response_model=List[ProjectReadWithStudent])
 async def get_projects(
         skip: int = Query(0, ge=0),
         limit: int = Query(10, ge=1, le=100),

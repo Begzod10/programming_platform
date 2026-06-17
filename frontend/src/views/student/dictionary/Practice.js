@@ -1478,7 +1478,7 @@ export default function Practice() {
         } finally {
             setBusy(false);
         }
-    }, [busy, filter, mode, request]);
+    }, [busy, filter, mode, request, scope]); // eslint-disable-line react-hooks/exhaustive-deps
 
     /* ── resume an in-flight session ── */
     const resume = useCallback(async () => {
