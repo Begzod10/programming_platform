@@ -674,6 +674,13 @@ Faqat JSON qaytar (boshqa matn yozma):
 - C: 60-74  — O'rtacha: ishlaydi, lekin kod sifati past yoki ba'zi talablar bajarilmagan
 - D: 45-59  — Qoniqarsiz: jiddiy xatolar yoki katta qismi yo'q
 - F: 0-44   — Juda zaif: ishlamaydi, bo'sh yoki dars topshirig'iga umuman mos kelmaydi
+
+## NOTO'G'RI TEXNOLOGİYA — QATTIQ QOIDA
+Agar dars KONKRET bir dasturlash tilini yoki texnologiyani talab qilsa (masalan JavaScript, HTML, Python) va o'quvchi BUTUNLAY BOSHQA til/texnologiyada kod yuborgan bo'lsa (masalan JavaScript o'rniga Python/Flask yuborgan):
+- Bu F darajasi, 0-25 ball. Kod sifatidan, ishlab turganidan, qanchalik chiroylidan QAT'I NAZAR.
+- Sababi: topshiriq "JavaScript yozing" degan, o'quvchi esa Python yozgan — bu topshiriqni bajarilmagan deb hisoblanadi.
+- feedback'da aniq ayting: "Dars [DARS NOMI] uchun [KUTILGAN TIL] kerak edi, lekin siz [TOPSHIRILGAN TIL] kod yubordingiz."
+- ISTISNO: agar dars "istalgan til" desa yoki texnologiya talab qilinmagan bo'lsa — bu qoida ishlamaydi.
 """
 
 

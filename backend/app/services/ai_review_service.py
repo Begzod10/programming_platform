@@ -199,7 +199,7 @@ async def run_ai_review_for_project(
     project.instructor_feedback = review.get("feedback", "")
     project.grade = review.get("grade", "F")
     project.points_earned = new_points
-    project.status = "Approved"
+    project.status = "Approved" if new_points >= 75 else "Rejected"
     project.reviewed_at = datetime.now(timezone.utc)
 
     await db.commit()
