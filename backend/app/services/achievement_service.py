@@ -95,16 +95,40 @@ async def _backfill_course_badge_urls(db: AsyncSession) -> int:
 
 
 async def _get_or_create_fullstack_achievement(db: AsyncSession) -> Achievement:
-    """Return the platform-wide 'Full Stack Developer' Achievement row.
+    """Return the single platform-wide 'Full Stack Developer' Achievement row.
 
-    Self-seeds on first call so there is no separate manual data step. If
-    the row already exists with a missing badge URL (e.g. from a build
-    before the SVG asset shipped), backfill the URL transparently.
+    Deduplicates on every call: if multiple rows with criteria_type=
+    'all_courses_completed' exist (from earlier double-inserts), keep the
+    lowest-id one and delete the rest so the achievements page never shows
+    duplicate cards.
     """
     res = await db.execute(
-        select(Achievement).where(Achievement.criteria_type == "all_courses_completed").limit(1)
+        select(Achievement)
+        .where(Achievement.criteria_type == "all_courses_completed")
+        .order_by(Achievement.id)
     )
-    existing = res.scalar_one_or_none()
+    rows = res.scalars().all()
+
+    if len(rows) > 1:
+        # Keep the first, delete the duplicates
+        keeper = rows[0]
+        for dup in rows[1:]:
+            # Re-point any student_achievements at the keeper before deletion
+            from app.models.student_achievement import StudentAchievement as SA
+            await db.execute(
+                SA.__table__.update()
+                .where(SA.__table__.c.achievement_id == dup.id)
+                .values(achievement_id=keeper.id)
+            )
+            await db.delete(dup)
+        await db.commit()
+        await db.refresh(keeper)
+        existing = keeper
+    elif len(rows) == 1:
+        existing = rows[0]
+    else:
+        existing = None
+
     if existing is not None:
         if not (existing.badge_image_url or "").strip():
             existing.badge_image_url = FULLSTACK_BADGE_URL
@@ -275,7 +299,20 @@ async def check_and_award_achievements(db: AsyncSession, student_id: int) -> Lis
                 should_award = True
 
         if should_award:
-            result = await award_achievement(db, student_id, ach.id)
+            # For "all_courses_completed", bonus = sum of the student's actual
+            # approved project points so the reward reflects their real effort.
+            bonus_points = None
+            if ach.criteria_type == "all_courses_completed":
+                pts_res = await db.execute(
+                    select(func.sum(Project.points_earned)).where(
+                        Project.student_id == student_id,
+                        Project.status == "Approved",
+                        Project.points_earned > 0,
+                    )
+                )
+                bonus_points = int(pts_res.scalar() or 0)
+
+            result = await award_achievement(db, student_id, ach.id, bonus_points=bonus_points)
             if result:
                 awarded.append(result)
 
@@ -424,8 +461,17 @@ async def check_course_prerequisite(
     return await check_course_completion(db, student_id, course.prerequisite_course_id)
 
 
-async def award_achievement(db: AsyncSession, student_id: int, achievement_id: int) -> Optional[StudentAchievement]:
-    """Studentga achievement berish, ball qo'shish va course_id ni bog'lash"""
+async def award_achievement(
+    db: AsyncSession,
+    student_id: int,
+    achievement_id: int,
+    bonus_points: Optional[int] = None,
+) -> Optional[StudentAchievement]:
+    """Studentga achievement berish, ball qo'shish va course_id ni bog'lash.
+
+    bonus_points: if provided, overrides achievement.points_reward (used for
+    all_courses_completed to reward the student's actual project points total).
+    """
     # 1. Avval berilganini tekshirish
     existing = await db.execute(
         select(StudentAchievement).where(
@@ -445,9 +491,10 @@ async def award_achievement(db: AsyncSession, student_id: int, achievement_id: i
         return None
 
     # 3. Balllarni yangilash (Ranking bilan birga)
+    points_to_add = bonus_points if bonus_points is not None else achievement.points_reward
     from app.services.ranking_service import RankingService
     ranking_service = RankingService(db)
-    await ranking_service.add_points_to_student(student_id, achievement.points_reward)
+    await ranking_service.add_points_to_student(student_id, points_to_add)
 
     # 4. Bazaga yozish (course_id bilan birga)
     new_sa = StudentAchievement(

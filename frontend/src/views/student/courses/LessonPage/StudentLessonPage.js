@@ -1325,7 +1325,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                         color: '#fff', padding: '6px 14px', borderRadius: 999, fontWeight: 600
                                                     }}>
                                                         {projectSubmission?.status === 'Rejected'
-                                                            ? '✗ Отклонено'
+                                                            ? `✗ ${projectScore}/100 — Отклонено`
                                                             : `📊 ${projectScore}/100`}
                                                     </span>
                                                 )}
