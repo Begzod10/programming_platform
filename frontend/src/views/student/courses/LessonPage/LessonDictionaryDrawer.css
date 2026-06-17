@@ -277,6 +277,10 @@
     border-color: var(--ldd-stroke-hi);
     background: rgba(255, 255, 255, 0.045);
 }
+.ldd-item:hover .ldd-item__word {
+    -webkit-line-clamp: unset;
+    overflow: visible;
+}
 .ldd-item.is-current {
     border-color: rgba(139, 123, 255, 0.28);
     background:
