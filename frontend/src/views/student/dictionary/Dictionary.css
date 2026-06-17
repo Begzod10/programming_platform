@@ -633,6 +633,12 @@
     border-color: rgba(108,92,231,0.2);
     box-shadow: 0 4px 18px rgba(108,92,231,0.09);
     transform: translateX(2px);
+    align-items: flex-start;
+}
+.d-list-row:hover .d-list-ctx {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
 }
 
 .d-list-index {
