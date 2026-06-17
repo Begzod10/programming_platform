@@ -15,6 +15,7 @@ import Profile           from './views/student/profile/Profile';
 import MyProjects        from './views/student/projects/MyProjects';
 import Leaderboard       from './views/student/rankings/LeaderBoard';
 import Degrees           from './views/student/degrees/DegreeCard';
+import Achievements      from './views/student/achievements/Achievements';
 import Dictionary        from './views/student/dictionary/Dictionary';
 import StudentTeamGame   from './views/student/teamgame/StudentTeamGame';
 import StudentCourseStats from './views/student/stats/StudentCourseStats';
@@ -98,6 +99,7 @@ function AppRouter() {
                 <Route path="rankings"                                    element={<Leaderboard />} />
                 <Route path="project-rating"                              element={<ProjectLeaderboard role="student" />} />
                 <Route path="degrees"                                     element={<Degrees />} />
+                <Route path="achievements"                               element={<Achievements />} />
                 <Route path="dictionary"                                  element={<Dictionary />} />
                 <Route path="team-game"                                   element={<StudentTeamGame />} />
                 <Route path="statistics"                                  element={<StudentCourseStats />} />

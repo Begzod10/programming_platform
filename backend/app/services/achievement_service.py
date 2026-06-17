@@ -10,6 +10,7 @@ from datetime import datetime
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.submission import Submission
 from app.models.student_achievement import CourseCertificate
+from app.models.dictionary import UserDictionary
 from sqlalchemy import and_
 
 import io
@@ -244,6 +245,33 @@ async def check_and_award_achievements(db: AsyncSession, student_id: int) -> Lis
                 should_award = True
         elif ach.criteria_type == "all_courses_completed":
             if await _all_published_courses_complete(db, student_id):
+                should_award = True
+        elif ach.criteria_type == "lesson_count":
+            lc_res = await db.execute(
+                select(func.count(LessonCompletion.id)).where(
+                    LessonCompletion.student_id == student_id
+                )
+            )
+            completed_lessons = lc_res.scalar() or 0
+            if completed_lessons >= ach.criteria_value:
+                should_award = True
+        elif ach.criteria_type == "word_count":
+            wc_res = await db.execute(
+                select(func.count(UserDictionary.id)).where(
+                    UserDictionary.student_id == student_id
+                )
+            )
+            saved_words = wc_res.scalar() or 0
+            if saved_words >= ach.criteria_value:
+                should_award = True
+        elif ach.criteria_type == "course_count":
+            cc_res = await db.execute(
+                select(func.count(CourseCertificate.id)).where(
+                    CourseCertificate.student_id == student_id
+                )
+            )
+            certs_count = cc_res.scalar() or 0
+            if certs_count >= ach.criteria_value:
                 should_award = True
 
         if should_award:
@@ -568,6 +596,30 @@ async def get_achievement_progress(db: AsyncSession, student_id: int) -> List[di
         elif ach.criteria_type == "points_threshold":
             current = student.total_points
             pct = min(100, int((current / target) * 100))
+        elif ach.criteria_type == "lesson_count":
+            lc_res = await db.execute(
+                select(func.count(LessonCompletion.id)).where(
+                    LessonCompletion.student_id == student_id
+                )
+            )
+            current = lc_res.scalar() or 0
+            pct = min(100, int((current / target) * 100))
+        elif ach.criteria_type == "word_count":
+            wc_res = await db.execute(
+                select(func.count(UserDictionary.id)).where(
+                    UserDictionary.student_id == student_id
+                )
+            )
+            current = wc_res.scalar() or 0
+            pct = min(100, int((current / target) * 100))
+        elif ach.criteria_type == "course_count":
+            cc_res = await db.execute(
+                select(func.count(CourseCertificate.id)).where(
+                    CourseCertificate.student_id == student_id
+                )
+            )
+            current = cc_res.scalar() or 0
+            pct = min(100, int((current / target) * 100))
         else:
             # Boshqa turlar uchun progress hozircha 0
             current = 0
@@ -584,6 +636,8 @@ async def get_achievement_progress(db: AsyncSession, student_id: int) -> List[di
             "current_value": current,
             "progress": pct,
             "is_earned": ach.id in earned_ids,
+            "category": getattr(ach, "category", "general"),
+            "icon": getattr(ach, "icon", "🏆"),
         })
     return progress_list
 

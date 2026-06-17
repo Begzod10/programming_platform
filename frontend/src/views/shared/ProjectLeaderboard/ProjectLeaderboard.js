@@ -63,11 +63,26 @@ function PodiumSlot({ s, rank }) {
                 {(s.project_points ?? 0).toLocaleString()}<span> pts</span>
             </p>
             {s.current_level && <span className="tsr-podium-level">{s.current_level}</span>}
-            {s.best_course && (
-                <span className="tsr-podium-best" title={s.best_course}>
-                    ⭐ {s.best_course.length > 14 ? s.best_course.slice(0, 14) + '…' : s.best_course}
-                </span>
-            )}
+            <div className="tsr-podium-chips">
+                {s.projects_count > 0 && (
+                    <span className="tsr-chip tsr-chip--proj">
+                        📁 {s.projects_count} {s.projects_count === 1 ? 'проект' : 'проектов'}
+                    </span>
+                )}
+                {s.avg_grade > 0 && (
+                    <span className="tsr-chip tsr-chip--course" title="Средний балл по проектам">
+                        Ср. {s.avg_grade}
+                    </span>
+                )}
+                {s.best_course && (
+                    <span className="tsr-chip tsr-chip--best" title={s.best_course}>
+                        ⭐ {s.best_course.length > 14 ? s.best_course.slice(0, 14) + '…' : s.best_course}
+                        {s.best_course_points != null && (
+                            <strong>+{s.best_course_points.toLocaleString()}</strong>
+                        )}
+                    </span>
+                )}
+            </div>
             <div className="tsr-podium-bar" style={{ height: heights[rank], background: c.bg }}>
                 <span className="tsr-podium-medal">{c.medal}</span>
             </div>

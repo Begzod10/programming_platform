@@ -10,6 +10,8 @@ class AchievementBase(BaseModel):
     points_reward: int
     criteria_type: str  # project_count, points_threshold
     criteria_value: int
+    category: Optional[str] = "general"
+    icon: Optional[str] = "🏆"
 
 
 class AchievementCreate(AchievementBase):
@@ -26,6 +28,9 @@ class AchievementCreate(AchievementBase):
             "points_threshold",
             "course_completion",
             "all_courses_completed",
+            "lesson_count",
+            "word_count",
+            "course_count",
         ]
         if v not in allowed:
             raise ValueError(f"criteria_type must be one of: {allowed}")
@@ -90,6 +95,8 @@ class AchievementProgress(BaseModel):
     current_value: int
     progress: int
     is_earned: bool
+    category: Optional[str] = "general"
+    icon: Optional[str] = "🏆"
 
 
 # ✅ YANGI - Teacher uchun

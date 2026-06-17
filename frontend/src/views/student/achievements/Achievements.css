@@ -1,0 +1,339 @@
+/* ── Page layout ── */
+.ach-page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* ── Header ── */
+.ach-header {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.ach-title {
+    margin: 0;
+    font-size: 1.75rem;
+    font-weight: 800;
+    color: #1e293b;
+}
+
+.ach-subtitle {
+    margin: 0;
+    font-size: 0.95rem;
+    color: #64748b;
+}
+
+.ach-total-pts {
+    color: #6c5ce7;
+    font-weight: 600;
+}
+
+/* ── Category tabs ── */
+.ach-tabs {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.ach-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.ach-tab {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 18px;
+    border-radius: 999px;
+    border: 1.5px solid #e2e8f0;
+    background: #fff;
+    color: #475569;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s, border-color 0.18s, box-shadow 0.18s;
+    white-space: nowrap;
+}
+
+.ach-tab:hover {
+    border-color: #6c5ce7;
+    color: #6c5ce7;
+}
+
+.ach-tab--active {
+    background: #6c5ce7;
+    border-color: #6c5ce7;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(108, 92, 231, 0.35);
+}
+
+/* ── Badge grid ── */
+.ach-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+}
+
+/* ── Badge card base ── */
+.ach-card {
+    position: relative;
+    background: #fff;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+    border: 2px solid transparent;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: transform 0.18s, box-shadow 0.18s;
+}
+
+.ach-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Earned card ── */
+.ach-card--earned {
+    border-color: #6c5ce7;
+}
+
+.ach-card--earned::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    border-radius: 14px 14px 0 0;
+    background: linear-gradient(90deg, #6c5ce7, #a29bfe);
+}
+
+/* ── Locked card ── */
+.ach-card--locked {
+    opacity: 0.65;
+}
+
+/* ── Card top row ── */
+.ach-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+/* ── Icon ── */
+.ach-icon {
+    font-size: 40px;
+    line-height: 1;
+    display: block;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.ach-icon--locked {
+    filter: grayscale(1);
+}
+
+/* ── Points chip ── */
+.ach-pts {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: #ede9fe;
+    color: #5b21b6;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* ── Green checkmark corner badge ── */
+.ach-check {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #22c55e;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 900;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 4px rgba(34, 197, 94, 0.4);
+    line-height: 1;
+}
+
+/* ── Name & description ── */
+.ach-name {
+    margin: 0;
+    font-weight: 700;
+    font-size: 15px;
+    color: #1e293b;
+    line-height: 1.3;
+}
+
+.ach-desc {
+    margin: 0;
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.5;
+}
+
+/* ── Progress bar (locked cards) ── */
+.ach-progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.ach-progress-bar {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+
+.ach-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #6c5ce7, #a29bfe);
+    transition: width 0.5s ease;
+}
+
+.ach-progress-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    white-space: nowrap;
+    min-width: 30px;
+    text-align: right;
+}
+
+/* ── Skeleton loading state ── */
+@keyframes ach-shimmer {
+    0%   { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+}
+
+.ach-card--skeleton {
+    pointer-events: none;
+}
+
+.ach-skeleton-icon,
+.ach-skeleton-line,
+.ach-skeleton-bar {
+    border-radius: 8px;
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 800px 100%;
+    animation: ach-shimmer 1.4s infinite linear;
+}
+
+.ach-skeleton-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    margin-bottom: 4px;
+}
+
+.ach-skeleton-line {
+    height: 14px;
+    width: 100%;
+    margin-top: 6px;
+}
+
+.ach-skeleton-line--title {
+    height: 16px;
+    width: 70%;
+}
+
+.ach-skeleton-line--desc {
+    height: 12px;
+}
+
+.ach-skeleton-line.short {
+    width: 55%;
+}
+
+.ach-skeleton-bar {
+    height: 6px;
+    width: 100%;
+    border-radius: 999px;
+    margin-top: 8px;
+}
+
+/* ── Empty state ── */
+.ach-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 64px 24px;
+    text-align: center;
+    color: #64748b;
+}
+
+.ach-empty-icon {
+    font-size: 48px;
+    line-height: 1;
+}
+
+.ach-empty-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+.ach-empty-sub {
+    margin: 0;
+    font-size: 0.875rem;
+    color: #94a3b8;
+}
+
+/* ── Error ── */
+.ach-error {
+    padding: 14px 18px;
+    border-radius: 10px;
+    background: #fef2f2;
+    color: #dc2626;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border: 1px solid #fecaca;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+    .ach-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ach-page {
+        padding: 16px;
+    }
+
+    .ach-title {
+        font-size: 1.4rem;
+    }
+}
+
+@media (min-width: 641px) and (max-width: 899px) {
+    .ach-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

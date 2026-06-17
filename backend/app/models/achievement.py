@@ -15,6 +15,8 @@ class Achievement(Base):
     points_reward: Mapped[int] = mapped_column(Integer)
     criteria_type: Mapped[str] = mapped_column(String(50))
     criteria_value: Mapped[int] = mapped_column(Integer)
+    category: Mapped[str] = mapped_column(String(50), nullable=True, default="general")
+    icon: Mapped[str] = mapped_column(String(20), nullable=True, default="🏆")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     course_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("courses.id", ondelete="SET NULL"),

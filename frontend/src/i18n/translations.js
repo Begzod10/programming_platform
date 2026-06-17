@@ -30,6 +30,7 @@ const translations = {
     section_learning: "Ta'lim",
     section_analytics: "Tahlil",
     section_achievements: "Yutuqlar",
+    achievements: "Yutuqlar",
 
     // Profile
     full_name: "To'liq ism",
@@ -121,6 +122,7 @@ const translations = {
     section_learning: "Обучение",
     section_analytics: "Аналитика",
     section_achievements: "Достижения",
+    achievements: "Достижения",
 
     // Profile
     full_name: "Полное имя",

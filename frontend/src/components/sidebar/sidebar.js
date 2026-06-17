@@ -61,6 +61,7 @@ function Sidebar({ activeTab, onLogout, role }) {
         { id: 'rankings',       label: t('rankings'),      icon: '🏆',  section: 'insights' },
         { id: 'project-rating', label: t('top_projects'),  icon: '🏗️', section: 'insights' },
         { id: 'degrees',        label: t('certificates'),  icon: '🎓',  section: 'achievements' },
+        { id: 'achievements', label: t('achievements') || 'Yutuqlar', icon: '🥇', section: 'achievements' },
     ];
 
     const sections = [

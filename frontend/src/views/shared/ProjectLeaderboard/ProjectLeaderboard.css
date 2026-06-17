@@ -1,3 +1,13 @@
+/* Podium chip row — wraps project count, avg score, best course chips */
+.tsr-podium-chips {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    margin: 4px 4px 6px;
+    max-width: 140px;
+}
+
 /* Course-filter dropdown — sits inline with the period chips and matches
    their height, but uses a neutral surface to signal "filter" vs "tab".
    The rest of the leaderboard chrome comes from StudentRankings.css. */
