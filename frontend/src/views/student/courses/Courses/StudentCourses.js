@@ -38,8 +38,13 @@ const apiToLesson = (l, isCompleted = false, exercises = []) => {
     if (l.sections_json) {
         try {
             const sections = JSON.parse(l.sections_json);
-            if (exercises.length > 0) {
+            if (exercises.length > 0 && !sections.find(s => s.type === 'exercise')) {
                 sections.push({ id: `e${l.id}`, type: 'exercise', label: 'Упражнения', exercises: exercises.map(apiToExercise) });
+            }
+            // sections_json may not include the project block — append from task fields if missing
+            if (!sections.find(s => s.type === 'project') &&
+                (l.task_title || l.task_description || l.task_requirements || l.task_technologies || l.task_deadline_days)) {
+                sections.push({ id: `p${l.id}`, type: 'project', label: l.task_title || 'Loyiha', description: l.task_description || '', requirements: l.task_requirements || '', techStack: l.task_technologies || '', deadline: l.task_deadline_days || '' });
             }
             return {
                 id: l.id, title: l.title, chapter: l.chapter || '',
