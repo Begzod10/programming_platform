@@ -84,6 +84,11 @@ body {
 .page-container.scrollable > * {
     min-height: 0;
 }
+/* Lesson page: must grow to content height so the parent scroll container
+   has something to scroll. Higher specificity overrides > * min-height: 0. */
+.page-container.scrollable > .slp-container {
+    min-height: fit-content;
+}
 
 /* ===== PROJECTS GRID ===== */
 .projects-grid {

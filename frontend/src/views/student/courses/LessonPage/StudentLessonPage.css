@@ -100,7 +100,6 @@
     animation: slpFade 0.35s ease both;
     padding-bottom: 48px;
     color: var(--ink);
-    min-height: fit-content;
 }
 
 /* ═══════════════════════════════════════════════
