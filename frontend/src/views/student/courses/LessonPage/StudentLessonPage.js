@@ -296,7 +296,7 @@ const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission = null}
                         </span>
                     )}
                     {ex.points > 0 && <span className="slp-ex-pts-badge">⭐ {ex.points} pts</span>}
-                    {score != null && <span className="slp-ex-score-badge">🏆 +{score} pts</span>}
+                    {score > 0 && <span className="slp-ex-score-badge">🏆 +{score} pts</span>}
                     {hasPreviousSubmission && result === initialResult && (
                         // Hide once the student takes a fresh action this
                         // session — `result` diverges from `initialResult`

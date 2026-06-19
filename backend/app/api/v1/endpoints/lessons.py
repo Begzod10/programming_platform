@@ -105,7 +105,7 @@ async def _calc_lesson_progress(
                 done += 1
                 continue
             sub_res = await db.execute(
-                select(func.count(ExerciseSubmission.id)).where(
+                select(func.count(func.distinct(ExerciseSubmission.exercise_id))).where(
                     ExerciseSubmission.student_id == student_id,
                     ExerciseSubmission.exercise_id.in_(ex_ids)
                 )
@@ -768,9 +768,10 @@ async def submit_lesson_project(
                 )
             raise HTTPException(status_code=400, detail="Bu dars allaqachon topshirilgan")
 
-        # Reverse any points awarded by the previous review so re-review
-        # doesn't double-count when the teacher scores the new attempt.
-        if prev_points > 0:
+        # Reverse points only if they were actually awarded (Approved project).
+        # Rejected projects store points_earned from the AI score but never
+        # add those to the student, so subtracting them would deduct phantom points.
+        if prev_points > 0 and proj_status == "Approved":
             await _subtract_points(db, current_student.id, prev_points)
 
         existing_project.status = "Submitted"

@@ -188,8 +188,12 @@ async def run_ai_review_for_project(
     new_points = max(0, min(100, new_points))
 
     old_points = project.points_earned or 0
+    old_status = project.status
     ranking_service = RankingService(db)
-    if old_points > 0:
+    # Only subtract if the project was previously Approved — points are only
+    # awarded on Approved projects (score ≥ 75), so subtracting on a Rejected
+    # project would deduct points that were never actually granted.
+    if old_points > 0 and old_status == "Approved":
         await ranking_service.subtract_points_from_student(
             project.student_id, old_points)
     # Only award points for passing projects (≥75). Rejected submissions
