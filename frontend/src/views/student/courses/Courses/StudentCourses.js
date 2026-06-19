@@ -255,7 +255,7 @@ const StudentCourses = () => {
     /* ── fetch all courses ── */
     const fetchCourses = useCallback(() => {
         setLoading(true);
-        request(`${API_URL}v1/courses/?t=${Date.now()}`, 'GET', null, headers())
+        request(`${API_URL}v1/courses/?limit=100&t=${Date.now()}`, 'GET', null, headers())
             .then((data) => {
                 const list = (Array.isArray(data) ? data : [])
                     .filter((c) => c.is_published !== false)

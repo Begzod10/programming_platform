@@ -144,7 +144,7 @@ export default function CourseRoadmap() {
     const ru = lang === 'ru';
 
     useEffect(() => {
-        fetch(`${API_URL}v1/courses/`, { headers: headers() })
+        fetch(`${API_URL}v1/courses/?limit=100`, { headers: headers() })
             .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
             .then(data => {
                 const sorted = [...data]

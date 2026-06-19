@@ -68,7 +68,7 @@ function CreateSessionModal({ onClose, onCreated }) {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        fetch(`${API_URL}v1/courses?is_active=true`, { headers: headers() })
+        fetch(`${API_URL}v1/courses?is_active=true&limit=100`, { headers: headers() })
             .then(r => r.json())
             .then(d => setCourses(d.courses || d || []))
             .catch(() => {});
