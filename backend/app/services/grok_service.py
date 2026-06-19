@@ -949,6 +949,11 @@ async def explain_word_with_ai(
     if len(safe_word) > 80:
         safe_word = safe_word[:80]
 
+    # Detect script: if >30 % of alphabetic chars are Cyrillic → Russian word.
+    alpha = [c for c in safe_word if c.isalpha()]
+    cyrillic_ratio = sum(1 for c in alpha if "Ѐ" <= c <= "ӿ") / max(len(alpha), 1)
+    is_russian = cyrillic_ratio > 0.3
+
     # Trim the excerpt hard — 150 chars is enough to disambiguate sense; more
     # and the model starts repeating lesson keywords instead of defining the
     # word. (Symptom in prod: "JavaScript" and "HTML" got identical contexts
@@ -970,6 +975,29 @@ async def explain_word_with_ai(
             f"Endi qaytadan, FAQAT \"{safe_word}\" so'zi haqida yoz.\n"
             if retry_feedback else ""
         )
+        if is_russian:
+            return f"""\
+Sen rus tilidan o'zbek tiliga professional tarjimon va izohlovchisisiz.
+
+VAZIFA: Quyidagi rus tilidagi so'z yoki iborani O'ZBEK TILIGA tarjima qil va tushuntir.
+
+SO'Z: "{safe_word}"
+
+{scope_block}MUHIM QOIDALAR:
+- "short_definition" — O'zbek tiliga tarjimasi va 1 ta to'liq tushuntirish jumla.
+  Misol: "Переменная — o'zgaruvchi; dasturda ma'lumotlarni saqlash uchun ishlatiladigan nom."
+- Javob O'ZBEK TILIDA bo'lsin.
+{feedback_block}
+FAQAT QUYIDAGI JSON FORMATIDA JAVOB BER (boshqa hech narsa yozma, hatto ```json belgisini ham):
+{{
+    "word": "{safe_word}",
+    "short_definition": "O'zbekcha tarjima va 1 ta tushuntirish jumla",
+    "full_explanation": "2-3 jumla — batafsil tushuntirish o'zbek tilida",
+    "example": "1 ta misol",
+    "category": "masalan: Ot, Fe'l, Sifat, Atama",
+    "part_of_speech": "ot | fe'l | sifat | ibora | atama"
+}}
+"""
         return f"""\
 Sen dasturlash va texnologiyalar bo'yicha o'zbek tilida izohlovchi o'qituvchisisiz.
 
