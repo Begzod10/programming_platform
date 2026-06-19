@@ -1,4 +1,5 @@
-import React, {useState, useRef, useEffect, useMemo} from 'react';
+import React, {useState, useRef, useEffect, useMemo, useCallback} from 'react';
+import LessonVocabEditor from './LessonVocabEditor';
 import './LessonEditor.css';
 import './LessonEditor.additions.css';
 import {SECTION_TYPES, getYTId} from '../../../../constants/courseUtils';
@@ -808,6 +809,13 @@ const LessonEditorPage = ({course, lesson, chapters, onSave, onClose, apiBaseUrl
                     )}
                 </main>
             </div>
+            {lesson?.id && (
+                <LessonVocabEditor
+                    courseId={course?.id}
+                    lessonId={lesson.id}
+                    apiBaseUrl={apiBaseUrl}
+                />
+            )}
         </div>
     );
 };

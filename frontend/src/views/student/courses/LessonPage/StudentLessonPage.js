@@ -6,6 +6,7 @@ import {SECTION_TYPES, getYTId} from '../../../../constants/courseUtils';
 import {API_URL, useHttp, headers} from '../../../../api/search/base';
 import DictSelectionPopup from '../LessonPage/Dictselectionpopup';
 import LessonDictionaryDrawer from './LessonDictionaryDrawer';
+import LessonVocabCard from './LessonVocabCard';
 import StudentProjectFiles from '../StudentProjectPreview/StudentProjectPreview';
 
 // One-time Mermaid init at module load. startOnLoad:false because we trigger
@@ -1178,6 +1179,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                     </div>
                 )}
             </div>
+
+            {/* ──────────── VOCABULARY PREP CARD ──────────── */}
+            <LessonVocabCard courseId={lesson.course_id} lessonId={lesson.id} />
 
             {/* ──────────── CONTENT BLOCKS ──────────── */}
             {!lesson.sections || lesson.sections.length === 0 ? (

@@ -92,6 +92,13 @@ class Lesson(Base):
         cascade="all, delete-orphan"
     )
 
+    vocabulary: Mapped[List["LessonVocabulary"]] = relationship(
+        "LessonVocabulary",
+        back_populates="lesson",
+        cascade="all, delete-orphan",
+        order_by="LessonVocabulary.order",
+    )
+
     user_dictionaries = relationship(
         "UserDictionary",
         back_populates="lesson",
@@ -115,6 +122,21 @@ class Lesson(Base):
             return True
         title = (self.task_title or "").strip()
         return bool(title)
+
+
+class LessonVocabulary(Base):
+    """Teacher-defined key terms per lesson for student preparation checks."""
+    __tablename__ = "lesson_vocabulary"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    lesson_id: Mapped[int] = mapped_column(
+        ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    word: Mapped[str] = mapped_column(String(120), nullable=False)
+    definition: Mapped[str] = mapped_column(Text, nullable=False)
+    order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    lesson: Mapped["Lesson"] = relationship("Lesson", back_populates="vocabulary")
 
 
 class LessonCompletion(Base):

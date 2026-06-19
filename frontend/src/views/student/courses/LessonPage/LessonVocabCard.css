@@ -1,0 +1,104 @@
+.lvc-card {
+    background: #f8f7ff;
+    border: 1.5px solid #e0daff;
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 24px;
+    transition: border-color 0.2s;
+}
+.lvc-card--done {
+    border-color: #a8f0c6;
+    background: #f0fdf4;
+}
+
+.lvc-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.lvc-icon { font-size: 22px; }
+.lvc-title { font-weight: 700; font-size: 15px; color: #1a1a2e; }
+.lvc-subtitle { font-size: 12px; color: #888; margin-top: 1px; }
+.lvc-badge-done {
+    margin-left: auto;
+    background: #22c55e;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+}
+
+.lvc-progress {
+    height: 4px;
+    background: #e0daff;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+.lvc-progress-bar {
+    height: 100%;
+    background: #6c5ce7;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+.lvc-card--done .lvc-progress-bar { background: #22c55e; }
+
+.lvc-list { display: flex; flex-direction: column; gap: 10px; }
+
+.lvc-item {
+    background: #fff;
+    border: 1px solid #ede9ff;
+    border-radius: 10px;
+    padding: 12px 14px;
+    transition: border-color 0.2s, background 0.2s;
+}
+.lvc-item--known {
+    border-color: #a8f0c6;
+    background: #f0fdf4;
+}
+.lvc-item--unknown {
+    border-color: #fecaca;
+    background: #fff7f7;
+}
+
+.lvc-word-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 5px;
+}
+.lvc-word {
+    font-weight: 700;
+    font-size: 14px;
+    color: #1a1a2e;
+    flex: 1;
+}
+.lvc-definition {
+    font-size: 13px;
+    color: #555;
+    line-height: 1.5;
+}
+
+.lvc-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
+.lvc-btn {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+.lvc-btn:hover { opacity: 0.85; }
+.lvc-btn--know { background: #dcfce7; color: #16a34a; }
+.lvc-btn--unknown { background: #ede9ff; color: #6c5ce7; }
+
+.lvc-status-icon {
+    font-size: 13px;
+    color: #22c55e;
+    font-weight: 700;
+    margin-left: auto;
+}
+.lvc-status-icon--added { color: #6c5ce7; font-weight: 400; }
