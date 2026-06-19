@@ -30,6 +30,8 @@ from app.services.github_repo_service import (
 from app.services.grok_service import analyze_project_with_grok
 from app.services.lesson_context_resolver import load_lesson_context_for_project
 from app.services.ranking_service import RankingService
+from app.models.submission import Submission
+from app.models.lesson import LessonCompletion
 
 logger = logging.getLogger(__name__)
 
@@ -177,11 +179,21 @@ async def run_ai_review_for_project(
         lesson_context=lesson_context,
     )
 
-    # AI call failed (all providers down, no key set anywhere, etc.).
-    # No DB writes, no quota consumed.
+    # AI call failed (all providers down, rate-limited, no key, etc.).
+    # Do NOT write to DB — project stays "Submitted" for teacher manual review.
     if review.get("error"):
-        return _fail(raise_on_error, status.HTTP_502_BAD_GATEWAY,
-                     review.get("feedback") or "AI baholash muvaffaqiyatsiz")
+        raw = review.get("feedback") or ""
+        if "429" in raw or "rate" in raw.lower():
+            friendly = (
+                "AI baholash vaqtincha mavjud emas (limit tugagan). "
+                "O'qituvchi loyihangizni tez orada baholaydi."
+            )
+        else:
+            friendly = (
+                "AI baholash vaqtincha ishlamayapti. "
+                "O'qituvchi loyihangizni tez orada baholaydi."
+            )
+        return _fail(raise_on_error, status.HTTP_502_BAD_GATEWAY, friendly)
 
     # Default to 0 (NOT 60) — malformed AI response must never grant free points.
     new_points = int(review.get("points", 0) or 0)
@@ -207,6 +219,37 @@ async def run_ai_review_for_project(
     project.points_earned = new_points
     project.status = "Approved" if new_points >= 75 else "Rejected"
     project.reviewed_at = datetime.now(timezone.utc)
+
+    # Award lesson completion only on a passing score. The LessonCompletion
+    # row is the gate that unlocks the next lesson for the student, so it must
+    # not be created on mere submission — only on approval (score ≥ 75).
+    if new_points >= 75:
+        sub_res = await db.execute(
+            select(Submission).where(Submission.project_id == project.id)
+        )
+        submission = sub_res.scalar_one_or_none()
+        if submission and submission.lesson_id:
+            existing = await db.execute(
+                select(LessonCompletion).where(
+                    LessonCompletion.student_id == project.student_id,
+                    LessonCompletion.lesson_id == submission.lesson_id,
+                )
+            )
+            if not existing.scalar_one_or_none():
+                from app.models.lesson import Lesson
+                lesson_res = await db.execute(
+                    select(Lesson).where(Lesson.id == submission.lesson_id)
+                )
+                lesson = lesson_res.scalar_one_or_none()
+                db.add(LessonCompletion(
+                    student_id=project.student_id,
+                    lesson_id=submission.lesson_id,
+                ))
+                if lesson:
+                    points_reward = getattr(lesson, "points_reward", 0) or 0
+                    if points_reward > 0:
+                        await ranking_service.add_points_to_student(
+                            project.student_id, points_reward)
 
     await db.commit()
 

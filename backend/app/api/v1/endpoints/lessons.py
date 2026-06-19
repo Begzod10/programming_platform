@@ -32,6 +32,38 @@ LESSONS_FILES_DIR.mkdir(parents=True, exist_ok=True)
 LESSON_PREVIEWS_DIR = Path(settings.UPLOAD_DIR) / "lesson_previews"
 LESSON_PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
 
+
+async def _inject_file_previews(db: AsyncSession, lesson_ids: list[int], lessons_data: list) -> None:
+    """Inject previewImageUrl into file sections in sections_json for the given lessons."""
+    if not lesson_ids:
+        return
+    files_res = await db.execute(
+        select(LessonFile.lesson_id, LessonFile.original_name, LessonFile.preview_image_url)
+        .where(
+            LessonFile.lesson_id.in_(lesson_ids),
+            LessonFile.preview_image_url.isnot(None),
+        )
+    )
+    preview_map: dict[int, dict[str, str]] = {}
+    for row in files_res.all():
+        preview_map.setdefault(row.lesson_id, {})[row.original_name] = row.preview_image_url
+
+    for lesson_dto in lessons_data:
+        lesson_previews = preview_map.get(lesson_dto.id)
+        if not lesson_previews or not lesson_dto.sections_json:
+            continue
+        try:
+            sections = json.loads(lesson_dto.sections_json)
+            changed = False
+            for sec in sections:
+                if sec.get("type") == "file" and sec.get("fileName") in lesson_previews:
+                    sec["previewImageUrl"] = lesson_previews[sec["fileName"]]
+                    changed = True
+            if changed:
+                lesson_dto.sections_json = json.dumps(sections, ensure_ascii=False)
+        except Exception:
+            pass
+
 # Ruxsat etilgan kod fayl turlari
 ALLOWED_CODE_EXTENSIONS = {
     ".html", ".css", ".js", ".py", ".ts", ".jsx", ".tsx",
@@ -350,6 +382,7 @@ async def get_lessons(
             if tr_sections:
                 dto.sections_json = tr_sections
 
+    await _inject_file_previews(db, [l.id for l in lessons], result)
     return result
 
 
@@ -366,6 +399,35 @@ async def get_lesson(
     lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
     if not lesson or lesson.course_id != course_id:
         raise HTTPException(status_code=404, detail="Dars topilmadi")
+
+    # Prerequisite gate: if the previous lesson (by order) has a project,
+    # the student must have a passing submission (score ≥ threshold) before
+    # they can access this lesson.
+    if current_student:
+        prev_res = await db.execute(
+            select(Lesson).where(
+                Lesson.course_id == course_id,
+                Lesson.is_active == True,
+                Lesson.order < lesson.order,
+            ).order_by(Lesson.order.desc()).limit(1)
+        )
+        prev_lesson = prev_res.scalar_one_or_none()
+        if prev_lesson and prev_lesson.has_project:
+            pass_check = await db.execute(
+                select(Project)
+                .join(Submission, Submission.project_id == Project.id)
+                .where(
+                    Submission.lesson_id == prev_lesson.id,
+                    Submission.student_id == current_student.id,
+                    Project.points_earned >= PROJECT_PASS_THRESHOLD,
+                    Project.status == "Approved",
+                )
+            )
+            if not pass_check.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Oldingi darsning loyihasini muvaffaqiyatli topshiring",
+                )
 
     res = LessonRead.model_validate(lesson)
 
@@ -397,6 +459,7 @@ async def get_lesson(
         res.completed = is_comp
         res.progress_percentage = await _calc_lesson_progress(db, lesson, current_student.id)
 
+    await _inject_file_previews(db, [lesson_id], [res])
     return res
 
 
@@ -845,22 +908,10 @@ async def submit_lesson_project(
     db.add(submission)
 
     points_earned = 0
-    comp_check = await db.execute(
-        select(LessonCompletion).where(
-            LessonCompletion.student_id == current_student.id,
-            LessonCompletion.lesson_id == lesson_id
-        )
-    )
-    if not comp_check.scalar_one_or_none():
-        completion = LessonCompletion(
-            student_id=current_student.id,
-            lesson_id=lesson_id
-        )
-        db.add(completion)
-        points_reward = getattr(lesson, "points_reward", 0) or 0
-        if points_reward > 0:
-            await _add_points(db, current_student.id, points_reward)
-            points_earned = points_reward
+    # LessonCompletion is intentionally NOT created here on submission.
+    # It is created only when the project is approved (score ≥ threshold)
+    # in ai_review_service and the teacher review endpoint, so that the
+    # next lesson stays locked until the student actually passes.
 
     try:
         await db.commit()
