@@ -34,6 +34,22 @@ const apiToExercise = (ex) => ({
 });
 
 const apiToLesson = (l, isCompleted = false, exercises = []) => {
+    // Prefer sections_json (which includes previewImageUrl enrichment from backend)
+    if (l.sections_json) {
+        try {
+            const sections = JSON.parse(l.sections_json);
+            if (exercises.length > 0) {
+                sections.push({ id: `e${l.id}`, type: 'exercise', label: 'Упражнения', exercises: exercises.map(apiToExercise) });
+            }
+            return {
+                id: l.id, title: l.title, chapter: l.chapter || '',
+                image: l.image_url || '', completed: isCompleted,
+                progress_percentage: l.progress_percentage || 0,
+                order: l.order || 0, is_published: l.is_published ?? true, sections,
+            };
+        } catch (_) { }
+    }
+
     const sections = [
         l.text_content ? { id: `t${l.id}`, type: 'text',    label: 'Текст',  html: l.text_content } : null,
         l.code_content ? { id: `c${l.id}`, type: 'code',    label: 'Код',    lang: l.code_language || 'javascript', code: l.code_content } : null,
