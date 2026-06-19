@@ -133,3 +133,92 @@
   .efu-save-code-btn,
   .efu-cancel-code-btn { padding: 5px 9px; font-size: 11px; }
 }
+/* ── Preview image section ── */
+.efu-preview-img-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-top: 1px solid rgba(108, 92, 231, 0.10);
+  background: rgba(108, 92, 231, 0.03);
+}
+
+.efu-preview-img-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6c5ce7;
+}
+
+.efu-preview-img-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.efu-preview-img {
+  width: 220px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(108, 92, 231, 0.20);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.efu-preview-img-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.efu-preview-img-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  background: rgba(108, 92, 231, 0.10);
+  border: 1px solid rgba(108, 92, 231, 0.25);
+  color: #6c5ce7;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.efu-preview-img-btn:hover { background: rgba(108, 92, 231, 0.18); }
+
+.efu-preview-img-del-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  color: #b42323;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.efu-preview-img-del-btn:hover { background: rgba(239, 68, 68, 0.14); }
+
+.efu-preview-img-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: rgba(108, 92, 231, 0.08);
+  border: 1px dashed rgba(108, 92, 231, 0.35);
+  color: #6c5ce7;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  width: fit-content;
+}
+.efu-preview-img-upload-btn:hover {
+  background: rgba(108, 92, 231, 0.14);
+  border-color: rgba(108, 92, 231, 0.55);
+}

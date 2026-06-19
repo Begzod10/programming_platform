@@ -267,12 +267,15 @@ const HtmlPreview = ({ code }) => {
 /* ─────────────────────────────────────────────
    FILE CARD
 ───────────────────────────────────────────── */
-const FileCard = ({ file, onDelete, onCodeSaved, apiBaseUrl, lessonId }) => {
+const FileCard = ({ file, onDelete, onCodeSaved, onPreviewUpdated, apiBaseUrl, lessonId }) => {
   const [view, setView] = useState('code');
   const [expanded, setExpanded] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [previewUrl, setPreviewUrl] = useState(file.preview_image_url || null);
+  const [uploadingPreview, setUploadingPreview] = useState(false);
+  const previewInputRef = useRef(null);
 
   const lang = getLang(file.filename || file.name || '');
   const meta = getLangMeta(lang);
@@ -291,6 +294,43 @@ const FileCard = ({ file, onDelete, onCodeSaved, apiBaseUrl, lessonId }) => {
       setErrorMsg('Не удалось удалить файл. Попробуйте ещё раз.');
       setTimeout(() => setErrorMsg(''), 5000);
       setDeleting(false);
+    }
+  };
+
+  const handlePreviewUpload = async (e) => {
+    const imgFile = e.target.files?.[0];
+    if (!imgFile || !apiBaseUrl || !lessonId || !file.id) return;
+    setUploadingPreview(true);
+    setErrorMsg('');
+    try {
+      const formData = new FormData();
+      formData.append('image', imgFile);
+      const resp = await fetch(`${apiBaseUrl}/${lessonId}/files/${file.id}/preview`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      setPreviewUrl(data.preview_image_url);
+      onPreviewUpdated && onPreviewUpdated(file.id, data.preview_image_url);
+    } catch {
+      setErrorMsg('Rasmni yuklashda xato yuz berdi.');
+      setTimeout(() => setErrorMsg(''), 5000);
+    } finally {
+      setUploadingPreview(false);
+      e.target.value = '';
+    }
+  };
+
+  const handlePreviewDelete = async () => {
+    if (!apiBaseUrl || !lessonId || !file.id) return;
+    try {
+      await fetch(`${apiBaseUrl}/${lessonId}/files/${file.id}/preview`, { method: 'DELETE' });
+      setPreviewUrl(null);
+      onPreviewUpdated && onPreviewUpdated(file.id, null);
+    } catch {
+      setErrorMsg('Rasmni o\'chirishda xato.');
+      setTimeout(() => setErrorMsg(''), 5000);
     }
   };
 
@@ -397,6 +437,46 @@ const FileCard = ({ file, onDelete, onCodeSaved, apiBaseUrl, lessonId }) => {
           ) : (
             <HtmlPreview code={code} />
           )}
+
+          {/* ── Preview image section ── */}
+          <div className="efu-preview-img-section">
+            <span className="efu-preview-img-label">🖼 Loyiha ko'rinishi (preview rasm)</span>
+            {previewUrl ? (
+              <div className="efu-preview-img-wrap">
+                <img
+                  src={`${(apiBaseUrl || '').replace('/lessons', '').replace('/api/v1', '')}${previewUrl}`}
+                  alt="preview"
+                  className="efu-preview-img"
+                />
+                <div className="efu-preview-img-actions">
+                  <label className="efu-preview-img-btn" title="Rasmni almashtirish">
+                    {uploadingPreview ? '⏳' : '🔄 Almashtirish'}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      style={{ display: 'none' }}
+                      onChange={handlePreviewUpload}
+                    />
+                  </label>
+                  <button className="efu-preview-img-del-btn" onClick={handlePreviewDelete} title="O'chirish">
+                    🗑 O'chirish
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label className="efu-preview-img-upload-btn">
+                {uploadingPreview ? '⏳ Yuklanmoqda...' : '📷 Rasm yuklash'}
+                <input
+                  ref={previewInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  style={{ display: 'none' }}
+                  onChange={handlePreviewUpload}
+                  disabled={uploadingPreview}
+                />
+              </label>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -581,6 +661,14 @@ const ExerciseFileUpload = ({ lessonId, apiBaseUrl = '/api/v1', files = [], onCh
     ));
   }, [files, onChange]);
 
+  const handlePreviewUpdated = useCallback((idOrLocalId, newUrl) => {
+    onChange(files.map(f =>
+      (f.id || f._localId) === idOrLocalId
+        ? { ...f, preview_image_url: newUrl }
+        : f
+    ));
+  }, [files, onChange]);
+
   const totalLines = files.reduce((sum, f) =>
     sum + ((f.code || f.content || '').split('\n').length), 0);
 
@@ -623,6 +711,7 @@ const ExerciseFileUpload = ({ lessonId, apiBaseUrl = '/api/v1', files = [], onCh
               file={file}
               onDelete={handleDelete}
               onCodeSaved={handleCodeSaved}
+              onPreviewUpdated={handlePreviewUpdated}
               apiBaseUrl={apiBaseUrl}
               lessonId={lessonId}
             />

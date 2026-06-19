@@ -29,6 +29,8 @@ from app.config import settings
 router = APIRouter()
 LESSONS_FILES_DIR = Path(settings.UPLOAD_DIR) / "lesson_files"
 LESSONS_FILES_DIR.mkdir(parents=True, exist_ok=True)
+LESSON_PREVIEWS_DIR = Path(settings.UPLOAD_DIR) / "lesson_previews"
+LESSON_PREVIEWS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Ruxsat etilgan kod fayl turlari
 ALLOWED_CODE_EXTENSIONS = {
@@ -1058,6 +1060,7 @@ async def get_lesson_files(
             "label": f.label,
             "code_content": f.code_content,
             "file_size": f.file_size,
+            "preview_image_url": f.preview_image_url,
             "created_at": f.created_at
         }
         for f in db_files
@@ -1114,8 +1117,81 @@ async def get_lesson_file(
         "label": lesson_file.label,
         "code_content": lesson_file.code_content,
         "file_size": lesson_file.file_size,
+        "preview_image_url": lesson_file.preview_image_url,
         "created_at": lesson_file.created_at
     }
+
+
+# ============================================================
+# 3b. PREVIEW RASM YUKLASH
+# ============================================================
+
+@router.post("/{lesson_id}/files/{file_id}/preview", status_code=status.HTTP_200_OK)
+async def upload_lesson_file_preview(
+        lesson_id: int,
+        file_id: int,
+        image: UploadFile = File(...),
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """Teacher uploads a preview screenshot for a lesson file."""
+    allowed = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+    if image.content_type not in allowed:
+        raise HTTPException(status_code=400, detail="Faqat rasm fayllari (JPEG, PNG, WebP, GIF)")
+
+    result = await db.execute(
+        select(LessonFile).where(LessonFile.id == file_id, LessonFile.lesson_id == lesson_id)
+    )
+    lesson_file = result.scalar_one_or_none()
+    if not lesson_file:
+        raise HTTPException(status_code=404, detail="Fayl topilmadi!")
+
+    contents = await image.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Rasm 5MB dan katta bo'lmasin")
+
+    # Delete old preview if exists
+    if lesson_file.preview_image_url:
+        old_name = Path(lesson_file.preview_image_url).name
+        old_path = LESSON_PREVIEWS_DIR / old_name
+        if old_path.exists():
+            old_path.unlink()
+
+    ext = Path(image.filename).suffix.lower() if image.filename else ".jpg"
+    filename = f"{uuid.uuid4()}{ext}"
+    filepath = LESSON_PREVIEWS_DIR / filename
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    lesson_file.preview_image_url = f"/uploads/lesson_previews/{filename}"
+    await db.commit()
+    await db.refresh(lesson_file)
+
+    return {"preview_image_url": lesson_file.preview_image_url}
+
+
+@router.delete("/{lesson_id}/files/{file_id}/preview", status_code=status.HTTP_200_OK)
+async def delete_lesson_file_preview(
+        lesson_id: int,
+        file_id: int,
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(LessonFile).where(LessonFile.id == file_id, LessonFile.lesson_id == lesson_id)
+    )
+    lesson_file = result.scalar_one_or_none()
+    if not lesson_file:
+        raise HTTPException(status_code=404, detail="Fayl topilmadi!")
+
+    if lesson_file.preview_image_url:
+        old_path = LESSON_PREVIEWS_DIR / Path(lesson_file.preview_image_url).name
+        if old_path.exists():
+            old_path.unlink()
+        lesson_file.preview_image_url = None
+        await db.commit()
+
+    return {"ok": True}
 
 
 # ============================================================

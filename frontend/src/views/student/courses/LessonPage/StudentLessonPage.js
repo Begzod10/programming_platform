@@ -1266,20 +1266,32 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                     {section.type === 'file' && (
                                         section.fileName ? (
                                             <div className="slp-file-card">
-                                                <div className="slp-file-icon-wrap">📦</div>
-                                                <div className="slp-file-info">
-                                                    <div className="slp-file-name">{section.fileName}</div>
-                                                    {section.fileSize && <div className="slp-file-size">{section.fileSize}</div>}
+                                                {section.previewImageUrl && (
+                                                    <div className="slp-file-preview-wrap">
+                                                        <img
+                                                            src={section.previewImageUrl}
+                                                            alt="Loyiha ko'rinishi"
+                                                            className="slp-file-preview-img"
+                                                        />
+                                                        <div className="slp-file-preview-badge">Natija shunday ko'rinadi</div>
+                                                    </div>
+                                                )}
+                                                <div className="slp-file-card-bottom">
+                                                    <div className="slp-file-icon-wrap">📦</div>
+                                                    <div className="slp-file-info">
+                                                        <div className="slp-file-name">{section.fileName}</div>
+                                                        {section.fileSize && <div className="slp-file-size">{section.fileSize}</div>}
+                                                    </div>
+                                                    <button
+                                                        className={`slp-file-dl-btn ${downloadingFile === section.fileName ? 'loading' : ''}`}
+                                                        disabled={downloadingFile === section.fileName}
+                                                        onClick={() => handleDownloadFile(lesson.id, section.fileName)}
+                                                    >
+                                                        {downloadingFile === section.fileName
+                                                            ? <><span className="slp-btn-spin"/>Загружаю...</>
+                                                            : '⬇ Скачать'}
+                                                    </button>
                                                 </div>
-                                                <button
-                                                    className={`slp-file-dl-btn ${downloadingFile === section.fileName ? 'loading' : ''}`}
-                                                    disabled={downloadingFile === section.fileName}
-                                                    onClick={() => handleDownloadFile(lesson.id, section.fileName)}
-                                                >
-                                                    {downloadingFile === section.fileName
-                                                        ? <><span className="slp-btn-spin"/>Загружаю...</>
-                                                        : '⬇ Скачать'}
-                                                </button>
                                             </div>
                                         ) : <div className="slp-file-empty">Файл не добавлен</div>
                                     )}

@@ -24,6 +24,7 @@ class LessonFile(Base):
     label: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     code_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     file_size: Mapped[int] = mapped_column(Integer, default=0)
+    preview_image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
