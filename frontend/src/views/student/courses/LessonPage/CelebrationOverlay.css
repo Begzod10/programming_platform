@@ -1,0 +1,124 @@
+/* ── Overlay backdrop ── */
+.cel-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(4px);
+    transition: opacity 0.4s ease;
+    overflow: hidden;
+}
+
+.cel-visible { opacity: 1; pointer-events: all; }
+.cel-hidden  { opacity: 0; pointer-events: none; }
+
+/* ── Confetti pieces ── */
+.cel-piece {
+    position: absolute;
+    top: -20px;
+    border-radius: 2px;
+    opacity: 0.9;
+    animation: cel-fall linear forwards;
+}
+
+.cel-circle  { border-radius: 50%; }
+.cel-square  { border-radius: 3px; }
+.cel-rect    { border-radius: 2px; }
+
+@keyframes cel-fall {
+    0% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 1;
+    }
+    80% { opacity: 0.9; }
+    100% {
+        transform: translateY(110vh) rotate(var(--rotate, 360deg));
+        opacity: 0;
+    }
+}
+
+/* ── Card ── */
+.cel-card {
+    position: relative;
+    z-index: 1;
+    background: var(--surface, #fff);
+    border-radius: 24px;
+    padding: 40px 48px;
+    text-align: center;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    animation: cel-pop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+    max-width: 340px;
+    width: 90%;
+}
+
+@keyframes cel-pop {
+    from { transform: scale(0.6) translateY(40px); opacity: 0; }
+    to   { transform: scale(1) translateY(0);      opacity: 1; }
+}
+
+.cel-trophy {
+    font-size: 3.5rem;
+    line-height: 1;
+    animation: cel-bounce 0.7s ease 0.3s both;
+}
+
+@keyframes cel-bounce {
+    0%   { transform: scale(0.5) rotate(-15deg); }
+    60%  { transform: scale(1.25) rotate(8deg); }
+    80%  { transform: scale(0.95) rotate(-4deg); }
+    100% { transform: scale(1) rotate(0deg); }
+}
+
+.cel-score {
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--purple, #7c3aed);
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+
+.cel-score span {
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: var(--ink-60, #888);
+    margin-left: 2px;
+}
+
+.cel-headline {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--ink, #1a1a2e);
+    margin-top: 4px;
+}
+
+.cel-sub {
+    font-size: 1rem;
+    color: var(--ink-60, #666);
+}
+
+.cel-btn {
+    margin-top: 16px;
+    padding: 12px 28px;
+    background: var(--purple, #7c3aed);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.cel-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(124, 58, 237, 0.35);
+}
+
+.cel-btn:active { transform: translateY(0); }

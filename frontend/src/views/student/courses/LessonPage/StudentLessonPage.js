@@ -8,6 +8,7 @@ import DictSelectionPopup from '../LessonPage/Dictselectionpopup';
 import LessonDictionaryDrawer from './LessonDictionaryDrawer';
 import LessonVocabCard from './LessonVocabCard';
 import StudentProjectFiles from '../StudentProjectPreview/StudentProjectPreview';
+import CelebrationOverlay from './CelebrationOverlay';
 
 // One-time Mermaid init at module load. startOnLoad:false because we trigger
 // run() manually after each lesson's text section mounts.
@@ -759,6 +760,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [justCompleted, setJustCompleted] = useState(false);
     const [projectModal, setProjectModal] = useState(false);
     const [exitModal, setExitModal] = useState(false);
+    const [showCelebration, setShowCelebration] = useState(false);
     const [projectForm, setProjectForm] = useState({github_url: '', live_demo_url: '', description: ''});
     const [projectSubmission, setProjectSubmission] = useState(null);
     const [projectStatusLoading, setProjectStatusLoading] = useState(false);
@@ -846,6 +848,15 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const projectScore = projectSubmission?.points_earned ?? 0;
     const nextBlocked = !!projectSection && !projectDone;
     const isDone = lesson.completed || justCompleted;
+
+    // Show celebration once when project is approved with 75+ points
+    useEffect(() => {
+        if (!projectDone || projectScore < 75 || !lesson?.id) return;
+        const key = `project_celebrated_${lesson.id}`;
+        if (localStorage.getItem(key)) return;
+        localStorage.setItem(key, '1');
+        setShowCelebration(true);
+    }, [projectDone, projectScore, lesson?.id]);
 
     useEffect(() => {
         if (!projectSection || !course?.id || !lesson?.id) {
@@ -1604,6 +1615,13 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
 
             <DictSelectionPopup lessonId={lesson.id}/>
             <LessonDictionaryDrawer lessonId={lesson.id}/>
+
+            {showCelebration && (
+                <CelebrationOverlay
+                    score={projectScore}
+                    onDone={() => setShowCelebration(false)}
+                />
+            )}
         </div>
     );
 };
