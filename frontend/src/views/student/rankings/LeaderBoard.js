@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import './LeaderBoard.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { Trophy } from 'lucide-react';
 
 const TABS = [
     { key: 'all',     label: 'Всё время',     icon: '∞' },
@@ -130,7 +131,7 @@ export default function Leaderboard() {
             <div className="lb-header">
                 <div className="lb-header-top">
                     <div className="lb-title-block">
-                        <span className="lb-trophy">🏆</span>
+                        <span className="lb-trophy" aria-hidden="true"><Trophy size={20} /></span>
                         <div>
                             <h2 className="lb-title">Рейтинг</h2>
                             <p className="lb-subtitle">{data.length} студентов</p>

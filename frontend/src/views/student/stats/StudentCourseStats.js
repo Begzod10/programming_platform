@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { API_URL, headers } from '../../../api/search/base';
 import './StudentCourseStats.css';
+import { Flame, Trophy } from 'lucide-react';
 
 const LEVEL_META = {
     Beginner:     { label: 'Начинающий', color: '#c2410c', bg: '#fff7ed' },
@@ -61,7 +62,7 @@ function ProfileCard({ profile }) {
             <div className="scs-profile-divider" />
             <div className="scs-profile-right">
                 <div className="scs-streak-row">
-                    <span className="scs-streak-icon">🔥</span>
+                    <span className="scs-streak-icon" aria-hidden="true"><Flame size={18} /></span>
                     <div>
                         <div className="scs-streak-val">{profile.current_streak} дней</div>
                         <div className="scs-streak-label">текущая серия</div>
@@ -76,7 +77,7 @@ function ProfileCard({ profile }) {
                 </div>
                 {profile.global_rank && (
                     <div className="scs-streak-row">
-                        <span className="scs-streak-icon">🏆</span>
+                        <span className="scs-streak-icon" aria-hidden="true"><Trophy size={18} /></span>
                         <div>
                             <div className="scs-streak-val">#{profile.global_rank}</div>
                             <div className="scs-streak-label">глобальный рейтинг</div>

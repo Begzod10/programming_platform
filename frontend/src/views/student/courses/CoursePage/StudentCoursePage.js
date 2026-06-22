@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import './StudentCoursePage.css';
 import { useTranslation } from '../../../../i18n/useTranslation';
+import { Lock } from 'lucide-react';
 
 const THUMB_COLORS = [
   'linear-gradient(135deg, #1a0b3e 0%, #2d1b69 100%)',
@@ -62,7 +63,7 @@ const LessonCard = ({ lesson, index, isLocked, onOpen, accentColor, t, lang }) =
           <div className="scp-card-done-badge">{t('done_badge')}</div>
         )}
         {isLocked && (
-          <div className="scp-card-lock-overlay">🔒</div>
+          <div className="scp-card-lock-overlay" aria-hidden="true"><Lock size={20} /></div>
         )}
         {hasVideo && !isLocked && (
           <div className="scp-card-play" aria-hidden="true">

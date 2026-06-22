@@ -2,6 +2,7 @@ import {useState, useEffect, useRef} from 'react';
 import './Profile.css';
 import {API_URL, useHttp, headers, headersImg, resolveImageUrl} from '../../../api/search/base';
 import {useTranslation} from '../../../i18n/useTranslation';
+import { Flame } from 'lucide-react';
 
 function AvatarModal({onClose, onUpload, onDelete, hasAvatar}) {
     const fileInputRef = useRef(null);
@@ -409,7 +410,7 @@ function Profile({user: initialUser, onLogout}) {
                                     </div>
                                     <div className="mini-stat">
                                         <span className="stat-label">Ballar</span>
-                                        <span className="stat-value">{displayPoints} 🔥</span>
+                                        <span className="stat-value">{displayPoints} <Flame size={14} aria-hidden="true" /></span>
                                     </div>
                                     <div className="mini-stat">
                                         <span className="stat-label">Holat</span>

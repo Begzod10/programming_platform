@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { API_URL, headers, resolveImageUrl } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
 import './CourseRoadmap.css';
+import { Check, Lock, Trophy } from 'lucide-react';
 
 const DIFF_META = {
     Beginner:     { ru: 'Начальный',   uz: 'Boshlang\'ich', color: '#6366f1' },
@@ -124,7 +125,7 @@ function CourseNode({ course, index, ru, onClick }) {
                     style={{ background: meta.dotBg }}
                 >
                     <span className="rm-dot-icon">
-                        {status === 'completed' ? '✓' : status === 'locked' ? '🔒' : index + 1}
+                        {status === 'completed' ? <Check size={14} aria-hidden="true" /> : status === 'locked' ? <Lock size={14} aria-hidden="true" /> : index + 1}
                     </span>
                 </div>
             </div>
@@ -253,7 +254,7 @@ export default function CourseRoadmap() {
             {/* ── Finish cap ── */}
             {courses.length > 0 && (
                 <div className={`rm-cap rm-cap--finish ${completed === courses.length ? 'rm-cap--done' : ''}`}>
-                    <span>{completed === courses.length ? '🏆 ' : ''}
+                    <span>{completed === courses.length ? <><Trophy size={16} aria-hidden="true" />{' '}</> : ''}
                         {ru ? 'Финиш' : 'Finish'}
                         {completed === courses.length ? (ru ? ' — Молодец!' : ' — Barakalla!') : ''}
                     </span>

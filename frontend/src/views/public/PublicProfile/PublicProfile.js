@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_URL, resolveImageUrl } from '../../../api/search/base';
 import './PublicProfile.css';
+import { Flame, Trophy } from 'lucide-react';
 
 const LEVEL_PALETTE = {
     Beginner:     { bg: 'rgba(108,92,231,0.16)', fg: '#6c5ce7', border: 'rgba(108,92,231,0.28)' },
@@ -132,7 +133,7 @@ export default function PublicProfile() {
                     }
                     {data.current_streak > 0 && (
                         <div className="pp-streak-badge" title="Daily streak">
-                            <span>🔥</span>{data.current_streak}
+                            <span aria-hidden="true"><Flame size={14} /></span>{data.current_streak}
                         </div>
                     )}
                 </div>
@@ -196,7 +197,7 @@ export default function PublicProfile() {
                                 <div className="pp-ach__badge">
                                     {a.badge_image_url
                                         ? <img src={resolveImageUrl(a.badge_image_url)} alt="" />
-                                        : <span>🏆</span>
+                                        : <span aria-hidden="true"><Trophy size={20} /></span>
                                     }
                                 </div>
                                 <div className="pp-ach__body">

@@ -4,6 +4,7 @@ import './LessonEditor.css';
 import './LessonEditor.additions.css';
 import {SECTION_TYPES, getYTId} from '../../../../constants/courseUtils';
 import ExerciseFileUpload from '../ExercsieFileUpload/ExercsieFileUpload';
+import { Trophy } from 'lucide-react';
 
 /* ─── Constants ─── */
 const FONT_SIZES = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px'];
@@ -501,7 +502,7 @@ const SectionBlock = ({section, onUpdate, onDelete, index, total, onMoveUp, onMo
                                 <span className="lep-exercise-count">
                                     🎯 {taskCount} заданий
                                     {taskCount > 0 && (
-                                        <> · 🏆 {(section.exercises || []).reduce((s, e) => s + (Number(e.points) || 0), 0)} pts</>
+                                        <> · <Trophy size={12} aria-hidden="true" /> {(section.exercises || []).reduce((s, e) => s + (Number(e.points) || 0), 0)} pts</>
                                     )}
                                 </span>
                                 <button className="lep-exercise-add-btn" onClick={addExercise}>+ Добавить задание</button>

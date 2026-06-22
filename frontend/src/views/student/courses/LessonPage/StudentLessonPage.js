@@ -9,6 +9,7 @@ import LessonDictionaryDrawer from './LessonDictionaryDrawer';
 import LessonVocabCard from './LessonVocabCard';
 import StudentProjectFiles from '../StudentProjectPreview/StudentProjectPreview';
 import CelebrationOverlay from './CelebrationOverlay';
+import { Star, Trophy, Lock, ClipboardList, Upload, Link, Clock, Wrench, Timer, BarChart2, CheckCircle } from 'lucide-react';
 
 // One-time Mermaid init at module load. startOnLoad:false because we trigger
 // run() manually after each lesson's text section mounts.
@@ -296,8 +297,8 @@ const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission = null}
                             {ex.difficulty_level}
                         </span>
                     )}
-                    {ex.points > 0 && <span className="slp-ex-pts-badge">⭐ {ex.points} pts</span>}
-                    {score > 0 && <span className="slp-ex-score-badge">🏆 +{score} pts</span>}
+                    {ex.points > 0 && <span className="slp-ex-pts-badge"><Star size={12} aria-hidden="true" /> {ex.points} pts</span>}
+                    {score > 0 && <span className="slp-ex-score-badge"><Trophy size={12} aria-hidden="true" /> +{score} pts</span>}
                     {hasPreviousSubmission && result === initialResult && (
                         // Hide once the student takes a fresh action this
                         // session — `result` diverges from `initialResult`
@@ -547,7 +548,7 @@ const ExerciseSection = ({section, courseId, lessonId, submissions = {}, submiss
                     )}
                 </div>
                 {totalPts > 0 && (
-                    <span className="slp-ex-section-pts">🏆 {totalPts} pts всего</span>
+                    <span className="slp-ex-section-pts"><Trophy size={14} aria-hidden="true" /> {totalPts} pts всего</span>
                 )}
             </div>
             <div className="slp-ex-section-list">
@@ -1241,7 +1242,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                 <span className="slp-code-lang">{section.lang || 'code'}</span>
                                                 <button className="slp-code-copy"
                                                         onClick={() => copyCode(section.id, section.code || '')}>
-                                                    {copiedId === section.id ? '✅ Скопировано' : '📋 Копировать'}
+                                                    {copiedId === section.id ? <><CheckCircle size={14} aria-hidden="true" /> Скопировано</> : <><ClipboardList size={14} aria-hidden="true" /> Копировать</>}
                                                 </button>
                                             </div>
                                             <pre className="slp-code-block">{section.code || '// Код не добавлен'}</pre>
@@ -1338,12 +1339,12 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                 </div>
                                                 {projectDone && (
                                                     <span className="slp-project-check" style={{background: '#16a34a', color: '#fff', padding: '6px 14px', borderRadius: 999, fontWeight: 600}}>
-                                                        🏆 {projectScore}/100 — Сдано
+                                                        <Trophy size={14} aria-hidden="true" /> {projectScore}/100 — Сдано
                                                     </span>
                                                 )}
                                                 {projectPending && (
                                                     <span className="slp-project-check" style={{background: '#fbbf24', color: '#451a03', padding: '6px 14px', borderRadius: 999, fontWeight: 600}}>
-                                                        🕐 На проверке
+                                                        <Clock size={14} aria-hidden="true" /> На проверке
                                                     </span>
                                                 )}
                                                 {projectFailed && (
@@ -1353,7 +1354,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                     }}>
                                                         {projectSubmission?.status === 'Rejected'
                                                             ? `✗ ${projectScore}/100 — Отклонено`
-                                                            : `📊 ${projectScore}/100`}
+                                                            : <><BarChart2 size={14} aria-hidden="true" /> {projectScore}/100</>}
                                                     </span>
                                                 )}
                                             </div>
@@ -1371,14 +1372,14 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
 
                                             {section.requirements && (
                                                 <div className="slp-project-reqs">
-                                                    <div className="slp-reqs-title">📋 Требования</div>
+                                                    <div className="slp-reqs-title"><ClipboardList size={14} aria-hidden="true" /> Требования</div>
                                                     <div className="slp-reqs-text">{section.requirements}</div>
                                                 </div>
                                             )}
 
                                             {section.techStack && (
                                                 <div className="slp-project-tech">
-                                                    <span className="slp-reqs-title">🛠 Стек технологий</span>
+                                                    <span className="slp-reqs-title"><Wrench size={14} aria-hidden="true" /> Стек технологий</span>
                                                     <div className="slp-tech-tags">
                                                         {section.techStack.split(',').map((t, i) => (
                                                             <span key={i} className="slp-tech-tag">{t.trim()}</span>
@@ -1389,7 +1390,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
 
                                             {section.deadline && (
                                                 <div className="slp-project-deadline">
-                                                    ⏰ Дедлайн: <strong>{section.deadline} дней</strong>
+                                                    <Timer size={14} aria-hidden="true" /> Дедлайн: <strong>{section.deadline} дней</strong>
                                                 </div>
                                             )}
 
@@ -1421,19 +1422,19 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                 </>
                                             ) : projectPending ? (
                                                 <div className="slp-project-submitted">
-                                                    <span>🕐</span>
+                                                    <span aria-hidden="true"><Clock size={18} /></span>
                                                     <span>Ожидание проверки преподавателя</span>
                                                 </div>
                                             ) : projectDone ? (
                                                 <div className="slp-project-submitted">
-                                                    <span>🔗</span>
+                                                    <span aria-hidden="true"><Link size={18} /></span>
                                                     {projectSubmission?.github_url
                                                         ? <a href={projectSubmission.github_url} target="_blank" rel="noreferrer">{projectSubmission.github_url}</a>
                                                         : <span>Проект сдан</span>}
                                                 </div>
                                             ) : (
                                                 <button className="slp-project-btn" onClick={() => setProjectModal(true)}>
-                                                    📤 Загрузить проект
+                                                    <Upload size={14} aria-hidden="true" /> Загрузить проект
                                                 </button>
                                             )}
                                         </div>
@@ -1456,10 +1457,10 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 {nextBlocked ? (
                     <div className="slp-next-locked">
                         {projectPending
-                            ? '🔒 Ожидание проверки проекта'
+                            ? <><Lock size={14} aria-hidden="true" /> Ожидание проверки проекта</>
                             : projectFailed
-                                ? `🔒 Нужно набрать ${passThreshold}/100 — текущий ${projectScore}`
-                                : '🔒 Сначала сдайте проект'}
+                                ? <><Lock size={14} aria-hidden="true" /> Нужно набрать {passThreshold}/100 — текущий {projectScore}</>
+                                : <><Lock size={14} aria-hidden="true" /> Сначала сдайте проект</>}
                     </div>
                 ) : isDone && nextLesson ? (
                     <button className="slp-bottom-btn next primary" onClick={() => onNavigate(nextLesson)}>
@@ -1531,7 +1532,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                 <div className="slp-modal-field">
                                     <label>GitHub URL</label>
                                     <div className={`slp-input-wrap ${formErrors.github_url ? 'slp-input-error' : ''}`}>
-                                        <span className="slp-input-prefix">🔗</span>
+                                        <span className="slp-input-prefix" aria-hidden="true"><Link size={14} /></span>
                                         <input
                                             placeholder="https://github.com/username/repo"
                                             value={projectForm.github_url}

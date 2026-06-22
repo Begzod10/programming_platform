@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import './StudentProfile.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { Star, Trophy } from 'lucide-react';
 
 /* ─── Helpers ─── */
 const LEVEL_MAP = {
@@ -56,7 +57,7 @@ const CourseCard = ({ course, idx }) => {
       <div className="spp-cc-bar"><div className="spp-cc-bar-fill" style={{ width:`${pct}%` }}/></div>
       <div className="spp-cc-foot">
         <span>📖 {course.completed_lessons ?? 0}/{course.total_lessons ?? 0} dars</span>
-        <span>⭐ {course.earned_points ?? 0}/{course.max_points ?? 0} pts</span>
+        <span><Star size={12} aria-hidden="true" /> {course.earned_points ?? 0}/{course.max_points ?? 0} pts</span>
         {course.is_completed && <span className="spp-done">✅ Tugallandi</span>}
       </div>
     </div>
@@ -68,7 +69,7 @@ const BadgeCard = ({ ach, idx }) => (
   <div className="spp-badge-card" style={{ animationDelay: `${idx*0.06}s` }}>
     {ach.badge_image_url
       ? <img src={ach.badge_image_url} alt={ach.name} className="spp-badge-img"/>
-      : <div className="spp-badge-ico">{ach.icon || '🏆'}</div>}
+      : <div className="spp-badge-ico">{ach.icon || <Trophy size={20} />}</div>}
     <div className="spp-badge-info">
       <div className="spp-badge-top">
         <span className="spp-badge-name">{ach.name}</span>
@@ -228,7 +229,7 @@ const StudentProfilePage = () => {
           { icon:'⚡', val: d.total_points ?? p?.total_points ?? 0, lbl:'Всего баллов', color:'#6c5ce7' },
           { icon:'💰', val: fmt(d.balance),                          lbl:'Баланс',       color: balColor(d.balance) },
           { icon:'📚', val: courses.length,                          lbl:'Курсы',        color:'#0984e3' },
-          { icon:'🏆', val: achievements.length,                     lbl:'Достижения',   color:'#e17055' },
+          { icon:<Trophy size={18} />, val: achievements.length,     lbl:'Достижения',   color:'#e17055' },
           { icon:'🌍', val: `#${globalRank}`,                        lbl:'Место',        color:'#00b894' },
           { icon:'📈', val: `${avgProgress}%`,                       lbl:'Прогресс',     color:'#fd79a8' },
         ].map(({ icon, val, lbl, color }, i) => (
@@ -354,13 +355,13 @@ const StudentProfilePage = () => {
             {[
               { id:'overview',     label:'Umumiy',   icon:'📊', count: null },
               { id:'courses',      label:'Kurslar',  icon:'📚', count: courses.length },
-              { id:'achievements', label:'Yutuqlar', icon:'🏆', count: achievements.length },
-            ].map(({ id, label, icon, count }) => (
+              { id:'achievements', label:'Yutuqlar', Icon: Trophy, count: achievements.length },
+            ].map(({ id, label, icon, Icon, count }) => (
               <button key={id}
                 className={`spp-tab ${tab === id ? 'active' : ''}`}
                 onClick={() => setTab(id)}
               >
-                <span>{icon}</span> {label}
+                <span aria-hidden="true">{Icon ? <Icon size={14} /> : icon}</span> {label}
                 {count !== null && count > 0 && <span className="spp-tab-cnt">{count}</span>}
               </button>
             ))}

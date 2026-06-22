@@ -4,6 +4,10 @@ import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
 import { useTranslation } from '../../i18n/useTranslation';
 import StreakBadge from './StreakBadge';
+import {
+    LayoutDashboard, User, BookOpen, Map, Monitor, BookMarked,
+    Gamepad2, BarChart2, Trophy, Construction, GraduationCap, Award,
+} from 'lucide-react';
 
 const COLLAPSED_KEY = 'sidebar:collapsed';
 
@@ -50,18 +54,18 @@ function Sidebar({ activeTab, onLogout, role }) {
     };
 
     const menuItems = [
-        { id: 'dashboard',      label: t('dashboard') || 'Dashboard',   icon: '🏠', section: 'main' },
-        { id: 'profile',        label: t('profile'),                    icon: '👤', section: 'main' },
-        { id: 'courses',        label: t('courses'),                    icon: '📚', section: 'main' },
-        { id: 'roadmap',        label: t('roadmap') || 'Roadmap',       icon: '🗺️',section: 'main' },
-        { id: 'projects',       label: t('my_projects'),                icon: '💻', section: 'main' },
-        { id: 'dictionary',     label: t('dictionary'),    icon: '📖',  section: 'main' },
-        { id: 'team-game',      label: t('team_game'),     icon: '🎮',  section: 'main' },
-        { id: 'statistics',     label: t('statistics') || 'Статистика', icon: '📊',  section: 'insights' },
-        { id: 'rankings',       label: t('rankings'),      icon: '🏆',  section: 'insights' },
-        { id: 'project-rating', label: t('top_projects'),  icon: '🏗️', section: 'insights' },
-        { id: 'degrees',        label: t('certificates'),  icon: '🎓',  section: 'achievements' },
-        { id: 'achievements', label: t('achievements') || 'Yutuqlar', icon: '🥇', section: 'achievements' },
+        { id: 'dashboard',      label: t('dashboard') || 'Dashboard',   Icon: LayoutDashboard, section: 'main' },
+        { id: 'profile',        label: t('profile'),                    Icon: User,            section: 'main' },
+        { id: 'courses',        label: t('courses'),                    Icon: BookOpen,        section: 'main' },
+        { id: 'roadmap',        label: t('roadmap') || 'Roadmap',       Icon: Map,             section: 'main' },
+        { id: 'projects',       label: t('my_projects'),                Icon: Monitor,         section: 'main' },
+        { id: 'dictionary',     label: t('dictionary'),                 Icon: BookMarked,      section: 'main' },
+        { id: 'team-game',      label: t('team_game'),                  Icon: Gamepad2,        section: 'main' },
+        { id: 'statistics',     label: t('statistics') || 'Статистика', Icon: BarChart2,       section: 'insights' },
+        { id: 'rankings',       label: t('rankings'),                   Icon: Trophy,          section: 'insights' },
+        { id: 'project-rating', label: t('top_projects'),               Icon: Construction,    section: 'insights' },
+        { id: 'degrees',        label: t('certificates'),               Icon: GraduationCap,   section: 'achievements' },
+        { id: 'achievements',   label: t('achievements') || 'Yutuqlar', Icon: Award,           section: 'achievements' },
     ];
 
     const sections = [
@@ -156,7 +160,7 @@ function Sidebar({ activeTab, onLogout, role }) {
                                                 title={isCollapsed ? item.label : undefined}
                                             >
                                                 <span className="menu-item__rail" aria-hidden="true" />
-                                                <span className="menu-item__icon" aria-hidden="true">{item.icon}</span>
+                                                <span className="menu-item__icon" aria-hidden="true"><item.Icon size={18} /></span>
                                                 <span className="menu-item__label">{item.label}</span>
                                             </button>
                                         );

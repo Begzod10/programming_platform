@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL, useHttp, headers, resolveImageUrl } from '../../../api/search/base';
 import './TeacherAchievements.css';
+import { Trophy } from 'lucide-react';
 
 const CATEGORIES = [
     { value: '',           label: 'Barcha' },
@@ -13,7 +14,7 @@ const CATEGORIES = [
 
 const AchievementPill = ({ a }) => (
     <span className="ta-pill" title={`${a.name} — ${a.earned_at ? new Date(a.earned_at).toLocaleDateString('uz-UZ') : ''}`}>
-        <span className="ta-pill-icon">{a.icon || '🏆'}</span>
+        <span className="ta-pill-icon">{a.icon || <Trophy size={14} />}</span>
         <span className="ta-pill-name">{a.name}</span>
     </span>
 );

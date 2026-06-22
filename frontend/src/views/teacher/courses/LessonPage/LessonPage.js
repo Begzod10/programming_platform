@@ -4,6 +4,7 @@ import './LessonPage.css';
 import './LessonPage.additions.css'
 import '../Exercise additions/Lessonpage exercise additions.css'
 import { SECTION_TYPES, getYTId } from '../../../../constants/courseUtils';
+import { Trophy } from 'lucide-react';
 import { sanitizeHtml } from '../../../../utils/sanitize';
 
 mermaid.initialize({
@@ -195,7 +196,7 @@ const ExerciseCard = ({ ex, index }) => {
                     <span className="lp-ex-diff" style={{ background: diffStyle.bg, color: diffStyle.color }}>
                         {diffStyle.label}
                     </span>
-                    {ex.points > 0 && <span className="lp-ex-pts">🏆 {ex.points} pts</span>}
+                    {ex.points > 0 && <span className="lp-ex-pts"><Trophy size={12} aria-hidden="true" /> {ex.points} pts</span>}
                 </div>
             </div>
             <div className="lp-ex-card-body">
@@ -275,7 +276,7 @@ const ExerciseBlock = ({ section }) => {
         <div className="lp-exercise-block">
             <div className="lp-exercise-bar">
                 <span className="lp-exercise-bar-count">🎯 {exercises.length} заданий</span>
-                {totalPoints > 0 && <span className="lp-exercise-bar-pts">🏆 {totalPoints} pts</span>}
+                {totalPoints > 0 && <span className="lp-exercise-bar-pts"><Trophy size={12} aria-hidden="true" /> {totalPoints} pts</span>}
             </div>
             {exercises.length === 0 ? (
                 <div className="lp-exercise-empty">

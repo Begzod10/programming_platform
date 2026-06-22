@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { API_URL, useHttp, headers } from '../../api/search/base';
 import './StreakBadge.css';
+import { Flame } from 'lucide-react';
 
 /**
  * Sidebar flame widget showing the student's daily-activity streak.
@@ -37,7 +38,7 @@ export default function StreakBadge({ collapsed = false }) {
                     ? `${days} kunlik streak — bugun bajarildi`
                     : `${days} kunlik streak — bugun yo'qotmang!`}
             >
-                <span className="streak-badge__flame" aria-hidden="true">🔥</span>
+                <span className="streak-badge__flame" aria-hidden="true"><Flame size={18} /></span>
                 <span className="streak-badge__count">{days}</span>
             </div>
         );
@@ -46,7 +47,7 @@ export default function StreakBadge({ collapsed = false }) {
     return (
         <div className={`streak-badge ${stateClass}`}>
             <div className="streak-badge__flame-wrap" aria-hidden="true">
-                <span className="streak-badge__flame">🔥</span>
+                <span className="streak-badge__flame"><Flame size={18} /></span>
                 {!isLive && <span className="streak-badge__alert">!</span>}
             </div>
             <div className="streak-badge__body">

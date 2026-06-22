@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { API_URL, headers, useHttp } from '../../../api/search/base';
 import './Achievements.css';
+import { Trophy } from 'lucide-react';
 
 const TABS = [
     { key: 'all',        label: 'Hammasi' },
@@ -28,7 +29,7 @@ function SkeletonCard() {
 }
 
 function AchievementCard({ item }) {
-    const icon = item.icon || '🏆';
+    const icon = item.icon || null;
     const category = normaliseCategory(item.category);
     const progress = Math.min(100, Math.max(0, item.progress ?? 0));
 
@@ -40,7 +41,7 @@ function AchievementCard({ item }) {
 
             <div className="ach-card-top">
                 <span className={`ach-icon ${item.is_earned ? '' : 'ach-icon--locked'}`} role="img" aria-label={item.name}>
-                    {icon}
+                    {icon ? icon : <Trophy size={20} />}
                 </span>
                 {item.is_earned && (
                     <span className="ach-pts">+{item.points_reward} pts</span>

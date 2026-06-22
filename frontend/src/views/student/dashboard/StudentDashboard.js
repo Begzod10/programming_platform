@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { API_URL, headers, resolveImageUrl } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
 import './StudentDashboard.css';
+import { Star, Trophy, Flame, CheckCircle, Monitor, BookMarked, BarChart2, GraduationCap, Gamepad2 } from 'lucide-react';
 
 const LEVEL_META = {
     Beginner:     { ru: 'Начинающий', uz: "Boshlang'ich", color: '#c2410c', bg: '#fff7ed' },
@@ -123,7 +124,7 @@ export default function StudentDashboard() {
                             {ru ? lvl.ru : lvl.uz}
                         </span>
                         {me.current_streak > 0 && (
-                            <span className="db-streak-chip">🔥 {me.current_streak} {ru ? 'дн.' : 'kun'}</span>
+                            <span className="db-streak-chip"><Flame size={14} aria-hidden="true" /> {me.current_streak} {ru ? 'дн.' : 'kun'}</span>
                         )}
                     </div>
                 </div>
@@ -132,22 +133,22 @@ export default function StudentDashboard() {
             {/* ── Quick stats row ── */}
             <div className="db-stats-grid item-fade-in">
                 <div className="db-stat-card">
-                    <span className="db-stat-icon">⭐</span>
+                    <span className="db-stat-icon" aria-hidden="true"><Star size={20} /></span>
                     <span className="db-stat-val">{(profile.total_points || 0).toLocaleString()}</span>
                     <span className="db-stat-label">{ru ? 'Очков' : 'Ball'}</span>
                 </div>
                 <div className="db-stat-card">
-                    <span className="db-stat-icon">🏆</span>
+                    <span className="db-stat-icon" aria-hidden="true"><Trophy size={20} /></span>
                     <span className="db-stat-val">{profile.global_rank ? `#${profile.global_rank}` : '—'}</span>
                     <span className="db-stat-label">{ru ? 'Рейтинг' : 'Reyting'}</span>
                 </div>
                 <div className="db-stat-card">
-                    <span className="db-stat-icon">🔥</span>
+                    <span className="db-stat-icon" aria-hidden="true"><Flame size={20} /></span>
                     <span className="db-stat-val">{profile.current_streak || 0}</span>
                     <span className="db-stat-label">{ru ? 'Дней подряд' : 'Ketma-ket kun'}</span>
                 </div>
                 <div className="db-stat-card">
-                    <span className="db-stat-icon">✅</span>
+                    <span className="db-stat-icon" aria-hidden="true"><CheckCircle size={20} /></span>
                     <span className="db-stat-val">{overall.projects_approved || 0}</span>
                     <span className="db-stat-label">{ru ? 'Проектов сдано' : 'Loyiha topshirilgan'}</span>
                 </div>
@@ -320,19 +321,19 @@ export default function StudentDashboard() {
                 <h2 className="db-section-title">{ru ? 'Быстрый доступ' : 'Tezkor kirish'}</h2>
                 <div className="db-quick-links">
                     {[
-                        { icon: '💻', ru: 'Проекты',     uz: 'Loyihalar',    path: '/student/projects' },
-                        { icon: '🏆', ru: 'Рейтинг',     uz: 'Reyting',      path: '/student/rankings' },
-                        { icon: '📖', ru: 'Словарь',     uz: "Lug'at",       path: '/student/dictionary' },
-                        { icon: '📊', ru: 'Статистика',  uz: 'Statistika',   path: '/student/statistics' },
-                        { icon: '🎓', ru: 'Сертификаты', uz: 'Sertifikatlar',path: '/student/degrees' },
-                        { icon: '🎮', ru: 'Игры',        uz: "O'yinlar",     path: '/student/team-game' },
+                        { Icon: Monitor,      ru: 'Проекты',     uz: 'Loyihalar',    path: '/student/projects' },
+                        { Icon: Trophy,       ru: 'Рейтинг',     uz: 'Reyting',      path: '/student/rankings' },
+                        { Icon: BookMarked,   ru: 'Словарь',     uz: "Lug'at",       path: '/student/dictionary' },
+                        { Icon: BarChart2,    ru: 'Статистика',  uz: 'Statistika',   path: '/student/statistics' },
+                        { Icon: GraduationCap,ru: 'Сертификаты', uz: 'Sertifikatlar',path: '/student/degrees' },
+                        { Icon: Gamepad2,     ru: 'Игры',        uz: "O'yinlar",     path: '/student/team-game' },
                     ].map(link => (
                         <button
                             key={link.path}
                             className="db-qlink"
                             onClick={() => navigate(link.path)}
                         >
-                            <span className="db-qlink-icon">{link.icon}</span>
+                            <span className="db-qlink-icon" aria-hidden="true"><link.Icon size={20} /></span>
                             <span className="db-qlink-label">{ru ? link.ru : link.uz}</span>
                         </button>
                     ))}

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import './CelebrationOverlay.css';
+import { Trophy } from 'lucide-react';
 
 // 40 confetti pieces with randomised colour / position / delay / duration
 const COLORS = ['#7c3aed','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899','#14b8a6'];
@@ -55,7 +56,7 @@ const CelebrationOverlay = ({ score, onDone }) => {
 
             {/* Card */}
             <div className="cel-card" onClick={e => e.stopPropagation()}>
-                <div className="cel-trophy">🏆</div>
+                <div className="cel-trophy" aria-hidden="true"><Trophy size={48} /></div>
                 <div className="cel-score">{score}<span>/100</span></div>
                 <div className="cel-headline">{messages[0]}</div>
                 <div className="cel-sub">{messages[1]}</div>

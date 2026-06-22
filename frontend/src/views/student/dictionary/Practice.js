@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import './Practice.css';
+import { Flame } from 'lucide-react';
 
 const BASE = `${API_URL}v1/dictionary/practice`;
 
@@ -737,7 +738,7 @@ function FireBadge({ streak }) {
     if (streak === 0) return null;
     return (
         <div className="pr-fire-badge" key={streak}>
-            🔥 {streak}
+            <Flame size={14} aria-hidden="true" /> {streak}
         </div>
     );
 }
@@ -837,7 +838,7 @@ function Statistika() {
         <div className="pr-stats">
             {/* ── Streak hero ─────────────────────────────────────────── */}
             <div className={`pr-streak ${streak.current > 0 ? 'pr-streak--alive' : ''}`}>
-                <div className="pr-streak-flame">🔥</div>
+                <div className="pr-streak-flame" aria-hidden="true"><Flame size={32} /></div>
                 <div className="pr-streak-body">
                     <div className="pr-streak-num">{streak.current}</div>
                     <div className="pr-streak-lbl">

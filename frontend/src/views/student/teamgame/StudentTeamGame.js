@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { API_URL, API_URL_DOC, headers } from '../../../api/search/base';
 import './StudentTeamGame.css';
+import { Trophy } from 'lucide-react';
 
 const GAME_TYPE_LABELS = { quiz: 'Викторина', coding: 'Кодинг', project: 'Проект', custom: 'Другое' };
 const STATUS_LABELS    = { pending: 'Скоро начнётся', active: 'Идёт сейчас', completed: 'Завершена' };
@@ -174,7 +175,7 @@ function SessionDetail({ initialSession, onBack }) {
 
             {session.status === 'completed' && (
                 <div className="stg-completed-banner">
-                    🏆 Игра завершена! {sortedTeams[0] && `Победитель: ${sortedTeams[0].name} (${sortedTeams[0].score} очков)`}
+                    <Trophy size={16} aria-hidden="true" /> Игра завершена! {sortedTeams[0] && `Победитель: ${sortedTeams[0].name} (${sortedTeams[0].score} очков)`}
                 </div>
             )}
         </div>

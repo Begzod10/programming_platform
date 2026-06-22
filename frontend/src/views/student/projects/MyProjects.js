@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import './MyProjects.css';
 import ProjectCard from './ProjectCard';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { Trophy } from 'lucide-react';
 
 const DIFFICULTIES = ['Easy', 'Medium', 'Hard'];
 
@@ -707,7 +708,7 @@ function MyProjects() {
                         {/* Stats */}
                         <div className="mp-stats-row">
                             <div className="mp-stat">
-                                <span className="mp-stat-icon">🏆</span>
+                                <span className="mp-stat-icon" aria-hidden="true"><Trophy size={16} /></span>
                                 <span className="mp-stat-val">{detail.points_earned ?? 0}</span>
                                 <span className="mp-stat-label">очков</span>
                             </div>

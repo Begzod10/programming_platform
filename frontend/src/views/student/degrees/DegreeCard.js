@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './DegreeCard.css';
 import { API_URL, useHttp, headers, resolveImageUrl } from '../../../api/search/base';
+import { Trophy, Lock } from 'lucide-react';
 
 const Degrees = () => {
     const { request } = useHttp();
@@ -159,8 +160,8 @@ const Degrees = () => {
                                     {isUnlocked
                                         ? (item.badge_image_url
                                             ? <img src={resolveImageUrl(item.badge_image_url)} alt="" />
-                                            : <span>🏆</span>)
-                                        : <span>🔒</span>
+                                            : <span aria-hidden="true"><Trophy size={24} /></span>)
+                                        : <span aria-hidden="true"><Lock size={24} /></span>
                                     }
                                 </div>
 

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 // identical (sticky header, podium, list, pagination) so a second copy
 // would just rot.
 import '../../teacher/StudentRankings/StudentRankings.css';
+import { Star } from 'lucide-react';
 import './ProjectLeaderboard.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 
@@ -335,7 +336,7 @@ export default function ProjectLeaderboard({ role = 'student' }) {
                                                 )}
                                                 {s.best_course && (
                                                     <span className="tsr-chip tsr-chip--best" title={s.best_course}>
-                                                        ⭐ {s.best_course.length > 18 ? s.best_course.slice(0, 18) + '…' : s.best_course}
+                                                        <Star size={12} aria-hidden="true" /> {s.best_course.length > 18 ? s.best_course.slice(0, 18) + '…' : s.best_course}
                                                         {s.best_course_points != null && (
                                                             <strong>+{s.best_course_points.toLocaleString()}</strong>
                                                         )}

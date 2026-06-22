@@ -2,6 +2,7 @@ import React, {useState, useEffect, useCallback} from 'react';
 import ReactDOM from 'react-dom';
 import './Teachercertificates.css';
 import {API_URL, useHttp, headers, resolveImageUrl} from '../../../api/search/base';
+import { Trophy, Star } from 'lucide-react';
 
 const CRITERIA_TYPES = [
     {value: 'project_count',    label: '📁 Количество проектов'},
@@ -239,7 +240,7 @@ const AwardModal = ({cert, onClose, onAwardSuccess, showToast}) => {
                         <div className="tc-award-cert-icon">
                             {cert.badge_image_url
                                 ? <img src={resolveImageUrl(cert.badge_image_url)} alt=""/>
-                                : <span>🏆</span>}
+                                : <span aria-hidden="true"><Trophy size={20} /></span>}
                         </div>
                         <div className="tc-award-cert-info">
                             <div className="tc-award-cert-name">{cert.name}</div>
@@ -390,7 +391,7 @@ const AwardModal = ({cert, onClose, onAwardSuccess, showToast}) => {
                                         </div>
                                         <div className="tc-awarded-right">
                                             {s.total_points !== undefined && (
-                                                <span className="tc-points-badge">⭐ {s.total_points}</span>
+                                                <span className="tc-points-badge"><Star size={12} aria-hidden="true" /> {s.total_points}</span>
                                             )}
                                             <span className="tc-awarded-tag">✓ Выдан</span>
                                             <button
@@ -566,7 +567,7 @@ const TeacherCertificates = () => {
                                 <div className="tc-row-icon">
                                     {cert.badge_image_url
                                         ? <img src={resolveImageUrl(cert.badge_image_url)} alt=""/>
-                                        : <span>🏆</span>}
+                                        : <span aria-hidden="true"><Trophy size={20} /></span>}
                                 </div>
                                 <div className="tc-row-info">
                                     <div className="tc-row-name">{cert.name}</div>

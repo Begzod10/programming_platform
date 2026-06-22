@@ -5,6 +5,7 @@ import StudentCoursePage from '../CoursePage/StudentCoursePage';
 import StudentLessonPage from '../LessonPage/StudentLessonPage';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
 import { useTranslation } from '../../../../i18n/useTranslation';
+import { Lock } from 'lucide-react';
 
 /* ─── helpers ─── */
 // ФИКС: сравниваем id через String() потому что бэкенд может вернуть number, а useParams всегда string
@@ -205,7 +206,7 @@ const CourseCard = ({ course, onOpen }) => {
                     the student knows exactly what's gating them. */}
                 {prereqLocked && (
                     <div className="sc-prereq-hint">
-                        <span className="sc-prereq-icon">🔒</span>
+                        <span className="sc-prereq-icon" aria-hidden="true"><Lock size={14} /></span>
                         <span className="sc-prereq-text">
                             Oldingi kurs loyihalari o'rtacha
                             {' '}<strong>{prereqAvg != null ? `${prereqAvg}%` : '—'}</strong>
@@ -228,8 +229,8 @@ const CourseCard = ({ course, onOpen }) => {
                         disabled
                     >
                         {prereqLocked
-                            ? `🔒 Oldin kursni tugating (≥${projectThreshold}%)`
-                            : '🔒 Ruxsat kerak'}
+                            ? <><Lock size={14} aria-hidden="true" /> Oldin kursni tugating (≥{projectThreshold}%)</>
+                            : <><Lock size={14} aria-hidden="true" /> Ruxsat kerak</>}
                     </button>
                 ) : (
                     <button className="sc-card-btn" onClick={(e) => { e.stopPropagation(); onOpen(); }}>

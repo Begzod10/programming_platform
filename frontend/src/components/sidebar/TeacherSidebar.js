@@ -2,6 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
+import {
+    User, Download, Users, BookOpen, Gamepad2,
+    Trophy, Construction, Award, Medal, TrendingUp, Star,
+} from 'lucide-react';
 
 const COLLAPSED_KEY = 'sidebar:teacher:collapsed';
 
@@ -36,17 +40,17 @@ function TeacherSidebar({ activeTab, onLogout }) {
     });
 
     const menuItems = [
-        { id: 'profile',        label: 'Профиль',         icon: '👨‍🏫', section: 'main' },
-        { id: 'review',         label: 'Проверка работ',  icon: '📥',   section: 'main' },
-        { id: 'students',       label: 'Мои Студенты',    icon: '👥',   section: 'main' },
-        { id: 'courses',        label: 'Курсы',           icon: '📚',   section: 'main' },
-        { id: 'team-game',      label: 'Командные игры',  icon: '🎮',   section: 'main' },
-        { id: 'rankings',       label: 'Таблица лидеров', icon: '🏆',   section: 'insights' },
-        { id: 'project-rating', label: 'Топ проектов',    icon: '🏗️',  section: 'insights' },
-        { id: 'achievements',   label: 'Yutuqlar',        icon: '🎖️',  section: 'insights' },
-        { id: 'certificates',   label: 'Сертификаты',     icon: '🏅',   section: 'insights' },
-        { id: 'statistics',     label: 'Статистика',      icon: '📈',   section: 'insights' },
-        { id: 'feedback',       label: 'Отзывы',          icon: '⭐',   section: 'insights' },
+        { id: 'profile',        label: 'Профиль',         Icon: User,         section: 'main' },
+        { id: 'review',         label: 'Проверка работ',  Icon: Download,     section: 'main' },
+        { id: 'students',       label: 'Мои Студенты',    Icon: Users,        section: 'main' },
+        { id: 'courses',        label: 'Курсы',           Icon: BookOpen,     section: 'main' },
+        { id: 'team-game',      label: 'Командные игры',  Icon: Gamepad2,     section: 'main' },
+        { id: 'rankings',       label: 'Таблица лидеров', Icon: Trophy,       section: 'insights' },
+        { id: 'project-rating', label: 'Топ проектов',    Icon: Construction, section: 'insights' },
+        { id: 'achievements',   label: 'Yutuqlar',        Icon: Award,        section: 'insights' },
+        { id: 'certificates',   label: 'Сертификаты',     Icon: Medal,        section: 'insights' },
+        { id: 'statistics',     label: 'Статистика',      Icon: TrendingUp,   section: 'insights' },
+        { id: 'feedback',       label: 'Отзывы',          Icon: Star,         section: 'insights' },
     ];
 
     const sections = [
@@ -138,7 +142,7 @@ function TeacherSidebar({ activeTab, onLogout }) {
                                                 title={isCollapsed ? item.label : undefined}
                                             >
                                                 <span className="menu-item__rail" aria-hidden="true" />
-                                                <span className="menu-item__icon" aria-hidden="true">{item.icon}</span>
+                                                <span className="menu-item__icon" aria-hidden="true"><item.Icon size={18} /></span>
                                                 <span className="menu-item__label">{item.label}</span>
                                             </button>
                                         );

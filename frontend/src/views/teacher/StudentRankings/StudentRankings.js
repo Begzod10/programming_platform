@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './StudentRankings.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { Trophy, Star } from 'lucide-react';
 
 const LIMIT = 50;
 
@@ -64,7 +65,7 @@ function PodiumSlot({ s, rank }) {
             )}
             {s.best_course && (
                 <span className="tsr-podium-best" title={s.best_course}>
-                    ⭐ {s.best_course.length > 14 ? s.best_course.slice(0, 14) + '…' : s.best_course}
+                    <Star size={12} aria-hidden="true" /> {s.best_course.length > 14 ? s.best_course.slice(0, 14) + '…' : s.best_course}
                 </span>
             )}
             <div className="tsr-podium-bar" style={{ height: heights[rank], background: c.bg }}>
@@ -159,7 +160,7 @@ export default function TeacherStudentsRankings() {
             <div className="tsr-header">
                 <div className="tsr-header-inner">
                     <div className="tsr-title-block">
-                        <span className="tsr-trophy" aria-hidden="true">🏆</span>
+                        <span className="tsr-trophy" aria-hidden="true"><Trophy size={20} /></span>
                         <div>
                             <h2 className="tsr-title">Таблица лидеров</h2>
                             <p className="tsr-subtitle">
@@ -287,7 +288,7 @@ export default function TeacherStudentsRankings() {
                                                 )}
                                                 {s.best_course && (
                                                     <span className="tsr-chip tsr-chip--best" title={s.best_course}>
-                                                        ⭐ {s.best_course.length > 18 ? s.best_course.slice(0, 18) + '…' : s.best_course}
+                                                        <Star size={12} aria-hidden="true" /> {s.best_course.length > 18 ? s.best_course.slice(0, 18) + '…' : s.best_course}
                                                         {bestPts != null && (
                                                             <strong>+{bestPts.toLocaleString()}</strong>
                                                         )}
