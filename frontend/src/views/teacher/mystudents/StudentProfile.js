@@ -68,7 +68,7 @@ const BadgeCard = ({ ach, idx }) => (
   <div className="spp-badge-card" style={{ animationDelay: `${idx*0.06}s` }}>
     {ach.badge_image_url
       ? <img src={ach.badge_image_url} alt={ach.name} className="spp-badge-img"/>
-      : <div className="spp-badge-ico">🏆</div>}
+      : <div className="spp-badge-ico">{ach.icon || '🏆'}</div>}
     <div className="spp-badge-info">
       <div className="spp-badge-top">
         <span className="spp-badge-name">{ach.name}</span>

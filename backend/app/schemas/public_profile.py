@@ -17,6 +17,8 @@ class PublicAchievement(BaseModel):
     name: str
     description: Optional[str] = None
     badge_image_url: Optional[str] = None
+    icon: Optional[str] = "🏆"
+    category: Optional[str] = None
     points_reward: int = 0
     earned_at: datetime
 

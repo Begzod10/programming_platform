@@ -89,6 +89,8 @@ async def get_public_profile(
             name=sa.achievement.name if sa.achievement else "—",
             description=(sa.achievement.description if sa.achievement else None),
             badge_image_url=(sa.achievement.badge_image_url if sa.achievement else None),
+            icon=(sa.achievement.icon if sa.achievement else "🏆"),
+            category=(sa.achievement.category if sa.achievement else None),
             points_reward=(sa.achievement.points_reward if sa.achievement else 0),
             earned_at=sa.earned_at,
         )
