@@ -43,6 +43,7 @@ function TeacherSidebar({ activeTab, onLogout }) {
         { id: 'team-game',      label: 'Командные игры',  icon: '🎮',   section: 'main' },
         { id: 'rankings',       label: 'Таблица лидеров', icon: '🏆',   section: 'insights' },
         { id: 'project-rating', label: 'Топ проектов',    icon: '🏗️',  section: 'insights' },
+        { id: 'achievements',   label: 'Yutuqlar',        icon: '🎖️',  section: 'insights' },
         { id: 'certificates',   label: 'Сертификаты',     icon: '🏅',   section: 'insights' },
         { id: 'statistics',     label: 'Статистика',      icon: '📈',   section: 'insights' },
         { id: 'feedback',       label: 'Отзывы',          icon: '⭐',   section: 'insights' },

@@ -31,6 +31,7 @@ import TeacherFeedback          from './views/teacher/feedback/TeacherFeedback';
 import TeacherCertificates      from './views/teacher/TeacherCertificates/Teachercertificates';
 import TeacherStudentsRankings  from './views/teacher/StudentRankings/StudentRankings';
 import TeacherTeamGame          from './views/teacher/teamgame/TeacherTeamGame';
+import TeacherAchievements      from './views/teacher/TeacherAchievements/TeacherAchievements';
 import ProjectLeaderboard       from './views/shared/ProjectLeaderboard/ProjectLeaderboard';
 import PublicProfile            from './views/public/PublicProfile/PublicProfile';
 
@@ -126,6 +127,7 @@ function AppRouter() {
                 <Route path="students"                                    element={<MyStudents />} />
                 <Route path="students/:studentId"                         element={<StudentProfilePage />} />
                 <Route path="certificates"                                element={<TeacherCertificates />} />
+                <Route path="achievements"                                element={<TeacherAchievements />} />
                 <Route path="statistics"                                  element={<TeacherStatistics />} />
                 <Route path="feedback"                                    element={<TeacherFeedback />} />
                 <Route path="rankings"                                    element={<TeacherStudentsRankings />} /> {/* ← NEW */}
