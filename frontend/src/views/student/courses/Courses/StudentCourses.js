@@ -44,7 +44,7 @@ const apiToLesson = (l, isCompleted = false, exercises = []) => {
             // sections_json may not include the project block — append from task fields if missing
             if (!sections.find(s => s.type === 'project') &&
                 (l.task_title || l.task_description || l.task_requirements || l.task_technologies || l.task_deadline_days)) {
-                sections.push({ id: `p${l.id}`, type: 'project', label: l.task_title || 'Loyiha', description: l.task_description || '', requirements: l.task_requirements || '', techStack: l.task_technologies || '', deadline: l.task_deadline_days || '' });
+                sections.push({ id: `p${l.id}`, type: 'project', label: l.task_title || 'Loyiha', description: l.task_description || '', requirements: l.task_requirements || '', techStack: l.task_technologies || '', deadline: l.task_deadline_days || '', previewImage: l.image_url || '' });
             }
             return {
                 id: l.id, title: l.title, chapter: l.chapter || '',
@@ -62,7 +62,7 @@ const apiToLesson = (l, isCompleted = false, exercises = []) => {
         l.image_url    ? { id: `i${l.id}`, type: 'image',   label: 'Фото',   imgUrl: l.image_url } : null,
         l.file_url     ? { id: `f${l.id}`, type: 'file',    label: 'Файл',   fileName: l.file_url } : null,
         (l.task_title || l.task_description || l.task_requirements || l.task_technologies || l.task_deadline_days)
-            ? { id: `p${l.id}`, type: 'project', label: l.task_title || 'Loyiha', description: l.task_description || '', requirements: l.task_requirements || '', techStack: l.task_technologies || '', deadline: l.task_deadline_days || '' }
+            ? { id: `p${l.id}`, type: 'project', label: l.task_title || 'Loyiha', description: l.task_description || '', requirements: l.task_requirements || '', techStack: l.task_technologies || '', deadline: l.task_deadline_days || '', previewImage: l.image_url || '' }
             : null,
     ].filter(Boolean);
 

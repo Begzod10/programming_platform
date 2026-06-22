@@ -914,6 +914,15 @@
     border-radius: 20px; white-space: nowrap;
     animation: slpPop 0.4s var(--t-spring);
 }
+.slp-project-preview {
+    display: flex; flex-direction: column; gap: 8px;
+}
+.slp-project-preview-img {
+    width: 100%; border-radius: var(--r-lg);
+    border: 1px solid var(--ink-12);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    display: block;
+}
 .slp-project-reqs {
     background: rgba(26,26,46,0.03); border-radius: var(--r-lg);
     padding: 16px; display: flex; flex-direction: column; gap: 8px;

@@ -1347,6 +1347,17 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                 )}
                                             </div>
 
+                                            {section.previewImage && (
+                                                <div className="slp-project-preview">
+                                                    <div className="slp-reqs-title">🖼 Natija ko'rinishi</div>
+                                                    <img
+                                                        src={section.previewImage}
+                                                        alt="Loyiha natijasi"
+                                                        className="slp-project-preview-img"
+                                                    />
+                                                </div>
+                                            )}
+
                                             {section.requirements && (
                                                 <div className="slp-project-reqs">
                                                     <div className="slp-reqs-title">📋 Требования</div>
