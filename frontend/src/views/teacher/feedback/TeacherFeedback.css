@@ -2,7 +2,7 @@
     max-width: 1080px;
     margin: 0 auto;
     padding: 24px 28px 60px;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: var(--font-ui), system-ui, sans-serif;
     color: #1a1a2e;
 }
 
@@ -43,11 +43,11 @@
 }
 .tfb-course-tab:hover {
     background: rgba(108, 92, 231, 0.06);
-    color: #6c5ce7;
+    color: var(--color-primary);
     border-color: rgba(108, 92, 231, 0.3);
 }
 .tfb-course-tab.is-active {
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     color: #ffffff;
     border-color: transparent;
     box-shadow: 0 4px 14px rgba(108, 92, 231, 0.25);
@@ -200,7 +200,7 @@
 }
 .tfb-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
     border-radius: 999px;
     transition: width 250ms ease;
 }
@@ -234,7 +234,7 @@
 }
 .tfb-comment {
     background: rgba(108, 92, 231, 0.04);
-    border-left: 3px solid #6c5ce7;
+    border-left: 3px solid var(--color-primary);
     border-radius: 8px;
     padding: 10px 14px;
 }

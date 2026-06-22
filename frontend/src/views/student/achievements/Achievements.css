@@ -29,7 +29,7 @@
 }
 
 .ach-total-pts {
-    color: #6c5ce7;
+    color: var(--color-primary);
     font-weight: 600;
 }
 
@@ -65,13 +65,13 @@
 }
 
 .ach-tab:hover {
-    border-color: #6c5ce7;
-    color: #6c5ce7;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
 }
 
 .ach-tab--active {
-    background: #6c5ce7;
-    border-color: #6c5ce7;
+    background: var(--color-primary);
+    border-color: var(--color-primary);
     color: #fff;
     box-shadow: 0 2px 8px rgba(108, 92, 231, 0.35);
 }
@@ -104,7 +104,7 @@
 
 /* ── Earned card ── */
 .ach-card--earned {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
 }
 
 .ach-card--earned::before {
@@ -115,7 +115,7 @@
     right: 0;
     height: 5px;
     border-radius: 14px 14px 0 0;
-    background: linear-gradient(90deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
 }
 
 /* ── Locked card ── */
@@ -212,7 +212,7 @@
 .ach-progress-fill {
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light));
     transition: width 0.5s ease;
 }
 

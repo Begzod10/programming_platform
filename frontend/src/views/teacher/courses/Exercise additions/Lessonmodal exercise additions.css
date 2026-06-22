@@ -80,7 +80,7 @@
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     color: white;
     font-size: 11px;
     font-weight: 800;
@@ -135,7 +135,7 @@
 .ex-move-btn:hover:not(:disabled) {
     background: rgba(108, 92, 231, 0.08);
     border-color: rgba(108, 92, 231, 0.25);
-    color: #6c5ce7;
+    color: var(--color-primary);
 }
 .ex-move-btn:disabled {
     opacity: 0.2;
@@ -152,7 +152,7 @@
     padding: 4px 10px;
     border-radius: 7px;
     transition: all 0.18s;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 600;
     white-space: nowrap;
 }
@@ -194,17 +194,17 @@
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     transition: all 0.18s;
     white-space: nowrap;
 }
 .ex-type-pill:hover {
     border-color: rgba(108, 92, 231, 0.35);
-    color: #6c5ce7;
+    color: var(--color-primary);
     background: rgba(108, 92, 231, 0.05);
 }
 .ex-type-pill.active {
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     color: white;
     border-color: transparent;
     box-shadow: 0 3px 10px rgba(108, 92, 231, 0.3);
@@ -214,7 +214,7 @@
 .ex-type-desc {
     padding: 8px 16px;
     font-size: 12px;
-    color: #6c5ce7;
+    color: var(--color-primary);
     background: rgba(108, 92, 231, 0.04);
     border-bottom: 1px solid rgba(108, 92, 231, 0.07);
     font-style: italic;
@@ -274,7 +274,7 @@
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     transition: all 0.18s;
 }
 .ex-diff-pill:hover { border-color: rgba(26, 26, 46, 0.25); color: #1a1a2e; }
@@ -296,7 +296,7 @@
     color: #00b894;
     font-size: 17px;
     font-weight: 800;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     outline: none;
     text-align: center;
     padding: 0;
@@ -344,7 +344,7 @@
     height: 26px;
     border-radius: 50%;
     background: rgba(108, 92, 231, 0.1);
-    color: #6c5ce7;
+    color: var(--color-primary);
     font-size: 11px;
     font-weight: 800;
     display: flex;
@@ -431,13 +431,13 @@
     border: 1.5px solid rgba(26, 26, 46, 0.1);
     background: #fafafa;
     font-size: 13px;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     outline: none;
     color: #1a1a2e;
     transition: 0.2s;
 }
 .ex-input-row input:focus {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     background: white;
     box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.08);
 }
@@ -448,11 +448,11 @@
     border-radius: 10px;
     border: none;
     background: rgba(108, 92, 231, 0.1);
-    color: #6c5ce7;
+    color: var(--color-primary);
     font-size: 13px;
     font-weight: 700;
     cursor: pointer;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     transition: all 0.18s;
     white-space: nowrap;
 }
@@ -518,7 +518,7 @@
 .ex-checkbox-label input[type="checkbox"] {
     width: 16px;
     height: 16px;
-    accent-color: #6c5ce7;
+    accent-color: var(--color-primary);
     cursor: pointer;
     flex-shrink: 0;
 }
@@ -530,11 +530,11 @@
     border-radius: 12px;
     border: 2px dashed rgba(108, 92, 231, 0.22);
     background: rgba(108, 92, 231, 0.025);
-    color: #6c5ce7;
+    color: var(--color-primary);
     font-size: 14px;
     font-weight: 700;
     cursor: pointer;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     transition: all 0.2s;
     letter-spacing: 0.01em;
 }

@@ -22,7 +22,7 @@
 }
 .spp-hdr-icon {
     width: 40px; height: 40px;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     border-radius: 12px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
@@ -34,7 +34,7 @@
 .spp-hdr-sub   { font-size: 12px; font-weight: 500; color: rgba(26,26,46,0.5); }
 .spp-hdr-count {
     font-size: 11px; font-weight: 800;
-    background: rgba(108,92,231,0.12); color: #6c5ce7;
+    background: rgba(108,92,231,0.12); color: var(--color-primary);
     padding: 5px 13px; border-radius: 20px; white-space: nowrap;
 }
 
@@ -88,7 +88,7 @@
     display: flex; align-items: center; gap: 6px;
     background: rgba(108,92,231,0.25);
     border: 1px solid rgba(108,92,231,0.4);
-    color: #a29bfe;
+    color: var(--color-primary-light);
     padding: 5px 12px; border-radius: 8px;
     font-size: 11px; font-weight: 700;
     cursor: pointer; transition: all .18s; flex-shrink: 0; white-space: nowrap;
@@ -156,7 +156,7 @@
 }
 .spp-card-openbtn {
     display: flex; align-items: center; gap: 6px;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     color: white; border: none;
     padding: 8px 16px; border-radius: 10px;
     font-size: 12px; font-weight: 700;
@@ -293,8 +293,8 @@
 }
 .spp-cbtn svg { width: 15px; height: 15px; }
 .spp-cbtn:hover { background: rgba(255,255,255,0.12); color: white; transform: scale(1.06); }
-.spp-cbtn--full:hover { background: rgba(108,92,231,0.3); border-color: rgba(108,92,231,0.5); color: #a29bfe; }
-.spp-cbtn--active { background: rgba(108,92,231,0.35) !important; border-color: rgba(108,92,231,0.6) !important; color: #a29bfe !important; }
+.spp-cbtn--full:hover { background: rgba(108,92,231,0.3); border-color: rgba(108,92,231,0.5); color: var(--color-primary-light); }
+.spp-cbtn--active { background: rgba(108,92,231,0.35) !important; border-color: rgba(108,92,231,0.6) !important; color: var(--color-primary-light) !important; }
 .spp-cbtn--close {
     background: rgba(255,95,87,0.12); border-color: rgba(255,95,87,0.25); color: #ff7675;
 }

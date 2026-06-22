@@ -1,11 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 /* ═══════════════════════════════════════════════
    TOKENS
 ═══════════════════════════════════════════════ */
 :root {
-    --purple:      #6c5ce7;
-    --purple-lt:   #a29bfe;
+    --purple:      var(--color-primary);
+    --purple-lt:   var(--color-primary-light);
     --purple-bg:   rgba(108,92,231,0.08);
     --purple-glow: rgba(108,92,231,0.22);
     --green:       #00b894;
@@ -96,7 +95,7 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     animation: slpFade 0.35s ease both;
     padding-bottom: 48px;
     color: var(--ink);
@@ -134,7 +133,7 @@
 .slp-bc-btn {
     background: none; border: none;
     color: var(--ink-60); cursor: pointer;
-    font-size: 13px; font-family: 'Inter', sans-serif;
+    font-size: 13px; font-family: var(--font-ui);
     padding: 4px 8px; border-radius: var(--r-sm);
     transition: var(--t-mid); font-weight: 500;
 }
@@ -150,7 +149,7 @@
     background: var(--surface); color: var(--ink);
     font-size: 13px; font-weight: 600;
     cursor: pointer; transition: var(--t-mid);
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
 }
 .slp-nav-btn:hover:not(:disabled) { border-color: var(--purple); color: var(--purple); background: var(--purple-bg); }
 .slp-nav-btn:disabled { opacity: 0.28; cursor: not-allowed; }
@@ -160,7 +159,7 @@
     border: 1.5px solid rgba(255,118,117,0.3);
     background: rgba(255,118,117,0.06);
     color: var(--red); font-size: 13px; font-weight: 700;
-    cursor: pointer; font-family: 'Inter', sans-serif;
+    cursor: pointer; font-family: var(--font-ui);
     transition: var(--t-mid); white-space: nowrap;
 }
 .slp-exit-btn:hover { background: rgba(255,118,117,0.13); border-color: rgba(255,118,117,0.5); }
@@ -226,7 +225,7 @@
     color: white; font-size: 14px; font-weight: 700;
     cursor: pointer; transition: var(--t-mid);
     box-shadow: 0 4px 16px var(--purple-glow);
-    font-family: 'Inter', sans-serif; white-space: nowrap;
+    font-family: var(--font-ui); white-space: nowrap;
 }
 .slp-complete-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 24px var(--purple-glow); }
 .slp-complete-btn:active { transform: scale(0.97); }
@@ -389,7 +388,7 @@
     color: rgba(255,255,255,0.55); border-radius: var(--r-sm);
     padding: 5px 13px; font-size: 11px; font-weight: 700;
     cursor: pointer; transition: var(--t-fast);
-    font-family: 'Inter', sans-serif; white-space: nowrap;
+    font-family: var(--font-ui); white-space: nowrap;
 }
 .slp-code-copy:hover { background: rgba(255,255,255,0.14); color: white; }
 .slp-code-block {
@@ -468,7 +467,7 @@
     color: white; border: none; padding: 10px 20px;
     border-radius: var(--r-md); font-size: 13px; font-weight: 700;
     cursor: pointer; transition: var(--t-mid);
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
 }
 .slp-file-dl-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px var(--purple-glow); }
@@ -513,7 +512,7 @@
     display: flex; align-items: center; gap: 12px;
     padding: 13px 16px; background: transparent;
     border: none; cursor: pointer;
-    font-family: 'Inter', sans-serif; text-align: left;
+    font-family: var(--font-ui); text-align: left;
     transition: var(--t-mid); position: relative;
 }
 .slp-method-btn:hover { background: rgba(108,92,231,0.05); }
@@ -981,7 +980,7 @@
 }
 .slp-feedback-title {
     margin: 0 0 4px; font-size: 16px; font-weight: 700;
-    color: var(--ink); font-family: 'Inter', sans-serif;
+    color: var(--ink); font-family: var(--font-ui);
 }
 .slp-feedback-sub {
     margin: 0; font-size: 13px; color: var(--ink-60); line-height: 1.5;
@@ -1005,14 +1004,14 @@
 .slp-feedback-star-label {
     margin-left: 10px;
     font-size: 13px; color: var(--ink-60); font-weight: 600;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
 }
 .slp-feedback-comment {
     width: 100%; box-sizing: border-box;
     padding: 12px 14px; border-radius: var(--r-md, 12px);
     border: 1.5px solid var(--ink-12); background: var(--surface);
     font-size: 14px; line-height: 1.55; color: var(--ink);
-    font-family: 'Inter', sans-serif; resize: vertical;
+    font-family: var(--font-ui); resize: vertical;
     transition: border-color 150ms ease, box-shadow 150ms ease;
     color-scheme: light dark;
 }
@@ -1029,7 +1028,7 @@
     background: linear-gradient(135deg, var(--purple), var(--purple-lt));
     color: #fff; border: none;
     font-size: 14px; font-weight: 700; cursor: pointer;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     transition: transform 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
 }
 .slp-feedback-submit:hover:not(:disabled) {
@@ -1039,11 +1038,11 @@
 .slp-feedback-submit:disabled { opacity: 0.45; cursor: not-allowed; }
 .slp-feedback-saved {
     font-size: 13px; font-weight: 600; color: var(--green);
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
 }
 .slp-feedback-error {
     font-size: 13px; font-weight: 600; color: #d63031;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
 }
 
 /* Read-only "thank you" state shown after submission. */
@@ -1073,7 +1072,7 @@
     font-size: 14px;
     line-height: 1.55;
     color: var(--ink);
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     white-space: pre-wrap;
     word-wrap: break-word;
 }
@@ -1101,7 +1100,7 @@
 .slp-bottom-btn {
     padding: 13px 28px; border-radius: var(--r-lg);
     font-size: 14px; font-weight: 700; cursor: pointer;
-    transition: var(--t-mid); font-family: 'Inter', sans-serif; border: none;
+    transition: var(--t-mid); font-family: var(--font-ui); border: none;
 }
 .slp-bottom-btn.prev { background: var(--surface); color: var(--ink); border: 1.5px solid var(--ink-12); }
 .slp-bottom-btn.prev:hover:not(:disabled) { background: var(--ink-06); border-color: rgba(26,26,46,0.2); }
@@ -1152,7 +1151,7 @@
 .slp-exit-opt {
     width: 100%; padding: 14px; border-radius: var(--r-lg); border: none;
     font-size: 14px; font-weight: 700; cursor: pointer;
-    font-family: 'Inter', sans-serif; transition: var(--t-mid);
+    font-family: var(--font-ui); transition: var(--t-mid);
 }
 .slp-exit-opt.course {
     background: linear-gradient(135deg, var(--purple), var(--purple-lt));
@@ -1164,7 +1163,7 @@
 .slp-exit-cancel {
     background: none; border: none; color: var(--ink-60);
     font-size: 13px; font-weight: 600; cursor: pointer;
-    font-family: 'Inter', sans-serif; padding: 6px; transition: var(--t-fast);
+    font-family: var(--font-ui); padding: 6px; transition: var(--t-fast);
 }
 .slp-exit-cancel:hover { color: var(--ink-60); }
 
@@ -1248,12 +1247,12 @@
 .slp-input-wrap input {
     flex: 1; border: none; outline: none; background: transparent;
     padding: 11px 14px 11px 0;
-    font-size: 14px; font-family: 'Inter', sans-serif; color: var(--ink);
+    font-size: 14px; font-family: var(--font-ui); color: var(--ink);
 }
 
 .slp-modal-field textarea {
     padding: 12px 16px; border: 1.5px solid var(--ink-12); border-radius: var(--r-lg);
-    font-size: 14px; font-family: 'Inter', sans-serif; outline: none;
+    font-size: 14px; font-family: var(--font-ui); outline: none;
     color: var(--ink); background: var(--surface-2);
     resize: vertical; transition: var(--t-mid); line-height: 1.6;
 }

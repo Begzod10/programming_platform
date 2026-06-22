@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 /* ====================================================
    PUBLIC PROFILE — /u/<username>
@@ -14,8 +13,8 @@
     --pp-text-md: rgba(15, 15, 35, 0.62);
     --pp-text-lo: rgba(15, 15, 35, 0.38);
     --pp-border: rgba(15, 15, 35, 0.07);
-    --pp-accent: #6c5ce7;
-    --pp-accent-2: #a29bfe;
+    --pp-accent: var(--color-primary);
+    --pp-accent-2: var(--color-primary-light);
     --pp-gold: #f3a712;
     --pp-green: #00b894;
     --pp-orange: #ff8a00;
@@ -23,7 +22,7 @@
     min-height: 100vh;
     background: var(--pp-bg);
     color: var(--pp-text-hi);
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     position: relative;
     overflow-x: hidden;
 }
@@ -83,13 +82,13 @@
     color: #fff;
     display: grid;
     place-items: center;
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 800;
     font-size: 16px;
     box-shadow: 0 8px 18px -6px rgba(91, 103, 255, 0.45);
 }
 .pp-brand__text {
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 700;
     font-size: 17px;
 }
@@ -151,7 +150,7 @@
     place-items: center;
     overflow: visible;
     box-shadow: 0 12px 32px -10px rgba(108, 92, 231, 0.55);
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 800;
     font-size: 38px;
 }
@@ -189,7 +188,7 @@
     margin-bottom: 4px;
 }
 .pp-hero__name {
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 800;
     font-size: clamp(24px, 3.4vw, 38px);
     line-height: 1.1;
@@ -229,7 +228,7 @@
     border: 1px solid var(--pp-text-hi);
     padding: 11px 18px;
     border-radius: 12px;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 700;
     font-size: 13.5px;
     cursor: pointer;
@@ -270,7 +269,7 @@
     text-align: left;
 }
 .pp-stat__value {
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 800;
     font-size: 26px;
     letter-spacing: -0.5px;
@@ -298,7 +297,7 @@
     padding: 0 24px;
 }
 .pp-section__title {
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 700;
     font-size: 18px;
     letter-spacing: -0.2px;
@@ -468,7 +467,7 @@
     box-shadow: 0 12px 32px -16px rgba(15, 15, 35, 0.15);
 }
 .pp-empty__big {
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 800;
     font-size: 72px;
     color: var(--pp-accent);
@@ -476,7 +475,7 @@
     margin-bottom: 12px;
 }
 .pp-empty__title {
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 700;
     font-size: 22px;
     margin-bottom: 6px;

@@ -39,7 +39,7 @@
 }
 .lvc-progress-bar {
     height: 100%;
-    background: #6c5ce7;
+    background: var(--color-primary);
     border-radius: 4px;
     transition: width 0.3s ease;
 }
@@ -93,7 +93,7 @@
 }
 .lvc-btn:hover { opacity: 0.85; }
 .lvc-btn--know { background: #dcfce7; color: #16a34a; }
-.lvc-btn--unknown { background: #ede9ff; color: #6c5ce7; }
+.lvc-btn--unknown { background: #ede9ff; color: var(--color-primary); }
 
 .lvc-status-icon {
     font-size: 13px;
@@ -101,4 +101,4 @@
     font-weight: 700;
     margin-left: auto;
 }
-.lvc-status-icon--added { color: #6c5ce7; font-weight: 400; }
+.lvc-status-icon--added { color: var(--color-primary); font-weight: 400; }

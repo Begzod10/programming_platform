@@ -28,7 +28,7 @@
     font-size: 11px;
     font-weight: 700;
     background: rgba(108, 92, 231, 0.1);
-    color: #6c5ce7;
+    color: var(--color-primary);
     padding: 2px 9px;
     border-radius: 20px;
 }
@@ -92,7 +92,7 @@
     font-size: 11px;
     font-weight: 600;
     background: rgba(108, 92, 231, 0.25);
-    color: #a29bfe;
+    color: var(--color-primary-light);
     padding: 2px 8px;
     border-radius: 6px;
     flex-shrink: 0;

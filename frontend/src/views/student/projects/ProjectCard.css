@@ -11,7 +11,7 @@
     transition: all 0.25s;
     position: relative;
     overflow: hidden;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
 }
 
 .project-card:hover {
@@ -53,7 +53,7 @@
 .points-badge {
     font-size: 12px;
     font-weight: 700;
-    color: #6c5ce7;
+    color: var(--color-primary);
 }
 
 /* ===== GRADE ===== */
@@ -64,7 +64,7 @@
     font-weight: 700;
 }
 .grade-badge.grade-A { background: linear-gradient(135deg, #00b894, #00cec9); color: #fff; }
-.grade-badge.grade-B { background: linear-gradient(135deg, #6c5ce7, #a29bfe); color: #fff; }
+.grade-badge.grade-B { background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light)); color: #fff; }
 .grade-badge.grade-C { background: linear-gradient(135deg, #fdcb6e, #f39c12); color: #1a1a2e; }
 .grade-badge.grade-D { background: linear-gradient(135deg, #ff7675, #d63031); color: #fff; }
 
@@ -77,7 +77,7 @@
 
 .tech-tag {
     background: rgba(108, 92, 231, 0.08);
-    color: #6c5ce7;
+    color: var(--color-primary);
     border-radius: 8px;
     padding: 3px 10px;
     font-size: 11px;
@@ -111,7 +111,7 @@
 
 /* ===== DETAILS BUTTON ===== */
 .details-btn {
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     color: white;
     border: none;
     padding: 6px 16px;
@@ -121,7 +121,7 @@
     cursor: pointer;
     transition: all 0.2s;
     box-shadow: 0 3px 10px rgba(108, 92, 231, 0.25);
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
 }
 
 .details-btn:hover {

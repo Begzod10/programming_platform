@@ -3,7 +3,7 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     animation: lpFadeIn 0.3s ease;
     min-height: 0;
     overflow-y: auto;
@@ -55,18 +55,18 @@
     border-radius: 11px;
     border: 1.5px solid rgba(108, 92, 231, 0.3);
     background: rgba(108, 92, 231, 0.07);
-    color: #6c5ce7;
+    color: var(--color-primary);
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     white-space: nowrap;
 }
 
 .lp-edit-btn:hover {
     background: rgba(108, 92, 231, 0.14);
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     transform: translateY(-1px);
 }
 
@@ -83,7 +83,7 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     white-space: nowrap;
 }
 
@@ -108,13 +108,13 @@
     color: rgba(26, 26, 46, 0.45);
     cursor: pointer;
     font-size: 13px;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     padding: 0;
     transition: color 0.2s;
     white-space: nowrap;
 }
 
-.lp-breadcrumb-btn:hover { color: #6c5ce7; }
+.lp-breadcrumb-btn:hover { color: var(--color-primary); }
 
 .lp-breadcrumb-sep {
     color: rgba(26, 26, 46, 0.25);
@@ -148,13 +148,13 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     white-space: nowrap;
 }
 
 .lp-nav-btn:hover {
-    border-color: #6c5ce7;
-    color: #6c5ce7;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
     background: rgba(108, 92, 231, 0.05);
 }
 
@@ -178,7 +178,7 @@
     font-size: 11px;
     font-weight: 700;
     background: rgba(108, 92, 231, 0.1);
-    color: #6c5ce7;
+    color: var(--color-primary);
     text-transform: uppercase;
     letter-spacing: 0.07em;
     margin-bottom: 10px;
@@ -257,7 +257,7 @@
 /* Inline code */
 .lp-text-content code {
     background: rgba(108,92,231,0.10);
-    color: #6c5ce7;
+    color: var(--color-primary);
     border-radius: 5px;
     padding: 2px 7px;
     font-family: 'Fira Code','Courier New',monospace;
@@ -291,7 +291,7 @@
     border-radius: 10px; overflow: hidden; border: 1px solid rgba(26,26,46,0.12);
 }
 .lp-text-content th {
-    background: rgba(108,92,231,0.08); color: #6c5ce7;
+    background: rgba(108,92,231,0.08); color: var(--color-primary);
     padding: 10px 14px; text-align: left;
     border: 1px solid rgba(108,92,231,0.14);
     font-size: 13px; font-weight: 700;
@@ -330,7 +330,7 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
 }
 
 .lp-code-copy-btn:hover {
@@ -376,7 +376,7 @@
     margin-top: 12px;
     font-size: 13px;
     font-weight: 600;
-    color: #6c5ce7;
+    color: var(--color-primary);
     text-decoration: none;
     transition: opacity 0.2s;
 }
@@ -432,7 +432,7 @@
 }
 
 .lp-file-download-btn {
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     color: white;
     border: none;
     padding: 9px 20px;
@@ -441,7 +441,7 @@
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     flex-shrink: 0;
 }
 
@@ -530,7 +530,7 @@
 
 .lp-project-tag {
     background: rgba(108, 92, 231, 0.09);
-    color: #6c5ce7;
+    color: var(--color-primary);
     border-radius: 8px;
     padding: 3px 10px;
     font-size: 12px;
@@ -667,7 +667,7 @@
     border-radius: 20px;
     font-size: 12px;
     font-weight: 700;
-    color: #6c5ce7;
+    color: var(--color-primary);
     align-self: flex-start;
 }
 
@@ -684,7 +684,7 @@
     border-radius: 10px; padding: 10px 14px;
     font-size: 14px; resize: vertical;
     background: #fafafa; color: rgba(26,26,46,0.3);
-    cursor: not-allowed; font-family: 'Inter', sans-serif;
+    cursor: not-allowed; font-family: var(--font-ui);
     box-sizing: border-box;
 }
 
@@ -703,13 +703,13 @@
 .lp-mashq-word.drag_drop {
     background: white;
     border: 1.5px solid rgba(108,92,231,0.3);
-    color: #6c5ce7;
+    color: var(--color-primary);
     box-shadow: 0 2px 6px rgba(108,92,231,0.1);
 }
 .lp-mashq-word.sentence_builder {
     background: rgba(108,92,231,0.08);
     border: 1.5px solid rgba(108,92,231,0.2);
-    color: #6c5ce7;
+    color: var(--color-primary);
 }
 
 .lp-mashq-answer-preview {

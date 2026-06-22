@@ -1,11 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 /* ================================================================
    ROOT
    ================================================================ */
 .tsr-root {
     --accent:          #6C5CE7;
-    --accent-2:        #a29bfe;
+    --accent-2:        var(--color-primary-light);
     --accent-soft:     rgba(108,92,231,0.10);
     --accent-glow:     rgba(108,92,231,0.22);
     --gold:            #FFD93D;
@@ -32,7 +31,7 @@
     --chip-best-bc:    rgba(253,163,20,0.28);
     --chip-best-c:     #996200;
 
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -122,7 +121,7 @@
     50%     { transform: translateY(-4px) rotate( 4deg); filter: drop-shadow(0 0 20px rgba(255,217,61,0.75)); }
 }
 .tsr-title {
-    font-family: 'Nunito', sans-serif;
+    font-family: var(--font-ui);
     font-size: 22px; font-weight: 900;
     color: var(--text-white-hi);
     margin: 0; letter-spacing: -0.3px;
@@ -149,7 +148,7 @@
     border: 1.5px solid rgba(255,255,255,0.12);
     background: rgba(255,255,255,0.07);
     color: #fff;
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     font-size: 13px; font-weight: 500;
     outline: none; width: 220px;
     transition: all 0.25s;
@@ -222,7 +221,7 @@
     text-align: center;
 }
 .tsr-podium-pts {
-    font-family: 'Nunito', sans-serif;
+    font-family: var(--font-ui);
     font-size: 15px; font-weight: 800;
     color: var(--text-hi); margin: 0; text-align: center;
 }
@@ -269,7 +268,7 @@
     animation: medalBounce 2s ease-in-out infinite;
 }
 @keyframes medalBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
-.tsr-podium-rank-num { font-family:'Nunito',sans-serif; font-size:20px; font-weight:900; color:rgba(0,0,0,0.18); }
+.tsr-podium-rank-num { font-family:var(--font-ui); font-size:20px; font-weight:900; color:rgba(0,0,0,0.18); }
 
 /* ================================================================
    AVATAR
@@ -285,7 +284,7 @@
 .tsr-avatar span {
     width:100%; height:100%;
     display:flex; align-items:center; justify-content:center;
-    font-family:'Nunito',sans-serif;
+    font-family:var(--font-ui);
     font-size:14px; font-weight:800;
     color:#fff; letter-spacing:-0.5px;
 }
@@ -328,7 +327,7 @@
 .tsr-item:hover .tsr-item-bar { opacity: 1; }
 
 .tsr-item-rank {
-    font-family:'Nunito',sans-serif;
+    font-family:var(--font-ui);
     font-size:15px; font-weight:800;
     color:var(--text-lo);
     min-width:28px; text-align:center; flex-shrink:0;
@@ -362,7 +361,7 @@
 .tsr-item:hover .tsr-item-name { color:var(--accent); }
 
 .tsr-item-pts {
-    font-family:'Nunito',sans-serif;
+    font-family:var(--font-ui);
     font-size:15px; font-weight:800;
     color:var(--accent); white-space:nowrap; flex-shrink:0;
 }
@@ -454,7 +453,7 @@
     border-radius:12px;
     border:1.5px solid rgba(220,80,80,0.25);
     background:transparent; color:rgba(220,80,80,0.85);
-    font-family:'Space Grotesk',sans-serif;
+    font-family:var(--font-ui);
     font-size:13px; font-weight:600; cursor:pointer;
     transition:all .22s;
 }
@@ -472,7 +471,7 @@
     width:36px; height:36px; border-radius:10px;
     border:1.5px solid var(--border-md);
     background:var(--surface); color:var(--text-md);
-    font-family:'Space Grotesk',sans-serif;
+    font-family:var(--font-ui);
     font-size:13px; font-weight:700; cursor:pointer;
     display:flex; align-items:center; justify-content:center;
     transition:all .2s;

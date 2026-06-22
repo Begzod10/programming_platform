@@ -14,7 +14,7 @@
     color: #ffd9b8;
     position: relative;
     z-index: 1;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     animation: streakIn 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes streakIn {

@@ -1,17 +1,16 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 * { box-sizing: border-box; }
 body {
     margin: 0;
-    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-family: var(--font-ui);
 }
 
 /* ===== MAIN LAYOUT ===== */
 .main-layout {
     height: 100vh;
     display: flex;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    font-family: 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg-app-gradient);
+    font-family: var(--font-ui);
     overflow: hidden;
 }
 
@@ -109,10 +108,10 @@ body {
 
 /* ===== BUTTONS ===== */
 .add-project-btn {
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     color: white; border: none;
     padding: 10px 20px; border-radius: 12px;
-    font-weight: 700; font-family: 'Inter', sans-serif;
+    font-weight: 700; font-family: var(--font-ui);
     cursor: pointer; transition: all 0.25s;
     box-shadow: 0 4px 15px rgba(108,92,231,0.4);
     white-space: nowrap;

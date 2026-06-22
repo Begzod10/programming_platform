@@ -3,7 +3,6 @@
    Refined & Polished Edition
 ═══════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -14,7 +13,7 @@
     height: 100%;
     min-height: 0;
     background: #f0f0f5;
-    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-family: var(--font-ui);
     animation: lepFadeIn 0.28s cubic-bezier(0.16,1,0.3,1);
 }
 
@@ -130,7 +129,7 @@
     padding: 10px 22px;
     border-radius: 11px;
     border: none;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     color: #fff;
     font-size: 13px;
     font-weight: 700;
@@ -261,7 +260,7 @@
 
 .lep-field-input:focus,
 .lep-field-select:focus {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(108,92,231,0.10);
 }
 
@@ -320,8 +319,8 @@
 }
 
 .lep-type-btn:hover {
-    border-color: #6c5ce7;
-    color: #6c5ce7;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
     background: rgba(108,92,231,0.04);
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(108,92,231,0.15);
@@ -396,7 +395,7 @@
     opacity: 0.10;
     line-height: 1;
     margin-bottom: 4px;
-    color: #6c5ce7;
+    color: var(--color-primary);
 }
 
 .lep-empty h3 {
@@ -437,8 +436,8 @@
 }
 
 .lep-empty-type-btn:hover {
-    border-color: #6c5ce7;
-    color: #6c5ce7;
+    border-color: var(--color-primary);
+    color: var(--color-primary);
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(108,92,231,0.15);
 }
@@ -525,7 +524,7 @@
     height: 22px;
     border-radius: 7px;
     background: rgba(108,92,231,0.10);
-    color: #6c5ce7;
+    color: var(--color-primary);
     font-size: 10.5px;
     font-weight: 800;
     display: flex;
@@ -546,7 +545,7 @@
     border-radius: 20px;
     font-size: 10.5px;
     font-weight: 800;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     color: #fff;
     letter-spacing: 0.03em;
     flex-shrink: 0;
@@ -606,7 +605,7 @@
 }
 
 .lep-section-ctrl:hover:not(:disabled) {
-    color: #6c5ce7;
+    color: var(--color-primary);
     background: rgba(108,92,231,0.08);
     border-color: rgba(108,92,231,0.15);
 }
@@ -663,7 +662,7 @@
 }
 
 .lep-input:focus {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(108,92,231,0.10);
     background: #fff;
 }
@@ -692,7 +691,7 @@
 }
 
 .lep-upload-zone:hover {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     background: rgba(108,92,231,0.04);
     transform: translateY(-1px);
 }
@@ -783,7 +782,7 @@
 }
 
 .lep-rte-wrap:focus-within {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(108,92,231,0.10);
 }
 
@@ -826,7 +825,7 @@
 
 .lep-rte-btn:hover {
     background: rgba(108,92,231,0.10);
-    color: #6c5ce7;
+    color: var(--color-primary);
 }
 
 .lep-rte-select {
@@ -879,7 +878,7 @@
     min-height: 180px;
     background: #fff;
     padding: 16px 18px;
-    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-family: var(--font-ui);
     font-size: 14px;
     color: #1a1a2e;
     outline: none;
@@ -921,7 +920,7 @@
     font-size: 12px;
     font-weight: 600;
     outline: none;
-    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-family: var(--font-mono);
     cursor: pointer;
     transition: border-color 0.15s;
 }
@@ -936,7 +935,7 @@
     border: none;
     border-radius: 0 0 12px 12px;
     padding: 16px 18px;
-    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    font-family: var(--font-mono);
     font-size: 13px;
     color: #a8ff78;
     resize: vertical;
@@ -968,7 +967,7 @@
     font-size: 11.5px;
     font-weight: 700;
     background: rgba(108,92,231,0.10);
-    color: #6c5ce7;
+    color: var(--color-primary);
     border: 1px solid rgba(108,92,231,0.18);
     letter-spacing: 0.01em;
 }
@@ -1005,7 +1004,7 @@
     border-radius: 9px;
     border: 1.5px solid rgba(108,92,231,0.25);
     background: rgba(108,92,231,0.08);
-    color: #6c5ce7;
+    color: var(--color-primary);
     font-size: 12.5px;
     font-weight: 700;
     cursor: pointer;
@@ -1015,9 +1014,9 @@
 }
 
 .lep-exercise-add-btn:hover {
-    background: #6c5ce7;
+    background: var(--color-primary);
     color: #fff;
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     box-shadow: 0 4px 12px rgba(108,92,231,0.28);
     transform: translateY(-1px);
 }
@@ -1093,7 +1092,7 @@
     height: 22px;
     border-radius: 7px;
     background: rgba(108,92,231,0.12);
-    color: #6c5ce7;
+    color: var(--color-primary);
     font-size: 10.5px;
     font-weight: 800;
     display: flex;
@@ -1124,7 +1123,7 @@
 
 .lep-ex-type-sel:focus,
 .lep-ex-diff-sel:focus {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 2px rgba(108,92,231,0.10);
 }
 
@@ -1140,7 +1139,7 @@
 }
 
 .lep-ex-pts-wrap:focus-within {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 2px rgba(108,92,231,0.10);
 }
 
@@ -1187,7 +1186,7 @@
 
 /* Подсвечиваем кнопку при наведении фирменным фиолетовым */
 .lep-ex-pts-btn:hover {
-    color: #6c5ce7;
+    color: var(--color-primary);
 }
 
 /* Легкий клик-эффект */
@@ -1223,7 +1222,7 @@
 }
 
 .lep-ex-ctrl:hover:not(:disabled) {
-    color: #6c5ce7;
+    color: var(--color-primary);
     background: rgba(108,92,231,0.09);
     border-color: rgba(108,92,231,0.15);
 }
@@ -1302,7 +1301,7 @@
 }
 
 .lep-ex-input:focus {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(108,92,231,0.09);
 }
 
@@ -1325,7 +1324,7 @@
 }
 
 .lep-ex-textarea:focus {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(108,92,231,0.09);
 }
 
@@ -1345,7 +1344,7 @@
 .lep-ex-check input[type="checkbox"] {
     width: 16px;
     height: 16px;
-    accent-color: #6c5ce7;
+    accent-color: var(--color-primary);
     cursor: pointer;
     border-radius: 4px;
     flex-shrink: 0;

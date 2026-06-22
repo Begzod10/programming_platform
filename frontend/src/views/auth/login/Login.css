@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
 
 * { box-sizing: border-box; }
@@ -9,8 +8,8 @@ body { margin: 0; }
     display: flex;
     justify-content: center;
     align-items: center;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    font-family: 'Inter', 'Segoe UI', sans-serif;
+    background: var(--bg-app-gradient);
+    font-family: var(--font-ui);
     padding: 20px;
 }
 
@@ -71,7 +70,7 @@ body { margin: 0; }
     border: 1.5px solid rgba(26,26,46,0.1);
     outline: none;
     font-size: 15px;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     background: rgba(26,26,46,0.03);
     color: #1a1a2e;
     transition: all 0.2s;
@@ -79,7 +78,7 @@ body { margin: 0; }
 }
 
 .login-card input:focus {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     background: rgba(108,92,231,0.04);
     box-shadow: 0 0 0 3px rgba(108,92,231,0.1);
 }
@@ -115,9 +114,9 @@ body { margin: 0; }
     border: none;
     font-size: 16px;
     font-weight: 700;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     color: #fff;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     cursor: pointer;
     transition: all 0.2s;
     box-shadow: 0 6px 20px rgba(108,92,231,0.4);
@@ -163,10 +162,10 @@ body { margin: 0; }
     border-radius: 14px;
     border: 2px solid rgba(108,92,231,0.3);
     background: transparent;
-    color: #6c5ce7;
+    color: var(--color-primary);
     font-size: 14px;
     font-weight: 700;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     cursor: pointer;
     transition: all 0.2s;
     user-select: none;
@@ -176,7 +175,7 @@ body { margin: 0; }
 
 .toggle-text:hover {
     background: rgba(108,92,231,0.08);
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     transform: translateY(-1px);
     box-shadow: 0 4px 16px rgba(108,92,231,0.18);
 }
@@ -252,11 +251,11 @@ body { margin: 0; }
 }
 
 .password-toggle-icon:hover {
-    color: #6c5ce7;
+    color: var(--color-primary);
 }
 .password-toggle-icon:focus-visible {
     outline: none;
-    color: #6c5ce7;
+    color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.25);
 }
 

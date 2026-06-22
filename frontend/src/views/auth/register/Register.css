@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
 
 .register-card {
@@ -11,7 +10,7 @@
     text-align: center;
     animation: fadeIn 0.5s ease;
     color: #1a1a2e;
-    font-family: 'Inter', 'Segoe UI', sans-serif;
+    font-family: var(--font-ui);
 }
 
 @keyframes fadeIn {
@@ -63,13 +62,13 @@
     background: rgba(26,26,46,0.03);
     color: #1a1a2e;
     font-size: 14px;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     transition: all 0.2s;
     display: block;
 }
 
 .register-card input:focus {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     background: rgba(108,92,231,0.04);
     box-shadow: 0 0 0 3px rgba(108,92,231,0.1);
 }
@@ -119,9 +118,9 @@
     border: none;
     font-size: 15px;
     font-weight: 700;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     color: white;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     cursor: pointer;
     transition: all 0.2s;
     box-shadow: 0 6px 20px rgba(108,92,231,0.4);
@@ -145,10 +144,10 @@
     border-radius: 14px;
     border: 2px solid rgba(108,92,231,0.3);
     background: transparent;
-    color: #6c5ce7;
+    color: var(--color-primary);
     font-size: 14px;
     font-weight: 700;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     cursor: pointer;
     transition: all 0.2s;
     user-select: none;
@@ -156,7 +155,7 @@
 }
 .toggle-text:hover {
     background: rgba(108,92,231,0.08);
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     transform: translateY(-1px);
     box-shadow: 0 4px 16px rgba(108,92,231,0.18);
 }
@@ -216,11 +215,11 @@
 }
 
 .password-toggle-icon:hover {
-    color: #6c5ce7;
+    color: var(--color-primary);
 }
 .password-toggle-icon:focus-visible {
     outline: none;
-    color: #6c5ce7;
+    color: var(--color-primary);
     box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.25);
 }
 

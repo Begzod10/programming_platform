@@ -1,0 +1,32 @@
+/* ── Global design tokens ── */
+:root {
+  /* Brand */
+  --color-primary:       #6c5ce7;
+  --color-primary-mid:   #7f6ff0;
+  --color-primary-light: #a29bfe;
+  --color-primary-pale:  rgba(108, 92, 231, 0.08);
+
+  /* Surfaces / ink */
+  --color-ink:           #1a1833;
+  --color-dark:          #13111f;
+  --bg-app-gradient:     var(--bg-app-gradient);
+  --bg-page:             #f5f4fc;
+
+  /* Semantic */
+  --color-success:       #2ec4a9;
+  --color-danger:        #e05260;
+
+  /* Text-on-light (AA-safe) */
+  --text-strong:         rgba(26, 24, 51, 0.92);
+  --text-muted:          rgba(26, 24, 51, 0.62);
+
+  /* Radius / shadow */
+  --r-card:              16px;
+  --r-btn:               10px;
+  --shadow-card:         0 2px 14px rgba(26, 24, 51, 0.07);
+  --shadow-brand:        0 4px 24px rgba(108, 92, 231, 0.13);
+
+  /* Type */
+  --font-ui:             'Inter', 'Segoe UI', sans-serif;
+  --font-mono:           'JetBrains Mono', monospace;
+}

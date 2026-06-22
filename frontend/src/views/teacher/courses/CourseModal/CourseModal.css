@@ -3,7 +3,7 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     animation: cdpFadeIn 0.35s ease;
 }
 
@@ -49,7 +49,7 @@
     cursor: pointer;
     transition: all 0.25s;
     box-shadow: 0 4px 14px rgba(0, 184, 148, 0.35);
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     white-space: nowrap;
     animation: cdpSavePop 0.3s cubic-bezier(0.34,1.56,0.64,1);
 }
@@ -103,7 +103,7 @@
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     white-space: nowrap;
 }
 .cdp-back-btn:hover {
@@ -112,7 +112,7 @@
 }
 
 .cdp-add-lesson-btn {
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     color: white;
     border: none;
     padding: 11px 22px;
@@ -122,7 +122,7 @@
     cursor: pointer;
     transition: all 0.25s;
     box-shadow: 0 4px 14px rgba(108, 92, 231, 0.3);
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     white-space: nowrap;
 }
 .cdp-add-lesson-btn:hover {
@@ -255,7 +255,7 @@
 .cdp-chapter-name {
     font-size: 13px;
     font-weight: 700;
-    color: #6c5ce7;
+    color: var(--color-primary);
     text-transform: uppercase;
     letter-spacing: 0.08em;
     padding: 4px 14px;
@@ -313,7 +313,7 @@
 
 /* Drop target */
 .cdp-lesson-card.cdp-lesson-drop-over {
-    border-color: #6c5ce7;
+    border-color: var(--color-primary);
     box-shadow:
         0 0 0 3px rgba(108,92,231,0.2),
         0 16px 40px rgba(108,92,231,0.15);
@@ -327,7 +327,7 @@
     left: 12px;
     right: 12px;
     height: 3px;
-    background: linear-gradient(90deg, transparent, #6c5ce7, transparent);
+    background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
     border-radius: 3px;
     animation: cdpDropPulse 0.55s ease-in-out infinite alternate;
 }
@@ -373,7 +373,7 @@
 }
 .cdp-drag-dots {
     font-size: 16px;
-    color: #6c5ce7;
+    color: var(--color-primary);
     line-height: 1;
     user-select: none;
 }
@@ -437,7 +437,7 @@
     align-items: center;
     justify-content: center;
     font-size: 18px;
-    color: #6c5ce7;
+    color: var(--color-primary);
     padding-left: 3px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.25);
     transition: transform 0.2s;

@@ -1,11 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 /* ================================================================
    ROOT
    ================================================================ */
 .lb {
     --accent:        #6C5CE7;
-    --accent-2:      #a29bfe;
+    --accent-2:      var(--color-primary-light);
     --accent-soft:   rgba(108,92,231,0.10);
     --accent-glow:   rgba(108,92,231,0.22);
     --gold:          #FFD93D;
@@ -26,7 +25,7 @@
     --radius:        22px;
     --radius-sm:     12px;
 
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     display: flex;
     flex-direction: column;
     height: 100%;
@@ -82,7 +81,7 @@
     50%      { transform: translateY(-4px) rotate( 4deg); filter: drop-shadow(0 0 20px rgba(255,217,61,0.75)); }
 }
 .lb-title {
-    font-family: 'Nunito', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 900;
     font-size: 22px;
     color: var(--text-white-hi);
@@ -114,7 +113,7 @@
     border: none;
     background: transparent;
     color: var(--text-white-lo);
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
@@ -162,14 +161,14 @@
     text-transform: uppercase; letter-spacing: 0.1em;
 }
 .lb-myrank-pos {
-    font-family: 'Nunito', sans-serif;
+    font-family: var(--font-ui);
     font-size: 22px; font-weight: 900;
     color: var(--accent-2);
     letter-spacing: -0.5px;
 }
 .lb-myrank-right { display: flex; align-items: baseline; gap: 5px; }
 .lb-myrank-pts {
-    font-family: 'Nunito', sans-serif;
+    font-family: var(--font-ui);
     font-size: 22px; font-weight: 900;
     color: var(--accent-2);
 }
@@ -229,7 +228,7 @@
 .lb-podium-slot--empty { opacity: 0.25; }
 
 .lb-podium-name {
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     font-size: 12px;
     font-weight: 600;
     color: var(--text-md);
@@ -241,7 +240,7 @@
     text-align: center;
 }
 .lb-podium-pts {
-    font-family: 'Nunito', sans-serif;
+    font-family: var(--font-ui);
     font-size: 14px;
     font-weight: 800;
     color: var(--text-hi);
@@ -301,7 +300,7 @@
 .lb-avatar span {
     width: 100%; height: 100%;
     display: flex; align-items: center; justify-content: center;
-    font-family: 'Nunito', sans-serif;
+    font-family: var(--font-ui);
     font-size: 14px; font-weight: 800;
     color: #fff; letter-spacing: -0.5px;
 }
@@ -355,7 +354,7 @@
 .lb-item:hover .lb-item-bar { opacity: 1; }
 
 .lb-item-rank {
-    font-family: 'Nunito', sans-serif;
+    font-family: var(--font-ui);
     font-size: 15px;
     font-weight: 800;
     color: var(--text-lo);
@@ -391,7 +390,7 @@
 .lb-item:hover .lb-item-name { color: var(--accent); }
 
 .lb-item-pts {
-    font-family: 'Nunito', sans-serif;
+    font-family: var(--font-ui);
     font-size: 15px;
     font-weight: 800;
     color: var(--accent);
@@ -475,7 +474,7 @@
     border: 1.5px solid rgba(220,80,80,0.25);
     background: transparent;
     color: rgba(220,80,80,0.85);
-    font-family: 'Space Grotesk', sans-serif;
+    font-family: var(--font-ui);
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;

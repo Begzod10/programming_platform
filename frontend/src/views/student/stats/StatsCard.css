@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
 /* ===== STATS CARD ===== */
 .stats-card {
@@ -15,7 +14,7 @@
     transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
     position: relative;
     overflow: hidden;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
 }
 
 .stats-card::before {

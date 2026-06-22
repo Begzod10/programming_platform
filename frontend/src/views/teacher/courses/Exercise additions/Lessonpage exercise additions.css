@@ -32,7 +32,7 @@
 .lp-exercise-bar-count {
     background: rgba(108, 92, 231, 0.08);
     border: 1.5px solid rgba(108, 92, 231, 0.2);
-    color: #6c5ce7;
+    color: var(--color-primary);
 }
 
 .lp-exercise-bar-pts {
@@ -89,7 +89,7 @@
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
     color: white;
     font-size: 12px;
     font-weight: 800;
@@ -107,7 +107,7 @@
     border-radius: 20px;
     font-size: 12px;
     font-weight: 700;
-    color: #6c5ce7;
+    color: var(--color-primary);
     background: rgba(108, 92, 231, 0.1);
     border: 1px solid rgba(108, 92, 231, 0.2);
 }
@@ -169,7 +169,7 @@
     border-radius: 10px;
     padding: 10px 13px;
     font-size: 13px;
-    font-family: 'Inter', sans-serif;
+    font-family: var(--font-ui);
     resize: none;
     background: #f8f8fc;
     color: rgba(26, 26, 46, 0.3);
@@ -185,7 +185,7 @@
     border-radius: 20px;
     font-size: 12px;
     font-weight: 600;
-    color: #6c5ce7;
+    color: var(--color-primary);
     background: rgba(108, 92, 231, 0.06);
     border: 1px solid rgba(108, 92, 231, 0.15);
     align-self: flex-start;
@@ -218,7 +218,7 @@
     height: 26px;
     border-radius: 50%;
     background: rgba(108, 92, 231, 0.09);
-    color: #6c5ce7;
+    color: var(--color-primary);
     font-size: 11px;
     font-weight: 800;
     display: flex;
@@ -242,7 +242,7 @@
     border-radius: 10px;
     background: white;
     border: 1.5px solid rgba(108, 92, 231, 0.25);
-    color: #6c5ce7;
+    color: var(--color-primary);
     font-size: 13px;
     font-weight: 600;
     box-shadow: 0 2px 6px rgba(108, 92, 231, 0.08);
