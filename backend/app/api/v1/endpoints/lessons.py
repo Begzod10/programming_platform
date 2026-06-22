@@ -613,6 +613,12 @@ async def complete_lesson(
     except Exception:
         await db.rollback()
 
+    # Check lesson_count / course_count / points_threshold achievements
+    try:
+        await achievement_service.check_and_award_achievements(db, current_student.id)
+    except Exception:
+        pass
+
     return {
         **result,
         **progress,
