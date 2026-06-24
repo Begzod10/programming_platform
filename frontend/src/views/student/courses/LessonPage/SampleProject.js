@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Code2, Eye, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Code2, Eye, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
 import { API_URL } from '../../../../api/search/base';
 import './SampleProject.css';
 
-const TABS = [
+const WEB_TABS = [
     { key: 'html', label: 'HTML' },
     { key: 'css',  label: 'CSS'  },
     { key: 'js',   label: 'JS'   },
@@ -14,7 +14,6 @@ const SampleProject = ({ lessonId }) => {
     const [loading, setLoading] = useState(true);
     const [tab,     setTab]     = useState('html');
     const [open,    setOpen]    = useState(false);
-    const iframeRef             = useRef(null);
 
     useEffect(() => {
         if (!lessonId) return;
@@ -26,6 +25,8 @@ const SampleProject = ({ lessonId }) => {
 
     useEffect(() => {
         if (!sample) return;
+        if (sample.sample_type === 'python') { setTab('python'); return; }
+        if (sample.sample_type === 'sql')    { setTab('sql');    return; }
         if (sample.html_code) setTab('html');
         else if (sample.css_code) setTab('css');
         else if (sample.js_code) setTab('js');
@@ -33,15 +34,25 @@ const SampleProject = ({ lessonId }) => {
 
     if (loading || !sample) return null;
 
-    const visibleTabs = TABS.filter(t => sample[`${t.key}_code`]);
-    const code   = sample[`${tab}_code`] || '';
+    const isWeb  = sample.sample_type === 'web';
+    const isPy   = sample.sample_type === 'python';
+    const isSql  = sample.sample_type === 'sql';
+
+    const visibleTabs = isWeb
+        ? WEB_TABS.filter(t => sample[`${t.key}_code`])
+        : [{ key: isPy ? 'python' : 'sql', label: isPy ? 'Python' : 'SQL' }];
+
+    const code = isWeb
+        ? (sample[`${tab}_code`] || '')
+        : (sample.html_code || '');
+
     const srcdoc = `<!DOCTYPE html><html><head><style>${sample.css_code || ''}</style></head><body>${sample.html_code || ''}<script>${sample.js_code || ''}<\/script></body></html>`;
 
     return (
         <div className="sp-wrap">
             <button className="sp-toggle" onClick={() => setOpen(o => !o)}>
                 <Code2 size={16} />
-                <span>Namuna loyiha: {sample.title}</span>
+                <span>Namuna: {sample.title}</span>
                 {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
 
@@ -49,17 +60,25 @@ const SampleProject = ({ lessonId }) => {
                 <div className="sp-body">
                     {sample.description && <p className="sp-desc">{sample.description}</p>}
 
-                    <div className="sp-panes">
-                        <div className="sp-preview">
-                            <div className="sp-pane-hd"><Eye size={13} /> Ko'rinish</div>
-                            <iframe
-                                ref={iframeRef}
-                                className="sp-iframe"
-                                srcDoc={srcdoc}
-                                sandbox="allow-scripts"
-                                title="sample-preview"
-                            />
-                        </div>
+                    <div className={`sp-panes ${!isWeb ? 'sp-panes--full' : ''}`}>
+                        {isWeb && (
+                            <div className="sp-preview">
+                                <div className="sp-pane-hd"><Eye size={13} /> Ko'rinish</div>
+                                <iframe
+                                    className="sp-iframe"
+                                    srcDoc={srcdoc}
+                                    sandbox="allow-scripts"
+                                    title="sample-preview"
+                                />
+                            </div>
+                        )}
+
+                        {!isWeb && (
+                            <div className="sp-terminal-hint">
+                                <Terminal size={20} />
+                                <span>Bu kodni <strong>{isPy ? 'Python' : 'SQL'} muhitida</strong> ishga tushiring</span>
+                            </div>
+                        )}
 
                         <div className="sp-code-panel">
                             <div className="sp-tabs">

@@ -121,3 +121,25 @@
     white-space: pre;
     max-height: 340px;
 }
+
+/* Python / SQL: code panel takes full width */
+.sp-panes--full {
+    grid-template-columns: auto 1fr;
+}
+
+.sp-terminal-hint {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px 20px;
+    background: #1e1e2e;
+    color: rgba(205, 214, 244, 0.55);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.82rem;
+    text-align: center;
+    min-width: 180px;
+}
+
+.sp-terminal-hint strong { color: #a6e3a1; }
