@@ -1204,6 +1204,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 </div>
             ) : (
                 <div className="slp-blocks">
+                    {/* ── Sample project — shown once at the top, for every lesson that has one ── */}
+                    <SampleProject lessonId={lesson?.id} />
+
                     {lesson.sections.map((section, sIdx) => {
                         const blockMeta = meta(section.type);
                         const ytId = section.type === 'video' ? getYTId(section.videoUrl || '') : null;
@@ -1322,11 +1325,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                             submissions={exerciseSubmissions}
                                             submissionsReady={submissionsReady}
                                         />
-                                    )}
-
-                                    {/* ── Sample project — shown before the submission task ── */}
-                                    {section.type === 'project' && (
-                                        <SampleProject lessonId={lesson?.id} />
                                     )}
 
                                     {/* ══════════════════════════════════════════
