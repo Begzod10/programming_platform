@@ -1489,3 +1489,19 @@ async def add_vocab_to_dict(
     ))
     await db.commit()
     return {"ok": True, "already_exists": False}
+
+
+# ── Sample project ────────────────────────────────────────────────────────────
+
+@router.get("/lessons/{lesson_id}/sample")
+async def get_lesson_sample(
+        lesson_id: int,
+        db: AsyncSession = Depends(get_db),
+):
+    from app.models.lesson_sample import LessonSample
+    from app.schemas.lesson_sample import LessonSampleRead
+    result = await db.execute(select(LessonSample).where(LessonSample.lesson_id == lesson_id))
+    sample = result.scalar_one_or_none()
+    if not sample:
+        raise HTTPException(status_code=404, detail="Sample topilmadi")
+    return LessonSampleRead.model_validate(sample)

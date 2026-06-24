@@ -9,6 +9,7 @@ import LessonDictionaryDrawer from './LessonDictionaryDrawer';
 import LessonVocabCard from './LessonVocabCard';
 import StudentProjectFiles from '../StudentProjectPreview/StudentProjectPreview';
 import CelebrationOverlay from './CelebrationOverlay';
+import SampleProject from './SampleProject';
 import { Star, Trophy, Lock, ClipboardList, Upload, Link, Clock, Wrench, Timer, BarChart2, CheckCircle } from 'lucide-react';
 
 // One-time Mermaid init at module load. startOnLoad:false because we trigger
@@ -1321,6 +1322,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                             submissions={exerciseSubmissions}
                                             submissionsReady={submissionsReady}
                                         />
+                                    )}
+
+                                    {/* ── Sample project — shown before the submission task ── */}
+                                    {section.type === 'project' && (
+                                        <SampleProject lessonId={lesson?.id} />
                                     )}
 
                                     {/* ══════════════════════════════════════════
