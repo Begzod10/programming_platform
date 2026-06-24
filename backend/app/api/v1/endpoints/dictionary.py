@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -92,13 +94,17 @@ async def add_word(
     part_of_speech = None
     if not context:
         try:
+            # Strip code/mermaid/diagram blocks so the AI receives plain
+            # prose instead of raw diagram syntax that it tends to echo back.
+            raw_text = (lesson_obj.text_content or "") if lesson_obj else ""
+            clean_text = re.sub(r"```[\s\S]*?```", " ", raw_text)
+            clean_text = re.sub(r"\s+", " ", clean_text).strip()
+
             ai_result = await explain_word_with_ai(
                 safe_word,
                 course_title=course_title,
                 lesson_title=(lesson_obj.title if lesson_obj else ""),
-                lesson_excerpt=(
-                    (lesson_obj.text_content or "")[:400] if lesson_obj else ""
-                ),
+                lesson_excerpt=clean_text[:300],
             )
             context = ai_result.get("short_definition") or ai_result.get("definition") or ""
             pos_raw = (ai_result.get("part_of_speech") or "").strip().lower()

@@ -904,6 +904,17 @@ def _looks_like_keyword_stew(text: str) -> bool:
     return False
 
 
+_MERMAID_SIGNALS = ("flowchart ", "graph ", "sequencediagram", "classDiagram",
+                    "stateDiagram", "gantt\n", "erdiagram", "→", "-->", "->>",
+                    "subgraph ", "|content")
+
+
+def _looks_like_diagram(text: str) -> bool:
+    """Reject responses that are mermaid/diagram syntax instead of a definition."""
+    s = (text or "").strip()
+    return any(sig in s for sig in _MERMAID_SIGNALS)
+
+
 def _sanity_check_explanation(parsed: dict, word: str, excerpt: str) -> bool:
     """True if the parsed explanation looks usable; False to retry/fallback."""
     if not isinstance(parsed, dict):
@@ -918,6 +929,8 @@ def _sanity_check_explanation(parsed: dict, word: str, excerpt: str) -> bool:
     if ex_norm and ex_norm in sd.lower():
         return False
     if _looks_like_keyword_stew(sd):
+        return False
+    if _looks_like_diagram(sd):
         return False
     return True
 
