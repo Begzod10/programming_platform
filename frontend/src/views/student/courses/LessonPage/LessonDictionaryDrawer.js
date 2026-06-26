@@ -4,6 +4,7 @@ import './LessonDictionaryDrawer.css';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
 
 const BASE = `${API_URL}v1/dictionary/`;
+const langParam = () => `?lang=${localStorage.getItem('lang') || 'uz'}`;
 
 function ChevronIcon() {
     return (
@@ -69,7 +70,7 @@ export default function LessonDictionaryDrawer({ lessonId }) {
 
     const fetchWords = useCallback(() => {
         setLoading(true);
-        request(BASE, 'GET', null, headers())
+        request(BASE + langParam(), 'GET', null, headers())
             .then((data) => Array.isArray(data) ? setWords(data) : setWords([]))
             .catch(() => setWords([]))
             .finally(() => setLoading(false));

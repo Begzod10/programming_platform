@@ -4,6 +4,7 @@ import { API_URL, useHttp, headers } from '../../../api/search/base';
 import Practice from './Practice';
 
 const BASE = `${API_URL}v1/dictionary/`;
+const langParam = () => `?lang=${localStorage.getItem('lang') || 'uz'}`;
 
 export default function Dictionary() {
     const { request } = useHttp();
@@ -31,7 +32,7 @@ export default function Dictionary() {
 
     useEffect(() => {
         const onWordAdded = () => {
-            request(BASE, 'GET', null, headers())
+            request(BASE + langParam(), 'GET', null, headers())
                 .then(setWords)
                 .catch(() => {});
         };
@@ -40,7 +41,7 @@ export default function Dictionary() {
     }, []);
 
     useEffect(() => {
-        request(BASE, 'GET', null, headers())
+        request(BASE + langParam(), 'GET', null, headers())
             .then(setWords)
             .catch(() => setError("So'zlarni yuklashda xatolik"))
             .finally(() => setLoading(false));
@@ -69,7 +70,8 @@ export default function Dictionary() {
             const newWord = await request(BASE, 'POST', {
                 word: form.word.trim(),
                 context: form.context.trim() || null,
-                lesson_id: null
+                lesson_id: null,
+                lang: localStorage.getItem('lang') || 'uz',
             }, headers());
 
             setWords(w => [newWord, ...w]);

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 
 from app.db.session import get_db
 from app.models import Lesson
@@ -74,13 +74,12 @@ async def add_word(
             if course_row:
                 course_title = course_row
 
-    # Global dedup per student: one entry per word, regardless of which lesson
-    # (or manual add) it was first saved from. Re-adding the same word from a
-    # different lesson silently returns the original row instead of creating a
-    # duplicate that pollutes the lug'at list.
+    # Dedup per (student, word, lang) — same word can exist in 'uz' and 'ru'.
+    entry_lang = (data.lang or "uz").strip().lower() or "uz"
     dup_q = select(UserDictionary).where(
         UserDictionary.student_id == current_user.id,
         func.lower(UserDictionary.word) == safe_word.lower(),
+        UserDictionary.lang == entry_lang,
     )
     existing = (await db.execute(dup_q)).scalars().first()
     if existing:
@@ -123,6 +122,7 @@ async def add_word(
         context=context,
         lesson_id=lesson_id,
         part_of_speech=part_of_speech,
+        lang=entry_lang,
     )
     db.add(word)
     await db.commit()
@@ -132,17 +132,16 @@ async def add_word(
 
 @router.get("/", response_model=List[DictionaryOut])
 async def get_my_dictionary(
+        lang: Optional[str] = None,
         db: AsyncSession = Depends(get_db),
         current_user: Student = Depends(get_current_student)
 ):
-    """Return every saved word with the lesson + course title joined in.
+    """Return saved words for the current student, filtered by lang.
 
-    The frontend uses lesson_title / course_title to render a hierarchical
-    sidebar filter (course → lessons). Doing the join here is one query
-    cheaper than the frontend fetching lessons and courses separately just
-    to label what it already has.
+    The frontend passes ?lang=uz or ?lang=ru so each language session shows
+    only the words saved in that language.
     """
-    rows = (await db.execute(
+    q = (
         select(
             UserDictionary,
             Lesson.title.label("lesson_title"),
@@ -152,8 +151,11 @@ async def get_my_dictionary(
         .outerjoin(Lesson, Lesson.id == UserDictionary.lesson_id)
         .outerjoin(Course, Course.id == Lesson.course_id)
         .where(UserDictionary.student_id == current_user.id)
-        .order_by(UserDictionary.created_at.desc())
-    )).all()
+    )
+    if lang:
+        q = q.where(UserDictionary.lang == lang.strip().lower())
+    q = q.order_by(UserDictionary.created_at.desc())
+    rows = (await db.execute(q)).all()
 
     out: List[DictionaryOut] = []
     for word, lesson_title, course_id, course_title in rows:

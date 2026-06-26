@@ -22,6 +22,9 @@ class UserDictionary(Base):
     correct_count = Column(Integer, default=0, nullable=False)
     incorrect_count = Column(Integer, default=0, nullable=False)
 
+    # Language of the definition ('uz' or 'ru'). One entry per (student, word, lang).
+    lang = Column(String(4), nullable=False, server_default="uz", default="uz")
+
     # AI-extracted grammatical category — nullable since old rows pre-date
     # this and not every entry maps cleanly (code identifiers, phrases).
     part_of_speech = Column(String(40), nullable=True)

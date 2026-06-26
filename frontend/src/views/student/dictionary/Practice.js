@@ -1392,7 +1392,7 @@ export default function Practice() {
     /* ── build the scope tree from the dictionary list itself, so it only
        offers categories/courses/lessons the student actually has words in. */
     useEffect(() => {
-        request(`${API_URL}v1/dictionary/`, 'GET', null, headers())
+        request(`${API_URL}v1/dictionary/?lang=${localStorage.getItem('lang') || 'uz'}`, 'GET', null, headers())
             .then((rows) => {
                 if (!Array.isArray(rows)) { setScopeTree([]); return; }
                 const cats = new Map(); // id → {id, name, courses: Map}

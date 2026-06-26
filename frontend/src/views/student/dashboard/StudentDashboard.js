@@ -70,7 +70,7 @@ export default function StudentDashboard() {
             fetch(`${API_URL}v1/student/me`, { headers: headers() }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
             fetch(`${API_URL}v1/student/me/course-stats`, { headers: headers() }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
             fetch(`${API_URL}v1/dictionary/quiz/status`, { headers: headers() }).then(r => r.ok ? r.json() : null).catch(() => null),
-            fetch(`${API_URL}v1/dictionary/`, { headers: headers() }).then(r => r.ok ? r.json() : []).catch(() => []),
+            fetch(`${API_URL}v1/dictionary/?lang=${localStorage.getItem('lang') || 'uz'}`, { headers: headers() }).then(r => r.ok ? r.json() : []).catch(() => []),
         ]).then(([meData, statsData, dictStatusData, dictWordsData]) => {
             setMe(meData);
             setStats(statsData);
