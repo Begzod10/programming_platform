@@ -173,6 +173,7 @@ export default function DictSelectionPopup({ lessonId }) {
                 word:      popup.word,
                 context:   popup.context || '',
                 lesson_id: lessonId || null,
+                lang:      localStorage.getItem('lang') || 'uz',
             }), headers());
 
             // Уведомляем Dictionary чтобы перезагрузил список

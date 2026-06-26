@@ -110,6 +110,7 @@ async def add_word(
                 course_title=course_title,
                 lesson_title=(lesson_obj.title if lesson_obj else ""),
                 lesson_excerpt=clean_text[:300],
+                lang=data.lang or "uz",
             )
             context = ai_result.get("short_definition") or ai_result.get("definition") or ""
             pos_raw = (ai_result.get("part_of_speech") or "").strip().lower()

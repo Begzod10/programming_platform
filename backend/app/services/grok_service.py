@@ -941,6 +941,7 @@ async def explain_word_with_ai(
     course_title: str = "",
     lesson_title: str = "",
     lesson_excerpt: str = "",
+    lang: str = "uz",
 ) -> dict:
     """AI yordamida so'zni O'ZBEK TILIDA tushuntiradi.
 
@@ -983,11 +984,43 @@ async def explain_word_with_ai(
     scope_block = ("\n".join(scope_lines) + "\n") if scope_lines else ""
 
     def _build_prompt(retry_feedback: str = "") -> str:
-        feedback_block = (
+        feedback_uz = (
             f"\nOldingi javobing yaroqsiz edi: {retry_feedback}\n"
             f"Endi qaytadan, FAQAT \"{safe_word}\" so'zi haqida yoz.\n"
             if retry_feedback else ""
         )
+        feedback_ru = (
+            f"\nТвой предыдущий ответ не прошёл проверку: {retry_feedback}\n"
+            f"Повтори, сосредоточившись только на слове \"{safe_word}\".\n"
+            if retry_feedback else ""
+        )
+
+        if lang == "ru":
+            return f"""\
+Ты — преподаватель программирования, объясняющий термины на русском языке.
+
+ЗАДАЧА: Объясни следующий термин или слово НА РУССКОМ ЯЗЫКЕ.
+
+СЛОВО: "{safe_word}"
+
+{scope_block}ПРАВИЛА:
+- Пиши только о "{safe_word}", не пересказывай текст урока.
+- Ответ должен быть полностью НА РУССКОМ ЯЗЫКЕ (технические названия могут остаться на английском).
+- "short_definition" — 1 законченное предложение с глаголом.
+  Пример: "@keyframes — это CSS-правило, которое задаёт шаги анимации элемента."
+  ПЛОХО: "keyframes animation steps css" (просто список слов).
+- Не перечисляй другие ключевые слова.
+{feedback_ru}
+ОТВЕТЬ СТРОГО В СЛЕДУЮЩЕМ JSON-ФОРМАТЕ (никаких пояснений, никаких ```json):
+{{
+    "word": "{safe_word}",
+    "short_definition": "1 законченное предложение о '{safe_word}'",
+    "full_explanation": "3-5 предложений — подробное объяснение",
+    "example": "1 практический пример использования",
+    "category": "например: Язык программирования, Фреймворк, CSS-правило, Термин",
+    "part_of_speech": "существительное | глагол | прилагательное | термин | выражение | код"
+}}
+"""
         if is_russian:
             return f"""\
 Sen rus tilidan o'zbek tiliga professional tarjimon va izohlovchisisiz.
@@ -1000,7 +1033,7 @@ SO'Z: "{safe_word}"
 - "short_definition" — O'zbek tiliga tarjimasi va 1 ta to'liq tushuntirish jumla.
   Misol: "Переменная — o'zgaruvchi; dasturda ma'lumotlarni saqlash uchun ishlatiladigan nom."
 - Javob O'ZBEK TILIDA bo'lsin.
-{feedback_block}
+{feedback_uz}
 FAQAT QUYIDAGI JSON FORMATIDA JAVOB BER (boshqa hech narsa yozma, hatto ```json belgisini ham):
 {{
     "word": "{safe_word}",
@@ -1025,7 +1058,7 @@ SO'Z: "{safe_word}"
   Misol: "JavaScript — bu veb-sahifalarga dinamiklik qo'shadigan dasturlash tili."
   YOMON misol: "content appearance behavior HTML tags" (faqat so'zlar ro'yxati).
 - Boshqa kalit so'zlarni ro'yxatlab tashlamang.
-{feedback_block}
+{feedback_uz}
 FAQAT QUYIDAGI JSON FORMATIDA JAVOB BER (boshqa hech narsa yozma, hatto ```json belgisini ham):
 {{
     "word": "{safe_word}",

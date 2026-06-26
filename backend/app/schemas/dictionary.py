@@ -12,6 +12,7 @@ class DictionaryCreate(BaseModel):
     )
     context: Optional[str] = Field(None, description="So'zning ma'nosi yoki tarjimasi")
     lesson_id: Optional[int] = None
+    lang: Optional[str] = Field(None, description="Foydalanuvchi tili: 'uz' yoki 'ru'")
 
 
 class DictionaryOut(BaseModel):
