@@ -91,6 +91,16 @@ async def add_word(
     # the sense that fits the lesson — "Panel" in a JS lesson is the DevTools
     # panel, not a generic sidebar.
     context = data.context
+    # Reject context that looks like keyword stew (mermaid/SVG text labels,
+    # code identifiers, etc.) — fewer than 2 spaces means it's likely a single
+    # technical token, not a real sentence. Also reject pure-ASCII short strings
+    # without any verb-like structure so the AI always generates proper prose.
+    if context:
+        words_in_ctx = context.split()
+        has_verb_hint = any(len(w) > 4 for w in words_in_ctx)
+        looks_like_sentence = len(words_in_ctx) >= 4 and has_verb_hint
+        if not looks_like_sentence:
+            context = ""
     part_of_speech = None
     if not context:
         try:

@@ -96,10 +96,11 @@ export default function DictSelectionPopup({ lessonId }) {
             if (rect.width === 0 && rect.height === 0) { hide(); return; }
 
             // Context — pull the sentence around the selected word from the
-            // nearest narrative block. Code blocks intentionally don't match;
-            // their text is rarely useful as a dictionary gloss.
+            // nearest narrative block. Code blocks and SVG (mermaid diagrams)
+            // are excluded — their text is not useful as a dictionary gloss.
             let ctx = '';
-            const block = (anchor || focus)?.closest(
+            const inSvg = !!(anchor || focus)?.closest('svg');
+            const block = !inSvg && (anchor || focus)?.closest(
                 '.slp-text-content, .slp-ex-question, .slp-ex-fill-text, .slp-project-desc'
             );
             if (block) {
