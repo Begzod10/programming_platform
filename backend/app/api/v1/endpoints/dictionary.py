@@ -86,48 +86,36 @@ async def add_word(
     if existing:
         return existing
 
-    # Context yo'q bo'lsa AI dan o'zbek tilidagi ta'rif olish.
-    # Lesson + course title are passed as scope hints so the model returns
-    # the sense that fits the lesson — "Panel" in a JS lesson is the DevTools
-    # panel, not a generic sidebar.
-    context = data.context
-    # Reject context that looks like keyword stew (mermaid/SVG text labels,
-    # code identifiers, etc.) — fewer than 2 spaces means it's likely a single
-    # technical token, not a real sentence. Also reject pure-ASCII short strings
-    # without any verb-like structure so the AI always generates proper prose.
-    if context:
-        words_in_ctx = context.split()
-        has_verb_hint = any(len(w) > 4 for w in words_in_ctx)
-        looks_like_sentence = len(words_in_ctx) >= 4 and has_verb_hint
-        if not looks_like_sentence:
-            context = ""
+    # Always call AI to generate a proper definition in the user's language.
+    # data.context (sentence extracted by the popup) is used as a scope hint
+    # for the AI — NOT stored directly as the definition.
+    context = ""
     part_of_speech = None
-    if not context:
-        try:
-            # Strip code/mermaid/diagram blocks so the AI receives plain
-            # prose instead of raw diagram syntax that it tends to echo back.
+    try:
+        # Best excerpt: the popup's extracted sentence (exact context of use).
+        # Fallback: lesson text_content stripped of HTML/mermaid blocks.
+        if data.context and data.context.strip():
+            excerpt = data.context.strip()[:300]
+        else:
             raw_text = (lesson_obj.text_content or "") if lesson_obj else ""
-            # Remove <pre>...</pre> blocks (mermaid diagrams, code blocks in HTML)
             clean_text = re.sub(r"<pre[\s\S]*?</pre>", " ", raw_text, flags=re.IGNORECASE)
-            # Remove backtick code fences
             clean_text = re.sub(r"```[\s\S]*?```", " ", clean_text)
-            # Strip remaining HTML tags
             clean_text = re.sub(r"<[^>]+>", " ", clean_text)
-            clean_text = re.sub(r"\s+", " ", clean_text).strip()
+            excerpt = re.sub(r"\s+", " ", clean_text).strip()[:300]
 
-            ai_result = await explain_word_with_ai(
-                safe_word,
-                course_title=course_title,
-                lesson_title=(lesson_obj.title if lesson_obj else ""),
-                lesson_excerpt=clean_text[:300],
-                lang=data.lang or "uz",
-            )
-            context = ai_result.get("short_definition") or ai_result.get("definition") or ""
-            pos_raw = (ai_result.get("part_of_speech") or "").strip().lower()
-            if pos_raw and len(pos_raw) <= 40:
-                part_of_speech = pos_raw
-        except Exception:
-            context = ""
+        ai_result = await explain_word_with_ai(
+            safe_word,
+            course_title=course_title,
+            lesson_title=(lesson_obj.title if lesson_obj else ""),
+            lesson_excerpt=excerpt,
+            lang=data.lang or "uz",
+        )
+        context = ai_result.get("short_definition") or ai_result.get("definition") or ""
+        pos_raw = (ai_result.get("part_of_speech") or "").strip().lower()
+        if pos_raw and len(pos_raw) <= 40:
+            part_of_speech = pos_raw
+    except Exception:
+        context = ""
 
     word = UserDictionary(
         student_id=current_user.id,
