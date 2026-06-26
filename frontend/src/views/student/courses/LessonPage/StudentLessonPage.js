@@ -785,9 +785,15 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
         let cancelled = false;
         let running = false;
         let scheduled = null;
+        const schedule = (delay = 100) => {
+            if (scheduled || cancelled) return;
+            scheduled = setTimeout(runMermaid, delay);
+        };
         const runMermaid = () => {
             scheduled = null;
-            if (cancelled || running) return;
+            if (cancelled) return;
+            // If a run is already in flight, retry after it finishes
+            if (running) { schedule(120); return; }
             const nodes = document.querySelectorAll(
                 'pre.mermaid:not([data-processed="true"])',
             );
@@ -798,16 +804,19 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 .catch(() => {})
                 .finally(() => {
                     running = false;
+                    // Pick up any nodes that appeared while we were running
+                    if (!cancelled) {
+                        const pending = document.querySelectorAll(
+                            'pre.mermaid:not([data-processed="true"])',
+                        );
+                        if (pending.length > 0) schedule(50);
+                    }
                 });
-        };
-        const schedule = () => {
-            if (scheduled || cancelled) return;
-            scheduled = setTimeout(runMermaid, 50);
         };
         schedule();
         const target =
             document.querySelector('.slp-blocks') || document.body;
-        const observer = new MutationObserver(schedule);
+        const observer = new MutationObserver(() => schedule(100));
         observer.observe(target, {childList: true, subtree: true});
         return () => {
             cancelled = true;

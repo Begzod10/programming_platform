@@ -97,7 +97,12 @@ async def add_word(
             # Strip code/mermaid/diagram blocks so the AI receives plain
             # prose instead of raw diagram syntax that it tends to echo back.
             raw_text = (lesson_obj.text_content or "") if lesson_obj else ""
-            clean_text = re.sub(r"```[\s\S]*?```", " ", raw_text)
+            # Remove <pre>...</pre> blocks (mermaid diagrams, code blocks in HTML)
+            clean_text = re.sub(r"<pre[\s\S]*?</pre>", " ", raw_text, flags=re.IGNORECASE)
+            # Remove backtick code fences
+            clean_text = re.sub(r"```[\s\S]*?```", " ", clean_text)
+            # Strip remaining HTML tags
+            clean_text = re.sub(r"<[^>]+>", " ", clean_text)
             clean_text = re.sub(r"\s+", " ", clean_text).strip()
 
             ai_result = await explain_word_with_ai(
