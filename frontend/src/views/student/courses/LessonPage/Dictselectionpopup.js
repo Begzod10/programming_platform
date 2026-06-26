@@ -96,15 +96,17 @@ export default function DictSelectionPopup({ lessonId }) {
             if (rect.width === 0 && rect.height === 0) { hide(); return; }
 
             // Context — pull the sentence around the selected word from the
-            // nearest narrative block. Code blocks and SVG (mermaid diagrams)
-            // are excluded — their text is not useful as a dictionary gloss.
+            // nearest narrative block. SVG nodes (mermaid diagrams) and <pre>
+            // blocks are removed from the clone before extracting text so their
+            // label strings don't pollute the context.
             let ctx = '';
-            const inSvg = !!(anchor || focus)?.closest('svg');
-            const block = !inSvg && (anchor || focus)?.closest(
+            const block = (anchor || focus)?.closest(
                 '.slp-text-content, .slp-ex-question, .slp-ex-fill-text, .slp-project-desc'
             );
             if (block) {
-                const sentences = (block.innerText || '').split(/[.!?]/);
+                const clone = block.cloneNode(true);
+                clone.querySelectorAll('svg, pre').forEach(el => el.remove());
+                const sentences = (clone.innerText || '').split(/[.!?]/);
                 const found = sentences.find(s => s.toLowerCase().includes(word.toLowerCase()));
                 ctx = found ? found.trim().substring(0, 120) : '';
             }
