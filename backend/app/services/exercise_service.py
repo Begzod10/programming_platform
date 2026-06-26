@@ -6,8 +6,11 @@ from typing import List, Optional
 import json
 import logging
 
+import re
+
 from app.models.exercise import Exercise, ExerciseSubmission
 from app.models.lesson import Lesson, LessonCompletion
+from app.models.course import Course
 from app.schemas.exercise import ExerciseCreate, ExerciseUpdate, ExerciseSubmitRequest
 from app.services.grok_service import ProviderError, call_chain, parse_ai_json
 
@@ -90,12 +93,22 @@ async def get_ai_explanation(
         question: str,
         correct_answer: str,
         student_answer: str,
-        explanation: Optional[str] = None
+        explanation: Optional[str] = None,
+        course_title: str = "",
+        lesson_title: str = "",
 ) -> str:
+    scope = ""
+    if course_title:
+        scope = f"Kurs: {course_title}"
+        if lesson_title:
+            scope += f" — Dars: {lesson_title}"
+        scope += "\n"
     prompt = f"""Sen dasturlash o'qituvchisisiz. O'quvchi savolga xato javob berdi.
 
-Savol: {question}
+{scope}Savol: {question}
 {"Qo'shimcha tushuntirish: " + explanation if explanation else ""}
+
+MUHIM: Javobni faqat shu kurs doirasida baholagil. Masalan, HTML/CSS kursida "class" so'zi HTML attribut sifatida tushuntirilishi kerak, OOP yoki JavaScript classi emas.
 
 Faqat xatoning SABABINI tushuntir (2-3 jumla, o'zbek tilida).
 TO'G'RI JAVOBNI AYTMA, O'QUVCHI JAVOBINI HAM AYTMA.
@@ -188,9 +201,23 @@ async def check_answer_with_grok(
         expected_answer: Optional[str],
         student_answer: str,
         hint: Optional[str] = None,
-        explanation: Optional[str] = None
+        explanation: Optional[str] = None,
+        course_title: str = "",
+        lesson_title: str = "",
+        lesson_excerpt: str = "",
 ) -> dict:
+    scope = ""
+    if course_title:
+        scope = f"Kurs: {course_title}"
+        if lesson_title:
+            scope += f" — Dars: {lesson_title}"
+        scope += "\n"
+    excerpt_block = f"Dars matni (qisqa): {lesson_excerpt}\n" if lesson_excerpt else ""
     prompt = f"""Sen dasturlash o'qituvchisisiz. Student savolga erkin javob berdi. Javobni baholab ber.
+
+{scope}{excerpt_block}
+MUHIM: Javobni faqat yuqoridagi kurs va dars doirasida baholagil.
+Masalan, HTML/CSS kursida "class" so'zi HTML atributi sifatida tushuntirilishi kerak — OOP yoki JavaScript class emas.
 
 Savol: {question}
 {"Kutilgan javob: " + expected_answer if expected_answer else ""}
@@ -234,6 +261,23 @@ async def submit_exercise(
     if not exercise:
         raise HTTPException(status_code=404, detail="Mashq topilmadi")
 
+    # Fetch lesson + course for AI grading context
+    lesson_row = (await db.execute(
+        select(Lesson, Course.title.label("course_title"))
+        .outerjoin(Course, Course.id == Lesson.course_id)
+        .where(Lesson.id == exercise.lesson_id)
+    )).first()
+    lesson_obj = lesson_row[0] if lesson_row else None
+    course_title = lesson_row[1] if lesson_row else ""
+    lesson_title = lesson_obj.title if lesson_obj else ""
+
+    # Strip HTML/mermaid from lesson text for the AI excerpt
+    raw_text = (lesson_obj.text_content or "") if lesson_obj else ""
+    clean = re.sub(r"<pre[\s\S]*?</pre>", " ", raw_text, flags=re.IGNORECASE)
+    clean = re.sub(r"```[\s\S]*?```", " ", clean)
+    clean = re.sub(r"<[^>]+>", " ", clean)
+    lesson_excerpt = re.sub(r"\s+", " ", clean).strip()[:400]
+
     prev_correct = await db.execute(
         select(ExerciseSubmission).where(
             ExerciseSubmission.exercise_id == exercise_id,
@@ -251,14 +295,19 @@ async def submit_exercise(
             expected_answer=exercise.expected_answer,
             student_answer=data.student_answer,
             hint=exercise.hint,
-            explanation=exercise.explanation
+            explanation=exercise.explanation,
+            course_title=course_title,
+            lesson_title=lesson_title,
+            lesson_excerpt=lesson_excerpt,
         )
     elif not result.get("is_correct") and result.get("needs_ai_explanation"):
         ai_feedback = await get_ai_explanation(
             question=exercise.description,
             correct_answer=result.get("correct_answer", ""),
             student_answer=data.student_answer,
-            explanation=exercise.explanation
+            explanation=exercise.explanation,
+            course_title=course_title,
+            lesson_title=lesson_title,
         )
         result["feedback"] = ai_feedback
 
