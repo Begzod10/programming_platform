@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List, Optional, Any
 
-from pydantic import BaseModel, ConfigDict, Field, EmailStr, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, EmailStr
 
 
 class TeacherStudentCourseProgress(BaseModel):
@@ -23,7 +23,7 @@ class TeacherStudentProgress(BaseModel):
     email: EmailStr
     full_name: Optional[str] = None
     phone: Optional[str] = None
-    avatar_url: Optional[HttpUrl] = None
+    avatar_url: Optional[str] = None
     balance: int = 0
     current_level: str
     total_points: int
