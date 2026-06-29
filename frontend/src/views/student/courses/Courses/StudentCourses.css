@@ -678,76 +678,114 @@
    Sits between the page header and the stats card. Different visual
    treatment from .sc-filters so the two filters read as separate
    dimensions instead of a continued group. */
-.sc-category-bar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 4px 0;
+/* ── Language / Tech folder section ── */
+.sc-lang-section {
+  margin: 0 0 8px;
 }
 
-.sc-category-label {
-  font-size: 11.5px;
+.sc-lang-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.sc-lang-title {
+  font-size: 13px;
   font-weight: 700;
   color: rgba(15, 13, 30, 0.4);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin-right: 4px;
-  white-space: nowrap;
 }
 
-.sc-category-chip {
-  display: inline-flex;
+.sc-lang-reset {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0.8;
+}
+.sc-lang-reset:hover { opacity: 1; text-decoration: underline; }
+
+.sc-lang-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.sc-lang-card {
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
-  border: 1px solid rgba(15, 13, 30, 0.1);
-  border-radius: 999px;
-  background: #fff;
-  color: rgba(15, 13, 30, 0.65);
-  font-size: 13px;
-  font-weight: 600;
-  font-family: var(--font-ui);
+  padding: 16px 12px 14px;
+  border-radius: 16px;
+  border: 2px solid transparent;
+  background: var(--lang-bg, #f8f8ff);
   cursor: pointer;
-  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease, transform 0.08s ease;
-  white-space: nowrap;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  font-family: var(--font-ui);
+  position: relative;
+  overflow: hidden;
 }
 
-.sc-category-chip:hover {
-  border-color: rgba(108, 92, 231, 0.4);
-  color: var(--color-primary);
-  background: rgba(108, 92, 231, 0.04);
+.sc-lang-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--lang-color, #6c5ce7);
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 
-.sc-category-chip:active { transform: translateY(1px); }
-
-.sc-category-chip.active {
-  background: rgba(108, 92, 231, 0.12);
-  border-color: rgba(108, 92, 231, 0.45);
-  color: var(--color-primary);
+.sc-lang-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10);
+  border-color: var(--lang-color, #6c5ce7);
 }
 
-.sc-category-count {
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: rgba(108, 92, 231, 0.14);
-  color: var(--color-primary);
-  font-size: 11px;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.sc-lang-card.active {
+  border-color: var(--lang-color, #6c5ce7);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  transform: translateY(-2px);
+}
+
+.sc-lang-card.active::before { opacity: 0.06; }
+
+.sc-lang-icon {
+  font-size: 28px;
   line-height: 1;
+  position: relative;
+  z-index: 1;
 }
 
-.sc-category-chip.active .sc-category-count {
-  background: rgba(108, 92, 231, 0.28);
-  color: #4c3fcf;
+.sc-lang-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: rgba(15, 13, 30, 0.8);
+  text-align: center;
+  position: relative;
+  z-index: 1;
+  line-height: 1.3;
+}
+
+.sc-lang-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--lang-color, #6c5ce7);
+  background: rgba(0,0,0,0.06);
+  padding: 2px 8px;
+  border-radius: 999px;
+  position: relative;
+  z-index: 1;
 }
 
 @media (max-width: 640px) {
-  .sc-category-bar { gap: 6px; }
-  .sc-category-chip { padding: 7px 12px; font-size: 12.5px; }
+  .sc-lang-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+  .sc-lang-card { padding: 12px 8px 10px; border-radius: 12px; }
+  .sc-lang-icon { font-size: 22px; }
+  .sc-lang-name { font-size: 11.5px; }
 }

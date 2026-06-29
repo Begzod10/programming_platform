@@ -7,6 +7,19 @@ import { API_URL, useHttp, headers } from '../../../../api/search/base';
 import { useTranslation } from '../../../../i18n/useTranslation';
 import { Lock } from 'lucide-react';
 
+/* ── tech category visual config ── */
+const TECH_META = {
+    'html-css':      { label: 'HTML & CSS',     color: '#e34c26', bg: '#fff4f1', icon: '🌐' },
+    'javascript':    { label: 'JavaScript',      color: '#f0db4f', bg: '#fffef0', icon: '⚡' },
+    'python':        { label: 'Python',          color: '#3776ab', bg: '#f0f7ff', icon: '🐍' },
+    'react':         { label: 'React',           color: '#61dafb', bg: '#f0fdff', icon: '⚛️' },
+    'sql':           { label: 'SQL',             color: '#336791', bg: '#f0f5ff', icon: '🗄️' },
+    'git':           { label: 'Git',             color: '#f05032', bg: '#fff4f0', icon: '🔀' },
+    'telegram-bot':  { label: 'Telegram Bot',    color: '#2ca5e0', bg: '#f0faff', icon: '🤖' },
+};
+
+const getTechMeta = (slug) => TECH_META[slug] || { label: slug, color: '#6c5ce7', bg: '#f5f3ff', icon: '📦' };
+
 /* ─── helpers ─── */
 // ФИКС: сравниваем id через String() потому что бэкенд может вернуть number, а useParams всегда string
 const sameId = (a, b) => String(a) === String(b);
@@ -507,31 +520,33 @@ const StudentCourses = () => {
             </div>
 
             {!loading && categoryCounts.length > 0 && (
-                <div className="sc-category-bar">
-                    <span className="sc-category-label">Категория:</span>
-                    <button
-                        className={`sc-category-chip ${categoryFilter === 'all' ? 'active' : ''}`}
-                        onClick={() => setCategoryFilter('all')}
-                    >Все</button>
-                    {categoryCounts.map((cat) => (
-                        <button
-                            key={cat.id}
-                            className={`sc-category-chip ${categoryFilter === cat.id ? 'active' : ''}`}
-                            onClick={() => setCategoryFilter(categoryFilter === cat.id ? 'all' : cat.id)}
-                        >
-                            {cat.name}
-                            <span className="sc-category-count">{cat.live_count}</span>
-                        </button>
-                    ))}
-                    {uncategorizedCount > 0 && (
-                        <button
-                            className={`sc-category-chip ${categoryFilter === 'uncategorized' ? 'active' : ''}`}
-                            onClick={() => setCategoryFilter(categoryFilter === 'uncategorized' ? 'all' : 'uncategorized')}
-                        >
-                            Без категории
-                            <span className="sc-category-count">{uncategorizedCount}</span>
-                        </button>
-                    )}
+                <div className="sc-lang-section">
+                    <div className="sc-lang-header">
+                        <span className="sc-lang-title">Yo'nalishlar</span>
+                        {categoryFilter !== 'all' && (
+                            <button className="sc-lang-reset" onClick={() => setCategoryFilter('all')}>
+                                Barchasini ko'rsatish
+                            </button>
+                        )}
+                    </div>
+                    <div className="sc-lang-grid">
+                        {categoryCounts.map((cat) => {
+                            const meta = getTechMeta(cat.slug);
+                            const active = categoryFilter === cat.id;
+                            return (
+                                <button
+                                    key={cat.id}
+                                    className={`sc-lang-card ${active ? 'active' : ''}`}
+                                    style={{ '--lang-color': meta.color, '--lang-bg': meta.bg }}
+                                    onClick={() => setCategoryFilter(active ? 'all' : cat.id)}
+                                >
+                                    <span className="sc-lang-icon">{meta.icon}</span>
+                                    <span className="sc-lang-name">{cat.name}</span>
+                                    <span className="sc-lang-count">{cat.live_count} kurs</span>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
 
