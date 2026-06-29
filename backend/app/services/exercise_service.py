@@ -181,8 +181,25 @@ def check_answer_locally(exercise: Exercise, student_answer: str) -> dict:
             }
 
     elif exercise_type == "multiple_choice":
-        correct = set(a.strip() for a in (exercise.correct_answers or "").split(","))
-        student = set(a.strip() for a in student_answer.split(","))
+        # Build options list so we can map letters (A,B,C…) → option texts.
+        # Teachers may store correct_answers as full text ("Backtick `...`")
+        # while the frontend submits the letter ("C"). Normalize both sides.
+        try:
+            options_list = json.loads(exercise.options or "[]")
+        except (json.JSONDecodeError, TypeError):
+            options_list = [o.strip() for o in (exercise.options or "").split(",") if o.strip()]
+
+        def _to_text(val: str) -> str:
+            """If val is a single letter A-Z, return the corresponding option text."""
+            v = val.strip()
+            if len(v) == 1 and v.isalpha():
+                idx = ord(v.upper()) - 65
+                if 0 <= idx < len(options_list):
+                    return str(options_list[idx]).strip().lower()
+            return v.lower()
+
+        correct = {_to_text(a) for a in (exercise.correct_answers or "").split(",") if a.strip()}
+        student = {_to_text(a) for a in student_answer.split(",") if a.strip()}
         is_correct = correct == student
         return {
             "is_correct": is_correct,

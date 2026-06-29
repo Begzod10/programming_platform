@@ -240,9 +240,9 @@ const ExerciseRow = ({ex, index, onUpdate, onDelete, onMoveUp, onMoveDown, isFir
                                    onChange={e => upd({options: e.target.value})} placeholder="Вариант A, Вариант B, Вариант C"/>
                         </div>
                         <div className="lep-ex-field">
-                            <label>Правильный ответ(ы) <span className="lep-ex-hint-label">(через запятую)</span></label>
+                            <label>Правильный ответ(ы) <span className="lep-ex-hint-label">(A yoki B yoki to'liq matn)</span></label>
                             <input className="lep-ex-input" value={ex.correct_answers}
-                                   onChange={e => upd({correct_answers: e.target.value})} placeholder="Вариант A"/>
+                                   onChange={e => upd({correct_answers: e.target.value})} placeholder="A"/>
                         </div>
                         <label className="lep-ex-check">
                             <input type="checkbox" checked={!!ex.is_multiple_select}
