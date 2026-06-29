@@ -78,6 +78,11 @@ class UserRead(BaseModel):
     bio: Optional[str] = Field(default=None)
     avatar_url: Optional[str] = Field(default=None)
 
+    @field_validator("avatar_url", mode="before")
+    @classmethod
+    def empty_avatar_to_none(cls, v):
+        return v if v else None
+
     # Role: Agar bazada kutilmagan rol yoki bo'sh (NULL) bo'lsa xato bermasligi uchun
     role: UserRole
 
