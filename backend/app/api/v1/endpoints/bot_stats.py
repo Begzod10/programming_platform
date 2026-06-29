@@ -6,7 +6,7 @@ from app.models.user import Student
 from app.models.lesson import LessonCompletion, Lesson
 from app.models.exercise import ExerciseSubmission, Exercise
 from app.models.submission import Submission
-from app.models.course import Course, course_enrollments
+from app.models.course import Course, student_courses
 from app.models.ranking import Ranking
 
 router = APIRouter()
@@ -21,9 +21,9 @@ async def get_student_stats(student_id: int, db: AsyncSession = Depends(get_db))
     # Enrolled courses
     enrolled_q = await db.execute(
         select(Course).join(
-            course_enrollments,
-            Course.id == course_enrollments.c.course_id
-        ).where(course_enrollments.c.student_id == student_id)
+            student_courses,
+            Course.id == student_courses.c.course_id
+        ).where(student_courses.c.student_id == student_id)
     )
     courses = enrolled_q.scalars().all()
     course_ids = [c.id for c in courses]
