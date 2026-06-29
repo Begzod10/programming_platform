@@ -850,11 +850,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [formErrors, setFormErrors] = useState({});
 
     // ── Anti-cheat tracking ──────────────────────────────────────────────────
-    const MIN_TIME_SECONDS = 120; // 2 minutes minimum before submit allowed
     const projectOpenedAtRef = useRef(null);
     const keystrokeCountRef  = useRef(0);
     const pasteCountRef      = useRef(0);
-    const [timeWarning, setTimeWarning] = useState('');
 
     // Record when the project modal opens
     const handleProjectModalOpen = () => {
@@ -864,7 +862,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
         keystrokeCountRef.current = 0;
         pasteCountRef.current = 0;
         setProjectModal(true);
-        setTimeWarning('');
     };
 
     // Explanation modal state
@@ -1062,16 +1059,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const handleProjectSubmit = async () => {
         if (!validateProject()) return;
 
-        // ── Time-on-task check ───────────────────────────────────────────────
         const elapsedSeconds = projectOpenedAtRef.current
             ? Math.floor((Date.now() - projectOpenedAtRef.current) / 1000)
             : 0;
-        if (elapsedSeconds < MIN_TIME_SECONDS) {
-            const remaining = MIN_TIME_SECONDS - elapsedSeconds;
-            setTimeWarning(`Loyihani topshirishdan oldin kamida ${Math.ceil(remaining / 60)} daqiqa ishlang. (${remaining} soniya qoldi)`);
-            return;
-        }
-        setTimeWarning('');
 
         const descriptionRaw = (projectForm.description.trim() || projectSection?.description || '').trim();
         const description = descriptionRaw.length >= 10
@@ -1654,11 +1644,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                             )}
                             {projectError && (
                                 <div className="slp-project-error">⚠️ {projectError}</div>
-                            )}
-                            {timeWarning && (
-                                <div className="slp-project-error" style={{background:'#fff3cd',color:'#856404',border:'1px solid #ffc107'}}>
-                                    ⏱ {timeWarning}
-                                </div>
                             )}
                         </div>
 
