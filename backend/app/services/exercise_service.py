@@ -236,6 +236,12 @@ async def check_answer_with_grok(
 MUHIM: Javobni faqat yuqoridagi kurs va dars doirasida baholagil.
 Masalan, HTML/CSS kursida "class" so'zi HTML atributi sifatida tushuntirilishi kerak — OOP yoki JavaScript class emas.
 
+BAHOLASH QOIDALARI:
+- Asosiy g'oya to'g'ri bo'lsa — is_correct: true. Til (rus/o'zbek/ingliz), grammatika yoki so'z tartibiga e'tibor berma.
+- "HTML nima?", "JS nima?", "CSS nima?" kabi kontseptual savollarda — asosiy tushuncha to'g'ri bo'lsa BAJARILGAN deb hisoblang.
+- Boshlang'ich darajadagi sodda javoblar ham to'g'ri hisoblanadi.
+- Faqat butunlay noto'g'ri yoki mavzudan tashqari bo'lsa is_correct: false qil.
+
 Savol: {question}
 {"Kutilgan javob: " + expected_answer if expected_answer else ""}
 {"Yordam: " + hint if hint else ""}
@@ -246,7 +252,7 @@ Faqat JSON formatda javob ber, boshqa hech narsa yozma:
 {{
   "is_correct": true yoki false,
   "partial_score": 0.0 dan 1.0 gacha (qisman togri bolsa),
-  "feedback": "Uzbek tilida tushuntirish. Xato bolsa nima notogri va qanday togrash kerakligini ayt."
+  "feedback": "Uzbek tilida qisqa izoh. To'g'ri bo'lsa rag'batlantir, xato bo'lsa nimani o'zgartirish kerakligini ayt."
 }}"""
 
     try:
