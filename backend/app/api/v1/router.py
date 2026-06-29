@@ -18,6 +18,7 @@ from app.api.v1.endpoints import (
 from app.api.v1.endpoints.teacher import students as teacher_students
 from app.api.v1.endpoints.teacher import statistics as teacher_statistics
 from app.api.v1.endpoints.teacher import course_access as teacher_course_access
+from app.api.v1.endpoints.teacher import activity_analytics
 from app.api.v1.endpoints import dictionary
 from app.api.v1.endpoints import practice as dict_practice
 from app.api.v1.endpoints import team_game
@@ -45,3 +46,4 @@ api_router.include_router(dict_practice.router, prefix="/dictionary/practice", t
 api_router.include_router(lesson_feedback.router, prefix="", tags=["Lesson Feedback"])
 api_router.include_router(team_game.router, prefix="/game-sessions", tags=["Team Game"])
 api_router.include_router(parent.router, prefix="/parent", tags=["Parent MiniApp"])
+api_router.include_router(activity_analytics.router, prefix="/teacher/activity", tags=["Teacher Activity"])

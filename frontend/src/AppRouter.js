@@ -34,6 +34,7 @@ import TeacherTeamGame          from './views/teacher/teamgame/TeacherTeamGame';
 import TeacherAchievements      from './views/teacher/TeacherAchievements/TeacherAchievements';
 import ProjectLeaderboard       from './views/shared/ProjectLeaderboard/ProjectLeaderboard';
 import PublicProfile            from './views/public/PublicProfile/PublicProfile';
+import ActivityAnalytics        from './views/teacher/activityanalytics/ActivityAnalytics';
 
 /* ─── helpers ─── */
 function RootRedirect() {
@@ -133,6 +134,7 @@ function AppRouter() {
                 <Route path="rankings"                                    element={<TeacherStudentsRankings />} /> {/* ← NEW */}
                 <Route path="project-rating"                              element={<ProjectLeaderboard role="teacher" />} />
                 <Route path="team-game"                                   element={<TeacherTeamGame />} />
+                <Route path="activity-analytics"                          element={<ActivityAnalytics />} />
 
                 {/* Курсы */}
                 <Route path="courses"                                     element={<TeacherCourses />} />

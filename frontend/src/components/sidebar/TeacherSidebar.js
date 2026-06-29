@@ -4,7 +4,7 @@ import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
 import {
     User, Download, Users, BookOpen, Gamepad2,
-    Trophy, Construction, Award, Medal, TrendingUp, Star,
+    Trophy, Construction, Award, Medal, TrendingUp, Star, Activity,
 } from 'lucide-react';
 
 const COLLAPSED_KEY = 'sidebar:teacher:collapsed';
@@ -49,8 +49,9 @@ function TeacherSidebar({ activeTab, onLogout }) {
         { id: 'project-rating', label: 'Топ проектов',    Icon: Construction, section: 'insights' },
         { id: 'achievements',   label: 'Yutuqlar',        Icon: Award,        section: 'insights' },
         { id: 'certificates',   label: 'Сертификаты',     Icon: Medal,        section: 'insights' },
-        { id: 'statistics',     label: 'Статистика',      Icon: TrendingUp,   section: 'insights' },
-        { id: 'feedback',       label: 'Отзывы',          Icon: Star,         section: 'insights' },
+        { id: 'statistics',          label: 'Статистика',      Icon: TrendingUp,   section: 'insights' },
+        { id: 'activity-analytics', label: 'Faollik tahlili', Icon: Activity,     section: 'insights' },
+        { id: 'feedback',           label: 'Отзывы',          Icon: Star,         section: 'insights' },
     ];
 
     const sections = [
