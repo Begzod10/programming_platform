@@ -15,13 +15,15 @@ const fmt = (n) =>
 /* ─── StudentRow ─── */
 const StudentRow = ({ student, onOpen }) => {
   const bc = balanceColor(student.balance);
-  const initials = `${(student.name || '?')[0]}${(student.surname || '')[0] || ''}`.toUpperCase();
+  const displayName = student.full_name || student.username || '—';
+  const words = displayName.trim().split(/\s+/);
+  const initials = words.slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
   return (
     <div className="ms-student-row" onClick={() => onOpen(student.id)} style={{ cursor: 'pointer' }}>
       <div className="ms-sr-avatar">{initials}</div>
       <div className="ms-sr-info">
-        <span className="ms-sr-name">{student.name} {student.surname}</span>
+        <span className="ms-sr-name">{displayName}</span>
         <span className="ms-sr-phone">📱 {student.phone}</span>
       </div>
       <div className={`ms-sr-balance ${bc}`}>{fmt(student.balance)}</div>
@@ -38,8 +40,7 @@ const GroupCard = ({ group, onOpenStudent }) => {
   const filtered = students.filter(s => {
     const q = search.toLowerCase();
     return (
-      (s.name    || '').toLowerCase().includes(q) ||
-      (s.surname || '').toLowerCase().includes(q) ||
+      (s.full_name || s.username || '').toLowerCase().includes(q) ||
       (s.phone   || '').includes(q)
     );
   });
