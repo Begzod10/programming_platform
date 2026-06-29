@@ -227,6 +227,7 @@ const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission = null}
     const [score, setScore] = useState(previousSubmission?.score ?? null);
     const [submitting, setSubmitting] = useState(false);
     const [showHint, setShowHint] = useState(false);
+    const exerciseOpenedAtRef = useRef(Date.now());
 
     // True once the student has submitted at least once for this exercise —
     // either in this session or previously. Used to render the checkmark.
@@ -250,10 +251,11 @@ const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission = null}
         setAiFeedback('');
         setScore(null);
         try {
+            const timeSpentMs = Date.now() - exerciseOpenedAtRef.current;
             const res = await request(
                 `${API_URL}v1/courses/${courseId}/lessons/${lessonId}/exercises/${ex.id}/submit`,
                 'POST',
-                JSON.stringify({student_answer: answer}),
+                JSON.stringify({student_answer: answer, time_spent_ms: timeSpentMs}),
                 headers()
             );
             if (res?.is_correct === true) setResult('correct');

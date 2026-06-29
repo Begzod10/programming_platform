@@ -332,7 +332,8 @@ async def submit_exercise(
         student_answer=data.student_answer,
         is_correct=is_correct,
         score=score,
-        ai_feedback=result.get("feedback", "")
+        ai_feedback=result.get("feedback", ""),
+        time_spent_ms=data.time_spent_ms,
     )
     db.add(submission)
     await db.commit()

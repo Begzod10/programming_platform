@@ -83,6 +83,7 @@ class ExerciseSubmission(Base):
     is_correct: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
     score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     ai_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    time_spent_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     exercise: Mapped["Exercise"] = relationship("Exercise", back_populates="submissions")

@@ -71,6 +71,7 @@ class ExerciseRead(BaseModel):
 
 class ExerciseSubmitRequest(BaseModel):
     student_answer: str  # JSON string yoki oddiy matn
+    time_spent_ms: Optional[int] = None
 
 
 class ExerciseSubmissionRead(BaseModel):
@@ -81,6 +82,7 @@ class ExerciseSubmissionRead(BaseModel):
     is_correct: Optional[bool] = None
     score: Optional[int] = None
     ai_feedback: Optional[str] = None
+    time_spent_ms: Optional[int] = None
     submitted_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
