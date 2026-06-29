@@ -274,10 +274,11 @@ async def review_project(
     if not project:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
 
-    if project.status == "Approved":
-        raise HTTPException(status_code=400, detail="Bu loyiha allaqachon tasdiqlangan")
-
     ranking_service = RankingService(db)
+    old_points = project.points_earned or 0
+    # Adjust points: subtract previous award then add new one
+    if old_points > 0:
+        await ranking_service.add_points_to_student(project.student_id, -old_points)
     await ranking_service.add_points_to_student(project.student_id, data.points)
 
     project.status = "Approved"
