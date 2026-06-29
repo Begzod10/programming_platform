@@ -847,6 +847,30 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [zipMsg, setZipMsg] = useState('');
     const [formErrors, setFormErrors] = useState({});
 
+    // ── Anti-cheat tracking ──────────────────────────────────────────────────
+    const MIN_TIME_SECONDS = 120; // 2 minutes minimum before submit allowed
+    const projectOpenedAtRef = useRef(null);
+    const keystrokeCountRef  = useRef(0);
+    const pasteCountRef      = useRef(0);
+    const [timeWarning, setTimeWarning] = useState('');
+
+    // Record when the project modal opens
+    const handleProjectModalOpen = () => {
+        if (!projectOpenedAtRef.current) {
+            projectOpenedAtRef.current = Date.now();
+        }
+        keystrokeCountRef.current = 0;
+        pasteCountRef.current = 0;
+        setProjectModal(true);
+        setTimeWarning('');
+    };
+
+    // Explanation modal state
+    const [explanationModal, setExplanationModal]     = useState(false);
+    const [explanationProjectId, setExplanationProjectId] = useState(null);
+    const [explanationText, setExplanationText]       = useState('');
+    const [explanationSaving, setExplanationSaving]   = useState(false);
+
     const currentIndex = allLessons.findIndex(l => l.id === lesson.id);
     const prevLesson = currentIndex > 0 ? allLessons[currentIndex - 1] : null;
     const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
@@ -1036,6 +1060,17 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const handleProjectSubmit = async () => {
         if (!validateProject()) return;
 
+        // ── Time-on-task check ───────────────────────────────────────────────
+        const elapsedSeconds = projectOpenedAtRef.current
+            ? Math.floor((Date.now() - projectOpenedAtRef.current) / 1000)
+            : 0;
+        if (elapsedSeconds < MIN_TIME_SECONDS) {
+            const remaining = MIN_TIME_SECONDS - elapsedSeconds;
+            setTimeWarning(`Loyihani topshirishdan oldin kamida ${Math.ceil(remaining / 60)} daqiqa ishlang. (${remaining} soniya qoldi)`);
+            return;
+        }
+        setTimeWarning('');
+
         const descriptionRaw = (projectForm.description.trim() || projectSection?.description || '').trim();
         const description = descriptionRaw.length >= 10
             ? descriptionRaw
@@ -1059,6 +1094,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                     difficulty_level: 'Easy',
                     project_files: '',
                     lesson_id: lesson.id,
+                    time_spent_seconds: elapsedSeconds,
+                    keystroke_count: keystrokeCountRef.current,
+                    paste_count: pasteCountRef.current,
                 }),
                 headers()
             );
@@ -1091,6 +1129,12 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 if (fresh) setProjectSubmission(fresh);
             } catch { /* fall through */ }
             setProjectModal(false);
+            // ── Code explanation step ────────────────────────────────────────
+            if (created?.id) {
+                setExplanationProjectId(created.id);
+                setExplanationText('');
+                setExplanationModal(true);
+            }
 
             if (!lesson.completed) {
                 onComplete();
@@ -1429,7 +1473,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                     <div className="slp-project-deadline" style={{background: '#fef2f2', color: '#991b1b', borderLeft: '3px solid #dc2626', padding: '8px 12px'}}>
                                                         ⚠️ Чтобы перейти к следующему уроку, нужно набрать минимум <strong>{passThreshold}/100</strong>. Загрузите проект заново.
                                                     </div>
-                                                    <button className="slp-project-btn" onClick={() => setProjectModal(true)} style={{marginTop: 8}}>
+                                                    <button className="slp-project-btn" onClick={handleProjectModalOpen} style={{marginTop: 8}}>
                                                         🔄 Загрузить заново
                                                     </button>
                                                 </>
@@ -1446,7 +1490,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                                         : <span>Проект сдан</span>}
                                                 </div>
                                             ) : (
-                                                <button className="slp-project-btn" onClick={() => setProjectModal(true)}>
+                                                <button className="slp-project-btn" onClick={handleProjectModalOpen}>
                                                     <Upload size={14} aria-hidden="true" /> Загрузить проект
                                                 </button>
                                             )}
@@ -1596,6 +1640,8 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                     rows={3}
                                     value={projectForm.description}
                                     onChange={e => setProjectForm(f => ({...f, description: e.target.value}))}
+                                    onKeyDown={() => { keystrokeCountRef.current += 1; }}
+                                    onPaste={() => { pasteCountRef.current += 1; }}
                                 />
                             </div>
 
@@ -1606,6 +1652,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                             )}
                             {projectError && (
                                 <div className="slp-project-error">⚠️ {projectError}</div>
+                            )}
+                            {timeWarning && (
+                                <div className="slp-project-error" style={{background:'#fff3cd',color:'#856404',border:'1px solid #ffc107'}}>
+                                    ⏱ {timeWarning}
+                                </div>
                             )}
                         </div>
 
@@ -1620,6 +1671,57 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                     ? <><span className="slp-btn-spin"/>{zipUploading ? 'Загрузка ZIP...' : 'Отправка...'}</>
                                     : '🚀 Отправить проект'
                                 }
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* ── Code explanation modal ─────────────────────────────────── */}
+            {explanationModal && ReactDOM.createPortal(
+                <div className="slp-modal-overlay" onClick={() => setExplanationModal(false)}>
+                    <div className="slp-modal-box" onClick={e => e.stopPropagation()} style={{maxWidth: 520}}>
+                        <div className="slp-modal-header">
+                            <h3>Kodni tushuntiring</h3>
+                            <button className="slp-modal-close" onClick={() => setExplanationModal(false)}>✕</button>
+                        </div>
+                        <div className="slp-modal-body">
+                            <p style={{marginBottom: 12, color: '#555', fontSize: 14}}>
+                                Loyihangizni muvaffaqiyatli topshirdingiz! O'qituvchiga kodni yaxshiroq tushunishi uchun — nima qilganingizni va qanday ishlashini qisqacha tushuntiring.
+                            </p>
+                            <label style={{fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 6}}>
+                                Kodingizni o'z so'zlaringiz bilan tushuntiring:
+                            </label>
+                            <textarea
+                                rows={6}
+                                style={{width:'100%', padding:'10px', borderRadius: 8, border:'1px solid #ddd', fontSize: 14, resize: 'vertical'}}
+                                placeholder="Masalan: Men counter.js faylida click hodisasini ushlash uchun addEventListener ishlatdim. Har safar tugma bosilganda count o'zgaruvchisi 1 ga ortadi va innerHTML orqali ekranga chiqaradi..."
+                                value={explanationText}
+                                onChange={e => setExplanationText(e.target.value)}
+                            />
+                        </div>
+                        <div className="slp-modal-footer">
+                            <button className="slp-modal-cancel" onClick={() => setExplanationModal(false)}>
+                                O'tkazib yuborish
+                            </button>
+                            <button
+                                className="slp-modal-submit"
+                                disabled={explanationSaving || explanationText.trim().length < 20}
+                                onClick={async () => {
+                                    if (!explanationProjectId || explanationText.trim().length < 20) return;
+                                    setExplanationSaving(true);
+                                    try {
+                                        await fetch(
+                                            `${API_URL}v1/project/${explanationProjectId}/explanation`,
+                                            { method: 'PATCH', headers: {...headers(), 'Content-Type':'application/json'}, body: JSON.stringify({explanation: explanationText.trim()}) }
+                                        );
+                                    } catch { /* best-effort */ }
+                                    setExplanationSaving(false);
+                                    setExplanationModal(false);
+                                }}
+                            >
+                                {explanationSaving ? 'Saqlanmoqda...' : 'Yuborish'}
                             </button>
                         </div>
                     </div>

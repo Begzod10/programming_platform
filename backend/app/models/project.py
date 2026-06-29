@@ -31,6 +31,12 @@ class Project(Base):
     views_count: Mapped[int] = mapped_column(Integer, default=0)
     likes_count: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Anti-cheat metrics recorded at submission time
+    time_spent_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    keystroke_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    paste_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    code_explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -479,6 +479,40 @@ function TeacherReview() {
                                         <p>{detail.instructor_feedback}</p>
                                     </div>
                                 )}
+
+                                {/* ── Anti-cheat summary ── */}
+                                <div className="tr-info-card" style={{background: (() => {
+                                    const t = detail.time_spent_seconds || 0;
+                                    const p = detail.paste_count || 0;
+                                    const k = detail.keystroke_count || 0;
+                                    if (t < 60 || (p > 2 && k < 50)) return '#fff3cd';
+                                    return '#f0fff4';
+                                })()}}>
+                                    <label>🔍 Faollik tahlili</label>
+                                    <div style={{display:'flex', gap:16, flexWrap:'wrap', marginTop:4, fontSize:13}}>
+                                        <span title="Loyiha modali ochilgandan topshirilgunga qadar">
+                                            ⏱ <strong>{detail.time_spent_seconds != null ? `${Math.floor(detail.time_spent_seconds / 60)}m ${detail.time_spent_seconds % 60}s` : '—'}</strong> vaqt
+                                        </span>
+                                        <span title="Tavsif maydonidagi tugmalar bosishlari">
+                                            ⌨️ <strong>{detail.keystroke_count ?? '—'}</strong> klavish
+                                        </span>
+                                        <span title="Necha marta paste qilgan">
+                                            📋 <strong>{detail.paste_count ?? '—'}</strong> paste
+                                        </span>
+                                        {detail.time_spent_seconds != null && detail.time_spent_seconds < 60 && (
+                                            <span style={{color:'#c0392b', fontWeight:600}}>⚠️ Juda tez topshirdi</span>
+                                        )}
+                                        {detail.paste_count > 2 && (detail.keystroke_count || 0) < 50 && (
+                                            <span style={{color:'#c0392b', fontWeight:600}}>⚠️ Ko'p paste, kam yozuv</span>
+                                        )}
+                                    </div>
+                                    {detail.code_explanation && (
+                                        <div style={{marginTop:10, borderTop:'1px solid #e0e0e0', paddingTop:8}}>
+                                            <div style={{fontWeight:600, fontSize:12, color:'#555', marginBottom:4}}>Talaba tushuntirishi:</div>
+                                            <p style={{fontSize:13, margin:0, whiteSpace:'pre-wrap'}}>{detail.code_explanation}</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="tr-section-divider"><span>Выставить оценку</span></div>

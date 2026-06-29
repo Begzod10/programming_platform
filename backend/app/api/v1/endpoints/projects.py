@@ -476,6 +476,22 @@ async def update_comment(
     )
 
 
+@router.patch("/{project_id}/explanation")
+async def save_code_explanation(
+        project_id: int,
+        explanation: str = Body(..., embed=True),
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project or project.student_id != current_student.id:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+    project.code_explanation = explanation
+    await db.commit()
+    return {"ok": True}
+
+
 @router.patch("/{project_id}/file")
 async def update_file(
         project_id: int,

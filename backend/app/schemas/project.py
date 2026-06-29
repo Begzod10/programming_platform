@@ -84,10 +84,11 @@ class ProjectBase(BaseModel):
 
 class ProjectCreate(ProjectBase):
     project_files: Optional[str] = None
-    # When set, the project is created as a lesson submission. The service
-    # creates a Submission row linking this project to the lesson, and enforces
-    # the re-submission rules (cannot re-submit while pending or after passing).
     lesson_id: Optional[int] = None
+    # Anti-cheat metrics sent from the frontend
+    time_spent_seconds: Optional[int] = None
+    keystroke_count: Optional[int] = None
+    paste_count: Optional[int] = None
 
 
 # --- Update
@@ -133,6 +134,10 @@ class ProjectRead(BaseModel):
     grade: Optional[Grade] = None
     views_count: int
     likes_count: int
+    time_spent_seconds: Optional[int] = None
+    keystroke_count: Optional[int] = None
+    paste_count: Optional[int] = None
+    code_explanation: Optional[str] = None
     submitted_at: Optional[datetime] = None
     reviewed_at: Optional[datetime] = None
     created_at: datetime
