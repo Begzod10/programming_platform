@@ -11,6 +11,7 @@ import StudentProjectFiles from '../StudentProjectPreview/StudentProjectPreview'
 import CelebrationOverlay from './CelebrationOverlay';
 import SampleProject from './SampleProject';
 import { Star, Trophy, Lock, ClipboardList, Upload, Link, Clock, Wrench, Timer, BarChart2, CheckCircle } from 'lucide-react';
+import { useTranslation } from '../../../../i18n/useTranslation';
 
 // One-time Mermaid init at module load. startOnLoad:false because we trigger
 // run() manually after each lesson's text section mounts.
@@ -589,6 +590,7 @@ const SECTION_META = {
 ═══════════════════════════════════════════════════════════ */
 const LessonFeedbackWidget = ({lessonId}) => {
     const {request} = useHttp();
+    const { lang } = useTranslation();
     const [rating, setRating] = useState(0);
     const [hover, setHover] = useState(0);
     const [comment, setComment] = useState('');
@@ -636,7 +638,7 @@ const LessonFeedbackWidget = ({lessonId}) => {
 
     const handleSubmit = async () => {
         if (!rating) {
-            setError('Bahoni tanlang (1-5 yulduz)');
+            setError(isRu ? 'Выберите оценку (1-5 звёзд)' : 'Bahoni tanlang (1-5 yulduz)');
             return;
         }
         setSaving(true);
@@ -650,14 +652,17 @@ const LessonFeedbackWidget = ({lessonId}) => {
             );
             setSavedAt(res?.updated_at || new Date().toISOString());
         } catch (e) {
-            setError('Yuborib bo\'lmadi. Birozdan keyin urinib ko\'ring.');
+            setError(isRu ? 'Не удалось отправить. Попробуйте позже.' : 'Yuborib bo\'lmadi. Birozdan keyin urinib ko\'ring.');
         } finally {
             setSaving(false);
         }
     };
 
     const display = hover || rating;
-    const labels = ['', 'Yaxshilash kerak', 'Sust', 'O\'rtacha', 'Yaxshi', 'Ajoyib'];
+    const isRu = lang === 'ru';
+    const labels = isRu
+        ? ['', 'Нужно улучшить', 'Слабо', 'Средне', 'Хорошо', 'Отлично']
+        : ['', 'Yaxshilash kerak', 'Sust', 'O\'rtacha', 'Yaxshi', 'Ajoyib'];
 
     // Once the student has submitted feedback for this lesson, lock the widget
     // into a read-only "thank you" state. We capture the first rating only —
@@ -668,9 +673,9 @@ const LessonFeedbackWidget = ({lessonId}) => {
                 <div className="slp-feedback-head">
                     <div className="slp-feedback-icon" aria-hidden="true">✅</div>
                     <div>
-                        <h3 className="slp-feedback-title">Rahmat — bahoyingiz qabul qilindi!</h3>
+                        <h3 className="slp-feedback-title">{isRu ? 'Спасибо — ваша оценка принята!' : 'Rahmat — bahoyingiz qabul qilindi!'}</h3>
                         <p className="slp-feedback-sub">
-                            Sizning fikr-mulohazangiz darslarni yaxshilashga yordam beradi.
+                            {isRu ? 'Ваш отзыв помогает улучшать уроки.' : 'Sizning fikr-mulohazangiz darslarni yaxshilashga yordam beradi.'}
                         </p>
                     </div>
                 </div>
@@ -697,9 +702,9 @@ const LessonFeedbackWidget = ({lessonId}) => {
             <div className="slp-feedback-head">
                 <div className="slp-feedback-icon" aria-hidden="true">💬</div>
                 <div>
-                    <h3 className="slp-feedback-title">Bu dars qanchalik foydali bo'ldi?</h3>
+                    <h3 className="slp-feedback-title">{isRu ? 'Насколько полезен этот урок?' : 'Bu dars qanchalik foydali bo\'ldi?'}</h3>
                     <p className="slp-feedback-sub">
-                        Bahoyingiz va izohingiz keyingi darslarni yaxshilashga yordam beradi.
+                        {isRu ? 'Ваша оценка и комментарий помогут улучшить следующие уроки.' : 'Bahoyingiz va izohingiz keyingi darslarni yaxshilashga yordam beradi.'}
                     </p>
                 </div>
             </div>
@@ -724,13 +729,13 @@ const LessonFeedbackWidget = ({lessonId}) => {
                     </button>
                 ))}
                 <span className="slp-feedback-star-label">
-                    {display ? labels[display] : 'Yulduz tanlang'}
+                    {display ? labels[display] : (isRu ? 'Выберите оценку' : 'Yulduz tanlang')}
                 </span>
             </div>
 
             <textarea
                 className="slp-feedback-comment"
-                placeholder="Ixtiyoriy: nima yoqdi, nima qiyin bo'ldi, nimani qo'shish kerak?"
+                placeholder={isRu ? 'Необязательно: что понравилось, что было сложно, что добавить?' : 'Ixtiyoriy: nima yoqdi, nima qiyin bo\'ldi, nimani qo\'shish kerak?'}
                 value={comment}
                 onChange={e => setComment(e.target.value)}
                 maxLength={2000}
@@ -745,7 +750,7 @@ const LessonFeedbackWidget = ({lessonId}) => {
                     onClick={handleSubmit}
                     disabled={!loaded || saving || !rating}
                 >
-                    {saving ? 'Yuborilmoqda...' : 'Yuborish'}
+                    {saving ? (isRu ? 'Отправка...' : 'Yuborilmoqda...') : (isRu ? 'Отправить' : 'Yuborish')}
                 </button>
                 {error && <span className="slp-feedback-error">{error}</span>}
             </div>

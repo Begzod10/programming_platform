@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { API_URL, useHttp, headers } from '../../api/search/base';
 import './StreakBadge.css';
 import { Flame } from 'lucide-react';
+import { useTranslation } from '../../i18n/useTranslation';
 
 /**
  * Sidebar flame widget showing the student's daily-activity streak.
@@ -15,7 +16,9 @@ import { Flame } from 'lucide-react';
  */
 export default function StreakBadge({ collapsed = false }) {
     const { request } = useHttp();
+    const { lang } = useTranslation();
     const [streak, setStreak] = useState(null);
+    const isRu = lang === 'ru';
 
     useEffect(() => {
         request(`${API_URL}v1/rankings/my-streak`, 'GET', null, headers())
@@ -35,8 +38,8 @@ export default function StreakBadge({ collapsed = false }) {
             <div
                 className={`streak-badge streak-badge--mini ${stateClass}`}
                 title={isLive
-                    ? `${days} kunlik streak — bugun bajarildi`
-                    : `${days} kunlik streak — bugun yo'qotmang!`}
+                    ? (isRu ? `${days}-дневная серия — сегодня выполнено` : `${days} kunlik streak — bugun bajarildi`)
+                    : (isRu ? `${days}-дневная серия — не пропустите сегодня!` : `${days} kunlik streak — bugun yo'qotmang!`)}
             >
                 <span className="streak-badge__flame" aria-hidden="true"><Flame size={18} /></span>
                 <span className="streak-badge__count">{days}</span>
@@ -54,13 +57,13 @@ export default function StreakBadge({ collapsed = false }) {
                 <div className="streak-badge__count-row">
                     <span className="streak-badge__count">{days}</span>
                     <span className="streak-badge__unit">
-                        {days === 1 ? 'kun' : 'kun'} streak
+                        {isRu ? 'дн. серия' : 'kun streak'}
                     </span>
                 </div>
                 <div className="streak-badge__sub">
                     {isLive
-                        ? 'Bugungi mashqlar bajarildi'
-                        : 'Bugun yo\'qotmang!'}
+                        ? (isRu ? 'Сегодня выполнено' : 'Bugungi mashqlar bajarildi')
+                        : (isRu ? 'Не пропустите сегодня!' : 'Bugun yo\'qotmang!')}
                 </div>
             </div>
         </div>
