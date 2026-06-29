@@ -128,7 +128,8 @@ async def login(db: AsyncSession, username: str, password: str):
                     full_name=f"{user_data.get('name', '')} {user_data.get('surname', '')}".strip(),
                     hashed_password=_ghp(_os.urandom(32).hex()),
                     role=role,
-                    is_active=True
+                    is_active=True,
+                    gennis_id=gennis_id,
                 )
                 db.add(user)
                 await db.commit()
@@ -141,6 +142,9 @@ async def login(db: AsyncSession, username: str, password: str):
                 changed = False
                 if user.role != correct_role:
                     user.role = correct_role
+                    changed = True
+                if user.gennis_id != gennis_id:
+                    user.gennis_id = gennis_id
                     changed = True
 
                 if correct_role == UserRole.teacher and user.username != username:

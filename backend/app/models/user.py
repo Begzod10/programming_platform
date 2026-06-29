@@ -86,6 +86,7 @@ class Student(Base):
     balance: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     surname: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     gennis_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    gennis_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

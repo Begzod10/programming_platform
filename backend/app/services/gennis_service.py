@@ -164,17 +164,18 @@ class GennisService:
                 phone=str(s_data.get("phone"))[:50],
                 balance=s_data.get("balance", 0),
                 surname=last_name,
-                group_id=group_id
+                group_id=group_id,
+                gennis_id=s_id,
             )
             db.add(student)
             await db.flush()
         else:
-            # Mavjud talaba ismini yangilash
             student.full_name = full_name
             student.surname = last_name
             student.phone = str(s_data.get("phone"))[:50]
             student.balance = s_data.get("balance", 0)
             student.group_id = group_id
+            student.gennis_id = s_id
 
         # Bog'liqlikni bazada yangilash (Xato bermasligi uchun ON CONFLICT)
         query = text("""

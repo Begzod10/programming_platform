@@ -31,7 +31,10 @@ async def _get_children(parent_gennis_id: int, client: httpx.AsyncClient) -> lis
 async def _load_student(db: AsyncSession, gennis_id: int) -> Optional[Student]:
     stmt = (
         select(Student)
-        .where(Student.username == f"gennis_{gennis_id}")
+        .where(
+            (Student.gennis_id == gennis_id) |
+            (Student.username == f"gennis_{gennis_id}")
+        )
         .options(
             selectinload(Student.enrolled_courses),
             selectinload(Student.certificates),
