@@ -89,6 +89,18 @@ async def reorder_exercises(
 #  AI va submit logikasi (o'zgarishsiz qoldirildi)
 # ──────────────────────────────────────────────────────
 
+def _detect_lang(text: str) -> str:
+    """Return 'ru' if text is mostly Cyrillic, else 'uz'."""
+    cyrillic = sum(1 for c in text if 'Ѐ' <= c <= 'ӿ')
+    return 'ru' if cyrillic > len(text) * 0.3 else 'uz'
+
+
+def _feedback_lang_instruction(lang: str) -> str:
+    if lang == 'ru':
+        return "Отвечай на русском языке."
+    return "O'zbek tilida javob ber."
+
+
 async def get_ai_explanation(
         question: str,
         correct_answer: str,
@@ -97,6 +109,8 @@ async def get_ai_explanation(
         course_title: str = "",
         lesson_title: str = "",
 ) -> str:
+    lang = _detect_lang(student_answer)
+    lang_instr = _feedback_lang_instruction(lang)
     scope = ""
     if course_title:
         scope = f"Kurs: {course_title}"
@@ -108,12 +122,9 @@ async def get_ai_explanation(
 {scope}Savol: {question}
 {"Qo'shimcha tushuntirish: " + explanation if explanation else ""}
 
-MUHIM: Javobni faqat shu kurs doirasida baholagil. Masalan, HTML/CSS kursida "class" so'zi HTML attribut sifatida tushuntirilishi kerak, OOP yoki JavaScript classi emas.
-
-Faqat xatoning SABABINI tushuntir (2-3 jumla, o'zbek tilida).
-TO'G'RI JAVOBNI AYTMA, O'QUVCHI JAVOBINI HAM AYTMA.
-Faqat nima uchun xato bo'lishi mumkinligini va qanday o'ylash kerakligini ayt.
-O'quvchi o'zi topishi kerak."""
+Faqat xatoning SABABINI tushuntir (2-3 jumla). TO'G'RI JAVOBNI AYTMA.
+Nima uchun xato bo'lishi mumkinligini va qanday o'ylash kerakligini ayt.
+{lang_instr}"""
     try:
         text, _parsed, provider, attempts = await call_chain(
             prompt, max_tokens=300, validator=None,
@@ -223,6 +234,8 @@ async def check_answer_with_grok(
         lesson_title: str = "",
         lesson_excerpt: str = "",
 ) -> dict:
+    lang = _detect_lang(student_answer)
+    lang_instr = _feedback_lang_instruction(lang)
     scope = ""
     if course_title:
         scope = f"Kurs: {course_title}"
@@ -233,14 +246,12 @@ async def check_answer_with_grok(
     prompt = f"""Sen dasturlash o'qituvchisisiz. Student savolga erkin javob berdi. Javobni baholab ber.
 
 {scope}{excerpt_block}
-MUHIM: Javobni faqat yuqoridagi kurs va dars doirasida baholagil.
-Masalan, HTML/CSS kursida "class" so'zi HTML atributi sifatida tushuntirilishi kerak — OOP yoki JavaScript class emas.
-
 BAHOLASH QOIDALARI:
-- Asosiy g'oya to'g'ri bo'lsa — is_correct: true. Til (rus/o'zbek/ingliz), grammatika yoki so'z tartibiga e'tibor berma.
-- "HTML nima?", "JS nima?", "CSS nima?" kabi kontseptual savollarda — asosiy tushuncha to'g'ri bo'lsa BAJARILGAN deb hisoblang.
-- Boshlang'ich darajadagi sodda javoblar ham to'g'ri hisoblanadi.
-- Faqat butunlay noto'g'ri yoki mavzudan tashqari bo'lsa is_correct: false qil.
+- Savol nima haqida bo'lsa, O'SHA HAQIDA to'g'ri javob qabul qilinadi.
+  Misol: kurs HTML/CSS bo'lsa ham, "Python nima?" savoliga to'g'ri Python javobi BAJARILGAN.
+- Asosiy g'oya to'g'ri bo'lsa is_correct: true. Til, grammatika, so'z tartibiga e'tibor berma.
+- Boshlang'ich darajadagi sodda javoblar ham to'g'ri.
+- Faqat butunlay noto'g'ri yoki savolga umuman javob bermaganda is_correct: false.
 
 Savol: {question}
 {"Kutilgan javob: " + expected_answer if expected_answer else ""}
@@ -248,11 +259,12 @@ Savol: {question}
 {"Tushuntirish: " + explanation if explanation else ""}
 Student javobi: {student_answer}
 
-Faqat JSON formatda javob ber, boshqa hech narsa yozma:
+MUHIM: {lang_instr}
+Faqat JSON formatda javob ber:
 {{
-  "is_correct": true yoki false,
-  "partial_score": 0.0 dan 1.0 gacha (qisman togri bolsa),
-  "feedback": "Uzbek tilida qisqa izoh. To'g'ri bo'lsa rag'batlantir, xato bo'lsa nimani o'zgartirish kerakligini ayt."
+  "is_correct": true or false,
+  "partial_score": 0.0 to 1.0,
+  "feedback": "Qisqa izoh — to'g'ri bo'lsa rag'batlantir, xato bo'lsa nimani o'zgartirish kerakligini ayt. {lang_instr}"
 }}"""
 
     try:
