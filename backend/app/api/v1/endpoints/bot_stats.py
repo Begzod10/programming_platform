@@ -12,6 +12,23 @@ from app.models.ranking import Ranking
 router = APIRouter()
 
 
+@router.get("/search-student")
+async def search_student(q: str, db: AsyncSession = Depends(get_db)):
+    if len(q.strip()) < 2:
+        return []
+    results = await db.execute(
+        select(Student).where(
+            (Student.full_name.ilike(f"%{q}%")) |
+            (Student.username.ilike(f"%{q}%"))
+        ).limit(10)
+    )
+    students = results.scalars().all()
+    return [
+        {"id": s.id, "name": s.full_name or s.username or f"Student #{s.id}"}
+        for s in students
+    ]
+
+
 @router.get("/student-stats/{student_id}")
 async def get_student_stats(student_id: int, db: AsyncSession = Depends(get_db)):
     student = await db.get(Student, student_id)
