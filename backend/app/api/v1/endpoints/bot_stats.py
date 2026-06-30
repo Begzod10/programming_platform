@@ -12,7 +12,7 @@ from app.models.ranking import Ranking
 router = APIRouter()
 
 
-@router.get("/bot/student-stats/{student_id}")
+@router.get("/student-stats/{student_id}")
 async def get_student_stats(student_id: int, db: AsyncSession = Depends(get_db)):
     student = await db.get(Student, student_id)
     if not student:
