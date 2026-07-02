@@ -22,6 +22,7 @@ from app.api.v1.endpoints.teacher import activity_analytics
 from app.api.v1.endpoints import dictionary
 from app.api.v1.endpoints import practice as dict_practice
 from app.api.v1.endpoints import team_game
+from app.api.v1.endpoints import lesson_questions
 from app.api.v1.endpoints import parent
 from app.api.v1.endpoints import bot_stats
 api_router = APIRouter()
@@ -46,6 +47,7 @@ api_router.include_router(dictionary.router, prefix="/dictionary", tags=["dictio
 api_router.include_router(dict_practice.router, prefix="/dictionary/practice", tags=["dictionary-practice"])
 api_router.include_router(lesson_feedback.router, prefix="", tags=["Lesson Feedback"])
 api_router.include_router(team_game.router, prefix="/game-sessions", tags=["Team Game"])
+api_router.include_router(lesson_questions.router, prefix="", tags=["Lesson Questions"])
 api_router.include_router(parent.router, prefix="/parent", tags=["Parent MiniApp"])
 api_router.include_router(activity_analytics.router, prefix="/teacher/activity", tags=["Teacher Activity"])
 api_router.include_router(bot_stats.router, prefix="/bot", tags=["Bot Stats"])

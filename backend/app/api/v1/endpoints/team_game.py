@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload, noload, load_only
 from app.core.security import decode_access_token
 from app.dependencies import get_db, get_current_teacher, get_current_student_optional, get_current_student
 from app.models.team_game import GameSession, GameTeam, GameTeamMember, GameQuestion, GameAnswer, SessionStatus, QuestionStatus
+from app.models.lesson_question import LessonQuestion
 from app.models.user import Student
 from app.schemas.team_game import (
     GameSessionRead, GameSessionCreate, GameTeamRead,
@@ -691,3 +692,69 @@ async def submit_answer(
         is_correct=is_correct,
         points_earned=points_earned,
     )
+
+
+# ── Teacher: import questions from lesson / course question bank ───────────────
+@router.post("/{session_id}/import-questions", response_model=List[GameQuestionRead])
+async def import_questions_from_lesson(
+    session_id: int,
+    lesson_id: Optional[int] = None,
+    course_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    if not lesson_id and not course_id:
+        raise HTTPException(status_code=400, detail="Provide lesson_id or course_id")
+
+    sess = (await db.execute(select(GameSession).where(GameSession.id == session_id))).scalar_one_or_none()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if sess.created_by != teacher.id:
+        raise HTTPException(status_code=403, detail="Not your session")
+
+    if lesson_id:
+        source_qs = (await db.execute(
+            select(LessonQuestion)
+            .where(LessonQuestion.lesson_id == lesson_id)
+            .order_by(LessonQuestion.order_index, LessonQuestion.id)
+        )).scalars().all()
+    else:
+        from app.models.lesson import Lesson as LessonModel
+        lesson_ids_row = (await db.execute(
+            select(LessonModel.id).where(LessonModel.course_id == course_id).order_by(LessonModel.order)
+        )).scalars().all()
+        source_qs = (await db.execute(
+            select(LessonQuestion)
+            .where(LessonQuestion.lesson_id.in_(lesson_ids_row))
+            .order_by(LessonQuestion.lesson_id, LessonQuestion.order_index)
+        )).scalars().all()
+
+    if not source_qs:
+        raise HTTPException(status_code=404, detail="No questions found for this lesson/course")
+
+    # Get current max order_index in game session
+    max_order = (await db.execute(
+        sa_text("SELECT COALESCE(MAX(order_index), -1) FROM game_questions WHERE session_id = :sid"),
+        {"sid": session_id}
+    )).scalar() or -1
+
+    created = []
+    for i, lq in enumerate(source_qs):
+        gq = GameQuestion(
+            session_id=session_id,
+            question_text=lq.question_text,
+            options=lq.options,
+            correct_option=lq.correct_option,
+            time_limit=lq.time_limit,
+            points=lq.points,
+            order_index=int(max_order) + 1 + i,
+            status=QuestionStatus.pending,
+        )
+        db.add(gq)
+        created.append(gq)
+
+    await db.commit()
+    for gq in created:
+        await db.refresh(gq)
+
+    return created

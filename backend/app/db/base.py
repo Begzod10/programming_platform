@@ -23,7 +23,8 @@ from app.models.video_watch import VideoWatch
 from app.models.dictionary import UserDictionary, PracticeSession
 from app.models.lesson_feedback import LessonFeedback
 from app.models.translation_cache import TranslationCache
-from app.models.team_game import GameSession, GameTeam, GameTeamMember
+from app.models.team_game import GameSession, GameTeam, GameTeamMember, GameQuestion, GameAnswer
+from app.models.lesson_question import LessonQuestion
 
 __all__ = [
     "Base",
@@ -55,4 +56,7 @@ __all__ = [
     "GameSession",
     "GameTeam",
     "GameTeamMember",
+    "GameQuestion",
+    "GameAnswer",
+    "LessonQuestion",
 ]

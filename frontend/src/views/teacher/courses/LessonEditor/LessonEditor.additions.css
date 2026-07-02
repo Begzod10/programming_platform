@@ -141,3 +141,148 @@
 @media (max-width: 360px) {
     .lep-ex-subtab-btn { padding: 7px 11px; font-size: 11.5px; gap: 5px; }
 }
+
+/* ── Lesson Quiz Bank ──────────────────────────────────────────────────────── */
+.lep-quiz-bank {
+    margin: 0 24px 32px;
+    background: #f0fdf4;
+    border: 1.5px solid #bbf7d0;
+    border-radius: 14px;
+    padding: 20px 22px;
+}
+.lep-quiz-bank-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 16px;
+}
+.lep-quiz-bank-header h3 { margin: 0 0 4px; font-size: 15px; color: #14532d; }
+.lep-quiz-bank-header p  { margin: 0; font-size: 12px; color: #166534; }
+.lep-quiz-bank-add-btn {
+    flex-shrink: 0;
+    background: #16a34a;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.lep-quiz-bank-add-btn:hover { background: #15803d; }
+.lep-quiz-bank-empty { color: #6b7280; font-size: 0.85rem; margin: 0.5rem 0; }
+
+.lep-quiz-bank-form {
+    background: #fff;
+    border: 1px solid #bbf7d0;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.lep-quiz-bank-form h4 { margin: 0 0 0.25rem; font-size: 0.9rem; color: #14532d; }
+.lep-quiz-bank-form textarea {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    resize: vertical;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+.lep-quiz-bank-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.lep-quiz-bank-opt-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #f9fafb;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 0.35rem 0.5rem;
+    transition: border-color 0.15s;
+}
+.lep-quiz-bank-opt-row.correct { border-color: #16a34a; background: #f0fdf4; }
+.lep-quiz-bank-opt-row input { border: none; outline: none; flex: 1; font-size: 0.85rem; background: transparent; width: 0; }
+.lep-quiz-bank-letter {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid #d1d5db;
+    background: transparent;
+    font-weight: 700;
+    font-size: 0.75rem;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, border-color 0.15s;
+}
+.lep-quiz-bank-opt-row.correct .lep-quiz-bank-letter { background: #16a34a; border-color: #16a34a; color: #fff; }
+.lep-quiz-bank-meta {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.82rem;
+    color: #374151;
+}
+.lep-quiz-bank-meta label { display: flex; flex-direction: column; gap: 0.25rem; }
+.lep-quiz-bank-meta input[type="range"] { width: 140px; }
+.lep-quiz-bank-form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+.lep-quiz-bank-form-actions button {
+    padding: 0.4rem 0.9rem;
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    background: #f9fafb;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.lep-quiz-bank-form-actions button.primary { background: #16a34a; color: #fff; border-color: #16a34a; }
+.lep-quiz-bank-form-actions button.primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.lep-quiz-bank-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.lep-quiz-bank-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    background: #fff;
+    border: 1px solid #d1fae5;
+    border-radius: 8px;
+    padding: 0.75rem;
+}
+.lep-quiz-bank-item-num { font-weight: 700; color: #6b7280; font-size: 0.8rem; min-width: 24px; padding-top: 2px; }
+.lep-quiz-bank-item-body { flex: 1; min-width: 0; }
+.lep-quiz-bank-q-text { margin: 0 0 0.4rem; font-size: 0.9rem; color: #111827; line-height: 1.4; }
+.lep-quiz-bank-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.lep-quiz-bank-chip {
+    font-size: 0.75rem;
+    background: #f3f4f6;
+    color: #374151;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+}
+.lep-quiz-bank-chip.correct { background: #d1fae5; color: #065f46; font-weight: 700; }
+.lep-quiz-bank-meta-chip {
+    font-size: 0.75rem;
+    background: #eff6ff;
+    color: #1d4ed8;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+}
+.lep-quiz-bank-item-actions { display: flex; gap: 0.25rem; flex-shrink: 0; }
+.lep-quiz-bank-item-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0.2rem;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+    border-radius: 4px;
+}
+.lep-quiz-bank-item-actions button:hover { opacity: 1; background: #f3f4f6; }

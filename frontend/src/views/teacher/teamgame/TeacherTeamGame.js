@@ -281,10 +281,99 @@ function DivideTeamsModal({ session, onClose, onStarted }) {
 // ── Quiz Question Manager ─────────────────────────────────────────────────────
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 
+function ImportFromLessonModal({ session, onClose, onImported }) {
+    const [lessons, setLessons] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [importing, setImporting] = useState(false);
+
+    useEffect(() => {
+        if (!session.course_id) { setLoading(false); return; }
+        fetch(`${API_URL}v1/courses/${session.course_id}/lessons-with-questions`, { headers: headers() })
+            .then(r => r.json())
+            .then(d => setLessons(Array.isArray(d) ? d : []))
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [session.course_id]);
+
+    const importLesson = async (lessonId) => {
+        setImporting(true);
+        try {
+            const res = await fetch(
+                `${API_URL}v1/game-sessions/${session.id}/import-questions?lesson_id=${lessonId}`,
+                { method: 'POST', headers: headers() }
+            );
+            if (!res.ok) { alert((await res.json()).detail || 'Ошибка'); return; }
+            const imported = await res.json();
+            onImported(imported.length);
+            onClose();
+        } finally { setImporting(false); }
+    };
+
+    const importCourse = async () => {
+        if (!session.course_id) return;
+        setImporting(true);
+        try {
+            const res = await fetch(
+                `${API_URL}v1/game-sessions/${session.id}/import-questions?course_id=${session.course_id}`,
+                { method: 'POST', headers: headers() }
+            );
+            if (!res.ok) { alert((await res.json()).detail || 'Ошибка'); return; }
+            const imported = await res.json();
+            onImported(imported.length);
+            onClose();
+        } finally { setImporting(false); }
+    };
+
+    return (
+        <div className="tg-modal-overlay" onClick={onClose}>
+            <div className="tg-modal" onClick={e => e.stopPropagation()}>
+                <h2>📚 Импортировать вопросы</h2>
+                {!session.course_id ? (
+                    <p style={{ color: '#6b7280' }}>Эта сессия не привязана к курсу. Привяжите курс при создании, чтобы импортировать вопросы из уроков.</p>
+                ) : loading ? (
+                    <p>Загрузка уроков...</p>
+                ) : (
+                    <>
+                        <p style={{ color: '#6b7280', marginBottom: '1rem' }}>Выберите урок или весь курс:</p>
+                        <button
+                            className="tg-btn-primary tg-import-all-btn"
+                            disabled={importing}
+                            onClick={importCourse}
+                        >
+                            🗂 Импортировать весь курс ({lessons.reduce((s, l) => s + l.question_count, 0)} вопросов)
+                        </button>
+                        <div className="tg-import-lessons-list">
+                            {lessons.map(l => (
+                                <div key={l.id} className="tg-import-lesson-row">
+                                    <div>
+                                        <span className="tg-import-lesson-title">{l.title}</span>
+                                        <span className="tg-import-lesson-count">{l.question_count} вопросов</span>
+                                    </div>
+                                    <button
+                                        className="tg-btn-secondary tg-btn-sm"
+                                        disabled={importing || l.question_count === 0}
+                                        onClick={() => importLesson(l.id)}
+                                    >
+                                        {l.question_count === 0 ? 'Нет вопросов' : '+ Добавить'}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                )}
+                <div className="tg-modal-actions">
+                    <button className="tg-btn-secondary" onClick={onClose}>Закрыть</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function QuizManager({ session }) {
     const [questions, setQuestions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAdd, setShowAdd] = useState(false);
+    const [showImport, setShowImport] = useState(false);
     const [form, setForm] = useState({ question_text: '', options: ['', '', '', ''], correct_option: 0, time_limit: 30, points: 1000 });
     const [saving, setSaving] = useState(false);
     const [actionId, setActionId] = useState(null);
@@ -368,11 +457,24 @@ function QuizManager({ session }) {
             <div className="tg-quiz-header">
                 <h4>📝 Вопросы викторины ({questions.length})</h4>
                 {session.status !== 'completed' && (
-                    <button className="tg-btn-secondary tg-btn-sm" onClick={() => setShowAdd(v => !v)}>
-                        {showAdd ? '✕ Отмена' : '+ Вопрос'}
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <button className="tg-btn-secondary tg-btn-sm" onClick={() => setShowImport(true)}>
+                            📚 Из урока
+                        </button>
+                        <button className="tg-btn-secondary tg-btn-sm" onClick={() => setShowAdd(v => !v)}>
+                            {showAdd ? '✕ Отмена' : '+ Вопрос'}
+                        </button>
+                    </div>
                 )}
             </div>
+
+            {showImport && (
+                <ImportFromLessonModal
+                    session={session}
+                    onClose={() => setShowImport(false)}
+                    onImported={(count) => { loadQuestions(); alert(`Импортировано ${count} вопросов!`); }}
+                />
+            )}
 
             {showAdd && (
                 <form className="tg-quiz-add-form" onSubmit={saveQuestion}>
