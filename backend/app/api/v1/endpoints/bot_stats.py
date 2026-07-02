@@ -28,10 +28,14 @@ async def search_student(q: str, db: AsyncSession = Depends(get_db)):
         Student.full_name.ilike(f"%{reversed_q}%"),
         Student.username.ilike(f"%{q}%"),
     ]
-    # If multi-word, also match if ALL words appear anywhere in full_name
-    # (handles word-order variants with exact per-word spelling)
+    # Multi-word: match if ALL words appear (any order, correct spelling)
     if len(words) > 1:
         conditions.append(and_(*[Student.full_name.ilike(f"%{w}%") for w in words]))
+    # Fallback: also match any single word >= 5 chars — catches spelling variants
+    # e.g. "Karimov Shohruz" will still find "Shoxruz Karimov" via "Karimov"
+    for w in words:
+        if len(w) >= 5:
+            conditions.append(Student.full_name.ilike(f"%{w}%"))
 
     results = await db.execute(
         select(Student).where(or_(*conditions)).limit(10)
