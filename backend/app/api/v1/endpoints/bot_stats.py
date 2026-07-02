@@ -14,24 +14,34 @@ router = APIRouter()
 
 @router.get("/search-student")
 async def search_student(q: str, db: AsyncSession = Depends(get_db)):
+    from sqlalchemy import and_
     q = q.strip()
     if len(q) < 2:
         return []
 
-    # Also try reversed word order so "Karimov Shohruz" finds "Shohruz Karimov"
-    words = q.split()
+    words = [w for w in q.split() if len(w) >= 2]
     reversed_q = " ".join(reversed(words)) if len(words) > 1 else q
 
+    # Build conditions: exact phrase, reversed phrase, username, each word
+    conditions = [
+        Student.full_name.ilike(f"%{q}%"),
+        Student.full_name.ilike(f"%{reversed_q}%"),
+        Student.username.ilike(f"%{q}%"),
+    ]
+    # If multi-word, also match if ALL words appear anywhere in full_name
+    # (handles word-order variants with exact per-word spelling)
+    if len(words) > 1:
+        conditions.append(and_(*[Student.full_name.ilike(f"%{w}%") for w in words]))
+
     results = await db.execute(
-        select(Student).where(
-            or_(
-                Student.full_name.ilike(f"%{q}%"),
-                Student.full_name.ilike(f"%{reversed_q}%"),
-                Student.username.ilike(f"%{q}%"),
-            )
-        ).limit(10)
+        select(Student).where(or_(*conditions)).limit(10)
     )
-    students = results.scalars().all()
+    # Deduplicate (a student might match multiple conditions)
+    seen, students = set(), []
+    for s in results.scalars().all():
+        if s.id not in seen:
+            seen.add(s.id)
+            students.append(s)
     return [
         {"id": s.id, "name": s.full_name or s.username or f"Student #{s.id}"}
         for s in students
