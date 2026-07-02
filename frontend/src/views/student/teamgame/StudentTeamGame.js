@@ -5,6 +5,8 @@ import { Trophy } from 'lucide-react';
 
 const GAME_TYPE_LABELS = { quiz: 'Викторина', coding: 'Кодинг', project: 'Проект', custom: 'Другое' };
 const STATUS_LABELS    = { pending: 'Скоро начнётся', active: 'Идёт сейчас', completed: 'Завершена' };
+const OPTION_LABELS    = ['A', 'B', 'C', 'D'];
+const OPTION_COLORS    = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12'];
 
 function wsUrl(sessionId) {
     const base = API_URL_DOC.replace(/^http/, 'ws').replace(/\/$/, '');
@@ -12,7 +14,7 @@ function wsUrl(sessionId) {
     return `${base}/api/v1/game-sessions/${sessionId}/ws?token=${token}`;
 }
 
-function useSessionSocket(sessionId, onUpdate, onDeleted) {
+function useSessionSocket(sessionId, onUpdate, onDeleted, onMessage) {
     const wsRef = useRef(null);
     const pingRef = useRef(null);
     const mountedRef = useRef(true);
@@ -28,6 +30,7 @@ function useSessionSocket(sessionId, onUpdate, onDeleted) {
                 const msg = JSON.parse(e.data);
                 if (msg.type === 'session_update') onUpdate(msg.data);
                 if (msg.type === 'session_deleted' && onDeleted) onDeleted();
+                if (onMessage) onMessage(msg);
             } catch {}
         };
 
@@ -46,7 +49,7 @@ function useSessionSocket(sessionId, onUpdate, onDeleted) {
         };
 
         ws.onerror = () => ws.close();
-    }, [sessionId, onUpdate, onDeleted]);
+    }, [sessionId, onUpdate, onDeleted, onMessage]);
 
     useEffect(() => {
         mountedRef.current = true;
@@ -61,6 +64,104 @@ function useSessionSocket(sessionId, onUpdate, onDeleted) {
         };
     }, [connect]);
 }
+
+// ── Quiz Overlay ──────────────────────────────────────────────────────────────
+function QuizOverlay({ question, sessionId, onDone }) {
+    const [chosen, setChosen] = useState(null);
+    const [result, setResult] = useState(null);  // {is_correct, points_earned}
+    const [progress, setProgress] = useState(null);
+    const [timeLeft, setTimeLeft] = useState(question.time_limit);
+    const [submitting, setSubmitting] = useState(false);
+
+    // Countdown
+    useEffect(() => {
+        const start = question.activated_at ? new Date(question.activated_at) : new Date();
+        const tick = () => {
+            const elapsed = (Date.now() - start.getTime()) / 1000;
+            setTimeLeft(Math.max(0, Math.ceil(question.time_limit - elapsed)));
+        };
+        tick();
+        const t = setInterval(tick, 250);
+        return () => clearInterval(t);
+    }, [question]);
+
+    const submit = async (idx) => {
+        if (chosen !== null || submitting) return;
+        setChosen(idx);
+        setSubmitting(true);
+        try {
+            const res = await fetch(`${API_URL}v1/game-sessions/${sessionId}/questions/${question.id}/answer`, {
+                method: 'POST',
+                headers: { ...headers(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chosen_option: idx }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setResult(data);
+            }
+        } finally { setSubmitting(false); }
+    };
+
+    const pct = question.time_limit > 0 ? (timeLeft / question.time_limit) * 100 : 0;
+    const timerColor = pct > 50 ? '#2ecc71' : pct > 25 ? '#f39c12' : '#e74c3c';
+
+    return (
+        <div className="stg-quiz-overlay">
+            <div className="stg-quiz-timer-bar-wrap">
+                <div className="stg-quiz-timer-bar" style={{ width: `${pct}%`, background: timerColor }} />
+                <span className="stg-quiz-timer-num" style={{ color: timerColor }}>{timeLeft}с</span>
+            </div>
+
+            <div className="stg-quiz-question">
+                <div className="stg-quiz-points-badge">⭐ до {question.points} очков</div>
+                <h2>{question.question_text}</h2>
+            </div>
+
+            <div className="stg-quiz-options">
+                {question.options.map((opt, i) => {
+                    let cls = 'stg-quiz-opt';
+                    if (chosen === i) cls += ' stg-quiz-opt--chosen';
+                    if (chosen !== null && chosen !== i) cls += ' stg-quiz-opt--faded';
+                    return (
+                        <button
+                            key={i}
+                            className={cls}
+                            style={{ '--opt-color': OPTION_COLORS[i] }}
+                            onClick={() => submit(i)}
+                            disabled={chosen !== null || timeLeft === 0}
+                        >
+                            <span className="stg-quiz-opt-letter">{OPTION_LABELS[i]}</span>
+                            <span className="stg-quiz-opt-text">{opt}</span>
+                        </button>
+                    );
+                })}
+            </div>
+
+            {chosen !== null && !result && (
+                <div className="stg-quiz-waiting">
+                    {progress
+                        ? <p>✅ Ответили: {progress.answered_count} / {progress.total_players}</p>
+                        : <p>⏳ Ждём ответов других игроков...</p>
+                    }
+                </div>
+            )}
+
+            {result && (
+                <div className={`stg-quiz-result stg-quiz-result--${result.is_correct ? 'correct' : 'wrong'}`}>
+                    {result.is_correct
+                        ? <><span>✅ Правильно!</span><span className="stg-quiz-pts">+{result.points_earned} очков</span></>
+                        : <span>❌ Неправильно</span>
+                    }
+                </div>
+            )}
+
+            {timeLeft === 0 && chosen === null && (
+                <div className="stg-quiz-result stg-quiz-result--wrong">⏰ Время вышло!</div>
+            )}
+        </div>
+    );
+}
+
 
 function MyTeamBanner({ session }) {
     const team = session.teams?.find(t => t.id === session.my_team_id);
@@ -100,10 +201,22 @@ function ScoreBoard({ teams }) {
 function SessionDetail({ initialSession, onBack }) {
     const [session, setSession] = useState(initialSession);
     const [gone, setGone] = useState(false);
+    const [activeQuestion, setActiveQuestion] = useState(null);  // question_start payload
+    const [lastResult, setLastResult] = useState(null);  // question_end payload
 
     const handleUpdate = useCallback((data) => setSession(data), []);
     const handleDeleted = useCallback(() => setGone(true), []);
-    useSessionSocket(session.id, handleUpdate, handleDeleted);
+    const handleMessage = useCallback((msg) => {
+        if (msg.type === 'question_start') {
+            setActiveQuestion(msg.data);
+            setLastResult(null);
+        }
+        if (msg.type === 'question_end') {
+            setActiveQuestion(null);
+            setLastResult(msg.data);
+        }
+    }, []);
+    useSessionSocket(session.id, handleUpdate, handleDeleted, handleMessage);
 
     if (gone) {
         return (
@@ -122,6 +235,15 @@ function SessionDetail({ initialSession, onBack }) {
 
     return (
         <div className="stg-detail">
+            {/* Full-screen quiz overlay when question is active */}
+            {activeQuestion && session.game_type === 'quiz' && (
+                <QuizOverlay
+                    question={activeQuestion}
+                    sessionId={session.id}
+                    onDone={() => setActiveQuestion(null)}
+                />
+            )}
+
             <button className="stg-back-btn" onClick={onBack}>← Назад</button>
             <div className="stg-detail-header">
                 <h2>{session.title}</h2>
@@ -132,6 +254,21 @@ function SessionDetail({ initialSession, onBack }) {
             {session.description && <p className="stg-description">{session.description}</p>}
 
             <MyTeamBanner session={session} />
+
+            {/* Show last question result between questions */}
+            {lastResult && !activeQuestion && (
+                <div className="stg-quiz-end-banner">
+                    <h3>📊 Результаты вопроса</h3>
+                    <div className="stg-quiz-end-opts">
+                        {session.teams && session.teams[0]?.members.length > 0 && lastResult.answers && (
+                            <p className="stg-quiz-end-stat">
+                                ✅ Правильно ответили: {lastResult.answers.filter(a => a.is_correct).length} / {lastResult.answers.length}
+                            </p>
+                        )}
+                    </div>
+                    <p className="stg-quiz-end-hint">Ждите следующего вопроса...</p>
+                </div>
+            )}
 
             {session.status === 'pending' && (
                 <div className="stg-pending-notice">

@@ -1,4 +1,5 @@
 import random
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
@@ -7,13 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, noload, load_only
 
 from app.core.security import decode_access_token
-from app.dependencies import get_db, get_current_teacher, get_current_student_optional
-from app.models.team_game import GameSession, GameTeam, GameTeamMember, SessionStatus
+from app.dependencies import get_db, get_current_teacher, get_current_student_optional, get_current_student
+from app.models.team_game import GameSession, GameTeam, GameTeamMember, GameQuestion, GameAnswer, SessionStatus, QuestionStatus
 from app.models.user import Student
 from app.schemas.team_game import (
     GameSessionRead, GameSessionCreate, GameTeamRead,
     TeamMemberRead, ScoreUpdate, StudentRead,
-    StartSessionBody,
+    StartSessionBody, GameQuestionCreate, GameQuestionRead,
+    AnswerSubmit, AnswerResultRead, QuestionEndPayload,
 )
 from app.ws.manager import manager
 
@@ -404,3 +406,288 @@ async def delete_session(
     await db.delete(session)
     await db.commit()
     await manager.broadcast(session_id, {"type": "session_deleted"})
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Quiz question endpoints
+# ═══════════════════════════════════════════════════════════════════════════════
+
+async def _get_teacher_session(db: AsyncSession, session_id: int, teacher_id: int) -> GameSession:
+    sess = (await db.execute(select(GameSession).where(GameSession.id == session_id))).scalar_one_or_none()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if sess.created_by != teacher_id:
+        raise HTTPException(status_code=403, detail="Not your session")
+    return sess
+
+
+# ── Teacher: add question ──────────────────────────────────────────────────────
+@router.post("/{session_id}/questions", response_model=GameQuestionRead, status_code=status.HTTP_201_CREATED)
+async def add_question(
+    session_id: int,
+    body: GameQuestionCreate,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    sess = await _get_teacher_session(db, session_id, teacher.id)
+    if sess.status == SessionStatus.completed:
+        raise HTTPException(status_code=400, detail="Cannot add questions to a completed session")
+
+    # Auto-assign order_index if not provided
+    count_row = (await db.execute(
+        sa_text("SELECT COUNT(*) FROM game_questions WHERE session_id = :sid"),
+        {"sid": session_id}
+    )).scalar()
+    order = body.order_index if body.order_index else int(count_row or 0)
+
+    q = GameQuestion(
+        session_id=session_id,
+        question_text=body.question_text,
+        options=body.options,
+        correct_option=body.correct_option,
+        time_limit=body.time_limit,
+        points=body.points,
+        order_index=order,
+        status=QuestionStatus.pending,
+    )
+    db.add(q)
+    await db.commit()
+    await db.refresh(q)
+    return q
+
+
+# ── Teacher: list questions ────────────────────────────────────────────────────
+@router.get("/{session_id}/questions", response_model=List[GameQuestionRead])
+async def list_questions(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    await _get_teacher_session(db, session_id, teacher.id)
+    rows = (await db.execute(
+        select(GameQuestion)
+        .where(GameQuestion.session_id == session_id)
+        .order_by(GameQuestion.order_index)
+    )).scalars().all()
+    return rows
+
+
+# ── Teacher: delete question ───────────────────────────────────────────────────
+@router.delete("/{session_id}/questions/{question_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_question(
+    session_id: int,
+    question_id: int,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    await _get_teacher_session(db, session_id, teacher.id)
+    q = (await db.execute(
+        select(GameQuestion).where(GameQuestion.id == question_id, GameQuestion.session_id == session_id)
+    )).scalar_one_or_none()
+    if not q:
+        raise HTTPException(status_code=404, detail="Question not found")
+    await db.delete(q)
+    await db.commit()
+
+
+# ── Teacher: activate a question (broadcast to students) ──────────────────────
+@router.post("/{session_id}/questions/{question_id}/activate", response_model=GameQuestionRead)
+async def activate_question(
+    session_id: int,
+    question_id: int,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    await _get_teacher_session(db, session_id, teacher.id)
+
+    # Mark any currently active question as revealed first
+    await db.execute(
+        sa_text(
+            "UPDATE game_questions SET status = 'revealed' "
+            "WHERE session_id = :sid AND status = 'active'"
+        ),
+        {"sid": session_id}
+    )
+
+    q = (await db.execute(
+        select(GameQuestion).where(GameQuestion.id == question_id, GameQuestion.session_id == session_id)
+    )).scalar_one_or_none()
+    if not q:
+        raise HTTPException(status_code=404, detail="Question not found")
+
+    q.status = QuestionStatus.active
+    q.activated_at = datetime.now(timezone.utc)
+
+    await db.execute(
+        sa_text("UPDATE game_sessions SET current_question_id = :qid WHERE id = :sid"),
+        {"qid": question_id, "sid": session_id}
+    )
+    await db.commit()
+    await db.refresh(q)
+
+    # Broadcast question to students (WITHOUT correct_option)
+    await manager.broadcast(session_id, {
+        "type": "question_start",
+        "data": {
+            "id": q.id,
+            "question_text": q.question_text,
+            "options": q.options,
+            "time_limit": q.time_limit,
+            "points": q.points,
+            "order_index": q.order_index,
+            "activated_at": q.activated_at.isoformat(),
+        }
+    })
+    return q
+
+
+# ── Teacher: reveal answer ─────────────────────────────────────────────────────
+@router.post("/{session_id}/questions/{question_id}/reveal")
+async def reveal_question(
+    session_id: int,
+    question_id: int,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    await _get_teacher_session(db, session_id, teacher.id)
+
+    q = (await db.execute(
+        select(GameQuestion)
+        .where(GameQuestion.id == question_id, GameQuestion.session_id == session_id)
+        .options(selectinload(GameQuestion.answers).selectinload(GameAnswer.student))
+    )).scalar_one_or_none()
+    if not q:
+        raise HTTPException(status_code=404, detail="Question not found")
+
+    q.status = QuestionStatus.revealed
+    await db.commit()
+    await db.refresh(q)
+
+    # Build answer list
+    answers_out = [
+        AnswerResultRead(
+            student_id=a.student_id,
+            full_name=getattr(a.student, "full_name", None),
+            team_id=a.team_id,
+            chosen_option=a.chosen_option,
+            is_correct=a.is_correct,
+            points_earned=a.points_earned,
+        )
+        for a in q.answers
+    ]
+
+    # Current team scores
+    teams = (await db.execute(
+        select(GameTeam).where(GameTeam.session_id == session_id).order_by(GameTeam.score.desc())
+    )).scalars().all()
+    team_scores = [{"team_id": t.id, "name": t.name, "color": t.color, "score": t.score} for t in teams]
+
+    payload = QuestionEndPayload(
+        question_id=q.id,
+        correct_option=q.correct_option,
+        answers=answers_out,
+        team_scores=team_scores,
+    )
+    await manager.broadcast(session_id, {"type": "question_end", "data": payload.model_dump()})
+    return payload
+
+
+# ── Student: submit answer ─────────────────────────────────────────────────────
+@router.post("/{session_id}/questions/{question_id}/answer", response_model=AnswerResultRead)
+async def submit_answer(
+    session_id: int,
+    question_id: int,
+    body: AnswerSubmit,
+    db: AsyncSession = Depends(get_db),
+    student: Student = Depends(get_current_student),
+):
+    # Verify question is active
+    q = (await db.execute(
+        select(GameQuestion).where(
+            GameQuestion.id == question_id,
+            GameQuestion.session_id == session_id,
+            GameQuestion.status == QuestionStatus.active,
+        )
+    )).scalar_one_or_none()
+    if not q:
+        raise HTTPException(status_code=400, detail="Question is not active")
+
+    # Find student's team
+    member = (await db.execute(
+        select(GameTeamMember)
+        .join(GameTeam, GameTeam.id == GameTeamMember.team_id)
+        .where(GameTeam.session_id == session_id, GameTeamMember.student_id == student.id)
+    )).scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=400, detail="You are not assigned to a team in this session")
+
+    # Check for duplicate answer
+    existing = (await db.execute(
+        select(GameAnswer).where(
+            GameAnswer.question_id == question_id,
+            GameAnswer.student_id == student.id,
+        )
+    )).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=409, detail="Already answered")
+
+    is_correct = body.chosen_option == q.correct_option
+
+    # Time-based scoring: full points at 0s, 50% at time_limit, linear decay
+    points_earned = 0
+    if is_correct and q.activated_at:
+        now = datetime.now(timezone.utc)
+        elapsed = (now - q.activated_at).total_seconds()
+        ratio = max(0.0, min(1.0, elapsed / q.time_limit))
+        points_earned = max(int(q.points * (1.0 - ratio * 0.5)), int(q.points * 0.5))
+
+    answer = GameAnswer(
+        question_id=question_id,
+        student_id=student.id,
+        team_id=member.team_id,
+        chosen_option=body.chosen_option,
+        is_correct=is_correct,
+        points_earned=points_earned,
+    )
+    db.add(answer)
+
+    if is_correct and points_earned > 0:
+        await db.execute(
+            sa_text("UPDATE game_teams SET score = score + :pts WHERE id = :tid"),
+            {"pts": points_earned, "tid": member.team_id},
+        )
+
+    await db.commit()
+
+    # Broadcast answer progress (count only, not who answered what)
+    total_members = (await db.execute(
+        sa_text(
+            "SELECT COUNT(*) FROM game_team_members gtm "
+            "JOIN game_teams gt ON gt.id = gtm.team_id "
+            "WHERE gt.session_id = :sid"
+        ),
+        {"sid": session_id}
+    )).scalar() or 0
+
+    answered_count = (await db.execute(
+        sa_text("SELECT COUNT(*) FROM game_answers WHERE question_id = :qid"),
+        {"qid": question_id}
+    )).scalar() or 0
+
+    await manager.broadcast(session_id, {
+        "type": "question_progress",
+        "data": {
+            "question_id": question_id,
+            "answered_count": int(answered_count),
+            "total_players": int(total_members),
+        }
+    })
+
+    return AnswerResultRead(
+        student_id=student.id,
+        full_name=student.full_name,
+        team_id=member.team_id,
+        chosen_option=body.chosen_option,
+        is_correct=is_correct,
+        points_earned=points_earned,
+    )

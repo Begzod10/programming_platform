@@ -12,7 +12,7 @@ function wsUrl(sessionId) {
 }
 
 // Keeps a WS alive for the given sessionId, calls onUpdate(data) on every push
-function useSessionSocket(sessionId, onUpdate) {
+function useSessionSocket(sessionId, onUpdate, onDeleted, onRawMessage) {
     const wsRef = useRef(null);
     const pingRef = useRef(null);
     const mountedRef = useRef(true);
@@ -27,6 +27,8 @@ function useSessionSocket(sessionId, onUpdate) {
             try {
                 const msg = JSON.parse(e.data);
                 if (msg.type === 'session_update') onUpdate(msg.data);
+                if (msg.type === 'session_deleted' && onDeleted) onDeleted();
+                if (onRawMessage) onRawMessage(msg);
             } catch {}
         };
 
@@ -276,6 +278,198 @@ function DivideTeamsModal({ session, onClose, onStarted }) {
 }
 
 
+// ── Quiz Question Manager ─────────────────────────────────────────────────────
+const OPTION_LABELS = ['A', 'B', 'C', 'D'];
+
+function QuizManager({ session }) {
+    const [questions, setQuestions] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [showAdd, setShowAdd] = useState(false);
+    const [form, setForm] = useState({ question_text: '', options: ['', '', '', ''], correct_option: 0, time_limit: 30, points: 1000 });
+    const [saving, setSaving] = useState(false);
+    const [actionId, setActionId] = useState(null);
+    const [progress, setProgress] = useState({}); // question_id → {answered, total}
+
+    const loadQuestions = useCallback(() => {
+        fetch(`${API_URL}v1/game-sessions/${session.id}/questions`, { headers: headers() })
+            .then(r => r.json())
+            .then(d => setQuestions(Array.isArray(d) ? d : []))
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [session.id]);
+
+    useEffect(() => { loadQuestions(); }, [loadQuestions]);
+
+    // Listen for progress updates on existing WS connection
+    useEffect(() => {
+        const handler = (e) => {
+            try {
+                const msg = JSON.parse(e.data);
+                if (msg.type === 'question_progress') {
+                    setProgress(prev => ({ ...prev, [msg.data.question_id]: msg.data }));
+                }
+                if (msg.type === 'question_end') {
+                    loadQuestions();
+                    setProgress(prev => { const n = { ...prev }; delete n[msg.data.question_id]; return n; });
+                }
+            } catch {}
+        };
+        window.addEventListener('tg_ws_message', handler);
+        return () => window.removeEventListener('tg_ws_message', handler);
+    }, [loadQuestions]);
+
+    const saveQuestion = async (e) => {
+        e.preventDefault();
+        if (form.options.some(o => !o.trim())) { alert('Заполните все варианты'); return; }
+        setSaving(true);
+        try {
+            const res = await fetch(`${API_URL}v1/game-sessions/${session.id}/questions`, {
+                method: 'POST',
+                headers: { ...headers(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...form, options: form.options.map(o => o.trim()) }),
+            });
+            if (!res.ok) { alert((await res.json()).detail || 'Ошибка'); return; }
+            setShowAdd(false);
+            setForm({ question_text: '', options: ['', '', '', ''], correct_option: 0, time_limit: 30, points: 1000 });
+            loadQuestions();
+        } finally { setSaving(false); }
+    };
+
+    const deleteQuestion = async (qid) => {
+        if (!window.confirm('Удалить вопрос?')) return;
+        await fetch(`${API_URL}v1/game-sessions/${session.id}/questions/${qid}`, { method: 'DELETE', headers: headers() });
+        loadQuestions();
+    };
+
+    const activateQuestion = async (qid) => {
+        setActionId(qid);
+        try {
+            const res = await fetch(`${API_URL}v1/game-sessions/${session.id}/questions/${qid}/activate`, { method: 'POST', headers: headers() });
+            if (!res.ok) alert((await res.json()).detail || 'Ошибка');
+            else loadQuestions();
+        } finally { setActionId(null); }
+    };
+
+    const revealQuestion = async (qid) => {
+        setActionId(qid);
+        try {
+            const res = await fetch(`${API_URL}v1/game-sessions/${session.id}/questions/${qid}/reveal`, { method: 'POST', headers: headers() });
+            if (!res.ok) alert((await res.json()).detail || 'Ошибка');
+            else loadQuestions();
+        } finally { setActionId(null); }
+    };
+
+    const setOption = (idx, val) => setForm(f => { const opts = [...f.options]; opts[idx] = val; return { ...f, options: opts }; });
+
+    if (session.game_type !== 'quiz') return null;
+
+    return (
+        <div className="tg-quiz-manager">
+            <div className="tg-quiz-header">
+                <h4>📝 Вопросы викторины ({questions.length})</h4>
+                {session.status !== 'completed' && (
+                    <button className="tg-btn-secondary tg-btn-sm" onClick={() => setShowAdd(v => !v)}>
+                        {showAdd ? '✕ Отмена' : '+ Вопрос'}
+                    </button>
+                )}
+            </div>
+
+            {showAdd && (
+                <form className="tg-quiz-add-form" onSubmit={saveQuestion}>
+                    <textarea
+                        required placeholder="Текст вопроса"
+                        value={form.question_text}
+                        onChange={e => setForm(f => ({ ...f, question_text: e.target.value }))}
+                        rows={2}
+                    />
+                    <div className="tg-quiz-options-grid">
+                        {form.options.map((opt, i) => (
+                            <div key={i} className={`tg-quiz-option-row${form.correct_option === i ? ' tg-quiz-option-row--correct' : ''}`}>
+                                <button type="button" className="tg-quiz-letter" onClick={() => setForm(f => ({ ...f, correct_option: i }))}>
+                                    {OPTION_LABELS[i]}
+                                </button>
+                                <input
+                                    required placeholder={`Вариант ${OPTION_LABELS[i]}`}
+                                    value={opt} onChange={e => setOption(i, e.target.value)}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                    <div className="tg-quiz-meta-row">
+                        <label>⏱ {form.time_limit}с
+                            <input type="range" min={5} max={120} step={5} value={form.time_limit}
+                                onChange={e => setForm(f => ({ ...f, time_limit: Number(e.target.value) }))} />
+                        </label>
+                        <label>⭐ {form.points} очков
+                            <input type="range" min={100} max={5000} step={100} value={form.points}
+                                onChange={e => setForm(f => ({ ...f, points: Number(e.target.value) }))} />
+                        </label>
+                    </div>
+                    <div className="tg-modal-actions">
+                        <button type="submit" className="tg-btn-primary" disabled={saving}>{saving ? 'Сохранение...' : '💾 Сохранить'}</button>
+                    </div>
+                </form>
+            )}
+
+            {loading ? <div className="tg-quiz-loading">Загрузка...</div> : (
+                <div className="tg-quiz-list">
+                    {questions.length === 0 && !showAdd && (
+                        <p className="tg-quiz-empty">Нет вопросов. Добавьте хотя бы один перед запуском!</p>
+                    )}
+                    {questions.map((q, idx) => {
+                        const prog = progress[q.id];
+                        return (
+                            <div key={q.id} className={`tg-quiz-item tg-quiz-item--${q.status}`}>
+                                <div className="tg-quiz-item-header">
+                                    <span className="tg-quiz-num">#{idx + 1}</span>
+                                    <span className="tg-quiz-text">{q.question_text}</span>
+                                    <div className="tg-quiz-item-meta">
+                                        <span>⏱{q.time_limit}с</span>
+                                        <span>⭐{q.points}</span>
+                                        <span className={`tg-quiz-status tg-quiz-status--${q.status}`}>
+                                            {q.status === 'pending' ? '○ Ожидание' : q.status === 'active' ? '● Активен' : '✓ Раскрыт'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="tg-quiz-opts-preview">
+                                    {q.options.map((opt, i) => (
+                                        <span key={i} className={`tg-quiz-opt-chip${i === q.correct_option ? ' tg-quiz-opt-chip--correct' : ''}`}>
+                                            {OPTION_LABELS[i]}: {opt}
+                                        </span>
+                                    ))}
+                                </div>
+                                {prog && (
+                                    <div className="tg-quiz-progress">
+                                        <div className="tg-quiz-progress-bar" style={{ width: `${prog.total_players ? (prog.answered_count / prog.total_players) * 100 : 0}%` }} />
+                                        <span>{prog.answered_count}/{prog.total_players} ответили</span>
+                                    </div>
+                                )}
+                                {session.status === 'active' && (
+                                    <div className="tg-quiz-item-actions">
+                                        {q.status === 'pending' && (
+                                            <button className="tg-btn-primary tg-btn-sm" disabled={actionId === q.id}
+                                                onClick={() => activateQuestion(q.id)}>▶ Запустить</button>
+                                        )}
+                                        {q.status === 'active' && (
+                                            <button className="tg-btn-success tg-btn-sm" disabled={actionId === q.id}
+                                                onClick={() => revealQuestion(q.id)}>🔍 Раскрыть ответ</button>
+                                        )}
+                                        {q.status === 'revealed' && <span className="tg-quiz-done">✓ Завершён</span>}
+                                    </div>
+                                )}
+                                {session.status !== 'completed' && q.status === 'pending' && (
+                                    <button className="tg-quiz-delete" onClick={() => deleteQuestion(q.id)} title="Удалить">🗑</button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+
 // ── Session Card ──────────────────────────────────────────────────────────────
 function SessionCard({ initialSession }) {
     const [session, setSession] = useState(initialSession);
@@ -283,8 +477,17 @@ function SessionCard({ initialSession }) {
     const [delta, setDelta] = useState({});
     const [showDivide, setShowDivide] = useState(false);
 
-    const handleWsUpdate = useCallback((data) => setSession(data), []);
-    useSessionSocket(session.id, handleWsUpdate);
+    const handleWsUpdate = useCallback((data) => {
+        setSession(data);
+        // Relay all WS messages via custom event for QuizManager
+    }, []);
+
+    // Relay raw WS messages so QuizManager can listen for question_progress/question_end
+    const handleWsRaw = useCallback((msg) => {
+        window.dispatchEvent(new MessageEvent('tg_ws_message', { data: JSON.stringify(msg) }));
+    }, []);
+
+    useSessionSocket(session.id, handleWsUpdate, null, handleWsRaw);
 
     const act = async (path, method = 'POST', body = null) => {
         setActionLoading(true);
@@ -341,6 +544,8 @@ function SessionCard({ initialSession }) {
             </div>
 
             {session.description && <p className="tg-description">{session.description}</p>}
+
+            <QuizManager session={session} />
 
             <div className="tg-teams">
                 {sortedTeams.map((team, idx) => (
