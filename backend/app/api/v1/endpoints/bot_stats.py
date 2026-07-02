@@ -35,12 +35,15 @@ async def get_student_stats(student_id: int, db: AsyncSession = Depends(get_db))
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    # Enrolled courses
+    # Enrolled courses — only published
     enrolled_q = await db.execute(
         select(Course).join(
             student_courses,
             Course.id == student_courses.c.course_id
-        ).where(student_courses.c.student_id == student_id)
+        ).where(
+            student_courses.c.student_id == student_id,
+            Course.is_published == True,
+        )
     )
     courses = enrolled_q.scalars().all()
     course_ids = [c.id for c in courses]
