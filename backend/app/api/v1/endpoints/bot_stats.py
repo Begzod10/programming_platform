@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, Integer, case
+from sqlalchemy import select, func, Integer, case, or_
 from app.dependencies import get_db
 from app.models.user import Student
 from app.models.lesson import LessonCompletion, Lesson
@@ -14,12 +14,21 @@ router = APIRouter()
 
 @router.get("/search-student")
 async def search_student(q: str, db: AsyncSession = Depends(get_db)):
-    if len(q.strip()) < 2:
+    q = q.strip()
+    if len(q) < 2:
         return []
+
+    # Also try reversed word order so "Karimov Shohruz" finds "Shohruz Karimov"
+    words = q.split()
+    reversed_q = " ".join(reversed(words)) if len(words) > 1 else q
+
     results = await db.execute(
         select(Student).where(
-            (Student.full_name.ilike(f"%{q}%")) |
-            (Student.username.ilike(f"%{q}%"))
+            or_(
+                Student.full_name.ilike(f"%{q}%"),
+                Student.full_name.ilike(f"%{reversed_q}%"),
+                Student.username.ilike(f"%{q}%"),
+            )
         ).limit(10)
     )
     students = results.scalars().all()
