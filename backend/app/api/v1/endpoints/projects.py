@@ -395,44 +395,35 @@ async def regrade_project(
         else:
             technologies = [project.technologies_used]
 
-    lesson_context = await _load_lesson_context_for_project(
-        db, project_id=project_id
-    )
+    from app.services.ai_review_service import run_ai_review_for_project
 
-    ai_result = await analyze_project_with_grok(
-        title=project.title,
-        description=(project.description or "") + (
-            f"\n\nKod fayllari:\n{code_content}" if code_content else ""
-        ),
-        github_url=project.github_url or "ZIP fayl orqali yuklandi",
-        technologies=technologies,
-        difficulty_level=project.difficulty_level,
-        previous_points=project.points_earned or 0,
-        lesson_context=lesson_context,
-    )
+    db_project = (await db.execute(
+        select(Project).where(Project.id == project_id)
+    )).scalar_one_or_none()
+    if not db_project:
+        raise HTTPException(status_code=404, detail="Loyiha topilmadi!")
 
-    if ai_result and not ai_result.get("error"):
-        db_project = (await db.execute(
-            select(Project).where(Project.id == project_id)
-        )).scalar_one_or_none()
-        if db_project:
-            db_project.grade = ai_result.get("grade")
-            db_project.points_earned = ai_result.get("points", 0)
-            db_project.instructor_feedback = ai_result.get("feedback", "")
-            db_project.status = "Under Review"
-            await db.commit()
+    db_project.reviewed_at = None
+    db_project.status = "Submitted"
+    await db.commit()
+    await db.refresh(db_project)
+
+    ai_result = await run_ai_review_for_project(db, db_project, raise_on_error=False)
+
+    lesson_context_used = bool(await _load_lesson_context_for_project(db, project_id=project_id))
 
     return {
         "message": "Loyiha qayta baholandi",
-        "lesson_context_used": lesson_context is not None,
+        "lesson_context_used": lesson_context_used,
         "ai_review": {
             "grade": ai_result.get("grade"),
-            "points": ai_result.get("points"),
+            "points": ai_result.get("new_points"),
             "summary": ai_result.get("summary"),
             "feedback": ai_result.get("feedback"),
             "strengths": ai_result.get("strengths", []),
             "improvements": ai_result.get("improvements", []),
-            "error": ai_result.get("error"),
+            "bugs": ai_result.get("bugs", []),
+            "error": None if ai_result.get("success") else ai_result.get("reason"),
         },
     }
 
