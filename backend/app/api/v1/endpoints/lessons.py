@@ -986,6 +986,21 @@ async def get_lesson_submission(
     points_earned = project.points_earned if project else 0
     grade = project.grade if project else None
     feedback = project.instructor_feedback if project else None
+    import json as _json
+
+    def _parse_json_list(val):
+        if not val:
+            return []
+        if isinstance(val, list):
+            return val
+        try:
+            return _json.loads(val)
+        except Exception:
+            return []
+
+    ai_bugs = _parse_json_list(project.ai_bugs if project else None)
+    ai_improvements = _parse_json_list(project.ai_improvements if project else None)
+    ai_strengths = _parse_json_list(project.ai_strengths if project else None)
     reviewed = proj_status in ("Approved", "Rejected")
     # Pass = score clears the threshold AND status isn't an explicit fail/draft.
     # The teacher's "Approved" action alone is NOT a pass signal — the review
@@ -1009,6 +1024,9 @@ async def get_lesson_submission(
         "points_earned": points_earned,
         "grade": grade,
         "instructor_feedback": feedback,
+        "ai_bugs": ai_bugs,
+        "ai_improvements": ai_improvements,
+        "ai_strengths": ai_strengths,
         "reviewed": reviewed,
         "passed": passed,
         "can_resubmit": can_resubmit,

@@ -1455,10 +1455,36 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                             />
 
                                             {/* Reviewer feedback */}
-                                            {projectSubmission?.reviewed && projectSubmission?.instructor_feedback && (
+                                            {projectSubmission?.reviewed && (projectSubmission?.instructor_feedback || projectSubmission?.ai_bugs?.length > 0) && (
                                                 <div className="slp-project-reqs" style={{marginTop: 12, borderLeft: `3px solid ${projectDone ? '#16a34a' : '#dc2626'}`, paddingLeft: 12}}>
                                                     <div className="slp-reqs-title">💬 Отзыв преподавателя {projectSubmission?.grade ? `(${projectSubmission.grade})` : ''}</div>
-                                                    <div className="slp-reqs-text">{projectSubmission.instructor_feedback}</div>
+                                                    {projectSubmission.instructor_feedback && (
+                                                        <div className="slp-reqs-text">{projectSubmission.instructor_feedback}</div>
+                                                    )}
+                                                    {projectSubmission?.ai_strengths?.length > 0 && (
+                                                        <div style={{marginTop: 10}}>
+                                                            <div style={{fontWeight: 600, color: '#16a34a', marginBottom: 4}}>✅ Yaxshi tomonlar:</div>
+                                                            <ul style={{margin: 0, paddingLeft: 18}}>
+                                                                {projectSubmission.ai_strengths.map((s, i) => <li key={i} style={{marginBottom: 2}}>{s}</li>)}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                    {projectSubmission?.ai_bugs?.length > 0 && (
+                                                        <div style={{marginTop: 10}}>
+                                                            <div style={{fontWeight: 600, color: '#dc2626', marginBottom: 4}}>🐛 Xatolar:</div>
+                                                            <ul style={{margin: 0, paddingLeft: 18}}>
+                                                                {projectSubmission.ai_bugs.map((b, i) => <li key={i} style={{marginBottom: 2, fontFamily: 'monospace', fontSize: 13}}>{b}</li>)}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                    {projectSubmission?.ai_improvements?.length > 0 && (
+                                                        <div style={{marginTop: 10}}>
+                                                            <div style={{fontWeight: 600, color: '#d97706', marginBottom: 4}}>💡 Yaxshilash kerak:</div>
+                                                            <ul style={{margin: 0, paddingLeft: 18}}>
+                                                                {projectSubmission.ai_improvements.map((imp, i) => <li key={i} style={{marginBottom: 2}}>{imp}</li>)}
+                                                            </ul>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
 
