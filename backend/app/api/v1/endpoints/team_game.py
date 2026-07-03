@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import select, text as sa_text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, noload, load_only
 
@@ -126,8 +127,12 @@ async def session_ws(
     try:
         read = await _fetch_and_build(db, session_id, student_id=user_id)
         await websocket.send_json({"type": "session_update", "data": read.model_dump(mode="json")})
-    except Exception:
-        pass
+    except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).warning("ws init error session=%d: %s", session_id, exc)
+        await websocket.close(code=1011)
+        manager.disconnect(session_id, websocket)
+        return
 
     try:
         while True:
@@ -384,6 +389,13 @@ async def complete_session(
     if session.created_by != teacher.id:
         raise HTTPException(status_code=403, detail="Not your session")
 
+    await db.execute(
+        sa_text(
+            "UPDATE game_questions SET status = 'revealed' "
+            "WHERE session_id = :sid AND status = 'active'"
+        ),
+        {"sid": session_id}
+    )
     session.status = SessionStatus.completed
     await db.commit()
 
@@ -439,7 +451,7 @@ async def add_question(
         sa_text("SELECT COUNT(*) FROM game_questions WHERE session_id = :sid"),
         {"sid": session_id}
     )).scalar()
-    order = body.order_index if body.order_index else int(count_row or 0)
+    order = body.order_index if body.order_index is not None else int(count_row or 0)
 
     q = GameQuestion(
         session_id=session_id,
@@ -559,6 +571,8 @@ async def reveal_question(
     )).scalar_one_or_none()
     if not q:
         raise HTTPException(status_code=404, detail="Question not found")
+    if q.status != QuestionStatus.active:
+        raise HTTPException(status_code=400, detail="Can only reveal an active question")
 
     q.status = QuestionStatus.revealed
     await db.commit()
@@ -634,13 +648,19 @@ async def submit_answer(
 
     is_correct = body.chosen_option == q.correct_option
 
-    # Time-based scoring: full points at 0s, 50% at time_limit, linear decay
+    # Time-based scoring: full points at 0s, 50% at time_limit, linear decay.
+    # Answers submitted after the time limit are rejected entirely.
     points_earned = 0
     if is_correct and q.activated_at:
         now = datetime.now(timezone.utc)
         elapsed = (now - q.activated_at).total_seconds()
-        ratio = max(0.0, min(1.0, elapsed / q.time_limit))
-        points_earned = max(int(q.points * (1.0 - ratio * 0.5)), int(q.points * 0.5))
+        if q.time_limit and q.time_limit > 0:
+            if elapsed > q.time_limit:
+                raise HTTPException(status_code=400, detail="Time limit for this question has expired")
+            ratio = max(0.0, min(1.0, elapsed / q.time_limit))
+            points_earned = max(int(q.points * (1.0 - ratio * 0.5)), int(q.points * 0.5))
+        else:
+            points_earned = q.points
 
     answer = GameAnswer(
         question_id=question_id,
@@ -658,7 +678,11 @@ async def submit_answer(
             {"pts": points_earned, "tid": member.team_id},
         )
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Already answered")
 
     # Broadcast answer progress (count only, not who answered what)
     total_members = (await db.execute(
@@ -736,7 +760,7 @@ async def import_questions_from_lesson(
     max_order = (await db.execute(
         sa_text("SELECT COALESCE(MAX(order_index), -1) FROM game_questions WHERE session_id = :sid"),
         {"sid": session_id}
-    )).scalar() or -1
+    )).scalar()
 
     created = []
     for i, lq in enumerate(source_qs):
