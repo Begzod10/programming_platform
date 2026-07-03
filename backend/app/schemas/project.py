@@ -131,6 +131,9 @@ class ProjectRead(BaseModel):
     status: ProjectStatus
     points_earned: int
     instructor_feedback: Optional[str] = None
+    ai_strengths: Optional[list[str]] = None
+    ai_improvements: Optional[list[str]] = None
+    ai_bugs: Optional[list[str]] = None
     grade: Optional[Grade] = None
     views_count: int
     likes_count: int
@@ -142,6 +145,17 @@ class ProjectRead(BaseModel):
     reviewed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("ai_strengths", "ai_improvements", "ai_bugs", mode="before")
+    @classmethod
+    def parse_json_list(cls, v):
+        if isinstance(v, str):
+            import json
+            try:
+                return json.loads(v)
+            except Exception:
+                return []
+        return v
 
     # ✅ shu qo'shiladi
     @field_validator("technologies_used", mode="before")
