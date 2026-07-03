@@ -18,6 +18,7 @@ from app.services.ranking_service import RankingService
 from fastapi.responses import FileResponse
 from app.services.grok_service import analyze_project_with_grok
 from app.services.lesson_context_resolver import load_lesson_context_for_project
+from app.services.ai_review_service import run_ai_review_for_project
 
 import uuid
 from pathlib import Path
@@ -150,30 +151,14 @@ async def upload_project_zip(
         ))
         await db.flush()
 
-    # AI tekshirish
-    ai_result = {}
-    try:
-        lesson_context = await load_lesson_context_for_project(
-            db, project_id=new_project.id
-        )
-        ai_result = await analyze_project_with_grok(
-            title=new_project.title,
-            description=new_project.description + (f"\n\nKod fayllari:\n{code_content}" if code_content else ""),
-            github_url="ZIP fayl orqali yuklandi",
-            technologies=[],
-            difficulty_level="Easy",
-            previous_points=0,
-            lesson_context=lesson_context,
-        )
-        if ai_result:
-            new_project.grade = ai_result.get("grade")
-            new_project.points_earned = ai_result.get("points", 0)
-            new_project.instructor_feedback = ai_result.get("feedback", "")
-            new_project.status = "Under Review"
-    except Exception:
-        pass
-
     await db.commit()
+    await db.refresh(new_project)
+
+    # Run full AI grading pipeline (same path as the submit button).
+    # On success sets status "Approved"/"Rejected", awards points, and
+    # creates LessonCompletion. On failure leaves status "Submitted" so
+    # the teacher can grade manually.
+    ai_result = await run_ai_review_for_project(db, new_project, raise_on_error=False)
     await db.refresh(new_project)
 
     return {
@@ -181,9 +166,9 @@ async def upload_project_zip(
         "file_url": file_url,
         "message": "ZIP fayl yuklandi!",
         "ai_review": {
-            "grade": ai_result.get("grade") if ai_result else None,
-            "points": ai_result.get("points") if ai_result else None,
-            "feedback": ai_result.get("feedback") if ai_result else None,
+            "grade": ai_result.get("grade") if ai_result.get("success") else None,
+            "points": ai_result.get("new_points") if ai_result.get("success") else None,
+            "feedback": ai_result.get("feedback") if ai_result.get("success") else None,
         }
     }
 
@@ -572,54 +557,29 @@ async def upload_project_zip_by_id(
         file_url=file_url,
     )
 
-    ai_result = {}
-    try:
-        technologies = []
-        if project.technologies_used:
-            if isinstance(project.technologies_used, list):
-                technologies = project.technologies_used
-            else:
-                technologies = [project.technologies_used]
+    # Re-fetch after file update so run_ai_review_for_project sees the
+    # new project_files path. Also reset reviewed_at so the AI pipeline
+    # doesn't think this was already graded.
+    project_result = await db.execute(select(Project).where(Project.id == project_id))
+    db_project = project_result.scalar_one_or_none()
+    if db_project:
+        db_project.reviewed_at = None
+        db_project.status = "Submitted"
+        await db.commit()
+        await db.refresh(db_project)
 
-        # Lesson + course context: without this the AI grades against a
-        # generic rubric and (historically, with a Python/Flask persona)
-        # marks down HTML/CSS submissions for "missing" Python code.
-        lesson_context = await _load_lesson_context_for_project(
-            db, project_id=project_id
-        )
-
-        ai_result = await analyze_project_with_grok(
-            title=project.title,
-            description=project.description + (
-                f"\n\nKod fayllari:\n{code_content}" if code_content else ""
-            ),
-            github_url=project.github_url or "ZIP fayl orqali yuklandi",
-            technologies=technologies,
-            difficulty_level=project.difficulty_level,
-            previous_points=project.points_earned or 0,
-            lesson_context=lesson_context,
-        )
-        if ai_result:
-            project_result = await db.execute(
-                select(Project).where(Project.id == project_id)
-            )
-            db_project = project_result.scalar_one_or_none()
-            if db_project:
-                db_project.grade = ai_result.get("grade")
-                db_project.points_earned = ai_result.get("points", 0)
-                db_project.instructor_feedback = ai_result.get("feedback", "")
-                db_project.status = "Under Review"
-                await db.commit()
-    except Exception:
-        pass
+        ai_result = await run_ai_review_for_project(db, db_project, raise_on_error=False)
+        await db.refresh(db_project)
+    else:
+        ai_result = {}
 
     return {
         "file_url": file_url,
         "message": "ZIP fayl yuklandi va AI tekshirdi!",
         "ai_review": {
-            "grade": ai_result.get("grade") if ai_result else None,
-            "points": ai_result.get("points") if ai_result else None,
-            "feedback": ai_result.get("feedback") if ai_result else None,
+            "grade": ai_result.get("grade") if ai_result.get("success") else None,
+            "points": ai_result.get("new_points") if ai_result.get("success") else None,
+            "feedback": ai_result.get("feedback") if ai_result.get("success") else None,
         }
     }
 
