@@ -261,8 +261,12 @@ async def review_project(
 
     ranking_service = RankingService(db)
     old_points = project.points_earned or 0
-    # Adjust points: subtract previous award then add new one
-    if old_points > 0:
+    old_status = project.status
+    # Only subtract previously-awarded points. Points are only added when a
+    # project is Approved — Rejected projects store the AI score in
+    # points_earned but never add it to total_points, so subtracting it here
+    # would deduct points that were never granted.
+    if old_points > 0 and old_status == "Approved":
         await ranking_service.add_points_to_student(project.student_id, -old_points)
     await ranking_service.add_points_to_student(project.student_id, data.points)
 
