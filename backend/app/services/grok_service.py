@@ -665,8 +665,11 @@ Faqat JSON qaytar (boshqa matn yozma):
     "feedback": "Batafsil fikr (o'zbek). Avval o'quvchi NIMA QILGANINI maqtab ayting (kamida 2 ta yutuq), keyin yetishmagan narsalarni do'stona, undamoqchi tarzda eslatib o'ting. KOD ASOSIDA — qaysi fayl, qaysi qator yaxshi/yomon ekanini ayt.",
     "strengths": ["kuchli tomon 1", "kuchli tomon 2"],
     "improvements": ["yaxshilash kerak 1", "yaxshilash kerak 2"],
+    "bugs": ["xato 1: fayl.js 12-qator — tavsif", "xato 2: ..."],
     "summary": "1-2 jumla xulosa (o'zbek) — birinchi navbatda IJOBIY"
 }}
+
+"bugs" maydoni uchun: Kod ichidagi ANIQ xatolarni (sintaksis xatosi, mantiqiy xato, ishlamaydigan funksiya, xavfsizlik muammosi) ro'yxatla. Har bir xato uchun: fayl nomi, taxminiy qator raqami va qisqa tavsif. Agar xato topilmasa — bo'sh ro'yxat qaytar [].
 
 ## BAHOLASH MEZONLARI
 - A: 90-100 — Mukammal: kod toza, dars topshirig'iga to'liq mos, xatolar to'g'ri boshqarilgan

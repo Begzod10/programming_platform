@@ -214,11 +214,20 @@ async def run_ai_review_for_project(
         await ranking_service.add_points_to_student(
             project.student_id, new_points)
 
+    import json as _json
+
     project.instructor_feedback = review.get("feedback", "")
     project.grade = review.get("grade", "F")
     project.points_earned = new_points
     project.status = "Approved" if new_points >= 75 else "Rejected"
     project.reviewed_at = datetime.now(timezone.utc)
+
+    strengths = review.get("strengths") or []
+    improvements = review.get("improvements") or []
+    bugs = review.get("bugs") or []
+    project.ai_strengths = _json.dumps(strengths, ensure_ascii=False) if strengths else None
+    project.ai_improvements = _json.dumps(improvements, ensure_ascii=False) if improvements else None
+    project.ai_bugs = _json.dumps(bugs, ensure_ascii=False) if bugs else None
 
     # Award lesson completion only on a passing score. The LessonCompletion
     # row is the gate that unlocks the next lesson for the student, so it must
