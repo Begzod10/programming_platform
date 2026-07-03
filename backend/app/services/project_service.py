@@ -185,16 +185,24 @@ class ProjectService:
                     ai_result.get("new_points"), ai_result.get("provider"),
                 )
             elif not ai_result.get("success"):
-                # AI failed (invalid URL, repo not found, provider error, etc.).
-                # Reset to "Rejected" so the student can fix and re-submit.
-                # "Submitted" would block re-submission permanently.
                 reason = ai_result.get("reason", "AI tekshirish muvaffaqiyatsiz")
-                project.status = "Rejected"
-                project.instructor_feedback = reason
-                await self.db.commit()
-                logger.warning(
-                    "[ai-auto] project=%d failed, set Rejected: %s", project.id, reason
-                )
+                http_status = ai_result.get("http_status", 0)
+                # 400 with "allaqachon baholangan" = already reviewed (double-submit
+                # race). The first request already set the correct status/grade —
+                # do NOT override it with "Rejected" here.
+                if http_status == 400 and project.reviewed_at is not None:
+                    logger.info(
+                        "[ai-auto] project=%d already reviewed, skipping override", project.id
+                    )
+                else:
+                    # Real failure: invalid URL, repo not found, provider error, etc.
+                    # Reset to "Rejected" so the student can fix and re-submit.
+                    project.status = "Rejected"
+                    project.instructor_feedback = reason
+                    await self.db.commit()
+                    logger.warning(
+                        "[ai-auto] project=%d failed, set Rejected: %s", project.id, reason
+                    )
             await self.db.refresh(project)
         except Exception as e:
             # Defense in depth — any unhandled exception in the AI path
