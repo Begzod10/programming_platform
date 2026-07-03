@@ -127,6 +127,27 @@ async def session_ws(
     try:
         read = await _fetch_and_build(db, session_id, student_id=user_id)
         await websocket.send_json({"type": "session_update", "data": read.model_dump(mode="json")})
+        # If a question is already active, send question_start so late joiners/reconnects see it
+        active_q_res = await db.execute(
+            select(GameQuestion).where(
+                GameQuestion.session_id == session_id,
+                GameQuestion.status == QuestionStatus.active,
+            )
+        )
+        active_q = active_q_res.scalar_one_or_none()
+        if active_q:
+            await websocket.send_json({
+                "type": "question_start",
+                "data": {
+                    "id": active_q.id,
+                    "question_text": active_q.question_text,
+                    "options": active_q.options,
+                    "time_limit": active_q.time_limit,
+                    "points": active_q.points,
+                    "order_index": active_q.order_index,
+                    "activated_at": active_q.activated_at.isoformat() if active_q.activated_at else None,
+                },
+            })
     except Exception as exc:
         import logging as _logging
         _logging.getLogger(__name__).warning("ws init error session=%d: %s", session_id, exc)
