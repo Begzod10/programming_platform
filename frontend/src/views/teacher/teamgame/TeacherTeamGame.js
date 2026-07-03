@@ -194,7 +194,14 @@ function DivideTeamsModal({ session, onClose, onStarted }) {
             });
             if (!res.ok) {
                 const d = await res.json();
-                setError(d.detail || 'Ошибка запуска');
+                const msg = d.detail || d?.error?.message || 'Ошибка запуска';
+                // Session was already started by a previous attempt — treat as success
+                if (res.status === 400 && msg.toLowerCase().includes('already started')) {
+                    onStarted();
+                    onClose();
+                    return;
+                }
+                setError(msg);
                 return;
             }
             onStarted();
@@ -687,7 +694,13 @@ function SessionCard({ initialSession }) {
             <DivideTeamsModal
                 session={session}
                 onClose={() => setShowDivide(false)}
-                onStarted={() => setShowDivide(false)}
+                onStarted={async () => {
+                    setShowDivide(false);
+                    try {
+                        const res = await fetch(`${API_URL}v1/game-sessions/${session.id}`, { headers: headers() });
+                        if (res.ok) setSession(await res.json());
+                    } catch {}
+                }}
             />
         )}
         </>
