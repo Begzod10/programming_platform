@@ -1254,9 +1254,6 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 </div>
             ) : (
                 <div className="slp-blocks">
-                    {/* ── Sample project — shown once at the top, for every lesson that has one ── */}
-                    <SampleProject lessonId={lesson?.id} />
-
                     {lesson.sections.map((section, sIdx) => {
                         const blockMeta = meta(section.type);
                         const ytId = section.type === 'video' ? getYTId(section.videoUrl || '') : null;
@@ -1382,6 +1379,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                         — shows StudentProjectFiles (live preview)
                                           then the submit/status block below
                                     ══════════════════════════════════════════ */}
+                                    {section.type === 'project' && (
+                                        <SampleProject lessonId={lesson?.id} />
+                                    )}
                                     {section.type === 'project' && (
                                         <div className={`slp-project-task ${projectDone ? 'done' : ''} ${projectFailed ? 'failed' : ''} ${projectPending ? 'pending' : ''}`}>
                                             <div className="slp-project-top">
