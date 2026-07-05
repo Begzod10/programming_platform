@@ -294,8 +294,10 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
     const [importing, setImporting] = useState(false);
 
     useEffect(() => {
-        if (!session.course_id) { setLoading(false); return; }
-        fetch(`${API_URL}v1/courses/${session.course_id}/lessons-with-questions`, { headers: headers() })
+        const url = session.course_id
+            ? `${API_URL}v1/courses/${session.course_id}/lessons-with-questions`
+            : `${API_URL}v1/lessons-with-questions`;
+        fetch(url, { headers: headers() })
             .then(r => r.json())
             .then(d => setLessons(Array.isArray(d) ? d : []))
             .catch(() => {})
@@ -335,33 +337,38 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
         <div className="tg-modal-overlay" onClick={onClose}>
             <div className="tg-modal" onClick={e => e.stopPropagation()}>
                 <h2>📚 Импортировать вопросы</h2>
-                {!session.course_id ? (
-                    <p style={{ color: '#6b7280' }}>Эта сессия не привязана к курсу. Привяжите курс при создании, чтобы импортировать вопросы из уроков.</p>
-                ) : loading ? (
+                {loading ? (
                     <p>Загрузка уроков...</p>
+                ) : lessons.length === 0 ? (
+                    <p style={{ color: '#6b7280' }}>Нет уроков с вопросами.</p>
                 ) : (
                     <>
-                        <p style={{ color: '#6b7280', marginBottom: '1rem' }}>Выберите урок или весь курс:</p>
-                        <button
-                            className="tg-btn-primary tg-import-all-btn"
-                            disabled={importing}
-                            onClick={importCourse}
-                        >
-                            🗂 Импортировать весь курс ({lessons.reduce((s, l) => s + l.question_count, 0)} вопросов)
-                        </button>
+                        <p style={{ color: '#6b7280', marginBottom: '1rem' }}>Выберите урок для импорта:</p>
+                        {session.course_id && (
+                            <button
+                                className="tg-btn-primary tg-import-all-btn"
+                                disabled={importing}
+                                onClick={importCourse}
+                            >
+                                🗂 Весь курс ({lessons.reduce((s, l) => s + l.question_count, 0)} вопросов)
+                            </button>
+                        )}
                         <div className="tg-import-lessons-list">
                             {lessons.map(l => (
                                 <div key={l.id} className="tg-import-lesson-row">
                                     <div>
                                         <span className="tg-import-lesson-title">{l.title}</span>
-                                        <span className="tg-import-lesson-count">{l.question_count} вопросов</span>
+                                        {l.course_title && !session.course_id && (
+                                            <span className="tg-import-lesson-count" style={{ marginLeft: 6, color: '#9ca3af' }}>{l.course_title}</span>
+                                        )}
+                                        <span className="tg-import-lesson-count">{l.question_count} вопр.</span>
                                     </div>
                                     <button
                                         className="tg-btn-secondary tg-btn-sm"
-                                        disabled={importing || l.question_count === 0}
+                                        disabled={importing}
                                         onClick={() => importLesson(l.id)}
                                     >
-                                        {l.question_count === 0 ? 'Нет вопросов' : '+ Добавить'}
+                                        + Добавить
                                     </button>
                                 </div>
                             ))}

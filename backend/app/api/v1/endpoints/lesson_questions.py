@@ -136,6 +136,30 @@ async def delete_lesson_question(
 
 
 # ── List lessons for a course (used by game import UI) ────────────────────────
+@router.get("/lessons-with-questions")
+async def list_all_lessons_with_questions(
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    rows = (await db.execute(
+        sa_text("""
+            SELECT l.id, l.title, l.order, COUNT(lq.id) AS question_count,
+                   c.id AS course_id, c.title AS course_title
+            FROM lessons l
+            LEFT JOIN lesson_questions lq ON lq.lesson_id = l.id
+            JOIN courses c ON c.id = l.course_id
+            GROUP BY l.id, l.title, l.order, c.id, c.title
+            HAVING COUNT(lq.id) > 0
+            ORDER BY c.title, l.order, l.id
+        """)
+    )).all()
+    return [
+        {"id": r[0], "title": r[1], "order": r[2], "question_count": r[3],
+         "course_id": r[4], "course_title": r[5]}
+        for r in rows
+    ]
+
+
 @router.get("/courses/{course_id}/lessons-with-questions")
 async def list_lessons_with_question_counts(
     course_id: int,
