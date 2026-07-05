@@ -89,7 +89,22 @@ const translations = {
     // Language Toggle
     lang_btn: "Tilni o'zgartirish",
     ru: "Русский",
-    uz: "O'zbekcha"
+    uz: "O'zbekcha",
+
+    // Auth — login page
+    "auth.welcome":      "Xush kelibsiz!",
+    "auth.subtitle":     "Hisobingizga kiring",
+    "auth.login":        "Login",
+    "auth.password":     "Parol",
+    "auth.remember":     "Eslab qolish",
+    "auth.forgot":       "Parolni unutdingizmi?",
+    "auth.signin":       "Kirish",
+    "auth.signingIn":    "Kirilmoqda...",
+    "auth.or":           "yoki",
+    "auth.noAccount":    "Hisobingiz yo'qmi?",
+    "auth.register":     "Ro'yxatdan o'tish",
+    "auth.errorInvalid": "Login yoki parol noto'g'ri",
+    "auth.success":      "Muvaffaqiyatli kirdingiz ✓"
   },
   ru: {
     // Common
@@ -181,7 +196,22 @@ const translations = {
     // Language Toggle
     lang_btn: "Сменить язык",
     ru: "Русский",
-    uz: "O'zbekcha"
+    uz: "O'zbekcha",
+
+    // Auth — login page
+    "auth.welcome":      "Добро пожаловать!",
+    "auth.subtitle":     "Войдите в свой аккаунт",
+    "auth.login":        "Логин",
+    "auth.password":     "Пароль",
+    "auth.remember":     "Запомнить меня",
+    "auth.forgot":       "Забыли пароль?",
+    "auth.signin":       "Войти",
+    "auth.signingIn":    "Вход...",
+    "auth.or":           "или",
+    "auth.noAccount":    "Нет аккаунта?",
+    "auth.register":     "Зарегистрироваться",
+    "auth.errorInvalid": "Неверный логин или пароль",
+    "auth.success":      "Вход выполнен ✓"
   }
 };
 

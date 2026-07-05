@@ -1,268 +1,542 @@
-@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css');
+/* ── Login portal — cosmic frosted-glass design ─────────────────────────── */
 
-* { box-sizing: border-box; }
-body { margin: 0; }
-
-.app {
-    min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: var(--bg-app-gradient);
-    font-family: var(--font-ui);
-    padding: 20px;
+/* ── Root: fixed full-viewport overlay so card controls its own backdrop ── */
+.lp-root {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow-y: auto;
+  font-family: var(--font-ui);
 }
 
-/* ===== CARD — bigger for desktop ===== */
-.login-card {
-    width: 100%;
-    max-width: 460px;
-    padding: 48px 42px;
-    border-radius: 24px;
-    background: white;
-    box-shadow: 0 24px 60px rgba(0,0,0,0.35);
-    text-align: center;
-    animation: fadeIn 0.5s ease;
+/* ── Base gradient ── */
+.lp-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(160deg, #0c0a1e 0%, #141a35 52%, #0e2c50 100%);
 }
 
-@keyframes fadeIn {
-    from { transform: translateY(24px); opacity: 0; }
-    to   { transform: translateY(0);    opacity: 1; }
+/* ── Aurora blobs ── */
+.lp-aurora {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.28;
+  z-index: 1;
+  pointer-events: none;
 }
 
-/* ===== LOGO ===== */
-.logo-wrapper {
-    width: 120px; height: 120px;
-    margin: 0 auto 18px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.lp-aurora--purple {
+  width: 680px;
+  height: 680px;
+  top: -15%;
+  left: -10%;
+  background: radial-gradient(circle, #6c5ce7 0%, #4a3abf 55%, transparent 100%);
+  animation: auroraA 20s ease-in-out infinite;
 }
 
-.logo-wrapper img {
-    width: 80%;
-    object-fit: contain;
-    border-radius: 25%;
+.lp-aurora--blue {
+  width: 540px;
+  height: 540px;
+  bottom: -14%;
+  right: -7%;
+  background: radial-gradient(circle, #1960b0 0%, #0b3168 55%, transparent 100%);
+  animation: auroraB 24s ease-in-out infinite;
 }
 
-/* ===== TITLES ===== */
-.login-card h1 {
-    margin: 0 0 6px;
-    font-size: 28px;
-    font-weight: 800;
-    color: #1a1a2e;
-    letter-spacing: -0.5px;
+.lp-aurora--static {
+  animation: none !important;
 }
 
-.subtitle {
-    font-size: 15px;
-    color: rgba(26,26,46,0.5);
-    margin: 0 0 28px;
+@keyframes auroraA {
+  0%, 100% { transform: translate(0, 0); }
+  32%       { transform: translate(55px, -42px); }
+  66%       { transform: translate(-28px, 58px); }
 }
 
-/* ===== INPUTS ===== */
-.login-card input {
-    width: 100%;
-    padding: 14px 18px;
-    margin-bottom: 14px;
-    border-radius: 14px;
-    border: 1.5px solid rgba(26,26,46,0.1);
-    outline: none;
-    font-size: 15px;
-    font-family: var(--font-ui);
-    background: rgba(26,26,46,0.03);
-    color: #1a1a2e;
-    transition: all 0.2s;
-    display: block;
+@keyframes auroraB {
+  0%, 100% { transform: translate(0, 0); }
+  38%       { transform: translate(-48px, 38px); }
+  72%       { transform: translate(35px, -54px); }
 }
 
-.login-card input:focus {
-    border-color: var(--color-primary);
-    background: rgba(108,92,231,0.04);
-    box-shadow: 0 0 0 3px rgba(108,92,231,0.1);
+/* ── Language toggle (top-right) ── */
+.lp-lang {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 20;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: var(--font-ui);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: background 0.2s, color 0.2s;
 }
 
-.login-card input::placeholder { color: rgba(26,26,46,0.35); }
-.login-card input:disabled { opacity: 0.6; cursor: not-allowed; }
+.lp-lang:hover          { background: rgba(255, 255, 255, 0.13); color: #fff; }
+.lp-lang:focus-visible  { outline: 2px solid var(--color-primary-mid); outline-offset: 2px; }
 
-/* ===== ERROR ===== */
-.login-error {
-    margin: -4px 0 14px;
-    padding: 11px 16px;
-    background: rgba(255,118,117,0.08);
-    border: 1px solid rgba(255,118,117,0.22);
-    border-radius: 12px;
-    color: #d63031;
-    font-size: 13px;
-    font-weight: 600;
-    text-align: left;
-    animation: shake 0.3s ease;
+/* ── Centering wrapper ── */
+.lp-center {
+  position: relative;
+  z-index: 3;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 20px;
 }
 
-@keyframes shake {
-    0%,100% { transform: translateX(0); }
-    25%      { transform: translateX(-4px); }
-    75%      { transform: translateX(4px); }
+/* ── Stage: the ring and card share this positioning context ── */
+.lp-stage {
+  position: relative;
+  width: fit-content;
 }
 
-/* ===== LOGIN BUTTON ===== */
-.login-btn {
-    width: 100%;
-    padding: 15px;
-    border-radius: 14px;
-    border: none;
-    font-size: 16px;
-    font-weight: 700;
-    font-family: var(--font-ui);
-    color: #fff;
-    background: linear-gradient(135deg, var(--color-primary), var(--color-primary-light));
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 6px 20px rgba(108,92,231,0.4);
-    letter-spacing: 0.01em;
+/* ── Charge ring ── */
+.cr-ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
 }
 
-.login-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 28px rgba(108,92,231,0.55);
-}
-.login-btn:active:not(:disabled) {
-    transform: translateY(0);
-    box-shadow: 0 4px 12px rgba(108,92,231,0.3);
-}
-.login-btn:disabled { opacity: 0.7; cursor: not-allowed; }
-
-/* ===== DIVIDER ===== */
-.login-divider {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 20px 0 0;
-    color: rgba(26,26,46,0.25);
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-.login-divider::before,
-.login-divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: rgba(26,26,46,0.08);
+.cr-tick {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 2px;
+  height: 7px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.10);
+  transition: background 0.22s ease, height 0.18s ease, box-shadow 0.22s ease;
+  transform-origin: center center;
 }
 
-/* ===== REGISTER BUTTON — чёткая видимая кнопка ===== */
-.toggle-text {
-    display: block;
-    width: 100%;
-    margin-top: 12px;
-    padding: 14px;
-    border-radius: 14px;
-    border: 2px solid rgba(108,92,231,0.3);
-    background: transparent;
-    color: var(--color-primary);
-    font-size: 14px;
-    font-weight: 700;
-    font-family: var(--font-ui);
-    cursor: pointer;
-    transition: all 0.2s;
-    user-select: none;
-    text-align: center;
-    letter-spacing: 0.01em;
+.cr-tick--lit {
+  height: 9px;
+  background: linear-gradient(to top, #8a7bff, #f0edff);
+  box-shadow: 0 0 6px rgba(138, 123, 255, 0.55);
 }
 
-.toggle-text:hover {
-    background: rgba(108,92,231,0.08);
-    border-color: var(--color-primary);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(108,92,231,0.18);
+.cr-tick--success {
+  height: 9px;
+  background: linear-gradient(to top, var(--color-success), #d6ffee);
+  box-shadow: 0 0 6px rgba(46, 196, 169, 0.6);
 }
 
-/* ============================================================
-   RESPONSIVE
-   ============================================================ */
-
-@media (max-width: 768px) {
-    .login-card {
-        max-width: 420px;
-        padding: 36px 30px;
-    }
-    .login-card h1 { font-size: 26px; }
+.cr-tick--error {
+  height: 9px;
+  background: linear-gradient(to top, var(--color-danger), #ffb3ba);
+  box-shadow: 0 0 6px rgba(224, 82, 96, 0.6);
 }
 
-@media (max-width: 480px) {
-    .app { padding: 16px; }
+/* ── Halo behind card (soft purple radial glow) ── */
+.lp-halo {
+  position: absolute;
+  inset: -60px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(108, 92, 231, 0.16) 0%, transparent 68%);
+  pointer-events: none;
+  z-index: 0;
+}
 
-    .login-card {
-        padding: 28px 22px;
-        border-radius: 18px;
-        max-width: 100%;
-    }
+/* ── Frosted-glass card ── */
+.lp-card {
+  position: relative;
+  z-index: 1;
+  width: min(430px, 82vw);
+  padding: 42px 38px;
+  border-radius: 26px;
+  background: linear-gradient(
+    158deg,
+    rgba(42, 36, 74, 0.76) 0%,
+    rgba(16, 14, 36, 0.72) 100%
+  );
+  backdrop-filter: blur(28px) saturate(1.25);
+  -webkit-backdrop-filter: blur(28px) saturate(1.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 36px 80px rgba(0, 0, 0, 0.55),
+    0 0 0 0.5px rgba(255, 255, 255, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  text-align: center;
+  animation: lp-rise 0.52s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
-    .logo-wrapper { width: 100px; height: 100px; }
-    .login-card h1 { font-size: 22px; }
-    .subtitle { font-size: 13px; margin-bottom: 20px; }
-    .login-card input { font-size: 16px; padding: 13px 16px; }
-    .login-btn { font-size: 16px; padding: 14px; }
+@keyframes lp-rise {
+  from { transform: translateY(30px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ── Logo tile ── */
+.lp-logo {
+  width: 76px;
+  height: 76px;
+  background: #fff;
+  border-radius: 20px;
+  margin: 0 auto 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow:
+    0 6px 24px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.lp-logo img {
+  width: 62px;
+  height: 62px;
+  object-fit: contain;
+  border-radius: 12px;
+  display: block;
+}
+
+/* ── Title & subtitle ── */
+.lp-title {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.4px;
+  text-wrap: balance;
+}
+
+.lp-subtitle {
+  margin: 0 0 26px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.5;
+}
+
+/* ── Banners (error / success) ── */
+.lp-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  margin-bottom: 18px;
+  line-height: 1.4;
+}
+
+.lp-banner--error {
+  background: rgba(224, 82, 96, 0.14);
+  border: 1px solid rgba(224, 82, 96, 0.4);
+  color: #ffb3ba;
+  animation: lp-shake 0.4s ease;
+}
+
+.lp-banner--success {
+  background: rgba(46, 196, 169, 0.12);
+  border: 1px solid rgba(46, 196, 169, 0.35);
+  color: #7dfcd9;
+}
+
+@keyframes lp-shake {
+  0%, 100% { transform: translateX(0); }
+  18%       { transform: translateX(-5px); }
+  36%       { transform: translateX(5px); }
+  54%       { transform: translateX(-3px); }
+  72%       { transform: translateX(3px); }
+}
+
+/* ── Field group ── */
+.lp-field {
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.lp-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.68);
+  letter-spacing: 0.01em;
+}
+
+/* ── Input wrapper (hosts the input + icon overlays) ── */
+.lp-input-wrap {
+  position: relative;
+}
+
+.lp-input-wrap--error .lp-input {
+  border-color: rgba(224, 82, 96, 0.65) !important;
+}
+
+/* ── Input ── */
+.lp-input {
+  width: 100%;
+  padding: 12px 16px;
+  padding-right: 40px;    /* room for single right-side icon */
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px solid rgba(255, 255, 255, 0.10);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 15px;
+  font-family: var(--font-ui);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+}
+
+.lp-input::placeholder { color: rgba(255, 255, 255, 0.38); }
+
+.lp-input:focus {
+  border-color: var(--color-primary-mid);
+  box-shadow: 0 0 0 4px rgba(108, 92, 231, 0.20);
+}
+
+.lp-input:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+/* Password with check + eye on the right */
+.lp-input--icons { padding-right: 68px; }
+
+/* ── Field checkmark icons ── */
+.lp-field-icon {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  color: var(--color-success);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  line-height: 0;
+}
+
+/* For password field: the check sits left of the eye button */
+.lp-field-icon--pass-check {
+  right: 38px;
+}
+
+/* ── Eye toggle button ── */
+.lp-eye {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 5px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.42);
+  display: flex;
+  align-items: center;
+  line-height: 0;
+  transition: color 0.2s;
+}
+
+.lp-eye:hover         { color: var(--color-primary-light); }
+.lp-eye:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.35);
+  color: var(--color-primary-light);
+}
+
+/* ── Remember + Forgot row ── */
+.lp-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -2px 0 22px;
+}
+
+.lp-remember {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.52);
+  cursor: pointer;
+  user-select: none;
+}
+
+.lp-remember input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--color-primary-mid);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.lp-forgot {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  color: var(--color-primary-light);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  transition: color 0.2s;
+}
+.lp-forgot:hover         { color: #fff; }
+.lp-forgot:focus-visible { outline: 2px solid var(--color-primary-mid); border-radius: 4px; }
+
+/* ── Submit button ── */
+.lp-submit {
+  width: 100%;
+  padding: 13px 16px;
+  border: none;
+  border-radius: var(--r-btn);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-mid) 100%);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--font-ui);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 6px 24px rgba(108, 92, 231, 0.45);
+  transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
+}
+
+.lp-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(108, 92, 231, 0.60);
+}
+
+.lp-submit:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3);
+}
+
+.lp-submit:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.lp-submit--success {
+  background: linear-gradient(135deg, #19a08e 0%, var(--color-success) 100%);
+  box-shadow: 0 6px 24px rgba(46, 196, 169, 0.42);
+}
+
+/* Rotating loader icon */
+.lp-spinner {
+  animation: lp-spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes lp-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── OR divider ── */
+.lp-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0;
+  color: rgba(255, 255, 255, 0.22);
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.lp-divider::before,
+.lp-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+/* ── Register link ── */
+.lp-register {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 14px;
+  text-decoration: none;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+  box-sizing: border-box;
+}
+
+.lp-register:hover {
+  border-color: var(--color-primary-mid);
+  background: rgba(108, 92, 231, 0.08);
+  color: #fff;
+}
+
+.lp-register:focus-visible {
+  outline: 2px solid var(--color-primary-mid);
+  outline-offset: 2px;
+}
+
+.lp-register strong {
+  color: var(--color-primary-light);
+  font-weight: 600;
+}
+
+/* ── Dev hint ── */
+.lp-demo-hint {
+  margin: 16px 0 0;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: rgba(255, 255, 255, 0.25);
+  text-align: center;
+  letter-spacing: 0.03em;
+}
+
+/* ── Respect reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .lp-aurora        { animation: none !important; }
+  .lp-card          { animation: none !important; }
+  .lp-banner--error { animation: none !important; }
+  .cr-tick          { transition: none !important; }
+  .lp-spinner       { animation: none !important; }
+}
+
+/* ── Mobile ── */
+@media (max-width: 520px) {
+  .lp-card {
+    width: min(430px, calc(100vw - 32px));
+    padding: 34px 24px;
+    border-radius: 20px;
+  }
+  .lp-title  { font-size: 23px; }
+  .lp-logo   { width: 64px; height: 64px; }
+  .lp-logo img { width: 52px; height: 52px; }
+  .lp-center { padding: 40px 16px; }
 }
 
 @media (max-width: 360px) {
-    .app { padding: 12px; }
-    .login-card { padding: 24px 16px; }
-    .login-card h1 { font-size: 20px; }
-    .logo-wrapper { width: 88px; height: 88px; }
-}
-.login-field {
-    margin-bottom: 12px;
-    width: 100%;
+  .lp-card   { padding: 28px 18px; }
+  .lp-title  { font-size: 20px; }
+  .lp-submit { font-size: 14px; padding: 12px 14px; }
 }
 
-.password-field-wrapper {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-}
-
-/* Оставляем место под иконку */
-.password-field-wrapper input {
-    padding-right: 46px !important;
-}
-
-.password-toggle-icon {
-    position: absolute;
-    right: 16px;
-    top: 25px;
-    transform: translateY(-50%);
-    cursor: pointer;
-    color: rgba(26, 26, 46, 0.4);
-    font-size: 16px;
-    z-index: 10;
-    transition: color 0.2s, box-shadow 0.2s;
-    display: flex;
-    align-items: center;
-    /* Reset native <button> styling so the toggle looks the same as before */
-    background: transparent;
-    border: none;
-    padding: 0;
-    border-radius: 6px;
-    line-height: 0;
-}
-
-.password-toggle-icon:hover {
-    color: var(--color-primary);
-}
-.password-toggle-icon:focus-visible {
-    outline: none;
-    color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.25);
-}
-
-/* Чтобы ошибка не перекрывала иконку, если она выводится под инпутом */
-.login-error {
-    color: #d63031;
-    font-size: 13px;
-    margin-top: 4px;
-    font-weight: 600;
+/* ── Legacy .app wrapper (from AppRouter.js) — kept neutral so it
+   doesn't fight the fixed lp-root, and so Register's own .app
+   styles still apply when Register.css loads. ── */
+.app {
+  min-height: 100vh;
+  position: relative;
 }
