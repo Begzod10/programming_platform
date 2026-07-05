@@ -98,6 +98,9 @@ function QuizOverlay({ question, sessionId, onDone }) {
             if (res.ok) {
                 const data = await res.json();
                 setResult(data);
+            } else {
+                // Question already revealed or closed — treat as wrong
+                setResult({ is_correct: false, points_earned: 0 });
             }
         } finally { setSubmitting(false); }
     };
@@ -128,7 +131,7 @@ function QuizOverlay({ question, sessionId, onDone }) {
                             className={cls}
                             style={{ '--opt-color': OPTION_COLORS[i] }}
                             onClick={() => submit(i)}
-                            disabled={chosen !== null || timeLeft === 0}
+                            disabled={chosen !== null}
                         >
                             <span className="stg-quiz-opt-letter">{OPTION_LABELS[i]}</span>
                             <span className="stg-quiz-opt-text">{opt}</span>
@@ -156,7 +159,7 @@ function QuizOverlay({ question, sessionId, onDone }) {
             )}
 
             {timeLeft === 0 && chosen === null && (
-                <div className="stg-quiz-result stg-quiz-result--wrong">⏰ Время вышло!</div>
+                <div className="stg-quiz-result stg-quiz-result--wrong" style={{ opacity: 0.7 }}>⏰ Время вышло — но попробуйте ответить!</div>
             )}
         </div>
     );
