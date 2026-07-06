@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { API_URL, API_URL_DOC, headers } from '../../../api/search/base';
+import { API_URL, API_URL_DOC } from '../../../api/search/base';
+import axiosInstance from '../../../api/axiosInstance';
 import './TeacherTeamGame.css';
 
 const GAME_TYPE_LABELS = { quiz: 'Викторина', coding: 'Кодинг', project: 'Проект', custom: 'Другое' };
@@ -70,9 +71,8 @@ function CreateSessionModal({ onClose, onCreated }) {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        fetch(`${API_URL}v1/courses?is_active=true&limit=100`, { headers: headers() })
-            .then(r => r.json())
-            .then(d => setCourses(d.courses || d || []))
+        axiosInstance.get(`${API_URL}v1/courses?is_active=true&limit=100`)
+            .then(r => setCourses(r.data.courses || r.data || []))
             .catch(() => {});
     }, []);
 
@@ -81,22 +81,17 @@ function CreateSessionModal({ onClose, onCreated }) {
         setLoading(true);
         setError('');
         try {
-            const res = await fetch(`${API_URL}v1/game-sessions`, {
-                method: 'POST',
-                headers: { ...headers(), 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title: form.title,
-                    description: form.description || null,
-                    game_type: form.game_type,
-                    team_count: Number(form.team_count),
-                    course_id: form.course_id ? Number(form.course_id) : null,
-                }),
+            const res = await axiosInstance.post(`${API_URL}v1/game-sessions`, {
+                title: form.title,
+                description: form.description || null,
+                game_type: form.game_type,
+                team_count: Number(form.team_count),
+                course_id: form.course_id ? Number(form.course_id) : null,
             });
-            if (!res.ok) throw new Error((await res.json()).detail || 'Ошибка');
-            onCreated(await res.json());
+            onCreated(res.data);
             onClose();
         } catch (err) {
-            setError(err.message);
+            setError(err.response?.data?.detail || err.response?.data?.error?.message || 'Ошибка');
         } finally {
             setLoading(false);
         }
@@ -153,10 +148,9 @@ function DivideTeamsModal({ session, onClose, onStarted }) {
 
     // Fetch available students
     useEffect(() => {
-        fetch(`${API_URL}v1/game-sessions/${session.id}/students`, { headers: headers() })
-            .then(r => r.json())
-            .then(data => {
-                const list = Array.isArray(data) ? data : [];
+        axiosInstance.get(`${API_URL}v1/game-sessions/${session.id}/students`)
+            .then(r => {
+                const list = Array.isArray(r.data) ? r.data : [];
                 setStudents(list);
                 // Pre-distribute randomly as default
                 const map = {};
@@ -187,27 +181,17 @@ function DivideTeamsModal({ session, onClose, onStarted }) {
                 team_id: t.id,
                 student_ids: students.filter(s => assignments[s.id] === t.id).map(s => s.id),
             }));
-            const res = await fetch(`${API_URL}v1/game-sessions/${session.id}/start`, {
-                method: 'POST',
-                headers: { ...headers(), 'Content-Type': 'application/json' },
-                body: JSON.stringify({ assignments: assignmentList }),
-            });
-            if (!res.ok) {
-                const d = await res.json();
-                const msg = d.detail || d?.error?.message || 'Ошибка запуска';
-                // Session was already started by a previous attempt — treat as success
-                if (res.status === 400 && msg.toLowerCase().includes('already started')) {
-                    onStarted();
-                    onClose();
-                    return;
-                }
-                setError(msg);
-                return;
-            }
+            await axiosInstance.post(`${API_URL}v1/game-sessions/${session.id}/start`, { assignments: assignmentList });
             onStarted();
             onClose();
-        } catch {
-            setError('Ошибка сети');
+        } catch (err) {
+            const msg = err.response?.data?.detail || err.response?.data?.error?.message || 'Ошибка запуска';
+            if (err.response?.status === 400 && msg.toLowerCase().includes('already started')) {
+                onStarted();
+                onClose();
+                return;
+            }
+            setError(msg);
         } finally {
             setStarting(false);
         }
@@ -297,9 +281,8 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
         const url = session.course_id
             ? `${API_URL}v1/courses/${session.course_id}/lessons-with-questions`
             : `${API_URL}v1/lessons-with-questions`;
-        fetch(url, { headers: headers() })
-            .then(r => r.json())
-            .then(d => setLessons(Array.isArray(d) ? d : []))
+        axiosInstance.get(url)
+            .then(r => setLessons(Array.isArray(r.data) ? r.data : []))
             .catch(() => {})
             .finally(() => setLoading(false));
     }, [session.course_id]);
@@ -307,14 +290,13 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
     const importLesson = async (lessonId) => {
         setImporting(true);
         try {
-            const res = await fetch(
-                `${API_URL}v1/game-sessions/${session.id}/import-questions?lesson_id=${lessonId}`,
-                { method: 'POST', headers: headers() }
+            const res = await axiosInstance.post(
+                `${API_URL}v1/game-sessions/${session.id}/import-questions?lesson_id=${lessonId}`
             );
-            if (!res.ok) { alert((await res.json()).detail || 'Ошибка'); return; }
-            const imported = await res.json();
-            onImported(imported.length);
+            onImported(res.data.length);
             onClose();
+        } catch (err) {
+            alert(err.response?.data?.detail || 'Ошибка');
         } finally { setImporting(false); }
     };
 
@@ -322,14 +304,13 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
         if (!session.course_id) return;
         setImporting(true);
         try {
-            const res = await fetch(
-                `${API_URL}v1/game-sessions/${session.id}/import-questions?course_id=${session.course_id}`,
-                { method: 'POST', headers: headers() }
+            const res = await axiosInstance.post(
+                `${API_URL}v1/game-sessions/${session.id}/import-questions?course_id=${session.course_id}`
             );
-            if (!res.ok) { alert((await res.json()).detail || 'Ошибка'); return; }
-            const imported = await res.json();
-            onImported(imported.length);
+            onImported(res.data.length);
             onClose();
+        } catch (err) {
+            alert(err.response?.data?.detail || 'Ошибка');
         } finally { setImporting(false); }
     };
 
@@ -394,9 +375,8 @@ function QuizManager({ session }) {
     const [progress, setProgress] = useState({}); // question_id → {answered, total}
 
     const loadQuestions = useCallback(() => {
-        fetch(`${API_URL}v1/game-sessions/${session.id}/questions`, { headers: headers() })
-            .then(r => r.json())
-            .then(d => setQuestions(Array.isArray(d) ? d : []))
+        axiosInstance.get(`${API_URL}v1/game-sessions/${session.id}/questions`)
+            .then(r => setQuestions(Array.isArray(r.data) ? r.data : []))
             .catch(() => {})
             .finally(() => setLoading(false));
     }, [session.id]);
@@ -426,39 +406,40 @@ function QuizManager({ session }) {
         if (form.options.some(o => !o.trim())) { alert('Заполните все варианты'); return; }
         setSaving(true);
         try {
-            const res = await fetch(`${API_URL}v1/game-sessions/${session.id}/questions`, {
-                method: 'POST',
-                headers: { ...headers(), 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...form, options: form.options.map(o => o.trim()) }),
+            await axiosInstance.post(`${API_URL}v1/game-sessions/${session.id}/questions`, {
+                ...form, options: form.options.map(o => o.trim()),
             });
-            if (!res.ok) { alert((await res.json()).detail || 'Ошибка'); return; }
             setShowAdd(false);
             setForm({ question_text: '', options: ['', '', '', ''], correct_option: 0, time_limit: 30, points: 1000 });
             loadQuestions();
+        } catch (err) {
+            alert(err.response?.data?.detail || 'Ошибка');
         } finally { setSaving(false); }
     };
 
     const deleteQuestion = async (qid) => {
         if (!window.confirm('Удалить вопрос?')) return;
-        await fetch(`${API_URL}v1/game-sessions/${session.id}/questions/${qid}`, { method: 'DELETE', headers: headers() });
+        await axiosInstance.delete(`${API_URL}v1/game-sessions/${session.id}/questions/${qid}`).catch(() => {});
         loadQuestions();
     };
 
     const activateQuestion = async (qid) => {
         setActionId(qid);
         try {
-            const res = await fetch(`${API_URL}v1/game-sessions/${session.id}/questions/${qid}/activate`, { method: 'POST', headers: headers() });
-            if (!res.ok) alert((await res.json()).detail || 'Ошибка');
-            else loadQuestions();
+            await axiosInstance.post(`${API_URL}v1/game-sessions/${session.id}/questions/${qid}/activate`);
+            loadQuestions();
+        } catch (err) {
+            alert(err.response?.data?.detail || 'Ошибка');
         } finally { setActionId(null); }
     };
 
     const revealQuestion = async (qid) => {
         setActionId(qid);
         try {
-            const res = await fetch(`${API_URL}v1/game-sessions/${session.id}/questions/${qid}/reveal`, { method: 'POST', headers: headers() });
-            if (!res.ok) alert((await res.json()).detail || 'Ошибка');
-            else loadQuestions();
+            await axiosInstance.post(`${API_URL}v1/game-sessions/${session.id}/questions/${qid}/reveal`);
+            loadQuestions();
+        } catch (err) {
+            alert(err.response?.data?.detail || 'Ошибка');
         } finally { setActionId(null); }
     };
 
@@ -605,16 +586,12 @@ function SessionCard({ initialSession }) {
 
     useSessionSocket(session.id, handleWsUpdate, null, handleWsRaw);
 
-    const act = async (path, method = 'POST', body = null) => {
+    const act = async (path, method = 'post', body = null) => {
         setActionLoading(true);
         try {
-            const opts = { method, headers: { ...headers(), 'Content-Type': 'application/json' } };
-            if (body) opts.body = JSON.stringify(body);
-            const res = await fetch(`${API_URL}v1/game-sessions/${session.id}${path}`, opts);
-            if (!res.ok) {
-                const d = await res.json();
-                alert(d.detail || 'Ошибка');
-            }
+            await axiosInstance({ method, url: `${API_URL}v1/game-sessions/${session.id}${path}`, data: body || undefined });
+        } catch (err) {
+            alert(err.response?.data?.detail || err.response?.data?.error?.message || 'Ошибка');
         } finally {
             setActionLoading(false);
         }
@@ -624,7 +601,7 @@ function SessionCard({ initialSession }) {
         const d = Number(delta[teamId] || 0);
         if (!d) return;
         setDelta(prev => ({ ...prev, [teamId]: '' }));
-        await act('/score', 'PATCH', { team_id: teamId, delta: d });
+        await act('/score', 'patch', { team_id: teamId, delta: d });
     };
 
     const sortedTeams = [...(session.teams || [])].sort((a, b) => b.score - a.score);
@@ -654,7 +631,7 @@ function SessionCard({ initialSession }) {
                         </button>
                     )}
                     <button className="tg-btn-danger" disabled={actionLoading} onClick={() => {
-                        if (window.confirm('Удалить сессию?')) act('', 'DELETE');
+                        if (window.confirm('Удалить сессию?')) act('', 'delete');
                     }}>🗑</button>
                 </div>
             </div>
@@ -704,8 +681,8 @@ function SessionCard({ initialSession }) {
                 onStarted={async () => {
                     setShowDivide(false);
                     try {
-                        const res = await fetch(`${API_URL}v1/game-sessions/${session.id}`, { headers: headers() });
-                        if (res.ok) setSession(await res.json());
+                        const res = await axiosInstance.get(`${API_URL}v1/game-sessions/${session.id}`);
+                        setSession(res.data);
                     } catch {}
                 }}
             />
@@ -722,9 +699,8 @@ export default function TeacherTeamGame() {
 
     const load = useCallback(() => {
         setLoading(true);
-        fetch(`${API_URL}v1/game-sessions`, { headers: headers() })
-            .then(r => r.json())
-            .then(data => setSessions(Array.isArray(data) ? data : []))
+        axiosInstance.get(`${API_URL}v1/game-sessions`)
+            .then(r => setSessions(Array.isArray(r.data) ? r.data : []))
             .catch(() => setSessions([]))
             .finally(() => setLoading(false));
     }, []);
