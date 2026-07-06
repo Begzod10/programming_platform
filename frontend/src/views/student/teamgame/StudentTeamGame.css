@@ -107,7 +107,9 @@
 .stg-empty { text-align: center; padding: 64px 24px; color: #94a3b8; }
 .stg-empty-icon { font-size: 3rem; margin-bottom: 12px; }
 .stg-empty h3 { margin: 0 0 6px; color: #475569; }
-.stg-empty p { margin: 0; font-size: 0.9rem; }
+.stg-empty p { margin: 0 0 16px; font-size: 0.9rem; }
+.stg-refresh-btn { padding: 8px 20px; border: none; border-radius: 8px; background: #3b82f6; color: #fff; font-size: 0.9rem; cursor: pointer; }
+.stg-refresh-btn:hover { background: #2563eb; }
 
 /* Completed banner */
 .stg-completed-banner {

@@ -327,16 +327,20 @@ export default function StudentTeamGame() {
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState(null);
 
-    const load = useCallback(() => {
-        setLoading(true);
+    const load = useCallback((silent = false) => {
+        if (!silent) setLoading(true);
         fetch(`${API_URL}v1/game-sessions`, { headers: headers() })
             .then(r => r.json())
             .then(d => setSessions(Array.isArray(d) ? d : []))
-            .catch(() => setSessions([]))
+            .catch(() => {})
             .finally(() => setLoading(false));
     }, []);
 
-    useEffect(() => { load(); }, [load]);
+    useEffect(() => {
+        load();
+        const interval = setInterval(() => load(true), 10000);
+        return () => clearInterval(interval);
+    }, [load]);
 
     const openSession = async (id) => {
         try {
@@ -363,7 +367,8 @@ export default function StudentTeamGame() {
                 <div className="stg-empty">
                     <div className="stg-empty-icon">🎮</div>
                     <h3>Нет активных игр</h3>
-                    <p>Преподаватель ещё не создал игровую сессию. Загляните позже!</p>
+                    <p>Преподаватель ещё не создал игровую сессию. Страница обновляется автоматически.</p>
+                    <button className="stg-refresh-btn" onClick={() => load()}>Обновить</button>
                 </div>
             ) : (
                 <div className="stg-list">
