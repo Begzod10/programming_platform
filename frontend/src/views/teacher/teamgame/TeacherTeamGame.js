@@ -576,12 +576,20 @@ function SessionCard({ initialSession }) {
 
     const handleWsUpdate = useCallback((data) => {
         setSession(data);
-        // Relay all WS messages via custom event for QuizManager
     }, []);
 
-    // Relay raw WS messages so QuizManager can listen for question_progress/question_end
+    // Relay raw WS messages so QuizManager can listen; also apply score updates here
     const handleWsRaw = useCallback((msg) => {
         window.dispatchEvent(new MessageEvent('tg_ws_message', { data: JSON.stringify(msg) }));
+        if (msg.type === 'question_end' && msg.data?.team_scores) {
+            setSession(prev => ({
+                ...prev,
+                teams: (prev.teams || []).map(t => {
+                    const ts = msg.data.team_scores.find(s => s.team_id === t.id);
+                    return ts ? { ...t, score: ts.score } : t;
+                }),
+            }));
+        }
     }, []);
 
     useSessionSocket(session.id, handleWsUpdate, null, handleWsRaw);
@@ -637,6 +645,28 @@ function SessionCard({ initialSession }) {
             </div>
 
             {session.description && <p className="tg-description">{session.description}</p>}
+
+            {/* Compact scoreboard — always visible above questions */}
+            {sortedTeams.length > 0 && (
+                <div className="tg-score-strip">
+                    {sortedTeams.map((team, idx) => {
+                        const top = sortedTeams[0]?.score || 0;
+                        return (
+                            <div key={team.id} className="tg-score-strip-item">
+                                <span className="tg-score-strip-rank">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</span>
+                                <span className="tg-score-strip-name" style={{ color: team.color }}>{team.name}</span>
+                                <span className="tg-score-strip-val">{team.score}</span>
+                                <div className="tg-score-strip-bar-wrap">
+                                    <div className="tg-score-strip-bar" style={{
+                                        width: top > 0 ? `${(team.score / top) * 100}%` : '0%',
+                                        background: team.color,
+                                    }} />
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
 
             <QuizManager session={session} />
 

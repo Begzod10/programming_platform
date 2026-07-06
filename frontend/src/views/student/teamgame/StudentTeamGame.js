@@ -217,6 +217,15 @@ function SessionDetail({ initialSession, onBack }) {
         if (msg.type === 'question_end') {
             setActiveQuestion(null);
             setLastResult(msg.data);
+            if (msg.data?.team_scores) {
+                setSession(prev => ({
+                    ...prev,
+                    teams: (prev.teams || []).map(t => {
+                        const ts = msg.data.team_scores.find(s => s.team_id === t.id);
+                        return ts ? { ...t, score: ts.score } : t;
+                    }),
+                }));
+            }
         }
     }, []);
     useSessionSocket(session.id, handleUpdate, handleDeleted, handleMessage);

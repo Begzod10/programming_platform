@@ -60,6 +60,29 @@
 .tg-description { color: #64748b; font-size: 0.9rem; margin: 0 0 16px; }
 
 /* Teams */
+/* ── Compact score strip (above questions) ─────────────────────────────── */
+.tg-score-strip {
+    display: flex; flex-direction: column; gap: 6px;
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 10px 14px; margin-bottom: 14px;
+}
+.tg-score-strip-item {
+    display: flex; align-items: center; gap: 10px;
+}
+.tg-score-strip-rank { font-size: 1rem; flex-shrink: 0; }
+.tg-score-strip-name { font-weight: 700; font-size: 0.9rem; min-width: 90px; }
+.tg-score-strip-val {
+    font-weight: 800; font-size: 1rem; min-width: 52px; text-align: right;
+    font-variant-numeric: tabular-nums; color: #1e293b;
+}
+.tg-score-strip-bar-wrap {
+    flex: 1; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden;
+}
+.tg-score-strip-bar {
+    height: 100%; border-radius: 4px; transition: width 0.5s ease;
+    min-width: 3px;
+}
+
 .tg-teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
 .tg-team  { background: #f8fafc; border-radius: 8px; padding: 12px; border-left: 4px solid #3b82f6; }
 
