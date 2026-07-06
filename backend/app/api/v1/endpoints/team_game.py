@@ -266,6 +266,7 @@ async def get_session_students(
                 Student.role == UserRole.student,
                 Student.is_active == True,
             )
+            .distinct()
             .order_by(Student.full_name)
         )).scalars().all()
     else:
@@ -327,7 +328,7 @@ async def start_session(
         if session.course_id:
             from app.models.course import student_courses
             enroll_res = await db.execute(
-                select(student_courses.c.student_id)
+                select(student_courses.c.student_id).distinct()
                 .join(Student, Student.id == student_courses.c.student_id)
                 .where(
                     student_courses.c.course_id == session.course_id,
