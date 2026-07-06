@@ -21,7 +21,7 @@ from app.schemas.team_game import (
 )
 from app.ws.manager import manager
 
-router = APIRouter()
+router = APIRouter(redirect_slashes=False)
 
 TEAM_NAMES = [
     ("Alpha",   "#e74c3c"), ("Beta",    "#3498db"), ("Gamma",   "#2ecc71"),
@@ -193,6 +193,7 @@ async def create_session(
 
 
 # ── List sessions ──────────────────────────────────────────────────────────────
+@router.get("/", response_model=List[GameSessionRead])
 @router.get("", response_model=List[GameSessionRead])
 async def list_sessions(
     course_id: Optional[int] = None,
