@@ -124,7 +124,7 @@ export default function Login({ onLogin }) {
 
             {/* Logo tile */}
             <div className="lp-logo">
-              <img src="/platform_logo.png" alt="Gennis Tech Platform" />
+              <img src="https://play-lh.googleusercontent.com/xiJhv9DqAZaOq6htMaZSAQ5DBoH_v7fripUMYx04Kv-5iQnfWAFopqZIED6Sr7Q7wN0" alt="Gennis" />
             </div>
 
             <h2 className="lp-title">{t('auth.welcome')}</h2>

@@ -160,6 +160,11 @@ class ProjectService:
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")
         if project.student_id != student_id:
             raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+        # ZIP upload path already ran AI review and set status/reviewed_at.
+        # Re-submitting would clobber the reviewed status back to "Submitted"
+        # and then be permanently blocked by the reviewed_at guard in ai_review_service.
+        if project.reviewed_at is not None and project.status in ("Approved", "Rejected"):
+            return project
         project.status = "Submitted"
         project.submitted_at = datetime.utcnow()
         await self.db.commit()

@@ -1114,7 +1114,10 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 }
             }
 
-            if (created?.id) {
+            // ZIP uploads already run the full AI review pipeline inside
+            // upload_project_zip_by_id; calling submit again would reset
+            // the AI-reviewed status back to "Submitted".
+            if (created?.id && uploadMethod !== 'zip') {
                 await request(`${API_URL}v1/project/${created.id}/submit`, 'POST', null, headers());
             }
 
