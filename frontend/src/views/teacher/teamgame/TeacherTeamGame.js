@@ -571,7 +571,6 @@ function QuizManager({ session }) {
 function SessionCard({ initialSession }) {
     const [session, setSession] = useState(initialSession);
     const [actionLoading, setActionLoading] = useState(false);
-    const [delta, setDelta] = useState({});
     const [showDivide, setShowDivide] = useState(false);
 
     const handleWsUpdate = useCallback((data) => {
@@ -603,13 +602,6 @@ function SessionCard({ initialSession }) {
         } finally {
             setActionLoading(false);
         }
-    };
-
-    const addScore = async (teamId) => {
-        const d = Number(delta[teamId] || 0);
-        if (!d) return;
-        setDelta(prev => ({ ...prev, [teamId]: '' }));
-        await act('/score', 'patch', { team_id: teamId, delta: d });
     };
 
     const sortedTeams = [...(session.teams || [])].sort((a, b) => b.score - a.score);
@@ -672,34 +664,28 @@ function SessionCard({ initialSession }) {
 
             <div className="tg-teams">
                 {sortedTeams.map((team, idx) => (
-                    <div key={team.id} className="tg-team" style={{ borderLeftColor: team.color }}>
+                    <div key={team.id} className="tg-team" style={{ '--team-color': team.color, borderTopColor: team.color }}>
                         <div className="tg-team-header">
-                            <span className="tg-team-rank">#{idx + 1}</span>
+                            <span className="tg-team-medal">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</span>
                             <span className="tg-team-name" style={{ color: team.color }}>{team.name}</span>
-                            <span className="tg-team-score">{team.score} очков</span>
+                            <span className="tg-team-score">{team.score} <small>очков</small></span>
                         </div>
+                        <div className="tg-team-count">{team.members.length} участников</div>
                         <div className="tg-team-members">
                             {team.members.length === 0
                                 ? <span className="tg-no-members">Нет участников</span>
-                                : team.members.map(m => (
-                                    <span key={m.id} className="tg-member-chip" title={m.username}>
-                                        {m.full_name || m.username}
-                                    </span>
-                                ))
+                                : team.members.map(m => {
+                                    const name = m.full_name || m.username || '?';
+                                    const initials = name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+                                    return (
+                                        <div key={m.id} className="tg-member-row" title={name}>
+                                            <span className="tg-member-avatar" style={{ background: team.color + '22', color: team.color }}>{initials}</span>
+                                            <span className="tg-member-name">{name}</span>
+                                        </div>
+                                    );
+                                })
                             }
                         </div>
-                        {session.status === 'active' && (
-                            <div className="tg-score-ctrl">
-                                <input
-                                    type="number"
-                                    placeholder="±очки"
-                                    value={delta[team.id] ?? ''}
-                                    onChange={e => setDelta(prev => ({ ...prev, [team.id]: e.target.value }))}
-                                    onKeyDown={e => e.key === 'Enter' && addScore(team.id)}
-                                />
-                                <button onClick={() => addScore(team.id)} className="tg-btn-score">+Очки</button>
-                            </div>
-                        )}
                     </div>
                 ))}
             </div>
