@@ -175,6 +175,7 @@ async def create_session(
         title=body.title,
         description=body.description,
         game_type=body.game_type,
+        language=body.language if body.language in ('uz', 'ru') else 'uz',
         course_id=body.course_id,
         created_by=teacher.id,
         team_count=body.team_count,
@@ -753,7 +754,6 @@ async def import_questions_from_lesson(
     session_id: int,
     lesson_id: Optional[int] = None,
     course_id: Optional[int] = None,
-    language: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     teacher: Student = Depends(get_current_teacher),
 ):
@@ -786,11 +786,11 @@ async def import_questions_from_lesson(
     if not source_qs:
         raise HTTPException(status_code=404, detail="No questions found for this lesson/course")
 
-    # Filter by language if requested (Cyrillic detection: 'ru' vs 'uz')
-    if language in ('uz', 'ru'):
-        source_qs = [lq for lq in source_qs if _detect_lang(lq.question_text) == language]
-        if not source_qs:
-            raise HTTPException(status_code=404, detail=f"No {language.upper()} questions found")
+    # Filter by session language automatically (Cyrillic detection: 'ru' vs 'uz')
+    lang = sess.language if sess.language in ('uz', 'ru') else 'uz'
+    source_qs = [lq for lq in source_qs if _detect_lang(lq.question_text) == lang]
+    if not source_qs:
+        raise HTTPException(status_code=404, detail=f"No {lang.upper()} questions found for this lesson/course")
 
     # Get current max order_index in game session
     max_order = (await db.execute(

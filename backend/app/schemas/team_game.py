@@ -28,6 +28,7 @@ class GameSessionRead(BaseModel):
     description:         Optional[str]      = None
     game_type:           GameType
     status:              SessionStatus
+    language:            str               = 'uz'
     course_id:           Optional[int]      = None
     course_title:        Optional[str]      = None
     created_by:          int
@@ -61,6 +62,7 @@ class GameSessionCreate(BaseModel):
     title:       str           = Field(..., min_length=2, max_length=255)
     description: Optional[str] = None
     game_type:   GameType
+    language:    str           = 'uz'
     course_id:   Optional[int] = None
     team_count:  int           = Field(2, ge=2, le=10)
 

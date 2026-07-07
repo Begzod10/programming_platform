@@ -37,6 +37,7 @@ class GameSession(Base):
     description:         Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     game_type:           Mapped[GameType]      = mapped_column(Enum(GameType), nullable=False)
     status:              Mapped[SessionStatus] = mapped_column(Enum(SessionStatus), default=SessionStatus.pending, nullable=False)
+    language:            Mapped[str]           = mapped_column(String(2), default='uz', nullable=False)
     course_id:           Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id", ondelete="SET NULL"), nullable=True)
     created_by:          Mapped[int]           = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
     team_count:          Mapped[int]           = mapped_column(Integer, default=2, nullable=False)

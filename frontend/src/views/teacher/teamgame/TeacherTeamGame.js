@@ -65,7 +65,7 @@ function useSessionSocket(sessionId, onUpdate, onDeleted, onRawMessage) {
 }
 
 function CreateSessionModal({ onClose, onCreated }) {
-    const [form, setForm] = useState({ title: '', description: '', game_type: 'quiz', team_count: 2, course_id: '' });
+    const [form, setForm] = useState({ title: '', description: '', game_type: 'quiz', language: 'uz', team_count: 2, course_id: '' });
     const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -85,6 +85,7 @@ function CreateSessionModal({ onClose, onCreated }) {
                 title: form.title,
                 description: form.description || null,
                 game_type: form.game_type,
+                language: form.language,
                 team_count: Number(form.team_count),
                 course_id: form.course_id ? Number(form.course_id) : null,
             });
@@ -112,6 +113,12 @@ function CreateSessionModal({ onClose, onCreated }) {
                     <label>Тип игры</label>
                     <select value={form.game_type} onChange={e => setForm(f => ({ ...f, game_type: e.target.value }))}>
                         {Object.entries(GAME_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+
+                    <label>Язык вопросов</label>
+                    <select value={form.language} onChange={e => setForm(f => ({ ...f, language: e.target.value }))}>
+                        <option value="uz">🇺🇿 O'zbekcha</option>
+                        <option value="ru">🇷🇺 Русский</option>
                     </select>
 
                     <label>Курс (необязательно)</label>
@@ -276,7 +283,6 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
     const [lessons, setLessons] = useState([]);
     const [loading, setLoading] = useState(true);
     const [importing, setImporting] = useState(false);
-    const [lang, setLang] = useState('uz');
 
     useEffect(() => {
         const url = session.course_id
@@ -292,7 +298,7 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
         setImporting(true);
         try {
             const res = await axiosInstance.post(
-                `${API_URL}v1/game-sessions/${session.id}/import-questions?lesson_id=${lessonId}&language=${lang}`
+                `${API_URL}v1/game-sessions/${session.id}/import-questions?lesson_id=${lessonId}`
             );
             onImported(res.data.length);
             onClose();
@@ -306,7 +312,7 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
         setImporting(true);
         try {
             const res = await axiosInstance.post(
-                `${API_URL}v1/game-sessions/${session.id}/import-questions?course_id=${session.course_id}&language=${lang}`
+                `${API_URL}v1/game-sessions/${session.id}/import-questions?course_id=${session.course_id}`
             );
             onImported(res.data.length);
             onClose();
@@ -319,18 +325,6 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
         <div className="tg-modal-overlay" onClick={onClose}>
             <div className="tg-modal" onClick={e => e.stopPropagation()}>
                 <h2>📚 Импортировать вопросы</h2>
-                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                    <button
-                        className={`tg-btn-secondary${lang === 'uz' ? ' tg-lang-active' : ''}`}
-                        style={{ flex: 1, fontWeight: lang === 'uz' ? 700 : 400 }}
-                        onClick={() => setLang('uz')}
-                    >🇺🇿 O'zbekcha</button>
-                    <button
-                        className={`tg-btn-secondary${lang === 'ru' ? ' tg-lang-active' : ''}`}
-                        style={{ flex: 1, fontWeight: lang === 'ru' ? 700 : 400 }}
-                        onClick={() => setLang('ru')}
-                    >🇷🇺 Русский</button>
-                </div>
                 {loading ? (
                     <p>Загрузка уроков...</p>
                 ) : lessons.length === 0 ? (
