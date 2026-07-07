@@ -650,11 +650,12 @@ async def submit_answer(
     if not q:
         raise HTTPException(status_code=400, detail="Question is not active")
 
-    # Find student's team
+    # Find student's team (limit 1 guards against corrupt duplicate rows)
     member = (await db.execute(
         select(GameTeamMember)
         .join(GameTeam, GameTeam.id == GameTeamMember.team_id)
         .where(GameTeam.session_id == session_id, GameTeamMember.student_id == student.id)
+        .limit(1)
     )).scalar_one_or_none()
     if not member:
         raise HTTPException(status_code=400, detail="You are not assigned to a team in this session")
