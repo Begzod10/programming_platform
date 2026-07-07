@@ -57,13 +57,19 @@ async def _find_candidates(
     project_id: int | None,
     lesson_id: int | None,
 ) -> list[Project]:
-    """Pending GitHub submissions only — ZIP-only entries already get AI
-    via the upload endpoint, so we don't double-trigger."""
+    """Pending submissions with a GitHub URL or uploaded ZIP that have not
+    been reviewed yet (reviewed_at IS NULL)."""
+    from sqlalchemy import or_
     stmt = (
         select(Project)
         .where(Project.status == "Submitted")
         .where(Project.reviewed_at.is_(None))
-        .where(Project.github_url.is_not(None))
+        .where(
+            or_(
+                Project.github_url.is_not(None),
+                Project.project_files.is_not(None),
+            )
+        )
     )
     if project_id is not None:
         stmt = stmt.where(Project.id == project_id)
@@ -95,7 +101,8 @@ async def run(args: argparse.Namespace) -> None:
             return
 
         for p in candidates:
-            tag = f"#{p.id:>5} student={p.student_id} github={(p.github_url or '')[:60]}"
+            src = p.github_url or p.project_files or "(no source)"
+            tag = f"#{p.id:>5} student={p.student_id} src={src[:60]}"
             print(f"  - {tag}")
 
         if not args.apply:
