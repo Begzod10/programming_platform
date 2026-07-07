@@ -248,7 +248,7 @@ function SessionDetail({ initialSession, onBack }) {
     return (
         <div className="stg-detail">
             {/* Full-screen quiz overlay when question is active */}
-            {activeQuestion && session.game_type === 'quiz' && (
+            {activeQuestion && (
                 <QuizOverlay
                     question={activeQuestion}
                     sessionId={session.id}

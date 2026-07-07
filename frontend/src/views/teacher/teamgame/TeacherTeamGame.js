@@ -445,12 +445,10 @@ function QuizManager({ session }) {
 
     const setOption = (idx, val) => setForm(f => { const opts = [...f.options]; opts[idx] = val; return { ...f, options: opts }; });
 
-    if (session.game_type !== 'quiz') return null;
-
     return (
         <div className="tg-quiz-manager">
             <div className="tg-quiz-header">
-                <h4>📝 Вопросы викторины ({questions.length})</h4>
+                <h4>📝 Вопросы ({questions.length})</h4>
                 {session.status !== 'completed' && (
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                         <button className="tg-btn-secondary tg-btn-sm" onClick={() => setShowImport(true)}>
