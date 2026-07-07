@@ -276,6 +276,7 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
     const [lessons, setLessons] = useState([]);
     const [loading, setLoading] = useState(true);
     const [importing, setImporting] = useState(false);
+    const [lang, setLang] = useState('uz');
 
     useEffect(() => {
         const url = session.course_id
@@ -291,7 +292,7 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
         setImporting(true);
         try {
             const res = await axiosInstance.post(
-                `${API_URL}v1/game-sessions/${session.id}/import-questions?lesson_id=${lessonId}`
+                `${API_URL}v1/game-sessions/${session.id}/import-questions?lesson_id=${lessonId}&language=${lang}`
             );
             onImported(res.data.length);
             onClose();
@@ -305,7 +306,7 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
         setImporting(true);
         try {
             const res = await axiosInstance.post(
-                `${API_URL}v1/game-sessions/${session.id}/import-questions?course_id=${session.course_id}`
+                `${API_URL}v1/game-sessions/${session.id}/import-questions?course_id=${session.course_id}&language=${lang}`
             );
             onImported(res.data.length);
             onClose();
@@ -318,6 +319,18 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
         <div className="tg-modal-overlay" onClick={onClose}>
             <div className="tg-modal" onClick={e => e.stopPropagation()}>
                 <h2>📚 Импортировать вопросы</h2>
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <button
+                        className={`tg-btn-secondary${lang === 'uz' ? ' tg-lang-active' : ''}`}
+                        style={{ flex: 1, fontWeight: lang === 'uz' ? 700 : 400 }}
+                        onClick={() => setLang('uz')}
+                    >🇺🇿 O'zbekcha</button>
+                    <button
+                        className={`tg-btn-secondary${lang === 'ru' ? ' tg-lang-active' : ''}`}
+                        style={{ flex: 1, fontWeight: lang === 'ru' ? 700 : 400 }}
+                        onClick={() => setLang('ru')}
+                    >🇷🇺 Русский</button>
+                </div>
                 {loading ? (
                     <p>Загрузка уроков...</p>
                 ) : lessons.length === 0 ? (

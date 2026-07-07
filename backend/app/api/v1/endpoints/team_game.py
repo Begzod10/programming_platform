@@ -743,11 +743,17 @@ async def submit_answer(
 
 
 # ── Teacher: import questions from lesson / course question bank ───────────────
+def _detect_lang(text: str) -> str:
+    """Return 'ru' if text contains Cyrillic characters, else 'uz'."""
+    return 'ru' if any('Ѐ' <= c <= 'ӿ' for c in text) else 'uz'
+
+
 @router.post("/{session_id}/import-questions", response_model=List[GameQuestionRead])
 async def import_questions_from_lesson(
     session_id: int,
     lesson_id: Optional[int] = None,
     course_id: Optional[int] = None,
+    language: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     teacher: Student = Depends(get_current_teacher),
 ):
@@ -779,6 +785,12 @@ async def import_questions_from_lesson(
 
     if not source_qs:
         raise HTTPException(status_code=404, detail="No questions found for this lesson/course")
+
+    # Filter by language if requested (Cyrillic detection: 'ru' vs 'uz')
+    if language in ('uz', 'ru'):
+        source_qs = [lq for lq in source_qs if _detect_lang(lq.question_text) == language]
+        if not source_qs:
+            raise HTTPException(status_code=404, detail=f"No {language.upper()} questions found")
 
     # Get current max order_index in game session
     max_order = (await db.execute(
