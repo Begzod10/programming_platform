@@ -3,7 +3,7 @@ import { API_URL, API_URL_DOC, headers } from '../../../api/search/base';
 import './StudentTeamGame.css';
 import { Trophy } from 'lucide-react';
 
-const GAME_TYPE_LABELS = { quiz: 'Викторина', coding: 'Кодинг', project: 'Проект', custom: 'Другое' };
+const GAME_TYPE_LABELS = { team: 'Командная', individual: 'Индивидуальная' };
 const STATUS_LABELS    = { pending: 'Скоро начнётся', active: 'Идёт сейчас', completed: 'Завершена' };
 const OPTION_LABELS    = ['A', 'B', 'C', 'D'];
 const OPTION_COLORS    = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12'];
@@ -66,12 +66,30 @@ function useSessionSocket(sessionId, onUpdate, onDeleted, onMessage) {
 }
 
 // ── Quiz Overlay ──────────────────────────────────────────────────────────────
-function QuizOverlay({ question, sessionId, onDone }) {
+function useLang() {
+    const [lang, setLangState] = useState(() => localStorage.getItem('game_lang') || 'uz');
+    const toggle = () => {
+        const next = lang === 'uz' ? 'ru' : 'uz';
+        localStorage.setItem('game_lang', next);
+        setLangState(next);
+    };
+    return [lang, toggle];
+}
+
+// revealData: question_end payload from teacher — when set, show result then close
+function QuizOverlay({ question, sessionId, revealData, onDone }) {
     const [chosen, setChosen] = useState(null);
-    const [result, setResult] = useState(null);  // {is_correct, points_earned}
-    const [progress, setProgress] = useState(null);
+    const [pendingResult, setPendingResult] = useState(null);  // API response stored until reveal
     const [timeLeft, setTimeLeft] = useState(question.time_limit);
     const [submitting, setSubmitting] = useState(false);
+    const [lang, toggleLang] = useLang();
+
+    // Lock body scroll while overlay is shown
+    useEffect(() => {
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => { document.body.style.overflow = prev; };
+    }, []);
 
     // Countdown
     useEffect(() => {
@@ -85,6 +103,13 @@ function QuizOverlay({ question, sessionId, onDone }) {
         return () => clearInterval(t);
     }, [question]);
 
+    // When teacher reveals: show result for 2.5s then close
+    useEffect(() => {
+        if (!revealData) return;
+        const t = setTimeout(() => onDone(), 2500);
+        return () => clearTimeout(t);
+    }, [revealData, onDone]);
+
     const submit = async (idx) => {
         if (chosen !== null || submitting) return;
         setChosen(idx);
@@ -97,10 +122,9 @@ function QuizOverlay({ question, sessionId, onDone }) {
             });
             if (res.ok) {
                 const data = await res.json();
-                setResult(data);
+                setPendingResult(data);
             } else {
-                // Question already revealed or closed — treat as wrong
-                setResult({ is_correct: false, points_earned: 0 });
+                setPendingResult('late');
             }
         } finally { setSubmitting(false); }
     };
@@ -108,58 +132,80 @@ function QuizOverlay({ question, sessionId, onDone }) {
     const pct = question.time_limit > 0 ? (timeLeft / question.time_limit) * 100 : 0;
     const timerColor = pct > 50 ? '#2ecc71' : pct > 25 ? '#f39c12' : '#e74c3c';
 
+    // After reveal: determine result to display
+    const revealedCorrectOpt = revealData?.correct_option;
+    const showResult = revealData !== null && revealData !== undefined;
+    const resultIsCorrect = pendingResult && pendingResult !== 'late' && pendingResult.is_correct;
+    const resultPts = pendingResult && pendingResult !== 'late' ? pendingResult.points_earned : 0;
+    const didNotAnswer = chosen === null;
+    const wasLate = pendingResult === 'late';
+
+    // After reveal: highlight correct option in green, chosen wrong in red
+    const getOptClass = (i) => {
+        let cls = 'stg-quiz-opt';
+        if (showResult) {
+            if (i === revealedCorrectOpt) cls += ' stg-quiz-opt--correct-reveal';
+            else if (i === chosen && i !== revealedCorrectOpt) cls += ' stg-quiz-opt--wrong-reveal';
+            else cls += ' stg-quiz-opt--faded';
+        } else {
+            if (chosen === i) cls += ' stg-quiz-opt--chosen';
+            if (chosen !== null && chosen !== i) cls += ' stg-quiz-opt--faded';
+        }
+        return cls;
+    };
+
     return (
         <div className="stg-quiz-overlay">
             <div className="stg-quiz-timer-bar-wrap">
                 <div className="stg-quiz-timer-bar" style={{ width: `${pct}%`, background: timerColor }} />
                 <span className="stg-quiz-timer-num" style={{ color: timerColor }}>{timeLeft}с</span>
+                {question.question_text_ru && (
+                    <button className="stg-quiz-lang-btn" onClick={toggleLang}>
+                        {lang === 'uz' ? "🇺🇿 O'z" : '🇷🇺 Рус'}
+                    </button>
+                )}
             </div>
 
             <div className="stg-quiz-question">
                 <div className="stg-quiz-points-badge">⭐ до {question.points} очков</div>
-                <h2>{question.question_text}</h2>
+                <h2>{lang === 'ru' && question.question_text_ru ? question.question_text_ru : question.question_text}</h2>
             </div>
 
             <div className="stg-quiz-options">
-                {question.options.map((opt, i) => {
-                    let cls = 'stg-quiz-opt';
-                    if (chosen === i) cls += ' stg-quiz-opt--chosen';
-                    if (chosen !== null && chosen !== i) cls += ' stg-quiz-opt--faded';
-                    return (
-                        <button
-                            key={i}
-                            className={cls}
-                            style={{ '--opt-color': OPTION_COLORS[i] }}
-                            onClick={() => submit(i)}
-                            disabled={chosen !== null}
-                        >
-                            <span className="stg-quiz-opt-letter">{OPTION_LABELS[i]}</span>
-                            <span className="stg-quiz-opt-text">{opt}</span>
-                        </button>
-                    );
-                })}
+                {question.options.map((opt, i) => (
+                    <button
+                        key={i}
+                        className={getOptClass(i)}
+                        style={{ '--opt-color': OPTION_COLORS[i] }}
+                        onClick={() => submit(i)}
+                        disabled={chosen !== null || showResult}
+                    >
+                        <span className="stg-quiz-opt-letter">{OPTION_LABELS[i]}</span>
+                        <span className="stg-quiz-opt-text">{opt}</span>
+                    </button>
+                ))}
             </div>
 
-            {chosen !== null && !result && (
-                <div className="stg-quiz-waiting">
-                    {progress
-                        ? <p>✅ Ответили: {progress.answered_count} / {progress.total_players}</p>
-                        : <p>⏳ Ждём ответов других игроков...</p>
-                    }
-                </div>
+            {/* Before reveal: show waiting state */}
+            {!showResult && chosen !== null && (
+                <p className="stg-quiz-waiting-teacher">⏳ Ждите, пока учитель раскроет ответ…</p>
+            )}
+            {!showResult && timeLeft === 0 && chosen === null && (
+                <div className="stg-quiz-result stg-quiz-result--wrong" style={{ opacity: 0.7 }}>⏰ Время вышло!</div>
             )}
 
-            {result && (
-                <div className={`stg-quiz-result stg-quiz-result--${result.is_correct ? 'correct' : 'wrong'}`}>
-                    {result.is_correct
-                        ? <><span>✅ Правильно!</span><span className="stg-quiz-pts">+{result.points_earned} очков</span></>
-                        : <span>❌ Неправильно</span>
+            {/* After reveal: show personal result */}
+            {showResult && (
+                <div className={`stg-quiz-result stg-quiz-result--${(didNotAnswer || wasLate) ? 'wrong' : resultIsCorrect ? 'correct' : 'wrong'}`}>
+                    {didNotAnswer
+                        ? <span>⏰ Вы не успели ответить</span>
+                        : wasLate
+                            ? <span>⏰ Не успели — вопрос уже закрыт</span>
+                            : resultIsCorrect
+                                ? <><span>✅ Правильно!</span><span className="stg-quiz-pts">+{resultPts} очков</span></>
+                                : <span>❌ Неправильно</span>
                     }
                 </div>
-            )}
-
-            {timeLeft === 0 && chosen === null && (
-                <div className="stg-quiz-result stg-quiz-result--wrong" style={{ opacity: 0.7 }}>⏰ Время вышло — но попробуйте ответить!</div>
             )}
         </div>
     );
@@ -171,7 +217,7 @@ function MyTeamBanner({ session }) {
     if (!team) return null;
     return (
         <div className="stg-my-banner" style={{ borderColor: team.color }}>
-            <span className="stg-my-label">Ваша команда</span>
+            <span className="stg-my-label">{session.game_type === 'individual' ? 'Ваш результат' : 'Ваша команда'}</span>
             <span className="stg-my-name" style={{ color: team.color }}>{team.name}</span>
             <span className="stg-my-score">{team.score} очков</span>
         </div>
@@ -205,17 +251,22 @@ function SessionDetail({ initialSession, onBack }) {
     const [session, setSession] = useState(initialSession);
     const [gone, setGone] = useState(false);
     const [activeQuestion, setActiveQuestion] = useState(null);  // question_start payload
-    const [lastResult, setLastResult] = useState(null);  // question_end payload
+    const [revealData, setRevealData] = useState(null);          // question_end payload while overlay still open
+    const [lastResult, setLastResult] = useState(null);          // shown in post-question banner
+    const [lang, toggleLang] = useLang();
+    const [view, setView] = useState('scores'); // 'scores' | 'teams'
 
     const handleUpdate = useCallback((data) => setSession(data), []);
     const handleDeleted = useCallback(() => setGone(true), []);
     const handleMessage = useCallback((msg) => {
         if (msg.type === 'question_start') {
             setActiveQuestion(msg.data);
+            setRevealData(null);
             setLastResult(null);
         }
         if (msg.type === 'question_end') {
-            setActiveQuestion(null);
+            // Keep overlay open briefly so student sees result, then onDone closes it
+            setRevealData(msg.data);
             setLastResult(msg.data);
             if (msg.data?.team_scores) {
                 setSession(prev => ({
@@ -252,11 +303,17 @@ function SessionDetail({ initialSession, onBack }) {
                 <QuizOverlay
                     question={activeQuestion}
                     sessionId={session.id}
-                    onDone={() => setActiveQuestion(null)}
+                    revealData={revealData}
+                    onDone={() => { setActiveQuestion(null); setRevealData(null); }}
                 />
             )}
 
-            <button className="stg-back-btn" onClick={onBack}>← Назад</button>
+            <div className="stg-top-bar">
+                <button className="stg-back-btn" onClick={onBack}>← Назад</button>
+                <button className="stg-lang-toggle" onClick={toggleLang} title="Язык вопросов">
+                    {lang === 'uz' ? "🇺🇿 O'z" : '🇷🇺 Рус'}
+                </button>
+            </div>
             <div className="stg-detail-header">
                 <h2>{session.title}</h2>
                 <span className={`stg-badge stg-badge--${session.status}`}>{STATUS_LABELS[session.status]}</span>
@@ -291,36 +348,49 @@ function SessionDetail({ initialSession, onBack }) {
 
             {sortedTeams.length > 0 && session.status !== 'pending' && (
                 <>
-                    <h3 className="stg-section-title">Таблица результатов</h3>
-                    <ScoreBoard teams={sortedTeams} />
+                    {session.game_type === 'team' && (
+                        <div className="stg-view-tabs">
+                            <button
+                                className={`stg-view-tab${view === 'scores' ? ' stg-view-tab--active' : ''}`}
+                                onClick={() => setView('scores')}
+                            >📊 Результаты</button>
+                            <button
+                                className={`stg-view-tab${view === 'teams' ? ' stg-view-tab--active' : ''}`}
+                                onClick={() => setView('teams')}
+                            >👥 Команды</button>
+                        </div>
+                    )}
+
+                    {(session.game_type === 'individual' || view === 'scores') && <ScoreBoard teams={sortedTeams} />}
+
+                    {view === 'teams' && session.game_type === 'team' && (
+                        <div className="stg-teams-grid">
+                            {sortedTeams.map(team => (
+                                <div key={team.id}
+                                    className={`stg-team-card${team.id === session.my_team_id ? ' stg-team-card--mine' : ''}`}
+                                    style={{ borderColor: team.id === session.my_team_id ? team.color : undefined }}>
+                                    <div className="stg-team-title" style={{ color: team.color }}>
+                                        {team.name}
+                                        {team.id === session.my_team_id && <span className="stg-you-badge">Вы здесь</span>}
+                                    </div>
+                                    <div className="stg-team-score-big">{team.score} <span>очков</span></div>
+                                    <div className="stg-member-list">
+                                        {team.members.length === 0
+                                            ? <span className="stg-no-members">Ожидаем участников…</span>
+                                            : team.members.map(m => (
+                                                <div key={m.id} className="stg-member">
+                                                    <span className="stg-avatar">{(m.full_name || m.username || '?')[0].toUpperCase()}</span>
+                                                    <span>{m.full_name || m.username}</span>
+                                                </div>
+                                            ))
+                                        }
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </>
             )}
-
-            <h3 className="stg-section-title">Команды</h3>
-            <div className="stg-teams-grid">
-                {sortedTeams.map(team => (
-                    <div key={team.id}
-                        className={`stg-team-card${team.id === session.my_team_id ? ' stg-team-card--mine' : ''}`}
-                        style={{ borderColor: team.id === session.my_team_id ? team.color : undefined }}>
-                        <div className="stg-team-title" style={{ color: team.color }}>
-                            {team.name}
-                            {team.id === session.my_team_id && <span className="stg-you-badge">Вы здесь</span>}
-                        </div>
-                        <div className="stg-team-score-big">{team.score} <span>очков</span></div>
-                        <div className="stg-member-list">
-                            {team.members.length === 0
-                                ? <span className="stg-no-members">Ожидаем участников…</span>
-                                : team.members.map(m => (
-                                    <div key={m.id} className="stg-member">
-                                        <span className="stg-avatar">{(m.full_name || m.username || '?')[0].toUpperCase()}</span>
-                                        <span>{m.full_name || m.username}</span>
-                                    </div>
-                                ))
-                            }
-                        </div>
-                    </div>
-                ))}
-            </div>
 
             {session.status === 'completed' && (
                 <div className="stg-completed-banner">

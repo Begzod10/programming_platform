@@ -5,7 +5,9 @@ from datetime import datetime
 
 class ExerciseCreate(BaseModel):
     title: str
+    title_ru: Optional[str] = None
     description: str
+    description_ru: Optional[str] = None
     exercise_type: str = "text_input"  # fill_in_blank | drag_and_drop | multiple_choice | text_input
 
     # Fill in blank
@@ -21,10 +23,13 @@ class ExerciseCreate(BaseModel):
 
     # Text input
     expected_answer: Optional[str] = None
+    expected_answer_ru: Optional[str] = None
 
     # Umumiy
     hint: Optional[str] = None
+    hint_ru: Optional[str] = None
     explanation: Optional[str] = None
+    explanation_ru: Optional[str] = None
     difficulty_level: str = "Easy"
     points: int = 10
     order: int = 0
@@ -32,17 +37,22 @@ class ExerciseCreate(BaseModel):
 
 class ExerciseUpdate(BaseModel):
     title: Optional[str] = None
+    title_ru: Optional[str] = None
     description: Optional[str] = None
+    description_ru: Optional[str] = None
     exercise_type: Optional[str] = None
     correct_answers: Optional[str] = None
     drag_items: Optional[str] = None
     correct_order: Optional[str] = None
     options: Optional[str] = None
-    is_published: Optional[bool] = None  # ← shu qatorni qo'shing
+    is_published: Optional[bool] = None
     is_multiple_select: Optional[bool] = None
     expected_answer: Optional[str] = None
+    expected_answer_ru: Optional[str] = None
     hint: Optional[str] = None
+    hint_ru: Optional[str] = None
     explanation: Optional[str] = None
+    explanation_ru: Optional[str] = None
     difficulty_level: Optional[str] = None
     points: Optional[int] = None
     order: Optional[int] = None
@@ -53,12 +63,15 @@ class ExerciseRead(BaseModel):
     id: int
     lesson_id: int
     title: str
+    title_ru: Optional[str] = None
     description: str
+    description_ru: Optional[str] = None
     exercise_type: str
     drag_items: Optional[str] = None
     options: Optional[str] = None
     is_multiple_select: bool
     hint: Optional[str] = None
+    hint_ru: Optional[str] = None
     difficulty_level: str
     points: int
     order: int

@@ -55,14 +55,13 @@ class TeamAssignmentItem(BaseModel):
 
 
 class StartSessionBody(BaseModel):
-    assignments: Optional[List[TeamAssignmentItem]] = None
+    student_ids: Optional[List[int]] = None
 
 
 class GameSessionCreate(BaseModel):
     title:       str           = Field(..., min_length=2, max_length=255)
     description: Optional[str] = None
     game_type:   GameType
-    language:    str           = 'uz'
     course_id:   Optional[int] = None
     team_count:  int           = Field(2, ge=2, le=10)
 
@@ -99,11 +98,12 @@ class GameQuestionCreate(BaseModel):
 
 
 class GameQuestionRead(BaseModel):
-    id:             int
-    session_id:     int
-    question_text:  str
-    options:        List[str]
-    correct_option: Optional[int] = None  # hidden until revealed
+    id:               int
+    session_id:       int
+    question_text:    str
+    question_text_ru: Optional[str] = None
+    options:          List[str]
+    correct_option:   Optional[int] = None  # hidden until revealed
     time_limit:     int
     points:         int
     order_index:    int

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from enum import Enum as PyEnum
 from typing import Optional, List
-from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, Enum, UniqueConstraint, JSON, Boolean
+from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, Enum, UniqueConstraint, JSON, Boolean, VARCHAR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 
@@ -11,10 +11,8 @@ def utcnow():
 
 
 class GameType(str, PyEnum):
-    quiz    = "quiz"
-    coding  = "coding"
-    project = "project"
-    custom  = "custom"
+    team       = "team"
+    individual = "individual"
 
 
 class SessionStatus(str, PyEnum):
@@ -35,7 +33,7 @@ class GameSession(Base):
     id:                  Mapped[int]           = mapped_column(primary_key=True, autoincrement=True)
     title:               Mapped[str]           = mapped_column(String(255), nullable=False)
     description:         Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    game_type:           Mapped[GameType]      = mapped_column(Enum(GameType), nullable=False)
+    game_type:           Mapped[str]           = mapped_column(String(50), nullable=False)
     status:              Mapped[SessionStatus] = mapped_column(Enum(SessionStatus), default=SessionStatus.pending, nullable=False)
     language:            Mapped[str]           = mapped_column(String(2), default='uz', nullable=False)
     course_id:           Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id", ondelete="SET NULL"), nullable=True)
@@ -83,8 +81,9 @@ class GameQuestion(Base):
 
     id:             Mapped[int]            = mapped_column(primary_key=True, autoincrement=True)
     session_id:     Mapped[int]            = mapped_column(ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False)
-    question_text:  Mapped[str]            = mapped_column(Text, nullable=False)
-    options:        Mapped[list]           = mapped_column(JSON, nullable=False)  # list of 4 strings
+    question_text:    Mapped[str]            = mapped_column(Text, nullable=False)
+    question_text_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    options:          Mapped[list]          = mapped_column(JSON, nullable=False)  # list of 4 strings
     correct_option: Mapped[int]            = mapped_column(Integer, nullable=False)  # 0-indexed
     time_limit:     Mapped[int]            = mapped_column(Integer, default=30, nullable=False)  # seconds
     points:         Mapped[int]            = mapped_column(Integer, default=1000, nullable=False)

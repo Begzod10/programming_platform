@@ -24,6 +24,9 @@ graded rows are filtered out at the SQL level.
 import argparse
 import asyncio
 import sys
+import zipfile
+from datetime import datetime, timezone
+from pathlib import Path
 
 sys.path.insert(0, ".")
 
@@ -34,6 +37,22 @@ from app.db import base as _b  # noqa: F401 — registers mappers
 from app.models.project import Project
 from app.models.submission import Submission
 from app.models.user import Student
+from app.config import settings
+
+PROJECTS_UPLOAD_DIR = Path(settings.UPLOAD_DIR) / "projects"
+
+
+def _zip_is_empty(project_files: str) -> bool:
+    """Return True if the ZIP file is missing, unreadable, or contains no files."""
+    try:
+        zip_path = PROJECTS_UPLOAD_DIR / Path(project_files).name
+        if not zip_path.exists():
+            return True
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            entries = [e for e in zf.namelist() if not e.endswith("/")]
+            return len(entries) == 0
+    except Exception:
+        return True
 
 
 async def _resolve_student_id(db, username: str | None, student_id: int | None) -> int | None:
@@ -102,7 +121,8 @@ async def run(args: argparse.Namespace) -> None:
 
         for p in candidates:
             src = p.github_url or p.project_files or "(no source)"
-            tag = f"#{p.id:>5} student={p.student_id} src={src[:60]}"
+            empty_flag = " [EMPTY ZIP]" if (p.project_files and not p.github_url and _zip_is_empty(p.project_files)) else ""
+            tag = f"#{p.id:>5} student={p.student_id} src={src[:60]}{empty_flag}"
             print(f"  - {tag}")
 
         if not args.apply:
@@ -112,8 +132,19 @@ async def run(args: argparse.Namespace) -> None:
         # Import lazily so the dry-run path doesn't pay for the AI client.
         from app.services.ai_review_service import run_ai_review_for_project
 
+        rejected = 0
         graded = 0
         for p in candidates:
+            # Auto-reject empty ZIP submissions before AI grading
+            if p.project_files and not p.github_url and _zip_is_empty(p.project_files):
+                p.status = "Rejected"
+                p.instructor_feedback = "ZIP fayl bo'sh yoki o'qib bo'lmaydi. Iltimos, loyihangizni qayta yuboring."
+                p.reviewed_at = datetime.now(timezone.utc)
+                await db.commit()
+                rejected += 1
+                print(f"   ✗ rejected (empty ZIP): project #{p.id} student={p.student_id}")
+                continue
+
             print(f"\n→ grading project #{p.id} …")
             result = await run_ai_review_for_project(db, p, raise_on_error=False)
             if result.get("success"):
@@ -127,7 +158,7 @@ async def run(args: argparse.Namespace) -> None:
                     f"   ! skipped: {result.get('reason') or result.get('detail') or 'unknown'}"
                 )
 
-        print(f"\nDone. Graded {graded} / {len(candidates)} project(s).")
+        print(f"\nDone. Rejected {rejected} empty ZIP(s). Graded {graded} / {len(candidates) - rejected} project(s).")
 
 
 def main() -> None:

@@ -83,6 +83,29 @@
     min-width: 3px;
 }
 
+.tg-view-tabs {
+    display: flex;
+    gap: 8px;
+    margin: 14px 0 0;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 0;
+}
+.tg-view-tab {
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    padding: 8px 18px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+    border-radius: 0;
+    transition: color 0.15s, border-color 0.15s;
+}
+.tg-view-tab:hover { color: #3b82f6; }
+.tg-view-tab--active { color: #3b82f6; border-bottom-color: #3b82f6; }
+
 .tg-teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 18px; }
 .tg-team {
     background: #fff; border-radius: 12px; padding: 0;
@@ -137,8 +160,16 @@
 
 /* Divide teams modal */
 .tg-divide-modal { max-width: 860px; width: 95vw; max-height: 85vh; display: flex; flex-direction: column; }
+.tg-start-modal { max-width: 480px; width: 95vw; max-height: 85vh; display: flex; flex-direction: column; }
 .tg-divide-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .tg-divide-header h2 { margin: 0; font-size: 1.2rem; }
+.tg-student-pick-list { overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.tg-student-pick-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; border: 1px solid #e2e8f0; background: #fff; transition: background 0.15s; }
+.tg-student-pick-row--on { background: #eff6ff; border-color: #bfdbfe; }
+.tg-student-pick-row input { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+.tg-student-pick-avatar { width: 28px; height: 28px; border-radius: 50%; background: #3b82f6; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; flex-shrink: 0; }
+.tg-student-pick-name { font-size: 0.9rem; }
+.tg-pick-count { font-size: 0.85rem; color: #64748b; margin-right: auto; }
 
 .tg-divide-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; overflow-y: auto; flex: 1; padding-right: 4px; }
 .tg-divide-col { background: #f8fafc; border-radius: 10px; display: flex; flex-direction: column; min-height: 200px; }

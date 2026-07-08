@@ -141,6 +141,7 @@ async def session_ws(
                 "data": {
                     "id": active_q.id,
                     "question_text": active_q.question_text,
+                    "question_text_ru": active_q.question_text_ru,
                     "options": active_q.options,
                     "time_limit": active_q.time_limit,
                     "points": active_q.points,
@@ -175,7 +176,6 @@ async def create_session(
         title=body.title,
         description=body.description,
         game_type=body.game_type,
-        language=body.language if body.language in ('uz', 'ru') else 'uz',
         course_id=body.course_id,
         created_by=teacher.id,
         team_count=body.team_count,
@@ -296,6 +296,7 @@ async def start_session(
     db: AsyncSession = Depends(get_db),
     teacher: Student = Depends(get_current_teacher),
 ):
+    from app.models.team_game import GameType as GT
     result = await db.execute(
         select(GameSession)
         .where(GameSession.id == session_id)
@@ -310,43 +311,63 @@ async def start_session(
     if session.status != SessionStatus.pending:
         raise HTTPException(status_code=400, detail="Session already started or completed")
 
+    from app.models.user import UserRole
+
+    # If teacher provided specific student_ids, use those; otherwise use all
+    if body and body.student_ids:
+        stu_res = await db.execute(
+            select(Student)
+            .where(Student.id.in_(body.student_ids), Student.role == UserRole.student, Student.is_active == True)
+            .order_by(Student.full_name)
+        )
+        students = stu_res.scalars().all()
+    elif session.course_id:
+        from app.models.course import student_courses
+        enroll_res = await db.execute(
+            select(Student).distinct()
+            .join(student_courses, Student.id == student_courses.c.student_id)
+            .where(
+                student_courses.c.course_id == session.course_id,
+                Student.role == UserRole.student,
+                Student.is_active == True,
+            )
+            .order_by(Student.full_name)
+        )
+        students = enroll_res.scalars().all()
+    else:
+        stu_res = await db.execute(
+            select(Student)
+            .where(Student.role == UserRole.student, Student.is_active == True)
+            .order_by(Student.full_name)
+        )
+        students = stu_res.scalars().all()
+
+    if not students:
+        raise HTTPException(status_code=400, detail="No students to assign")
+
+    # Clear existing team members
     for team in session.teams:
         for m in list(team.members):
             await db.delete(m)
     await db.flush()
 
-    if body and body.assignments:
-        # Manual assignment supplied by teacher
-        team_ids = {t.id for t in session.teams}
-        for item in body.assignments:
-            if item.team_id not in team_ids:
-                raise HTTPException(status_code=400, detail=f"Team {item.team_id} not in this session")
-            for sid in item.student_ids:
-                db.add(GameTeamMember(team_id=item.team_id, student_id=sid))
+    if session.game_type == GT.individual:
+        # One team per student — delete placeholder teams first
+        for team in list(session.teams):
+            await db.delete(team)
+        await db.flush()
+
+        COLORS = ["#e74c3c","#3498db","#2ecc71","#f39c12","#9b59b6","#1abc9c",
+                  "#e67e22","#e91e63","#00bcd4","#8bc34a"]
+        for idx, stu in enumerate(students):
+            name = (stu.full_name or stu.username or f"Студент {idx+1}")[:30]
+            team = GameTeam(session_id=session_id, name=name, color=COLORS[idx % len(COLORS)])
+            db.add(team)
+            await db.flush()
+            db.add(GameTeamMember(team_id=team.id, student_id=stu.id))
     else:
-        # Random assignment fallback
-        from app.models.user import UserRole
-        if session.course_id:
-            from app.models.course import student_courses
-            enroll_res = await db.execute(
-                select(student_courses.c.student_id).distinct()
-                .join(Student, Student.id == student_courses.c.student_id)
-                .where(
-                    student_courses.c.course_id == session.course_id,
-                    Student.role == UserRole.student,
-                    Student.is_active == True,
-                )
-            )
-            student_ids = [r[0] for r in enroll_res.all()]
-        else:
-            stu_res = await db.execute(
-                select(Student.id).where(Student.role == UserRole.student, Student.is_active == True)
-            )
-            student_ids = [r[0] for r in stu_res.all()]
-
-        if not student_ids:
-            raise HTTPException(status_code=400, detail="No students to assign")
-
+        # Team game: distribute randomly across existing teams
+        student_ids = [s.id for s in students]
         random.shuffle(student_ids)
         teams = list(session.teams)
         for i, sid in enumerate(student_ids):
@@ -568,6 +589,7 @@ async def activate_question(
         "data": {
             "id": q.id,
             "question_text": q.question_text,
+            "question_text_ru": q.question_text_ru,
             "options": q.options,
             "time_limit": q.time_limit,
             "points": q.points,
@@ -749,6 +771,16 @@ def _detect_lang(text: str) -> str:
     return 'ru' if any('Ѐ' <= c <= 'ӿ' for c in text) else 'uz'
 
 
+def _shuffle_options(options: list, correct_option: int):
+    """Shuffle options randomly; return (new_options, new_correct_option_index)."""
+    import random
+    indexed = list(enumerate(options))
+    random.shuffle(indexed)
+    new_options = [opt for _, opt in indexed]
+    old_to_new = {old_idx: new_idx for new_idx, (old_idx, _) in enumerate(indexed)}
+    return new_options, old_to_new[correct_option]
+
+
 @router.post("/{session_id}/import-questions", response_model=List[GameQuestionRead])
 async def import_questions_from_lesson(
     session_id: int,
@@ -786,11 +818,14 @@ async def import_questions_from_lesson(
     if not source_qs:
         raise HTTPException(status_code=404, detail="No questions found for this lesson/course")
 
-    # Filter by session language automatically (Cyrillic detection: 'ru' vs 'uz')
-    lang = sess.language if sess.language in ('uz', 'ru') else 'uz'
-    source_qs = [lq for lq in source_qs if _detect_lang(lq.question_text) == lang]
-    if not source_qs:
-        raise HTTPException(status_code=404, detail=f"No {lang.upper()} questions found for this lesson/course")
+    # Split by language and pair UZ+RU by position so students see both
+    uz_qs = sorted([lq for lq in source_qs if _detect_lang(lq.question_text) == 'uz'], key=lambda x: (x.order_index, x.id))
+    ru_qs = sorted([lq for lq in source_qs if _detect_lang(lq.question_text) == 'ru'], key=lambda x: (x.order_index, x.id))
+
+    if not uz_qs and not ru_qs:
+        raise HTTPException(status_code=404, detail="No questions found for this lesson/course")
+
+    count = max(len(uz_qs), len(ru_qs))
 
     # Get current max order_index in game session
     max_order = (await db.execute(
@@ -799,14 +834,19 @@ async def import_questions_from_lesson(
     )).scalar()
 
     created = []
-    for i, lq in enumerate(source_qs):
+    for i in range(count):
+        uz_lq = uz_qs[i] if i < len(uz_qs) else None
+        ru_lq = ru_qs[i] if i < len(ru_qs) else None
+        base = uz_lq or ru_lq
+        shuffled_opts, shuffled_correct = _shuffle_options(base.options, base.correct_option)
         gq = GameQuestion(
             session_id=session_id,
-            question_text=lq.question_text,
-            options=lq.options,
-            correct_option=lq.correct_option,
-            time_limit=lq.time_limit,
-            points=lq.points,
+            question_text=uz_lq.question_text if uz_lq else ru_lq.question_text,
+            question_text_ru=ru_lq.question_text if ru_lq else None,
+            options=shuffled_opts,
+            correct_option=shuffled_correct,
+            time_limit=base.time_limit,
+            points=base.points,
             order_index=int(max_order) + 1 + i,
             status=QuestionStatus.pending,
         )

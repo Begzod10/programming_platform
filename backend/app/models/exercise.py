@@ -25,7 +25,9 @@ class Exercise(Base):
         Integer, ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)  # mashq matni/savol
+    title_ru: Mapped[Optional[str]] = mapped_column(String(400), nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    description_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Mashq turi
     exercise_type: Mapped[str] = mapped_column(
@@ -51,10 +53,13 @@ class Exercise(Base):
 
     # Text input uchun
     expected_answer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    expected_answer_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Umumiy
     hint: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # to'g'ri javob tushuntirishi
+    hint_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    explanation_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     difficulty_level: Mapped[str] = mapped_column(String(20), default="Easy")
     points: Mapped[int] = mapped_column(Integer, default=10)
     order: Mapped[int] = mapped_column(Integer, default=0)
