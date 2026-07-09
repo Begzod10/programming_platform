@@ -107,8 +107,7 @@ async def list_course_students(
     if group_id is not None and group_id not in teacher_group_ids:
         raise HTTPException(403, "Bu guruh sizniki emas")
 
-    # Already enrolled in this course — always visible, even if no longer in
-    # any of the teacher's groups (so access can be revoked).
+    # All students enrolled in this course (used only for is_enrolled flags).
     enrolled_q = (
         select(Student.id)
         .join(student_courses, student_courses.c.student_id == Student.id)
@@ -116,7 +115,9 @@ async def list_course_students(
     )
     enrolled_ids = {row[0] for row in (await db.execute(enrolled_q)).all()}
 
-    # Roster pool — students in the teacher's groups (or the explicit group).
+    # Roster pool — strictly the current teacher's own students.
+    # We never merge in global enrolled_ids because that would leak the other
+    # teacher's students (who may be enrolled in the same shared course).
     roster_q = (
         select(Student.id)
         .join(student_groups, student_groups.c.student_id == Student.id)
@@ -130,13 +131,15 @@ async def list_course_students(
         roster_q = roster_q.where(False)  # teacher has no groups → empty pool
 
     roster_ids = {row[0] for row in (await db.execute(roster_q)).all()}
-    pool_ids = roster_ids | enrolled_ids
+    pool_ids = roster_ids  # only show this teacher's own students
 
     if only_enrolled:
         pool_ids = pool_ids & enrolled_ids
+    # enrolled_count: how many of THIS teacher's students are enrolled
+    teacher_enrolled_count = len(enrolled_ids & roster_ids)
     if not pool_ids:
         return StudentsAccessResponse(
-            course_id=course.id, total=0, enrolled_count=len(enrolled_ids), items=[]
+            course_id=course.id, total=0, enrolled_count=teacher_enrolled_count, items=[]
         )
 
     stmt = (
@@ -175,7 +178,7 @@ async def list_course_students(
     return StudentsAccessResponse(
         course_id=course.id,
         total=total,
-        enrolled_count=len(enrolled_ids),
+        enrolled_count=teacher_enrolled_count,
         items=items,
     )
 
