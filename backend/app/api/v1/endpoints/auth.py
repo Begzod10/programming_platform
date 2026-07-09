@@ -4,19 +4,25 @@ from app.dependencies import get_db, get_current_student
 from app.schemas.user import UserCreate, UserRead, TokenResponse, UserUpdate, UserLogin
 from app.services import auth_service
 from app.models.user import Student
+from app.core.rate_limit import rate_limit
 
 router = APIRouter()
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
+async def register(
+        user_in: UserCreate,
+        db: AsyncSession = Depends(get_db),
+        _rl: None = Depends(rate_limit(max_calls=10, window_seconds=60)),
+):
     return await auth_service.register_new_student(db, user_in)
 
 
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
 async def login(
         user_in: UserLogin,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        _rl: None = Depends(rate_limit(max_calls=20, window_seconds=60)),
 ):
     return await auth_service.login(db, user_in.username, user_in.password)
 
