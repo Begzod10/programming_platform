@@ -116,7 +116,13 @@ async def get_my_courses(
         current_teacher: Student = Depends(get_current_teacher),
         db: AsyncSession = Depends(get_db)
 ):
-    """O'qituvchining o'ziga tegishli kurslari (422 xatosi oldi olindi)"""
+    """All active courses visible to this teacher.
+
+    Every teacher sees the full shared course catalogue so they can assign
+    lessons to their students. Write operations (edit / delete / reorder)
+    are still restricted to the course owner via instructor_id checks in
+    the service layer and the individual mutation endpoints.
+    """
     query = (
         select(Course)
         .options(
@@ -125,7 +131,7 @@ async def get_my_courses(
             selectinload(Course.students),
             selectinload(Course.category),
         )
-        .where(Course.instructor_id == current_teacher.id)
+        .where(Course.is_active == True)
         .order_by(Course.display_order.asc(), Course.id.asc())
     )
     result = await db.execute(query)

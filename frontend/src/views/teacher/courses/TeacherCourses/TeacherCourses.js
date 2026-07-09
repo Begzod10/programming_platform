@@ -476,6 +476,7 @@ const TeacherCourses = () => {
                                         key={course.id}
                                         course={course}
                                         canReorder={canReorder}
+                                        currentUserId={(JSON.parse(localStorage.getItem('user') || '{}')).id}
                                         navigate={navigate}
                                         onPublishToggle={toggleCoursePublish}
                                         onEdit={openEditCourse}
