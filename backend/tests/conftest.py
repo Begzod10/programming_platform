@@ -55,7 +55,23 @@ def create_tables():
     asyncio.run(_dispose_engine())
 
 
-# ── 4. Mock GennisService so every test is fast (no 10-second network wait) ───
+# ── 4a. Reset rate-limiter counters between tests ─────────────────────────────
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Clear the in-memory rate-limit counters before each test.
+
+    The sliding-window counters in app.core.rate_limit are module-level state.
+    Without this fixture, tests that call /auth/register or /auth/login
+    multiple times accumulate hits and start receiving 429 after ~10 calls.
+    """
+    from app.core.rate_limit import _counters
+    _counters.clear()
+    yield
+    _counters.clear()
+
+
+# ── 4b. Mock GennisService so every test is fast (no 10-second network wait) ──
 
 @pytest_asyncio.fixture(autouse=True)
 async def mock_gennis_login():
