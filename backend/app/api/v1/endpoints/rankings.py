@@ -38,6 +38,13 @@ async def get_project_leaderboard(
     the student's strongest course in the window so the FE can render the
     same "best_course +N" pill as the points-leaderboard.
     """
+    # All three clauses below are injection-safe:
+    #   window_clause  — value from a closed dict keyed by Literal["all","day","week","month"];
+    #                    FastAPI validates the enum before this function runs.
+    #   course_clause  — literal string containing only the :course_id named param.
+    #   search_clause  — literal string containing only the :search named param.
+    # None of them ever interpolate raw user input into the SQL text.
+    assert period in _PROJECT_WINDOW_SQL, f"unexpected period: {period!r}"
     window_clause = _PROJECT_WINDOW_SQL[period]
     course_clause = "AND l.course_id = :course_id" if course_id is not None else ""
     search_clause = (
