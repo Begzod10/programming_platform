@@ -65,13 +65,12 @@ class UnassignResponse(BaseModel):
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def _own_course(db: AsyncSession, course_id: int, teacher_id: int) -> Course:
+async def _get_course(db: AsyncSession, course_id: int) -> Course:
+    """Fetch course by id — any teacher may manage student enrollment."""
     res = await db.execute(select(Course).where(Course.id == course_id))
     course = res.scalar_one_or_none()
     if not course:
         raise HTTPException(404, "Kurs topilmadi")
-    if course.instructor_id != teacher_id:
-        raise HTTPException(403, "Faqat o'z kursingizni boshqarishingiz mumkin")
     return course
 
 
@@ -102,7 +101,7 @@ async def list_course_students(
     even for someone who left the group). Each item carries `is_enrolled` so
     the UI can render a checkbox list with the current state pre-filled.
     """
-    course = await _own_course(db, course_id, current_teacher.id)
+    course = await _get_course(db, course_id)
     teacher_group_ids = await _teacher_group_ids(db, current_teacher.id)
 
     if group_id is not None and group_id not in teacher_group_ids:
@@ -193,7 +192,7 @@ async def assign_students(
     db: AsyncSession = Depends(get_db),
 ):
     """Grant access to a set of students and/or whole groups."""
-    course = await _own_course(db, course_id, current_teacher.id)
+    course = await _get_course(db, course_id)
     teacher_group_ids = set(await _teacher_group_ids(db, current_teacher.id))
 
     bad_groups = [g for g in payload.group_ids if g not in teacher_group_ids]
@@ -252,7 +251,7 @@ async def unassign_student(
     db: AsyncSession = Depends(get_db),
 ):
     """Revoke a single student's access."""
-    course = await _own_course(db, course_id, current_teacher.id)
+    course = await _get_course(db, course_id)
 
     res = await db.execute(
         student_courses.delete().where(
