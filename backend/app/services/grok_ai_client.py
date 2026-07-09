@@ -75,7 +75,8 @@ async def _call_gemini(prompt: str, max_tokens: int) -> str:
             },
         )
         if resp.status_code >= 400:
-            raise ProviderError(f"Gemini HTTP {resp.status_code}")
+            body = resp.text[:400]
+            raise ProviderError(f"Gemini HTTP {resp.status_code}: {body}")
         data = resp.json()
         try:
             return data["candidates"][0]["content"]["parts"][0]["text"]
@@ -86,9 +87,11 @@ async def _call_gemini(prompt: str, max_tokens: int) -> str:
 async def _call_openai(prompt: str, max_tokens: int) -> str:
     if not settings.OPENAI_API_KEY:
         raise ProviderError("OpenAI API key not set")
+    url = settings.openai_chat_url
+    logger.info("[ai-openai] posting to %s model=%s", url, settings.OPENAI_MODEL)
     async with httpx.AsyncClient(timeout=60.0, proxy=settings.HTTP_PROXY or None) as client:
         resp = await client.post(
-            settings.openai_chat_url,
+            url,
             headers={
                 "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
                 "Content-Type": "application/json",
@@ -102,7 +105,8 @@ async def _call_openai(prompt: str, max_tokens: int) -> str:
             },
         )
         if resp.status_code >= 400:
-            raise ProviderError(f"OpenAI HTTP {resp.status_code}")
+            body = resp.text[:400]
+            raise ProviderError(f"OpenAI HTTP {resp.status_code}: {body}")
         data = resp.json()
         try:
             return data["choices"][0]["message"]["content"]
