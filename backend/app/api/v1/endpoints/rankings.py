@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from app.dependencies import get_db, get_current_student, get_current_instructor
+from app.dependencies import get_db, get_current_student, get_current_instructor, get_current_student_optional
 from app.services.ranking_service import RankingService
 from app.schemas.ranking import LeaderboardItem, MyRankingRead, RankingUpdate
-from app.models.user import Student
+from app.models.user import Student, UserRole
 from typing import List, Literal, Optional
 
 router = APIRouter()
@@ -30,6 +30,7 @@ async def get_project_leaderboard(
         skip: int = Query(0, ge=0),
         limit: int = Query(50, ge=1, le=100),
         db: AsyncSession = Depends(get_db),
+        current_user: Optional[Student] = Depends(get_current_student_optional),
 ):
     """Leaderboard ranked by SUM(projects.points_earned).
 
@@ -52,11 +53,25 @@ async def get_project_leaderboard(
         if search else ""
     )
 
+    # When the caller is a teacher, restrict the ranking to their own students only.
+    is_teacher = current_user is not None and current_user.role == UserRole.teacher
+    teacher_clause = (
+        """AND t.student_id IN (
+            SELECT sg.student_id
+            FROM student_groups sg
+            JOIN groups g ON g.id = sg.group_id
+            WHERE g.teacher_id = :teacher_id
+        )"""
+        if is_teacher else ""
+    )
+
     params = {"skip": skip, "limit": limit}
     if course_id is not None:
         params["course_id"] = course_id
     if search:
         params["search"] = f"%{search.strip()}%"
+    if is_teacher:
+        params["teacher_id"] = current_user.id
 
     # totals CTE: per-student aggregate within the window/course filter
     sql = text(f"""
@@ -115,6 +130,7 @@ async def get_project_leaderboard(
                    ON pc.student_id = t.student_id AND pc.course_rank = 1
             WHERE 1 = 1
               {search_clause}
+              {teacher_clause}
         )
         SELECT
             rank, student_id, username, full_name, avatar_url, current_level,
