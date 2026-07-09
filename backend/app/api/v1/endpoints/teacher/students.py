@@ -164,8 +164,17 @@ async def get_students_achievements_overview(
     Returns every student (sorted by achievement count desc) with a flat
     list of their badges — name, icon, category, points, and date earned.
     """
+    from app.models.group import Group, student_groups
+    teacher_student_ids_sq = (
+        select(student_groups.c.student_id)
+        .join(Group, Group.id == student_groups.c.group_id)
+        .where(Group.teacher_id == current_teacher.id)
+        .scalar_subquery()
+    )
     students_res = await db.execute(
-        select(Student).order_by(Student.full_name)
+        select(Student)
+        .where(Student.id.in_(teacher_student_ids_sq))
+        .order_by(Student.full_name)
     )
     students = students_res.scalars().all()
 

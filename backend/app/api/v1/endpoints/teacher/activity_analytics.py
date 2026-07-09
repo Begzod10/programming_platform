@@ -13,28 +13,33 @@ async def get_project_activity(
     db: AsyncSession = Depends(get_db),
     current_teacher: Student = Depends(get_current_teacher),
 ):
-    rows = await db.execute(text("""
-        SELECT
-            p.id,
-            COALESCE(s.full_name, s.username)   AS student_name,
-            p.status,
-            p.grade,
-            COALESCE(c.title, '')               AS course_title,
-            COALESCE(l.title, '')               AS lesson_title,
-            p.time_spent_seconds,
-            p.keystroke_count,
-            p.paste_count,
-            p.code_explanation,
-            p.submitted_at
-        FROM projects p
-        JOIN students s ON s.id = p.student_id
-        LEFT JOIN submissions sub ON sub.project_id = p.id
-        LEFT JOIN lessons l ON l.id = sub.lesson_id
-        LEFT JOIN courses c ON c.id = l.course_id
-        WHERE p.submitted_at IS NOT NULL
-        ORDER BY p.submitted_at DESC
-        LIMIT 200
-    """))
+    rows = await db.execute(
+        text("""
+            SELECT
+                p.id,
+                COALESCE(s.full_name, s.username)   AS student_name,
+                p.status,
+                p.grade,
+                COALESCE(c.title, '')               AS course_title,
+                COALESCE(l.title, '')               AS lesson_title,
+                p.time_spent_seconds,
+                p.keystroke_count,
+                p.paste_count,
+                p.code_explanation,
+                p.submitted_at
+            FROM projects p
+            JOIN students s ON s.id = p.student_id
+            JOIN student_groups sg ON sg.student_id = s.id
+            JOIN groups g ON g.id = sg.group_id AND g.teacher_id = :teacher_id
+            LEFT JOIN submissions sub ON sub.project_id = p.id
+            LEFT JOIN lessons l ON l.id = sub.lesson_id
+            LEFT JOIN courses c ON c.id = l.course_id
+            WHERE p.submitted_at IS NOT NULL
+            ORDER BY p.submitted_at DESC
+            LIMIT 200
+        """),
+        {"teacher_id": current_teacher.id},
+    )
     result = []
     for r in rows.fetchall():
         result.append({
@@ -58,26 +63,31 @@ async def get_exercise_activity(
     db: AsyncSession = Depends(get_db),
     current_teacher: Student = Depends(get_current_teacher),
 ):
-    rows = await db.execute(text("""
-        SELECT
-            es.id,
-            COALESCE(s.full_name, s.username)   AS student_name,
-            ex.exercise_type,
-            ex.description                       AS question,
-            COALESCE(c.title, '')               AS course_title,
-            COALESCE(l.title, '')               AS lesson_title,
-            es.time_spent_ms,
-            es.is_correct,
-            es.submitted_at
-        FROM exercise_submissions es
-        JOIN students s ON s.id = es.student_id
-        JOIN exercises ex ON ex.id = es.exercise_id
-        LEFT JOIN lessons l ON l.id = ex.lesson_id
-        LEFT JOIN courses c ON c.id = l.course_id
-        WHERE es.time_spent_ms IS NOT NULL
-        ORDER BY es.submitted_at DESC
-        LIMIT 300
-    """))
+    rows = await db.execute(
+        text("""
+            SELECT
+                es.id,
+                COALESCE(s.full_name, s.username)   AS student_name,
+                ex.exercise_type,
+                ex.description                       AS question,
+                COALESCE(c.title, '')               AS course_title,
+                COALESCE(l.title, '')               AS lesson_title,
+                es.time_spent_ms,
+                es.is_correct,
+                es.submitted_at
+            FROM exercise_submissions es
+            JOIN students s ON s.id = es.student_id
+            JOIN student_groups sg ON sg.student_id = s.id
+            JOIN groups g ON g.id = sg.group_id AND g.teacher_id = :teacher_id
+            JOIN exercises ex ON ex.id = es.exercise_id
+            LEFT JOIN lessons l ON l.id = ex.lesson_id
+            LEFT JOIN courses c ON c.id = l.course_id
+            WHERE es.time_spent_ms IS NOT NULL
+            ORDER BY es.submitted_at DESC
+            LIMIT 300
+        """),
+        {"teacher_id": current_teacher.id},
+    )
     result = []
     for r in rows.fetchall():
         question = (r[3] or "")[:120]
