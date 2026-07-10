@@ -143,7 +143,7 @@ function StartModal({ session, onClose, onStarted }) {
             .then(r => {
                 const list = Array.isArray(r.data) ? r.data : [];
                 setStudents(list);
-                setSelected(new Set(list.map(s => s.id)));
+                setSelected(new Set(list.filter(s => !!s.group_id).map(s => s.id)));
             })
             .catch(() => setError('Не удалось загрузить студентов'))
             .finally(() => setLoading(false));
@@ -159,7 +159,7 @@ function StartModal({ session, onClose, onStarted }) {
 
     const visible = filterGroup
         ? students.filter(s => s.group_id === Number(filterGroup))
-        : students;
+        : students.filter(s => !!s.group_id);
 
     const toggle = (id) => setSelected(prev => {
         const next = new Set(prev);
@@ -212,7 +212,7 @@ function StartModal({ session, onClose, onStarted }) {
                             value={filterGroup}
                             onChange={e => setFilterGroup(e.target.value)}
                         >
-                            <option value="">— Все группы ({students.length} студ.) —</option>
+                            <option value="">— Все группы ({students.filter(s => !!s.group_id).length} студ.) —</option>
                             {groups.map(g => (
                                 <option key={g.id} value={g.id}>
                                     {g.name} ({students.filter(s => s.group_id === g.id).length} студ.)
@@ -240,7 +240,7 @@ function StartModal({ session, onClose, onStarted }) {
                     </div>
                 )}
                 <div className="tg-modal-actions">
-                    <span className="tg-pick-count">{selected.size} / {students.length}</span>
+                    <span className="tg-pick-count">{visible.filter(s => selected.has(s.id)).length} / {visible.length}</span>
                     <button className="tg-btn-secondary" onClick={onClose}>Отмена</button>
                     <button className="tg-btn-primary" disabled={starting || loading || selected.size === 0} onClick={start}>
                         {starting ? 'Запуск...' : '▶ Начать игру'}

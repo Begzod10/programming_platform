@@ -83,12 +83,20 @@ function QuizOverlay({ question, sessionId, revealData, onDone }) {
     const [timeLeft, setTimeLeft] = useState(question.time_limit);
     const [submitting, setSubmitting] = useState(false);
     const [lang, toggleLang] = useLang();
+    const [clickable, setClickable] = useState(false);
 
     // Lock body scroll while overlay is shown
     useEffect(() => {
         const prev = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
         return () => { document.body.style.overflow = prev; };
+    }, []);
+
+    // Ignore clicks/taps for the first 350ms after mount to prevent
+    // touch-event passthrough from the previous interaction
+    useEffect(() => {
+        const t = setTimeout(() => setClickable(true), 350);
+        return () => clearTimeout(t);
     }, []);
 
     // Countdown
@@ -111,7 +119,7 @@ function QuizOverlay({ question, sessionId, revealData, onDone }) {
     }, [revealData, onDone]);
 
     const submit = async (idx) => {
-        if (chosen !== null || submitting) return;
+        if (!clickable || chosen !== null || submitting) return;
         setChosen(idx);
         setSubmitting(true);
         try {
@@ -301,6 +309,7 @@ function SessionDetail({ initialSession, onBack }) {
             {/* Full-screen quiz overlay when question is active */}
             {activeQuestion && (
                 <QuizOverlay
+                    key={activeQuestion.id}
                     question={activeQuestion}
                     sessionId={session.id}
                     revealData={revealData}
