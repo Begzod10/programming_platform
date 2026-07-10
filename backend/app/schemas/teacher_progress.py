@@ -20,7 +20,7 @@ class TeacherStudentCourseProgress(BaseModel):
 class TeacherStudentProgress(BaseModel):
     student_id: int
     username: str
-    email: EmailStr
+    email: Optional[str] = None
     full_name: Optional[str] = None
     phone: Optional[str] = None
     avatar_url: Optional[str] = None
