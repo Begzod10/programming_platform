@@ -72,7 +72,7 @@ export default function Login({ onLogin }) {
       if (!res.ok) throw new Error('invalid');
       const data = await res.json();
       setSuccess(true);
-      if (onLogin) onLogin(data);
+      if (onLogin) onLogin(data, remember);
       setTimeout(() => {
         const role = (data.user || data).role || 'student';
         navigate(role === 'teacher' ? '/teacher' : '/student');

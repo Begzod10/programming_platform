@@ -9,7 +9,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(() => {
         try {
-            const saved = localStorage.getItem('user');
+            const saved = localStorage.getItem('user') || sessionStorage.getItem('user');
             return saved ? JSON.parse(saved) : null;
         } catch {
             return null;
@@ -17,7 +17,7 @@ export function AuthProvider({ children }) {
     });
     const [token, setToken] = useState(() => {
         try {
-            return localStorage.getItem('token');
+            return localStorage.getItem('token') || sessionStorage.getItem('token');
         } catch {
             return null;
         }
@@ -25,26 +25,37 @@ export function AuthProvider({ children }) {
 
     const isAuthenticated = useMemo(() => !!user && !!token, [user, token]);
 
-    // ── Login: store tokens + user in localStorage and state ──
-    const login = useCallback((response) => {
+    // ── Login: store tokens + user in localStorage (remember) or sessionStorage ──
+    const login = useCallback((response, remember = true) => {
         const accessToken = response.access_token || response.token || response.access;
         const refreshToken = response.refresh_token;
         const userData = response.user || response;
 
-        if (accessToken) localStorage.setItem('token', accessToken);
-        if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
-        localStorage.setItem('user', JSON.stringify(userData));
+        const storage = remember ? localStorage : sessionStorage;
+        const other   = remember ? sessionStorage : localStorage;
+
+        // Clear the other storage so stale tokens don't linger
+        other.removeItem('token');
+        other.removeItem('refresh_token');
+        other.removeItem('user');
+
+        if (accessToken) storage.setItem('token', accessToken);
+        if (refreshToken) storage.setItem('refresh_token', refreshToken);
+        storage.setItem('user', JSON.stringify(userData));
 
         setUser(userData);
         setToken(accessToken || null);
     }, []);
 
-    // ── Logout: clear all auth data ──
+    // ── Logout: clear all auth data from both storages ──
     const logout = useCallback(() => {
         localStorage.removeItem('token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
         localStorage.removeItem('activeTab');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('refresh_token');
+        sessionStorage.removeItem('user');
         setUser(null);
         setToken(null);
     }, []);

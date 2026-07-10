@@ -21,11 +21,14 @@ export const resolveImageUrl = (src) => {
     return API_URL_DOC + src.replace(/^\//, '');
 };
 
+// ── Token reader — checks localStorage first, falls back to sessionStorage ──
+export const getToken = () => localStorage.getItem('token') || sessionStorage.getItem('token');
+
 // ── Headers ──
 // Kept for legacy call-sites that still build their own headers. New code
 // should let axiosInstance attach the Authorization header automatically.
 export const headers = () => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     return {
         'Authorization': 'Bearer ' + token,
         'Content-Type': 'application/json',
@@ -37,7 +40,7 @@ export const header = () => {
 };
 
 export const headersImg = () => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     return {'Authorization': 'Bearer ' + token};
 };
 
@@ -114,7 +117,7 @@ export const ParamUrl = (params = {}) => {
 };
 
 // ── Token helpers (refresh token flow) ──
-export const getRefreshToken = () => localStorage.getItem('refresh_token');
+export const getRefreshToken = () => localStorage.getItem('refresh_token') || sessionStorage.getItem('refresh_token');
 
 export const setTokens = (accessToken, refreshToken) => {
     if (accessToken) localStorage.setItem('token', accessToken);

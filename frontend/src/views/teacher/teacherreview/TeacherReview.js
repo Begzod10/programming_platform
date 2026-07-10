@@ -4,6 +4,7 @@ import './TeacherReview.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 
 const GRADES = ['A', 'B', 'C', 'D'];
+const PAGE_SIZE = 50;
 const gradeColor = { A: '#00b894', B: '#6c5ce7', C: '#fdcb6e', D: '#ff7675' };
 const gradeTextColor = { A: '#fff', B: '#fff', C: '#1a1a2e', D: '#fff' };
 
@@ -157,6 +158,7 @@ function TeacherReview() {
     const [grade, setGrade] = useState('A');
     const [points, setPoints] = useState('');
     const [status, setStatus] = useState('Approved');
+    const [page, setPage] = useState(1);
 
     const fetchProjects = () => {
         setLoading(true);
@@ -222,12 +224,17 @@ function TeacherReview() {
         return matchSearch && matchFilter;
     });
 
+    useEffect(() => { setPage(1); }, [search, filter]); // eslint-disable-line
+
     const counts = {
         all:      projects.length,
         pending:  projects.filter(p => p.status === 'Submitted' || p.status === 'Under Review').length,
         approved: projects.filter(p => p.status === 'Approved').length,
         rejected: projects.filter(p => p.status === 'Rejected').length,
     };
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
     return (
         <div className="tr-container">
@@ -301,7 +308,7 @@ function TeacherReview() {
                         <span style={{ textAlign: 'right' }}>Действие</span>
                     </div>
                     <div className="tr-rows">
-                        {filtered.map(p => (
+                        {paginated.map(p => (
                             <div key={p.id} className="tr-row" onClick={() => openDetail(p)}>
                                 <div className="tr-col-main">
                                     <StudentAvatar student={p.student} />
@@ -358,6 +365,26 @@ function TeacherReview() {
                             </div>
                         ))}
                     </div>
+                </div>
+            )}
+
+            {/* Pagination */}
+            {!loading && !loadError && filtered.length > PAGE_SIZE && (
+                <div className="tr-pagination">
+                    <button
+                        className="tr-page-btn"
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                    >← Пред.</button>
+                    <span className="tr-page-info">
+                        Страница {page} из {totalPages}
+                        <span className="tr-page-total"> ({filtered.length} проектов)</span>
+                    </span>
+                    <button
+                        className="tr-page-btn"
+                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages}
+                    >След. →</button>
                 </div>
             )}
 

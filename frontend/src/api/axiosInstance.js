@@ -40,7 +40,7 @@ const TRANSLATABLE_PATTERNS = [
 
 axiosInstance.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         if (token) {
             config.headers['Authorization'] = `Bearer ${token}`;
         }
@@ -84,7 +84,9 @@ axiosInstance.interceptors.response.use(
             originalRequest._retry = true;
             isRefreshing = true;
 
-            const refreshToken = localStorage.getItem('refresh_token');
+            const useLocal = !!localStorage.getItem('refresh_token');
+            const refreshToken = localStorage.getItem('refresh_token') || sessionStorage.getItem('refresh_token');
+            const tokenStorage = useLocal ? localStorage : sessionStorage;
 
             if (!refreshToken) {
                 // No refresh token available — force logout
@@ -104,10 +106,10 @@ axiosInstance.interceptors.response.use(
                 const newRefreshToken = response.data.refresh_token;
 
                 if (newAccessToken) {
-                    localStorage.setItem('token', newAccessToken);
+                    tokenStorage.setItem('token', newAccessToken);
                 }
                 if (newRefreshToken) {
-                    localStorage.setItem('refresh_token', newRefreshToken);
+                    tokenStorage.setItem('refresh_token', newRefreshToken);
                 }
 
                 isRefreshing = false;
@@ -120,10 +122,13 @@ axiosInstance.interceptors.response.use(
                 isRefreshing = false;
                 processQueue(refreshError);
 
-                // Refresh failed — clear tokens and force logout
+                // Refresh failed — clear tokens from both storages and force logout
                 localStorage.removeItem('token');
                 localStorage.removeItem('refresh_token');
                 localStorage.removeItem('user');
+                sessionStorage.removeItem('token');
+                sessionStorage.removeItem('refresh_token');
+                sessionStorage.removeItem('user');
                 window.dispatchEvent(new Event('auth:logout'));
                 return Promise.reject(refreshError);
             }

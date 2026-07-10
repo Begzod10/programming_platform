@@ -649,3 +649,41 @@
     .tr-overlay { align-items: stretch; padding: 8px; }
     .tr-modal   { max-height: 96vh; border-radius: 18px; }
 }
+/* ===== PAGINATION ===== */
+.tr-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 12px 0;
+}
+
+.tr-page-btn {
+    padding: 8px 18px;
+    border-radius: 10px;
+    border: 1.5px solid rgba(108,92,231,0.25);
+    background: #fff;
+    color: #6c5ce7;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.tr-page-btn:hover:not(:disabled) {
+    background: rgba(108,92,231,0.06);
+    border-color: #6c5ce7;
+}
+.tr-page-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.tr-page-info {
+    font-size: 13px;
+    color: rgba(26,26,46,0.6);
+    font-weight: 500;
+}
+.tr-page-total {
+    color: rgba(26,26,46,0.4);
+    margin-left: 4px;
+}
