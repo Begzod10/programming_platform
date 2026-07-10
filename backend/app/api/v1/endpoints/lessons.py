@@ -580,6 +580,11 @@ async def get_lesson_submission(
     project = proj_res.scalar_one_or_none()
 
     proj_status = project.status if project else submission.status
+
+    # Draft means the project was never actually submitted (e.g. /submit call failed).
+    # Treat it the same as no submission so the student can submit again.
+    if proj_status == "Draft":
+        return {"submitted": False, "pass_threshold": PROJECT_PASS_THRESHOLD}
     points_earned = project.points_earned if project else 0
     grade = project.grade if project else None
     feedback = project.instructor_feedback if project else None

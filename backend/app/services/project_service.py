@@ -84,6 +84,11 @@ class ProjectService:
                 await self.db.flush()
 
         new_project = Project(**data_dict, student_id=student_id)
+        # When submitted through a lesson, immediately mark as Submitted so the
+        # separate /submit call is not load-bearing. This prevents projects from
+        # being permanently stuck in Draft if that second request fails.
+        if lesson_id is not None and new_project.github_url:
+            new_project.status = "Submitted"
         self.db.add(new_project)
         await self.db.flush()
 
@@ -97,8 +102,8 @@ class ProjectService:
                 live_demo_url=new_project.live_demo_url,
                 description=new_project.description,
                 submitted_at=datetime.utcnow(),
-                created_at=datetime.utcnow(),  # ← qo'shing
-                updated_at=datetime.utcnow(),  # ← qo'shing
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
             ))
 
         await self.db.commit()
@@ -167,6 +172,16 @@ class ProjectService:
             return project
         project.status = "Submitted"
         project.submitted_at = datetime.utcnow()
+
+        # Keep submission.status in sync so the teacher review and student
+        # MyProjects views agree on the status.
+        sub_res = await self.db.execute(
+            select(Submission).where(Submission.project_id == project_id)
+        )
+        linked_sub = sub_res.scalar_one_or_none()
+        if linked_sub is not None:
+            linked_sub.status = "Submitted"
+
         await self.db.commit()
         await self.db.refresh(project)
 
