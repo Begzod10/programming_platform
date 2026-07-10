@@ -10,7 +10,7 @@ causing a StringDataRightTruncationError on login.
 from alembic import op
 import sqlalchemy as sa
 
-revision = 'aa11bb22cc33'
+revision = 'ff0011223344'
 down_revision = 'aabb11223344'
 branch_labels = None
 depends_on = None
