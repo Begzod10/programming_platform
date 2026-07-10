@@ -277,12 +277,27 @@ async def get_session_students(
             .order_by(Student.full_name)
         )).scalars().all()
 
+    # Fetch teacher's group membership for each student in one query
+    from app.models.group import Group, student_groups
+    group_rows = (await db.execute(
+        select(student_groups.c.student_id, Group.id, Group.name)
+        .join(Group, Group.id == student_groups.c.group_id)
+        .where(Group.teacher_id == teacher.id)
+    )).all()
+    # Keep only the first group per student (teachers may have one group per student)
+    student_group_map = {}
+    for sid, gid, gname in group_rows:
+        if sid not in student_group_map:
+            student_group_map[sid] = (gid, gname)
+
     return [
         StudentRead(
             id=s.id,
             full_name=s.full_name or None,
             username=s.username,
             avatar_url=s.avatar_url or None,
+            group_id=student_group_map.get(s.id, (None, None))[0],
+            group_name=student_group_map.get(s.id, (None, None))[1],
         )
         for s in rows
     ]

@@ -46,6 +46,8 @@ class StudentRead(BaseModel):
     full_name:  Optional[str] = None
     username:   Optional[str] = None
     avatar_url: Optional[str] = None
+    group_id:   Optional[int] = None
+    group_name: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 

@@ -136,6 +136,7 @@ function StartModal({ session, onClose, onStarted }) {
     const [loading, setLoading] = useState(true);
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState('');
+    const [filterGroup, setFilterGroup] = useState('');
 
     useEffect(() => {
         axiosInstance.get(`${API_URL}v1/game-sessions/${session.id}/students`)
@@ -148,15 +149,36 @@ function StartModal({ session, onClose, onStarted }) {
             .finally(() => setLoading(false));
     }, [session.id]);
 
+    // Unique groups from student list
+    const groups = students.reduce((acc, s) => {
+        if (s.group_id && !acc.find(g => g.id === s.group_id)) {
+            acc.push({ id: s.group_id, name: s.group_name });
+        }
+        return acc;
+    }, []);
+
+    const visible = filterGroup
+        ? students.filter(s => s.group_id === Number(filterGroup))
+        : students;
+
     const toggle = (id) => setSelected(prev => {
         const next = new Set(prev);
         next.has(id) ? next.delete(id) : next.add(id);
         return next;
     });
 
-    const toggleAll = () => setSelected(
-        selected.size === students.length ? new Set() : new Set(students.map(s => s.id))
-    );
+    const toggleVisible = () => {
+        const visibleIds = visible.map(s => s.id);
+        const allChecked = visibleIds.every(id => selected.has(id));
+        setSelected(prev => {
+            const next = new Set(prev);
+            if (allChecked) visibleIds.forEach(id => next.delete(id));
+            else visibleIds.forEach(id => next.add(id));
+            return next;
+        });
+    };
+
+    const visibleAllChecked = visible.length > 0 && visible.every(s => selected.has(s.id));
 
     const start = async () => {
         if (selected.size === 0) { setError('Выберите хотя бы одного студента'); return; }
@@ -179,16 +201,32 @@ function StartModal({ session, onClose, onStarted }) {
             <div className="tg-modal tg-start-modal" onClick={e => e.stopPropagation()}>
                 <div className="tg-divide-header">
                     <h2>Выбор студентов</h2>
-                    <button className="tg-btn-secondary" onClick={toggleAll}>
-                        {selected.size === students.length ? 'Снять все' : 'Выбрать все'}
+                    <button className="tg-btn-secondary" onClick={toggleVisible}>
+                        {visibleAllChecked ? 'Снять все' : 'Выбрать все'}
                     </button>
                 </div>
+                {groups.length > 0 && (
+                    <div style={{ marginBottom: '0.75rem' }}>
+                        <select
+                            className="tg-course-filter-select"
+                            value={filterGroup}
+                            onChange={e => setFilterGroup(e.target.value)}
+                        >
+                            <option value="">— Все группы ({students.length} студ.) —</option>
+                            {groups.map(g => (
+                                <option key={g.id} value={g.id}>
+                                    {g.name} ({students.filter(s => s.group_id === g.id).length} студ.)
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
                 {error && <p className="tg-error">{error}</p>}
                 {loading ? (
                     <div className="tg-loading">Загрузка...</div>
                 ) : (
                     <div className="tg-student-pick-list">
-                        {students.map(s => {
+                        {visible.map(s => {
                             const name = s.full_name || s.username || '?';
                             const checked = selected.has(s.id);
                             return (
