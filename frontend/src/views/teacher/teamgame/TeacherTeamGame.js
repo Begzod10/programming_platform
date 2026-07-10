@@ -220,16 +220,29 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
     const [lessons, setLessons] = useState([]);
     const [loading, setLoading] = useState(true);
     const [importing, setImporting] = useState(false);
+    const [selectedCourseId, setSelectedCourseId] = useState(session.course_id || '');
 
     useEffect(() => {
-        const url = session.course_id
-            ? `${API_URL}v1/courses/${session.course_id}/lessons-with-questions`
-            : `${API_URL}v1/lessons-with-questions`;
-        axiosInstance.get(url)
-            .then(r => setLessons(Array.isArray(r.data) ? r.data : []))
+        axiosInstance.get(`${API_URL}v1/lessons-with-questions`)
+            .then(r => {
+                const data = Array.isArray(r.data) ? r.data : [];
+                setLessons(data);
+            })
             .catch(() => {})
             .finally(() => setLoading(false));
-    }, [session.course_id]);
+    }, []);
+
+    // Unique courses derived from lessons list
+    const courses = lessons.reduce((acc, l) => {
+        if (l.course_id && !acc.find(c => c.id === l.course_id)) {
+            acc.push({ id: l.course_id, title: l.course_title });
+        }
+        return acc;
+    }, []);
+
+    const visibleLessons = selectedCourseId
+        ? lessons.filter(l => l.course_id === Number(selectedCourseId))
+        : lessons;
 
     const importLesson = async (lessonId) => {
         setImporting(true);
@@ -244,12 +257,11 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
         } finally { setImporting(false); }
     };
 
-    const importCourse = async () => {
-        if (!session.course_id) return;
+    const importCourse = async (courseId) => {
         setImporting(true);
         try {
             const res = await axiosInstance.post(
-                `${API_URL}v1/game-sessions/${session.id}/import-questions?course_id=${session.course_id}`
+                `${API_URL}v1/game-sessions/${session.id}/import-questions?course_id=${courseId}`
             );
             onImported(res.data.length);
             onClose();
@@ -257,6 +269,8 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
             alert(err.response?.data?.detail || 'Ошибка');
         } finally { setImporting(false); }
     };
+
+    const selectedCourseTotal = visibleLessons.reduce((s, l) => s + l.question_count, 0);
 
     return (
         <div className="tg-modal-overlay" onClick={onClose}>
@@ -268,23 +282,37 @@ function ImportFromLessonModal({ session, onClose, onImported }) {
                     <p style={{ color: '#6b7280' }}>Нет уроков с вопросами.</p>
                 ) : (
                     <>
-                        <p style={{ color: '#6b7280', marginBottom: '1rem' }}>Выберите урок для импорта:</p>
-                        {session.course_id && (
+                        <div style={{ marginBottom: '0.75rem' }}>
+                            <select
+                                className="tg-course-filter-select"
+                                value={selectedCourseId}
+                                onChange={e => setSelectedCourseId(e.target.value)}
+                            >
+                                <option value="">— Все курсы —</option>
+                                {courses.map(c => (
+                                    <option key={c.id} value={c.id}>{c.title}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {selectedCourseId && (
                             <button
                                 className="tg-btn-primary tg-import-all-btn"
                                 disabled={importing}
-                                onClick={importCourse}
+                                onClick={() => importCourse(selectedCourseId)}
                             >
-                                🗂 Весь курс ({lessons.reduce((s, l) => s + l.question_count, 0)} вопросов)
+                                🗂 Весь курс ({selectedCourseTotal} вопросов)
                             </button>
                         )}
+                        <p style={{ color: '#6b7280', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
+                            Выберите урок для импорта:
+                        </p>
                         <div className="tg-import-lessons-list">
-                            {lessons.map(l => (
+                            {visibleLessons.map(l => (
                                 <div key={l.id} className="tg-import-lesson-row">
                                     <div>
                                         <span className="tg-import-lesson-title">{l.title}</span>
-                                        {l.course_title && !session.course_id && (
-                                            <span className="tg-import-lesson-count" style={{ marginLeft: 6, color: '#9ca3af' }}>{l.course_title}</span>
+                                        {!selectedCourseId && l.course_title && (
+                                            <span className="tg-import-lesson-course">{l.course_title}</span>
                                         )}
                                         <span className="tg-import-lesson-count">{l.question_count} вопр.</span>
                                     </div>
