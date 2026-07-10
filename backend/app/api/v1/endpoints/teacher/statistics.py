@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from datetime import datetime, timedelta, timezone
+from typing import List, Optional
 from app.dependencies import get_db, get_current_instructor
 from app.models.user import Student, UserRole, StudentLevel
 from app.models.group import Group, student_groups
 from app.models.project import Project
+from app.models.submission import Submission
 
 router = APIRouter()
 
@@ -210,3 +213,57 @@ async def get_teacher_statistics(
         "top_students": top_students,
         "grade_distribution": grade_distribution,
     }
+
+
+@router.get("/projects")
+async def get_teacher_projects(
+        status: Optional[str] = Query(None, description="Filter by status: Submitted, Approved, Rejected, Under Review"),
+        skip: int = Query(0, ge=0),
+        limit: int = Query(200, ge=1, le=500),
+        db: AsyncSession = Depends(get_db),
+        current_teacher: Student = Depends(get_current_instructor),
+):
+    """All projects from the current teacher's own students, optionally filtered by status."""
+    student_ids_sq = _teacher_students_subq(current_teacher.id)
+
+    q = (
+        select(Project)
+        .options(selectinload(Project.student))
+        .where(Project.student_id.in_(student_ids_sq))
+    )
+    if status:
+        q = q.where(Project.status == status)
+
+    q = q.order_by(Project.submitted_at.desc().nullslast(), Project.created_at.desc())
+    q = q.offset(skip).limit(limit)
+
+    rows = (await db.execute(q)).scalars().all()
+
+    return [
+        {
+            "id": p.id,
+            "title": p.title,
+            "status": p.status,
+            "points_earned": p.points_earned,
+            "grade": p.grade,
+            "github_url": p.github_url,
+            "live_demo_url": p.live_demo_url,
+            "description": p.description,
+            "difficulty_level": p.difficulty_level,
+            "instructor_feedback": p.instructor_feedback,
+            "submitted_at": p.submitted_at.isoformat() if p.submitted_at else None,
+            "reviewed_at": p.reviewed_at.isoformat() if p.reviewed_at else None,
+            "project_files": p.project_files,
+            "ai_strengths": p.ai_strengths,
+            "ai_improvements": p.ai_improvements,
+            "ai_bugs": p.ai_bugs,
+            "student": {
+                "id": p.student.id,
+                "username": p.student.username,
+                "full_name": p.student.full_name,
+                "email": p.student.email,
+                "avatar_url": p.student.avatar_url,
+            } if p.student else None,
+        }
+        for p in rows
+    ]

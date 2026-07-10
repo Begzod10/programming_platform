@@ -161,7 +161,7 @@ function TeacherReview() {
     const fetchProjects = () => {
         setLoading(true);
         setLoadError(null);
-        request(`${API_URL}v1/project/`, 'GET', null, headers())
+        request(`${API_URL}v1/teacher/projects`, 'GET', null, headers())
             .then(data => {
                 setProjects(Array.isArray(data) ? data : []);
             })
