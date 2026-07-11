@@ -27,6 +27,7 @@ async def get_project_leaderboard(
         period: Literal["all", "day", "week", "month"] = Query("all"),
         course_id: Optional[int] = Query(None, description="Restrict ranking to a single course"),
         group_id: Optional[int] = Query(None, description="Restrict ranking to students in a group"),
+        teacher_id: Optional[int] = Query(None, description="Restrict ranking to students of a teacher"),
         search: Optional[str] = Query(None, description="Filter by username or full name (ILIKE)"),
         skip: int = Query(0, ge=0),
         limit: int = Query(50, ge=1, le=100),
@@ -69,12 +70,22 @@ async def get_project_leaderboard(
         "AND t.student_id IN (SELECT student_id FROM student_groups WHERE group_id = :group_id)"
         if group_id is not None else ""
     )
+    filter_teacher_clause = (
+        """AND t.student_id IN (
+            SELECT sg.student_id FROM student_groups sg
+            JOIN groups g ON g.id = sg.group_id
+            WHERE g.teacher_id = :filter_teacher_id
+        )"""
+        if teacher_id is not None else ""
+    )
 
     params = {"skip": skip, "limit": limit}
     if course_id is not None:
         params["course_id"] = course_id
     if group_id is not None:
         params["group_id"] = group_id
+    if teacher_id is not None:
+        params["filter_teacher_id"] = teacher_id
     if search:
         params["search"] = f"%{search.strip()}%"
     if is_teacher:
@@ -139,6 +150,7 @@ async def get_project_leaderboard(
               {search_clause}
               {teacher_clause}
               {group_clause}
+              {filter_teacher_clause}
         )
         SELECT
             rank, student_id, username, full_name, avatar_url, current_level,
@@ -189,6 +201,28 @@ async def list_courses_for_filter(
     """)
     rows = (await db.execute(sql)).mappings().all()
     return [{"id": r["id"], "title": r["title"]} for r in rows]
+
+
+@router.get("/teachers")
+async def list_teachers_for_filter(
+        db: AsyncSession = Depends(get_db),
+):
+    """Teachers list for the leaderboard's teacher-filter dropdown."""
+    sql = text("""
+        SELECT s.id, s.full_name, s.username,
+               COUNT(DISTINCT sg.student_id) AS student_count
+        FROM students s
+        JOIN groups g ON g.teacher_id = s.id
+        JOIN student_groups sg ON sg.group_id = g.id
+        GROUP BY s.id, s.full_name, s.username
+        HAVING COUNT(DISTINCT sg.student_id) > 0
+        ORDER BY s.full_name
+    """)
+    rows = (await db.execute(sql)).mappings().all()
+    return [
+        {"id": r["id"], "full_name": r["full_name"], "username": r["username"], "student_count": r["student_count"]}
+        for r in rows
+    ]
 
 
 @router.get("/groups")
