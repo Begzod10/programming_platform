@@ -131,6 +131,20 @@
 }
 .lb-tab-icon { font-size: 10px; opacity: 0.8; }
 
+.lb-group-select {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 20px;
+    border: none;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+    max-width: 140px;
+}
+.lb-group-select option { color: #111; background: #fff; }
+
 /* my rank band */
 .lb-myrank {
     display: flex;

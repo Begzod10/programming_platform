@@ -26,6 +26,7 @@ _PROJECT_WINDOW_SQL = {
 async def get_project_leaderboard(
         period: Literal["all", "day", "week", "month"] = Query("all"),
         course_id: Optional[int] = Query(None, description="Restrict ranking to a single course"),
+        group_id: Optional[int] = Query(None, description="Restrict ranking to students in a group"),
         search: Optional[str] = Query(None, description="Filter by username or full name (ILIKE)"),
         skip: int = Query(0, ge=0),
         limit: int = Query(50, ge=1, le=100),
@@ -64,10 +65,16 @@ async def get_project_leaderboard(
         )"""
         if is_teacher else ""
     )
+    group_clause = (
+        "AND t.student_id IN (SELECT student_id FROM student_groups WHERE group_id = :group_id)"
+        if group_id is not None else ""
+    )
 
     params = {"skip": skip, "limit": limit}
     if course_id is not None:
         params["course_id"] = course_id
+    if group_id is not None:
+        params["group_id"] = group_id
     if search:
         params["search"] = f"%{search.strip()}%"
     if is_teacher:
@@ -131,6 +138,7 @@ async def get_project_leaderboard(
             WHERE 1 = 1
               {search_clause}
               {teacher_clause}
+              {group_clause}
         )
         SELECT
             rank, student_id, username, full_name, avatar_url, current_level,
@@ -161,7 +169,7 @@ async def get_project_leaderboard(
         }
         for r in rows
     ]
-    return {"items": items, "total": total, "period": period, "course_id": course_id}
+    return {"items": items, "total": total, "period": period, "course_id": course_id, "group_id": group_id}
 
 
 @router.get("/project-leaderboard/courses")
@@ -183,6 +191,24 @@ async def list_courses_for_filter(
     return [{"id": r["id"], "title": r["title"]} for r in rows]
 
 
+@router.get("/groups")
+async def list_groups_for_filter(
+        db: AsyncSession = Depends(get_db),
+):
+    """Groups list for the leaderboard's group-filter dropdown."""
+    sql = text("""
+        SELECT g.id, g.name,
+               COUNT(sg.student_id) AS student_count
+        FROM groups g
+        JOIN student_groups sg ON sg.group_id = g.id
+        GROUP BY g.id, g.name
+        HAVING COUNT(sg.student_id) > 0
+        ORDER BY g.name
+    """)
+    rows = (await db.execute(sql)).mappings().all()
+    return [{"id": r["id"], "name": r["name"], "student_count": r["student_count"]} for r in rows]
+
+
 # ========== STUDENT ENDPOINTS ==========
 
 @router.get("/leaderboard", response_model=List[LeaderboardItem])
@@ -191,6 +217,7 @@ async def get_leaderboard(
         limit: int = Query(10, ge=1, le=100),
         offset: int = Query(0, ge=0),
         level: str = Query(None),
+        group_id: Optional[int] = Query(None, description="Restrict to students in a group"),
         db: AsyncSession = Depends(get_db)
 ):
     """Leaderboard - Tanlangan period bo'yicha dinamik o'rin (rank) bilan."""
@@ -199,7 +226,8 @@ async def get_leaderboard(
         period=period,
         limit=limit,
         offset=offset,
-        level=level
+        level=level,
+        group_id=group_id,
     )
 
     result = []

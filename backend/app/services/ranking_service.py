@@ -93,11 +93,10 @@ class RankingService:
             period: str = "all",
             limit: int = 10,
             offset: int = 0,
-            level: str = None
+            level: str = None,
+            group_id: int = None,
     ):
-        # 1. Periodga qarab saralash ustunini aniqlaymiz
-        # CHAINED LOGIC: Weekly/Monthly hozirda o'tgan kunlar summasini saqlaydi. 
-        # Shuning uchun real-time ko'rsatish uchun daily_points ni ham qo'shamiz.
+        from app.models.group import student_groups
         sort_column_map = {
             "daily": Ranking.daily_points,
             "weekly": Ranking.weekly_points + Ranking.daily_points,
@@ -106,7 +105,6 @@ class RankingService:
         }
         target_col = sort_column_map.get(period, Ranking.total_points)
 
-        # 2. Asosiy so'rov
         query = (
             select(
                 Ranking.student_id,
@@ -119,7 +117,6 @@ class RankingService:
                 Student.full_name,
                 Student.avatar_url,
                 Student.current_level,
-                # MUHIM: rank() o'rniga row_number() ishlating
                 func.row_number().over(
                     order_by=(target_col.desc(), Ranking.student_id.asc())
                 ).label("period_rank")
@@ -128,14 +125,18 @@ class RankingService:
             .where(Student.is_active == True)
         )
 
-        # 3. Agar level bo'yicha filtr bo'lsa
         if level:
             query = query.where(Student.current_level == level)
 
-        # 4. Saralash va limit
+        if group_id is not None:
+            query = query.where(
+                Ranking.student_id.in_(
+                    select(student_groups.c.student_id).where(student_groups.c.group_id == group_id)
+                )
+            )
+
         query = query.order_by(target_col.desc()).limit(limit).offset(offset)
 
-        # 5. Natijani mapping ko'rinishida olish (r.period_rank deb ishlatish uchun)
         res = await self.db.execute(query)
         return res.mappings().all()
 

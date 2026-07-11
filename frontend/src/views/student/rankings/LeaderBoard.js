@@ -67,12 +67,15 @@ export default function Leaderboard() {
     const [myRank,    setMyRank]    = useState(null);
     const [loading,   setLoading]   = useState(true);
     const [error,     setError]     = useState('');
+    const [groups,    setGroups]    = useState([]);
+    const [groupId,   setGroupId]   = useState('');
     const listRef = useRef(null);
 
-    const fetchRanking = (period) => {
+    const fetchRanking = (period, gid) => {
         setLoading(true);
         setError('');
-        request(`${API_URL}v1/rankings/leaderboard?period=${period}&limit=50`, 'GET', null, headers())
+        const g = gid ? `&group_id=${encodeURIComponent(gid)}` : '';
+        request(`${API_URL}v1/rankings/leaderboard?period=${period}&limit=50${g}`, 'GET', null, headers())
             .then(res => setData(Array.isArray(res) ? res : []))
             .catch(() => setError('Не удалось загрузить рейтинг'))
             .finally(() => setLoading(false));
@@ -85,10 +88,23 @@ export default function Leaderboard() {
     };
 
     useEffect(() => {
-        fetchRanking(activeTab);
+        request(`${API_URL}v1/rankings/groups`, 'GET', null, headers())
+            .then(res => setGroups(Array.isArray(res) ? res : []))
+            .catch(() => {});
+    }, []); // eslint-disable-line
+
+    useEffect(() => {
+        fetchRanking(activeTab, groupId);
         fetchMyRank(activeTab);
         listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    }, [activeTab]);
+    }, [activeTab]); // eslint-disable-line
+
+    const handleGroup = (e) => {
+        const val = e.target.value;
+        setGroupId(val);
+        fetchRanking(activeTab, val);
+        listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     const getPoints = (student) => {
         switch (activeTab) {
@@ -148,6 +164,19 @@ export default function Leaderboard() {
                                 <span className="lb-tab-label">{t.label}</span>
                             </button>
                         ))}
+                        {groups.length > 0 && (
+                            <select
+                                className="lb-group-select"
+                                value={groupId}
+                                onChange={handleGroup}
+                                aria-label="Группа"
+                            >
+                                <option value="">Все группы</option>
+                                {groups.map(g => (
+                                    <option key={g.id} value={g.id}>{g.name}</option>
+                                ))}
+                            </select>
+                        )}
                     </div>
                 </div>
 
