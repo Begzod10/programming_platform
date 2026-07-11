@@ -19,7 +19,7 @@ from app.models.lesson import Lesson, LessonCompletion
 from app.models.lesson_file import LessonFile
 from app.models.project import Project
 from app.models.submission import Submission
-from app.models.user import Student
+from app.models.user import Student, UserRole
 
 LESSONS_FILES_DIR = Path(settings.UPLOAD_DIR) / "lesson_files"
 LESSONS_FILES_DIR.mkdir(parents=True, exist_ok=True)
@@ -194,15 +194,20 @@ async def _calc_course_progress(
 
 
 async def _ensure_enrolled(db: AsyncSession, student_id: int, course_id: int):
-    """Hard-lock: only enrolled students or the course instructor may proceed."""
+    """Hard-lock: only enrolled students, the course instructor, or any teacher may proceed."""
+    stmt = select(Student).options(selectinload(Student.enrolled_courses)).where(Student.id == student_id)
+    res = await db.execute(stmt)
+    student = res.scalar_one()
+
+    # Teachers can view any course's content (they review and manage lessons)
+    if student.role == UserRole.teacher:
+        return
+
     course_res = await db.execute(select(Course).where(Course.id == course_id))
     course = course_res.scalar_one_or_none()
     if course and course.instructor_id == student_id:
         return
 
-    stmt = select(Student).options(selectinload(Student.enrolled_courses)).where(Student.id == student_id)
-    res = await db.execute(stmt)
-    student = res.scalar_one()
     if not any(c.id == course_id for c in student.enrolled_courses):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
