@@ -56,7 +56,7 @@ export const SortableCourseCard = ({ course, canReorder, currentUserId, navigate
                     <div className="tc-course-actions">
                         {isOwner ? (
                             <>
-                                <button className={`tc-publish-btn ${course.is_published ? 'published' : 'draft'}`} onClick={e => onPublishToggle(course, e)}>
+                                <button className={`tc-publish-btn ${course.is_published ? 'published' : 'draft'}`} onClick={e => { e.stopPropagation(); onPublishToggle(course, e); }}>
                                     <span className="tc-publish-dot" />{course.is_published ? 'Опубликован' : 'Черновик'}
                                 </button>
                                 <button className="tc-icon-btn tc-ediet-icon" onClick={e => onEdit(course, e)}>✏️</button>
