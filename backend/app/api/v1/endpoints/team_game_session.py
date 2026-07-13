@@ -358,36 +358,48 @@ async def start_session(
         )
         students = stu_res.scalars().all()
 
-    if not students:
-        raise HTTPException(status_code=400, detail="No students to assign")
-
-    # Clear existing team members
+    # Clear existing team members regardless of assignment method
     for team in session.teams:
         for m in list(team.members):
             await db.delete(m)
     await db.flush()
 
-    if session.game_type == GT.individual:
-        # One team per student — delete placeholder teams first
-        for team in list(session.teams):
-            await db.delete(team)
-        await db.flush()
-
-        COLORS = ["#e74c3c","#3498db","#2ecc71","#f39c12","#9b59b6","#1abc9c",
-                  "#e67e22","#e91e63","#00bcd4","#8bc34a"]
-        for idx, stu in enumerate(students):
-            name = (stu.full_name or stu.username or f"Студент {idx+1}")[:30]
-            team = GameTeam(session_id=session_id, name=name, color=COLORS[idx % len(COLORS)])
-            db.add(team)
-            await db.flush()
-            db.add(GameTeamMember(team_id=team.id, student_id=stu.id))
+    if body and body.team_assignments:
+        # Manual assignment: teacher explicitly assigned each student to a team
+        session_team_ids = {t.id for t in session.teams}
+        total_assigned = sum(len(ta.student_ids) for ta in body.team_assignments)
+        if total_assigned == 0:
+            raise HTTPException(status_code=400, detail="No students assigned to any team")
+        for ta in body.team_assignments:
+            if ta.team_id not in session_team_ids:
+                raise HTTPException(status_code=400, detail=f"Team {ta.team_id} not found in session")
+            for sid in ta.student_ids:
+                db.add(GameTeamMember(team_id=ta.team_id, student_id=sid))
     else:
-        # Team game: distribute randomly across existing teams
-        student_ids = [s.id for s in students]
-        random.shuffle(student_ids)
-        teams = list(session.teams)
-        for i, sid in enumerate(student_ids):
-            db.add(GameTeamMember(team_id=teams[i % len(teams)].id, student_id=sid))
+        if not students:
+            raise HTTPException(status_code=400, detail="No students to assign")
+
+        if session.game_type == GT.individual:
+            # One team per student — delete placeholder teams first
+            for team in list(session.teams):
+                await db.delete(team)
+            await db.flush()
+
+            COLORS = ["#e74c3c","#3498db","#2ecc71","#f39c12","#9b59b6","#1abc9c",
+                      "#e67e22","#e91e63","#00bcd4","#8bc34a"]
+            for idx, stu in enumerate(students):
+                name = (stu.full_name or stu.username or f"Студент {idx+1}")[:30]
+                team = GameTeam(session_id=session_id, name=name, color=COLORS[idx % len(COLORS)])
+                db.add(team)
+                await db.flush()
+                db.add(GameTeamMember(team_id=team.id, student_id=stu.id))
+        else:
+            # Team game: distribute randomly across existing teams
+            student_ids = [s.id for s in students]
+            random.shuffle(student_ids)
+            teams = list(session.teams)
+            for i, sid in enumerate(student_ids):
+                db.add(GameTeamMember(team_id=teams[i % len(teams)].id, student_id=sid))
 
     session.status = SessionStatus.active
     await db.commit()

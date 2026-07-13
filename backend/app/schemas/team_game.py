@@ -58,7 +58,8 @@ class TeamAssignmentItem(BaseModel):
 
 
 class StartSessionBody(BaseModel):
-    student_ids: Optional[List[int]] = None
+    student_ids:      Optional[List[int]]              = None
+    team_assignments: Optional[List[TeamAssignmentItem]] = None
 
 
 class GameSessionCreate(BaseModel):

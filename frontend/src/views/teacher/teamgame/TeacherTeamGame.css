@@ -176,6 +176,19 @@
 .tg-student-pick-name { font-size: 0.9rem; }
 .tg-pick-count { font-size: 0.85rem; color: #64748b; margin-right: auto; }
 
+/* Team assignment step 2 */
+.tg-assign-modal { max-width: 720px; width: 95vw; max-height: 85vh; display: flex; flex-direction: column; }
+.tg-team-assign-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; overflow-y: auto; flex: 1; margin-bottom: 12px; }
+.tg-team-assign-col { border-top: 3px solid #6366f1; border-radius: 10px; background: #f8fafc; display: flex; flex-direction: column; overflow: hidden; }
+.tg-team-assign-col-head { padding: 8px 12px; font-weight: 700; font-size: 0.9rem; background: #fff; border-bottom: 1px solid #e2e8f0; }
+.tg-team-count { font-weight: 400; font-size: 0.8rem; color: #64748b; }
+.tg-team-assign-members { flex: 1; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 4px; min-height: 60px; max-height: 280px; }
+.tg-team-assign-member { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 7px; background: #fff; border: 1px solid #e2e8f0; }
+.tg-team-assign-name { font-size: 0.82rem; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tg-student-pick-avatar--sm { width: 22px; height: 22px; font-size: 0.7rem; flex-shrink: 0; }
+.tg-team-move-select { font-size: 0.75rem; border: 1px solid #d1d5db; border-radius: 5px; padding: 2px 4px; background: #f8fafc; color: #374151; cursor: pointer; flex-shrink: 0; max-width: 100px; }
+.tg-team-move-select:focus { outline: none; border-color: #6366f1; }
+
 .tg-divide-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; overflow-y: auto; flex: 1; padding-right: 4px; }
 .tg-divide-col { background: #f8fafc; border-radius: 10px; display: flex; flex-direction: column; min-height: 200px; }
 .tg-divide-col-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-bottom: 3px solid; border-radius: 10px 10px 0 0; background: #fff; }

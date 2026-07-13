@@ -129,14 +129,17 @@ function CreateSessionModal({ onClose, onCreated }) {
 
 
 
-// ── Start Session Modal (student picker) ──────────────────────────────────────
+// ── Start Session Modal (student picker + team assignment) ────────────────────
 function StartModal({ session, onClose, onStarted }) {
+    const [step, setStep] = useState(1); // 1 = pick students, 2 = assign teams
     const [students, setStudents] = useState([]);
     const [selected, setSelected] = useState(new Set());
     const [loading, setLoading] = useState(true);
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState('');
     const [filterGroup, setFilterGroup] = useState('');
+    // Step 2: teamId -> student objects
+    const [assignments, setAssignments] = useState({});
 
     useEffect(() => {
         axiosInstance.get(`${API_URL}v1/game-sessions/${session.id}/students`)
@@ -149,7 +152,17 @@ function StartModal({ session, onClose, onStarted }) {
             .finally(() => setLoading(false));
     }, [session.id]);
 
-    // Unique groups from student list
+    // When group filter changes, update selection to only that group
+    useEffect(() => {
+        if (!students.length) return;
+        if (filterGroup) {
+            const ids = students.filter(s => s.group_id === Number(filterGroup)).map(s => s.id);
+            setSelected(new Set(ids));
+        } else {
+            setSelected(new Set(students.map(s => s.id)));
+        }
+    }, [filterGroup]); // eslint-disable-line react-hooks/exhaustive-deps
+
     const groups = students.reduce((acc, s) => {
         if (s.group_id && !acc.find(g => g.id === s.group_id)) {
             acc.push({ id: s.group_id, name: s.group_name });
@@ -180,13 +193,48 @@ function StartModal({ session, onClose, onStarted }) {
 
     const visibleAllChecked = visible.length > 0 && visible.every(s => selected.has(s.id));
 
-    const start = async () => {
+    // Build auto-distributed assignments and go to step 2
+    const goToAssign = () => {
         if (selected.size === 0) { setError('Выберите хотя бы одного студента'); return; }
+        setError('');
+        const selectedStudents = students.filter(s => selected.has(s.id));
+        const teams = session.teams;
+        const init = {};
+        teams.forEach(t => { init[t.id] = []; });
+        selectedStudents.forEach((s, i) => { init[teams[i % teams.length].id].push(s); });
+        setAssignments(init);
+        setStep(2);
+    };
+
+    const moveStudent = (studentId, toTeamId) => {
+        setAssignments(prev => {
+            const next = {};
+            Object.keys(prev).forEach(tid => { next[Number(tid)] = prev[tid].filter(s => s.id !== studentId); });
+            const student = students.find(s => s.id === studentId);
+            if (student) next[toTeamId] = [...(next[toTeamId] || []), student];
+            return next;
+        });
+    };
+
+    const shuffleAssignments = () => {
+        const all = Object.values(assignments).flat().sort(() => Math.random() - 0.5);
+        const teams = session.teams;
+        const next = {};
+        teams.forEach(t => { next[t.id] = []; });
+        all.forEach((s, i) => { next[teams[i % teams.length].id].push(s); });
+        setAssignments(next);
+    };
+
+    const start = async () => {
         setStarting(true); setError('');
         try {
-            await axiosInstance.post(`${API_URL}v1/game-sessions/${session.id}/start`, {
-                student_ids: [...selected],
-            });
+            const body = {
+                team_assignments: session.teams.map(t => ({
+                    team_id: t.id,
+                    student_ids: (assignments[t.id] || []).map(s => s.id),
+                })),
+            };
+            await axiosInstance.post(`${API_URL}v1/game-sessions/${session.id}/start`, body);
             onStarted();
             onClose();
         } catch (err) {
@@ -196,7 +244,8 @@ function StartModal({ session, onClose, onStarted }) {
         } finally { setStarting(false); }
     };
 
-    return (
+    // ── Step 1: pick students ──
+    if (step === 1) return (
         <div className="tg-modal-overlay" onClick={onClose}>
             <div className="tg-modal tg-start-modal" onClick={e => e.stopPropagation()}>
                 <div className="tg-divide-header">
@@ -212,7 +261,7 @@ function StartModal({ session, onClose, onStarted }) {
                             value={filterGroup}
                             onChange={e => setFilterGroup(e.target.value)}
                         >
-                            <option value="">— Все группы ({students.filter(s => !!s.group_id).length} студ.) —</option>
+                            <option value="">— Все группы ({students.length} студ.) —</option>
                             {groups.map(g => (
                                 <option key={g.id} value={g.id}>
                                     {g.name} ({students.filter(s => s.group_id === g.id).length} студ.)
@@ -240,9 +289,63 @@ function StartModal({ session, onClose, onStarted }) {
                     </div>
                 )}
                 <div className="tg-modal-actions">
-                    <span className="tg-pick-count">{visible.filter(s => selected.has(s.id)).length} / {visible.length}</span>
+                    <span className="tg-pick-count">{selected.size} выбрано</span>
                     <button className="tg-btn-secondary" onClick={onClose}>Отмена</button>
-                    <button className="tg-btn-primary" disabled={starting || loading || selected.size === 0} onClick={start}>
+                    <button className="tg-btn-primary" disabled={loading || selected.size === 0} onClick={goToAssign}>
+                        Распределить по командам →
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+
+    // ── Step 2: assign to teams ──
+    const teams = session.teams;
+    const totalAssigned = Object.values(assignments).reduce((s, arr) => s + arr.length, 0);
+    return (
+        <div className="tg-modal-overlay" onClick={onClose}>
+            <div className="tg-modal tg-assign-modal" onClick={e => e.stopPropagation()}>
+                <div className="tg-divide-header">
+                    <h2>Распределение по командам</h2>
+                    <button className="tg-btn-secondary" onClick={shuffleAssignments}>🔀 Случайно</button>
+                </div>
+                {error && <p className="tg-error">{error}</p>}
+                <div className="tg-team-assign-grid">
+                    {teams.map(team => {
+                        const members = assignments[team.id] || [];
+                        return (
+                            <div key={team.id} className="tg-team-assign-col" style={{ borderTopColor: team.color }}>
+                                <div className="tg-team-assign-col-head" style={{ color: team.color }}>
+                                    {team.name} <span className="tg-team-count">({members.length})</span>
+                                </div>
+                                <div className="tg-team-assign-members">
+                                    {members.map(s => {
+                                        const name = s.full_name || s.username || '?';
+                                        return (
+                                            <div key={s.id} className="tg-team-assign-member">
+                                                <span className="tg-student-pick-avatar tg-student-pick-avatar--sm">{name[0].toUpperCase()}</span>
+                                                <span className="tg-team-assign-name">{name}</span>
+                                                <select
+                                                    className="tg-team-move-select"
+                                                    value={team.id}
+                                                    onChange={e => moveStudent(s.id, parseInt(e.target.value))}
+                                                >
+                                                    {teams.map(t => (
+                                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                <div className="tg-modal-actions">
+                    <span className="tg-pick-count">{totalAssigned} студ.</span>
+                    <button className="tg-btn-secondary" onClick={() => setStep(1)}>← Назад</button>
+                    <button className="tg-btn-primary" disabled={starting || totalAssigned === 0} onClick={start}>
                         {starting ? 'Запуск...' : '▶ Начать игру'}
                     </button>
                 </div>
