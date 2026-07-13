@@ -634,16 +634,38 @@ export default function StudentTeamGame() {
         return () => clearInterval(interval);
     }, [load]);
 
-    const openSession = async (id) => {
+    const openSession = useCallback(async (id) => {
         try {
             const res = await fetch(`${API_URL}v1/game-sessions/${id}`, { headers: headers() });
             if (!res.ok) return;
-            setSelected(await res.json());
+            const data = await res.json();
+            setSelected(data);
+            window.history.pushState({ sessionId: id }, '', `?session=${id}`);
         } catch {}
-    };
+    }, []);
+
+    const goBack = useCallback(() => {
+        setSelected(null);
+        window.history.pushState({}, '', window.location.pathname);
+        load();
+    }, [load]);
+
+    // On mount: restore session from URL param; on browser back: clear selected
+    useEffect(() => {
+        const sessionId = new URLSearchParams(window.location.search).get('session');
+        if (sessionId) openSession(Number(sessionId));
+
+        const onPop = () => {
+            const id = new URLSearchParams(window.location.search).get('session');
+            if (!id) setSelected(null);
+            else openSession(Number(id));
+        };
+        window.addEventListener('popstate', onPop);
+        return () => window.removeEventListener('popstate', onPop);
+    }, [openSession]);
 
     if (selected) {
-        return <SessionDetail initialSession={selected} onBack={() => { setSelected(null); load(); }} />;
+        return <SessionDetail initialSession={selected} onBack={goBack} />;
     }
 
     return (
