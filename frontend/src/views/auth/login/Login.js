@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
-import { useNavigate, Link }         from 'react-router-dom';
+import { useNavigate }               from 'react-router-dom';
 import { Eye, EyeOff, Check, AlertCircle, Loader2 } from 'lucide-react';
 
 import { useTranslation }  from '../../../i18n/useTranslation';
@@ -243,15 +243,6 @@ export default function Login({ onLogin }) {
               {submitting ? t('auth.signingIn') : t('auth.signin')}
             </button>
 
-            {/* ── OR divider ── */}
-            <div className="lp-divider" aria-hidden="true">
-              <span>{t('auth.or')}</span>
-            </div>
-
-            {/* ── Register link ── */}
-            <Link to="/register" className="lp-register">
-              {t('auth.noAccount')}&nbsp;<strong>{t('auth.register')}</strong>
-            </Link>
 
             {/* Dev-only credential hint */}
             {process.env.NODE_ENV === 'development' && (
