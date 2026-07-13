@@ -143,7 +143,7 @@ function StartModal({ session, onClose, onStarted }) {
             .then(r => {
                 const list = Array.isArray(r.data) ? r.data : [];
                 setStudents(list);
-                setSelected(new Set(list.filter(s => !!s.group_id).map(s => s.id)));
+                setSelected(new Set(list.map(s => s.id)));
             })
             .catch(() => setError('Не удалось загрузить студентов'))
             .finally(() => setLoading(false));
@@ -159,7 +159,7 @@ function StartModal({ session, onClose, onStarted }) {
 
     const visible = filterGroup
         ? students.filter(s => s.group_id === Number(filterGroup))
-        : students.filter(s => !!s.group_id);
+        : students;
 
     const toggle = (id) => setSelected(prev => {
         const next = new Set(prev);
@@ -596,11 +596,11 @@ function QuizManager({ session }) {
 
 
 // ── Session Card ──────────────────────────────────────────────────────────────
-function SessionCard({ initialSession }) {
+function SessionCard({ initialSession, onDeleted }) {
     const [session, setSession] = useState(initialSession);
     const [actionLoading, setActionLoading] = useState(false);
     const [showStart, setShowStart] = useState(false);
-    const [view, setView] = useState('questions'); // 'questions' | 'students'
+    const [view, setView] = useState('questions');
 
     const handleWsUpdate = useCallback((data) => {
         setSession(data);
@@ -659,22 +659,42 @@ function SessionCard({ initialSession }) {
                             ✓ Завершить
                         </button>
                     )}
-                    <button className="tg-btn-danger" disabled={actionLoading} onClick={() => {
-                        if (window.confirm('Удалить сессию?')) act('', 'delete');
+                    <button className="tg-btn-danger" disabled={actionLoading} onClick={async () => {
+                        if (window.confirm('Удалить сессию?')) {
+                            await act('', 'delete');
+                            onDeleted(session.id);
+                        }
                     }}>🗑</button>
                 </div>
             </div>
 
             {session.description && <p className="tg-description">{session.description}</p>}
 
-            {/* Compact scoreboard — always visible above questions */}
+            {/* Tab switcher — always shown when there are participants */}
             {sortedTeams.length > 0 && (
-                <div className="tg-score-strip">
+                <div className="tg-view-tabs">
+                    <button
+                        className={`tg-view-tab${view === 'questions' ? ' tg-view-tab--active' : ''}`}
+                        onClick={() => setView('questions')}
+                    >📝 Вопросы ({(session.questions_count ?? 0) || 0})</button>
+                    <button
+                        className={`tg-view-tab${view === 'students' ? ' tg-view-tab--active' : ''}`}
+                        onClick={() => setView('students')}
+                    >{session.game_type === 'team' ? '👥 Команды' : '🏆 Лидеры'} ({sortedTeams.length})</button>
+                </div>
+            )}
+
+            {/* Questions view */}
+            {(!sortedTeams.length || view === 'questions') && <QuizManager session={session} />}
+
+            {/* Students / Teams view */}
+            {view === 'students' && sortedTeams.length > 0 && (
+                <div className="tg-score-strip tg-score-strip--panel">
                     {sortedTeams.map((team, idx) => {
                         const top = sortedTeams[0]?.score || 0;
                         return (
                             <div key={team.id} className="tg-score-strip-item">
-                                <span className="tg-score-strip-rank">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</span>
+                                <span className="tg-score-strip-rank">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`}</span>
                                 <span className="tg-score-strip-name" style={{ color: team.color }}>{team.name}</span>
                                 <span className="tg-score-strip-val">{team.score}</span>
                                 <div className="tg-score-strip-bar-wrap">
@@ -689,21 +709,7 @@ function SessionCard({ initialSession }) {
                 </div>
             )}
 
-            {sortedTeams.length > 0 && session.game_type === 'team' && (
-                <div className="tg-view-tabs">
-                    <button
-                        className={`tg-view-tab${view === 'questions' ? ' tg-view-tab--active' : ''}`}
-                        onClick={() => setView('questions')}
-                    >📝 Вопросы</button>
-                    <button
-                        className={`tg-view-tab${view === 'students' ? ' tg-view-tab--active' : ''}`}
-                        onClick={() => setView('students')}
-                    >👥 Команды</button>
-                </div>
-            )}
-
-            {(session.game_type === 'individual' || !sortedTeams.length || view === 'questions') && <QuizManager session={session} />}
-
+            {/* Team members detail — team games only */}
             {view === 'students' && session.game_type === 'team' && sortedTeams.length > 0 && (
                 <div className="tg-teams">
                     {sortedTeams.map((team, idx) => (
@@ -803,7 +809,13 @@ export default function TeacherTeamGame() {
                 </div>
             ) : (
                 <div className="tg-sessions">
-                    {filtered.map(s => <SessionCard key={s.id} initialSession={s} />)}
+                    {filtered.map(s => (
+                        <SessionCard
+                            key={s.id}
+                            initialSession={s}
+                            onDeleted={(id) => setSessions(prev => prev.filter(x => x.id !== id))}
+                        />
+                    ))}
                 </div>
             )}
 
