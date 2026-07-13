@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { API_URL, API_URL_DOC, headers } from '../../../api/search/base';
+import { API_URL, API_URL_DOC, headers, getToken } from '../../../api/search/base';
 import './StudentTeamGame.css';
 import { Trophy } from 'lucide-react';
 
@@ -10,7 +10,7 @@ const OPTION_COLORS    = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12'];
 
 function wsUrl(sessionId) {
     const base = API_URL_DOC.replace(/^http/, 'ws').replace(/\/$/, '');
-    const token = encodeURIComponent(localStorage.getItem('token') || '');
+    const token = encodeURIComponent(getToken() || '');
     return `${base}/api/v1/game-sessions/${sessionId}/ws?token=${token}`;
 }
 

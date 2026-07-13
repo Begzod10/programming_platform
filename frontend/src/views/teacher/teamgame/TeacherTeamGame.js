@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { API_URL, API_URL_DOC } from '../../../api/search/base';
+import { API_URL, API_URL_DOC, getToken } from '../../../api/search/base';
 import axiosInstance from '../../../api/axiosInstance';
 import './TeacherTeamGame.css';
 
@@ -8,7 +8,7 @@ const STATUS_LABELS    = { pending: 'Ожидание', active: 'Активна'
 
 function wsUrl(sessionId) {
     const base = API_URL_DOC.replace(/^http/, 'ws').replace(/\/$/, '');
-    const token = encodeURIComponent(localStorage.getItem('token') || '');
+    const token = encodeURIComponent(getToken() || '');
     return `${base}/api/v1/game-sessions/${sessionId}/ws?token=${token}`;
 }
 
