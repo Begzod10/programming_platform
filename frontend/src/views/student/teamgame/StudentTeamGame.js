@@ -230,7 +230,8 @@ function AutoQuizFlow({ session, sessionId }) {
     const [done, setDone] = useState(false);
     const [clickable, setClickable] = useState(false);
     const [lang, toggleLang] = useLang();
-    const autoRef = useRef(null);
+    const advanceRef = useRef(null);  // timeout for auto-advancing to next question
+    const timerRef = useRef(null);    // interval for countdown
 
     useEffect(() => {
         fetch(`${API_URL}v1/game-sessions/${sessionId}/my-questions`, {
@@ -245,7 +246,9 @@ function AutoQuizFlow({ session, sessionId }) {
 
     // Advance to next question
     const advance = useCallback(() => {
-        clearTimeout(autoRef.current);
+        clearTimeout(advanceRef.current);
+        advanceRef.current = null;
+        clearInterval(timerRef.current);
         setChosen(null);
         setResult(null);
         setClickable(false);
@@ -264,26 +267,30 @@ function AutoQuizFlow({ session, sessionId }) {
         return () => clearTimeout(t);
     }, [currentQ?.id]);
 
-    // Countdown timer
+    // Countdown timer — only runs when no result yet
     useEffect(() => {
         if (!currentQ || result !== null) return;
         setTimeLeft(currentQ.time_limit);
         const start = Date.now();
-        const interval = setInterval(() => {
+        timerRef.current = setInterval(() => {
             const elapsed = (Date.now() - start) / 1000;
             const remaining = Math.max(0, Math.ceil(currentQ.time_limit - elapsed));
             setTimeLeft(remaining);
             if (remaining === 0) {
-                clearInterval(interval);
-                autoRef.current = setTimeout(advance, 1500);
+                clearInterval(timerRef.current);
+                // Only schedule advance if not already scheduled by submit()
+                if (!advanceRef.current) {
+                    advanceRef.current = setTimeout(advance, 1500);
+                }
             }
         }, 250);
-        return () => { clearInterval(interval); clearTimeout(autoRef.current); };
+        // Only clear the interval on cleanup — never cancel advanceRef here
+        return () => clearInterval(timerRef.current);
     }, [currentQ?.id, result, advance]);
 
     const submit = async (idx) => {
         if (!clickable || chosen !== null || result !== null || timeLeft === 0) return;
-        clearTimeout(autoRef.current);
+        clearInterval(timerRef.current);
         setChosen(idx);
         try {
             const res = await fetch(
@@ -297,13 +304,16 @@ function AutoQuizFlow({ session, sessionId }) {
             if (res.ok) {
                 const data = await res.json();
                 setResult(data);
-                autoRef.current = setTimeout(advance, 2500);
+                advanceRef.current = setTimeout(advance, 2500);
             }
         } catch {}
     };
 
     // Cleanup on unmount
-    useEffect(() => () => clearTimeout(autoRef.current), []);
+    useEffect(() => () => {
+        clearTimeout(advanceRef.current);
+        clearInterval(timerRef.current);
+    }, []);
 
     if (!questions) {
         return <div className="stg-auto-loading">⏳ Загрузка вопросов...</div>;
