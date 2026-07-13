@@ -302,8 +302,17 @@ const StudentCourses = () => {
                         is_enrolled: c.is_enrolled !== false,
                         lessons: [],
                     }));
-                loadedRef.current.clear();
-                setCourses(list);
+                // Preserve already-loaded lessons so a slow fetchCourses response
+                // does not wipe lessons that loadLessons already populated.
+                setCourses((prev) =>
+                    list.map((c) => {
+                        const existing = prev.find((p) => sameId(p.id, c.id));
+                        if (existing && existing.lessons.length > 0) {
+                            return { ...c, lessons: existing.lessons, progress_percentage: existing.progress_percentage };
+                        }
+                        return c;
+                    })
+                );
             })
             .catch(console.error)
             .finally(() => setLoading(false));
