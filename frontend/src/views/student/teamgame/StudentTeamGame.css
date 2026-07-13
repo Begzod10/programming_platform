@@ -97,7 +97,7 @@
 .stg-section-title { margin: 20px 0 10px; font-size: 1rem; color: #374151; }
 
 /* Scoreboard */
-.stg-scoreboard { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.07); margin-bottom: 16px; }
+.stg-scoreboard { background: #fff; border-radius: 12px; padding: 16px; box-shadow: 0 1px 6px rgba(0,0,0,0.07); margin-bottom: 16px; max-height: 420px; overflow-y: auto; }
 .stg-sb-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f1f5f9; }
 .stg-sb-row:last-child { border-bottom: none; }
 .stg-sb-rank { width: 28px; text-align: center; font-size: 1rem; }
