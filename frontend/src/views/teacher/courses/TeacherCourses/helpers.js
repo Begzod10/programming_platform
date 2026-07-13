@@ -56,7 +56,7 @@ export const apiToLesson = (l) => {
             l.code_content ? { id: `c${l.id}`, type: 'code',    label: 'Код',    lang: l.code_language || 'javascript', code: l.code_content } : null,
             l.video_url    ? { id: `v${l.id}`, type: 'video',   label: 'Видео',  videoUrl: l.video_url } : null,
             l.image_url    ? { id: `i${l.id}`, type: 'image',   label: 'Фото',   imgUrl: l.image_url } : null,
-            l.file_url     ? { id: `f${l.id}`, type: 'file',    label: 'Файл',   fileName: l.file_url, fileUrl: `${API_URL}v1/courses/${l.course_id}/lessons/${l.id}/download?file_name=${encodeURIComponent(l.file_url)}` } : null,
+            l.file_url     ? { id: `f${l.id}`, type: 'file',    label: 'Файл',   fileName: l.file_url, fileUrl: `/uploads/lesson_files/${encodeURIComponent(l.file_url)}` } : null,
             (l.task_title || l.task_description) ? { id: `p${l.id}`, type: 'project', label: l.task_title || 'Loyiha', description: l.task_description || '', requirements: l.task_requirements || '', techStack: l.task_technologies || '', deadline: l.task_deadline_days || '' } : null,
             Array.isArray(l.exercises) ? { id: `e${l.id}`, type: 'exercise', label: 'Упражнения', exercises: l.exercises.map(apiToExercise) } : null,
         ].filter(Boolean),
