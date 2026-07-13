@@ -58,8 +58,8 @@ jobs:
               -o StrictHostKeyChecking=yes \
               "$SSH_USER@$SSH_HOST" \
               "set -e
+               git -C \"$BACKEND_DIR\" pull origin server
                cd \"$BACKEND_DIR\"
-               git pull origin server
                source venv/bin/activate
                pip install -r requirements.txt --quiet
                systemctl restart \"$SERVICE_NAME\"
