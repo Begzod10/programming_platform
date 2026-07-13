@@ -275,7 +275,11 @@
 .tg-quiz-meta-row input[type="range"] { width: 140px; }
 
 /* Question list items */
-.tg-quiz-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.tg-quiz-list {
+    display: flex; flex-direction: column; gap: 0.6rem;
+    max-height: 420px; overflow-y: auto;
+    padding-right: 4px;
+}
 .tg-quiz-item {
     background: #f9fafb;
     border: 1px solid #e5e7eb;
