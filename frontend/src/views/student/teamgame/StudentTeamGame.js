@@ -222,8 +222,12 @@ function QuizOverlay({ question, sessionId, revealData, onDone }) {
 
 // ── Auto Quiz Flow (auto mode — each student gets personalized random order) ──
 function AutoQuizFlow({ session, sessionId }) {
+    const storageKey = `auto_qidx_${sessionId}`;
     const [questions, setQuestions] = useState(null);
-    const [qIdx, setQIdx] = useState(0);
+    const [qIdx, setQIdx] = useState(() => {
+        const saved = sessionStorage.getItem(`auto_qidx_${sessionId}`);
+        return saved ? parseInt(saved, 10) : 0;
+    });
     const [timeLeft, setTimeLeft] = useState(null);
     const [chosen, setChosen] = useState(null);
     const [result, setResult] = useState(null);
@@ -238,9 +242,19 @@ function AutoQuizFlow({ session, sessionId }) {
             headers: { ...headers() }
         })
             .then(r => r.json())
-            .then(d => setQuestions(Array.isArray(d) ? d : []))
+            .then(d => {
+                const qs = Array.isArray(d) ? d : [];
+                setQuestions(qs);
+                // Clamp saved index in case question list changed
+                setQIdx(i => Math.min(i, Math.max(0, qs.length - 1)));
+            })
             .catch(() => setQuestions([]));
     }, [sessionId]);
+
+    // Persist current question index across refreshes
+    useEffect(() => {
+        sessionStorage.setItem(storageKey, String(qIdx));
+    }, [qIdx, storageKey]);
 
     const currentQ = questions?.[qIdx];
 
@@ -254,11 +268,12 @@ function AutoQuizFlow({ session, sessionId }) {
         setClickable(false);
         setTimeLeft(null);
         if (qIdx + 1 >= (questions?.length ?? 0)) {
+            sessionStorage.removeItem(storageKey);
             setDone(true);
         } else {
             setQIdx(i => i + 1);
         }
-    }, [qIdx, questions]);
+    }, [qIdx, questions, storageKey]);
 
     // Reset click guard on each new question
     useEffect(() => {
