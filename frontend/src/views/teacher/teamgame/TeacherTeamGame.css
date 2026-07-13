@@ -376,6 +376,25 @@
 .tg-import-lesson-title { font-size: 0.9rem; color: #111827; font-weight: 500; display: block; }
 .tg-import-lesson-count { font-size: 0.75rem; color: #6b7280; margin-top: 2px; display: block; }
 .tg-import-lesson-course { font-size: 0.75rem; color: #6366f1; margin-top: 1px; display: block; }
+.tg-import-added-badge {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #16a34a;
+    background: #dcfce7;
+    border-radius: 6px;
+    padding: 0.3rem 0.65rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.tg-import-success {
+    font-size: 0.85rem;
+    color: #16a34a;
+    background: #dcfce7;
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    font-weight: 500;
+}
 .tg-course-filter-select {
     width: 100%;
     padding: 0.5rem 0.75rem;
