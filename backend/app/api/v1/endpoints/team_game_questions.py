@@ -11,13 +11,14 @@ from sqlalchemy.orm import selectinload
 from app.dependencies import get_db, get_current_teacher, get_current_student
 from app.models.team_game import (
     GameSession, GameTeam, GameTeamMember, GameQuestion, GameAnswer,
-    SessionStatus, QuestionStatus,
+    SessionStatus, QuestionStatus, StudentQuestionOrder,
 )
 from app.models.lesson_question import LessonQuestion
 from app.models.user import Student
 from app.schemas.team_game import (
     GameQuestionCreate, GameQuestionRead,
     AnswerSubmit, AnswerResultRead, QuestionEndPayload,
+    AutoQuestionRead, AutoAnswerResultRead,
 )
 from app.ws.manager import manager
 
@@ -314,6 +315,144 @@ async def submit_answer(
         full_name=student.full_name,
         team_id=member.team_id,
         chosen_option=body.chosen_option,
+        is_correct=is_correct,
+        points_earned=points_earned,
+    )
+
+
+# ── Student: get personal shuffled question list (auto mode) ──────────────────
+@router.get("/{session_id}/my-questions", response_model=List[AutoQuestionRead])
+async def get_my_questions(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+    student: Student = Depends(get_current_student),
+):
+    sess = (await db.execute(select(GameSession).where(GameSession.id == session_id))).scalar_one_or_none()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if not sess.auto_mode:
+        raise HTTPException(status_code=400, detail="Session is not in auto mode")
+    if sess.status != SessionStatus.active:
+        raise HTTPException(status_code=400, detail="Session is not active")
+
+    # Verify student is a participant
+    member = (await db.execute(
+        select(GameTeamMember)
+        .join(GameTeam, GameTeam.id == GameTeamMember.team_id)
+        .where(GameTeam.session_id == session_id, GameTeamMember.student_id == student.id)
+        .limit(1)
+    )).scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=403, detail="You are not a participant in this session")
+
+    # Get or create question order for this student
+    order = (await db.execute(
+        select(StudentQuestionOrder).where(
+            StudentQuestionOrder.session_id == session_id,
+            StudentQuestionOrder.student_id == student.id,
+        )
+    )).scalar_one_or_none()
+
+    all_questions = (await db.execute(
+        select(GameQuestion).where(GameQuestion.session_id == session_id)
+    )).scalars().all()
+
+    if not order:
+        q_ids = [q.id for q in all_questions]
+        random.shuffle(q_ids)
+        order = StudentQuestionOrder(session_id=session_id, student_id=student.id, question_ids=q_ids)
+        db.add(order)
+        await db.commit()
+
+    q_map = {q.id: q for q in all_questions}
+    return [q_map[qid] for qid in order.question_ids if qid in q_map]
+
+
+# ── Student: submit answer in auto mode ───────────────────────────────────────
+@router.post("/{session_id}/questions/{question_id}/answer-auto", response_model=AutoAnswerResultRead)
+async def submit_answer_auto(
+    session_id: int,
+    question_id: int,
+    body: AnswerSubmit,
+    db: AsyncSession = Depends(get_db),
+    student: Student = Depends(get_current_student),
+):
+    sess = (await db.execute(select(GameSession).where(GameSession.id == session_id))).scalar_one_or_none()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if not sess.auto_mode:
+        raise HTTPException(status_code=400, detail="Session is not in auto mode")
+
+    q = (await db.execute(
+        select(GameQuestion).where(
+            GameQuestion.id == question_id,
+            GameQuestion.session_id == session_id,
+        )
+    )).scalar_one_or_none()
+    if not q:
+        raise HTTPException(status_code=404, detail="Question not found")
+
+    # Find student's team
+    member = (await db.execute(
+        select(GameTeamMember)
+        .join(GameTeam, GameTeam.id == GameTeamMember.team_id)
+        .where(GameTeam.session_id == session_id, GameTeamMember.student_id == student.id)
+        .limit(1)
+    )).scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=403, detail="You are not a participant in this session")
+
+    # Check for duplicate
+    existing = (await db.execute(
+        select(GameAnswer).where(
+            GameAnswer.question_id == question_id,
+            GameAnswer.student_id == student.id,
+        )
+    )).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=409, detail="Already answered")
+
+    is_correct = body.chosen_option == q.correct_option
+    points_earned = q.points if is_correct else 0
+
+    answer = GameAnswer(
+        question_id=question_id,
+        student_id=student.id,
+        team_id=member.team_id,
+        chosen_option=body.chosen_option,
+        is_correct=is_correct,
+        points_earned=points_earned,
+    )
+    db.add(answer)
+
+    if is_correct and points_earned > 0:
+        await db.execute(
+            sa_text("UPDATE game_teams SET score = score + :pts WHERE id = :tid"),
+            {"pts": points_earned, "tid": member.team_id},
+        )
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="Already answered")
+
+    # Broadcast live score update for teacher leaderboard
+    if is_correct:
+        teams = (await db.execute(
+            select(GameTeam).where(GameTeam.session_id == session_id).order_by(GameTeam.score.desc())
+        )).scalars().all()
+        await manager.broadcast(session_id, {
+            "type": "auto_score_update",
+            "data": {
+                "team_scores": [{"team_id": t.id, "name": t.name, "color": t.color, "score": t.score} for t in teams]
+            }
+        })
+
+    return AutoAnswerResultRead(
+        student_id=student.id,
+        chosen_option=body.chosen_option,
+        correct_option=q.correct_option,
         is_correct=is_correct,
         points_earned=points_earned,
     )

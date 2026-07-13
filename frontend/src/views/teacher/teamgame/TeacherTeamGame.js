@@ -475,9 +475,14 @@ function QuizManager({ session }) {
 
     return (
         <div className="tg-quiz-manager">
+            {session.auto_mode && (
+                <div className="tg-auto-info-banner">
+                    ⚡ Авто режим активен — студенты проходят вопросы самостоятельно в своём случайном порядке. Следите за счётом на вкладке «Лидеры».
+                </div>
+            )}
             <div className="tg-quiz-header">
                 <h4>📝 Вопросы ({questions.length})</h4>
-                {session.status !== 'completed' && (
+                {session.status !== 'completed' && !session.auto_mode && (
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                         <button className="tg-btn-secondary tg-btn-sm" onClick={() => setShowImport(true)}>
                             📚 Из урока
@@ -569,7 +574,7 @@ function QuizManager({ session }) {
                                         <span>{prog.answered_count}/{prog.total_players} ответили</span>
                                     </div>
                                 )}
-                                {session.status === 'active' && (
+                                {session.status === 'active' && !session.auto_mode && (
                                     <div className="tg-quiz-item-actions">
                                         {q.status === 'pending' && (
                                             <button className="tg-btn-primary tg-btn-sm" disabled={actionId === q.id}
@@ -618,6 +623,15 @@ function SessionCard({ initialSession, onDeleted }) {
                 }),
             }));
         }
+        if (msg.type === 'auto_score_update' && msg.data?.team_scores) {
+            setSession(prev => ({
+                ...prev,
+                teams: (prev.teams || []).map(t => {
+                    const ts = msg.data.team_scores.find(s => s.team_id === t.id);
+                    return ts ? { ...t, score: ts.score } : t;
+                }),
+            }));
+        }
     }, []);
 
     useSessionSocket(session.id, handleWsUpdate, null, handleWsRaw);
@@ -653,6 +667,18 @@ function SessionCard({ initialSession, onDeleted }) {
                         <button className="tg-btn-primary" disabled={actionLoading} onClick={() => setShowStart(true)}>
                             ▶ Старт
                         </button>
+                    )}
+                    {session.status === 'active' && !session.auto_mode && (
+                        <button className="tg-btn-auto" disabled={actionLoading} onClick={async () => {
+                            if (window.confirm('Включить авто режим? Каждый студент получит вопросы в случайном порядке и будет отвечать независимо.')) {
+                                await act('/activate-auto');
+                            }
+                        }}>
+                            ⚡ Авто режим
+                        </button>
+                    )}
+                    {session.auto_mode && (
+                        <span className="tg-auto-badge">⚡ Авто режим</span>
                     )}
                     {session.status === 'active' && (
                         <button className="tg-btn-success" disabled={actionLoading} onClick={() => act('/complete')}>

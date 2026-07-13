@@ -29,6 +29,7 @@ class GameSessionRead(BaseModel):
     game_type:           GameType
     status:              SessionStatus
     language:            str               = 'uz'
+    auto_mode:           bool              = False
     course_id:           Optional[int]      = None
     course_title:        Optional[str]      = None
     created_by:          int
@@ -133,3 +134,22 @@ class QuestionEndPayload(BaseModel):
     correct_option: int
     answers:        List[AnswerResultRead]
     team_scores:    List[dict]  # [{team_id, name, color, score}]
+
+
+class AutoQuestionRead(BaseModel):
+    id:               int
+    question_text:    str
+    question_text_ru: Optional[str] = None
+    options:          List[str]
+    time_limit:       int
+    points:           int
+    order_index:      int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AutoAnswerResultRead(BaseModel):
+    student_id:     int
+    chosen_option:  int
+    correct_option: int
+    is_correct:     bool
+    points_earned:  int

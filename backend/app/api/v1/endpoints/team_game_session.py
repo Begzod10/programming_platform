@@ -11,7 +11,7 @@ from app.core.security import decode_access_token
 from app.dependencies import get_db, get_current_teacher, get_current_student_optional
 from app.models.team_game import (
     GameSession, GameTeam, GameTeamMember, GameQuestion,
-    SessionStatus, QuestionStatus,
+    SessionStatus, QuestionStatus, StudentQuestionOrder,
 )
 from app.models.user import Student
 from app.schemas.team_game import (
@@ -77,6 +77,7 @@ def _build_session_read(session: GameSession, student_id: Optional[int] = None,
         description=session.description,
         game_type=session.game_type,
         status=session.status,
+        auto_mode=session.auto_mode,
         course_id=session.course_id,
         course_title=course_title,
         created_by=session.created_by,
@@ -389,6 +390,68 @@ async def start_session(
             db.add(GameTeamMember(team_id=teams[i % len(teams)].id, student_id=sid))
 
     session.status = SessionStatus.active
+    await db.commit()
+
+    await _broadcast_session(db, session_id)
+    return await _fetch_and_build(db, session_id)
+
+
+# ── Teacher: activate auto mode ───────────────────────────────────────────────
+@router.post("/{session_id}/activate-auto", response_model=GameSessionRead)
+async def activate_auto_mode(
+    session_id: int,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    result = await db.execute(
+        select(GameSession).where(GameSession.id == session_id).with_for_update()
+    )
+    session = result.scalar_one_or_none()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.created_by != teacher.id:
+        raise HTTPException(status_code=403, detail="Not your session")
+    if session.status != SessionStatus.active:
+        raise HTTPException(status_code=400, detail="Session must be active before enabling auto mode")
+
+    # Load all questions for this session
+    questions = (await db.execute(
+        select(GameQuestion)
+        .where(GameQuestion.session_id == session_id)
+        .order_by(GameQuestion.order_index)
+    )).scalars().all()
+    if not questions:
+        raise HTTPException(status_code=400, detail="No questions in session — add questions first")
+
+    q_ids = [q.id for q in questions]
+
+    # Load all student IDs currently in this session via team members
+    rows = (await db.execute(
+        sa_text(
+            "SELECT DISTINCT gtm.student_id FROM game_team_members gtm "
+            "JOIN game_teams gt ON gt.id = gtm.team_id "
+            "WHERE gt.session_id = :sid"
+        ),
+        {"sid": session_id}
+    )).all()
+    student_ids = [r[0] for r in rows]
+
+    # Create or replace per-student shuffled question orders
+    for sid in student_ids:
+        shuffled = list(q_ids)
+        random.shuffle(shuffled)
+        existing = (await db.execute(
+            select(StudentQuestionOrder).where(
+                StudentQuestionOrder.session_id == session_id,
+                StudentQuestionOrder.student_id == sid,
+            )
+        )).scalar_one_or_none()
+        if existing:
+            existing.question_ids = shuffled
+        else:
+            db.add(StudentQuestionOrder(session_id=session_id, student_id=sid, question_ids=shuffled))
+
+    session.auto_mode = True
     await db.commit()
 
     await _broadcast_session(db, session_id)

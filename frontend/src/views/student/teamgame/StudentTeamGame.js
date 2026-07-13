@@ -220,6 +220,197 @@ function QuizOverlay({ question, sessionId, revealData, onDone }) {
 }
 
 
+// ── Auto Quiz Flow (auto mode — each student gets personalized random order) ──
+function AutoQuizFlow({ session, sessionId }) {
+    const [questions, setQuestions] = useState(null);
+    const [qIdx, setQIdx] = useState(0);
+    const [timeLeft, setTimeLeft] = useState(null);
+    const [chosen, setChosen] = useState(null);
+    const [result, setResult] = useState(null);
+    const [done, setDone] = useState(false);
+    const [clickable, setClickable] = useState(false);
+    const [lang, toggleLang] = useLang();
+    const autoRef = useRef(null);
+
+    useEffect(() => {
+        fetch(`${API_URL}v1/game-sessions/${sessionId}/my-questions`, {
+            headers: { ...headers() }
+        })
+            .then(r => r.json())
+            .then(d => setQuestions(Array.isArray(d) ? d : []))
+            .catch(() => setQuestions([]));
+    }, [sessionId]);
+
+    const currentQ = questions?.[qIdx];
+
+    // Advance to next question
+    const advance = useCallback(() => {
+        clearTimeout(autoRef.current);
+        setChosen(null);
+        setResult(null);
+        setClickable(false);
+        setTimeLeft(null);
+        if (qIdx + 1 >= (questions?.length ?? 0)) {
+            setDone(true);
+        } else {
+            setQIdx(i => i + 1);
+        }
+    }, [qIdx, questions]);
+
+    // Reset click guard on each new question
+    useEffect(() => {
+        if (!currentQ) return;
+        const t = setTimeout(() => setClickable(true), 350);
+        return () => clearTimeout(t);
+    }, [currentQ?.id]);
+
+    // Countdown timer
+    useEffect(() => {
+        if (!currentQ || result !== null) return;
+        setTimeLeft(currentQ.time_limit);
+        const start = Date.now();
+        const interval = setInterval(() => {
+            const elapsed = (Date.now() - start) / 1000;
+            const remaining = Math.max(0, Math.ceil(currentQ.time_limit - elapsed));
+            setTimeLeft(remaining);
+            if (remaining === 0) {
+                clearInterval(interval);
+                autoRef.current = setTimeout(advance, 1500);
+            }
+        }, 250);
+        return () => { clearInterval(interval); clearTimeout(autoRef.current); };
+    }, [currentQ?.id, result, advance]);
+
+    const submit = async (idx) => {
+        if (!clickable || chosen !== null || result !== null || timeLeft === 0) return;
+        clearTimeout(autoRef.current);
+        setChosen(idx);
+        try {
+            const res = await fetch(
+                `${API_URL}v1/game-sessions/${sessionId}/questions/${currentQ.id}/answer-auto`,
+                {
+                    method: 'POST',
+                    headers: { ...headers(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chosen_option: idx }),
+                }
+            );
+            if (res.ok) {
+                const data = await res.json();
+                setResult(data);
+                autoRef.current = setTimeout(advance, 2500);
+            }
+        } catch {}
+    };
+
+    // Cleanup on unmount
+    useEffect(() => () => clearTimeout(autoRef.current), []);
+
+    if (!questions) {
+        return <div className="stg-auto-loading">⏳ Загрузка вопросов...</div>;
+    }
+    if (questions.length === 0) {
+        return <div className="stg-auto-empty">Вопросов нет. Подождите...</div>;
+    }
+    if (done) {
+        return (
+            <div className="stg-auto-done">
+                <div className="stg-auto-done-icon">🎉</div>
+                <h3>Все вопросы выполнены!</h3>
+                <p>Ждите финальных результатов.</p>
+            </div>
+        );
+    }
+
+    const pct = timeLeft !== null && currentQ.time_limit > 0
+        ? (timeLeft / currentQ.time_limit) * 100
+        : 0;
+    const timerColor = pct > 50 ? '#2ecc71' : pct > 25 ? '#f39c12' : '#e74c3c';
+    const showResult = result !== null;
+
+    const getOptClass = (i) => {
+        let cls = 'stg-quiz-opt';
+        if (showResult) {
+            if (i === result.correct_option) cls += ' stg-quiz-opt--correct-reveal';
+            else if (i === chosen && i !== result.correct_option) cls += ' stg-quiz-opt--wrong-reveal';
+            else cls += ' stg-quiz-opt--faded';
+        } else {
+            if (chosen === i) cls += ' stg-quiz-opt--chosen';
+            else if (chosen !== null) cls += ' stg-quiz-opt--faded';
+        }
+        return cls;
+    };
+
+    return (
+        <div className="stg-quiz-overlay">
+            {/* Progress bar */}
+            <div className="stg-auto-progress-row">
+                <span className="stg-auto-progress-label">
+                    {qIdx + 1} / {questions.length}
+                </span>
+                <div className="stg-auto-progress-dots">
+                    {questions.map((_, i) => (
+                        <span
+                            key={i}
+                            className={`stg-auto-dot${i < qIdx ? ' stg-auto-dot--done' : i === qIdx ? ' stg-auto-dot--current' : ''}`}
+                        />
+                    ))}
+                </div>
+            </div>
+
+            {/* Timer bar */}
+            <div className="stg-quiz-timer-bar-wrap">
+                <div className="stg-quiz-timer-bar" style={{ width: `${pct}%`, background: timerColor }} />
+                <span className="stg-quiz-timer-num" style={{ color: timerColor }}>{timeLeft}с</span>
+                {currentQ.question_text_ru && (
+                    <button className="stg-quiz-lang-btn" onClick={toggleLang}>
+                        {lang === 'uz' ? "🇺🇿 O'z" : '🇷🇺 Рус'}
+                    </button>
+                )}
+            </div>
+
+            <div className="stg-quiz-question">
+                <div className="stg-quiz-points-badge">⭐ {currentQ.points} очков</div>
+                <h2>
+                    {lang === 'ru' && currentQ.question_text_ru
+                        ? currentQ.question_text_ru
+                        : currentQ.question_text}
+                </h2>
+            </div>
+
+            <div className="stg-quiz-options">
+                {currentQ.options.map((opt, i) => (
+                    <button
+                        key={i}
+                        className={getOptClass(i)}
+                        style={{ '--opt-color': OPTION_COLORS[i] }}
+                        onClick={() => submit(i)}
+                        disabled={chosen !== null || showResult || timeLeft === 0}
+                    >
+                        <span className="stg-quiz-opt-letter">{OPTION_LABELS[i]}</span>
+                        <span className="stg-quiz-opt-text">{opt}</span>
+                    </button>
+                ))}
+            </div>
+
+            {!showResult && timeLeft === 0 && chosen === null && (
+                <div className="stg-quiz-result stg-quiz-result--wrong" style={{ opacity: 0.8 }}>
+                    ⏰ Время вышло!
+                </div>
+            )}
+
+            {showResult && (
+                <div className={`stg-quiz-result stg-quiz-result--${result.is_correct ? 'correct' : 'wrong'}`}>
+                    {result.is_correct
+                        ? <><span>✅ Правильно!</span><span className="stg-quiz-pts">+{result.points_earned} очков</span></>
+                        : <span>❌ Неправильно</span>
+                    }
+                </div>
+            )}
+        </div>
+    );
+}
+
+
 function MyTeamBanner({ session }) {
     const team = session.teams?.find(t => t.id === session.my_team_id);
     if (!team) return null;
@@ -273,7 +464,6 @@ function SessionDetail({ initialSession, onBack }) {
             setLastResult(null);
         }
         if (msg.type === 'question_end') {
-            // Keep overlay open briefly so student sees result, then onDone closes it
             setRevealData(msg.data);
             setLastResult(msg.data);
             if (msg.data?.team_scores) {
@@ -285,6 +475,15 @@ function SessionDetail({ initialSession, onBack }) {
                     }),
                 }));
             }
+        }
+        if (msg.type === 'auto_score_update' && msg.data?.team_scores) {
+            setSession(prev => ({
+                ...prev,
+                teams: (prev.teams || []).map(t => {
+                    const ts = msg.data.team_scores.find(s => s.team_id === t.id);
+                    return ts ? { ...t, score: ts.score } : t;
+                }),
+            }));
         }
     }, []);
     useSessionSocket(session.id, handleUpdate, handleDeleted, handleMessage);
@@ -306,8 +505,13 @@ function SessionDetail({ initialSession, onBack }) {
 
     return (
         <div className="stg-detail">
-            {/* Full-screen quiz overlay when question is active */}
-            {activeQuestion && (
+            {/* Auto mode: each student works independently through their shuffled question list */}
+            {session.auto_mode && session.status === 'active' && (
+                <AutoQuizFlow session={session} sessionId={session.id} />
+            )}
+
+            {/* Manual mode: teacher activates questions one by one for all students */}
+            {!session.auto_mode && activeQuestion && (
                 <QuizOverlay
                     key={activeQuestion.id}
                     question={activeQuestion}
@@ -333,8 +537,8 @@ function SessionDetail({ initialSession, onBack }) {
 
             <MyTeamBanner session={session} />
 
-            {/* Show last question result between questions */}
-            {lastResult && !activeQuestion && (
+            {/* Show last question result between questions (manual mode only) */}
+            {!session.auto_mode && lastResult && !activeQuestion && (
                 <div className="stg-quiz-end-banner">
                     <h3>📊 Результаты вопроса</h3>
                     <div className="stg-quiz-end-opts">

@@ -36,6 +36,7 @@ class GameSession(Base):
     game_type:           Mapped[str]           = mapped_column(String(50), nullable=False)
     status:              Mapped[SessionStatus] = mapped_column(Enum(SessionStatus), default=SessionStatus.pending, nullable=False)
     language:            Mapped[str]           = mapped_column(String(2), default='uz', nullable=False)
+    auto_mode:           Mapped[bool]          = mapped_column(Boolean, default=False, nullable=False)
     course_id:           Mapped[Optional[int]] = mapped_column(ForeignKey("courses.id", ondelete="SET NULL"), nullable=True)
     created_by:          Mapped[int]           = mapped_column(ForeignKey("students.id", ondelete="CASCADE"), nullable=False)
     team_count:          Mapped[int]           = mapped_column(Integer, default=2, nullable=False)
@@ -94,6 +95,15 @@ class GameQuestion(Base):
 
     session: Mapped["GameSession"]      = relationship("GameSession", back_populates="questions")
     answers: Mapped[List["GameAnswer"]] = relationship("GameAnswer", back_populates="question", cascade="all, delete-orphan")
+
+
+class StudentQuestionOrder(Base):
+    __tablename__ = "student_question_orders"
+
+    id:           Mapped[int]      = mapped_column(primary_key=True, autoincrement=True)
+    session_id:   Mapped[int]      = mapped_column(ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False)
+    student_id:   Mapped[int]      = mapped_column(ForeignKey("students.id",     ondelete="CASCADE"), nullable=False)
+    question_ids: Mapped[list]     = mapped_column(JSON, nullable=False)  # shuffled list of question IDs
 
 
 class GameAnswer(Base):
