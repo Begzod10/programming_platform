@@ -321,8 +321,13 @@ function AutoQuizFlow({ session, sessionId }) {
                 const data = await res.json();
                 setResult(data);
                 advanceRef.current = setTimeout(advance, 2500);
+            } else {
+                // Unexpected error — don't strand the student on this question forever.
+                advanceRef.current = setTimeout(advance, 1500);
             }
-        } catch {}
+        } catch {
+            advanceRef.current = setTimeout(advance, 1500);
+        }
     };
 
     // Cleanup on unmount

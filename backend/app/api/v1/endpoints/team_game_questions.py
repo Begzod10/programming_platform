@@ -402,7 +402,10 @@ async def submit_answer_auto(
     if not member:
         raise HTTPException(status_code=403, detail="You are not a participant in this session")
 
-    # Check for duplicate
+    # Already answered (e.g. student refreshed mid-result or reopened the game
+    # before their local question index advanced) — replay their original
+    # result instead of erroring, so the client doesn't get stuck on this
+    # question with no way to move on.
     existing = (await db.execute(
         select(GameAnswer).where(
             GameAnswer.question_id == question_id,
@@ -410,7 +413,13 @@ async def submit_answer_auto(
         )
     )).scalar_one_or_none()
     if existing:
-        raise HTTPException(status_code=409, detail="Already answered")
+        return AutoAnswerResultRead(
+            student_id=student.id,
+            chosen_option=existing.chosen_option,
+            correct_option=q.correct_option,
+            is_correct=existing.is_correct,
+            points_earned=existing.points_earned,
+        )
 
     is_correct = body.chosen_option == q.correct_option
     points_earned = q.points if is_correct else 0
