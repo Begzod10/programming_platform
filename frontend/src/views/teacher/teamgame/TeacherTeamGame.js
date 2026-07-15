@@ -225,10 +225,10 @@ function StartModal({ session, onClose, onStarted }) {
         setAssignments(next);
     };
 
-    const start = async () => {
+    const start = async (overrideBody) => {
         setStarting(true); setError('');
         try {
-            const body = {
+            const body = overrideBody || {
                 team_assignments: session.teams.map(t => ({
                     team_id: t.id,
                     student_ids: (assignments[t.id] || []).map(s => s.id),
@@ -243,6 +243,14 @@ function StartModal({ session, onClose, onStarted }) {
             setError(msg);
         } finally { setStarting(false); }
     };
+
+    // Individual games don't split students into teams — each student plays alone.
+    const startIndividual = () => {
+        if (selected.size === 0) { setError('Выберите хотя бы одного студента'); return; }
+        start({ student_ids: Array.from(selected) });
+    };
+
+    const isIndividual = session.game_type === 'individual';
 
     // ── Step 1: pick students ──
     if (step === 1) return (
@@ -291,15 +299,21 @@ function StartModal({ session, onClose, onStarted }) {
                 <div className="tg-modal-actions">
                     <span className="tg-pick-count">{selected.size} выбрано</span>
                     <button className="tg-btn-secondary" onClick={onClose}>Отмена</button>
-                    <button className="tg-btn-primary" disabled={loading || selected.size === 0} onClick={goToAssign}>
-                        Распределить по командам →
-                    </button>
+                    {isIndividual ? (
+                        <button className="tg-btn-primary" disabled={loading || starting || selected.size === 0} onClick={startIndividual}>
+                            {starting ? 'Запуск...' : '▶ Начать игру'}
+                        </button>
+                    ) : (
+                        <button className="tg-btn-primary" disabled={loading || selected.size === 0} onClick={goToAssign}>
+                            Распределить по командам →
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
     );
 
-    // ── Step 2: assign to teams ──
+    // ── Step 2: assign to teams (team games only) ──
     const teams = session.teams;
     const totalAssigned = Object.values(assignments).reduce((s, arr) => s + arr.length, 0);
     return (
