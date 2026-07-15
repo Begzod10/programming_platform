@@ -18,11 +18,24 @@ from app.models.user import Student
 from app.schemas.team_game import (
     GameQuestionCreate, GameQuestionRead,
     AnswerSubmit, AnswerResultRead, QuestionEndPayload,
-    AutoQuestionRead, AutoAnswerResultRead,
+    AutoQuestionRead, AutoAnswerResultRead, AutoRankingEntry,
 )
 from app.ws.manager import manager
 
 router = APIRouter(redirect_slashes=False)
+
+
+async def _build_rankings(db: AsyncSession, session_id: int) -> List[AutoRankingEntry]:
+    """Current standings for a session, highest score first.
+
+    In individual mode each GameTeam is one student (team.name is already
+    the student's display name), so this doubles as a live per-student
+    ranking with no extra join needed.
+    """
+    teams = (await db.execute(
+        select(GameTeam).where(GameTeam.session_id == session_id).order_by(GameTeam.score.desc())
+    )).scalars().all()
+    return [AutoRankingEntry(id=t.id, name=t.name, color=t.color, score=t.score) for t in teams]
 
 
 async def _get_teacher_session(db: AsyncSession, session_id: int, teacher_id: int) -> GameSession:
@@ -429,6 +442,8 @@ async def submit_answer_auto(
             correct_option=q.correct_option,
             is_correct=existing.is_correct,
             points_earned=existing.points_earned,
+            my_team_id=member.team_id,
+            rankings=await _build_rankings(db, session_id),
         )
 
     is_correct = body.chosen_option == q.correct_option
@@ -456,15 +471,16 @@ async def submit_answer_auto(
         await db.rollback()
         raise HTTPException(status_code=409, detail="Already answered")
 
+    rankings = await _build_rankings(db, session_id)
+
     # Broadcast live score update for teacher leaderboard
     if is_correct:
-        teams = (await db.execute(
-            select(GameTeam).where(GameTeam.session_id == session_id).order_by(GameTeam.score.desc())
-        )).scalars().all()
         await manager.broadcast(session_id, {
             "type": "auto_score_update",
             "data": {
-                "team_scores": [{"team_id": t.id, "name": t.name, "color": t.color, "score": t.score} for t in teams]
+                "team_scores": [
+                    {"team_id": r.id, "name": r.name, "color": r.color, "score": r.score} for r in rankings
+                ]
             }
         })
 
@@ -474,6 +490,8 @@ async def submit_answer_auto(
         correct_option=q.correct_option,
         is_correct=is_correct,
         points_earned=points_earned,
+        my_team_id=member.team_id,
+        rankings=rankings,
     )
 
 

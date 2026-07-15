@@ -221,6 +221,30 @@ function QuizOverlay({ question, sessionId, revealData, onDone }) {
 }
 
 
+// ── Live ranking shown right after each answer in auto mode ────────────────────
+function LiveRanking({ rankings, myId }) {
+    if (!rankings || rankings.length === 0) return null;
+    return (
+        <div className="stg-live-rank">
+            <div className="stg-live-rank-title">🏆 Reyting</div>
+            <div className="stg-live-rank-list">
+                {rankings.map((r, i) => (
+                    <div
+                        key={r.id}
+                        className={`stg-live-rank-row${r.id === myId ? ' stg-live-rank-row--mine' : ''}`}
+                    >
+                        <span className="stg-live-rank-pos">{i + 1}</span>
+                        <span className="stg-live-rank-dot" style={{ background: r.color }} />
+                        <span className="stg-live-rank-name">{r.name}</span>
+                        <span className="stg-live-rank-score">{r.score}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+
 // ── Auto Quiz Flow (auto mode — each student gets personalized random order) ──
 function AutoQuizFlow({ session, sessionId }) {
     const storageKey = `auto_qidx_${sessionId}`;
@@ -446,12 +470,15 @@ function AutoQuizFlow({ session, sessionId }) {
             )}
 
             {showResult && (
-                <div className={`stg-quiz-result stg-quiz-result--${result.is_correct ? 'correct' : 'wrong'}`}>
-                    {result.is_correct
-                        ? <><span>✅ Правильно!</span><span className="stg-quiz-pts">+{result.points_earned} очков</span></>
-                        : <span>❌ Неправильно</span>
-                    }
-                </div>
+                <>
+                    <div className={`stg-quiz-result stg-quiz-result--${result.is_correct ? 'correct' : 'wrong'}`}>
+                        {result.is_correct
+                            ? <><span>✅ Правильно!</span><span className="stg-quiz-pts">+{result.points_earned} очков</span></>
+                            : <span>❌ Неправильно</span>
+                        }
+                    </div>
+                    <LiveRanking rankings={result.rankings} myId={result.my_team_id} />
+                </>
             )}
         </div>
     );

@@ -153,9 +153,18 @@ class AutoQuestionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AutoRankingEntry(BaseModel):
+    id:    int
+    name:  str
+    color: str
+    score: int
+
+
 class AutoAnswerResultRead(BaseModel):
     student_id:     int
     chosen_option:  int
     correct_option: int
     is_correct:     bool
     points_earned:  int
+    my_team_id:     Optional[int] = None
+    rankings:       List[AutoRankingEntry] = []
