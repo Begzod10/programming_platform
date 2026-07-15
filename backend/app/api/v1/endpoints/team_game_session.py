@@ -11,7 +11,7 @@ from app.core.security import decode_access_token
 from app.dependencies import get_db, get_current_teacher, get_current_student_optional
 from app.models.team_game import (
     GameSession, GameTeam, GameTeamMember, GameQuestion, GameAnswer,
-    SessionStatus, QuestionStatus, StudentQuestionOrder,
+    SessionStatus, QuestionStatus, StudentQuestionOrder, GameType,
 )
 from app.models.user import Student
 from app.schemas.team_game import (
@@ -218,10 +218,14 @@ async def create_session(
     db.add(session)
     await db.flush()
 
-    names = TEAM_NAMES[:body.team_count]
-    random.shuffle(names)
-    for name, color in names:
-        db.add(GameTeam(session_id=session.id, name=f"Team {name}", color=color))
+    # Individual games get one team per student at /start time — creating
+    # placeholder teams here would just show a confusing "Team Alpha/Beta"
+    # leaderboard before the session has even started.
+    if body.game_type == GameType.team:
+        names = TEAM_NAMES[:body.team_count]
+        random.shuffle(names)
+        for name, color in names:
+            db.add(GameTeam(session_id=session.id, name=f"Team {name}", color=color))
 
     await db.commit()
     return await _fetch_and_build(db, session.id)
