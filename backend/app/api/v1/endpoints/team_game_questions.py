@@ -363,6 +363,16 @@ async def get_my_questions(
         order = StudentQuestionOrder(session_id=session_id, student_id=student.id, question_ids=q_ids)
         db.add(order)
         await db.commit()
+    else:
+        # Sync in any questions the teacher added after this student's order was
+        # first created (e.g. mid-game) — append them so the student isn't stuck
+        # with a stale, incomplete list from before they joined or started.
+        existing_ids = set(order.question_ids)
+        new_ids = [q.id for q in all_questions if q.id not in existing_ids]
+        if new_ids:
+            random.shuffle(new_ids)
+            order.question_ids = order.question_ids + new_ids
+            await db.commit()
 
     q_map = {q.id: q for q in all_questions}
     return [q_map[qid] for qid in order.question_ids if qid in q_map]

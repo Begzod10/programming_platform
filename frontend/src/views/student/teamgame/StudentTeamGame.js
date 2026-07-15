@@ -260,7 +260,7 @@ function AutoQuizFlow({ session, sessionId }) {
     const currentQ = questions?.[qIdx];
 
     // Advance to next question
-    const advance = useCallback(() => {
+    const advance = useCallback(async () => {
         clearTimeout(advanceRef.current);
         advanceRef.current = null;
         clearInterval(timerRef.current);
@@ -269,12 +269,28 @@ function AutoQuizFlow({ session, sessionId }) {
         setClickable(false);
         setTimeLeft(null);
         if (qIdx + 1 >= (questions?.length ?? 0)) {
+            // Before declaring done, re-check with the server — the teacher may
+            // have added more questions mid-game, and /my-questions syncs those
+            // in for us, so a longer list here means there's more to do.
+            try {
+                const res = await fetch(`${API_URL}v1/game-sessions/${sessionId}/my-questions`, {
+                    headers: { ...headers() }
+                });
+                if (res.ok) {
+                    const fresh = await res.json();
+                    if (Array.isArray(fresh) && fresh.length > (questions?.length ?? 0)) {
+                        setQuestions(fresh);
+                        setQIdx(i => i + 1);
+                        return;
+                    }
+                }
+            } catch {}
             sessionStorage.removeItem(storageKey);
             setDone(true);
         } else {
             setQIdx(i => i + 1);
         }
-    }, [qIdx, questions, storageKey]);
+    }, [qIdx, questions, storageKey, sessionId]);
 
     // Reset click guard on each new question
     useEffect(() => {
