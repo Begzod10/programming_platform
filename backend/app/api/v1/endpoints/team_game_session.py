@@ -3,14 +3,14 @@ from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
-from sqlalchemy import select, text as sa_text
+from sqlalchemy import func, select, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, noload, load_only
 
 from app.core.security import decode_access_token
 from app.dependencies import get_db, get_current_teacher, get_current_student_optional
 from app.models.team_game import (
-    GameSession, GameTeam, GameTeamMember, GameQuestion,
+    GameSession, GameTeam, GameTeamMember, GameQuestion, GameAnswer,
     SessionStatus, QuestionStatus, StudentQuestionOrder,
 )
 from app.models.user import Student
@@ -50,8 +50,30 @@ async def _course_title(db: AsyncSession, course_id: Optional[int]) -> Optional[
     return row[0] if row else None
 
 
+async def _my_auto_progress_map(db: AsyncSession, session_ids: List[int],
+                                 student_id: Optional[int]) -> dict:
+    """For auto-mode sessions, map session_id -> (answered, total) for this student."""
+    if not student_id or not session_ids:
+        return {}
+    totals = dict((await db.execute(
+        select(GameQuestion.session_id, func.count(GameQuestion.id))
+        .where(GameQuestion.session_id.in_(session_ids))
+        .group_by(GameQuestion.session_id)
+    )).all())
+    if not totals:
+        return {}
+    answered = dict((await db.execute(
+        select(GameQuestion.session_id, func.count(GameAnswer.id))
+        .join(GameAnswer, GameAnswer.question_id == GameQuestion.id)
+        .where(GameQuestion.session_id.in_(list(totals.keys())), GameAnswer.student_id == student_id)
+        .group_by(GameQuestion.session_id)
+    )).all())
+    return {sid: (answered.get(sid, 0), total) for sid, total in totals.items()}
+
+
 def _build_session_read(session: GameSession, student_id: Optional[int] = None,
-                        course_title: Optional[str] = None) -> GameSessionRead:
+                        course_title: Optional[str] = None,
+                        my_auto_progress: Optional[tuple] = None) -> GameSessionRead:
     my_team_id = None
     teams_out = []
     for team in session.teams:
@@ -71,6 +93,13 @@ def _build_session_read(session: GameSession, student_id: Optional[int] = None,
         teams_out.append(GameTeamRead(id=team.id, name=team.name, color=team.color,
                                       score=team.score, members=members))
     teams_out.sort(key=lambda t: -t.score)
+
+    my_auto_answered = my_auto_total = None
+    my_auto_completed = None
+    if my_auto_progress is not None:
+        my_auto_answered, my_auto_total = my_auto_progress
+        my_auto_completed = my_auto_total > 0 and my_auto_answered >= my_auto_total
+
     return GameSessionRead(
         id=session.id,
         title=session.title,
@@ -86,6 +115,9 @@ def _build_session_read(session: GameSession, student_id: Optional[int] = None,
         created_at=session.created_at,
         updated_at=session.updated_at,
         my_team_id=my_team_id,
+        my_auto_completed=my_auto_completed,
+        my_auto_answered=my_auto_answered,
+        my_auto_total=my_auto_total,
     )
 
 
@@ -103,7 +135,8 @@ async def _fetch_and_build(db: AsyncSession, session_id: int,
                            student_id: Optional[int] = None) -> GameSessionRead:
     session = await _fetch_session(db, session_id)
     ctitle  = await _course_title(db, session.course_id)
-    return _build_session_read(session, student_id, ctitle)
+    progress_map = await _my_auto_progress_map(db, [session_id], student_id) if session.auto_mode else {}
+    return _build_session_read(session, student_id, ctitle, progress_map.get(session_id))
 
 
 async def _broadcast_session(db: AsyncSession, session_id: int) -> None:
@@ -221,7 +254,10 @@ async def list_sessions(
         )).all()
         titles = {r[0]: r[1] for r in rows}
 
-    return [_build_session_read(s, sid, titles.get(s.course_id)) for s in sessions]
+    auto_session_ids = [s.id for s in sessions if s.auto_mode]
+    progress_map = await _my_auto_progress_map(db, auto_session_ids, sid)
+
+    return [_build_session_read(s, sid, titles.get(s.course_id), progress_map.get(s.id)) for s in sessions]
 
 
 # ── Get single session ─────────────────────────────────────────────────────────
@@ -239,7 +275,8 @@ async def get_session(
         raise HTTPException(status_code=404, detail="Game session not found")
     sid    = current_student.id if current_student else None
     ctitle = await _course_title(db, session.course_id)
-    return _build_session_read(session, sid, ctitle)
+    progress_map = await _my_auto_progress_map(db, [session_id], sid) if session.auto_mode else {}
+    return _build_session_read(session, sid, ctitle, progress_map.get(session_id))
 
 
 # ── Teacher: list available students for a session ────────────────────────────
@@ -258,6 +295,21 @@ async def get_session_students(
         raise HTTPException(status_code=403, detail="Not your session")
 
     from app.models.user import UserRole
+    from app.models.group import Group, student_groups
+
+    # Teacher's own groups' membership — used both to scope student-less-of-a-course
+    # sessions to only this teacher's students, and to label each student's group.
+    group_rows = (await db.execute(
+        select(student_groups.c.student_id, Group.id, Group.name)
+        .join(Group, Group.id == student_groups.c.group_id)
+        .where(Group.teacher_id == teacher.id)
+    )).all()
+    # Keep only the first group per student (teachers may have one group per student)
+    student_group_map = {}
+    for sid, gid, gname in group_rows:
+        if sid not in student_group_map:
+            student_group_map[sid] = (gid, gname)
+
     if session.course_id:
         from app.models.course import student_courses
         rows = (await db.execute(
@@ -272,24 +324,16 @@ async def get_session_students(
             .order_by(Student.full_name)
         )).scalars().all()
     else:
-        rows = (await db.execute(
+        teacher_student_ids = list(student_group_map.keys())
+        rows = [] if not teacher_student_ids else (await db.execute(
             select(Student)
-            .where(Student.role == UserRole.student, Student.is_active == True)
+            .where(
+                Student.id.in_(teacher_student_ids),
+                Student.role == UserRole.student,
+                Student.is_active == True,
+            )
             .order_by(Student.full_name)
         )).scalars().all()
-
-    # Fetch teacher's group membership for each student in one query
-    from app.models.group import Group, student_groups
-    group_rows = (await db.execute(
-        select(student_groups.c.student_id, Group.id, Group.name)
-        .join(Group, Group.id == student_groups.c.group_id)
-        .where(Group.teacher_id == teacher.id)
-    )).all()
-    # Keep only the first group per student (teachers may have one group per student)
-    student_group_map = {}
-    for sid, gid, gname in group_rows:
-        if sid not in student_group_map:
-            student_group_map[sid] = (gid, gname)
 
     return [
         StudentRead(

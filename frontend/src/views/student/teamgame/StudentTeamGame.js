@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { API_URL, API_URL_DOC, headers, getToken } from '../../../api/search/base';
+import { useTranslation } from '../../../i18n/useTranslation';
 import './StudentTeamGame.css';
 import { Trophy } from 'lucide-react';
 
@@ -180,7 +181,7 @@ function QuizOverlay({ question, sessionId, revealData, onDone }) {
             </div>
 
             <div className="stg-quiz-options">
-                {question.options.map((opt, i) => (
+                {(lang === 'ru' && question.options_ru ? question.options_ru : question.options).map((opt, i) => (
                     <button
                         key={i}
                         className={getOptClass(i)}
@@ -403,7 +404,7 @@ function AutoQuizFlow({ session, sessionId }) {
             </div>
 
             <div className="stg-quiz-options">
-                {currentQ.options.map((opt, i) => (
+                {(lang === 'ru' && currentQ.options_ru ? currentQ.options_ru : currentQ.options).map((opt, i) => (
                     <button
                         key={i}
                         className={getOptClass(i)}
@@ -471,6 +472,19 @@ function ScoreBoard({ teams }) {
     );
 }
 
+function AlreadyCompletedNotice() {
+    const { t } = useTranslation();
+    return (
+        <div className="stg-quiz-overlay stg-already-completed">
+            <div className="stg-auto-done">
+                <div className="stg-auto-done-icon">✅</div>
+                <h3>{t('game.alreadyCompletedTitle')}</h3>
+                <p>{t('game.alreadyCompletedDesc')}</p>
+            </div>
+        </div>
+    );
+}
+
 function SessionDetail({ initialSession, onBack }) {
     const [session, setSession] = useState(initialSession);
     const [gone, setGone] = useState(false);
@@ -530,9 +544,13 @@ function SessionDetail({ initialSession, onBack }) {
 
     return (
         <div className="stg-detail">
-            {/* Auto mode: each student works independently through their shuffled question list */}
+            {/* Auto mode: each student works independently through their shuffled question list.
+                If they've already answered every question, show a notice instead of
+                letting them restart from question 1 on re-entry. */}
             {session.auto_mode && session.status === 'active' && (
-                <AutoQuizFlow session={session} sessionId={session.id} />
+                session.my_auto_completed
+                    ? <AlreadyCompletedNotice />
+                    : <AutoQuizFlow session={session} sessionId={session.id} />
             )}
 
             {/* Manual mode: teacher activates questions one by one for all students */}

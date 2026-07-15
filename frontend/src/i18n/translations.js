@@ -104,7 +104,11 @@ const translations = {
     "auth.noAccount":    "Hisobingiz yo'qmi?",
     "auth.register":     "Ro'yxatdan o'tish",
     "auth.errorInvalid": "Login yoki parol noto'g'ri",
-    "auth.success":      "Muvaffaqiyatli kirdingiz ✓"
+    "auth.success":      "Muvaffaqiyatli kirdingiz ✓",
+
+    // Team game — auto quiz
+    "game.alreadyCompletedTitle": "Siz bu testni allaqachon topshirdingiz",
+    "game.alreadyCompletedDesc":  "Har bir savolga faqat bir marta javob berish mumkin. Natijalaringizni reyting jadvalidan ko'rishingiz mumkin."
   },
   ru: {
     // Common
@@ -211,7 +215,11 @@ const translations = {
     "auth.noAccount":    "Нет аккаунта?",
     "auth.register":     "Зарегистрироваться",
     "auth.errorInvalid": "Неверный логин или пароль",
-    "auth.success":      "Вход выполнен ✓"
+    "auth.success":      "Вход выполнен ✓",
+
+    // Team game — auto quiz
+    "game.alreadyCompletedTitle": "Вы уже прошли этот тест",
+    "game.alreadyCompletedDesc":  "На каждый вопрос можно ответить только один раз. Результаты можно посмотреть в таблице лидеров."
   }
 };
 

@@ -85,6 +85,7 @@ class GameQuestion(Base):
     question_text:    Mapped[str]            = mapped_column(Text, nullable=False)
     question_text_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     options:          Mapped[list]          = mapped_column(JSON, nullable=False)  # list of 4 strings
+    options_ru:       Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # RU variants, same order/length as options
     correct_option: Mapped[int]            = mapped_column(Integer, nullable=False)  # 0-indexed
     time_limit:     Mapped[int]            = mapped_column(Integer, default=30, nullable=False)  # seconds
     points:         Mapped[int]            = mapped_column(Integer, default=1000, nullable=False)

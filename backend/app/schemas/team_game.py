@@ -39,6 +39,9 @@ class GameSessionRead(BaseModel):
     updated_at:          datetime
     my_team_id:          Optional[int]      = None
     current_question_id: Optional[int]      = None
+    my_auto_completed:   Optional[bool]      = None
+    my_auto_answered:    Optional[int]       = None
+    my_auto_total:       Optional[int]       = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -107,6 +110,7 @@ class GameQuestionRead(BaseModel):
     question_text:    str
     question_text_ru: Optional[str] = None
     options:          List[str]
+    options_ru:       Optional[List[str]] = None
     correct_option:   Optional[int] = None  # hidden until revealed
     time_limit:     int
     points:         int
@@ -142,6 +146,7 @@ class AutoQuestionRead(BaseModel):
     question_text:    str
     question_text_ru: Optional[str] = None
     options:          List[str]
+    options_ru:       Optional[List[str]] = None
     time_limit:       int
     points:           int
     order_index:      int

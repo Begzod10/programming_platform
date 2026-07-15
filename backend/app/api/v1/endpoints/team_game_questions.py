@@ -464,13 +464,20 @@ def _detect_lang(text: str) -> str:
     return 'ru' if any('Ѐ' <= c <= 'ӿ' for c in text) else 'uz'
 
 
-def _shuffle_options(options: list, correct_option: int):
-    """Shuffle options randomly; return (new_options, new_correct_option_index)."""
-    indexed = list(enumerate(options))
-    random.shuffle(indexed)
-    new_options = [opt for _, opt in indexed]
-    old_to_new = {old_idx: new_idx for new_idx, (old_idx, _) in enumerate(indexed)}
-    return new_options, old_to_new[correct_option]
+def _shuffle_permutation(length: int, correct_option: int):
+    """Build a random permutation of indices; return (order, new_correct_option_index).
+
+    `order[new_idx] = old_idx` — apply with _apply_permutation to reorder any
+    parallel options list (e.g. UZ and RU variants) consistently.
+    """
+    order = list(range(length))
+    random.shuffle(order)
+    old_to_new = {old_idx: new_idx for new_idx, old_idx in enumerate(order)}
+    return order, old_to_new[correct_option]
+
+
+def _apply_permutation(options: list, order: list) -> list:
+    return [options[old_idx] for old_idx in order]
 
 
 @router.post("/{session_id}/import-questions", response_model=List[GameQuestionRead])
@@ -530,12 +537,22 @@ async def import_questions_from_lesson(
         uz_lq = uz_qs[i] if i < len(uz_qs) else None
         ru_lq = ru_qs[i] if i < len(ru_qs) else None
         base = uz_lq or ru_lq
-        shuffled_opts, shuffled_correct = _shuffle_options(base.options, base.correct_option)
+        order, shuffled_correct = _shuffle_permutation(len(base.options), base.correct_option)
+        shuffled_opts = _apply_permutation(base.options, order)
+
+        # Only carry RU option variants when the paired RU question has the same
+        # option count — otherwise the index-aligned permutation can't be applied
+        # safely, so we drop options_ru rather than mismatch it against options.
+        shuffled_opts_ru = None
+        if uz_lq and ru_lq and len(ru_lq.options) == len(uz_lq.options):
+            shuffled_opts_ru = _apply_permutation(ru_lq.options, order)
+
         gq = GameQuestion(
             session_id=session_id,
             question_text=uz_lq.question_text if uz_lq else ru_lq.question_text,
             question_text_ru=ru_lq.question_text if ru_lq else None,
             options=shuffled_opts,
+            options_ru=shuffled_opts_ru,
             correct_option=shuffled_correct,
             time_limit=base.time_limit,
             points=base.points,
