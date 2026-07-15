@@ -2,13 +2,13 @@ import httpx
 import logging
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
+from sqlalchemy import select, text, delete
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
 from app.models.user import Student, UserRole
-from app.models.group import Group
+from app.models.group import Group, student_groups
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,34 @@ class GennisService:
             students_list = await cls.fetch_group_students(group.gennis_id, token)
             for s_data in students_list:
                 await cls._sync_student(db, s_data, group.id)
+
+            # Gennis endi bu guruhda ko'rsatmayotgan talabalarni guruhdan chiqaramiz.
+            # students_list bo'sh bo'lsa (Gennis vaqtinchalik hech narsa qaytarmasa) hech
+            # kimni o'chirmaymiz — bu holat ehtimol API xatosi, haqiqiy bo'shatish emas.
+            current_student_gennis_ids = {s.get("id") for s in students_list if s.get("id") is not None}
+            if current_student_gennis_ids:
+                stale_members_result = await db.execute(
+                    select(Student.id, Student.username)
+                    .join(student_groups, student_groups.c.student_id == Student.id)
+                    .where(
+                        student_groups.c.group_id == group.id,
+                        Student.gennis_id.isnot(None),
+                        Student.gennis_id.notin_(current_student_gennis_ids),
+                    )
+                )
+                stale_members = stale_members_result.all()
+                if stale_members:
+                    stale_student_ids = [row[0] for row in stale_members]
+                    for _, username in stale_members:
+                        logger.info(
+                            f"Talaba '{username}' endi guruh '{group.name}'da emas — chiqarilmoqda."
+                        )
+                    await db.execute(
+                        delete(student_groups).where(
+                            student_groups.c.group_id == group.id,
+                            student_groups.c.student_id.in_(stale_student_ids),
+                        )
+                    )
 
         # Gennis endi bu o'qituvchiga bermayotgan guruhlarni bo'shatamiz (teacher_id = NULL).
         # groups_data bo'sh bo'lsa (Gennis vaqtinchalik hech narsa qaytarmasa) hech narsani
