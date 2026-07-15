@@ -122,8 +122,15 @@ def _build_session_read(session: GameSession, student_id: Optional[int] = None,
 
 
 async def _fetch_session(db: AsyncSession, session_id: int) -> GameSession:
+    # populate_existing=True forces a refresh of already-identity-mapped relationships
+    # (e.g. .teams) within the same request/transaction — without it, a handler that
+    # mutates teams via raw db.add()/delete() (not through the ORM collection) and then
+    # re-fetches in the same session would see the stale pre-mutation collection.
     result = await db.execute(
-        select(GameSession).where(GameSession.id == session_id).options(*_load_opts())
+        select(GameSession)
+        .where(GameSession.id == session_id)
+        .options(*_load_opts())
+        .execution_options(populate_existing=True)
     )
     session = result.scalar_one_or_none()
     if not session:
