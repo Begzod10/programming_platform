@@ -62,13 +62,34 @@ class GennisService:
 
         await db.flush()
 
+        current_gennis_ids = {g_data.get("id") for g_data in groups_data if g_data.get("id") is not None}
+
         for g_data in groups_data:
             group = await cls._sync_group(db, g_data, teacher.id)
-            
+
             # Guruh talabalarini yangilash
             students_list = await cls.fetch_group_students(group.gennis_id, token)
             for s_data in students_list:
                 await cls._sync_student(db, s_data, group.id)
+
+        # Gennis endi bu o'qituvchiga bermayotgan guruhlarni bo'shatamiz (teacher_id = NULL).
+        # groups_data bo'sh bo'lsa (Gennis vaqtinchalik hech narsa qaytarmasa) hech narsani
+        # o'chirmaymiz — bu holat ehtimol API xatosi, haqiqiy bo'shatish emas.
+        if current_gennis_ids:
+            stale_result = await db.execute(
+                select(Group).where(
+                    Group.teacher_id == teacher.id,
+                    Group.gennis_id.isnot(None),
+                    Group.gennis_id.notin_(current_gennis_ids),
+                )
+            )
+            stale_groups = stale_result.scalars().all()
+            for stale_group in stale_groups:
+                logger.info(
+                    f"Guruh '{stale_group.name}' (gennis_id={stale_group.gennis_id}) endi "
+                    f"o'qituvchi {teacher.username} da emas — bo'shatilmoqda."
+                )
+                stale_group.teacher_id = None
 
         await db.commit()
         logger.info(f"O'qituvchi {teacher.username} sinxronizatsiyasi yakunlandi.")
