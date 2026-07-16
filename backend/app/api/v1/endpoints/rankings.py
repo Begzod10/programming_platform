@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from app.dependencies import get_db, get_current_student, get_current_instructor, get_current_student_optional
 from app.services.ranking_service import RankingService
 from app.schemas.ranking import LeaderboardItem, MyRankingRead, RankingUpdate
 from app.models.user import Student, UserRole
+from app.models.point_adjustment import PointAdjustment
 from typing import List, Literal, Optional
 
 router = APIRouter()
@@ -390,34 +392,68 @@ async def delete_ranking(
     return None
 
 
+class PointAdjustmentRequest(BaseModel):
+    """Payload for manual /rankings/(add|subtract)-points calls.
+
+    `reason` is required so every manual mutation lands in the audit ledger
+    with human-readable context. Frontend does not currently call these
+    endpoints (grepped 2026-07-16) so requiring a body is a safe change.
+    """
+    student_id: int = Field(..., description="Target student id")
+    points: int = Field(..., ge=1, description="Absolute point count (>=1)")
+    reason: str = Field(..., min_length=1, max_length=500,
+                        description="Why this adjustment is being made")
+
+
 @router.post("/add-points")
 async def add_points(
-        student_id: int = Query(...),
-        points: int = Query(..., ge=1),
+        payload: PointAdjustmentRequest,
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Studentga ball qo'shish"""
+    """Studentga ball qo'shish.
+
+    Writes a PointAdjustment audit row inside the same transaction as the
+    student.total_points mutation so the recalc script can reconstruct the
+    manual term of the points identity.
+    """
     service = RankingService(db)
-    result = await service.add_points_to_student(student_id, points)
+    result = await service.add_points_to_student(payload.student_id, payload.points)
     if not result:
         raise HTTPException(status_code=404, detail="Student topilmadi")
-    return {"message": f"{points} ball qo'shildi!", "total_points": result.total_points}
+    db.add(PointAdjustment(
+        student_id=payload.student_id,
+        delta=payload.points,
+        actor_id=current_teacher.id,
+        reason=payload.reason,
+    ))
+    await db.commit()
+    return {"message": f"{payload.points} ball qo'shildi!", "total_points": result.total_points}
 
 
 @router.post("/subtract-points")
 async def subtract_points(
-        student_id: int = Query(...),
-        points: int = Query(..., ge=1),
+        payload: PointAdjustmentRequest,
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
-    """Studentdan ball ayirish"""
+    """Studentdan ball ayirish.
+
+    Writes a PointAdjustment audit row with a NEGATIVE delta inside the same
+    transaction as the student.total_points mutation.
+    """
     service = RankingService(db)
-    result = await service.subtract_points_from_student(student_id, points)
+    result = await service.subtract_points_from_student(payload.student_id, payload.points)
     if not result:
         raise HTTPException(status_code=404, detail="Student topilmadi")
-    return {"message": f"{points} ball ayirildi!", "total_points": result.total_points}
+    db.add(PointAdjustment(
+        student_id=payload.student_id,
+        delta=-payload.points,
+        actor_id=current_teacher.id,
+        reason=payload.reason,
+    ))
+    await db.commit()
+    return {"message": f"{payload.points} ball ayirildi!", "total_points": result.total_points}
 
 
 @router.post("/recalculate")

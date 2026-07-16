@@ -11,8 +11,13 @@ Covers:
 - Course progress requires authentication
 """
 
+import asyncio
+import uuid
+
 import pytest
+import pytest_asyncio
 from httpx import AsyncClient
+from sqlalchemy import select
 
 # Placeholder IDs that don't exist in the test DB
 COURSE_ID = 99999
@@ -93,3 +98,160 @@ async def test_get_course_progress_requires_auth_returns_401(async_client: Async
         f"{BASE}/{LESSON_ID}/exercises/progress"
     )
     assert resp.status_code == 401
+
+
+# ── Idempotency: concurrent scoring inserts must award points exactly once ────
+
+
+@pytest_asyncio.fixture
+async def scoring_exercise_setup(db_session):
+    """Insert a Student + Course + Lesson + fill-in-blank Exercise.
+
+    Returns (student_id, exercise_id, exercise_points).
+    """
+    from app.models.course import Course
+    from app.models.exercise import Exercise
+    from app.models.lesson import Lesson
+    from app.models.user import Student, UserRole
+
+    uid = uuid.uuid4().hex[:8]
+
+    teacher = Student(
+        username=f"teach_{uid}",
+        email=f"teach_{uid}@example.com",
+        hashed_password="x",
+        role=UserRole.teacher,
+    )
+    student = Student(
+        username=f"stud_{uid}",
+        email=f"stud_{uid}@example.com",
+        hashed_password="x",
+        role=UserRole.student,
+        total_points=0,
+    )
+    db_session.add_all([teacher, student])
+    await db_session.commit()
+    await db_session.refresh(teacher)
+    await db_session.refresh(student)
+
+    course = Course(
+        title=f"Course {uid}",
+        description="test",
+        instructor_id=teacher.id,
+        difficulty_level="Beginner",
+        duration_weeks=1,
+        max_points=100,
+    )
+    db_session.add(course)
+    await db_session.commit()
+    await db_session.refresh(course)
+
+    lesson = Lesson(course_id=course.id, title="L1", points_reward=0)
+    db_session.add(lesson)
+    await db_session.commit()
+    await db_session.refresh(lesson)
+
+    exercise = Exercise(
+        lesson_id=lesson.id,
+        title="Fill it",
+        description="1+1 = ___",
+        exercise_type="fill_in_blank",
+        correct_answers="2",
+        points=17,
+    )
+    db_session.add(exercise)
+    await db_session.commit()
+    await db_session.refresh(exercise)
+
+    return student.id, exercise.id, exercise.points
+
+
+async def test_concurrent_correct_submissions_award_points_once(scoring_exercise_setup):
+    """Two racing correct submissions must yield exactly one scoring row.
+
+    The partial unique index on exercise_submissions (student_id, exercise_id)
+    WHERE score > 0 is the invariant. Regardless of which submission wins the
+    race, student.total_points must move by exactly exercise.points, not 2x.
+    """
+    from app.db.database import AsyncSessionLocal
+    from app.models.exercise import ExerciseSubmission
+    from app.models.user import Student
+    from app.schemas.exercise import ExerciseSubmitRequest
+    from app.services.exercise_service import submit_exercise
+
+    student_id, exercise_id, points = scoring_exercise_setup
+
+    async def _one_submit():
+        # Each concurrent task uses its own session, matching real request flow.
+        async with AsyncSessionLocal() as db:
+            return await submit_exercise(
+                db, exercise_id, student_id,
+                ExerciseSubmitRequest(student_answer="2", time_spent_ms=100),
+            )
+
+    results = await asyncio.gather(
+        _one_submit(), _one_submit(), return_exceptions=True,
+    )
+    # Neither call is allowed to 500 out — the IntegrityError must be caught.
+    for r in results:
+        assert not isinstance(r, Exception), f"submit raised: {r!r}"
+
+    async with AsyncSessionLocal() as db:
+        # Exactly one scoring row.
+        scoring_rows = (await db.execute(
+            select(ExerciseSubmission).where(
+                ExerciseSubmission.student_id == student_id,
+                ExerciseSubmission.exercise_id == exercise_id,
+                ExerciseSubmission.score > 0,
+            )
+        )).scalars().all()
+        assert len(scoring_rows) == 1, (
+            f"expected exactly 1 scoring row, got {len(scoring_rows)}"
+        )
+        assert scoring_rows[0].score == points
+
+        # Total points bumped by exactly `points`, never doubled.
+        st = (await db.execute(
+            select(Student).where(Student.id == student_id)
+        )).scalar_one()
+        assert st.total_points == points, (
+            f"total_points={st.total_points}, expected {points}"
+        )
+
+
+async def test_repeat_correct_submission_after_scoring_stays_at_one_award(
+    scoring_exercise_setup,
+):
+    """A second correct submission (sequential) must not add points a second time."""
+    from app.db.database import AsyncSessionLocal
+    from app.models.exercise import ExerciseSubmission
+    from app.models.user import Student
+    from app.schemas.exercise import ExerciseSubmitRequest
+    from app.services.exercise_service import submit_exercise
+
+    student_id, exercise_id, points = scoring_exercise_setup
+
+    async with AsyncSessionLocal() as db:
+        await submit_exercise(
+            db, exercise_id, student_id,
+            ExerciseSubmitRequest(student_answer="2", time_spent_ms=100),
+        )
+    async with AsyncSessionLocal() as db:
+        await submit_exercise(
+            db, exercise_id, student_id,
+            ExerciseSubmitRequest(student_answer="2", time_spent_ms=100),
+        )
+
+    async with AsyncSessionLocal() as db:
+        scoring_rows = (await db.execute(
+            select(ExerciseSubmission).where(
+                ExerciseSubmission.student_id == student_id,
+                ExerciseSubmission.exercise_id == exercise_id,
+                ExerciseSubmission.score > 0,
+            )
+        )).scalars().all()
+        assert len(scoring_rows) == 1
+        st = (await db.execute(
+            select(Student).where(Student.id == student_id)
+        )).scalar_one()
+        assert st.total_points == points
