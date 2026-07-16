@@ -95,8 +95,16 @@ class RankingService:
             offset: int = 0,
             level: str = None,
             group_id: int = None,
+            peer_student_id: int = None,
     ):
-        from app.models.group import student_groups
+        """Leaderboard query.
+
+        peer_student_id: when set, restrict the ranking to students who share
+        at least one teacher with the given student (i.e. the caller's peers
+        under any of their teachers). Used to scope the student-facing
+        leaderboard so it doesn't leak platform-wide totals.
+        """
+        from app.models.group import Group, student_groups
         sort_column_map = {
             "daily": Ranking.daily_points,
             "weekly": Ranking.weekly_points + Ranking.daily_points,
@@ -134,6 +142,19 @@ class RankingService:
                     select(student_groups.c.student_id).where(student_groups.c.group_id == group_id)
                 )
             )
+
+        if peer_student_id is not None:
+            my_teachers_subq = (
+                select(Group.teacher_id)
+                .join(student_groups, student_groups.c.group_id == Group.id)
+                .where(student_groups.c.student_id == peer_student_id)
+            )
+            peer_ids_subq = (
+                select(student_groups.c.student_id)
+                .join(Group, Group.id == student_groups.c.group_id)
+                .where(Group.teacher_id.in_(my_teachers_subq))
+            )
+            query = query.where(Ranking.student_id.in_(peer_ids_subq))
 
         query = query.order_by(target_col.desc()).limit(limit).offset(offset)
 

@@ -26,8 +26,6 @@ _PROJECT_WINDOW_SQL = {
 async def get_project_leaderboard(
         period: Literal["all", "day", "week", "month"] = Query("all"),
         course_id: Optional[int] = Query(None, description="Restrict ranking to a single course"),
-        group_id: Optional[int] = Query(None, description="Restrict ranking to students in a group"),
-        teacher_id: Optional[int] = Query(None, description="Restrict ranking to students of a teacher"),
         search: Optional[str] = Query(None, description="Filter by username or full name (ILIKE)"),
         skip: int = Query(0, ge=0),
         limit: int = Query(50, ge=1, le=100),
@@ -40,13 +38,14 @@ async def get_project_leaderboard(
     Under Review). Draft and Rejected are excluded. Each row also carries
     the student's strongest course in the window so the FE can render the
     same "best_course +N" pill as the points-leaderboard.
+
+    Auto-scoping (no manual teacher/group filters):
+      - Teacher caller  → limited to students in the teacher's own groups.
+      - Student caller  → limited to peers under any of the student's teachers.
+      - Anonymous/other → platform-wide (unchanged).
     """
-    # All three clauses below are injection-safe:
-    #   window_clause  — value from a closed dict keyed by Literal["all","day","week","month"];
-    #                    FastAPI validates the enum before this function runs.
-    #   course_clause  — literal string containing only the :course_id named param.
-    #   search_clause  — literal string containing only the :search named param.
-    # None of them ever interpolate raw user input into the SQL text.
+    # course_clause and search_clause are injection-safe — they never
+    # interpolate raw user input into the SQL text, only add named params.
     assert period in _PROJECT_WINDOW_SQL, f"unexpected period: {period!r}"
     window_clause = _PROJECT_WINDOW_SQL[period]
     course_clause = "AND l.course_id = :course_id" if course_id is not None else ""
@@ -55,8 +54,9 @@ async def get_project_leaderboard(
         if search else ""
     )
 
-    # When the caller is a teacher, restrict the ranking to their own students only.
+    # Scope by caller role.
     is_teacher = current_user is not None and current_user.role == UserRole.teacher
+    is_student = current_user is not None and current_user.role == UserRole.student
     teacher_clause = (
         """AND t.student_id IN (
             SELECT sg.student_id
@@ -66,30 +66,30 @@ async def get_project_leaderboard(
         )"""
         if is_teacher else ""
     )
-    group_clause = (
-        "AND t.student_id IN (SELECT student_id FROM student_groups WHERE group_id = :group_id)"
-        if group_id is not None else ""
-    )
-    filter_teacher_clause = (
+    peer_clause = (
         """AND t.student_id IN (
-            SELECT sg.student_id FROM student_groups sg
+            SELECT sg.student_id
+            FROM student_groups sg
             JOIN groups g ON g.id = sg.group_id
-            WHERE g.teacher_id = :filter_teacher_id
+            WHERE g.teacher_id IN (
+                SELECT g2.teacher_id
+                FROM student_groups sg2
+                JOIN groups g2 ON g2.id = sg2.group_id
+                WHERE sg2.student_id = :peer_student_id
+            )
         )"""
-        if teacher_id is not None else ""
+        if is_student else ""
     )
 
     params = {"skip": skip, "limit": limit}
     if course_id is not None:
         params["course_id"] = course_id
-    if group_id is not None:
-        params["group_id"] = group_id
-    if teacher_id is not None:
-        params["filter_teacher_id"] = teacher_id
     if search:
         params["search"] = f"%{search.strip()}%"
     if is_teacher:
         params["teacher_id"] = current_user.id
+    if is_student:
+        params["peer_student_id"] = current_user.id
 
     # totals CTE: per-student aggregate within the window/course filter
     sql = text(f"""
@@ -149,8 +149,7 @@ async def get_project_leaderboard(
             WHERE 1 = 1
               {search_clause}
               {teacher_clause}
-              {group_clause}
-              {filter_teacher_clause}
+              {peer_clause}
         )
         SELECT
             rank, student_id, username, full_name, avatar_url, current_level,
@@ -181,7 +180,7 @@ async def get_project_leaderboard(
         }
         for r in rows
     ]
-    return {"items": items, "total": total, "period": period, "course_id": course_id, "group_id": group_id}
+    return {"items": items, "total": total, "period": period, "course_id": course_id}
 
 
 @router.get("/project-leaderboard/courses")
@@ -203,46 +202,6 @@ async def list_courses_for_filter(
     return [{"id": r["id"], "title": r["title"]} for r in rows]
 
 
-@router.get("/teachers")
-async def list_teachers_for_filter(
-        db: AsyncSession = Depends(get_db),
-):
-    """Teachers list for the leaderboard's teacher-filter dropdown."""
-    sql = text("""
-        SELECT s.id, s.full_name, s.username,
-               COUNT(DISTINCT sg.student_id) AS student_count
-        FROM students s
-        JOIN groups g ON g.teacher_id = s.id
-        JOIN student_groups sg ON sg.group_id = g.id
-        GROUP BY s.id, s.full_name, s.username
-        HAVING COUNT(DISTINCT sg.student_id) > 0
-        ORDER BY s.full_name
-    """)
-    rows = (await db.execute(sql)).mappings().all()
-    return [
-        {"id": r["id"], "full_name": r["full_name"], "username": r["username"], "student_count": r["student_count"]}
-        for r in rows
-    ]
-
-
-@router.get("/groups")
-async def list_groups_for_filter(
-        db: AsyncSession = Depends(get_db),
-):
-    """Groups list for the leaderboard's group-filter dropdown."""
-    sql = text("""
-        SELECT g.id, g.name,
-               COUNT(sg.student_id) AS student_count
-        FROM groups g
-        JOIN student_groups sg ON sg.group_id = g.id
-        GROUP BY g.id, g.name
-        HAVING COUNT(sg.student_id) > 0
-        ORDER BY g.name
-    """)
-    rows = (await db.execute(sql)).mappings().all()
-    return [{"id": r["id"], "name": r["name"], "student_count": r["student_count"]} for r in rows]
-
-
 # ========== STUDENT ENDPOINTS ==========
 
 @router.get("/leaderboard", response_model=List[LeaderboardItem])
@@ -251,17 +210,26 @@ async def get_leaderboard(
         limit: int = Query(10, ge=1, le=100),
         offset: int = Query(0, ge=0),
         level: str = Query(None),
-        group_id: Optional[int] = Query(None, description="Restrict to students in a group"),
-        db: AsyncSession = Depends(get_db)
+        current_user: Optional[Student] = Depends(get_current_student_optional),
+        db: AsyncSession = Depends(get_db),
 ):
-    """Leaderboard - Tanlangan period bo'yicha dinamik o'rin (rank) bilan."""
+    """Leaderboard - Tanlangan period bo'yicha dinamik o'rin (rank) bilan.
+
+    For authenticated students the ranking is auto-scoped to peers under any
+    of their teachers, so a student never sees platform-wide totals.
+    """
+    peer_id = (
+        current_user.id
+        if current_user is not None and current_user.role == UserRole.student
+        else None
+    )
     service = RankingService(db)
     rankings = await service.get_leaderboard(
         period=period,
         limit=limit,
         offset=offset,
         level=level,
-        group_id=group_id,
+        peer_student_id=peer_id,
     )
 
     result = []

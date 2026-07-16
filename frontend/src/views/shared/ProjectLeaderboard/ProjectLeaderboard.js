@@ -103,24 +103,18 @@ export default function ProjectLeaderboard({ role = 'student' }) {
     const [period,  setPeriod]  = useState('all');
     const [courseId, setCourseId] = useState('');
     const [courses, setCourses] = useState([]);
-    const [groupId,   setGroupId]   = useState('');
-    const [groups,    setGroups]    = useState([]);
-    const [teacherId, setTeacherId] = useState('');
-    const [teachers,  setTeachers]  = useState([]);
 
     const searchTimer = useRef(null);
     const bodyRef     = useRef(null);
 
-    const fetchData = (skip, searchVal, periodVal, courseIdVal, groupIdVal, teacherIdVal) => {
+    const fetchData = (skip, searchVal, periodVal, courseIdVal) => {
         setLoading(true);
         setError('');
         const q  = searchVal    ? `&search=${encodeURIComponent(searchVal)}` : '';
         const p  = `&period=${encodeURIComponent(periodVal || 'all')}`;
         const c  = courseIdVal  ? `&course_id=${encodeURIComponent(courseIdVal)}` : '';
-        const g  = groupIdVal   ? `&group_id=${encodeURIComponent(groupIdVal)}` : '';
-        const t  = teacherIdVal ? `&teacher_id=${encodeURIComponent(teacherIdVal)}` : '';
         request(
-            `${API_URL}v1/rankings/project-leaderboard?skip=${skip}&limit=${LIMIT}${q}${p}${c}${g}${t}`,
+            `${API_URL}v1/rankings/project-leaderboard?skip=${skip}&limit=${LIMIT}${q}${p}${c}`,
             'GET', null, headers()
         )
             .then(res => { setItems(res?.items || []); setTotal(res?.total || 0); })
@@ -132,13 +126,7 @@ export default function ProjectLeaderboard({ role = 'student' }) {
         request(`${API_URL}v1/rankings/project-leaderboard/courses`, 'GET', null, headers())
             .then(res => setCourses(Array.isArray(res) ? res : []))
             .catch(() => setCourses([]));
-        request(`${API_URL}v1/rankings/groups`, 'GET', null, headers())
-            .then(res => setGroups(Array.isArray(res) ? res : []))
-            .catch(() => setGroups([]));
-        request(`${API_URL}v1/rankings/teachers`, 'GET', null, headers())
-            .then(res => setTeachers(Array.isArray(res) ? res : []))
-            .catch(() => setTeachers([]));
-        fetchData(0, '', 'all', '', '', '');
+        fetchData(0, '', 'all', '');
     }, []);  // eslint-disable-line
 
     const handleSearch = (e) => {
@@ -146,14 +134,14 @@ export default function ProjectLeaderboard({ role = 'student' }) {
         setSearch(val);
         setPage(0);
         clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => fetchData(0, val, period, courseId, groupId, teacherId), 420);
+        searchTimer.current = setTimeout(() => fetchData(0, val, period, courseId), 420);
     };
 
     const handlePeriod = (next) => {
         if (next === period) return;
         setPeriod(next);
         setPage(0);
-        fetchData(0, search, next, courseId, groupId, teacherId);
+        fetchData(0, search, next, courseId);
         bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -161,29 +149,13 @@ export default function ProjectLeaderboard({ role = 'student' }) {
         const next = e.target.value;
         setCourseId(next);
         setPage(0);
-        fetchData(0, search, period, next, groupId, teacherId);
-        bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
-    const handleGroup = (e) => {
-        const next = e.target.value;
-        setGroupId(next);
-        setPage(0);
-        fetchData(0, search, period, courseId, next, teacherId);
-        bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
-    const handleTeacher = (e) => {
-        const next = e.target.value;
-        setTeacherId(next);
-        setPage(0);
-        fetchData(0, search, period, courseId, groupId, next);
+        fetchData(0, search, period, next);
         bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handlePage = (p) => {
         setPage(p);
-        fetchData(p * LIMIT, search, period, courseId, groupId, teacherId);
+        fetchData(p * LIMIT, search, period, courseId);
         bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -194,7 +166,7 @@ export default function ProjectLeaderboard({ role = 'student' }) {
         : top3.map((s, i) => ({ s, rank: i + 1 }));
 
     const maxPts = (items[0]?.project_points) || 1;
-    const showPodium = period === 'all' && page === 0 && !search && !courseId && !groupId && !teacherId && top3.length >= 1;
+    const showPodium = period === 'all' && page === 0 && !search && !courseId && top3.length >= 1;
 
     const pages = Math.ceil(total / LIMIT);
     const pageButtons = () => {
@@ -239,7 +211,7 @@ export default function ProjectLeaderboard({ role = 'student' }) {
                         {search && (
                             <button
                                 className="tsr-search-clear"
-                                onClick={() => { setSearch(''); fetchData(0, '', period, courseId, groupId, teacherId); setPage(0); }}
+                                onClick={() => { setSearch(''); fetchData(0, '', period, courseId); setPage(0); }}
                             >✕</button>
                         )}
                     </div>
@@ -259,20 +231,6 @@ export default function ProjectLeaderboard({ role = 'student' }) {
                         </button>
                     ))}
 
-                    {teachers.length > 0 && (
-                        <select
-                            className="tsr-course-select"
-                            value={teacherId}
-                            onChange={handleTeacher}
-                            aria-label="Учитель"
-                        >
-                            <option value="">Все учителя</option>
-                            {teachers.map(t => (
-                                <option key={t.id} value={t.id}>{t.full_name || t.username}</option>
-                            ))}
-                        </select>
-                    )}
-
                     {courses.length > 0 && (
                         <select
                             className="tsr-course-select"
@@ -283,19 +241,6 @@ export default function ProjectLeaderboard({ role = 'student' }) {
                             <option value="">Все курсы</option>
                             {courses.map(c => (
                                 <option key={c.id} value={c.id}>{c.title}</option>
-                            ))}
-                        </select>
-                    )}
-                    {groups.length > 0 && (
-                        <select
-                            className="tsr-course-select"
-                            value={groupId}
-                            onChange={handleGroup}
-                            aria-label="Группа"
-                        >
-                            <option value="">Все группы</option>
-                            {groups.map(g => (
-                                <option key={g.id} value={g.id}>{g.name}</option>
                             ))}
                         </select>
                     )}
