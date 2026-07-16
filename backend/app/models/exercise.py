@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
-from sqlalchemy import Integer, String, Text, Boolean, DateTime, ForeignKey, func
+from sqlalchemy import (
+    Integer, String, Text, Boolean, DateTime, ForeignKey, Index, func, text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 import enum
@@ -93,3 +95,18 @@ class ExerciseSubmission(Base):
 
     exercise: Mapped["Exercise"] = relationship("Exercise", back_populates="submissions")
     student: Mapped["Student"] = relationship("Student")
+
+    # DB-level idempotency for point awards. Only ONE scoring submission per
+    # (student, exercise) is permitted; non-scoring resubmissions (score=0)
+    # remain unrestricted so students can keep practicing. Postgres + SQLite
+    # both support partial unique indexes with this syntax.
+    __table_args__ = (
+        Index(
+            "uq_exercise_submissions_scoring",
+            "student_id",
+            "exercise_id",
+            unique=True,
+            postgresql_where=text("score > 0"),
+            sqlite_where=text("score > 0"),
+        ),
+    )

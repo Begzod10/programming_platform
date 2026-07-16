@@ -229,36 +229,25 @@ async def run_ai_review_for_project(
     project.ai_improvements = _json.dumps(improvements, ensure_ascii=False) if improvements else None
     project.ai_bugs = _json.dumps(bugs, ensure_ascii=False) if bugs else None
 
-    # Award lesson completion only on a passing score. The LessonCompletion
-    # row is the gate that unlocks the next lesson for the student, so it must
-    # not be created on mere submission — only on approval (score ≥ 75).
-    if new_points >= 75:
-        sub_res = await db.execute(
-            select(Submission).where(Submission.project_id == project.id)
+    # Reconcile LessonCompletion + lesson.points_reward in one place so an
+    # AI re-grade that drops the project below the pass threshold also
+    # unwinds the previously-awarded lesson reward (previously this only
+    # ran on Approved-first-time; a demotion left the reward permanently
+    # credited).
+    from app.services.completion_reconciler import reconcile_lesson_completion
+    from app.services.project_service import PROJECT_PASS_THRESHOLD
+    sub_res = await db.execute(
+        select(Submission).where(Submission.project_id == project.id)
+    )
+    submission = sub_res.scalar_one_or_none()
+    if submission and submission.lesson_id:
+        await reconcile_lesson_completion(
+            db,
+            student_id=project.student_id,
+            lesson_id=submission.lesson_id,
+            passing=new_points >= PROJECT_PASS_THRESHOLD,
+            ranking_service=ranking_service,
         )
-        submission = sub_res.scalar_one_or_none()
-        if submission and submission.lesson_id:
-            existing = await db.execute(
-                select(LessonCompletion).where(
-                    LessonCompletion.student_id == project.student_id,
-                    LessonCompletion.lesson_id == submission.lesson_id,
-                )
-            )
-            if not existing.scalar_one_or_none():
-                from app.models.lesson import Lesson
-                lesson_res = await db.execute(
-                    select(Lesson).where(Lesson.id == submission.lesson_id)
-                )
-                lesson = lesson_res.scalar_one_or_none()
-                db.add(LessonCompletion(
-                    student_id=project.student_id,
-                    lesson_id=submission.lesson_id,
-                ))
-                if lesson:
-                    points_reward = getattr(lesson, "points_reward", 0) or 0
-                    if points_reward > 0:
-                        await ranking_service.add_points_to_student(
-                            project.student_id, points_reward)
 
     await db.commit()
 

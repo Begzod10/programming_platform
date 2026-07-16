@@ -292,25 +292,20 @@ async def review_project(
         )
         lesson = lesson_res.scalar_one_or_none()
         if lesson:
-            # Create LessonCompletion on passing score so the next lesson
-            # unlocks. Points reward is only awarded here — not on submission.
-            if data.points >= 75:
-                existing_comp = await db.execute(
-                    select(LessonCompletion).where(
-                        LessonCompletion.student_id == project.student_id,
-                        LessonCompletion.lesson_id == submission.lesson_id,
-                    )
-                )
-                if not existing_comp.scalar_one_or_none():
-                    db.add(LessonCompletion(
-                        student_id=project.student_id,
-                        lesson_id=submission.lesson_id,
-                    ))
-                    points_reward = getattr(lesson, "points_reward", 0) or 0
-                    if points_reward > 0:
-                        await ranking_service.add_points_to_student(
-                            project.student_id, points_reward)
-                    await db.commit()
+            # Reconcile LessonCompletion + reward via the shared helper so
+            # teacher re-review paths mirror AI re-review paths (a teacher
+            # regrading from 80 -> 60 unwinds the reward, not just the
+            # project points).
+            from app.services.completion_reconciler import reconcile_lesson_completion
+            from app.services.project_service import PROJECT_PASS_THRESHOLD
+            await reconcile_lesson_completion(
+                db,
+                student_id=project.student_id,
+                lesson_id=submission.lesson_id,
+                passing=data.points >= PROJECT_PASS_THRESHOLD,
+                ranking_service=ranking_service,
+            )
+            await db.commit()
 
             cert = await achievement_service.award_certificate(
                 db, project.student_id, lesson.course_id

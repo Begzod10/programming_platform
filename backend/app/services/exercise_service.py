@@ -349,10 +349,14 @@ async def submit_exercise(
     is_correct = result.get("is_correct", False)
     partial = result.get("partial_score", 0)
 
+    # Snapshot fields we need after a potential rollback — post-rollback
+    # attribute access on `exercise` would trigger lazy IO in an async
+    # context and raise MissingGreenlet.
+    exercise_lesson_id = exercise.lesson_id
+    exercise_points = exercise.points
+
     if is_correct and not already_solved:
-        score = exercise.points
-        ranking_service = RankingService(db)
-        await ranking_service.add_points_to_student(student_id, score)
+        score = exercise_points
     else:
         score = 0
 
@@ -361,6 +365,9 @@ async def submit_exercise(
     elif already_solved and not is_correct:
         result["feedback"] = result.get("feedback", "") + "\n\n💡 Qayta urinib ko'ring!"
 
+    # DB-level idempotency: the partial unique index on (student_id,
+    # exercise_id) WHERE score > 0 will reject a second scoring insert even
+    # if two racing requests both pass the `already_solved` check above.
     submission = ExerciseSubmission(
         exercise_id=exercise_id,
         student_id=student_id,
@@ -371,11 +378,38 @@ async def submit_exercise(
         time_spent_ms=data.time_spent_ms,
     )
     db.add(submission)
+    try:
+        await db.flush()
+    except IntegrityError:
+        # Another concurrent request already stored the scoring row for
+        # this (student, exercise). Rewrite this attempt as a non-scoring
+        # duplicate and return the standard "already solved" feedback —
+        # never double-award, never 500.
+        await db.rollback()
+        score = 0
+        result["feedback"] = "✅ Barakalla! Bu mashqni avval ham to'g'ri yechgansiz. Ball bir marta beriladi."
+        submission = ExerciseSubmission(
+            exercise_id=exercise_id,
+            student_id=student_id,
+            student_answer=data.student_answer,
+            is_correct=is_correct,
+            score=0,
+            ai_feedback=result["feedback"],
+            time_spent_ms=data.time_spent_ms,
+        )
+        db.add(submission)
+        await db.flush()
+    else:
+        # Only credit the student once the scoring row is safely persisted.
+        if score > 0:
+            ranking_service = RankingService(db)
+            await ranking_service.add_points_to_student(student_id, score)
+
     await db.commit()
     await db.refresh(submission)
 
     if is_correct:
-        await _maybe_auto_complete_lesson(db, exercise.lesson_id, student_id)
+        await _maybe_auto_complete_lesson(db, exercise_lesson_id, student_id)
         # Streak only counts correct work — a wrong submission shouldn't
         # protect the flame. Failures must be local to the streak system
         # so they can't break the user-facing submission flow.
@@ -434,16 +468,19 @@ async def _maybe_auto_complete_lesson(
     if len(correct_ids) < len(ex_ids):
         return
 
-    db.add(LessonCompletion(student_id=student_id, lesson_id=lesson_id))
-    if lesson.points_reward and lesson.points_reward > 0:
-        from app.services.ranking_service import RankingService
-        await RankingService(db).add_points_to_student(student_id, lesson.points_reward)
-    try:
-        await db.commit()
-    except IntegrityError:
-        # Concurrent request inserted the completion first — fine, rollback the
-        # extra points award via the unique constraint hit.
-        await db.rollback()
+    # Delegate insert-or-noop + reward-award to the shared reconciler so the
+    # exercise path and the project-review path stay in lockstep. `passing`
+    # is trivially True here (all exercises solved).
+    from app.services.completion_reconciler import reconcile_lesson_completion
+    from app.services.ranking_service import RankingService
+    await reconcile_lesson_completion(
+        db,
+        student_id=student_id,
+        lesson_id=lesson_id,
+        passing=True,
+        ranking_service=RankingService(db),
+    )
+    await db.commit()
 
 
 async def get_my_submissions(db: AsyncSession, student_id: int, exercise_id: int) -> List[ExerciseSubmission]:

@@ -25,6 +25,7 @@ from app.models.lesson_feedback import LessonFeedback
 from app.models.translation_cache import TranslationCache
 from app.models.team_game import GameSession, GameTeam, GameTeamMember, GameQuestion, GameAnswer
 from app.models.lesson_question import LessonQuestion
+from app.models.point_adjustment import PointAdjustment
 
 __all__ = [
     "Base",
@@ -59,4 +60,5 @@ __all__ = [
     "GameQuestion",
     "GameAnswer",
     "LessonQuestion",
+    "PointAdjustment",
 ]

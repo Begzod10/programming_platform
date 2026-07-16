@@ -259,6 +259,23 @@ class ProjectService:
             if points > 0:
                 await ranking_service.add_points_to_student(student.id, points)
 
+            # Reconcile LessonCompletion + lesson.points_reward via the
+            # shared helper so a legacy-endpoint regrade also unwinds the
+            # lesson reward on demotion.
+            sub_res = await self.db.execute(
+                select(Submission).where(Submission.project_id == project.id)
+            )
+            submission = sub_res.scalar_one_or_none()
+            if submission and submission.lesson_id:
+                from app.services.completion_reconciler import reconcile_lesson_completion
+                await reconcile_lesson_completion(
+                    self.db,
+                    student_id=project.student_id,
+                    lesson_id=submission.lesson_id,
+                    passing=points >= PROJECT_PASS_THRESHOLD,
+                    ranking_service=ranking_service,
+                )
+
         await self.db.commit()
         await self.db.refresh(project)
         return project
