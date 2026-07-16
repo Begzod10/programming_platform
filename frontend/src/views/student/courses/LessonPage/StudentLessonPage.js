@@ -398,8 +398,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 await request(`${API_URL}v1/project/${created.id}/submit`, 'POST', null, headers());
             }
 
+            let fresh = null;
             try {
-                const fresh = await request(
+                fresh = await request(
                     `${API_URL}v1/courses/${course.id}/lessons/${lesson.id}/submission`,
                     'GET', null, headers(),
                 );
@@ -413,7 +414,12 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 setExplanationModal(true);
             }
 
-            if (!lesson.completed) {
+            // Unlock next lesson ONLY when the project actually passed
+            // (backend AI review or teacher review sets passed=true when
+            // points_earned >= pass_threshold and status == "Approved").
+            // A submitted-but-not-yet-reviewed or Rejected project must NOT
+            // create a LessonCompletion — the student has to re-submit.
+            if (!lesson.completed && fresh?.passed === true) {
                 onComplete();
                 setJustCompleted(true);
                 const isLastLesson = currentIndex === allLessons.length - 1;

@@ -258,7 +258,9 @@ async def _check_completion_gate(
     """Raise 400 if the student hasn't met the requirements to complete this lesson.
 
     Gate rules:
-      - Lesson has a project: a non-Draft Submission must exist for this lesson.
+      - Lesson has a project: an Approved Project with points_earned >=
+        PROJECT_PASS_THRESHOLD must exist for this lesson. A Draft, Submitted,
+        or Rejected project does NOT unlock the next lesson.
       - Lesson has no project: every exercise in the lesson must have at least
         one correct ExerciseSubmission by this student.
     """
@@ -266,20 +268,44 @@ async def _check_completion_gate(
 
     if lesson.has_project:
         sub_res = await db.execute(
-            select(Submission.status, Project.status)
-            .outerjoin(Project, Project.id == Submission.project_id)
+            select(Project.status, Project.points_earned)
+            .join(Submission, Submission.project_id == Project.id)
             .where(
                 Submission.lesson_id == lesson.id,
                 Submission.student_id == student_id,
             )
         )
-        statuses = [(p_st or s_st) for (s_st, p_st) in sub_res.all()]
-        if not any(st and st not in ("Draft",) for st in statuses):
+        rows = sub_res.all()
+        if not rows:
             raise HTTPException(
                 status_code=400,
                 detail="Avval shu darsning loyihasini topshiring",
             )
-        return
+        has_pending = any(
+            (p_st or "") == "Submitted" for (p_st, _pts) in rows
+        )
+        has_passing = any(
+            (p_st or "") == "Approved"
+            and (pts or 0) >= PROJECT_PASS_THRESHOLD
+            for (p_st, pts) in rows
+        )
+        if has_passing:
+            return
+        if has_pending:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Loyiha hali tekshirilmoqda. Natijani kuting — "
+                    "keyingi dars faqat tasdiqlangandan so'ng ochiladi."
+                ),
+            )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Loyiha kamida 75 ball to'plamagan. Qayta topshiring, "
+                "so'ng keyingi dars ochiladi."
+            ),
+        )
 
     ex_ids_rows = await db.execute(
         select(Exercise.id).where(Exercise.lesson_id == lesson.id)
