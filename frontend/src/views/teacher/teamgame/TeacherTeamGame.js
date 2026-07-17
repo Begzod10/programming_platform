@@ -1076,11 +1076,56 @@ function SessionCard({ initialSession, onDeleted }) {
     );
 }
 
+// Compact row for the Завершённые list — full SessionCard is too heavy
+// when a teacher has 10+ past games. One-open-at-a-time accordion so the
+// scroll stays predictable.
+function CompletedSessionRow({ session, isOpen, onToggle, onDeleted }) {
+    const topThree = [...(session.teams || [])]
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3);
+    const completed = session.updated_at
+        ? new Date(session.updated_at).toLocaleString('ru-RU', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        })
+        : '—';
+    const participantCount = (session.teams || []).reduce(
+        (n, t) => n + (t.members?.length || 0), 0,
+    );
+    return (
+        <div className={`tg-fin-row${isOpen ? ' tg-fin-row--open' : ''}`}>
+            <button className="tg-fin-row-head" onClick={onToggle}>
+                <span className="tg-fin-row-caret">{isOpen ? '▾' : '▸'}</span>
+                <span className="tg-fin-row-title">{session.title}</span>
+                <span className="tg-fin-row-meta">
+                    <span>📅 {completed}</span>
+                    <span>👥 {participantCount}</span>
+                    {session.course_title && <span>📚 {session.course_title}</span>}
+                </span>
+                <span className="tg-fin-row-podium">
+                    {topThree.map((t, i) => (
+                        <span key={t.id} className="tg-fin-row-medal" style={{ color: t.color }}>
+                            {['🥇','🥈','🥉'][i]} {t.name} <b>{t.score}</b>
+                        </span>
+                    ))}
+                </span>
+            </button>
+            {isOpen && (
+                <div className="tg-fin-row-body">
+                    <SessionCard initialSession={session} onDeleted={onDeleted} />
+                </div>
+            )}
+        </div>
+    );
+}
+
+
 export default function TeacherTeamGame() {
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
     const [filter, setFilter] = useState('all');
+    const [openFinishedId, setOpenFinishedId] = useState(null);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -1125,6 +1170,18 @@ export default function TeacherTeamGame() {
             ) : filtered.length === 0 ? (
                 <div className="tg-empty">
                     <p>Нет сессий. Создайте первую!</p>
+                </div>
+            ) : filter === 'completed' ? (
+                <div className="tg-fin-list">
+                    {filtered.map(s => (
+                        <CompletedSessionRow
+                            key={s.id}
+                            session={s}
+                            isOpen={openFinishedId === s.id}
+                            onToggle={() => setOpenFinishedId(prev => prev === s.id ? null : s.id)}
+                            onDeleted={(id) => setSessions(prev => prev.filter(x => x.id !== id))}
+                        />
+                    ))}
                 </div>
             ) : (
                 <div className="tg-sessions">

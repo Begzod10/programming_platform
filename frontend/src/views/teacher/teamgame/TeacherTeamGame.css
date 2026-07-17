@@ -536,3 +536,43 @@
 }
 .tg-summary-answers li.ok  { border-left: 3px solid #10b981; }
 .tg-summary-answers li.bad { border-left: 3px solid #ef4444; }
+
+/* ── Finished-sessions compact list ───────────────────────────────────────── */
+.tg-fin-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.tg-fin-row {
+    background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.tg-fin-row--open { border-color: #a5b4fc; box-shadow: 0 4px 24px rgba(99,102,241,0.08); }
+.tg-fin-row-head {
+    width: 100%; display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 1rem; align-items: center;
+    padding: 0.75rem 1rem;
+    background: transparent; border: none; cursor: pointer;
+    text-align: left; font-family: inherit;
+}
+.tg-fin-row-head:hover { background: #f8fafc; border-radius: 12px; }
+.tg-fin-row-caret { color: #6366f1; font-size: 0.9rem; width: 1rem; }
+.tg-fin-row-title { font-weight: 600; color: #0f172a; font-size: 0.95rem; }
+.tg-fin-row-meta {
+    display: flex; gap: 0.85rem; color: #64748b; font-size: 0.8rem; flex-wrap: wrap;
+}
+.tg-fin-row-podium {
+    display: flex; gap: 0.5rem; flex-wrap: wrap; font-size: 0.78rem; color: #334155;
+}
+.tg-fin-row-medal { white-space: nowrap; }
+.tg-fin-row-medal b { color: #0f172a; margin-left: 2px; }
+.tg-fin-row-body {
+    padding: 0 1rem 1rem;
+    border-top: 1px solid #f1f5f9;
+}
+.tg-fin-row-body .tg-card { box-shadow: none; border: none; padding: 0; margin-top: 0.5rem; }
+
+@media (max-width: 900px) {
+    .tg-fin-row-head {
+        grid-template-columns: auto 1fr;
+        row-gap: 0.35rem;
+    }
+    .tg-fin-row-meta, .tg-fin-row-podium { grid-column: 1 / -1; }
+}
