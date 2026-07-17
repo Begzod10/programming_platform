@@ -717,15 +717,178 @@ function QuizManager({ session }) {
 }
 
 
+// ── Post-completion summary panel ─────────────────────────────────────────────
+function SessionSummary({ sessionId }) {
+    const [data, setData] = useState(null);
+    const [err, setErr] = useState(null);
+    const [downloading, setDownloading] = useState(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        axiosInstance
+            .get(`${API_URL}v1/game-sessions/${sessionId}/summary`)
+            .then(r => { if (!cancelled) setData(r.data); })
+            .catch(e => {
+                if (!cancelled) setErr(e.response?.data?.detail || 'Не удалось загрузить итоги');
+            });
+        return () => { cancelled = true; };
+    }, [sessionId]);
+
+    const downloadCsv = async () => {
+        setDownloading(true);
+        try {
+            const res = await axiosInstance.get(
+                `${API_URL}v1/game-sessions/${sessionId}/export.csv`,
+                { responseType: 'blob' },
+            );
+            const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `session-${sessionId}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert(e.response?.data?.detail || 'Не удалось скачать CSV');
+        } finally {
+            setDownloading(false);
+        }
+    };
+
+    if (err) return <div className="tg-summary-error">{err}</div>;
+    if (!data) return <div className="tg-quiz-loading">Загрузка итогов...</div>;
+
+    const { leaderboard = [], questions = [], answers = [], totals = {}, completed_at } = data;
+    const completedDate = completed_at ? new Date(completed_at).toLocaleString('ru-RU') : '—';
+    const answersByQ = answers.reduce((acc, a) => {
+        (acc[a.question_id] ||= []).push(a);
+        return acc;
+    }, {});
+
+    return (
+        <div className="tg-summary">
+            <div className="tg-summary-header">
+                <div className="tg-summary-meta">
+                    <span>✅ Завершено: <b>{completedDate}</b></span>
+                    <span>👥 Участников: <b>{totals.participants ?? leaderboard.length}</b></span>
+                    <span>❓ Вопросов: <b>{totals.questions ?? questions.length}</b></span>
+                    <span>📝 Ответов: <b>{totals.total_answers ?? answers.length}</b></span>
+                </div>
+                <button className="tg-btn-primary tg-btn-sm" disabled={downloading} onClick={downloadCsv}>
+                    {downloading ? 'Готовим CSV…' : '⬇ Скачать CSV'}
+                </button>
+            </div>
+
+            <section className="tg-summary-section">
+                <h4>🏆 Итоговый рейтинг</h4>
+                <div className="tg-summary-table-wrap">
+                    <table className="tg-summary-table">
+                        <thead>
+                            <tr>
+                                <th>#</th><th>Студент</th><th>Команда</th>
+                                <th>Очки</th><th>Верно</th><th>Неверно</th><th>Ответов</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {leaderboard.map(r => (
+                                <tr key={r.student_id}>
+                                    <td>{r.rank}</td>
+                                    <td>{r.full_name}</td>
+                                    <td>
+                                        {r.team_name
+                                            ? <span style={{ color: r.team_color || '#666' }}>● {r.team_name}</span>
+                                            : '—'}
+                                    </td>
+                                    <td><b>{r.total_points}</b></td>
+                                    <td>{r.correct_count}</td>
+                                    <td>{r.wrong_count}</td>
+                                    <td>{r.answered_count}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section className="tg-summary-section">
+                <h4>❓ Вопросы</h4>
+                <div className="tg-summary-questions">
+                    {questions.map(q => {
+                        const stats = q.stats || {};
+                        const options = q.options || [];
+                        const counts = stats.option_counts || [];
+                        const total = stats.total_answers || 0;
+                        return (
+                            <div key={q.id} className="tg-summary-question">
+                                <div className="tg-summary-question-head">
+                                    <span className="tg-quiz-num">#{q.order_index + 1}</span>
+                                    <span className="tg-summary-qtext">{q.question_text}</span>
+                                    <span className="tg-summary-qstats">
+                                        {stats.correct_answers ?? 0}/{total} верно
+                                    </span>
+                                </div>
+                                <div className="tg-summary-options">
+                                    {options.map((opt, i) => {
+                                        const cnt = counts[i] || 0;
+                                        const pct = total > 0 ? Math.round((cnt / total) * 100) : 0;
+                                        const isCorrect = i === q.correct_option;
+                                        return (
+                                            <div key={i} className={`tg-summary-option${isCorrect ? ' tg-summary-option--correct' : ''}`}>
+                                                <div className="tg-summary-option-label">
+                                                    <span>{OPTION_LABELS[i]}: {opt}</span>
+                                                    <span>{cnt} ({pct}%){isCorrect ? ' ✓' : ''}</span>
+                                                </div>
+                                                <div className="tg-summary-option-bar-wrap">
+                                                    <div className="tg-summary-option-bar" style={{ width: `${pct}%` }} />
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                {(answersByQ[q.id] || []).length > 0 && (
+                                    <details className="tg-summary-answers">
+                                        <summary>Ответы студентов ({(answersByQ[q.id] || []).length})</summary>
+                                        <ul>
+                                            {(answersByQ[q.id] || []).map(a => (
+                                                <li key={`${a.question_id}-${a.student_id}`}
+                                                    className={a.is_correct ? 'ok' : 'bad'}>
+                                                    <span>{a.student_name}</span>
+                                                    <span>{options[a.chosen_option] ?? '—'}</span>
+                                                    <span>{a.is_correct ? '✓' : '✗'} +{a.points_earned}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </details>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </section>
+        </div>
+    );
+}
+
+
 // ── Session Card ──────────────────────────────────────────────────────────────
 function SessionCard({ initialSession, onDeleted }) {
     const [session, setSession] = useState(initialSession);
     const [actionLoading, setActionLoading] = useState(false);
     const [showStart, setShowStart] = useState(false);
-    const [view, setView] = useState('questions');
+    const [view, setView] = useState(initialSession.status === 'completed' ? 'summary' : 'questions');
 
     const handleWsUpdate = useCallback((data) => {
-        setSession(data);
+        setSession(prev => {
+            // Auto-switch to the summary tab the moment the session flips to
+            // completed — the teacher just clicked Завершить and expects to
+            // see the frozen recap, not the now-stale live board.
+            if (prev.status !== 'completed' && data.status === 'completed') {
+                setView('summary');
+            }
+            return data;
+        });
     }, []);
 
     // Relay raw WS messages so QuizManager can listen; also apply score updates here
@@ -816,6 +979,12 @@ function SessionCard({ initialSession, onDeleted }) {
             {/* Tab switcher — always shown when there are participants */}
             {sortedTeams.length > 0 && (
                 <div className="tg-view-tabs">
+                    {session.status === 'completed' && (
+                        <button
+                            className={`tg-view-tab${view === 'summary' ? ' tg-view-tab--active' : ''}`}
+                            onClick={() => setView('summary')}
+                        >📊 Итоги</button>
+                    )}
                     <button
                         className={`tg-view-tab${view === 'questions' ? ' tg-view-tab--active' : ''}`}
                         onClick={() => setView('questions')}
@@ -827,8 +996,15 @@ function SessionCard({ initialSession, onDeleted }) {
                 </div>
             )}
 
-            {/* Questions view */}
-            {(!sortedTeams.length || view === 'questions') && <QuizManager session={session} />}
+            {/* Summary view — completed sessions only */}
+            {view === 'summary' && session.status === 'completed' && (
+                <SessionSummary sessionId={session.id} />
+            )}
+
+            {/* Questions view (also the fallback when no teams have joined yet) */}
+            {(view === 'questions' || (!sortedTeams.length && view !== 'summary')) && (
+                <QuizManager session={session} />
+            )}
 
             {/* Students / Teams view */}
             {view === 'students' && sortedTeams.length > 0 && (
