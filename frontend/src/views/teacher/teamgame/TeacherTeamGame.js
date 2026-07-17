@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { API_URL, API_URL_DOC, getToken } from '../../../api/search/base';
 import axiosInstance from '../../../api/axiosInstance';
 import './TeacherTeamGame.css';
@@ -718,7 +719,8 @@ function QuizManager({ session }) {
 
 
 // ── Post-completion summary panel ─────────────────────────────────────────────
-function SessionSummary({ sessionId }) {
+// Exported so TeacherTeamGameSession (the dedicated profile page) can reuse it.
+export function SessionSummary({ sessionId }) {
     const [data, setData] = useState(null);
     const [err, setErr] = useState(null);
     const [downloading, setDownloading] = useState(false);
@@ -1093,10 +1095,12 @@ function SessionCard({ initialSession, onDeleted }) {
     );
 }
 
-// Compact row for the Завершённые list — full SessionCard is too heavy
-// when a teacher has 10+ past games. One-open-at-a-time accordion so the
-// scroll stays predictable.
-function CompletedSessionRow({ session, isOpen, onToggle, onDeleted }) {
+// Compact row for the Завершённые list — clicking opens the dedicated
+// session profile page at /teacher/team-game/:sessionId. Previously
+// this expanded inline, but with many past games that pattern buried
+// the row list under expanded content. A profile page also lets
+// teachers deep-link and share individual session summaries.
+function CompletedSessionRow({ session }) {
     const topThree = [...(session.teams || [])]
         .sort((a, b) => b.score - a.score)
         .slice(0, 3);
@@ -1110,29 +1114,26 @@ function CompletedSessionRow({ session, isOpen, onToggle, onDeleted }) {
         (n, t) => n + (t.members?.length || 0), 0,
     );
     return (
-        <div className={`tg-fin-row${isOpen ? ' tg-fin-row--open' : ''}`}>
-            <button className="tg-fin-row-head" onClick={onToggle}>
-                <span className="tg-fin-row-caret">{isOpen ? '▾' : '▸'}</span>
-                <span className="tg-fin-row-title">{session.title}</span>
-                <span className="tg-fin-row-meta">
-                    <span>📅 {completed}</span>
-                    <span>👥 {participantCount}</span>
-                    {session.course_title && <span>📚 {session.course_title}</span>}
-                </span>
-                <span className="tg-fin-row-podium">
-                    {topThree.map((t, i) => (
-                        <span key={t.id} className="tg-fin-row-medal" style={{ color: t.color }}>
-                            {['🥇','🥈','🥉'][i]} {t.name} <b>{t.score}</b>
-                        </span>
-                    ))}
-                </span>
-            </button>
-            {isOpen && (
-                <div className="tg-fin-row-body">
-                    <SessionCard initialSession={session} onDeleted={onDeleted} />
+        <Link to={`/teacher/team-game/${session.id}`} className="tg-fin-row-link">
+            <div className="tg-fin-row">
+                <div className="tg-fin-row-head">
+                    <span className="tg-fin-row-caret">▸</span>
+                    <span className="tg-fin-row-title">{session.title}</span>
+                    <span className="tg-fin-row-meta">
+                        <span>📅 {completed}</span>
+                        <span>👥 {participantCount}</span>
+                        {session.course_title && <span>📚 {session.course_title}</span>}
+                    </span>
+                    <span className="tg-fin-row-podium">
+                        {topThree.map((t, i) => (
+                            <span key={t.id} className="tg-fin-row-medal" style={{ color: t.color }}>
+                                {['🥇','🥈','🥉'][i]} {t.name} <b>{t.score}</b>
+                            </span>
+                        ))}
+                    </span>
                 </div>
-            )}
-        </div>
+            </div>
+        </Link>
     );
 }
 
@@ -1142,7 +1143,6 @@ export default function TeacherTeamGame() {
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
     const [filter, setFilter] = useState('all');
-    const [openFinishedId, setOpenFinishedId] = useState(null);
 
     const load = useCallback(() => {
         setLoading(true);
@@ -1191,13 +1191,7 @@ export default function TeacherTeamGame() {
             ) : filter === 'completed' ? (
                 <div className="tg-fin-list">
                     {filtered.map(s => (
-                        <CompletedSessionRow
-                            key={s.id}
-                            session={s}
-                            isOpen={openFinishedId === s.id}
-                            onToggle={() => setOpenFinishedId(prev => prev === s.id ? null : s.id)}
-                            onDeleted={(id) => setSessions(prev => prev.filter(x => x.id !== id))}
-                        />
+                        <CompletedSessionRow key={s.id} session={s} />
                     ))}
                 </div>
             ) : (

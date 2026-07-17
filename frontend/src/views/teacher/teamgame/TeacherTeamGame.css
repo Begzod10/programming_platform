@@ -537,22 +537,26 @@
 .tg-summary-answers li.ok  { border-left: 3px solid #10b981; }
 .tg-summary-answers li.bad { border-left: 3px solid #ef4444; }
 
-/* ── Finished-sessions compact list ───────────────────────────────────────── */
+/* ── Finished-sessions compact list (rows → profile page) ────────────────── */
 .tg-fin-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.tg-fin-row-link { text-decoration: none; color: inherit; display: block; }
 .tg-fin-row {
     background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;
-    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
-.tg-fin-row--open { border-color: #a5b4fc; box-shadow: 0 4px 24px rgba(99,102,241,0.08); }
+.tg-fin-row-link:hover .tg-fin-row {
+    border-color: #a5b4fc;
+    box-shadow: 0 4px 20px rgba(99,102,241,0.08);
+    transform: translateY(-1px);
+}
 .tg-fin-row-head {
     width: 100%; display: grid;
     grid-template-columns: auto 1fr auto auto;
     gap: 1rem; align-items: center;
     padding: 0.75rem 1rem;
-    background: transparent; border: none; cursor: pointer;
+    background: transparent;
     text-align: left; font-family: inherit;
 }
-.tg-fin-row-head:hover { background: #f8fafc; border-radius: 12px; }
 .tg-fin-row-caret { color: #6366f1; font-size: 0.9rem; width: 1rem; }
 .tg-fin-row-title { font-weight: 600; color: #0f172a; font-size: 0.95rem; }
 .tg-fin-row-meta {
@@ -563,11 +567,6 @@
 }
 .tg-fin-row-medal { white-space: nowrap; }
 .tg-fin-row-medal b { color: #0f172a; margin-left: 2px; }
-.tg-fin-row-body {
-    padding: 0 1rem 1rem;
-    border-top: 1px solid #f1f5f9;
-}
-.tg-fin-row-body .tg-card { box-shadow: none; border: none; padding: 0; margin-top: 0.5rem; }
 
 @media (max-width: 900px) {
     .tg-fin-row-head {
@@ -576,6 +575,36 @@
     }
     .tg-fin-row-meta, .tg-fin-row-podium { grid-column: 1 / -1; }
 }
+
+/* ── Session profile page ─────────────────────────────────────────────────── */
+.tg-back-link {
+    display: inline-block; margin-bottom: 1rem; color: #6366f1;
+    text-decoration: none; font-size: 0.9rem; font-weight: 500;
+}
+.tg-back-link:hover { color: #4338ca; text-decoration: underline; }
+.tg-profile-header {
+    background: linear-gradient(135deg, #ffffff, #f8fafc);
+    border: 1px solid #e2e8f0; border-radius: 14px;
+    padding: 1.25rem 1.5rem; margin-bottom: 1rem;
+}
+.tg-profile-title { margin: 0 0 0.5rem; font-size: 1.75rem; color: #0f172a; }
+.tg-profile-badges {
+    display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem;
+}
+.tg-profile-description { margin: 0.5rem 0 0; color: #475569; line-height: 1.5; }
+.tg-profile-meta {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 0.75rem; margin-bottom: 1.25rem;
+}
+.tg-profile-meta-item {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+    padding: 0.65rem 0.9rem;
+    display: flex; flex-direction: column; gap: 0.15rem;
+}
+.tg-profile-meta-label {
+    font-size: 0.72rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.tg-profile-meta-value { font-weight: 600; color: #0f172a; font-size: 0.95rem; }
 
 /* Summary section head with inline toggle for skipped participants */
 .tg-summary-section-head {
