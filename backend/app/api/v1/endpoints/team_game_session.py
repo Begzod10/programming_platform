@@ -257,11 +257,20 @@ async def list_sessions(
     db: AsyncSession = Depends(get_db),
     current_student: Optional[Student] = Depends(get_current_student_optional),
 ):
+    from app.models.user import UserRole
     q = select(GameSession).options(*_load_opts()).order_by(GameSession.created_at.desc())
     if course_id:
         q = q.where(GameSession.course_id == course_id)
-    if current_student:
+    is_teacher = bool(current_student and current_student.role == UserRole.teacher)
+    if current_student and not is_teacher:
+        # Students see only in-flight sessions — completed ones are noise
+        # on their side. Teachers keep full history so the Завершённые
+        # tab in the teacher UI can list them for post-game review.
         q = q.where(GameSession.status != SessionStatus.completed)
+    if is_teacher:
+        # Teachers only see sessions they own — no reason to expose
+        # other teachers' rooms in a shared list.
+        q = q.where(GameSession.created_by == current_student.id)
     result = await db.execute(q)
     sessions = result.scalars().all()
     sid = current_student.id if current_student else None
