@@ -13,7 +13,11 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = 'ee66aa11bb22'
-down_revision = 'dd44ee55ff66'
+# Chained onto cc1122334455 (the current alembic_version on prod) rather
+# than dd44ee55ff66 (which only exists locally — the options_ru column
+# it adds is already present on prod, so skipping it is a functional
+# no-op). This keeps the migration linear against the DB's actual state.
+down_revision = 'cc1122334455'
 branch_labels = None
 depends_on = None
 
