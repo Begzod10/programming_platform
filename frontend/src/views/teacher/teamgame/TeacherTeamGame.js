@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { API_URL, API_URL_DOC, getToken } from '../../../api/search/base';
 import axiosInstance from '../../../api/axiosInstance';
 import './TeacherTeamGame.css';
@@ -892,7 +892,9 @@ export function SessionSummary({ sessionId }) {
 
 
 // ── Session Card ──────────────────────────────────────────────────────────────
-function SessionCard({ initialSession, onDeleted }) {
+// Exported so TeacherTeamGameSession (the profile page) can render the
+// live board for pending/active sessions.
+export function SessionCard({ initialSession, onDeleted }) {
     const [session, setSession] = useState(initialSession);
     const [actionLoading, setActionLoading] = useState(false);
     const [showStart, setShowStart] = useState(false);
@@ -1095,17 +1097,21 @@ function SessionCard({ initialSession, onDeleted }) {
     );
 }
 
-// Compact row for the Завершённые list — clicking opens the dedicated
-// session profile page at /teacher/team-game/:sessionId. Previously
-// this expanded inline, but with many past games that pattern buried
-// the row list under expanded content. A profile page also lets
-// teachers deep-link and share individual session summaries.
-function CompletedSessionRow({ session }) {
+// Unified compact row for the session list — works for every status.
+// Clicking opens the dedicated profile page at /teacher/team-game/:id.
+// For pending/active sessions the profile page renders the live board;
+// for completed sessions it renders the frozen summary + CSV export.
+function SessionListRow({ session }) {
     const topThree = [...(session.teams || [])]
         .sort((a, b) => b.score - a.score)
         .slice(0, 3);
-    const completed = session.updated_at
-        ? new Date(session.updated_at).toLocaleString('ru-RU', {
+    // Prefer updated_at (last state change) — for completed sessions
+    // that's the finish time; for pending/active sessions it's the
+    // creation or last-modified time, which is what teachers want to
+    // scan by. Falls back to created_at then a dash if both missing.
+    const stamp = session.updated_at || session.created_at;
+    const stampFmt = stamp
+        ? new Date(stamp).toLocaleString('ru-RU', {
             day: '2-digit', month: '2-digit', year: 'numeric',
             hour: '2-digit', minute: '2-digit',
         })
@@ -1113,24 +1119,40 @@ function CompletedSessionRow({ session }) {
     const participantCount = (session.teams || []).reduce(
         (n, t) => n + (t.members?.length || 0), 0,
     );
+    // Show the podium only when at least one team has scored — for
+    // pending/active-with-no-answers-yet sessions it would be a wall
+    // of zeros and steal horizontal space from the meta chips.
+    const podiumHasScore = topThree.some(t => (t.score || 0) > 0);
     return (
         <Link to={`/teacher/team-game/${session.id}`} className="tg-fin-row-link">
             <div className="tg-fin-row">
                 <div className="tg-fin-row-head">
                     <span className="tg-fin-row-caret">▸</span>
-                    <span className="tg-fin-row-title">{session.title}</span>
+                    <span className="tg-fin-row-title">
+                        {session.title}
+                        <span className={`tg-fin-row-status tg-fin-row-status--${session.status}`}>
+                            {session.status === 'pending' && '○ Ожидание'}
+                            {session.status === 'active' && '● Активна'}
+                            {session.status === 'completed' && '✓ Завершена'}
+                        </span>
+                        {session.auto_mode && (
+                            <span className="tg-fin-row-auto">⚡ Авто</span>
+                        )}
+                    </span>
                     <span className="tg-fin-row-meta">
-                        <span>📅 {completed}</span>
+                        <span>📅 {stampFmt}</span>
                         <span>👥 {participantCount}</span>
                         {session.course_title && <span>📚 {session.course_title}</span>}
                     </span>
-                    <span className="tg-fin-row-podium">
-                        {topThree.map((t, i) => (
-                            <span key={t.id} className="tg-fin-row-medal" style={{ color: t.color }}>
-                                {['🥇','🥈','🥉'][i]} {t.name} <b>{t.score}</b>
-                            </span>
-                        ))}
-                    </span>
+                    {podiumHasScore && (
+                        <span className="tg-fin-row-podium">
+                            {topThree.map((t, i) => (
+                                <span key={t.id} className="tg-fin-row-medal" style={{ color: t.color }}>
+                                    {['🥇','🥈','🥉'][i]} {t.name} <b>{t.score}</b>
+                                </span>
+                            ))}
+                        </span>
+                    )}
                 </div>
             </div>
         </Link>
@@ -1154,9 +1176,14 @@ export default function TeacherTeamGame() {
 
     useEffect(() => { load(); }, [load]);
 
+    const navigate = useNavigate();
     const handleCreated = useCallback((newSession) => {
         setSessions(prev => [newSession, ...prev]);
-    }, []);
+        // Jump straight into the new session's profile page — teacher's
+        // next step is always to configure/start it, and the profile
+        // page hosts that UI now.
+        if (newSession?.id) navigate(`/teacher/team-game/${newSession.id}`);
+    }, [navigate]);
 
     const filtered = filter === 'all' ? sessions : sessions.filter(s => s.status === filter);
 
@@ -1188,20 +1215,10 @@ export default function TeacherTeamGame() {
                 <div className="tg-empty">
                     <p>Нет сессий. Создайте первую!</p>
                 </div>
-            ) : filter === 'completed' ? (
+            ) : (
                 <div className="tg-fin-list">
                     {filtered.map(s => (
-                        <CompletedSessionRow key={s.id} session={s} />
-                    ))}
-                </div>
-            ) : (
-                <div className="tg-sessions">
-                    {filtered.map(s => (
-                        <SessionCard
-                            key={s.id}
-                            initialSession={s}
-                            onDeleted={(id) => setSessions(prev => prev.filter(x => x.id !== id))}
-                        />
+                        <SessionListRow key={s.id} session={s} />
                     ))}
                 </div>
             )}

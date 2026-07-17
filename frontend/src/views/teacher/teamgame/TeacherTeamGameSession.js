@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import axiosInstance from '../../../api/axiosInstance';
 import { API_URL } from '../../../api/search/base';
-import { SessionSummary } from './TeacherTeamGame';
+import { SessionSummary, SessionCard } from './TeacherTeamGame';
 import './TeacherTeamGame.css';
 
 /**
@@ -20,6 +20,7 @@ const STATUS_LABELS = { pending: 'Ожидание', active: 'Активна', c
 
 export default function TeacherTeamGameSession() {
     const { sessionId } = useParams();
+    const navigate = useNavigate();
     const [session, setSession] = useState(null);
     const [err, setErr] = useState(null);
 
@@ -35,6 +36,12 @@ export default function TeacherTeamGameSession() {
             });
         return () => { cancelled = true; };
     }, [sessionId]);
+
+    const handleDeleted = () => {
+        // The SessionCard already fired the DELETE request; just bounce
+        // back to the list so the teacher isn't stranded on a 404 page.
+        navigate('/teacher/team-game');
+    };
 
     if (err) {
         return (
@@ -146,15 +153,14 @@ export default function TeacherTeamGameSession() {
                 </section>
             )}
 
-            {/* Full results: leaderboard, per-question stats, per-student answers,
-                CSV export. SessionSummary handles the completed / not-yet-completed
-                distinction via its own error state. */}
+            {/* Completed sessions: render the frozen summary + CSV export.
+                Pending/active sessions: render the live SessionCard so the
+                teacher can start the session, activate questions, watch the
+                real-time board, and eventually finish it right here. */}
             {session.status === 'completed' ? (
                 <SessionSummary sessionId={Number(sessionId)} />
             ) : (
-                <div className="tg-summary-error" style={{ marginTop: '1rem' }}>
-                    ℹ️ Итоги появятся, когда сессия будет завершена.
-                </div>
+                <SessionCard initialSession={session} onDeleted={handleDeleted} />
             )}
         </div>
     );
