@@ -106,6 +106,16 @@ class Settings(BaseSettings):
     # disable AI review entirely.
     MAX_AI_REVIEWS_PER_DAY: int = 20
 
+    # ─── Parent Telegram bot integration ────────────────────────────────
+    # Fire-and-forget notification to gennis_parent_bot when a game session
+    # is completed. The bot fetches the full summary back via the
+    # secret-authenticated /summary-public endpoint (auth is a plain shared
+    # secret, not JWT, because the bot doesn't have a user token). Leaving
+    # PARENT_BOT_URL empty disables the integration cleanly — no config
+    # error, just no outbound push.
+    PARENT_BOT_URL: str = ""  # e.g. http://127.0.0.1:8064
+    PARENT_BOT_SECRET: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

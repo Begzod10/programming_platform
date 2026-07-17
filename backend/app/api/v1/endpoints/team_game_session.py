@@ -1,12 +1,19 @@
+import asyncio
 import csv
 import io
+import logging
 import random
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+import httpx
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select, text as sa_text
+
+from app.config import settings
+
+_bot_logger = logging.getLogger("parent_bot_notify")
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, noload, load_only
 
@@ -740,6 +747,28 @@ async def _build_snapshot_payload(db: AsyncSession, session_id: int) -> dict:
     }
 
 
+async def _notify_parent_bot(session_id: int) -> None:
+    """Fire-and-forget POST to gennis_parent_bot's internal trigger.
+
+    The bot is on the same box, so this is a localhost call. Any failure
+    (bot down, misconfig, network) is swallowed and logged — completing
+    a game session must never depend on the bot being alive.
+    """
+    url = (settings.PARENT_BOT_URL or "").rstrip("/")
+    secret = settings.PARENT_BOT_SECRET
+    if not url or not secret:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                f"{url}/internal/game-session-complete",
+                json={"session_id": session_id},
+                headers={"X-Internal-Secret": secret},
+            )
+    except Exception as exc:
+        _bot_logger.warning("parent-bot notify failed session=%d: %s", session_id, exc)
+
+
 async def _freeze_snapshot(
     db: AsyncSession, session_id: int, completed_by: Optional[int],
 ) -> None:
@@ -791,6 +820,11 @@ async def complete_session(
     await db.commit()
 
     await _broadcast_session(db, session_id)
+    # Fire-and-forget: don't await, don't await the task — teacher must
+    # not wait on a bot round-trip and must not see the endpoint fail
+    # if the bot is offline. The bot pulls the full snapshot back from
+    # /summary-public once it picks up this notification.
+    asyncio.create_task(_notify_parent_bot(session_id))
     return await _fetch_and_build(db, session_id)
 
 
@@ -925,6 +959,82 @@ async def session_export_csv(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ── Bot: public secret-authenticated snapshot read ───────────────────────────
+# The parent-bot service pulls session data via these endpoints. Auth is a
+# plain shared secret (X-Internal-Secret header) — the bot doesn't have a
+# JWT and shouldn't need one for read-only reporting queries.
+
+def _require_internal_secret(x_internal_secret: Optional[str]) -> None:
+    expected = settings.PARENT_BOT_SECRET
+    if not expected:
+        raise HTTPException(status_code=503, detail="Parent bot integration not configured")
+    if not x_internal_secret or x_internal_secret != expected:
+        raise HTTPException(status_code=401, detail="Invalid internal secret")
+
+
+@router.get("/{session_id}/summary-public")
+async def session_summary_public(
+    session_id: int,
+    x_internal_secret: Optional[str] = Header(default=None, alias="X-Internal-Secret"),
+    db: AsyncSession = Depends(get_db),
+):
+    _require_internal_secret(x_internal_secret)
+    session_row = (await db.execute(
+        select(GameSession).where(GameSession.id == session_id)
+    )).scalar_one_or_none()
+    if session_row is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    snap = (await db.execute(
+        select(GameSessionSnapshot).where(GameSessionSnapshot.session_id == session_id)
+    )).scalar_one_or_none()
+    if snap is None:
+        if session_row.status != SessionStatus.completed:
+            raise HTTPException(
+                status_code=409,
+                detail="Session is not completed yet; no snapshot available",
+            )
+        await _freeze_snapshot(db, session_id, completed_by=None)
+        await db.commit()
+        snap = (await db.execute(
+            select(GameSessionSnapshot).where(GameSessionSnapshot.session_id == session_id)
+        )).scalar_one_or_none()
+    return {
+        "session_id": snap.session_id,
+        "completed_at": snap.completed_at.isoformat() if snap.completed_at else None,
+        "completed_by": snap.completed_by,
+        **snap.payload,
+    }
+
+
+@router.get("/completed-today")
+async def sessions_completed_today(
+    x_internal_secret: Optional[str] = Header(default=None, alias="X-Internal-Secret"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Session IDs that got their snapshot within the last 24 hours.
+
+    Used by the parent bot's daily 20:00 rollup task — the bot iterates
+    these IDs, fetches each summary via /summary-public, and rolls the
+    per-student sections into one message per parent.
+    """
+    _require_internal_secret(x_internal_secret)
+    # 24-hour window rather than "since midnight" so the 20:00 job
+    # doesn't miss a session completed at 20:05 the previous day.
+    since = datetime.now(timezone.utc).replace(microsecond=0)
+    since_expr = sa_text("now() - interval '24 hours'")
+    rows = (await db.execute(
+        select(GameSessionSnapshot.session_id, GameSessionSnapshot.completed_at)
+        .where(GameSessionSnapshot.completed_at >= since_expr)
+        .order_by(GameSessionSnapshot.completed_at)
+    )).all()
+    return {
+        "sessions": [
+            {"session_id": sid, "completed_at": ca.isoformat() if ca else None}
+            for sid, ca in rows
+        ],
+    }
 
 
 # ── Teacher: delete session ────────────────────────────────────────────────────
