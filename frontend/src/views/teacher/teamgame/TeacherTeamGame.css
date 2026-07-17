@@ -576,3 +576,17 @@
     }
     .tg-fin-row-meta, .tg-fin-row-podium { grid-column: 1 / -1; }
 }
+
+/* Summary section head with inline toggle for skipped participants */
+.tg-summary-section-head {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 1rem; margin-bottom: 0.6rem; flex-wrap: wrap;
+}
+.tg-summary-section-head h4 { margin: 0; }
+.tg-summary-toggle {
+    background: transparent; border: 1px solid #cbd5e1; color: #475569;
+    border-radius: 999px; padding: 4px 12px; font-size: 0.78rem;
+    cursor: pointer; font-family: inherit;
+}
+.tg-summary-toggle:hover { border-color: #6366f1; color: #4338ca; }
+.tg-summary-row-empty td { color: #94a3b8; font-style: italic; }

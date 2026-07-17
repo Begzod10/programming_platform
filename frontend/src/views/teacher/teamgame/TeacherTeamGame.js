@@ -722,6 +722,11 @@ function SessionSummary({ sessionId }) {
     const [data, setData] = useState(null);
     const [err, setErr] = useState(null);
     const [downloading, setDownloading] = useState(false);
+    // Old snapshots padded the leaderboard with every registered team member,
+    // even those who never answered — that turned real sessions into a wall
+    // of 0-score rows. Default the summary to real participants only; teachers
+    // can opt in to the padded view.
+    const [showZero, setShowZero] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -766,13 +771,16 @@ function SessionSummary({ sessionId }) {
         (acc[a.question_id] ||= []).push(a);
         return acc;
     }, {});
+    const activeLeaders = leaderboard.filter(r => (r.answered_count || 0) > 0);
+    const skippedCount = leaderboard.length - activeLeaders.length;
+    const visibleLeaders = showZero ? leaderboard : activeLeaders;
 
     return (
         <div className="tg-summary">
             <div className="tg-summary-header">
                 <div className="tg-summary-meta">
                     <span>✅ Завершено: <b>{completedDate}</b></span>
-                    <span>👥 Участников: <b>{totals.participants ?? leaderboard.length}</b></span>
+                    <span>👥 Участников: <b>{activeLeaders.length}</b></span>
                     <span>❓ Вопросов: <b>{totals.questions ?? questions.length}</b></span>
                     <span>📝 Ответов: <b>{totals.total_answers ?? answers.length}</b></span>
                 </div>
@@ -782,7 +790,16 @@ function SessionSummary({ sessionId }) {
             </div>
 
             <section className="tg-summary-section">
-                <h4>🏆 Итоговый рейтинг</h4>
+                <div className="tg-summary-section-head">
+                    <h4>🏆 Итоговый рейтинг</h4>
+                    {skippedCount > 0 && (
+                        <button className="tg-summary-toggle" onClick={() => setShowZero(v => !v)}>
+                            {showZero
+                                ? `Скрыть не участвовавших (${skippedCount})`
+                                : `Показать не участвовавших (${skippedCount})`}
+                        </button>
+                    )}
+                </div>
                 <div className="tg-summary-table-wrap">
                     <table className="tg-summary-table">
                         <thead>
@@ -792,8 +809,8 @@ function SessionSummary({ sessionId }) {
                             </tr>
                         </thead>
                         <tbody>
-                            {leaderboard.map(r => (
-                                <tr key={r.student_id}>
+                            {visibleLeaders.map(r => (
+                                <tr key={r.student_id} className={(r.answered_count || 0) === 0 ? 'tg-summary-row-empty' : ''}>
                                     <td>{r.rank}</td>
                                     <td>{r.full_name}</td>
                                     <td>

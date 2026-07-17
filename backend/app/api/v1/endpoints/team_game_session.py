@@ -693,12 +693,11 @@ async def _build_snapshot_payload(db: AsyncSession, session_id: int) -> dict:
             row["correct_count"] += 1
         else:
             row["wrong_count"] += 1
-    # Include team members who never answered so they show up at rank N with 0.
-    for sid in team_by_student:
-        per_student.setdefault(sid, {
-            "student_id": sid, "correct_count": 0, "wrong_count": 0,
-            "answered_count": 0, "total_points": 0,
-        })
+    # Deliberately DO NOT pad the leaderboard with team members who never
+    # answered. In "individual" sessions especially, the members set can
+    # be everyone in the teacher's groups (dozens of rows) so padding
+    # made the summary a wall of zeros. If a UI needs "who was
+    # registered but skipped", it can diff against the teams array.
     leaderboard = []
     for sid, row in per_student.items():
         info = students_by_id.get(sid, {"id": sid, "full_name": f"#{sid}"})
