@@ -702,8 +702,14 @@
 .slp-ex-fill-wrap {
     background: rgba(108,92,231,0.03); border: 1.5px solid rgba(108,92,231,0.1);
     border-radius: var(--r-lg); padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 12px;
 }
 .slp-ex-fill-text { font-size: 15px; color: var(--ink); line-height: 2.1; }
+.slp-ex-fill-input-single {
+    display: block; width: 100%; max-width: 420px; text-align: left;
+    margin: 0; padding: 10px 14px;
+}
+.slp-ex-fill-input-single:focus { width: 100%; max-width: 420px; }
 .slp-ex-fill-input {
     display: inline-block; width: 100px; padding: 5px 10px;
     border: 2px solid rgba(108,92,231,0.35); border-radius: var(--r-sm);

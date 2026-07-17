@@ -179,31 +179,58 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
             </div>
 
             <div className="slp-ex-card-body">
-                {exType === 'fill_in_blank' && (
-                    <div className="slp-ex-fill-wrap">
-                        <div className="slp-ex-fill-text">
-                            {(ex.description || '').split('___').map((part, i, arr) => (
-                                <span key={i}>
-                                    {part}
-                                    {i < arr.length - 1 && (
-                                        <input
-                                            className={`slp-ex-fill-input ${isDone ? (result === 'correct' ? 'correct' : 'wrong') : ''}`}
-                                            placeholder={`${i + 1}`}
-                                            disabled={isDone}
-                                            value={fillAnswers[i] || ''}
-                                            onChange={e => {
-                                                const copy = [...fillAnswers];
-                                                copy[i] = e.target.value;
-                                                setFillAnswers(copy);
-                                                setResult(null);
-                                            }}
-                                        />
-                                    )}
-                                </span>
-                            ))}
+                {exType === 'fill_in_blank' && (() => {
+                    const desc = ex.description || '';
+                    // Content shape #1: description contains ___ placeholders —
+                    // render inline inputs at each placeholder. Content shape
+                    // #2: description is a plain question with no ___ — fall
+                    // back to a single input beneath the question so the
+                    // student has somewhere to type. Without this fallback
+                    // the exercise renders with no input and the submit
+                    // button is permanently disabled.
+                    if (desc.includes('___')) {
+                        return (
+                            <div className="slp-ex-fill-wrap">
+                                <div className="slp-ex-fill-text">
+                                    {desc.split('___').map((part, i, arr) => (
+                                        <span key={i}>
+                                            {part}
+                                            {i < arr.length - 1 && (
+                                                <input
+                                                    className={`slp-ex-fill-input ${isDone ? (result === 'correct' ? 'correct' : 'wrong') : ''}`}
+                                                    placeholder={`${i + 1}`}
+                                                    disabled={isDone}
+                                                    value={fillAnswers[i] || ''}
+                                                    onChange={e => {
+                                                        const copy = [...fillAnswers];
+                                                        copy[i] = e.target.value;
+                                                        setFillAnswers(copy);
+                                                        setResult(null);
+                                                    }}
+                                                />
+                                            )}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    }
+                    return (
+                        <div className="slp-ex-fill-wrap">
+                            {desc && <div className="slp-ex-question">{desc}</div>}
+                            <input
+                                className={`slp-ex-fill-input slp-ex-fill-input-single ${isDone ? (result === 'correct' ? 'correct' : 'wrong') : ''}`}
+                                placeholder="Ваш ответ..."
+                                disabled={isDone}
+                                value={fillAnswers[0] || ''}
+                                onChange={e => {
+                                    setFillAnswers([e.target.value]);
+                                    setResult(null);
+                                }}
+                            />
                         </div>
-                    </div>
-                )}
+                    );
+                })()}
 
                 {exType === 'multiple_choice' && (
                     <>
