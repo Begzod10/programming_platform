@@ -1,0 +1,73 @@
+{
+  "_comment": "Reference manifest for enrich_course_lessons.py. Copy this file and fill it in per course. Both 'uz' and 'ru' blocks are required — the platform is bilingual and the read path expects RU sections in translation_cache.",
+  "course_id": 67,
+  "protect_exercise_ids_below": 3000,
+  "keep_file_section": true,
+  "lessons": [
+    {
+      "lesson_id": 541,
+      "uz": {
+        "sections": [
+          {
+            "type": "text",
+            "label": "Nazariya",
+            "html": "<h2>WeakMap va WeakSet</h2><p>WeakMap — bu maxsus xarita turi bo'lib, kalitlari sifatida faqat obyektlarni qabul qiladi va bu obyektlarga zaif havolalar saqlaydi.</p><pre class=\"mermaid\">flowchart TB\n  A[\"WeakMap\"] --> B[\"key: Object\"]\n  A --> C[\"value: any\"]\n  B --> D[\"GC — obyekt yo'q bo'lsa avtomatik tozalanadi\"]\n</pre>"
+          },
+          {
+            "type": "code",
+            "label": "Misol",
+            "code": "const cache = new WeakMap();\nconst user = { id: 1, name: 'Ali' };\ncache.set(user, { visits: 3 });\nconsole.log(cache.get(user)); // { visits: 3 }",
+            "lang": "javascript"
+          },
+          {
+            "type": "exercise",
+            "label": "Mashqlar",
+            "exercises": []
+          }
+        ],
+        "exercises": [
+          {
+            "title": "WeakMap kaliti",
+            "description": "WeakMap kaliti sifatida qaysi qiymatlar ishlatilishi mumkin?",
+            "exercise_type": "multiple_choice",
+            "options": ["Faqat obyektlar", "String va obyektlar", "Har qanday primitive", "Faqat funksiyalar"],
+            "correct_answers": "A",
+            "is_multiple_select": false,
+            "hint": "WeakMap zaif havola qiladi — bu faqat obyektlar uchun ma'noli.",
+            "explanation": "WeakMap kaliti sifatida faqat obyekt turi qabul qilinadi.",
+            "difficulty_level": "Easy",
+            "points": 2
+          }
+        ]
+      },
+      "ru": {
+        "sections": [
+          {
+            "type": "text",
+            "label": "Теория",
+            "html": "<h2>WeakMap и WeakSet</h2><p>WeakMap — это специальный тип карты, ключами которого могут быть только объекты, причём хранятся они через слабые ссылки.</p><pre class=\"mermaid\">flowchart TB\n  A[\"WeakMap\"] --> B[\"key: Object\"]\n  A --> C[\"value: any\"]\n  B --> D[\"GC — если объект удалён, запись очищается\"]\n</pre>"
+          },
+          {
+            "type": "code",
+            "label": "Пример",
+            "code": "const cache = new WeakMap();\nconst user = { id: 1, name: 'Али' };\ncache.set(user, { visits: 3 });\nconsole.log(cache.get(user)); // { visits: 3 }",
+            "lang": "javascript"
+          },
+          {
+            "type": "exercise",
+            "label": "Упражнения",
+            "exercises": []
+          }
+        ],
+        "exercises": [
+          {
+            "title": "Ключ WeakMap",
+            "description": "Какие значения можно использовать как ключ в WeakMap?",
+            "hint": "WeakMap делает слабые ссылки — это имеет смысл только для объектов.",
+            "explanation": "В WeakMap ключом может быть только объект."
+          }
+        ]
+      }
+    }
+  ]
+}
