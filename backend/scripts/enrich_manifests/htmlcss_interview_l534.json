@@ -1,0 +1,222 @@
+{
+  "course_id": 62,
+  "protect_exercise_ids_below": 3000,
+  "keep_file_section": true,
+  "lessons": [
+    {
+      "lesson_id": 534,
+      "uz": {
+        "sections": [
+          {
+            "type": "text",
+            "label": "Nazariya",
+            "html": "<h2>20 ta eng ko'p beriladigan CSS/HTML intervyu savollari</h2><p>Ushbu darsda biz frontend intervyularda eng ko'p uchraydigan 20 ta savolni qisqa va aniq javoblar bilan ko'rib chiqamiz. Har bir savol <strong>senior</strong> pozitsiyaga da'vogar kandidatdan kutiladigan darajada tushuntiriladi: nafaqat <em>nima</em>, balki <em>nima uchun</em> va <em>qachon</em>.</p><h3>Intervyuning uchta bosqichi</h3><p>Odatda CSS/HTML intervyusi quyidagi tuzilishga ega bo'ladi:</p><pre class=\"mermaid\">flowchart LR\n  A[\"1. Tezkor savollar\"] --> B[\"2. Amaliy vazifa\"]\n  B --> C[\"3. Muhokama\"]\n  A -.-> A1[\"box-sizing, specificity, semantic\"]\n  B -.-> B1[\"Layout yasash, CLS ni tuzatish\"]\n  C -.-> C1[\"Performance, a11y, arxitektura\"]</pre><p><strong>Birinchi bosqichda</strong> tez javob talab qiladigan definitsiya savollari beriladi — bu yerda ikkilanish yoki noaniq javob salbiy signal bo'ladi. <strong>Ikkinchi bosqichda</strong> jonli kodda muammo yechish so'raladi — bu yerda muhim bo'lgan narsa: siz o'z fikringizni ovoz chiqarib aytishingiz. <strong>Uchinchi bosqichda</strong> arxitektura darajasidagi qarorlar muhokama qilinadi — masalan, dizayn tizimi qanday tuzilishi kerak yoki qaysi hollarda utility-class kutubxonasidan foydalanish kerak emas.</p><h3>Kandidatlar eng ko'p uchraydigan xatolar</h3><ul><li><strong>Aniq bo'lmagan javoblar</strong>: \"catalog qandaydir joyda\" o'rniga \"bu <code>display: grid</code> orqali va <code>grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))</code> bilan qilinadi\" deb aytish kerak.</li><li><strong>Freymvork bilan aralashtirish</strong>: Tailwind-ni bilish CSS bilish bilan bir xil emas. Intervyuchi ba'zan sizni utility-class'siz vaziyatga qo'yishi mumkin.</li><li><strong>Standartlarni bilmaslik</strong>: <code>:has()</code>, <code>@layer</code>, <code>subgrid</code>, <code>container queries</code> — bular 2024–2025 yilda kandidatdan kutiladi.</li><li><strong>Performance haqida yuzaki gaplashish</strong>: \"CSS optimize qilish kerak\" degan javob bo'sh. Aniq: \"selector chuqurligini kamaytiraman, kritik CSS'ni inline qilaman, <code>content-visibility</code> ishlataman\".</li></ul><h3>Savollarni javob berish tuzilmasi</h3><p>Har bir texnik savolga javob berishda quyidagi tuzilmani saqlang:</p><ol><li><strong>Qisqa ta'rif</strong> (1 gap) — nima haqida so'ralayapti.</li><li><strong>Amaliy misol</strong> (1–2 gap) — real hayotda qanday ishlatiladi.</li><li><strong>Cheklovlar yoki kompromis</strong> (1 gap) — nima uchun bu doim to'g'ri emas.</li></ol><p>Masalan, <em>flexbox va grid orasidagi farq nima?</em> degan savolga: \"Flex bir o'lchamli layout uchun (bir qator yoki bir ustun), grid ikki o'lchamli uchun. Amaliyotda navbar'ni flex bilan, katalog kartochkalari grid bilan yasayman. Grid ancha kuchli, lekin oddiy holatlarda uning template sintaksisi ortiqcha murakkablik keltiradi.\"</p>"
+          },
+          {
+            "type": "text",
+            "label": "Amaliyot",
+            "html": "<h2>20 ta savol — qisqa va aniq javoblar</h2><h3>Box model va o'lchamlar</h3><p><strong>1. <code>box-sizing: border-box</code> nima qiladi?</strong> Elementning <code>width</code> va <code>height</code> qiymatiga <code>padding</code> va <code>border</code> ham kiritiladi. Bu geometriya hisob-kitobini oldindan aytish mumkin qiladi. Barcha zamonaviy loyihalarda global qoida sifatida <code>* { box-sizing: border-box }</code> qo'yiladi.</p><p><strong>2. <code>em</code>, <code>rem</code>, <code>%</code>, <code>vh</code> orasidagi farq?</strong> <code>em</code> — ota-elementning <code>font-size</code>'iga bog'liq. <code>rem</code> — <code>&lt;html&gt;</code>'ning <code>font-size</code>'iga bog'liq (odatda 16px). <code>%</code> — kontekstga bog'liq. <code>vh</code> — viewport balandligining 1%. Foydalanuvchi shrift o'lchamini oshira olsin uchun ko'pincha <code>rem</code> tavsiya etiladi.</p><h3>Positioning va layout</h3><p><strong>3. <code>position: absolute</code> va <code>fixed</code> orasidagi farq?</strong> <code>absolute</code> — eng yaqin <code>position: relative</code> bo'lgan ajdodga nisbatan, <code>fixed</code> — viewport'ga nisbatan (scroll qilinganda ham joyida qoladi). Lekin agar ajdodda <code>transform</code>, <code>filter</code> yoki <code>will-change</code> bo'lsa, <code>fixed</code> ham unga nisbatan pozitsiyalanadi — bu klassik tuzoq.</p><p><strong>4. Elementni gorizontal va vertikal markazlashning eng oson usuli?</strong> Konteynerga <code>display: grid; place-items: center</code>. Yoki flex bilan: <code>display: flex; align-items: center; justify-content: center</code>.</p><p><strong>5. <code>z-index</code> qachon ishlamaydi?</strong> Element <code>position: static</code>'da bo'lsa yoki uning ota-elementi yangi <em>stacking context</em> yaratmagan bo'lsa. Yangi stacking context <code>transform</code>, <code>opacity &lt; 1</code>, <code>filter</code>, <code>will-change</code> orqali paydo bo'ladi.</p><h3>Flex, grid va responsive</h3><p><strong>6. <code>flex-basis</code>, <code>width</code> va <code>flex-grow</code>?</strong> <code>flex-basis</code> — element boshlang'ich o'lchami (asosiy o'q bo'yicha). <code>flex-grow</code> — bo'sh joyni qanday nisbatda taqsimlash. Qisqartma <code>flex: 1</code> = <code>flex: 1 1 0</code>.</p><p><strong>7. <code>grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))</code> nima qiladi?</strong> Media query'larsiz responsive grid yaratadi: ekran torayganda ustunlar soni kamayadi, ammo har bir kartochka kamida 240px kenglikda qoladi. <code>auto-fit</code> bo'sh joyni to'ldiradi, <code>auto-fill</code> esa bo'sh ustunlar qoldiradi.</p><p><strong>8. Container queries nima uchun kerak?</strong> Media query ekranga qaraydi, container query esa <em>ota-konteynerning</em> o'lchamiga qaraydi. Bir xil komponentni sidebar'da tor, main'da keng joyga qo'ysangiz, u avtomatik moslashadi.</p><h3>Specificity va cascade</h3><p><strong>9. Selector specificity qanday hisoblanadi?</strong> To'rt darajali (a,b,c,d): inline style, ID lar, class/attribute/pseudo-class, element/pseudo-element. <code>#nav .item a:hover</code> = 0,1,2,1. <code>!important</code> — oxirgi chora.</p><p><strong>10. <code>@layer</code> (cascade layers) nima?</strong> CSS qoidalarini <em>oldindan belgilangan</em> tartibda qatlamlarga bo'lish imkonini beradi. <code>@layer reset, base, components, utilities</code> — hatto keyingi qatlamda past specificity bo'lsa ham, u avvalgisidan ustun bo'ladi. Bu specificity urushlarini tugatadi.</p><p><strong>11. <code>:where()</code> va <code>:is()</code> farqi?</strong> Ikkalasi ham selector'lar ro'yxatini birlashtiradi, lekin <code>:where()</code> specificity'ni 0 ga tushiradi. Reset yoki base qatlamda <code>:where()</code> ideal.</p><h3>HTML, semantika va a11y</h3><p><strong>12. Semantik HTML nima uchun muhim?</strong> Screen reader'lar tuzilmani tushunadi, SEO yaxshilanadi, keyboard navigatsiyasi to'g'ri ishlaydi, standart uslub kod'siz olinadi. <code>&lt;div onclick&gt;</code> emas, <code>&lt;button&gt;</code>.</p><p><strong>13. <code>&lt;section&gt;</code>, <code>&lt;article&gt;</code>, <code>&lt;aside&gt;</code> qachon ishlatiladi?</strong> <code>&lt;article&gt;</code> — mustaqil kontent birligi (blog post, kartochka). <code>&lt;section&gt;</code> — mavzu bo'yicha guruhlangan kontent (heading talab qiladi). <code>&lt;aside&gt;</code> — asosiy oqimga tegishli emas (sidebar, izohlar).</p><p><strong>14. ARIA landmark'lar nima?</strong> <code>role=\"navigation\"</code>, <code>role=\"main\"</code>, <code>role=\"complementary\"</code> — screen reader foydalanuvchisi sahifada tez o'ta oladi. Zamonaviy semantik teg'lar (<code>&lt;nav&gt;</code>, <code>&lt;main&gt;</code>) ARIA rolini implicit tarzda beradi — qo'shimcha atribut yozish shart emas.</p><p><strong>15. Rasm yuklash strategiyasi?</strong> Hero rasmga <code>fetchpriority=\"high\"</code> va <code>loading=\"eager\"</code>, ekrandan tashqaridagilarga <code>loading=\"lazy\"</code>. Har bir <code>&lt;img&gt;</code>'ga <code>width</code> va <code>height</code> — CLS ga qarshi.</p><h3>Performance va zamonaviy CSS</h3><p><strong>16. CLS (Cumulative Layout Shift) qanday tuzatiladi?</strong> Rasm/video'larga o'lcham beriladi, embed'lar uchun <code>min-height</code> zaxiralanadi, <code>font-display: optional</code> yoki <code>size-adjust</code> ishlatiladi.</p><p><strong>17. <code>contain: content</code> nima qiladi?</strong> Element ichidagi layout/paint o'zgarishlari tashqariga ta'sir qilmaydi. Feed elementlariga qo'yilsa, reflow doirasi keskin kichrayadi.</p><p><strong>18. <code>content-visibility: auto</code>?</strong> Ekrandan tashqaridagi elementlarni renderdan chetlashtiradi. Uzun sahifalarda birinchi paint sezilarli tezlashadi.</p><p><strong>19. Pseudo-class va pseudo-element farqi?</strong> Pseudo-class — element <em>holatini</em> belgilaydi (<code>:hover</code>, <code>:focus-visible</code>, <code>:has()</code>). Pseudo-element — DOM'da bo'lmagan qism yaratadi (<code>::before</code>, <code>::marker</code>).</p><p><strong>20. Critical CSS nima?</strong> Birinchi ekranni chizish uchun kerakli minimal CSS — <code>&lt;head&gt;</code>'da inline joylashtiriladi (14 KB dan oshmaydi). Qolgan CSS asinxron yuklanadi. LCP va FCP ko'rsatkichlarini sezilarli yaxshilaydi.</p>"
+          },
+          {
+            "type": "code",
+            "label": "Misol",
+            "lang": "css",
+            "code": "/* 1. Global box-sizing — har bir loyiha shu bilan boshlanadi */\n*, *::before, *::after {\n  box-sizing: border-box;\n}\n\n/* 4. Element markazlash — grid orqali eng qisqa yo'l */\n.centered {\n  display: grid;\n  place-items: center;\n  min-height: 100vh;\n}\n\n/* 7. Media query'siz responsive grid */\n.catalog {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));\n  gap: clamp(1rem, 2vw, 2rem);\n}\n\n/* 8. Container query — komponent ota konteyneriga moslashadi */\n.card-list {\n  container-type: inline-size;\n}\n@container (min-width: 480px) {\n  .card {\n    display: grid;\n    grid-template-columns: 120px 1fr;\n    gap: 1rem;\n  }\n}\n\n/* 10. Cascade layers — specificity urushini yakunlaydi */\n@layer reset, base, components, utilities;\n\n@layer utilities {\n  /* utilities eng oxirgi qatlam — hatto past specificity ham g'olib */\n  .mt-4 { margin-top: 1rem; }\n}\n\n/* 11. :where() — specificity 0, reset uchun ideal */\n:where(button, [role=\"button\"]) {\n  cursor: pointer;\n  font: inherit;\n}\n\n/* 16 + 17. CLS'ni oldini olish + contain */\n.feed-item {\n  contain: content;                     /* layout + paint izolyatsiyasi */\n  content-visibility: auto;             /* ekrandan tashqarida — render yo'q */\n  contain-intrinsic-size: 0 320px;      /* joy zaxirasi CLS'ga qarshi */\n}\n\n.hero-image {\n  width: 100%;\n  aspect-ratio: 16 / 9;                  /* rasm yuklangunga qadar joy tayyor */\n  object-fit: cover;\n  background: #eef2f7;\n}\n\n/* 19. Pseudo-class + pseudo-element birgalikda */\n.link:hover::after {\n  content: \" ↗\";\n  color: currentColor;\n  opacity: 0.7;\n}\n\n/* 20. Critical CSS — <head> ichida inline, faqat above-the-fold uchun */\n:root {\n  --font-body: 'Inter', system-ui, sans-serif;\n  --color-text: #0b1220;\n  --color-bg: #ffffff;\n}\n\nhtml { color-scheme: light dark; }\nbody {\n  margin: 0;\n  font-family: var(--font-body);\n  color: var(--color-text);\n  background: var(--color-bg);\n  -webkit-font-smoothing: antialiased;\n}\n\n/* Font — CLS'ning ikkinchi fronti */\n@font-face {\n  font-family: 'Inter';\n  src: url('/fonts/inter.woff2') format('woff2');\n  font-display: swap;\n  size-adjust: 100.5%;\n}\n",
+            "order": 3
+          },
+          {
+            "type": "exercise",
+            "label": "Mashqlar",
+            "order": 4,
+            "exercises": []
+          }
+        ],
+        "exercises": [
+          {
+            "title": "box-sizing: border-box ta'siri",
+            "description": "Element uchun <code>width: 200px; padding: 20px; border: 2px solid</code> qo'yilgan va <code>box-sizing: border-box</code> ishlatilgan. Elementning haqiqiy ko'rinadigan kengligi nechchi piksel bo'ladi?",
+            "exercise_type": "multiple_choice",
+            "options": ["244px", "200px", "240px", "160px"],
+            "correct_answers": "B",
+            "is_multiple_select": false,
+            "hint": "border-box holatida width qiymatiga padding va border ham kiritiladi.",
+            "explanation": "border-box bilan width butun laqutni (padding + border ichkarida) belgilaydi, shuning uchun element 200px qoladi. content maydoni esa 200 - 40 - 4 = 156px bo'ladi.",
+            "difficulty_level": "Easy",
+            "points": 2
+          },
+          {
+            "title": "z-index ishlamaydigan holat",
+            "description": "Kandidat <code>z-index: 999</code> qo'ygan, lekin modal orqada qolib ketmoqda. Quyidagilarning qay biri sabab bo'lishi mumkin?",
+            "exercise_type": "multiple_choice",
+            "options": [
+              "Elementda position: static qoldirilgan",
+              "Ota-elementda transform yoki opacity < 1 borligi tufayli alohida stacking context yaratilgan",
+              "Selector specificity yetarli emas",
+              "z-index butun sonda emas"
+            ],
+            "correct_answers": ["A", "B"],
+            "is_multiple_select": true,
+            "hint": "z-index faqat positioned element'larga ta'sir qiladi va yangi stacking context ichida cheklangan bo'ladi.",
+            "explanation": "z-index static element'da butunlay e'tibordan chetda. transform, opacity, filter kabi xususiyatlar yangi stacking context yaratadi va shu context ichida z-index qancha baland bo'lsa ham, u tashqaridagi elementdan yuqoriga chiqa olmaydi.",
+            "difficulty_level": "Medium",
+            "points": 3
+          },
+          {
+            "title": "Responsive grid — bir qatorga to'ldiring",
+            "description": "Media query'lardan foydalanmasdan kartochkalar gridini yasang. Har bir kartochka kamida 240px, mavjud kenglik bo'yicha ustunlar avtomatik joylashsin. Kod: <code>grid-template-columns: repeat(___, minmax(240px, 1fr));</code>",
+            "exercise_type": "fill_in_blank",
+            "correct_answers": "auto-fit",
+            "hint": "Bu qiymat bo'sh joyni to'ldiradi va bo'sh ustunlar qoldirmaydi.",
+            "explanation": "auto-fit mavjud joyga sig'adigan kartochkalar bilan qatorni to'ldiradi. auto-fill esa bo'sh ustunlar qoldiradi — ba'zi holatlarda kerakli xatti-harakat, lekin katalog uchun odatda auto-fit tanlanadi.",
+            "difficulty_level": "Medium",
+            "points": 3
+          },
+          {
+            "title": "Semantik teg tanlash",
+            "description": "Blog kartochkasi — mustaqil, o'ziga xos kontent birligi. Uni o'rash uchun qaysi semantik teg to'g'ri?",
+            "exercise_type": "multiple_choice",
+            "options": ["<div>", "<section>", "<article>", "<aside>"],
+            "correct_answers": "C",
+            "is_multiple_select": false,
+            "hint": "Blog post RSS orqali alohida olinsa ham ma'noli — bu qanday teg?",
+            "explanation": "&lt;article&gt; — kontekstdan mustaqil, o'zicha to'liq kontent uchun mo'ljallangan (blog post, mahsulot kartochkasi, forum javob). &lt;section&gt; — mavzu bo'yicha guruhlangan qism, &lt;aside&gt; — yon kontent, &lt;div&gt; — semantikasiz konteyner.",
+            "difficulty_level": "Easy",
+            "points": 2
+          },
+          {
+            "title": "CSS rendering pipeline tartibini tuzing",
+            "description": "Brauzer sahifani ekranga chiqarish uchun ushbu bosqichlarni to'g'ri tartibda joylashtiring.",
+            "exercise_type": "drag_and_drop",
+            "drag_items": ["Style (computed styles)", "Layout (reflow)", "Paint (repaint)", "Composite (GPU)"],
+            "correct_order": [0, 1, 2, 3],
+            "hint": "Avval qoidalar hisoblanadi, keyin geometriya, keyin piksellar chiziladi, oxirida GPU layer'larni birlashtiradi.",
+            "explanation": "Style → Layout → Paint → Composite. transform va opacity o'zgarganda faqat oxirgi bosqich ishga tushadi — shuning uchun animatsiya uchun ular tavsiya qilinadi.",
+            "difficulty_level": "Medium",
+            "points": 3
+          },
+          {
+            "title": "Specificity hisoblang",
+            "description": "Selector <code>#header nav .menu-item a:hover</code> ning specificity vektori qanday? Format: a,b,c,d.",
+            "exercise_type": "text_input",
+            "correct_answers": "0,1,2,2",
+            "hint": "ID lar b, class va pseudo-class c, element/pseudo-element d ustunida.",
+            "explanation": "0 inline yo'q, 1 ta ID (#header), 2 ta class/pseudo-class (.menu-item + :hover), 2 ta element (nav + a). Natija: 0,1,2,2.",
+            "difficulty_level": "Hard",
+            "points": 4
+          },
+          {
+            "title": "CLS — sababini toping",
+            "description": "Sahifada CLS ko'rsatkichi 0.35 ga chiqmoqda (chegara 0.1). Quyidagilardan qay biri odatiy sabab hisoblanadi?",
+            "exercise_type": "multiple_choice",
+            "options": [
+              "&lt;img&gt; tegida width/height berilmagan",
+              "Reklama bloki uchun min-height zaxiralanmagan",
+              "Web-font almashinishida matn kengligi o'zgaradi",
+              "Yuqoridagilarning barchasi"
+            ],
+            "correct_answers": "D",
+            "is_multiple_select": false,
+            "hint": "CLS — elementlar yuklanish paytida joyini o'zgartirganda o'sadi.",
+            "explanation": "Barcha uch holat CLS'ga hissa qo'shadi: rasm o'lchamsiz kelsa, u yuklanishida joyni siljitadi; reklama uchun joy zaxira qilinmasa — kontent pastga siljiydi; font swap paytida matn kengligi o'zgaradi. size-adjust yoki font-display: optional bu oxirgisini kamaytiradi.",
+            "difficulty_level": "Easy",
+            "points": 2
+          },
+          {
+            "title": "Cascade layers tartibi",
+            "description": "CSS'da <code>@layer reset, base, components, utilities;</code> deb e'lon qilingan. Qaysi qatlamdagi qoida g'olib bo'ladi, agar specificity teng bo'lsa?",
+            "exercise_type": "multiple_choice",
+            "options": [
+              "reset (birinchi e'lon qilingan)",
+              "base",
+              "components",
+              "utilities (oxirgi e'lon qilingan)"
+            ],
+            "correct_answers": "D",
+            "is_multiple_select": false,
+            "hint": "Layer tartibi cascade orderni belgilaydi — keyingi qatlam ustun bo'ladi.",
+            "explanation": "Cascade layers tartibida oxirgi e'lon qilingan qatlam eng yuqori ustuvorlikka ega — bu specificity'ga bog'liq emas. Shuning uchun utility class'lar odatda oxirgi qatlamga joylashtiriladi.",
+            "difficulty_level": "Medium",
+            "points": 3
+          }
+        ]
+      },
+      "ru": {
+        "sections": [
+          {
+            "type": "text",
+            "label": "Теория",
+            "html": "<h2>20 самых частых вопросов на собеседовании по CSS/HTML</h2><p>В этом уроке мы разберём 20 вопросов, которые чаще всего встречаются на фронтенд-собеседованиях, — с короткими и точными ответами. Каждый вопрос подан на уровне <strong>senior</strong>-кандидата: не только <em>что</em>, но и <em>зачем</em> и <em>когда</em>.</p><h3>Три этапа собеседования</h3><p>Обычно структура собеседования по CSS/HTML выглядит так:</p><pre class=\"mermaid\">flowchart LR\n  A[\"1. Быстрые вопросы\"] --> B[\"2. Практическое задание\"]\n  B --> C[\"3. Обсуждение\"]\n  A -.-> A1[\"box-sizing, specificity, semantic\"]\n  B -.-> B1[\"Свёрстать layout, починить CLS\"]\n  C -.-> C1[\"Performance, a11y, архитектура\"]</pre><p><strong>На первом этапе</strong> задают короткие вопросы на определения — здесь неуверенность или размытый ответ считается негативным сигналом. <strong>На втором этапе</strong> просят решить задачу в живом коде — важно проговаривать свои действия вслух. <strong>На третьем этапе</strong> обсуждают решения архитектурного уровня — например, как устроить дизайн-систему или когда utility-классы неуместны.</p><h3>Типичные ошибки кандидатов</h3><ul><li><strong>Размытые ответы</strong>: вместо \"каталог как-то делается\" — \"это <code>display: grid</code> с <code>grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))</code>\".</li><li><strong>Путать фреймворк с языком</strong>: знать Tailwind — не то же самое, что знать CSS. Интервьюер может специально убрать утилиты.</li><li><strong>Не знать современных стандартов</strong>: <code>:has()</code>, <code>@layer</code>, <code>subgrid</code>, <code>container queries</code> — ожидаются от кандидата в 2024–2025 году.</li><li><strong>Поверхностный разговор о производительности</strong>: \"CSS надо оптимизировать\" — пустой ответ. Конкретно: \"уменьшу глубину селекторов, вынесу критический CSS инлайн, использую <code>content-visibility</code>\".</li></ul><h3>Структура хорошего ответа</h3><p>На каждый технический вопрос отвечайте по схеме:</p><ol><li><strong>Короткое определение</strong> (1 предложение) — о чём вопрос.</li><li><strong>Практический пример</strong> (1–2 предложения) — как применяется в реальной работе.</li><li><strong>Ограничение или компромисс</strong> (1 предложение) — когда это НЕ подходит.</li></ol><p>Например, на вопрос <em>чем отличаются flexbox и grid?</em>: \"Flex — для одномерного layout (строка или колонка), grid — для двумерного. На практике navbar собираю флексом, каталог карточек — гридом. Grid мощнее, но в простых случаях его template-синтаксис даёт лишнюю сложность.\"</p>"
+          },
+          {
+            "type": "text",
+            "label": "Практика",
+            "html": "<h2>20 вопросов — краткие и точные ответы</h2><h3>Box model и размеры</h3><p><strong>1. Что делает <code>box-sizing: border-box</code>?</strong> Значения <code>width</code> и <code>height</code> элемента включают <code>padding</code> и <code>border</code>. Это делает расчёт геометрии предсказуемым. В любом современном проекте ставят глобальное правило <code>* { box-sizing: border-box }</code>.</p><p><strong>2. Разница между <code>em</code>, <code>rem</code>, <code>%</code>, <code>vh</code>?</strong> <code>em</code> — от <code>font-size</code> родителя. <code>rem</code> — от <code>font-size</code> <code>&lt;html&gt;</code> (обычно 16px). <code>%</code> — зависит от контекста. <code>vh</code> — 1% высоты viewport. Чтобы пользователь мог увеличивать шрифт, обычно рекомендуют <code>rem</code>.</p><h3>Позиционирование и layout</h3><p><strong>3. Разница между <code>position: absolute</code> и <code>fixed</code>?</strong> <code>absolute</code> — относительно ближайшего предка с <code>position: relative</code>, <code>fixed</code> — относительно viewport (остаётся на месте при скролле). Но если у предка есть <code>transform</code>, <code>filter</code> или <code>will-change</code>, <code>fixed</code> тоже позиционируется от него — классическая ловушка.</p><p><strong>4. Самый простой способ центрировать элемент по обеим осям?</strong> На контейнере: <code>display: grid; place-items: center</code>. Или через flex: <code>display: flex; align-items: center; justify-content: center</code>.</p><p><strong>5. Когда <code>z-index</code> не работает?</strong> Если элемент в <code>position: static</code> или если родитель не создал новый <em>stacking context</em>. Новый контекст возникает от <code>transform</code>, <code>opacity &lt; 1</code>, <code>filter</code>, <code>will-change</code>.</p><h3>Flex, grid и адаптив</h3><p><strong>6. <code>flex-basis</code>, <code>width</code> и <code>flex-grow</code>?</strong> <code>flex-basis</code> — начальный размер элемента по главной оси. <code>flex-grow</code> — как распределять свободное место. Сокращение <code>flex: 1</code> = <code>flex: 1 1 0</code>.</p><p><strong>7. Что делает <code>grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))</code>?</strong> Создаёт адаптивный grid без media query: при сужении экрана число колонок уменьшается, но каждая карточка не уже 240px. <code>auto-fit</code> заполняет пространство, <code>auto-fill</code> оставляет пустые колонки.</p><p><strong>8. Зачем нужны container queries?</strong> Media query смотрят на размер экрана, container query — на размер <em>родительского контейнера</em>. Один и тот же компонент в узком sidebar и широком main адаптируется автоматически.</p><h3>Specificity и каскад</h3><p><strong>9. Как считается specificity селектора?</strong> Четырьмя уровнями (a,b,c,d): inline-стиль, ID, class/attribute/pseudo-class, element/pseudo-element. <code>#nav .item a:hover</code> = 0,1,2,1. <code>!important</code> — крайняя мера.</p><p><strong>10. Что такое <code>@layer</code> (cascade layers)?</strong> Позволяет разложить правила CSS в <em>заранее заданном</em> порядке слоёв. <code>@layer reset, base, components, utilities</code> — даже если в следующем слое specificity ниже, он всё равно победит. Это заканчивает войны специфичности.</p><p><strong>11. Разница между <code>:where()</code> и <code>:is()</code>?</strong> Обе группируют список селекторов, но <code>:where()</code> обнуляет specificity. Идеально для reset или base-слоя.</p><h3>HTML, семантика и a11y</h3><p><strong>12. Зачем нужна семантическая разметка?</strong> Screen reader понимают структуру, улучшается SEO, корректно работает клавиатурная навигация, стандартное поведение — без кода. Вместо <code>&lt;div onclick&gt;</code> — <code>&lt;button&gt;</code>.</p><p><strong>13. Когда применять <code>&lt;section&gt;</code>, <code>&lt;article&gt;</code>, <code>&lt;aside&gt;</code>?</strong> <code>&lt;article&gt;</code> — самодостаточный блок контента (пост, карточка). <code>&lt;section&gt;</code> — тематически сгруппированная часть (требует заголовок). <code>&lt;aside&gt;</code> — не относится к основному потоку (sidebar, сноски).</p><p><strong>14. Что такое ARIA-лендмарки?</strong> <code>role=\"navigation\"</code>, <code>role=\"main\"</code>, <code>role=\"complementary\"</code> — пользователь screen reader быстро перемещается по странице. Современные семантические теги (<code>&lt;nav&gt;</code>, <code>&lt;main&gt;</code>) дают implicit-роль сами — атрибут не нужен.</p><p><strong>15. Стратегия загрузки изображений?</strong> Для hero-картинки — <code>fetchpriority=\"high\"</code> и <code>loading=\"eager\"</code>, для того, что вне экрана, — <code>loading=\"lazy\"</code>. У каждого <code>&lt;img&gt;</code> должны быть <code>width</code> и <code>height</code> — против CLS.</p><h3>Производительность и современный CSS</h3><p><strong>16. Как исправить CLS (Cumulative Layout Shift)?</strong> Задать размеры картинкам/видео, зарезервировать <code>min-height</code> для embed-ов, использовать <code>font-display: optional</code> или <code>size-adjust</code>.</p><p><strong>17. Что делает <code>contain: content</code>?</strong> Изменения layout/paint внутри элемента не влияют наружу. При применении к элементам ленты радиус reflow резко сокращается.</p><p><strong>18. <code>content-visibility: auto</code>?</strong> Элементы вне экрана исключаются из рендера. На длинных страницах первый paint становится заметно быстрее.</p><p><strong>19. Разница между псевдоклассом и псевдоэлементом?</strong> Псевдокласс описывает <em>состояние</em> элемента (<code>:hover</code>, <code>:focus-visible</code>, <code>:has()</code>). Псевдоэлемент создаёт часть, которой нет в DOM (<code>::before</code>, <code>::marker</code>).</p><p><strong>20. Что такое Critical CSS?</strong> Минимальный CSS, нужный для отрисовки первого экрана, — встраивается inline в <code>&lt;head&gt;</code> (не больше 14 КБ). Остальной CSS грузится асинхронно. Заметно улучшает LCP и FCP.</p>"
+          },
+          {
+            "type": "code",
+            "label": "Пример",
+            "lang": "css",
+            "code": "/* 1. Глобальный box-sizing — с этого начинается любой проект */\n*, *::before, *::after {\n  box-sizing: border-box;\n}\n\n/* 4. Центрирование элемента — самый короткий путь через grid */\n.centered {\n  display: grid;\n  place-items: center;\n  min-height: 100vh;\n}\n\n/* 7. Адаптивный grid без media query */\n.catalog {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));\n  gap: clamp(1rem, 2vw, 2rem);\n}\n\n/* 8. Container query — компонент подстраивается под родителя */\n.card-list {\n  container-type: inline-size;\n}\n@container (min-width: 480px) {\n  .card {\n    display: grid;\n    grid-template-columns: 120px 1fr;\n    gap: 1rem;\n  }\n}\n\n/* 10. Cascade layers — заканчивают войну специфичности */\n@layer reset, base, components, utilities;\n\n@layer utilities {\n  /* utilities — последний слой, побеждает даже при низкой specificity */\n  .mt-4 { margin-top: 1rem; }\n}\n\n/* 11. :where() — specificity 0, идеально для reset */\n:where(button, [role=\"button\"]) {\n  cursor: pointer;\n  font: inherit;\n}\n\n/* 16 + 17. Профилактика CLS + contain */\n.feed-item {\n  contain: content;                     /* изоляция layout + paint */\n  content-visibility: auto;             /* вне экрана — не рендерится */\n  contain-intrinsic-size: 0 320px;      /* резерв места против CLS */\n}\n\n.hero-image {\n  width: 100%;\n  aspect-ratio: 16 / 9;                  /* место готово до загрузки картинки */\n  object-fit: cover;\n  background: #eef2f7;\n}\n\n/* 19. Псевдокласс + псевдоэлемент вместе */\n.link:hover::after {\n  content: \" ↗\";\n  color: currentColor;\n  opacity: 0.7;\n}\n\n/* 20. Critical CSS — inline в <head>, только above-the-fold */\n:root {\n  --font-body: 'Inter', system-ui, sans-serif;\n  --color-text: #0b1220;\n  --color-bg: #ffffff;\n}\n\nhtml { color-scheme: light dark; }\nbody {\n  margin: 0;\n  font-family: var(--font-body);\n  color: var(--color-text);\n  background: var(--color-bg);\n  -webkit-font-smoothing: antialiased;\n}\n\n/* Шрифт — второй фронт борьбы с CLS */\n@font-face {\n  font-family: 'Inter';\n  src: url('/fonts/inter.woff2') format('woff2');\n  font-display: swap;\n  size-adjust: 100.5%;\n}\n",
+            "order": 3
+          },
+          {
+            "type": "exercise",
+            "label": "Упражнения",
+            "order": 4,
+            "exercises": []
+          }
+        ],
+        "exercises": [
+          {
+            "title": "Эффект box-sizing: border-box",
+            "description": "Для элемента заданы <code>width: 200px; padding: 20px; border: 2px solid</code> и <code>box-sizing: border-box</code>. Какова реальная видимая ширина элемента в пикселях?",
+            "hint": "При border-box значение width включает padding и border.",
+            "explanation": "С border-box width задаёт всю коробку (padding и border внутри), поэтому элемент остаётся 200px. Content-область: 200 − 40 − 4 = 156px."
+          },
+          {
+            "title": "Когда z-index не работает",
+            "description": "Кандидат поставил <code>z-index: 999</code>, но модальное окно остаётся позади. Какие из вариантов могут быть причиной?",
+            "hint": "z-index работает только у позиционированных элементов и ограничен рамками stacking context.",
+            "explanation": "У элемента с position: static z-index игнорируется. transform, opacity, filter создают новый stacking context — z-index внутри него не может «перескочить» через элемент снаружи."
+          },
+          {
+            "title": "Адаптивный grid — вставьте значение",
+            "description": "Соберите grid карточек без media query. Каждая карточка минимум 240px, число колонок подстраивается автоматически. Код: <code>grid-template-columns: repeat(___, minmax(240px, 1fr));</code>",
+            "hint": "Это значение заполняет пространство и не оставляет пустых колонок.",
+            "explanation": "auto-fit заполняет строку карточками, которые помещаются. auto-fill оставляет пустые колонки — иногда нужное поведение, но для каталога обычно берут auto-fit."
+          },
+          {
+            "title": "Выбор семантического тега",
+            "description": "Карточка блога — самодостаточная единица контента. Какой семантический тег для неё правильный?",
+            "hint": "Пост блога, вырванный из RSS, всё равно осмыслен — какой это тег?",
+            "explanation": "&lt;article&gt; — для самодостаточного контента (пост, карточка товара, комментарий на форуме). &lt;section&gt; — тематический раздел, &lt;aside&gt; — побочный контент, &lt;div&gt; — контейнер без семантики."
+          },
+          {
+            "title": "Порядок этапов CSS rendering",
+            "description": "Расставьте этапы отрисовки страницы браузером в правильном порядке.",
+            "hint": "Сначала правила, потом геометрия, потом пиксели, в конце GPU объединяет слои.",
+            "explanation": "Style → Layout → Paint → Composite. Изменения transform и opacity задействуют только последний этап — поэтому именно их рекомендуют для анимации."
+          },
+          {
+            "title": "Посчитайте specificity",
+            "description": "Какой вектор специфичности у селектора <code>#header nav .menu-item a:hover</code>? Формат: a,b,c,d.",
+            "hint": "ID — в столбце b, class и псевдокласс — c, элемент/псевдоэлемент — d.",
+            "explanation": "0 (нет inline), 1 ID (#header), 2 (класс .menu-item + псевдокласс :hover), 2 элемента (nav + a). Итого: 0,1,2,2."
+          },
+          {
+            "title": "CLS — найдите причину",
+            "description": "На странице CLS вырос до 0.35 (порог 0.1). Какие из вариантов — типичные причины?",
+            "hint": "CLS растёт, когда элементы меняют своё место во время загрузки.",
+            "explanation": "Все три случая дают вклад в CLS: картинка без размера сдвигает контент при загрузке; рекламный блок без резерва по высоте — то же самое; при подмене шрифта меняется ширина строки. size-adjust или font-display: optional уменьшают последнюю проблему."
+          },
+          {
+            "title": "Порядок cascade layers",
+            "description": "В CSS объявлено <code>@layer reset, base, components, utilities;</code>. При равной специфичности правило из какого слоя победит?",
+            "hint": "Порядок слоёв задаёт порядок каскада — последующий слой побеждает.",
+            "explanation": "В cascade layers самый последний объявленный слой имеет наивысший приоритет, вне зависимости от specificity. Поэтому utility-классы обычно кладут в последний слой."
+          }
+        ]
+      }
+    }
+  ]
+}
