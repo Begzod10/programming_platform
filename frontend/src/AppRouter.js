@@ -19,6 +19,7 @@ import Achievements      from './views/student/achievements/Achievements';
 import Dictionary        from './views/student/dictionary/Dictionary';
 import StudentTeamGame   from './views/student/teamgame/StudentTeamGame';
 import StudentCourseStats from './views/student/stats/StudentCourseStats';
+import Store              from './views/student/store/Store';
 
 // ── Teacher views ──
 import TeacherCourses           from './views/teacher/courses/TeacherCourses/TeacherCourses';
@@ -137,6 +138,7 @@ function AppRouter() {
                 <Route path="team-game"                                   element={<TeacherTeamGame />} />
                 <Route path="team-game/:sessionId"                        element={<TeacherTeamGameSession />} />
                 <Route path="activity-analytics"                          element={<ActivityAnalytics />} />
+                <Route path="store"                                       element={<Store />} />
 
                 {/* Курсы */}
                 <Route path="courses"                                     element={<TeacherCourses />} />

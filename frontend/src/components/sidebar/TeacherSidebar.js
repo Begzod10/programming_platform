@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
+import CoinChip from './CoinChip';
 import {
     User, Download, Users, BookOpen, Gamepad2,
     Trophy, Construction, Award, Medal, TrendingUp, Star, Activity,
+    ShoppingBag,
 } from 'lucide-react';
 
 const COLLAPSED_KEY = 'sidebar:teacher:collapsed';
@@ -45,6 +47,7 @@ function TeacherSidebar({ activeTab, onLogout }) {
         { id: 'students',       label: 'Мои Студенты',    Icon: Users,        section: 'main' },
         { id: 'courses',        label: 'Курсы',           Icon: BookOpen,     section: 'main' },
         { id: 'team-game',      label: 'Командные игры',  Icon: Gamepad2,     section: 'main' },
+        { id: 'store',          label: 'Магазин (beta)',  Icon: ShoppingBag,  section: 'main' },
         { id: 'rankings',       label: 'Таблица лидеров', Icon: Trophy,       section: 'insights' },
         { id: 'project-rating', label: 'Топ проектов',    Icon: Construction, section: 'insights' },
         { id: 'achievements',   label: 'Yutuqlar',        Icon: Award,        section: 'insights' },
@@ -122,6 +125,8 @@ function TeacherSidebar({ activeTab, onLogout }) {
                         <span className="sidebar-brand__sub">IT Platform</span>
                     </div>
                 </div>
+
+                <CoinChip collapsed={isCollapsed} storePath="/teacher/store" />
 
                 <nav className="sidebar-menu" aria-label="Главное меню">
                     {sections.map(sec => {

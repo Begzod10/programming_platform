@@ -25,6 +25,7 @@ from app.api.v1.endpoints import team_game_session, team_game_questions
 from app.api.v1.endpoints import lesson_questions
 from app.api.v1.endpoints import parent
 from app.api.v1.endpoints import bot_stats
+from app.api.v1.endpoints import store
 api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
@@ -52,3 +53,4 @@ api_router.include_router(lesson_questions.router, prefix="", tags=["Lesson Ques
 api_router.include_router(parent.router, prefix="/parent", tags=["Parent MiniApp"])
 api_router.include_router(activity_analytics.router, prefix="/teacher/activity", tags=["Teacher Activity"])
 api_router.include_router(bot_stats.router, prefix="/bot", tags=["Bot Stats"])
+api_router.include_router(store.router, prefix="/store", tags=["Store"])

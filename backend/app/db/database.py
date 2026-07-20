@@ -95,6 +95,17 @@ async def _reconcile_indexes(conn) -> None:
             "END IF; "
             "END $$;"
         ),
+        # 2026-07-20: split spendable balance (total_points) from career
+        # total (lifetime_points). Existing prod rows are backfilled from
+        # total_points so no student's rank/level moves at cutover.
+        text(
+            "ALTER TABLE students "
+            "ADD COLUMN IF NOT EXISTS lifetime_points INTEGER NOT NULL DEFAULT 0"
+        ),
+        text(
+            "UPDATE students SET lifetime_points = total_points "
+            "WHERE lifetime_points = 0 AND total_points > 0"
+        ),
     ]
     for stmt in statements:
         await conn.execute(stmt)

@@ -28,7 +28,7 @@ class RankingService:
         new_ranking = Ranking(
             student_id=student_id,
             daily_points=0, weekly_points=0, monthly_points=0,
-            total_points=student.total_points,
+            total_points=student.lifetime_points,
             global_rank=0, daily_rank=0, weekly_rank=0, monthly_rank=0,
             level_rank=0, projects_completed=0, average_grade=0.0,
             last_daily_reset=datetime.utcnow(),
@@ -162,32 +162,38 @@ class RankingService:
         return res.mappings().all()
 
     async def add_points_to_student(self, student_id: int, points: int) -> Optional[Student]:
-        """Studentga ball qo'shish (Yagona nuqta)"""
+        """Studentga ball qo'shish (Yagona nuqta).
+
+        Bumps both wallets:
+          * `total_points`   — spendable balance (used by the store)
+          * `lifetime_points` — monotonic career total (drives level + rank)
+
+        The leaderboard reads `Ranking.total_points`, which we keep in sync
+        with the student's `lifetime_points` — so spending in the store
+        never drops a student down the leaderboard or demotes their level.
+        """
         res = await self.db.execute(select(Student).where(Student.id == student_id))
         student = res.scalar_one_or_none()
         if not student:
             return None
 
-        # 1. Student modelini yangilaymiz (Umumiy ball doim lifetimi)
         student.total_points += points
+        student.lifetime_points += points
 
-        # 2. Ranking modelini yangilaymiz
         result = await self.db.execute(select(Ranking).where(Ranking.student_id == student_id))
         ranking = result.scalar_one_or_none()
 
         if ranking:
-            # FAQAT daily_points va total_points yangilanadi. 
-            # Weekly/Monthly midnight resetda qo'shiladi (yoki leaderboadda sum qilinadi)
             ranking.daily_points += points
-            ranking.total_points = student.total_points
+            ranking.total_points = student.lifetime_points
             ranking.last_calculated_at = datetime.utcnow()
         else:
             ranking = Ranking(
                 student_id=student_id,
                 daily_points=points,
-                weekly_points=0,   # Yangi student uchun 0 dan boshlanadi
+                weekly_points=0,
                 monthly_points=0,
-                total_points=student.total_points,
+                total_points=student.lifetime_points,
                 last_calculated_at=datetime.utcnow(),
                 last_daily_reset=datetime.utcnow(),
                 last_weekly_reset=datetime.utcnow(),
@@ -196,32 +202,26 @@ class RankingService:
             self.db.add(ranking)
 
         await self.db.flush()
-        # Ranklarni qayta hisoblash
         await self.calculate_and_update_rankings()
         await self.db.refresh(student)
         return student
 
     async def subtract_points_from_student(self, student_id: int, points: int) -> Optional[Student]:
-        """Studentdan ball ayirish - barcha bucketlardan ayiramiz"""
+        """Studentdan spendable balansdan ayirish.
+
+        Only `total_points` (the spendable balance) is reduced. `lifetime_points`
+        and the leaderboard-facing `Ranking.total_points` are left alone, so a
+        purchase never lowers the student's level or global rank. Callers who
+        want to *revoke earned points* (e.g. reversing a bad submission) must
+        adjust `lifetime_points` explicitly — do not repurpose this method.
+        """
         res = await self.db.execute(select(Student).where(Student.id == student_id))
         student = res.scalar_one_or_none()
         if not student:
             return None
 
         student.total_points = max(0, student.total_points - points)
-
-        result = await self.db.execute(select(Ranking).where(Ranking.student_id == student_id))
-        ranking = result.scalar_one_or_none()
-
-        if ranking:
-            ranking.daily_points = max(0, ranking.daily_points - points)
-            ranking.weekly_points = max(0, ranking.weekly_points - points)
-            ranking.monthly_points = max(0, ranking.monthly_points - points)
-            ranking.total_points = student.total_points
-            ranking.last_calculated_at = datetime.utcnow()
-
         await self.db.flush()
-        await self.calculate_and_update_rankings()
         await self.db.refresh(student)
         return student
 
@@ -279,17 +279,16 @@ class RankingService:
             ranking = rank_res.scalar_one_or_none()
 
             if ranking:
-                # Agar bor bo'lsa, total_points ni yangilaymiz
-                # Daily/Weekly/Monthly larni tegmaymiz (ular o'zi reset bo'ladi)
-                ranking.total_points = student.total_points
+                # Mirror career total (lifetime_points), not the spendable
+                # wallet — see add_points_to_student for the rationale.
+                ranking.total_points = student.lifetime_points
             else:
-                # Agar yo'q bo'lsa, yangi yaratamiz
                 new_ranking = Ranking(
                     student_id=student.id,
                     daily_points=0,
                     weekly_points=0,
                     monthly_points=0,
-                    total_points=student.total_points,
+                    total_points=student.lifetime_points,
                     last_daily_reset=datetime.utcnow(),
                     last_weekly_reset=datetime.utcnow(),
                     last_monthly_reset=datetime.utcnow()
@@ -336,8 +335,10 @@ class RankingService:
             for rank, ranking in enumerate(sorted_r, start=1):
                 setattr(ranking, rank_attr, rank)
                 if rank_attr == "global_rank":
-                    # total_points ni Student bilan sinxronlashtirish
-                    ranking.total_points = ranking.student.total_points
+                    # Mirror lifetime_points (career earned total) — NOT
+                    # total_points (spendable). Otherwise buying a theme
+                    # would drop the student down the leaderboard.
+                    ranking.total_points = ranking.student.lifetime_points
                     ranking.student.global_rank = rank
                 ranking.last_calculated_at = datetime.utcnow()
 

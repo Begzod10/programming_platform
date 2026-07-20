@@ -1,0 +1,99 @@
+/* ===== Coin Chip ===== */
+/* Sits below the StreakBadge in the sidebar. Full-width when the
+   sidebar is expanded, compact pill when collapsed. Clicking opens
+   the points store. */
+
+.coin-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    margin: 0 0 14px;
+    width: 100%;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(255, 205, 60, 0.18), rgba(255, 140, 40, 0.10));
+    border: 1px solid rgba(255, 200, 80, 0.28);
+    color: #ffe6b3;
+    position: relative;
+    z-index: 1;
+    font-family: var(--font-ui);
+    cursor: pointer;
+    text-align: left;
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    animation: coinChipIn 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes coinChipIn {
+    from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.coin-chip:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 200, 80, 0.55);
+    box-shadow: 0 4px 16px rgba(255, 180, 60, 0.20);
+}
+.coin-chip:focus-visible {
+    outline: 2px solid rgba(255, 220, 130, 0.65);
+    outline-offset: 2px;
+}
+
+.coin-chip__icon {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: rgba(255, 200, 80, 0.20);
+    color: #ffd97a;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.coin-chip__body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.coin-chip__count-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.coin-chip__count {
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff5db;
+    letter-spacing: 0.01em;
+    font-variant-numeric: tabular-nums;
+}
+
+.coin-chip__unit {
+    font-size: 11px;
+    color: rgba(255, 230, 179, 0.75);
+    text-transform: lowercase;
+}
+
+.coin-chip__sub {
+    font-size: 11px;
+    color: rgba(255, 230, 179, 0.72);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Collapsed variant — icon + number only. */
+.coin-chip--mini {
+    padding: 6px 8px;
+    justify-content: center;
+    gap: 6px;
+}
+.coin-chip--mini .coin-chip__icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+}
+.coin-chip--mini .coin-chip__count {
+    font-size: 13px;
+}

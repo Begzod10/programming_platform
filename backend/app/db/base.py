@@ -26,6 +26,12 @@ from app.models.translation_cache import TranslationCache
 from app.models.team_game import GameSession, GameTeam, GameTeamMember, GameQuestion, GameAnswer
 from app.models.game_session_snapshot import GameSessionSnapshot
 from app.models.lesson_question import LessonQuestion
+from app.models.store import (
+    StoreItem,
+    WalletLedgerEntry,
+    StudentPurchase,
+    StudentInventoryItem,
+)
 
 __all__ = [
     "Base",
@@ -60,4 +66,8 @@ __all__ = [
     "GameQuestion",
     "GameAnswer",
     "LessonQuestion",
+    "StoreItem",
+    "WalletLedgerEntry",
+    "StudentPurchase",
+    "StudentInventoryItem",
 ]

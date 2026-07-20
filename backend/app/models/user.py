@@ -66,7 +66,20 @@ class Student(Base):
         server_default="Beginner",
         nullable=False
     )
+    # Spendable balance. Goes up on earn, down when the student buys from the
+    # store. Named `total_points` for historical reasons; think of it as the
+    # student's coin wallet. Do NOT read this for level or leaderboard rank —
+    # those read `lifetime_points` so buying cosmetics never lowers status.
     total_points: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+    # Monotonic career total — every earn increments it; spending never
+    # decreases it. This is what drives `current_level` (via the validator
+    # below) and what `ranking_service` writes into `rankings.total_points`
+    # for the leaderboard. Split from `total_points` so the store economy
+    # can deduct coins without also demoting the student and dropping them
+    # in the rankings.
+    lifetime_points: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
     global_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     # Daily-activity streak. Bumped by streak_service.bump_streak() whenever
@@ -177,8 +190,11 @@ class Student(Base):
 
     dictionary_words = relationship("UserDictionary", back_populates="student")
 
-    @validates('total_points')
+    @validates('lifetime_points')
     def sync_level_with_points(self, key, value):
+        # Level tracks lifetime (earned) points, not the spendable balance.
+        # This way buying a theme can lower `total_points` without demoting
+        # the student.
         points = value if value is not None else 0
 
         if points >= 5000:
