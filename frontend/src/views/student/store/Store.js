@@ -3,6 +3,7 @@ import { API_URL, headers, useHttp } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { useStore } from '../../../context/StoreContext';
 import { Coins, Palette, Music4, Type, Check, Lock, Play } from 'lucide-react';
+import { playSoundAsset } from '../../../utils/soundSynth';
 import './Store.css';
 
 
@@ -55,15 +56,9 @@ function FontPreview({ stack, family }) {
 // ─── sound preview: play a short probe of the OK sound ────────────────────
 
 
-function SoundProbe({ url }) {
-    if (!url) return null;
-    const play = () => {
-        try {
-            const a = new Audio(url);
-            a.volume = 0.6;
-            a.play().catch(() => {});
-        } catch { /* browser blocked / offline — noop */ }
-    };
+function SoundProbe({ assetRef }) {
+    if (!assetRef) return null;
+    const play = () => playSoundAsset(assetRef);
     return (
         <button type="button" className="store-sound-probe" onClick={play} aria-label="Preview sound">
             <Play size={14} />
@@ -86,7 +81,7 @@ function ItemCard({ item, lang, onBuy, buying, inventoryRow, onEquip, onUnequip,
     const previewNode = (
         item.kind === 'theme' ? <ThemeSwatch tokens={item.asset_ref?.tokens} /> :
         item.kind === 'font'  ? <FontPreview stack={item.asset_ref?.stack} family={item.asset_ref?.family} /> :
-        item.kind === 'sound_pack' ? <SoundProbe url={item.asset_ref?.submit_ok_url} /> :
+        item.kind === 'sound_pack' ? <SoundProbe assetRef={item.asset_ref} /> :
         null
     );
 

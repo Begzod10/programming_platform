@@ -97,7 +97,6 @@ function TeacherProfile({ user: initialUser }) {
                 <div className="tp-main-info">
                     <h2>{displayName}</h2>
                     <p className="tp-email">{displayEmail}</p>
-                    {displayBio && <p className="tp-bio">{displayBio}</p>}
                     <div className="tp-tags">
                         <span className="tag-pro">{t('teacher')}</span>
                         <span className="tag-group">Mentor</span>

@@ -172,6 +172,11 @@ CATALOGUE: list[dict] = [
     },
 
     # ─── sound packs ─────────────────────────────────────────────────
+    # Sound packs currently ship as Web-Audio synth presets — no binary
+    # assets to serve. The frontend's playSoundAsset() falls back to the
+    # `synth` name when no `submit_ok_url` is present, so we can later
+    # swap in real .mp3 files by adding those keys without a schema
+    # change.
     {
         "slug": "sound.arcade",
         "kind": StoreItemKind.sound_pack,
@@ -182,9 +187,7 @@ CATALOGUE: list[dict] = [
         "price_coins": 150,
         "sort_order": 200,
         "asset_ref": {
-            "submit_ok_url": "/static/sounds/arcade_ok.mp3",
-            "submit_fail_url": "/static/sounds/arcade_fail.mp3",
-            "celebration_url": "/static/sounds/arcade_win.mp3",
+            "synth": "arcade",
         },
     },
     {
@@ -197,9 +200,7 @@ CATALOGUE: list[dict] = [
         "price_coins": 150,
         "sort_order": 210,
         "asset_ref": {
-            "submit_ok_url": "/static/sounds/applause_ok.mp3",
-            "submit_fail_url": "/static/sounds/applause_fail.mp3",
-            "celebration_url": "/static/sounds/applause_win.mp3",
+            "synth": "applause",
         },
     },
 ]
