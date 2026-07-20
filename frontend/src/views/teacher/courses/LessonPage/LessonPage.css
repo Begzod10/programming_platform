@@ -260,7 +260,7 @@
     color: var(--color-primary);
     border-radius: 5px;
     padding: 2px 7px;
-    font-family: 'Fira Code','Courier New',monospace;
+    font-family: var(--font-mono);
     font-size: 0.875em;
     font-weight: 500;
 }
@@ -278,7 +278,7 @@
     color: #a8ff78;
     padding: 0;
     border-radius: 0;
-    font-family: 'Fira Code','Courier New',monospace;
+    font-family: var(--font-mono);
     font-size: 13.5px;
     line-height: 1.7;
     white-space: pre;
@@ -342,7 +342,7 @@
     background: #0f1117;
     border-radius: 0 0 12px 12px;
     padding: 18px 20px;
-    font-family: 'Fira Code', 'Courier New', monospace;
+    font-family: var(--font-mono);
     font-size: 13.5px;
     color: #a8ff78;
     line-height: 1.65;
