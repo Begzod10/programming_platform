@@ -20,6 +20,7 @@ from app.models.course import Course
 from .lesson_helpers import (
     PROJECT_PASS_THRESHOLD,
     _inject_file_previews,
+    _hydrate_exercise_sections,
     _calc_lesson_progress,
     _calc_course_progress,
     _ensure_enrolled,
@@ -86,6 +87,7 @@ async def get_lessons(
                 dto.sections_json = tr_sections
 
     await _inject_file_previews(db, [l.id for l in lessons], result)
+    await _hydrate_exercise_sections(db, result)
     return result
 
 
@@ -155,6 +157,7 @@ async def get_lesson(
         res.progress_percentage = await _calc_lesson_progress(db, lesson, current_student.id)
 
     await _inject_file_previews(db, [lesson_id], [res])
+    await _hydrate_exercise_sections(db, [res])
     return res
 
 

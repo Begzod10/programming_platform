@@ -66,6 +66,79 @@ async def _inject_file_previews(db: AsyncSession, lesson_ids: list[int], lessons
             pass
 
 
+# Fields the frontend's ExerciseCard actually renders. Deliberately excludes
+# correct_answers / expected_answer / correct_order / explanation — those are
+# grading secrets and must never reach the browser before submission.
+_EXERCISE_RENDER_FIELDS = (
+    "title", "description", "exercise_type", "options", "drag_items",
+    "is_multiple_select", "hint", "difficulty_level", "points", "order",
+)
+
+
+async def _hydrate_exercise_sections(db: AsyncSession, lessons_data: list) -> None:
+    """Fill in bare ``{"id": N}`` exercise stubs inside sections_json with the
+    full exercise payload the frontend needs to render the card.
+
+    Content-authoring scripts (see scripts/enrich_course_lessons.py) write
+    only an id into each exercise section entry, on the assumption that the
+    frontend fetches the full row per id. It never did — ExerciseCard reads
+    ex.description / ex.exercise_type / ex.options straight off the object
+    handed to it — so any lesson touched by those scripts rendered an empty
+    exercise card (no question text, no options, just the submit button).
+    Hydrating here fixes every affected lesson centrally instead of
+    rewriting sections_json row by row.
+    """
+    from app.models.exercise import Exercise
+
+    parsed_by_lesson: dict[int, list] = {}
+    needed_ids: set[int] = set()
+    for dto in lessons_data:
+        if not dto.sections_json:
+            continue
+        try:
+            sections = json.loads(dto.sections_json)
+        except Exception:
+            continue
+        has_stub = False
+        for sec in sections:
+            if sec.get("type") != "exercise":
+                continue
+            for ex in sec.get("exercises", []) or []:
+                if "description" not in ex and ex.get("id"):
+                    has_stub = True
+                    needed_ids.add(ex["id"])
+        if has_stub:
+            parsed_by_lesson[dto.id] = sections
+
+    if not needed_ids:
+        return
+
+    rows = (await db.execute(
+        select(Exercise).where(Exercise.id.in_(needed_ids))
+    )).scalars().all()
+    by_id = {row.id: row for row in rows}
+
+    for dto in lessons_data:
+        sections = parsed_by_lesson.get(dto.id)
+        if sections is None:
+            continue
+        for sec in sections:
+            if sec.get("type") != "exercise":
+                continue
+            hydrated = []
+            for ex in sec.get("exercises", []) or []:
+                row = by_id.get(ex.get("id")) if "description" not in ex else None
+                if row is not None:
+                    hydrated.append({
+                        "id": row.id,
+                        **{f: getattr(row, f) for f in _EXERCISE_RENDER_FIELDS},
+                    })
+                else:
+                    hydrated.append(ex)
+            sec["exercises"] = hydrated
+        dto.sections_json = json.dumps(sections, ensure_ascii=False)
+
+
 async def _calc_lesson_progress(
         db: AsyncSession,
         lesson: Lesson,

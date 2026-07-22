@@ -215,7 +215,10 @@ def _build_sections_json(
     ``file_section`` (if given) is placed at order 0 — it carries the file
     upload widget config for the lesson. Manifest sections start at order 1.
     An exercise section gets its ``exercises`` array populated with stub
-    objects that only need an ``id`` — the frontend fetches the real row.
+    objects that only carry an ``id`` — ``_hydrate_exercise_sections`` in
+    ``app/api/v1/endpoints/lesson_helpers.py`` fills in the full row
+    (title/description/options/etc.) server-side on every lesson read, so
+    the stub never needs to carry more than the id.
     """
     result: list[dict] = []
     if file_section is not None:
