@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, AliasChoices
 from pathlib import Path
 import os
 
@@ -82,12 +82,16 @@ class Settings(BaseSettings):
                 pass
         return [o.strip() for o in raw.split(",") if o.strip()]
 
-    # Groq Cloud (OpenAI-compatible endpoint). First in the default provider
-    # chain — free tier is generous (~30 req/min) and llama-3.3-70b returns
-    # solid JSON-mode output for the grading task. Env var names are kept
-    # as GROK_* (not GROQ_*) so existing .env files don't break.
+    # Groq Cloud (OpenAI-compatible endpoint) — free tier is generous
+    # (~30 req/min) and llama-3.3-70b returns solid JSON-mode output for the
+    # grading task. Accepts .env as either GROK_API_KEY or GROQ_API_KEY (the
+    # product's actual name) — deployed .env files use both spellings and
+    # pydantic's extra="ignore" would otherwise silently drop the unmatched
+    # one, leaving this provider disabled with no error.
     GROK_API_URL: str = "https://api.groq.com/openai/v1/chat/completions"
-    GROK_API_KEY: str = ""
+    GROK_API_KEY: str = Field(
+        default="", validation_alias=AliasChoices("GROK_API_KEY", "GROQ_API_KEY"),
+    )
     GROK_MODEL: str = "llama-3.3-70b-versatile"
     # Outbound proxy for AI calls — used to bypass geo-blocks (e.g. OpenAI
     # from Russia). Set in .env as: HTTP_PROXY=http://user:pass@host:port
