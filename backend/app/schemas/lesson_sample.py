@@ -12,6 +12,7 @@ class LessonSampleRead(BaseModel):
     html_code: Optional[str] = None
     css_code: Optional[str] = None
     js_code: Optional[str] = None
+    code_files_json: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -25,3 +26,4 @@ class LessonSampleCreate(BaseModel):
     html_code: Optional[str] = None
     css_code: Optional[str] = None
     js_code: Optional[str] = None
+    code_files_json: Optional[str] = None

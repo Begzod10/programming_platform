@@ -27,6 +27,7 @@ const SampleProject = ({ lessonId }) => {
         if (!sample) return;
         if (sample.sample_type === 'python') { setTab('python'); return; }
         if (sample.sample_type === 'sql')    { setTab('sql');    return; }
+        if (sample.sample_type === 'code')   { setTab('0');      return; }
         if (sample.html_code) setTab('html');
         else if (sample.css_code) setTab('css');
         else if (sample.js_code) setTab('js');
@@ -37,14 +38,27 @@ const SampleProject = ({ lessonId }) => {
     const isWeb  = sample.sample_type === 'web';
     const isPy   = sample.sample_type === 'python';
     const isSql  = sample.sample_type === 'sql';
+    const isCode = sample.sample_type === 'code';
 
-    const visibleTabs = isWeb
-        ? WEB_TABS.filter(t => sample[`${t.key}_code`])
-        : [{ key: isPy ? 'python' : 'sql', label: isPy ? 'Python' : 'SQL' }];
+    let codeFiles = [];
+    if (isCode) {
+        try {
+            const parsed = JSON.parse(sample.code_files_json || '[]');
+            if (Array.isArray(parsed)) codeFiles = parsed;
+        } catch { /* malformed json — render nothing rather than crash */ }
+    }
 
-    const code = isWeb
-        ? (sample[`${tab}_code`] || '')
-        : (sample.html_code || '');
+    const visibleTabs = isCode
+        ? codeFiles.map((f, i) => ({ key: String(i), label: f.filename }))
+        : isWeb
+            ? WEB_TABS.filter(t => sample[`${t.key}_code`])
+            : [{ key: isPy ? 'python' : 'sql', label: isPy ? 'Python' : 'SQL' }];
+
+    const code = isCode
+        ? (codeFiles[Number(tab)]?.code || codeFiles[0]?.code || '')
+        : isWeb
+            ? (sample[`${tab}_code`] || '')
+            : (sample.html_code || '');
 
     const srcdoc = `<!DOCTYPE html><html><head><style>${sample.css_code || ''}</style></head><body>${sample.html_code || ''}<script>${sample.js_code || ''}<\/script></body></html>`;
 
@@ -73,7 +87,7 @@ const SampleProject = ({ lessonId }) => {
                             </div>
                         )}
 
-                        {!isWeb && (
+                        {(isPy || isSql) && (
                             <div className="sp-terminal-hint">
                                 <Terminal size={20} />
                                 <span>Bu kodni <strong>{isPy ? 'Python' : 'SQL'} muhitida</strong> ishga tushiring</span>
