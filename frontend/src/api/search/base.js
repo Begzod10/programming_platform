@@ -24,6 +24,19 @@ export const resolveImageUrl = (src) => {
 // ── Token reader — checks localStorage first, falls back to sessionStorage ──
 export const getToken = () => localStorage.getItem('token') || sessionStorage.getItem('token');
 
+// ── Current user reader — same localStorage/sessionStorage fallback as the
+// token above. AuthContext stores 'user' in sessionStorage when the user
+// logs in without "remember me" checked (the default), so reading
+// localStorage alone silently returns {} for most sessions.
+export const getCurrentUser = () => {
+    try {
+        const raw = localStorage.getItem('user') || sessionStorage.getItem('user');
+        return raw ? JSON.parse(raw) : {};
+    } catch {
+        return {};
+    }
+};
+
 // ── Headers ──
 // Kept for legacy call-sites that still build their own headers. New code
 // should let axiosInstance attach the Authorization header automatically.

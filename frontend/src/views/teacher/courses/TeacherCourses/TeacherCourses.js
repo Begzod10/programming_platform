@@ -14,7 +14,7 @@ import LessonEditorPage from '../LessonEditor/LessonEditor';
 import CourseDetailPage from '../CourseModal/CourseModal';
 import LessonPage from '../LessonPage/LessonPage';
 import AssignStudentsModal from '../AssignStudentsModal/AssignStudentsModal';
-import { API_URL, useHttp, headers } from '../../../../api/search/base';
+import { API_URL, useHttp, headers, getCurrentUser } from '../../../../api/search/base';
 import { sameId, apiToLesson, lessonToApi, exerciseToApi } from './helpers';
 import { ConfirmModal } from './ConfirmModal';
 import { CategoriesModal } from './CategoriesModal';
@@ -215,7 +215,7 @@ const TeacherCourses = () => {
             setCourseSaveError('Заполните название и описание');
             return;
         }
-        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const user = getCurrentUser();
         const body = {
             title: newCourse.title,
             description: newCourse.description,
@@ -476,7 +476,7 @@ const TeacherCourses = () => {
                                         key={course.id}
                                         course={course}
                                         canReorder={canReorder}
-                                        currentUserId={(JSON.parse(localStorage.getItem('user') || '{}')).id}
+                                        currentUserId={getCurrentUser().id}
                                         navigate={navigate}
                                         onPublishToggle={toggleCoursePublish}
                                         onEdit={openEditCourse}
