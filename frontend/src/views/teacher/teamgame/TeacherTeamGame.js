@@ -1160,11 +1160,28 @@ function SessionListRow({ session }) {
 }
 
 
+// Local-date (not UTC) 'YYYY-MM-DD' — matches what a <input type="date">
+// expects and what the teacher sees in their own timezone.
+const toLocalDateStr = (d) => {
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+const sessionDateStr = (session) => {
+    const stamp = session.updated_at || session.created_at;
+    return stamp ? toLocalDateStr(new Date(stamp)) : null;
+};
+
 export default function TeacherTeamGame() {
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
     const [filter, setFilter] = useState('all');
+    // Default to today only — the list otherwise shows the entire session
+    // history, which is rarely what the teacher wants when checking on a
+    // game they just ran.
+    const [dateFrom, setDateFrom] = useState(() => toLocalDateStr(new Date()));
+    const [dateTo, setDateTo] = useState(() => toLocalDateStr(new Date()));
 
     const load = useCallback(() => {
         setLoading(true);
@@ -1185,7 +1202,16 @@ export default function TeacherTeamGame() {
         if (newSession?.id) navigate(`/teacher/team-game/${newSession.id}`);
     }, [navigate]);
 
-    const filtered = filter === 'all' ? sessions : sessions.filter(s => s.status === filter);
+    const showAllDates = () => { setDateFrom(''); setDateTo(''); };
+    const showToday = () => { const t = toLocalDateStr(new Date()); setDateFrom(t); setDateTo(t); };
+
+    const filtered = sessions.filter(s => {
+        if (filter !== 'all' && s.status !== filter) return false;
+        const ds = sessionDateStr(s);
+        if (dateFrom && (!ds || ds < dateFrom)) return false;
+        if (dateTo && (!ds || ds > dateTo)) return false;
+        return true;
+    });
 
     return (
         <div className="tg-page">
@@ -1207,6 +1233,19 @@ export default function TeacherTeamGame() {
                         onClick={() => setFilter(val)}
                     >{label}</button>
                 ))}
+            </div>
+
+            <div className="tg-date-filters">
+                <label className="tg-date-filter-field">
+                    <span>От</span>
+                    <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                </label>
+                <label className="tg-date-filter-field">
+                    <span>До</span>
+                    <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                </label>
+                <button type="button" className="tg-btn-secondary tg-date-filter-btn" onClick={showToday}>Сегодня</button>
+                <button type="button" className="tg-btn-secondary tg-date-filter-btn" onClick={showAllDates}>Все даты</button>
             </div>
 
             {loading ? (

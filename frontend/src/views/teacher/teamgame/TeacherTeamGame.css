@@ -33,9 +33,23 @@
 .tg-btn-score:hover { background: #7c3aed; }
 
 /* Filters */
-.tg-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-.tg-filter-btn { background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 20px; padding: 5px 14px; cursor: pointer; font-size: 0.85rem; }
+.tg-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+/* Pin an explicit, always-readable text color here rather than relying on
+   inherited/global color — this page must stay legible regardless of
+   which store theme (see StoreContext.js applyTheme()) is equipped. */
+.tg-filter-btn { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 20px; padding: 5px 14px; cursor: pointer; font-size: 0.85rem; }
+.tg-filter-btn:hover { background: #e5e7eb; color: #1f2937; }
 .tg-filter-btn--active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+.tg-filter-btn--active:hover { background: #2563eb; color: #fff; }
+
+/* Date range filter */
+.tg-date-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+.tg-date-filter-field { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: #374151; }
+.tg-date-filter-field input[type="date"] {
+    background: #fff; color: #1f2937; border: 1px solid #d1d5db;
+    border-radius: 8px; padding: 5px 10px; font-size: 0.85rem; font-family: inherit;
+}
+.tg-date-filter-btn { padding: 5px 14px; font-size: 0.85rem; border-radius: 20px; }
 
 /* Sessions grid */
 .tg-sessions { display: flex; flex-direction: column; gap: 20px; }
