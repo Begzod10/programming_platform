@@ -146,10 +146,11 @@ const TeacherCourses = () => {
         return c.category_id === activeFilter;
     });
 
-    // Drag-only-allowed when no category filter is applied — otherwise a reorder
-    // inside the filtered view would silently shuffle the hidden courses too,
-    // which is confusing. Teachers can clear the filter to reorder freely.
-    const canReorder = activeFilter === 'all';
+    // Reordering is always allowed, even with a category filter active — see
+    // handleDragEnd, which reorders only the visible (filtered) subset and
+    // splices it back into the full list at the same absolute slots, so
+    // hidden courses from other categories never move.
+    const canReorder = true;
 
     // dnd-kit sensors: PointerSensor with a small activation distance prevents
     // micro-drags from firing on a normal click (so clicking the card body
@@ -165,12 +166,23 @@ const TeacherCourses = () => {
         const { active, over } = event;
         if (!over || active.id === over.id) return;
 
-        const oldIndex = courses.findIndex(c => String(c.id) === String(active.id));
-        const newIndex = courses.findIndex(c => String(c.id) === String(over.id));
+        // active/over ids come from the FILTERED subset (SortableContext is
+        // built from filteredCourses). Reorder just that subset, then splice
+        // the result back into the full `courses` array at the same absolute
+        // slots those cards occupied — so courses hidden by the current
+        // filter never move, only the visible ones swap among themselves.
+        const oldIndex = filteredCourses.findIndex(c => String(c.id) === String(active.id));
+        const newIndex = filteredCourses.findIndex(c => String(c.id) === String(over.id));
         if (oldIndex === -1 || newIndex === -1) return;
 
+        const reorderedFiltered = arrayMove(filteredCourses, oldIndex, newIndex);
+        const filteredIds = new Set(filteredCourses.map(c => String(c.id)));
+        const slots = [];
+        courses.forEach((c, i) => { if (filteredIds.has(String(c.id))) slots.push(i); });
+
         const prev = courses;
-        const next = arrayMove(courses, oldIndex, newIndex);
+        const next = [...courses];
+        slots.forEach((slotIndex, i) => { next[slotIndex] = reorderedFiltered[i]; });
         const withOrder = next.map((c, i) => ({ ...c, display_order: i }));
         setCourses(withOrder);  // optimistic — UI updates immediately
 
@@ -463,11 +475,6 @@ const TeacherCourses = () => {
                 <div className="tc-empty"><div className="tc-empty-icon">📭</div><p>Курсов пока нет</p></div>
             ) : (
                 <>
-                    {!canReorder && (
-                        <div className="tc-reorder-hint">
-                            ℹ️ Чтобы изменить порядок курсов — снимите фильтр (Все курсы).
-                        </div>
-                    )}
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                         <SortableContext items={filteredCourses.map(c => String(c.id))} strategy={rectSortingStrategy}>
                             <div className="tc-courses-grid">
