@@ -1,10 +1,19 @@
 /* ===== Store page ===== */
 
+/* This page's header/cards are always on a light surface (hardcoded white
+   cards, no dark background here) — so it must NOT use the app-wide
+   --text-strong/--text-muted tokens. Equipping a dark theme overwrites
+   those globally (see StoreContext.js applyTheme) to near-white values
+   meant to sit on a dark --bg-page, which none of this page's elements
+   actually have. Pinning local copies here keeps this page legible no
+   matter which theme is equipped. */
 .store-page {
+    --store-ink-strong: rgba(26, 24, 51, 0.92);
+    --store-ink-muted:  rgba(26, 24, 51, 0.62);
     padding: 24px 28px 60px;
     max-width: 1180px;
     margin: 0 auto;
-    color: var(--text-strong);
+    color: var(--store-ink-strong);
 }
 
 .store-header {
@@ -25,7 +34,7 @@
 }
 
 .store-header__sub {
-    color: var(--text-muted);
+    color: var(--store-ink-muted);
     max-width: 56ch;
     margin: 0;
     font-size: 14px;
@@ -66,10 +75,10 @@
 
 .store-wallet__lifetime {
     font-size: 12px;
-    color: var(--text-muted);
+    color: var(--store-ink-muted);
 }
 .store-wallet__lifetime b {
-    color: var(--text-strong);
+    color: var(--store-ink-strong);
     font-variant-numeric: tabular-nums;
 }
 
@@ -107,7 +116,7 @@
     padding: 8px 14px;
     border: none;
     background: transparent;
-    color: var(--text-muted);
+    color: var(--store-ink-muted);
     border-radius: 8px;
     font-family: var(--font-ui);
     font-weight: 500;
@@ -115,7 +124,7 @@
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
 }
-.store-tab:hover { color: var(--text-strong); }
+.store-tab:hover { color: var(--store-ink-strong); }
 .store-tab.is-active {
     background: var(--color-primary);
     color: white;
@@ -169,7 +178,7 @@
 .store-card__kind {
     font-size: 11px;
     font-weight: 600;
-    color: var(--text-muted);
+    color: var(--store-ink-muted);
     letter-spacing: 0.05em;
     text-transform: uppercase;
 }
@@ -178,13 +187,13 @@
     font-size: 16px;
     font-weight: 700;
     margin: 0;
-    color: var(--text-strong);
+    color: var(--store-ink-strong);
     text-wrap: balance;
 }
 
 .store-card__desc {
     font-size: 13px;
-    color: var(--text-muted);
+    color: var(--store-ink-muted);
     margin: 0;
     line-height: 1.45;
     flex: 1;
@@ -215,7 +224,7 @@
 .store-font-preview {
     font-size: 20px;
     font-weight: 600;
-    color: var(--text-strong);
+    color: var(--store-ink-strong);
     letter-spacing: -0.005em;
 }
 
@@ -263,7 +272,7 @@
 
 .store-cta--locked {
     background: rgba(26, 24, 51, 0.04);
-    color: var(--text-muted);
+    color: var(--store-ink-muted);
 }
 
 .store-cta--equip {
@@ -290,7 +299,7 @@
 .store-empty {
     padding: 60px 20px;
     text-align: center;
-    color: var(--text-muted);
+    color: var(--store-ink-muted);
     font-size: 15px;
     border: 1px dashed rgba(26, 24, 51, 0.14);
     border-radius: var(--r-card);
