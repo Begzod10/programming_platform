@@ -23,6 +23,7 @@ ZIP backend:
 from __future__ import annotations
 
 import base64
+import io
 import re
 import zipfile
 from pathlib import Path
@@ -423,6 +424,27 @@ def _resolve_zip_path(project_files_url: str) -> Optional[Path]:
     if not path.exists() or not path.is_file():
         return None
     return path
+
+
+def zip_bytes_have_code_file(contents: bytes) -> bool:
+    """Cheap upload-time gate: does this ZIP contain at least one entry that
+    survives the same `_should_skip` filter fetch_zip_snapshot() applies?
+
+    Used by the upload endpoints to reject unusable submissions (e.g. a ZIP
+    that only wraps a nested .rar/.png) immediately, with an actionable
+    error, instead of accepting them and letting them get stuck in
+    "Submitted" forever once the AI review silently fails later.
+    Returns False for anything that isn't a readable zip at all.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(contents)) as zf:
+            entries = [
+                zi for zi in zf.infolist()
+                if not zi.is_dir() and not _is_zip_path_unsafe(zi.filename)
+            ]
+            return any(not _should_skip(zi.filename) for zi in entries)
+    except zipfile.BadZipFile:
+        return False
 
 
 def fetch_zip_snapshot(project_files_url: str) -> dict:

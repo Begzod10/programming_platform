@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse
 from app.services.grok_service import analyze_project_with_grok
 from app.services.lesson_context_resolver import load_lesson_context_for_project
 from app.services.ai_review_service import run_ai_review_for_project
+from app.services.github_repo_service import zip_bytes_have_code_file
 
 import uuid
 from pathlib import Path
@@ -117,6 +118,18 @@ async def upload_project_zip(
                         pass
     except zipfile.BadZipFile:
         raise HTTPException(status_code=400, detail="Noto'g'ri ZIP fayl!")
+
+    # Reject uploads that would only ever fail AI review later (e.g. a ZIP
+    # that just wraps a nested .rar/.png). Without this, the project gets
+    # created as "Submitted" and stays stuck there forever, since the AI
+    # pipeline runs with raise_on_error=False and never surfaces why.
+    if not zip_bytes_have_code_file(contents):
+        raise HTTPException(
+            status_code=400,
+            detail="ZIP'da o'qiladigan kod fayli yo'q (faqat rasm/binar yoki "
+                   "arxiv fayllar bor). Haqiqiy loyiha fayllaringizni "
+                   "(.html, .css, .js va h.k.) to'g'ridan-to'g'ri ZIP qiling.",
+        )
 
     # Faylni saqlash
     filename = f"{uuid.uuid4()}.zip"
@@ -528,6 +541,17 @@ async def upload_project_zip_by_id(
                         pass
     except zipfile.BadZipFile:
         raise HTTPException(status_code=400, detail="Noto'g'ri ZIP fayl!")
+
+    # Same fail-fast gate as upload_project_zip — reject a ZIP with no
+    # readable code file immediately instead of letting it get stuck in
+    # "Submitted" after a silent AI-review failure.
+    if not zip_bytes_have_code_file(contents):
+        raise HTTPException(
+            status_code=400,
+            detail="ZIP'da o'qiladigan kod fayli yo'q (faqat rasm/binar yoki "
+                   "arxiv fayllar bor). Haqiqiy loyiha fayllaringizni "
+                   "(.html, .css, .js va h.k.) to'g'ridan-to'g'ri ZIP qiling.",
+        )
 
     project = await service.get_project(project_id=project_id)
     if not project:
