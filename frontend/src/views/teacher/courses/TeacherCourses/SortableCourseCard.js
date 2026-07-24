@@ -14,7 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
        and disable pointer events on inner clickables so the navigation
        click doesn't fire on drag-release.
 ═══════════════════════════════════════════ */
-export const SortableCourseCard = ({ course, canReorder, currentUserId, navigate, onPublishToggle, onEdit, onDelete, onConfirmDelete, onAssign }) => {
+export const SortableCourseCard = ({ course, canReorder, currentUserId, navigate, onPublishToggle, onEdit, onAssign }) => {
     const isOwner = currentUserId && Number(course.instructor_id) === Number(currentUserId);
     const {
         attributes, listeners, setNodeRef,
@@ -60,7 +60,6 @@ export const SortableCourseCard = ({ course, canReorder, currentUserId, navigate
                                     <span className="tc-publish-dot" />{course.is_published ? 'Опубликован' : 'Черновик'}
                                 </button>
                                 <button className="tc-icon-btn tc-ediet-icon" onClick={e => onEdit(course, e)}>✏️</button>
-                                <button className="tc-icon-btn tc-delete-icon" onClick={e => { e.stopPropagation(); onConfirmDelete(course.id); }}>🗑️</button>
                             </>
                         ) : (
                             <span className={`tc-publish-btn ${course.is_published ? 'published' : 'draft'}`} style={{ pointerEvents: 'none' }}>
