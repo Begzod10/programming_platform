@@ -48,6 +48,7 @@ async def load_lesson_context_for_project(
     )).scalar_one_or_none()
 
     return {
+        "course_id": course.id if course else None,
         "course_title": course.title if course else None,
         "course_difficulty": course.difficulty_level if course else None,
         "lesson_title": lesson.title,

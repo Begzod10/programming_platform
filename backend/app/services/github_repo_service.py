@@ -53,6 +53,14 @@ MAX_FILES = 12              # hard cap on files included in the snapshot
 MAX_FILE_BYTES = 8_000      # any single file truncated to this many bytes
 REQUEST_TIMEOUT = 20.0      # per-call HTTP timeout
 
+# Capstone repos are multi-service (backend/, frontend/, bot/ as separate
+# top-level dirs) rather than the single-purpose lesson-exercise repos the
+# defaults above were tuned for. Bigger budget + directory-aware selection
+# (see `capstone=` param below) so e.g. a React frontend isn't crowded out
+# of the snapshot by naming collisions favoring backend/*.py files.
+CAPSTONE_MAX_REPO_BYTES = 60_000
+CAPSTONE_MAX_FILES = 30
+
 # Skip noise paths regardless of priority match.
 _SKIP_DIR_FRAGMENTS = (
     ".git/", "__pycache__/", "node_modules/", "venv/", ".venv/",
@@ -106,6 +114,45 @@ def _should_skip(path: str) -> bool:
     if any(lower.endswith(ext) for ext in _SKIP_EXTENSIONS):
         return True
     return False
+
+
+def _select_paths(paths: list[str], max_files: int, *, capstone: bool) -> list[str]:
+    """Return the ordered list of paths to fetch, capped at max_files.
+
+    Non-capstone: flat priority sort (tier, then path) — matches the
+    original behavior, tuned for single-purpose lesson-exercise repos.
+
+    Capstone: round-robins across top-level directories (backend/,
+    frontend/, bot/, shared/, ...) so a multi-service repo doesn't get
+    starved by naming collisions favoring one directory — e.g. many
+    backend/*.py files matching a priority tier would otherwise fill the
+    entire budget before a single frontend/ file is ever picked.
+    """
+    if not capstone:
+        return sorted(paths, key=lambda p: (_priority_score(p), p))[:max_files]
+
+    groups: dict[str, list[str]] = {}
+    for p in paths:
+        top = p.split("/", 1)[0] if "/" in p else "(root)"
+        groups.setdefault(top, []).append(p)
+    for group_paths in groups.values():
+        group_paths.sort(key=lambda p: (_priority_score(p), p))
+
+    dir_order = sorted(groups.keys())
+    picked: list[str] = []
+    cursor = {d: 0 for d in dir_order}
+    while len(picked) < max_files:
+        progressed = False
+        for d in dir_order:
+            if cursor[d] < len(groups[d]):
+                picked.append(groups[d][cursor[d]])
+                cursor[d] += 1
+                progressed = True
+                if len(picked) >= max_files:
+                    break
+        if not progressed:
+            break
+    return picked
 
 
 def _priority_score(path: str) -> int:
@@ -250,14 +297,23 @@ async def _fetch_authorship(
     return out
 
 
-async def fetch_github_snapshot(github_url: str) -> dict:
+async def fetch_github_snapshot(github_url: str, *, capstone: bool = False) -> dict:
     """Fetch a byte-capped snapshot of a public GitHub repo for LLM context.
+
+    Args:
+        capstone: use the higher file/byte budget and directory-aware file
+            selection tuned for multi-service capstone repos (backend/,
+            frontend/, bot/ as separate top-level dirs) instead of the
+            flat priority sort tuned for single-purpose lesson exercises.
 
     Returns a dict with keys: exists, default_branch, file_count,
     files_included (list of paths actually included), content_text
     (formatted markdown blocks), truncated (True if hit byte cap),
     error (str or None).
     """
+    max_files = CAPSTONE_MAX_FILES if capstone else MAX_FILES
+    max_repo_bytes = CAPSTONE_MAX_REPO_BYTES if capstone else MAX_REPO_BYTES
+
     parsed = parse_github_url(github_url)
     if not parsed:
         return _empty("Invalid GitHub URL")
@@ -313,10 +369,13 @@ async def fetch_github_snapshot(github_url: str) -> dict:
             if file_count == 0:
                 return _empty("Repo is empty (no files)")
 
-            # Filter + sort by priority, then pick MAX_FILES
+            # Filter, then select (flat priority, or directory-aware for capstones)
             candidates = [e for e in entries if not _should_skip(e["path"])]
-            candidates.sort(key=lambda e: (_priority_score(e["path"]), e["path"]))
-            picked = candidates[:MAX_FILES]
+            path_to_entry = {e["path"]: e for e in candidates}
+            picked_paths = _select_paths(
+                list(path_to_entry.keys()), max_files, capstone=capstone
+            )
+            picked = [path_to_entry[p] for p in picked_paths]
 
             # 3) Fetch contents for each picked file (one Contents API call each)
             blocks: list[str] = []
@@ -324,7 +383,7 @@ async def fetch_github_snapshot(github_url: str) -> dict:
             total_bytes = 0
             truncated = False
             for entry in picked:
-                if total_bytes >= MAX_REPO_BYTES:
+                if total_bytes >= max_repo_bytes:
                     truncated = True
                     break
                 path = entry["path"]
@@ -349,8 +408,8 @@ async def fetch_github_snapshot(github_url: str) -> dict:
                     truncated = True
 
                 # Reserve the trailing fence + header overhead (~50 bytes)
-                if total_bytes + len(text) + 50 > MAX_REPO_BYTES:
-                    remaining = MAX_REPO_BYTES - total_bytes - 50
+                if total_bytes + len(text) + 50 > max_repo_bytes:
+                    remaining = max_repo_bytes - total_bytes - 50
                     if remaining < 200:
                         truncated = True
                         break
@@ -447,12 +506,16 @@ def zip_bytes_have_code_file(contents: bytes) -> bool:
         return False
 
 
-def fetch_zip_snapshot(project_files_url: str) -> dict:
+def fetch_zip_snapshot(project_files_url: str, *, capstone: bool = False) -> dict:
     """Read a byte-capped snapshot from a student-uploaded ZIP.
 
-    Same return shape as fetch_github_snapshot. `default_branch` is set
-    to "(zip)" so the LLM prompt clearly distinguishes the source.
+    Same return shape as fetch_github_snapshot, including the `capstone`
+    budget/selection behavior. `default_branch` is set to "(zip)" so the
+    LLM prompt clearly distinguishes the source.
     """
+    max_files = CAPSTONE_MAX_FILES if capstone else MAX_FILES
+    max_repo_bytes = CAPSTONE_MAX_REPO_BYTES if capstone else MAX_REPO_BYTES
+
     path = _resolve_zip_path(project_files_url)
     if path is None:
         return _empty("ZIP fayl topilmadi yoki yo'l noto'g'ri")
@@ -469,16 +532,20 @@ def fetch_zip_snapshot(project_files_url: str) -> dict:
             if file_count == 0:
                 return _empty("ZIP fayl bo'sh yoki o'qiladigan fayllar yo'q")
 
-            candidates = [zi for zi in entries if not _should_skip(zi.filename)]
-            candidates.sort(key=lambda zi: (_priority_score(zi.filename), zi.filename))
-            picked = candidates[:MAX_FILES]
+            name_to_entry = {
+                zi.filename: zi for zi in entries if not _should_skip(zi.filename)
+            }
+            picked_names = _select_paths(
+                list(name_to_entry.keys()), max_files, capstone=capstone
+            )
+            picked = [name_to_entry[n] for n in picked_names]
 
             blocks: list[str] = []
             included: list[str] = []
             total_bytes = 0
             truncated = False
             for zi in picked:
-                if total_bytes >= MAX_REPO_BYTES:
+                if total_bytes >= max_repo_bytes:
                     truncated = True
                     break
                 # Zip-bomb guard: refuse to decompress oversized entries.
@@ -500,8 +567,8 @@ def fetch_zip_snapshot(project_files_url: str) -> dict:
                     text = text[:MAX_FILE_BYTES] + "\n... [truncated]"
                     truncated = True
 
-                if total_bytes + len(text) + 50 > MAX_REPO_BYTES:
-                    remaining = MAX_REPO_BYTES - total_bytes - 50
+                if total_bytes + len(text) + 50 > max_repo_bytes:
+                    remaining = max_repo_bytes - total_bytes - 50
                     if remaining < 200:
                         truncated = True
                         break

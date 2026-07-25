@@ -35,6 +35,14 @@ from app.models.lesson import LessonCompletion
 
 logger = logging.getLogger(__name__)
 
+# Capstone courses ("Capstone: To'liq Stack Loyiha" / Django+React+Bot /
+# Flask+JS+Bot / TypeScript Full-Stack) are multi-service repos (backend/,
+# frontend/, bot/ as separate top-level dirs), not the single-file lesson
+# exercises the default GitHub-snapshot budget was tuned for. Any project
+# submitted against a lesson in one of these courses gets the wider
+# file/byte budget and directory-aware selection — see github_repo_service.
+CAPSTONE_COURSE_IDS = {86, 88, 90, 92}
+
 
 def _utc_day_start() -> datetime:
     now = datetime.now(timezone.utc)
@@ -130,13 +138,26 @@ async def run_ai_review_for_project(
                      f"({settings.MAX_AI_REVIEWS_PER_DAY}/kun). "
                      f"Ertaga qayta urinib ko'ring.")
 
+    # Lesson + course context — without this the AI grader uses a generic
+    # persona and HTML/CSS submissions get reviewed against an invented
+    # Python/Flask-style rubric. Returns None for standalone projects
+    # (no Submission row); the AI then falls back to "dasturlash o'qituvchisi".
+    # Loaded before the snapshot fetch so course_id can select the
+    # capstone-tuned file/byte budget below.
+    lesson_context = await load_lesson_context_for_project(
+        db, project_id=project.id
+    )
+    is_capstone = bool(
+        lesson_context and lesson_context.get("course_id") in CAPSTONE_COURSE_IDS
+    )
+
     # Real code, not just metadata. If snapshot can't be built, refuse the
     # AI call entirely — no point spending tokens to hallucinate.
     if source == "github":
-        snapshot = await fetch_github_snapshot(project.github_url)
+        snapshot = await fetch_github_snapshot(project.github_url, capstone=is_capstone)
         source_label = "GitHub repo"
     else:
-        snapshot = fetch_zip_snapshot(project.project_files)
+        snapshot = fetch_zip_snapshot(project.project_files, capstone=is_capstone)
         source_label = "ZIP fayl"
 
     if not snapshot["exists"]:
@@ -158,14 +179,6 @@ async def run_ai_review_for_project(
 
     technologies = (project.technologies_used.split(",")
                     if project.technologies_used else [])
-
-    # Lesson + course context — without this the AI grader uses a generic
-    # persona and HTML/CSS submissions get reviewed against an invented
-    # Python/Flask-style rubric. Returns None for standalone projects
-    # (no Submission row); the AI then falls back to "dasturlash o'qituvchisi".
-    lesson_context = await load_lesson_context_for_project(
-        db, project_id=project.id
-    )
 
     review = await analyze_project_with_grok(
         title=project.title,
