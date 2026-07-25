@@ -6,6 +6,7 @@ import '../Exercise additions/Lessonpage exercise additions.css'
 import { SECTION_TYPES, getYTId } from '../../../../constants/courseUtils';
 import { Trophy } from 'lucide-react';
 import { sanitizeHtml } from '../../../../utils/sanitize';
+import SampleProject from '../../../student/courses/LessonPage/SampleProject';
 
 mermaid.initialize({
     startOnLoad: false,
@@ -483,6 +484,9 @@ const LessonPage = ({ lesson, course, allLessons, onBack, onNavigate, onEdit, on
                                     {/* ══════════════════════════════════════════
                                         PROJECT (Loyiha) — показываем всё содержимое
                                     ══════════════════════════════════════════ */}
+                                    {section.type === 'project' && (
+                                        <SampleProject lessonId={lesson?.id} />
+                                    )}
                                     {section.type === 'project' && (
                                         <div className="lp-project-block">
                                             <div className="lp-project-top">

@@ -45,6 +45,11 @@ export const apiToLesson = (l) => {
     if (l.sections_json) {
         try {
             const sections = JSON.parse(l.sections_json);
+            // sections_json may not include the project block — append from task fields if missing
+            if (!sections.find(s => s.type === 'project') &&
+                (l.task_title || l.task_description || l.task_requirements || l.task_technologies || l.task_deadline_days)) {
+                sections.push({ id: `p${l.id}`, type: 'project', label: l.task_title || 'Loyiha', description: l.task_description || '', requirements: l.task_requirements || '', techStack: l.task_technologies || '', deadline: l.task_deadline_days || '' });
+            }
             return { id: l.id, title: l.title, chapter: l.chapter || '', image: l.image_url || '', completed: false, order: l.order || 0, is_published: l.is_published || false, sections };
         } catch (_) { }
     }
