@@ -341,14 +341,26 @@ const StudentCourses = () => {
 
             const built = await Promise.all(
                 list.map(async (lesson) => {
+                    // progress_percentage counts a project as "done" the moment
+                    // it's submitted, regardless of score/status (backend fix
+                    // pending — see _calc_lesson_progress). Until then, don't
+                    // trust it as a completion signal for project lessons: a
+                    // pending/rejected/low-score submission must NOT unlock the
+                    // next lesson. is_completed/completed are backed by
+                    // LessonCompletion, which is only ever created after the
+                    // project passes review, so those stay authoritative.
+                    const hasProject = !!(lesson.task_title && String(lesson.task_title).trim());
                     let isDone = lesson.is_completed === true
                         || lesson.completed === true
-                        || lesson.progress_percentage === 100;
+                        || (!hasProject && lesson.progress_percentage === 100);
 
                     if (!isDone) {
                         try {
+                            // Endpoint returns {lesson_id, is_completed, completed_at} —
+                            // not a bare boolean. This fallback silently never fired
+                            // before, since `s` (the object) can never equal true/'true'.
                             const s = await request(`${API_URL}v1/lessons/${lesson.id}/is-completed?t=${Date.now()}`, 'GET', null, headers());
-                            isDone = s === true || s === 'true';
+                            isDone = s?.is_completed === true;
                         } catch { }
                     }
 

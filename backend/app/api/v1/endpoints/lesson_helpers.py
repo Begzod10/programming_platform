@@ -211,14 +211,26 @@ async def _calc_lesson_progress(
                 done += 1
 
     if total_projects > 0:
+        # A project only counts as "done" once it has passed review — a
+        # merely-submitted (pending/rejected/low-score) project must not
+        # push progress to 100%, since that's what the course lesson-list
+        # page uses to decide whether the next lesson is unlocked. Mirrors
+        # the same Approved + points_earned >= PROJECT_PASS_THRESHOLD check
+        # used in _check_completion_gate below.
         sub_res = await db.execute(
-            select(func.count(Submission.id)).where(
+            select(Project.status, Project.points_earned)
+            .join(Submission, Submission.project_id == Project.id)
+            .where(
+                Submission.lesson_id == lesson.id,
                 Submission.student_id == student_id,
-                Submission.lesson_id == lesson.id
             )
         )
-        proj_done = sub_res.scalar() or 0
-        done += min(proj_done, total_projects)
+        has_passing = any(
+            (p_st or "") == "Approved" and (pts or 0) >= PROJECT_PASS_THRESHOLD
+            for (p_st, pts) in sub_res.all()
+        )
+        if has_passing:
+            done += total_projects
 
     return int(min(done, total) / total * 100)
 
