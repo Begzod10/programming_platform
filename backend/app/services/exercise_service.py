@@ -142,7 +142,18 @@ def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "u
     exercise_type = exercise.exercise_type
 
     if exercise_type == "fill_in_blank":
-        correct = [a.strip().lower() for a in (exercise.correct_answers or "").split(",")]
+        # Same class of bug as drag_and_drop below: a handful of fill-blank
+        # answers are a natural-language word (not a language-neutral code
+        # token), so a RU student typing the objectively correct Russian
+        # word must be graded against a RU correct_answers, not the raw
+        # Uzbek column.
+        correct_answers_raw = exercise.correct_answers or ""
+        if lang and lang != "uz":
+            from app.services import translation_store as ts
+            translated = ts.get("exercise", exercise.id, lang, "correct_answers")
+            if translated:
+                correct_answers_raw = translated
+        correct = [a.strip().lower() for a in correct_answers_raw.split(",")]
         answers = [a.strip().lower() for a in student_answer.split(",")]
         is_correct = sorted(correct) == sorted(answers)
         return {

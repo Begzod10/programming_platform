@@ -234,7 +234,10 @@ async def revoke_achievement(db: AsyncSession, student_id: int, achievement_id: 
     if student and achievement:
         from app.services.ranking_service import RankingService
         ranking_service = RankingService(db)
-        await ranking_service.subtract_points_from_student(student_id, achievement.points_reward)
+        # revoke_earned_points (not subtract_points_from_student) — the
+        # achievement was granted via add_points_to_student, which bumps
+        # both total_points and lifetime_points, so the reversal must too.
+        await ranking_service.revoke_earned_points(student_id, achievement.points_reward)
 
     await db.delete(student_achievement)
     await db.commit()

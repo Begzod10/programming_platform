@@ -70,9 +70,17 @@ class ProjectService:
 
                 # Resubmit: reverse the previously awarded points before
                 # replacing the project so the next review doesn't double-count.
-                if old_points > 0:
+                # Only do this if the old project was actually Approved — points
+                # are only credited to the wallet on Approved projects (score
+                # ≥ 75); a Rejected project's points_earned is stored for
+                # display but was NEVER added to the student's balance, so
+                # reversing it here would wrongly drain points the student
+                # never received. Use revoke_earned_points (not
+                # subtract_points_from_student) because the original award
+                # bumped both total_points and lifetime_points.
+                if old_points > 0 and old_status == "Approved":
                     from app.services.ranking_service import RankingService
-                    await RankingService(self.db).subtract_points_from_student(
+                    await RankingService(self.db).revoke_earned_points(
                         student_id, old_points
                     )
 
@@ -238,6 +246,7 @@ class ProjectService:
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")
 
         old_points = project.points_earned or 0
+        old_status = project.status
 
         project.instructor_feedback = feedback
         project.grade = grade
@@ -252,10 +261,16 @@ class ProjectService:
         if student:
             from app.services.ranking_service import RankingService
             ranking_service = RankingService(self.db)
-            # Subtract whatever the student was previously credited (AI or
+            # Reverse whatever the student was previously credited (AI or
             # earlier teacher review) before adding the new teacher score.
-            if old_points > 0:
-                await ranking_service.subtract_points_from_student(student.id, old_points)
+            # Only if old_status was Approved — points are only credited to
+            # the wallet on Approved projects, so reversing a Rejected
+            # project's stored (never-credited) points_earned would wrongly
+            # drain the student's balance. Use revoke_earned_points (not
+            # subtract_points_from_student) so lifetime_points/leaderboard
+            # are reversed too, not just the spendable balance.
+            if old_points > 0 and old_status == "Approved":
+                await ranking_service.revoke_earned_points(student.id, old_points)
             if points > 0:
                 await ranking_service.add_points_to_student(student.id, points)
 

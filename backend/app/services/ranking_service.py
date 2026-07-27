@@ -213,7 +213,7 @@ class RankingService:
         and the leaderboard-facing `Ranking.total_points` are left alone, so a
         purchase never lowers the student's level or global rank. Callers who
         want to *revoke earned points* (e.g. reversing a bad submission) must
-        adjust `lifetime_points` explicitly — do not repurpose this method.
+        use `revoke_earned_points` instead — do not repurpose this method.
         """
         res = await self.db.execute(select(Student).where(Student.id == student_id))
         student = res.scalar_one_or_none()
@@ -222,6 +222,33 @@ class RankingService:
 
         student.total_points = max(0, student.total_points - points)
         await self.db.flush()
+        await self.db.refresh(student)
+        return student
+
+    async def revoke_earned_points(self, student_id: int, points: int) -> Optional[Student]:
+        """Reverse points that were previously granted via `add_points_to_student`.
+
+        Use this — never `subtract_points_from_student` — when undoing a
+        prior *earn* (e.g. a project is re-reviewed/re-graded and the old
+        score must be backed out before the new one is applied, or a
+        teacher revokes an achievement). `add_points_to_student` bumps both
+        `total_points` (spendable) and `lifetime_points` (career total that
+        drives the leaderboard/level); this method mirrors that by reducing
+        both, so a reversed award can never leave `lifetime_points`/
+        `Ranking.total_points` permanently inflated the way a bare
+        `subtract_points_from_student` call would (that method intentionally
+        only touches the spendable wallet, for store purchases).
+        """
+        res = await self.db.execute(select(Student).where(Student.id == student_id))
+        student = res.scalar_one_or_none()
+        if not student:
+            return None
+
+        student.total_points = max(0, student.total_points - points)
+        student.lifetime_points = max(0, student.lifetime_points - points)
+
+        await self.db.flush()
+        await self.calculate_and_update_rankings()
         await self.db.refresh(student)
         return student
 

@@ -215,11 +215,16 @@ async def run_ai_review_for_project(
     old_points = project.points_earned or 0
     old_status = project.status
     ranking_service = RankingService(db)
-    # Only subtract if the project was previously Approved — points are only
-    # awarded on Approved projects (score ≥ 75), so subtracting on a Rejected
+    # Only reverse if the project was previously Approved — points are only
+    # awarded on Approved projects (score ≥ 75), so reversing on a Rejected
     # project would deduct points that were never actually granted.
+    # Use revoke_earned_points (not subtract_points_from_student) because the
+    # original award via add_points_to_student bumped BOTH total_points and
+    # lifetime_points — reversing only total_points would leave lifetime_points
+    # (and the leaderboard, which mirrors it) permanently inflated by old_points
+    # on every re-review cycle.
     if old_points > 0 and old_status == "Approved":
-        await ranking_service.subtract_points_from_student(
+        await ranking_service.revoke_earned_points(
             project.student_id, old_points)
     # Only award points for passing projects (≥75). Rejected submissions
     # should not accumulate points — the student must fix and resubmit.
