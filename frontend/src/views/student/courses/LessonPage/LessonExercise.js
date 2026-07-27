@@ -99,7 +99,11 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
             const res = await request(
                 `${API_URL}v1/courses/${courseId}/lessons/${lessonId}/exercises/${ex.id}/submit`,
                 'POST',
-                JSON.stringify({student_answer: answer, time_spent_ms: timeSpentMs}),
+                JSON.stringify({
+                    student_answer: answer,
+                    time_spent_ms: timeSpentMs,
+                    lang: localStorage.getItem('lang') || 'uz',
+                }),
                 headers()
             );
             if (res?.is_correct === true) setResult('correct');

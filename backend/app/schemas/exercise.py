@@ -85,6 +85,9 @@ class ExerciseRead(BaseModel):
 class ExerciseSubmitRequest(BaseModel):
     student_answer: str  # JSON string yoki oddiy matn
     time_spent_ms: Optional[int] = None
+    lang: Optional[str] = None  # 'uz' | 'ru' — needed so drag_and_drop grading
+    # can compare against a language-matching correct_order (see
+    # exercise_service.check_answer_locally)
 
 
 class ExerciseSubmissionRead(BaseModel):

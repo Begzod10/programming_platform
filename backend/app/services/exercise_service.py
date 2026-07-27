@@ -138,7 +138,7 @@ Nima uchun xato bo'lishi mumkinligini va qanday o'ylash kerakligini ayt.
         return f"Noto'g'ri. To'g'ri javob: {correct_answer}"
 
 
-def check_answer_locally(exercise: Exercise, student_answer: str) -> dict:
+def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "uz") -> dict:
     exercise_type = exercise.exercise_type
 
     if exercise_type == "fill_in_blank":
@@ -155,7 +155,21 @@ def check_answer_locally(exercise: Exercise, student_answer: str) -> dict:
 
     elif exercise_type == "drag_and_drop":
         try:
-            correct_order = json.loads(exercise.correct_order or "[]")
+            # The chips a student sees/drags are rendered from the
+            # (possibly translated) `drag_items`, and the exact chip text
+            # is what gets submitted back (see frontend buildAnswer()) — so
+            # grading must compare against a correct_order in the SAME
+            # language, not always the raw Uzbek DB column. Without this,
+            # a RU-language student who drags the objectively correct
+            # order still fails, because the translated chip text can
+            # never equal the untranslated correct_order strings.
+            correct_order_raw = exercise.correct_order or "[]"
+            if lang and lang != "uz":
+                from app.services import translation_store as ts
+                translated = ts.get("exercise", exercise.id, lang, "correct_order")
+                if translated:
+                    correct_order_raw = translated
+            correct_order = json.loads(correct_order_raw)
             student_order = json.loads(student_answer)
 
             # Normalize each item: drag chips render without leading-whitespace
@@ -322,7 +336,7 @@ async def submit_exercise(
     )
     already_solved = prev_correct.first() is not None
 
-    result = check_answer_locally(exercise, data.student_answer)
+    result = check_answer_locally(exercise, data.student_answer, lang=data.lang or "uz")
 
     if result is None:
         result = await check_answer_with_grok(
