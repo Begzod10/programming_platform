@@ -25,6 +25,15 @@ class Exercise(Base):
         Integer, ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    # DEAD COLUMN: nothing in the serving code reads title_ru/description_ru/
+    # hint_ru/explanation_ru/expected_answer_ru below. Live translation for
+    # exercises goes exclusively through translation_cache, read via
+    # app/services/translation_store.py and applied in
+    # app/api/v1/endpoints/exercises.py::_translate_exercise_dto. Writing a
+    # RU translation into one of these columns has NO effect on what a
+    # Russian-language student sees — use
+    # backend/scripts/write_ru_translations.py::translate_exercises()
+    # instead, and verify with backend/scripts/check_ru_coverage.py.
     title_ru: Mapped[Optional[str]] = mapped_column(String(400), nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     description_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
