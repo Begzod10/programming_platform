@@ -87,7 +87,7 @@ async def get_lessons(
                 dto.sections_json = tr_sections
 
     await _inject_file_previews(db, [l.id for l in lessons], result)
-    await _hydrate_exercise_sections(db, result)
+    await _hydrate_exercise_sections(db, result, lang=lang)
     return result
 
 
@@ -157,7 +157,7 @@ async def get_lesson(
         res.progress_percentage = await _calc_lesson_progress(db, lesson, current_student.id)
 
     await _inject_file_previews(db, [lesson_id], [res])
-    await _hydrate_exercise_sections(db, [res])
+    await _hydrate_exercise_sections(db, [res], lang=lang)
     return res
 
 

@@ -75,7 +75,10 @@ _EXERCISE_RENDER_FIELDS = (
 )
 
 
-async def _hydrate_exercise_sections(db: AsyncSession, lessons_data: list) -> None:
+_EXERCISE_TRANSLATABLE_FIELDS = ("title", "description", "hint", "drag_items", "options")
+
+
+async def _hydrate_exercise_sections(db: AsyncSession, lessons_data: list, lang: str | None = None) -> None:
     """Fill in bare ``{"id": N}`` exercise stubs inside sections_json with the
     full exercise payload the frontend needs to render the card.
 
@@ -87,8 +90,20 @@ async def _hydrate_exercise_sections(db: AsyncSession, lessons_data: list) -> No
     exercise card (no question text, no options, just the submit button).
     Hydrating here fixes every affected lesson centrally instead of
     rewriting sections_json row by row.
+
+    `lang`: when set to a non-Uzbek language, each of the 5 translatable
+    fields (_EXERCISE_TRANSLATABLE_FIELDS) is looked up in translation_store
+    first, falling back to the raw (Uzbek) column if no translation exists.
+    Without this, a stub exercise was ALWAYS hydrated straight from the
+    live Exercise row regardless of the requested lang — the in-lesson
+    exercise view (the actual student-facing rendering path; the
+    entity_type='exercise' translation this mirrors has no other reader,
+    since GET .../exercises is never called by any frontend code) silently
+    showed Uzbek text to Russian students for every exercise stored as a
+    stub, no matter how complete translation_cache was for that exercise.
     """
     from app.models.exercise import Exercise
+    from app.services import translation_store as ts
 
     parsed_by_lesson: dict[int, list] = {}
     needed_ids: set[int] = set()
@@ -117,6 +132,7 @@ async def _hydrate_exercise_sections(db: AsyncSession, lessons_data: list) -> No
         select(Exercise).where(Exercise.id.in_(needed_ids))
     )).scalars().all()
     by_id = {row.id: row for row in rows}
+    translate = bool(lang) and lang != "uz"
 
     for dto in lessons_data:
         sections = parsed_by_lesson.get(dto.id)
@@ -129,10 +145,13 @@ async def _hydrate_exercise_sections(db: AsyncSession, lessons_data: list) -> No
             for ex in sec.get("exercises", []) or []:
                 row = by_id.get(ex.get("id")) if "description" not in ex else None
                 if row is not None:
-                    hydrated.append({
-                        "id": row.id,
-                        **{f: getattr(row, f) for f in _EXERCISE_RENDER_FIELDS},
-                    })
+                    payload = {f: getattr(row, f) for f in _EXERCISE_RENDER_FIELDS}
+                    if translate:
+                        for field in _EXERCISE_TRANSLATABLE_FIELDS:
+                            tr = ts.get("exercise", row.id, lang, field)
+                            if tr:
+                                payload[field] = tr
+                    hydrated.append({"id": row.id, **payload})
                 else:
                     hydrated.append(ex)
             sec["exercises"] = hydrated
