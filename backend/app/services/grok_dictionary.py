@@ -26,31 +26,72 @@ def _parse_json(text: str) -> Optional[dict]:
     return None
 
 
-def _looks_like_keyword_stew(text: str) -> bool:
+def _looks_like_keyword_stew(text: str, lang: str = "uz") -> bool:
     """Reject AI outputs that are a list of bare terms rather than a sentence.
 
     Symptom we hit in prod: model echoes lesson keywords ("content appearance
     behavior HTML structure tags Browser CSS …") instead of defining the word,
     or returns short comma-lists like "Frontend, Backend, JavaScript, HTML".
-    Heuristic: no Uzbek connective tissue (verb/copula/etc.) AND most tokens
-    are bare alpha terms → almost certainly stew.
+    Heuristic: no connective tissue (verb/copula/etc.) AND most tokens are
+    bare alpha terms → almost certainly stew.
+
+    `lang` selects which connective-word list to check against. This used to
+    be Uzbek-only, which meant a perfectly normal RUSSIAN sentence (e.g. "Это
+    CSS-свойство, которое задерживает начало анимации.") has none of the
+    Uzbek tokens, falls through to the bare-token-ratio check, and gets
+    misclassified as stew — ordinary prose easily clears the >70%-alpha-
+    tokens bar with only a trailing period. Confirmed in prod: RU dictionary
+    entries ended up with a blank definition ~5x more often than UZ ones,
+    on the exact same terms (e.g. "animation-delay") repeatedly. See
+    RU_SIGNAL below.
     """
     s = (text or "").strip()
     if not s:
         return True
     # Strip leading/trailing quote chars the model sometimes wraps things in
     s = s.strip("\"'«»""").strip()
-    # A real sentence has spaces AND at least one of these Uzbek connective
-    # tokens (verb, copula) — keyword soups have none of these. Do NOT add
-    # weak conjunctions like "va"/"yoki": they appear in pure lists too
-    # ("HTML va CSS") and would let stew slip through.
+    # A real sentence has spaces AND at least one of these connective tokens
+    # (verb, copula) — keyword soups have none of these. Do NOT add weak
+    # conjunctions like "va"/"yoki"/"и"/"или": they appear in pure lists too
+    # ("HTML va CSS" / "HTML и CSS") and would let stew slip through.
+    # Stems, not full conjugated forms — both languages are heavily
+    # inflected/agglutinative, so a fixed-form list misses participles like
+    # "qo'shadigan" (adds/adding) or "задающее" (setting/that sets). A stem
+    # substring naturally covers every suffixed variant. Bounded with a
+    # leading space to avoid matching mid-word inside an unrelated term.
     UZ_SIGNAL = (" — ", " bu ", " bo'l", " hisoblan", " ishlat",
-                 " yaratil", " yordam", " uchun ", " sifatida", " ya'ni ",
+                 " yarat", " yordam", " uchun ", " sifatida", " ya'ni ",
                  " bilan ", " orqali ", " ko'rsat", " saqla", " tasvirl",
-                 " qil", " bera", " beri", " maydon", " ramka", " degan ")
-    has_signal = any(sig in s.lower() for sig in UZ_SIGNAL)
+                 " qil", " ber", " maydon", " ramka", " degan ",
+                 " qo'sh", " belgila", " aniqla", " bajar", " boshqar",
+                 " o'zgartir", " ta'minla", " kechiktir", " kirit", " chiqar")
+    RU_SIGNAL = (" — ", " это ", " являет", " использ", " позволя",
+                 " нужен", " нужна", " нужно", " с помощью", " котор",
+                 " задаёт", " задает", " задающ", " задерж", " определя",
+                 " устанавлив", " создава", " создаёт", " создает",
+                 " указыва", " обознач", " хранит", " хранящ", " означа",
+                 " служит", " чтобы ")
+    signals = RU_SIGNAL if lang == "ru" else UZ_SIGNAL
+    # Pad with a leading space so a signal word starting the sentence still
+    # matches — Russian and Uzbek both commonly drop the subject and open
+    # straight on the verb (e.g. "Определяет, как..." = "[It] defines...",
+    # no space precedes "определя" since it's the very first token). Without
+    # this padding every signal-opening sentence fell through to the
+    # bare-token-ratio check and got misclassified as stew.
+    has_signal = any(sig in (" " + s.lower()) for sig in signals)
     if has_signal:
         return False
+    # Structural fallback: a comma joining two multi-word clauses is real
+    # prose (a subordinate/participial clause), whatever verb it happens to
+    # use — enumerating every possible verb stem is a losing game (e.g.
+    # "...yopishib, qolgan bo'shliqlar teng taqsimlanadi" hits none of the
+    # signal lists above but is a perfectly normal sentence). A bare noun
+    # list ("Frontend, Backend, JavaScript, HTML") only ever has single-word
+    # segments, so this doesn't let those back in.
+    if "," in s:
+        segments = [seg.strip() for seg in s.split(",") if seg.strip()]
+        if segments and max(len(seg.split()) for seg in segments) >= 3:
+            return False
     # No signal — strip per-token punctuation (commas, periods) so
     # "Frontend, Backend" counts as bare alpha tokens. Threshold lowered to
     # 4 tokens so short comma-lists are caught too.
@@ -75,7 +116,25 @@ def _looks_like_diagram(text: str) -> bool:
     return any(sig in s for sig in _MERMAID_SIGNALS)
 
 
-def _sanity_check_explanation(parsed: dict, word: str, excerpt: str) -> bool:
+def _restates_target_word(text: str, word: str) -> bool:
+    """True if the definition opens by naming the very word it defines.
+
+    Symptom we hit in prod: the model answers "JavaScript — bu ... dasturlash
+    tili." — grammatically fine, but this gets stored as `context` and shown
+    verbatim on recall-style practice surfaces (Quiz+ round 2, Spelling,
+    Listening, MCQ meaning options) where the student's job is to produce
+    the word from its meaning. Opening with the word hands back the answer.
+    `_mask_word_in_text` in practice_words.py is the display-time safety
+    net; this check keeps newly generated contexts clean at the source.
+    """
+    s = (text or "").strip().lower()
+    w = (word or "").strip().lower()
+    if not s or not w:
+        return False
+    return s[: len(w) + 5].startswith(w) or f'"{w}"' in s[: len(w) + 10]
+
+
+def _sanity_check_explanation(parsed: dict, word: str, excerpt: str, lang: str = "uz") -> bool:
     """True if the parsed explanation looks usable; False to retry/fallback."""
     if not isinstance(parsed, dict):
         return False
@@ -88,9 +147,11 @@ def _sanity_check_explanation(parsed: dict, word: str, excerpt: str) -> bool:
     ex_norm = (excerpt or "").strip().lower()[:80]
     if ex_norm and ex_norm in sd.lower():
         return False
-    if _looks_like_keyword_stew(sd):
+    if _looks_like_keyword_stew(sd, lang=lang):
         return False
     if _looks_like_diagram(sd):
+        return False
+    if _restates_target_word(sd, word):
         return False
     return True
 
@@ -167,8 +228,11 @@ async def explain_word_with_ai(
 - Пиши только о "{safe_word}", не пересказывай текст урока.
 - Ответ должен быть полностью НА РУССКОМ ЯЗЫКЕ (технические названия могут остаться на английском).
 - "short_definition" — 1 законченное предложение с глаголом.
-  Пример: "@keyframes — это CSS-правило, которое задаёт шаги анимации элемента."
+  Пример: "Это CSS-правило, которое задаёт шаги анимации элемента."
   ПЛОХО: "keyframes animation steps css" (просто список слов).
+- НЕ начинай "short_definition" с повторения самого термина "{safe_word}"
+  (например, не пиши "{safe_word} — это..."). Слово используется как ответ
+  в упражнениях на запоминание, повтор в начале определения выдаёт ответ.
 - Не перечисляй другие ключевые слова.
 {feedback_ru}
 ОТВЕТЬ СТРОГО В СЛЕДУЮЩЕМ JSON-ФОРМАТЕ (никаких пояснений, никаких ```json):
@@ -191,7 +255,10 @@ SO'Z: "{safe_word}"
 
 {scope_block}MUHIM QOIDALAR:
 - "short_definition" — O'zbek tiliga tarjimasi va 1 ta to'liq tushuntirish jumla.
-  Misol: "Переменная — o'zgaruvchi; dasturda ma'lumotlarni saqlash uchun ishlatiladigan nom."
+  Misol: "O'zgaruvchi; dasturda ma'lumotlarni saqlash uchun ishlatiladigan nom."
+- "short_definition" ichida asl rus so'zi "{safe_word}"ni qayta yozmang —
+  bu so'z takrorlash mashqlarida javob sifatida ishlatiladi, uni ta'rif
+  ichida ko'rsatish javobni oldindan aytib qo'yadi.
 - Javob O'ZBEK TILIDA bo'lsin.
 {feedback_uz}
 FAQAT QUYIDAGI JSON FORMATIDA JAVOB BER (boshqa hech narsa yozma, hatto ```json belgisini ham):
@@ -215,8 +282,12 @@ SO'Z: "{safe_word}"
 - Faqat "{safe_word}" so'zi/atamasi haqida yoz, dars matnini takrorlama.
 - Javob to'liq O'ZBEK TILIDA bo'lsin (atamalar nomi ingliz qolishi mumkin).
 - "short_definition" — 1 ta to'liq jumla, fe'l bilan, gap tuzilishi bilan.
-  Misol: "JavaScript — bu veb-sahifalarga dinamiklik qo'shadigan dasturlash tili."
+  Misol: "Veb-sahifalarga dinamiklik qo'shadigan dasturlash tili."
   YOMON misol: "content appearance behavior HTML tags" (faqat so'zlar ro'yxati).
+- "short_definition"ni so'zning o'zini takrorlab boshlamang (masalan,
+  "{safe_word} — bu ..." deb yozmang). Bu so'z takrorlash mashqlarida
+  o'quvchi topishi kerak bo'lgan javob — uni ta'rif ichida ko'rsatish
+  javobni oldindan aytib qo'yadi.
 - Boshqa kalit so'zlarni ro'yxatlab tashlamang.
 {feedback_uz}
 FAQAT QUYIDAGI JSON FORMATIDA JAVOB BER (boshqa hech narsa yozma, hatto ```json belgisini ham):
@@ -242,7 +313,7 @@ FAQAT QUYIDAGI JSON FORMATIDA JAVOB BER (boshqa hech narsa yozma, hatto ```json 
     # First attempt
     text = await _ask_ai(_build_prompt())
     parsed = _parse_json(text) if text else None
-    if parsed and _sanity_check_explanation(parsed, safe_word, excerpt_clean):
+    if parsed and _sanity_check_explanation(parsed, safe_word, excerpt_clean, lang=lang):
         return parsed
 
     # One retry with explicit feedback about what was wrong
@@ -251,8 +322,10 @@ FAQAT QUYIDAGI JSON FORMATIDA JAVOB BER (boshqa hech narsa yozma, hatto ```json 
         feedback_reason = "JSON formatda emas edi"
     elif not (parsed.get("short_definition") or "").strip():
         feedback_reason = "short_definition bo'sh edi"
-    elif _looks_like_keyword_stew(parsed.get("short_definition", "")):
+    elif _looks_like_keyword_stew(parsed.get("short_definition", ""), lang=lang):
         feedback_reason = "to'liq jumla emas — faqat so'zlar ro'yxati edi"
+    elif _restates_target_word(parsed.get("short_definition", ""), safe_word):
+        feedback_reason = f"ta'rif \"{safe_word}\" so'zining o'zini takrorlab boshlandi — faqat ma'nosini yoz, so'zni qaytarma"
     else:
         feedback_reason = "dars matnini takrorlading"
 
@@ -262,7 +335,7 @@ FAQAT QUYIDAGI JSON FORMATIDA JAVOB BER (boshqa hech narsa yozma, hatto ```json 
     )
     text2 = await _ask_ai(_build_prompt(retry_feedback=feedback_reason))
     parsed2 = _parse_json(text2) if text2 else None
-    if parsed2 and _sanity_check_explanation(parsed2, safe_word, excerpt_clean):
+    if parsed2 and _sanity_check_explanation(parsed2, safe_word, excerpt_clean, lang=lang):
         return parsed2
 
     # Both attempts failed sanity. Prefer a clean empty over a junk string —

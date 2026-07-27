@@ -21,12 +21,24 @@ export const CHUNK_SIZE = 10;
    Levenshtein: exact = grade 2, off by 1-2 chars on words >= 4 chars = grade 1,
    else 0. The AI judge runs as a last-resort tiebreaker for "no" verdicts so
    "qo'shimcha funksiyalar" doesn't get rejected against "qo'shimcha funksiya". */
+
+// Uzbek o'/g' sounds get typed with whichever "apostrophe" the student's
+// keyboard/IME happens to produce — plain '(U+0027), the curly '(U+2019),
+// a backtick `(U+0060), or the proper Uzbek modifier letters ʻ/ʼ
+// (U+02BB/U+02BC). These are NOT the same code point and NFKD does not fold
+// them into each other, so without this they'd count as a real character
+// mismatch (e.g. "o'zbek" vs "oʻzbek" costs 1 edit) even though the student
+// wrote the exact right word. Fold them all to a plain ' before comparing.
+const APOSTROPHE_VARIANTS = /[‘’ʻʼ`´]/g;
+
 export const norm = (s) =>
     (s || '')
         .trim()
         .toLowerCase()
+        .replace(APOSTROPHE_VARIANTS, "'")
         .normalize('NFKD')
-        .replace(/[̀-ͯ]/g, '');
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/\s+/g, ' ');
 
 export function editDistance(a, b) {
     if (a === b) return 0;

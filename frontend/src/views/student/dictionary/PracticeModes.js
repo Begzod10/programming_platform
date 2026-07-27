@@ -69,10 +69,15 @@ function MCQ({ word, onAnswer }) {
 
     const center = meaningMode
         ? <span className="pr-quiz-word">{word.word}</span>
-        : (word.context || <em>Konteskt yo'q — taxminan tanlang</em>);
+        : (word.context_masked || word.context || <em>Konteskt yo'q — taxminan tanlang</em>);
 
     const opts = meaningMode ? ctxOpts : (word.options || []);
-    const correctValue = meaningMode ? word.context : word.word;
+    // ctxOpts are already masked server-side (see practice_words.py
+    // _mask_word_in_text) so the option text can't be matched by literally
+    // spotting the target word inside it — compare against the masked
+    // value, not the raw context, or the "correct" option would never
+    // equal-match its own (masked) rendered text.
+    const correctValue = meaningMode ? word.context_masked : word.word;
 
     const pick = (opt) => {
         if (picked !== null) return;
@@ -153,7 +158,10 @@ function TypedAnswer({ word, request, onAnswer, promptLabel, showContext, header
             {promptLabel && <div className="pr-typed-hint">{promptLabel}</div>}
             {showContext && (
                 <div className="pr-typed-ctx">
-                    {word.context || <em>Konteskt yo'q</em>}
+                    {/* Masked — this is a recall prompt (guess the word from its
+                        meaning), so the word itself must not appear in the text
+                        the student is shown before they answer. */}
+                    {word.context_masked || word.context || <em>Konteskt yo'q</em>}
                 </div>
             )}
             <form className="pr-typed-form" onSubmit={submit}>
