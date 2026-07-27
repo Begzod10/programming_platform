@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Optional
 import logging
+import re
 
 from app.services.grok_ai_client import call_chain, parse_ai_json, ProviderError
 
@@ -276,6 +277,15 @@ Agar dars KONKRET bir dasturlash tilini yoki texnologiyani talab qilsa (masalan 
 - Sababi: topshiriq "JavaScript yozing" degan, o'quvchi esa Python yozgan — bu topshiriqni bajarilmagan deb hisoblanadi.
 - feedback'da aniq ayting: "Dars [DARS NOMI] uchun [KUTILGAN TIL] kerak edi, lekin siz [TOPSHIRILGAN TIL] kod yubordingiz."
 - ISTISNO: agar dars "istalgan til" desa yoki texnologiya talab qilinmagan bo'lsa — bu qoida ishlamaydi.
+
+## BOSHQA DARS MAZMUNI — QATTIQ QOIDA (til to'g'ri bo'lsa ham)
+Til/texnologiya to'g'ri bo'lishi mumkin (masalan HTML/CSS), lekin kod aslida BOSHQA darsning mavzusiga tegishli bo'lishi mumkin — masalan, shu dars Flexbox haqida bo'lsa-yu, o'quvchi jadval (table) yoki oddiy display xususiyatlariga oid, oldingi darsdan qolgan fayllarni yuborgan bo'lsa; yoki shu dars ::before/::after psevdo-elementlari haqida bo'lsa-yu, ular kodda umuman ishlatilmagan bo'lsa; yoki shu dars position (sticky/absolute) haqida bo'lsa-yu, ular kodda umuman yo'q bo'lsa:
+- Bu ham F darajasi, 0-25 ball — til to'g'ri bo'lsa ham, chunki topshiriq SHU DARSNING mavzusi bo'yicha bajarilmagan.
+- Buni tekshirish uchun: DARS KONTEKSTI bo'limidagi "Talablar" va "Kutilayotgan texnologiyalar"da sanab o'tilgan KONKRET elementlarning (masalan nav bar, hover effekt, tugma, sticky nav, tooltip, pseudo-element) kodda umuman yo'qligini tekshiring.
+- Agar shu asosiy elementlarning DEYARLI HECH BIRI kodda topilmasa — bu boshqa darsdan qolgan yoki mos kelmaydigan topshiriq. Bunda "points" maydonini albatta 0-25 oralig'ida qaytaring.
+- MUHIM: feedback'da "mos kelmaydi" yoki "talab qilingan ... mavjud emas" deb yozib, keyin "points" maydonida 75+ kabi yuqori ball qaytarish QAT'IYAN TAQIQLANADI — bu o'z-o'ziga zid xulosa, feedback va points bir xil xulosani aks ettirishi SHART.
+- feedback'da aniq ayting: "Sizning topshirig'ingizda [DARS NOMI] uchun talab qilingan [KONKRET ELEMENTLAR] mavjud emas, aksincha [BOSHQA MAVZU]ga oid kod topildi."
+- ISTISNO: agar kodda so'ralgan elementlarning ko'pchiligi mavjud bo'lib, faqat ayrimlari yetishmasa — bu oddiy kamchilik, F emas balki mezonlar bo'yicha C/D bering.
 """
 
 
@@ -306,6 +316,58 @@ _POSITIVE_SIGNALS = (
 # Cheap ordering for grade-vs-derived sanity check. A is best.
 _VALID_GRADES_ORDER = {"A": 0, "B": 1, "C": 2, "D": 3, "F": 4}
 
+# Mirror-image of _POSITIVE_SIGNALS: high-precision Uzbek phrase patterns
+# indicating the AI's OWN prose concluded the submission does not fulfil
+# the assigned task (wrong lesson content, missing required elements,
+# outright unrelated leftovers from an earlier lesson). Confirmed in
+# production — 6 real `instructor_feedback` records said things like
+# "vazifaga mos kelmaydi" / "talab qilingan elementlar mavjud emas" /
+# "kod yo'q" while `points` still came back 100/"A" in the same JSON.
+# See _normalize_grading_result for how this is used.
+#
+# Each pattern was picked to be very unlikely to fire on a legitimately
+# good submission — e.g. we do NOT trigger on a bare "emas" or "yo'q"
+# anywhere in the text (a positive review can easily say "xato emas" =
+# "not a bug", which is good news). Patterns either use an unambiguous
+# fixed phrase, or require a requirement/task-reference word to appear
+# within a bounded window of the negation.
+_TASK_MISMATCH_PATTERNS = tuple(re.compile(p, re.IGNORECASE) for p in (
+    # "<vazifa/topshiriq>...ga mos kelmaydi" — unambiguous on its own.
+    r"vazifa\w*\s+mos\s+kelmaydi",
+    r"topshiriq\w*\s+mos\s+kelmaydi",
+    # "asosiy talablariga javob bermaydi" — unambiguous on its own.
+    r"asosiy\s+talablariga\s+javob\s+bermaydi",
+    # "<talab qilingan / kerak bo'lgan ...> ... mavjud emas / ishlatilmagan"
+    # — a requirement-reference word followed, within a bounded window, by
+    # a negation. Word order here matches every confirmed production
+    # example (the reference word comes first, then the negation).
+    r"(?:talab\s+qilin\w*|kerak\s+bo['\u2018\u2019]?lgan)"
+    r".{0,80}?(?:mavjud\s+emas|ishlatilmagan)",
+    # "boshqa mavzu/dars ... mos kelmaydi/emas" (either order).
+    r"boshqa\s+(?:mavzu|dars)\w*.{0,80}?mos\s+(?:kelmaydi|emas)",
+    r"mos\s+(?:kelmaydi|emas).{0,80}?boshqa\s+(?:mavzu|dars)\w*",
+    # "<mos keladigan/keluvchi> ... kod yo'q" — the AI stating no code
+    # matching the lesson exists at all (confirmed production example).
+    r"mos\s+kel\w*.{0,60}?kod\s+yo['\u2018\u2019]?q",
+))
+
+
+def _has_task_mismatch_signal(feedback: Optional[str], improvements: Optional[list]) -> bool:
+    """True if the AI's own feedback/improvements say the task wasn't met.
+
+    Mirrors the _POSITIVE_SIGNALS scale-up check but for the opposite
+    failure mode: a NEGATIVE / mismatch verdict paired with a too-high
+    score, instead of a POSITIVE verdict paired with a too-low score.
+    Deliberately conservative (see _TASK_MISMATCH_PATTERNS) — missing a
+    rare real contradiction is far cheaper than wrongly downgrading a
+    genuinely good submission.
+    """
+    improvements_text = " ".join(str(item) for item in (improvements or []) if item)
+    combined = f"{feedback or ''} {improvements_text}".strip()
+    if not combined:
+        return False
+    return any(pattern.search(combined) for pattern in _TASK_MISMATCH_PATTERNS)
+
 
 def _derive_grade_from_points(pts: int) -> str:
     """Map a 0-100 score back to the A/B/C/D/F bucket used by the prompt."""
@@ -329,6 +391,11 @@ def _normalize_grading_result(result: dict, *, difficulty_level: str = "") -> di
       - `points: 8`            — 0-10 scale while system expects 0-100
         (a passing student gets gated at 90/100 → 8 fails them outright)
       - grade and points disagree because the model re-reasoned mid-output
+      - feedback/improvements say the submission does NOT match the lesson
+        task (wrong lesson content, missing required elements) yet
+        points/grade still come back high (e.g. 100/"A") — confirmed
+        against 6 real production records. We don't re-grade the project;
+        we just refuse to let the contradictory high score through.
 
     We don't second-guess the AI's verdict. We just fix the obvious format
     slips so that a positive review can't fail a student over a typo, and
@@ -370,6 +437,28 @@ def _normalize_grading_result(result: dict, *, difficulty_level: str = "") -> di
             out["grade"] = raw_grade
     else:
         out["grade"] = _derive_grade_from_points(pts)
+
+    # ── Contradiction guard: AI's own prose says the task wasn't
+    # fulfilled, but points/grade are still in Approved range (>=75) ─────
+    # This is the mirror image of the 0-10 scale-up fix above: there we
+    # trust positive sentiment over a too-low score, here we distrust a
+    # too-high score in the face of explicit negative sentiment. We do NOT
+    # try to compute a "correct" score — we just cap it below the Approved
+    # threshold so a self-contradictory review can't auto-approve, unlock
+    # the next lesson, and inflate ranking. Capped (not zeroed) because the
+    # submission may still have some standalone merit; a teacher makes the
+    # final call from here.
+    if out["points"] >= 75 and _has_task_mismatch_signal(
+            out.get("feedback"), out.get("improvements")):
+        out["points"] = min(out["points"], 50)
+        out["grade"] = _derive_grade_from_points(out["points"])
+        out["contradiction_flagged"] = True
+        note = (
+            "\n\n[Tizim eslatmasi: baholash matni va ball o'rtasida "
+            "tafovut aniqlandi, ball avtomatik pasaytirildi — o'qituvchi "
+            "tomonidan qo'lda tekshirish tavsiya etiladi.]"
+        )
+        out["feedback"] = f"{(out.get('feedback') or '').rstrip()}{note}"
 
     return out
 
