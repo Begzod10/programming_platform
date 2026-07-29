@@ -234,7 +234,20 @@ def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "u
                     return str(options_list[idx]).strip().lower()
             return v.lower()
 
-        correct = {_to_text(a) for a in (exercise.correct_answers or "").split(",") if a.strip()}
+        # correct_answers is only comma-SEPARATED for multi-select (each
+        # segment its own letter, e.g. "A,C"). For single-select it is ONE
+        # answer that may itself be full option text containing literal
+        # commas (e.g. "5 ta (1, 2, 3, 4, 5)") — splitting that on "," shreds
+        # it into fragments that can never match the selected option again,
+        # making the exercise unconditionally unsolvable regardless of what
+        # the student picks. Confirmed this broke 52 exercises platform-wide
+        # (checked live student submissions — every option, A-D, scored
+        # wrong on each one).
+        if exercise.is_multiple_select:
+            correct = {_to_text(a) for a in (exercise.correct_answers or "").split(",") if a.strip()}
+        else:
+            raw = (exercise.correct_answers or "").strip()
+            correct = {_to_text(raw)} if raw else set()
         student = {_to_text(a) for a in student_answer.split(",") if a.strip()}
         is_correct = correct == student
         return {

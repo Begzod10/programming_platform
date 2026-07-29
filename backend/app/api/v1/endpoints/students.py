@@ -409,7 +409,8 @@ async def get_my_course_stats(
                 COUNT(*)                                                                AS total,
                 COUNT(CASE WHEN status IN ('Approved','Reviewed') THEN 1 END)          AS approved,
                 COUNT(CASE WHEN status = 'Submitted' THEN 1 END)                       AS submitted,
-                COALESCE(SUM(points_earned), 0)                                        AS points
+                COALESCE(SUM(CASE WHEN status IN ('Approved','Reviewed')
+                                   THEN points_earned ELSE 0 END), 0)                  AS points
             FROM projects
             WHERE student_id = :sid
         """),
