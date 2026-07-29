@@ -40,6 +40,7 @@ from course_builder.translations import (  # noqa: E402
 )
 from check_exercise_integrity import check_course as check_exercises  # noqa: E402
 from check_ru_coverage import check_course as check_ru  # noqa: E402
+from check_diagram_coverage import diagram_coverage  # noqa: E402
 
 
 async def main(spec_path: str, dry_run: bool) -> int:
@@ -108,6 +109,10 @@ async def main(spec_path: str, dry_run: bool) -> int:
             print(p)
     else:
         print("check_ru_coverage: OK")
+
+    async with AsyncSessionLocal() as db:
+        print(f"\n{await diagram_coverage(db, course.id)}")
+        print("(informational only — see course_builder/__init__.py 'Diagrams (Mermaid)')")
 
     print(f"\nDon't forget: python scripts/check_course_images.py {course.id}")
     print(f"Course is_published={course.is_published} — flip explicitly when reviewed.")

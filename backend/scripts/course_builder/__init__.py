@@ -79,6 +79,50 @@ A spec module (e.g. course_specs/my_course.py) must define:
     difficulty_level: "Easy" | "Medium" | "Hard" (default "Medium")
     points: int (default 10)
 
+## Diagrams (Mermaid)
+
+Not a schema field — a plain HTML authoring convention the frontend
+generically supports (StudentLessonPage.js auto-detects any
+`<pre class="mermaid">` block anywhere in rendered lesson HTML and runs
+mermaid.js on it; LessonContentBlocks.js renders text sections via
+dangerouslySetInnerHTML, so this just works with zero backend/schema
+changes). Course 109 was originally built with ZERO diagrams across all 14
+lessons — nothing in the pipeline catches this because there's no field to
+be "missing", so it silently shipped that way until a user noticed by
+comparing to an older course. Do not repeat that: for EVERY lesson, ask
+whether a diagram would genuinely clarify the content (a schema/ER shape, a
+decomposition, a relationship, a multi-step flow/pipeline, a
+before/after comparison) — and if yes, author one directly into that
+lesson's `text_content` / `text_content_ru` strings (and, once
+build_sections_json runs, it will automatically be present in
+sections_json too, since that's built FROM text_content — no separate
+step needed). It is equally correct to skip a lesson that has nothing
+diagram-worthy (e.g. a pure recap/review lesson) — do not add one as
+filler just for coverage. `check_diagram_coverage.py` reports the ratio
+after a build so this is a visible, reviewed decision, not a silent one —
+it is informational only and never fails the build.
+
+Exact markup (ground every diagram in THAT lesson's own real content —
+tables/columns/code the lesson already discusses, never an invented
+generic example):
+
+    <h3>Some heading</h3>
+    <pre class="mermaid">
+    flowchart TB
+      A["node label
+    line two"]
+      A -->|"edge label"| B["other node"]
+    </pre>
+    <p>Caption paragraph explaining what the diagram shows.</p>
+
+RU translation rule (confirmed against course 98's original hand-built
+diagram and its own RU translation): table names, column names, and any
+other real schema/code identifiers inside node/edge labels stay EXACTLY
+as-is in both languages — never translate `courses`, `lessons.course_id`,
+`student_courses`, `id PK`, `FK`, etc. Only the natural-language parts of
+edge labels (the "why"/"what" descriptions) and the caption `<p>` get
+translated, same as any other prose.
+
 ## Pipeline (run in this order; each script is independently re-runnable)
 
     check_course_images.py --set <id> --image <url> --thumbnail <url>
@@ -94,6 +138,7 @@ A spec module (e.g. course_specs/my_course.py) must define:
                                                    # section_translations map
     translate_lessons_ru.py <spec_module>
     check_ru_coverage.py <course_id>              # must pass clean
+    check_diagram_coverage.py <course_id>          # informational only
     check_course_images.py <course_id>             # must pass clean
 
 Or run build_course.py <spec_module> to do all of the above in order in
