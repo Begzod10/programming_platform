@@ -192,11 +192,13 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                     // student has somewhere to type. Without this fallback
                     // the exercise renders with no input and the submit
                     // button is permanently disabled.
-                    if (desc.includes('___')) {
+                    // Regex, not a literal '___' split — a longer blank like
+                    // "______" must still count as ONE input, not two.
+                    if (/_{3,}/.test(desc)) {
                         return (
                             <div className="slp-ex-fill-wrap">
                                 <div className="slp-ex-fill-text">
-                                    {desc.split('___').map((part, i, arr) => (
+                                    {desc.split(/_{3,}/).map((part, i, arr) => (
                                         <span key={i}>
                                             {part}
                                             {i < arr.length - 1 && (

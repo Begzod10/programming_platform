@@ -244,7 +244,7 @@ const ExerciseCard = ({ ex, index }) => {
                     <>
                         {ex.description ? (
                             <div className="lp-ex-blank-text">
-                                {ex.description.split('___').map((part, i, arr) => (
+                                {ex.description.split(/_{3,}/).map((part, i, arr) => (
                                     <span key={i}>
                                         {part}
                                         {i < arr.length - 1 && <span className="lp-ex-blank-slot" />}
