@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -466,6 +467,7 @@ async def submit_lesson_project(
         existing_project.grade = None
         existing_project.instructor_feedback = None
         existing_project.reviewed_at = None
+        existing_project.submitted_at = datetime.utcnow()
         existing_project.github_url = data.github_url
         existing_project.live_demo_url = data.live_demo_url
         existing_project.description = (
@@ -511,6 +513,7 @@ async def submit_lesson_project(
         live_demo_url=data.live_demo_url,
         difficulty_level="Easy",
         status="Submitted",
+        submitted_at=datetime.utcnow(),
     )
     db.add(new_project)
     await db.flush()

@@ -222,14 +222,27 @@ class ProjectService:
                     logger.info(
                         "[ai-auto] project=%d already reviewed, skipping override", project.id
                     )
-                else:
-                    # Real failure: invalid URL, repo not found, provider error, etc.
-                    # Reset to "Rejected" so the student can fix and re-submit.
+                elif http_status == 400:
+                    # Genuine content problem (bad URL, empty/unreadable repo,
+                    # etc.) — the student needs to actually fix something.
+                    # Reset to "Rejected" so they can fix and re-submit.
                     project.status = "Rejected"
                     project.instructor_feedback = reason
                     await self.db.commit()
                     logger.warning(
                         "[ai-auto] project=%d failed, set Rejected: %s", project.id, reason
+                    )
+                else:
+                    # Transient infrastructure failure (502 provider chain
+                    # down, 429 daily cap, 503 AI disabled) — nothing wrong
+                    # with the submission itself. Leave status="Submitted"
+                    # so it stays visible for retry instead of falsely
+                    # telling the student their project was rejected.
+                    project.instructor_feedback = reason
+                    await self.db.commit()
+                    logger.warning(
+                        "[ai-auto] project=%d AI unavailable (http=%d), left Submitted: %s",
+                        project.id, http_status, reason
                     )
             await self.db.refresh(project)
         except Exception as e:

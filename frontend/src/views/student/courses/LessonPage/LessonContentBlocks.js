@@ -4,18 +4,19 @@ import { SECTION_TYPES, getYTId } from '../../../../constants/courseUtils';
 import StudentProjectFiles from '../StudentProjectPreview/StudentProjectPreview';
 import SampleProject from './SampleProject';
 import { ExerciseSection } from './LessonExercise';
+import { useTranslation } from '../../../../i18n/useTranslation';
 
-export const SECTION_META = {
-    text:     {icon: '📝', label: 'Текст',        color: '#6c5ce7'},
-    code:     {icon: '💻', label: 'Код',           color: '#0f1117'},
-    video:    {icon: '🎬', label: 'Видео',         color: '#e84393'},
-    image:    {icon: '🖼', label: 'Изображение',   color: '#00b894'},
-    file:     {icon: '📦', label: 'Файл',          color: '#fdcb6e'},
-    exercise: {icon: '🎯', label: 'Задания',       color: '#a29bfe'},
-    project:  {icon: '🚀', label: 'Проект',        color: '#00cec9'},
-};
+const sectionMeta = (t) => ({
+    text:     {icon: '📝', label: t('lcb.section.text'),     color: '#6c5ce7'},
+    code:     {icon: '💻', label: t('lcb.section.code'),     color: '#0f1117'},
+    video:    {icon: '🎬', label: t('lcb.section.video'),    color: '#e84393'},
+    image:    {icon: '🖼', label: t('lcb.section.image'),    color: '#00b894'},
+    file:     {icon: '📦', label: t('lcb.section.file'),     color: '#fdcb6e'},
+    exercise: {icon: '🎯', label: t('lcb.section.exercise'), color: '#a29bfe'},
+    project:  {icon: '🚀', label: t('lcb.section.project'),  color: '#00cec9'},
+});
 
-const meta = (type) => SECTION_META[type] || SECTION_TYPES.find(t => t.type === type) || {icon: '🎯', label: 'Секция'};
+const meta = (type, t) => sectionMeta(t)[type] || SECTION_TYPES.find(s => s.type === type) || {icon: '🎯', label: t('lcb.section.default')};
 
 /* ═══════════════════════════════════════════════════════════
    CONTENT BLOCKS — renders all lesson section types
@@ -46,6 +47,7 @@ export const LessonContentBlocks = ({
     projectStatus,
     onProjectOpen,
 }) => {
+    const { t } = useTranslation();
     const {
         done: projectDone,
         pending: projectPending,
@@ -61,7 +63,7 @@ export const LessonContentBlocks = ({
         return (
             <div className="slp-empty">
                 <div className="slp-empty-icon">📄</div>
-                <p>Контент для этого урока ещё не добавлен</p>
+                <p>{t('lcb.emptyLesson')}</p>
             </div>
         );
     }
@@ -69,7 +71,7 @@ export const LessonContentBlocks = ({
     return (
         <div className="slp-blocks">
             {lesson.sections.map((section, sIdx) => {
-                const blockMeta = meta(section.type);
+                const blockMeta = meta(section.type, t);
                 const ytId = section.type === 'video' ? getYTId(section.videoUrl || '') : null;
                 const isActive = activeSection === section.id;
 
@@ -97,7 +99,7 @@ export const LessonContentBlocks = ({
                         <div className="slp-block-body">
                             {section.type === 'text' && (
                                 <div className="slp-text-content"
-                                     dangerouslySetInnerHTML={{__html: section.html || '<p style="opacity:0.3">Текст не добавлен</p>'}}/>
+                                     dangerouslySetInnerHTML={{__html: section.html || `<p style="opacity:0.3">${t('lcb.textEmpty')}</p>`}}/>
                             )}
 
                             {section.type === 'code' && (
@@ -107,10 +109,10 @@ export const LessonContentBlocks = ({
                                         <span className="slp-code-lang">{section.lang || 'code'}</span>
                                         <button className="slp-code-copy"
                                                 onClick={() => copyCode(section.id, section.code || '')}>
-                                            {copiedId === section.id ? <><CheckCircle size={14} aria-hidden="true" /> Скопировано</> : <><ClipboardList size={14} aria-hidden="true" /> Копировать</>}
+                                            {copiedId === section.id ? <><CheckCircle size={14} aria-hidden="true" /> {t('lcb.copied')}</> : <><ClipboardList size={14} aria-hidden="true" /> {t('lcb.copy')}</>}
                                         </button>
                                     </div>
-                                    <pre className="slp-code-block">{section.code || '// Код не добавлен'}</pre>
+                                    <pre className="slp-code-block">{section.code || t('lcb.codeEmpty')}</pre>
                                 </>
                             )}
 
@@ -121,12 +123,12 @@ export const LessonContentBlocks = ({
                                             ? <iframe src={`https://www.youtube.com/embed/${ytId}`}
                                                       allowFullScreen title={section.label || 'Video'}
                                                       onLoad={() => recordVideoWatch(section.id)}/>
-                                            : <div className="slp-video-empty">🎬 Видео не добавлено</div>}
+                                            : <div className="slp-video-empty">{t('lcb.videoEmpty')}</div>}
                                     </div>
                                     {section.videoUrl && (
                                         <a href={section.videoUrl} target="_blank" rel="noopener noreferrer"
                                            className="slp-video-link">
-                                            🎥 Открыть на YouTube ↗
+                                            {t('lcb.videoOpenYoutube')}
                                         </a>
                                     )}
                                 </>
@@ -136,7 +138,7 @@ export const LessonContentBlocks = ({
                                 <div className="slp-img-block">
                                     {section.imgUrl
                                         ? <img src={section.imgUrl} alt={section.label || ''}/>
-                                        : <div className="slp-img-empty">🖼 Изображение не добавлено</div>}
+                                        : <div className="slp-img-empty">{t('lcb.imageEmpty')}</div>}
                                 </div>
                             )}
 
@@ -147,10 +149,10 @@ export const LessonContentBlocks = ({
                                             <div className="slp-file-preview-wrap">
                                                 <img
                                                     src={section.previewImageUrl}
-                                                    alt="Loyiha ko'rinishi"
+                                                    alt={t('lcb.filePreviewAlt')}
                                                     className="slp-file-preview-img"
                                                 />
-                                                <div className="slp-file-preview-badge">Natija shunday ko'rinadi</div>
+                                                <div className="slp-file-preview-badge">{t('lcb.filePreviewBadge')}</div>
                                             </div>
                                         )}
                                         <div className="slp-file-card-bottom">
@@ -165,12 +167,12 @@ export const LessonContentBlocks = ({
                                                 onClick={() => handleDownloadFile(lesson.id, section.fileName)}
                                             >
                                                 {downloadingFile === section.fileName
-                                                    ? <><span className="slp-btn-spin"/>Загружаю...</>
-                                                    : '⬇ Скачать'}
+                                                    ? <><span className="slp-btn-spin"/>{t('lcb.downloading')}</>
+                                                    : t('lcb.download')}
                                             </button>
                                         </div>
                                     </div>
-                                ) : <div className="slp-file-empty">Файл не добавлен</div>
+                                ) : <div className="slp-file-empty">{t('lcb.fileEmpty')}</div>
                             )}
                             {section.type === 'file' && fileDownloadError && (
                                 <div className="slp-file-error" role="alert">
@@ -201,18 +203,18 @@ export const LessonContentBlocks = ({
                                     <div className="slp-project-top">
                                         <div className="slp-project-icon-wrap">🚀</div>
                                         <div className="slp-project-info">
-                                            <h4>{section.label || 'Практическое задание'}</h4>
+                                            <h4>{section.label || t('lcb.projectDefaultLabel')}</h4>
                                             {section.description &&
                                                 <p className="slp-project-desc">{section.description}</p>}
                                         </div>
                                         {projectDone && (
                                             <span className="slp-project-check" style={{background: '#16a34a', color: '#fff', padding: '6px 14px', borderRadius: 999, fontWeight: 600}}>
-                                                <Trophy size={14} aria-hidden="true" /> {projectScore}/100 — Сдано
+                                                <Trophy size={14} aria-hidden="true" /> {projectScore}/100 — {t('lcb.submitted')}
                                             </span>
                                         )}
                                         {projectPending && (
                                             <span className="slp-project-check" style={{background: '#fbbf24', color: '#451a03', padding: '6px 14px', borderRadius: 999, fontWeight: 600}}>
-                                                <Clock size={14} aria-hidden="true" /> На проверке
+                                                <Clock size={14} aria-hidden="true" /> {t('lcb.pendingReview')}
                                             </span>
                                         )}
                                         {projectFailed && (
@@ -221,7 +223,7 @@ export const LessonContentBlocks = ({
                                                 color: '#fff', padding: '6px 14px', borderRadius: 999, fontWeight: 600
                                             }}>
                                                 {projectSubmission?.status === 'Rejected'
-                                                    ? `✗ ${projectScore}/100 — Отклонено`
+                                                    ? `✗ ${projectScore}/100 — ${t('lcb.rejected')}`
                                                     : <><BarChart2 size={14} aria-hidden="true" /> {projectScore}/100</>}
                                             </span>
                                         )}
@@ -229,10 +231,10 @@ export const LessonContentBlocks = ({
 
                                     {section.previewImage && (
                                         <div className="slp-project-preview">
-                                            <div className="slp-reqs-title">🖼 Natija ko'rinishi</div>
+                                            <div className="slp-reqs-title">{t('lcb.resultPreviewTitle')}</div>
                                             <img
                                                 src={section.previewImage}
-                                                alt="Loyiha natijasi"
+                                                alt={t('lcb.resultPreviewAlt')}
                                                 className="slp-project-preview-img"
                                             />
                                         </div>
@@ -240,17 +242,17 @@ export const LessonContentBlocks = ({
 
                                     {section.requirements && (
                                         <div className="slp-project-reqs">
-                                            <div className="slp-reqs-title"><ClipboardList size={14} aria-hidden="true" /> Требования</div>
+                                            <div className="slp-reqs-title"><ClipboardList size={14} aria-hidden="true" /> {t('lcb.requirements')}</div>
                                             <div className="slp-reqs-text">{section.requirements}</div>
                                         </div>
                                     )}
 
                                     {section.techStack && (
                                         <div className="slp-project-tech">
-                                            <span className="slp-reqs-title"><Wrench size={14} aria-hidden="true" /> Стек технологий</span>
+                                            <span className="slp-reqs-title"><Wrench size={14} aria-hidden="true" /> {t('lcb.techStack')}</span>
                                             <div className="slp-tech-tags">
-                                                {section.techStack.split(',').map((t, i) => (
-                                                    <span key={i} className="slp-tech-tag">{t.trim()}</span>
+                                                {section.techStack.split(',').map((tech, i) => (
+                                                    <span key={i} className="slp-tech-tag">{tech.trim()}</span>
                                                 ))}
                                             </div>
                                         </div>
@@ -258,7 +260,7 @@ export const LessonContentBlocks = ({
 
                                     {section.deadline && (
                                         <div className="slp-project-deadline">
-                                            <Timer size={14} aria-hidden="true" /> Дедлайн: <strong>{section.deadline} дней</strong>
+                                            <Timer size={14} aria-hidden="true" /> {t('lcb.deadline')} <strong>{section.deadline} {t('lcb.days')}</strong>
                                         </div>
                                     )}
 
@@ -271,13 +273,13 @@ export const LessonContentBlocks = ({
                                     {/* Reviewer feedback */}
                                     {projectSubmission?.reviewed && (projectSubmission?.instructor_feedback || projectSubmission?.ai_bugs?.length > 0) && (
                                         <div className="slp-project-reqs" style={{marginTop: 12, borderLeft: `3px solid ${projectDone ? '#16a34a' : '#dc2626'}`, paddingLeft: 12}}>
-                                            <div className="slp-reqs-title">💬 Отзыв преподавателя {projectSubmission?.grade ? `(${projectSubmission.grade})` : ''}</div>
+                                            <div className="slp-reqs-title">💬 {t('lcb.instructorFeedback')} {projectSubmission?.grade ? `(${projectSubmission.grade})` : ''}</div>
                                             {projectSubmission.instructor_feedback && (
                                                 <div className="slp-reqs-text">{projectSubmission.instructor_feedback}</div>
                                             )}
                                             {projectSubmission?.ai_strengths?.length > 0 && (
                                                 <div style={{marginTop: 10}}>
-                                                    <div style={{fontWeight: 600, color: '#16a34a', marginBottom: 4}}>✅ Yaxshi tomonlar:</div>
+                                                    <div style={{fontWeight: 600, color: '#16a34a', marginBottom: 4}}>{t('lcb.aiStrengths')}</div>
                                                     <ul style={{margin: 0, paddingLeft: 18}}>
                                                         {projectSubmission.ai_strengths.map((s, i) => <li key={i} style={{marginBottom: 2}}>{s}</li>)}
                                                     </ul>
@@ -285,7 +287,7 @@ export const LessonContentBlocks = ({
                                             )}
                                             {projectSubmission?.ai_bugs?.length > 0 && (
                                                 <div style={{marginTop: 10}}>
-                                                    <div style={{fontWeight: 600, color: '#dc2626', marginBottom: 4}}>🐛 Xatolar:</div>
+                                                    <div style={{fontWeight: 600, color: '#dc2626', marginBottom: 4}}>{t('lcb.aiBugs')}</div>
                                                     <ul style={{margin: 0, paddingLeft: 18}}>
                                                         {projectSubmission.ai_bugs.map((b, i) => <li key={i} style={{marginBottom: 2, fontFamily: 'monospace', fontSize: 13}}>{b}</li>)}
                                                     </ul>
@@ -293,7 +295,7 @@ export const LessonContentBlocks = ({
                                             )}
                                             {projectSubmission?.ai_improvements?.length > 0 && (
                                                 <div style={{marginTop: 10}}>
-                                                    <div style={{fontWeight: 600, color: '#d97706', marginBottom: 4}}>💡 Yaxshilash kerak:</div>
+                                                    <div style={{fontWeight: 600, color: '#d97706', marginBottom: 4}}>{t('lcb.aiImprovements')}</div>
                                                     <ul style={{margin: 0, paddingLeft: 18}}>
                                                         {projectSubmission.ai_improvements.map((imp, i) => <li key={i} style={{marginBottom: 2}}>{imp}</li>)}
                                                     </ul>
@@ -304,31 +306,31 @@ export const LessonContentBlocks = ({
 
                                     {/* Action area */}
                                     {projectStatusLoading ? (
-                                        <div className="slp-project-deadline" style={{opacity: 0.6}}>Загрузка статуса...</div>
+                                        <div className="slp-project-deadline" style={{opacity: 0.6}}>{t('lcb.loadingStatus')}</div>
                                     ) : projectFailed ? (
                                         <>
                                             <div className="slp-project-deadline" style={{background: '#fef2f2', color: '#991b1b', borderLeft: '3px solid #dc2626', padding: '8px 12px'}}>
-                                                ⚠️ Чтобы перейти к следующему уроку, нужно набрать минимум <strong>{passThreshold}/100</strong>. Загрузите проект заново.
+                                                ⚠️ {t('lcb.failedThreshold').replace('{threshold}', passThreshold)}
                                             </div>
                                             <button className="slp-project-btn" onClick={onProjectOpen} style={{marginTop: 8}}>
-                                                🔄 Загрузить заново
+                                                {t('lcb.reuploadBtn')}
                                             </button>
                                         </>
                                     ) : projectPending ? (
                                         <div className="slp-project-submitted">
                                             <span aria-hidden="true"><Clock size={18} /></span>
-                                            <span>Ожидание проверки преподавателя</span>
+                                            <span>{t('lcb.awaitingReview')}</span>
                                         </div>
                                     ) : projectDone ? (
                                         <div className="slp-project-submitted">
                                             <span aria-hidden="true"><Link size={18} /></span>
                                             {projectSubmission?.github_url
                                                 ? <a href={projectSubmission.github_url} target="_blank" rel="noreferrer">{projectSubmission.github_url}</a>
-                                                : <span>Проект сдан</span>}
+                                                : <span>{t('lcb.projectSubmitted')}</span>}
                                         </div>
                                     ) : (
                                         <button className="slp-project-btn" onClick={onProjectOpen}>
-                                            <Upload size={14} aria-hidden="true" /> Загрузить проект
+                                            <Upload size={14} aria-hidden="true" /> {t('lcb.uploadProjectBtn')}
                                         </button>
                                     )}
                                 </div>

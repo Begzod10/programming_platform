@@ -30,11 +30,12 @@ class Settings(BaseSettings):
     GENNIS_API_URL: str = "https://admin.gennis.uz/api"
     # ─── AI providers ────────────────────────────────────────────────────
     # AI calls iterate through this chain in order, using the first provider
-    # whose API key is set and whose call succeeds. Default: OpenAI first
-    # (highest grading quality), fall through to Gemini then Groq when OpenAI
-    # is unreachable — covers OpenAI's Russia geo-block transparently.
+    # whose API key is set and whose call succeeds. OpenAI-only per explicit
+    # request — Gemini/Groq fallback removed after Groq's free-tier rate
+    # limit ("limit tugadi") started surfacing as user-facing failures under
+    # real classroom load (e.g. projects 2492/2504 auto-rejected on a 429).
     # Comma-separated; valid values: "groq", "gemini", "openai".
-    AI_PROVIDER_CHAIN: str = "openai,gemini,groq"
+    AI_PROVIDER_CHAIN: str = "openai"
 
     # OpenAI. OPENAI_BASE_URL lets you point at a relay (e.g. a Cloudflare
     # Worker) to bypass the geo-blocks OpenAI applies to api.openai.com

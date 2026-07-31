@@ -584,6 +584,7 @@ async def upload_project_zip_by_id(
     if db_project:
         db_project.reviewed_at = None
         db_project.status = "Submitted"
+        db_project.submitted_at = datetime.utcnow()
         await db.commit()
         await db.refresh(db_project)
 
