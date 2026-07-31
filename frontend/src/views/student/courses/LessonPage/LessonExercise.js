@@ -29,6 +29,19 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
 
     const exType = ex.exercise_type;
 
+    // Number of blanks the CURRENT description actually renders. Must be
+    // the single source of truth for both reconstructing saved answers and
+    // building the submitted one — otherwise a stale extra entry (e.g. from
+    // a since-fixed description that used to render 2 inputs) survives in
+    // fillAnswers and gets silently joined into the answer even though only
+    // 1 input is on screen.
+    const fillBlankCount = useMemo(() => {
+        if (exType !== 'fill_in_blank') return 0;
+        const desc = ex.description || '';
+        const matches = desc.match(/_{3,}/g);
+        return matches ? matches.length : 1;
+    }, [exType, ex.description]);
+
     // Reconstruct each exercise type's input state from the saved
     // student_answer string. Mirrors buildAnswer()'s encoding.
     const initialInputs = useMemo(() => {
@@ -39,14 +52,16 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
             return {...blank, selected: ans.split(',').filter(Boolean)};
         }
         if (exType === 'fill_in_blank') {
-            return {...blank, fillAnswers: ans.split(',')};
+            const parts = ans.split(',');
+            const trimmed = Array.from({length: fillBlankCount}, (_, i) => parts[i] || '');
+            return {...blank, fillAnswers: trimmed};
         }
         if (exType === 'drag_and_drop') {
             try { return {...blank, dragDropped: JSON.parse(ans) || []}; }
             catch { return blank; }
         }
         return {...blank, textAnswer: ans};
-    }, [previousSubmission, exType]);
+    }, [previousSubmission, exType, fillBlankCount]);
 
     const initialResult = previousSubmission
         ? (previousSubmission.is_correct === true ? 'correct'
@@ -82,7 +97,7 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
     const isWrong = result === 'wrong';
 
     const buildAnswer = () => {
-        if (exType === 'fill_in_blank') return fillAnswers.join(',');
+        if (exType === 'fill_in_blank') return fillAnswers.slice(0, fillBlankCount).join(',');
         if (exType === 'drag_and_drop') return JSON.stringify(dragDropped.map(s => s.trim()));
         if (exType === 'multiple_choice') return selected.join(',');
         return textAnswer.trim();
