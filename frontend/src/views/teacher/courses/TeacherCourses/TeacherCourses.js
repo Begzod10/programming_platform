@@ -84,7 +84,8 @@ const TeacherCourses = () => {
         request(`${API_URL}v1/courses/my`, 'GET', null, headers())
             .then(data => {
                 setCourses((Array.isArray(data) ? data : []).map(c => ({
-                    ...c, image: c.image_url || '', studentsCount: c.students_count || 0, lessons: [],
+                    ...c, image: c.image_url || '', studentsCount: c.students_count || 0,
+                    lessonsCount: c.lessons_count || 0, lessons: [],
                 })));
             })
             .catch(() => setCourses([]))

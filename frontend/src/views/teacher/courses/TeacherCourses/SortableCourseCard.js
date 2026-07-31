@@ -70,7 +70,7 @@ export const SortableCourseCard = ({ course, canReorder, currentUserId, navigate
                 </div>
                 <p>{course.description}</p>
                 <div className="tc-course-stats">
-                    <span className="tc-stat">📚 {course.lessons.length} уроков</span>
+                    <span className="tc-stat">📚 {course.lessonsCount ?? course.lessons.length} уроков</span>
                     <span className="tc-stat">👥 {course.studentsCount} студентов</span>
                 </div>
                 <div className="tc-course-cta">
