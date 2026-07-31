@@ -74,7 +74,9 @@ jobs:
                source venv/bin/activate
                pip install -r requirements.txt --quiet
                systemctl restart \"$SERVICE_NAME\"
-               systemctl is-active --quiet \"$SERVICE_NAME\" && echo 'Service is running' || { echo 'Service failed to start'; systemctl status \"$SERVICE_NAME\" --no-pager; exit 1; }"
+               systemctl is-active --quiet \"$SERVICE_NAME\" && echo 'Service is running' || { echo 'Service failed to start'; systemctl status \"$SERVICE_NAME\" --no-pager; exit 1; }
+               echo '--- diag: live OpenAI call from prod host (no secrets printed) ---'
+               echo aW1wb3J0IGFzeW5jaW8KZnJvbSBhcHAuc2VydmljZXMuZ3Jva19haV9jbGllbnQgaW1wb3J0IGNhbGxfY2hhaW4sIHBhcnNlX2FpX2pzb24sIFByb3ZpZGVyRXJyb3IKZnJvbSBhcHAuY29uZmlnIGltcG9ydCBzZXR0aW5ncwpwcmludCgiY2hhaW46Iiwgc2V0dGluZ3MuYWlfcHJvdmlkZXJfY2hhaW5fbGlzdCkKcHJpbnQoIm9wZW5haSBrZXkgc2V0OiIsIGJvb2woc2V0dGluZ3MuT1BFTkFJX0FQSV9LRVkpLCAibGVuOiIsIGxlbihzZXR0aW5ncy5PUEVOQUlfQVBJX0tFWSkpCnByaW50KCJvcGVuYWkgYmFzZSB1cmwgc2V0OiIsIGJvb2woc2V0dGluZ3MuT1BFTkFJX0JBU0VfVVJMKSkKYXN5bmMgZGVmIG1haW4oKToKICAgIHRyeToKICAgICAgICB0ZXh0LCBwYXJzZWQsIHByb3ZpZGVyLCBhdHRlbXB0cyA9IGF3YWl0IGNhbGxfY2hhaW4oIlJldHVybiBKU09OOiB7XCJva1wiOiB0cnVlfSIsIG1heF90b2tlbnM9MjAsIHZhbGlkYXRvcj1wYXJzZV9haV9qc29uKQogICAgICAgIHByaW50KCJSRVNVTFQ6IFNVQ0NFU1MgdmlhIiwgcHJvdmlkZXIpCiAgICBleGNlcHQgUHJvdmlkZXJFcnJvciBhcyBlOgogICAgICAgIHByaW50KCJSRVNVTFQ6IEZBSUxFRDoiLCBlKQphc3luY2lvLnJ1bihtYWluKCkpCg== | base64 -d | python3 || echo 'diag script errored (see above)'"
 
       - name: Cleanup SSH key
         if: always()
