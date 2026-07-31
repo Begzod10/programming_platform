@@ -58,7 +58,18 @@ jobs:
               -o StrictHostKeyChecking=yes \
               "$SSH_USER@$SSH_HOST" \
               "set -e
+               echo '--- diag: before pull ---'
+               echo pwd=\$(pwd)
+               git -C \"$BACKEND_DIR\" rev-parse --abbrev-ref HEAD
+               git -C \"$BACKEND_DIR\" log -1 --format='HEAD=%H %s'
+               git -C \"$BACKEND_DIR\" status --short | head -5
                git -C \"$BACKEND_DIR\" pull origin server
+               echo '--- diag: after pull ---'
+               git -C \"$BACKEND_DIR\" rev-parse --abbrev-ref HEAD
+               git -C \"$BACKEND_DIR\" log -1 --format='HEAD=%H %s'
+               grep -n '^AI_PROVIDER_CHAIN' \"$BACKEND_DIR/.env\" || echo 'AI_PROVIDER_CHAIN not set in .env (uses code default)'
+               echo '--- diag: systemd unit ---'
+               systemctl show \"$SERVICE_NAME\" -p ExecStart -p WorkingDirectory -p FragmentPath
                cd \"$BACKEND_DIR\"
                source venv/bin/activate
                pip install -r requirements.txt --quiet
