@@ -186,6 +186,13 @@ const translations = {
     "game.secondsSuffix":      "s",
     "game.submitError":        "⚠️ Javobni yuborib bo'lmadi. Internetni tekshiring.",
 
+    // Team game — bug-hunt question kind
+    "game.bug.tapLineHint":       "Xatolik bor qatorni bosing",
+    "game.bug.explanationTitle":  "Nima uchun?",
+    "game.bug.correctLineLabel":  "To'g'ri javob: {line}-qator",
+    "game.bug.nextBtn":           "Keyingisi →",
+    "game.bug.loadingSnippet":    "Kod yuklanmoqda…",
+
     // Lesson content blocks — section labels + project task status
     "lcb.section.text":     "Matn",
     "lcb.section.code":     "Kod",
@@ -415,6 +422,13 @@ const translations = {
     "game.youAreLeading":      "Ты лидируешь! Никто пока не может тебя догнать 👀",
     "game.secondsSuffix":      "с",
     "game.submitError":        "⚠️ Не удалось отправить ответ. Проверьте интернет.",
+
+    // Team game — bug-hunt question kind
+    "game.bug.tapLineHint":       "Нажмите строку с ошибкой",
+    "game.bug.explanationTitle":  "Почему?",
+    "game.bug.correctLineLabel":  "Правильно: строка {line}",
+    "game.bug.nextBtn":           "Далее →",
+    "game.bug.loadingSnippet":    "Загрузка кода…",
 
     // Lesson content blocks — section labels + project task status
     "lcb.section.text":     "Текст",

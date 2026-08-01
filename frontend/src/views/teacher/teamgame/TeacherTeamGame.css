@@ -347,6 +347,28 @@
 }
 .tg-quiz-opt-chip--correct { background: #d1fae5; color: #065f46; font-weight: 700; }
 
+.tg-quiz-code-preview {
+    background: #0e0e1c;
+    color: rgba(255, 255, 255, 0.75);
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 0.75rem;
+    line-height: 1.6;
+    border-radius: 6px;
+    padding: 0.5rem 0.7rem;
+    margin: 0 0 0.5rem;
+    overflow-x: auto;
+    white-space: pre;
+}
+.tg-code-bug-line { background: rgba(46, 196, 169, 0.18); color: #7ee8d2; border-radius: 3px; }
+.tg-quiz-bug-explain {
+    font-size: 0.78rem;
+    color: #6b7280;
+    background: #f9fafb;
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem;
+    margin: 0 0 0.5rem;
+}
+
 .tg-quiz-progress {
     position: relative;
     height: 6px;

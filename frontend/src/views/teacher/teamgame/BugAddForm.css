@@ -1,0 +1,158 @@
+/* Bug-hunt question authoring form. Code editor/marker follows the same
+   "dark code chrome inside a light page" convention as ExercsieFileUpload's
+   CodeViewer — this file is self-contained (doesn't import that CSS) since
+   it's a different route/bundle. */
+
+.tbf-form { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.tbf-question-text, .tbf-explain-text {
+    width: 100%;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.92rem;
+    font-family: inherit;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.tbf-code-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.tbf-lang-select {
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 0.85rem;
+    background: #fff;
+}
+.tbf-tabs { display: flex; gap: 0.3rem; }
+.tbf-tab {
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #6b7280;
+    cursor: pointer;
+}
+.tbf-tab--active { background: #ede9fe; border-color: #c4b5fd; color: #6c5ce7; }
+.tbf-tab:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Dark code chrome — matches the teacher file-upload code editor convention */
+.tbf-editor-wrap, .tbf-mark-wrap {
+    display: flex;
+    background: #0e0e1c;
+    border-radius: 10px;
+    overflow: auto;
+    max-height: 360px;
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 13px;
+}
+.tbf-editor-wrap { flex-direction: row; }
+.tbf-line-nums {
+    padding: 12px 0;
+    background: rgba(255, 255, 255, 0.02);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    min-width: 40px;
+    flex-shrink: 0;
+    user-select: none;
+}
+.tbf-line-num {
+    display: block;
+    padding: 0 10px;
+    font-size: 12px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.25);
+    text-align: right;
+}
+.tbf-code-textarea {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: none;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1.7;
+    padding: 12px 14px;
+    white-space: pre;
+    overflow-wrap: normal;
+}
+
+.tbf-mark-wrap { flex-direction: column; }
+.tbf-mark-row { display: flex; align-items: stretch; min-width: max-content; }
+.tbf-mark-gutter {
+    flex-shrink: 0;
+    width: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.02);
+    border: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+}
+.tbf-mark-gutter:hover { background: rgba(108, 92, 231, 0.18); color: #cbd5e1; }
+.tbf-mark-gutter--selected { background: rgba(108, 92, 231, 0.28); color: #a29bfe; font-weight: 700; }
+.tbf-mark-gutter--bug { background: #2ec4a9; color: #04251f; font-weight: 800; }
+.tbf-mark-code {
+    margin: 0;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    white-space: pre;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.7;
+    flex: 1;
+}
+
+.tbf-candidates {
+    background: #f8f7ff;
+    border: 1px solid #e5deff;
+    border-radius: 10px;
+    padding: 0.6rem 0.8rem;
+}
+.tbf-candidates-label { display: block; font-size: 0.78rem; font-weight: 700; color: #6c5ce7; margin-bottom: 0.4rem; }
+.tbf-candidates-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.tbf-chip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: #fff;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 999px;
+    padding: 4px 8px 4px 6px;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+.tbf-chip input[type="radio"] { margin: 0; accent-color: #2ec4a9; }
+.tbf-chip--bug { border-color: #2ec4a9; background: #ecfdf7; }
+.tbf-chip-letter {
+    background: #ede9fe;
+    color: #6c5ce7;
+    border-radius: 4px;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+}
+.tbf-chip-num { font-weight: 600; color: #374151; }
+.tbf-chip-warn { cursor: help; }
+.tbf-chip-remove {
+    background: none;
+    border: none;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0 2px;
+    line-height: 1;
+}
+.tbf-chip-remove:hover { color: #ef4444; }
+.tbf-hint { margin: 0.4rem 0 0; font-size: 0.75rem; color: #b45309; }

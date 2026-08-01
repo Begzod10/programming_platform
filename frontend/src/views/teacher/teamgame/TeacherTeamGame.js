@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../../api/search/base';
 import axiosInstance from '../../../api/axiosInstance';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
+import BugAddForm from './BugAddForm';
 import './TeacherTeamGame.css';
 
 const GAME_TYPE_LABELS = { team: 'Командная', individual: 'Индивидуальная' };
@@ -313,7 +314,7 @@ function StartModal({ session, onClose, onStarted }) {
 }
 
 // ── Quiz Question Manager ─────────────────────────────────────────────────────
-const OPTION_LABELS = ['A', 'B', 'C', 'D'];
+const OPTION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
 function ImportFromLessonModal({ session, onClose, onImported, addedLessonIds, onLessonAdded }) {
     const [lessons, setLessons] = useState([]);
@@ -455,7 +456,7 @@ function ImportFromLessonModal({ session, onClose, onImported, addedLessonIds, o
 function QuizManager({ session }) {
     const [questions, setQuestions] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [showAdd, setShowAdd] = useState(false);
+    const [addMode, setAddMode] = useState(null); // null | 'quiz' | 'bug'
     const [showImport, setShowImport] = useState(false);
     const [addedLessonIds, setAddedLessonIds] = useState(new Set());
     const [form, setForm] = useState({ question_text: '', options: ['', '', '', ''], correct_option: 0, time_limit: 30, points: 1000 });
@@ -498,7 +499,7 @@ function QuizManager({ session }) {
             await axiosInstance.post(`${API_URL}v1/game-sessions/${session.id}/questions`, {
                 ...form, options: form.options.map(o => o.trim()),
             });
-            setShowAdd(false);
+            setAddMode(null);
             setForm({ question_text: '', options: ['', '', '', ''], correct_option: 0, time_limit: 30, points: 1000 });
             loadQuestions();
         } catch (err) {
@@ -548,8 +549,11 @@ function QuizManager({ session }) {
                         <button className="tg-btn-secondary tg-btn-sm" onClick={() => setShowImport(true)}>
                             📚 Из урока
                         </button>
-                        <button className="tg-btn-secondary tg-btn-sm" onClick={() => setShowAdd(v => !v)}>
-                            {showAdd ? '✕ Отмена' : '+ Вопрос'}
+                        <button className="tg-btn-secondary tg-btn-sm" onClick={() => setAddMode(m => m === 'quiz' ? null : 'quiz')}>
+                            {addMode === 'quiz' ? '✕ Отмена' : '+ Вопрос'}
+                        </button>
+                        <button className="tg-btn-secondary tg-btn-sm" onClick={() => setAddMode(m => m === 'bug' ? null : 'bug')}>
+                            {addMode === 'bug' ? '✕ Отмена' : '🐛 + Баг'}
                         </button>
                     </div>
                 )}
@@ -565,7 +569,15 @@ function QuizManager({ session }) {
                 />
             )}
 
-            {showAdd && (
+            {addMode === 'bug' && (
+                <BugAddForm
+                    session={session}
+                    onClose={() => setAddMode(null)}
+                    onSaved={() => { setAddMode(null); loadQuestions(); }}
+                />
+            )}
+
+            {addMode === 'quiz' && (
                 <form className="tg-quiz-add-form" onSubmit={saveQuestion}>
                     <textarea
                         required placeholder="Текст вопроса"
@@ -604,7 +616,7 @@ function QuizManager({ session }) {
 
             {loading ? <div className="tg-quiz-loading">Загрузка...</div> : (
                 <div className="tg-quiz-list">
-                    {questions.length === 0 && !showAdd && (
+                    {questions.length === 0 && !addMode && (
                         <p className="tg-quiz-empty">Нет вопросов. Добавьте хотя бы один перед запуском!</p>
                     )}
                     {questions.map((q, idx) => {
@@ -612,7 +624,7 @@ function QuizManager({ session }) {
                         return (
                             <div key={q.id} className={`tg-quiz-item tg-quiz-item--${q.status}`}>
                                 <div className="tg-quiz-item-header">
-                                    <span className="tg-quiz-num">#{idx + 1}</span>
+                                    <span className="tg-quiz-num">#{idx + 1}{q.question_kind === 'bug_hunt' ? ' 🐛' : ''}</span>
                                     <span className="tg-quiz-text">{q.question_text}</span>
                                     <div className="tg-quiz-item-meta">
                                         <span>⏱{q.time_limit}с</span>
@@ -622,13 +634,22 @@ function QuizManager({ session }) {
                                         </span>
                                     </div>
                                 </div>
+                                {q.question_kind === 'bug_hunt' && q.code_snippet && (
+                                    <pre className="tg-quiz-code-preview">
+                                        {q.code_snippet.split('\n').slice(0, 3).join('\n')}
+                                        {q.code_snippet.split('\n').length > 3 ? '\n…' : ''}
+                                    </pre>
+                                )}
                                 <div className="tg-quiz-opts-preview">
                                     {q.options.map((opt, i) => (
                                         <span key={i} className={`tg-quiz-opt-chip${i === q.correct_option ? ' tg-quiz-opt-chip--correct' : ''}`}>
-                                            {OPTION_LABELS[i]}: {opt}
+                                            {OPTION_LABELS[i]}: {q.question_kind === 'bug_hunt' ? `строка ${opt}` : opt}
                                         </span>
                                     ))}
                                 </div>
+                                {q.question_kind === 'bug_hunt' && q.bug_explanation && (
+                                    <p className="tg-quiz-bug-explain">💡 {q.bug_explanation}</p>
+                                )}
                                 {prog && (
                                     <div className="tg-quiz-progress">
                                         <div className="tg-quiz-progress-bar" style={{ width: `${prog.total_players ? (prog.answered_count / prog.total_players) * 100 : 0}%` }} />
@@ -782,15 +803,30 @@ export function SessionSummary({ sessionId }) {
                         const options = q.options || [];
                         const counts = stats.option_counts || [];
                         const total = stats.total_answers || 0;
+                        const isBugHunt = q.question_kind === 'bug_hunt';
+                        const optLabel = (opt) => isBugHunt ? `строка ${opt}` : opt;
                         return (
                             <div key={q.id} className="tg-summary-question">
                                 <div className="tg-summary-question-head">
-                                    <span className="tg-quiz-num">#{q.order_index + 1}</span>
+                                    <span className="tg-quiz-num">#{q.order_index + 1}{isBugHunt ? ' 🐛' : ''}</span>
                                     <span className="tg-summary-qtext">{q.question_text}</span>
                                     <span className="tg-summary-qstats">
                                         {stats.correct_answers ?? 0}/{total} верно
                                     </span>
                                 </div>
+                                {isBugHunt && q.code_snippet && (
+                                    <pre className="tg-quiz-code-preview">
+                                        {q.code_snippet.split('\n').map((line, i) => {
+                                            const lineNum = i + 1;
+                                            const isBugLine = lineNum === q.bug_line;
+                                            return (
+                                                <div key={i} className={isBugLine ? 'tg-code-bug-line' : undefined}>
+                                                    {String(lineNum).padStart(3, ' ')}  {line}{isBugLine ? '  ← баг' : ''}
+                                                </div>
+                                            );
+                                        })}
+                                    </pre>
+                                )}
                                 <div className="tg-summary-options">
                                     {options.map((opt, i) => {
                                         const cnt = counts[i] || 0;
@@ -799,7 +835,7 @@ export function SessionSummary({ sessionId }) {
                                         return (
                                             <div key={i} className={`tg-summary-option${isCorrect ? ' tg-summary-option--correct' : ''}`}>
                                                 <div className="tg-summary-option-label">
-                                                    <span>{OPTION_LABELS[i]}: {opt}</span>
+                                                    <span>{OPTION_LABELS[i]}: {optLabel(opt)}</span>
                                                     <span>{cnt} ({pct}%){isCorrect ? ' ✓' : ''}</span>
                                                 </div>
                                                 <div className="tg-summary-option-bar-wrap">
@@ -809,6 +845,9 @@ export function SessionSummary({ sessionId }) {
                                         );
                                     })}
                                 </div>
+                                {isBugHunt && q.bug_explanation && (
+                                    <p className="tg-quiz-bug-explain">💡 {q.bug_explanation}</p>
+                                )}
                                 {(answersByQ[q.id] || []).length > 0 && (
                                     <details className="tg-summary-answers">
                                         <summary>Ответы студентов ({(answersByQ[q.id] || []).length})</summary>
@@ -817,7 +856,7 @@ export function SessionSummary({ sessionId }) {
                                                 <li key={`${a.question_id}-${a.student_id}`}
                                                     className={a.is_correct ? 'ok' : 'bad'}>
                                                     <span>{a.student_name}</span>
-                                                    <span>{options[a.chosen_option] ?? '—'}</span>
+                                                    <span>{options[a.chosen_option] != null ? optLabel(options[a.chosen_option]) : '—'}</span>
                                                     <span>{a.is_correct ? '✓' : '✗'} +{a.points_earned}</span>
                                                 </li>
                                             ))}

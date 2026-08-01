@@ -583,6 +583,138 @@
 .stg-auto-done h3   { color: var(--color-success); margin: 0 0 0.5rem; font-size: 1.4rem; }
 .stg-auto-done p    { color: #8899aa; margin: 0; }
 
+/* ── Bug-hunt arena — tap a line in the code instead of a detached A-D
+   list. Gutter cell is the tap target (sticky-left) so it stays reachable
+   even when a long line scrolls horizontally on a phone. Reuses the same
+   reveal color language as .stg-answer-card (correct/wrongPick/faded). ── */
+.stg-bug-code {
+    width: 100%;
+    max-width: 780px;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1.5px solid rgba(255, 255, 255, 0.11);
+    border-radius: 14px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.6;
+}
+.stg-bug-line-row { display: flex; align-items: stretch; min-width: max-content; }
+.stg-bug-gutter {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    flex-shrink: 0;
+    width: 48px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: rgba(15, 15, 30, 0.92);
+    color: var(--stg-muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    border: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0;
+}
+.stg-bug-gutter--inert { cursor: default; }
+.stg-bug-gutter--candidate {
+    cursor: pointer;
+    color: var(--color-primary-light);
+    font-weight: 700;
+    transition: background 0.15s, color 0.15s;
+}
+.stg-bug-gutter--candidate:hover:not(:disabled) { background: rgba(108, 92, 231, 0.22); }
+.stg-bug-gutter--candidate:disabled { cursor: default; }
+.stg-bug-letter {
+    background: rgba(108, 92, 231, 0.28);
+    border-radius: 5px;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+}
+.stg-bug-gutter--chosen { background: rgba(108, 92, 231, 0.3); color: #fff; }
+.stg-bug-gutter--correct {
+    background: var(--color-success);
+    color: #04251f;
+    animation: stg-correct-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+.stg-bug-gutter--correct .stg-bug-letter { background: rgba(4, 37, 31, 0.35); }
+.stg-bug-gutter--wrongPick {
+    background: var(--color-danger);
+    color: #fff;
+    animation: stg-wrong-shake 0.5s ease forwards;
+}
+.stg-bug-gutter--wrongPick .stg-bug-letter { background: rgba(0, 0, 0, 0.2); }
+.stg-bug-gutter--faded { opacity: 0.4; }
+.stg-bug-line-code {
+    margin: 0;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    white-space: pre;
+    color: rgba(255, 255, 255, 0.85);
+    flex: 1;
+}
+
+/* Syntax token colors — self-contained here since this page doesn't load
+   the teacher file-upload CSS that also defines these class names. */
+.hl-kw      { color: #cba6f7; font-weight: 600; }
+.hl-str     { color: #a6e3a1; }
+.hl-comment { color: #6c7086; font-style: italic; }
+.hl-num     { color: #fab387; }
+.hl-class   { color: #89dceb; }
+.hl-tag     { color: #89b4fa; }
+.hl-attr    { color: #f38ba8; }
+
+.stg-bug-explain {
+    margin-top: 1rem;
+    max-width: 780px;
+    width: 100%;
+    background: rgba(108, 92, 231, 0.1);
+    border: 1px solid rgba(108, 92, 231, 0.28);
+    border-radius: 12px;
+    padding: 0.9rem 1.1rem;
+}
+.stg-bug-explain-title {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-primary-light);
+    margin-bottom: 0.35rem;
+}
+.stg-bug-explain-line {
+    margin: 0 0 0.35rem;
+    font-weight: 700;
+    color: var(--stg-ink);
+    font-size: 13.5px;
+}
+.stg-bug-explain-text { margin: 0; color: var(--stg-muted); font-size: 13.5px; line-height: 1.5; }
+
+.stg-bug-next-btn {
+    margin-top: 0.75rem;
+    background: rgba(108, 92, 231, 0.22);
+    color: var(--color-primary-light);
+    border: 1px solid rgba(108, 92, 231, 0.35);
+    border-radius: var(--r-btn);
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.stg-bug-next-btn:hover { background: rgba(108, 92, 231, 0.32); }
+
+@media (max-width: 480px) {
+    .stg-bug-gutter { width: 40px; }
+    .stg-bug-line-code { padding: 0 10px; font-size: 13px; }
+}
+
 /* ── Reduced motion — disable all entrance/pulse/glow animation, keep
    color-based state changes only ───────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
@@ -593,7 +725,9 @@
     .stg-rating-panel--up,
     .stg-rating-panel--down,
     .stg-rank-chase--urgent,
-    .stg-live-dot {
+    .stg-live-dot,
+    .stg-bug-gutter--correct,
+    .stg-bug-gutter--wrongPick {
         animation: none !important;
     }
 }

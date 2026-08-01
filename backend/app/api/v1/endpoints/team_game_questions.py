@@ -16,11 +16,12 @@ from app.models.team_game import (
 from app.models.lesson_question import LessonQuestion
 from app.models.user import Student
 from app.schemas.team_game import (
-    GameQuestionCreate, GameQuestionRead,
+    GameQuestionCreate, GameQuestionRead, BugQuestionCreate,
     AnswerSubmit, AnswerResultRead, QuestionEndPayload,
     AutoQuestionRead, AutoAnswerResultRead, AutoRankingEntry,
 )
 from app.ws.manager import manager
+from app.api.v1.endpoints.team_game_common import question_start_payload
 
 router = APIRouter(redirect_slashes=False)
 
@@ -50,6 +51,29 @@ async def _get_teacher_session(db: AsyncSession, session_id: int, teacher_id: in
     return sess
 
 
+async def _insert_question(db: AsyncSession, session_id: int, **fields) -> GameQuestion:
+    """Append one question to a session, always appended after whatever's
+    already there. order_index is deliberately NEVER taken from client input
+    here — GameQuestionCreate.order_index defaults to 0 (not None), so a
+    naive "use it if provided" check is always true and every manually-added
+    question silently landed at order_index=0. Compute it the same way
+    import_questions_from_lesson already does correctly."""
+    max_order = (await db.execute(
+        sa_text("SELECT COALESCE(MAX(order_index), -1) FROM game_questions WHERE session_id = :sid"),
+        {"sid": session_id}
+    )).scalar()
+    q = GameQuestion(
+        session_id=session_id,
+        order_index=int(max_order) + 1,
+        status=QuestionStatus.pending,
+        **fields,
+    )
+    db.add(q)
+    await db.commit()
+    await db.refresh(q)
+    return q
+
+
 # ── Teacher: add question ──────────────────────────────────────────────────────
 @router.post("/{session_id}/questions", response_model=GameQuestionRead, status_code=status.HTTP_201_CREATED)
 async def add_question(
@@ -58,29 +82,49 @@ async def add_question(
     db: AsyncSession = Depends(get_db),
     teacher: Student = Depends(get_current_teacher),
 ):
-    sess = await _get_teacher_session(db, session_id, teacher.id)
-
-    # Auto-assign order_index if not provided
-    count_row = (await db.execute(
-        sa_text("SELECT COUNT(*) FROM game_questions WHERE session_id = :sid"),
-        {"sid": session_id}
-    )).scalar()
-    order = body.order_index if body.order_index is not None else int(count_row or 0)
-
-    q = GameQuestion(
-        session_id=session_id,
+    await _get_teacher_session(db, session_id, teacher.id)
+    return await _insert_question(
+        db, session_id,
         question_text=body.question_text,
         options=body.options,
         correct_option=body.correct_option,
         time_limit=body.time_limit,
         points=body.points,
-        order_index=order,
-        status=QuestionStatus.pending,
     )
-    db.add(q)
-    await db.commit()
-    await db.refresh(q)
-    return q
+
+
+# ── Teacher: add bug-hunt question ──────────────────────────────────────────────
+@router.post("/{session_id}/bug-questions", response_model=GameQuestionRead, status_code=status.HTTP_201_CREATED)
+async def add_bug_question(
+    session_id: int,
+    body: BugQuestionCreate,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    """Server derives options/correct_option from bug_line + distractor_lines
+    (shuffled) so a teacher can't submit a mismatched answer index, and so
+    the candidate line numbers can never drift from the snippet — same
+    shuffle helpers import_questions_from_lesson already uses."""
+    await _get_teacher_session(db, session_id, teacher.id)
+
+    candidates = [body.bug_line, *body.distractor_lines]
+    order, correct_option = _shuffle_permutation(len(candidates), 0)
+    shuffled = _apply_permutation(candidates, order)
+
+    return await _insert_question(
+        db, session_id,
+        question_text=body.question_text,
+        options=[str(n) for n in shuffled],
+        correct_option=correct_option,
+        time_limit=body.time_limit,
+        points=body.points,
+        question_kind='bug_hunt',
+        code_snippet=body.code_snippet,
+        code_language=body.code_language,
+        bug_line=body.bug_line,
+        bug_explanation=body.bug_explanation,
+        bug_explanation_ru=body.bug_explanation_ru,
+    )
 
 
 # ── Teacher: list questions ────────────────────────────────────────────────────
@@ -154,19 +198,10 @@ async def activate_question(
     await db.commit()
     await db.refresh(q)
 
-    # Broadcast question to students (WITHOUT correct_option)
+    # Broadcast question to students (WITHOUT correct_option / bug answer)
     await manager.broadcast(session_id, {
         "type": "question_start",
-        "data": {
-            "id": q.id,
-            "question_text": q.question_text,
-            "question_text_ru": q.question_text_ru,
-            "options": q.options,
-            "time_limit": q.time_limit,
-            "points": q.points,
-            "order_index": q.order_index,
-            "activated_at": q.activated_at.isoformat(),
-        }
+        "data": question_start_payload(q),
     })
     return q
 
@@ -219,6 +254,9 @@ async def reveal_question(
         correct_option=q.correct_option,
         answers=answers_out,
         team_scores=team_scores,
+        bug_line=q.bug_line,
+        bug_explanation=q.bug_explanation,
+        bug_explanation_ru=q.bug_explanation_ru,
     )
     await manager.broadcast(session_id, {"type": "question_end", "data": payload.model_dump()})
     return payload
@@ -243,6 +281,8 @@ async def submit_answer(
     )).scalar_one_or_none()
     if not q:
         raise HTTPException(status_code=400, detail="Question is not active")
+    if not (0 <= body.chosen_option < len(q.options)):
+        raise HTTPException(status_code=400, detail="chosen_option out of range for this question")
 
     # Find student's team (limit 1 guards against corrupt duplicate rows)
     member = (await db.execute(
@@ -432,6 +472,8 @@ async def submit_answer_auto(
     )).scalar_one_or_none()
     if not q:
         raise HTTPException(status_code=404, detail="Question not found")
+    if not (0 <= body.chosen_option < len(q.options)):
+        raise HTTPException(status_code=400, detail="chosen_option out of range for this question")
 
     # Find student's team
     member = (await db.execute(
@@ -462,6 +504,9 @@ async def submit_answer_auto(
             points_earned=existing.points_earned,
             my_team_id=member.team_id,
             rankings=await _build_rankings(db, session_id),
+            bug_line=q.bug_line,
+            bug_explanation=q.bug_explanation,
+            bug_explanation_ru=q.bug_explanation_ru,
         )
 
     is_correct = body.chosen_option == q.correct_option
@@ -510,6 +555,9 @@ async def submit_answer_auto(
         points_earned=points_earned,
         my_team_id=member.team_id,
         rankings=rankings,
+        bug_line=q.bug_line,
+        bug_explanation=q.bug_explanation,
+        bug_explanation_ru=q.bug_explanation_ru,
     )
 
 

@@ -43,6 +43,7 @@ from app.schemas.team_game import (
     StartSessionBody,
 )
 from app.ws.manager import manager
+from app.api.v1.endpoints.team_game_common import question_start_payload
 
 router = APIRouter(redirect_slashes=False)
 
@@ -252,16 +253,7 @@ async def session_ws(
         if active_q:
             await websocket.send_json({
                 "type": "question_start",
-                "data": {
-                    "id": active_q.id,
-                    "question_text": active_q.question_text,
-                    "question_text_ru": active_q.question_text_ru,
-                    "options": active_q.options,
-                    "time_limit": active_q.time_limit,
-                    "points": active_q.points,
-                    "order_index": active_q.order_index,
-                    "activated_at": active_q.activated_at.isoformat() if active_q.activated_at else None,
-                },
+                "data": question_start_payload(active_q),
             })
     except Exception as exc:
         import logging as _logging
@@ -766,6 +758,12 @@ async def _build_snapshot_payload(db: AsyncSession, session_id: int) -> dict:
             "points": q.points,
             "time_limit": q.time_limit,
             "activated_at": q.activated_at.isoformat() if q.activated_at else None,
+            "question_kind": q.question_kind,
+            "code_snippet": q.code_snippet,
+            "code_language": q.code_language,
+            "bug_line": q.bug_line,
+            "bug_explanation": q.bug_explanation,
+            "bug_explanation_ru": q.bug_explanation_ru,
             "stats": {
                 "total_answers": len(answers),
                 "correct_answers": correct_count,
@@ -988,6 +986,17 @@ async def session_summary(
 
 # ── Teacher: CSV export ───────────────────────────────────────────────────────
 @router.get("/{session_id}/export.csv")
+def _csv_option_label(q: dict, idx) -> str:
+    """Render an option index as CSV text. For bug-hunt questions, `options`
+    holds bare line numbers ("7") — labeling them "line 7" instead of
+    dumping a bare digit next to the quiz questions' real answer text."""
+    options = q.get("options") or []
+    if not isinstance(idx, int) or not (0 <= idx < len(options)):
+        return ""
+    text = options[idx]
+    return f"line {text}" if q.get("question_kind") == "bug_hunt" else text
+
+
 def _csv_safe_row(row: list) -> list:
     """Prefix any cell that starts with a formula-trigger character (=, +, -, @)
     or a leading tab/CR with an apostrophe, so student/teacher-supplied text
@@ -1036,20 +1045,19 @@ async def session_export_csv(
     w.writerow([])
 
     w.writerow(["=== QUESTIONS ==="])
-    w.writerow(["#", "Question", "Correct option", "Total answers", "Correct", "Wrong", "Option counts"])
+    w.writerow(["#", "Question", "Correct option", "Total answers", "Correct", "Wrong", "Option counts", "Explanation"])
     for q in payload.get("questions", []):
         options = q.get("options") or []
-        correct_idx = q.get("correct_option")
-        correct_text = options[correct_idx] if isinstance(correct_idx, int) and 0 <= correct_idx < len(options) else ""
         stats = q.get("stats", {})
         w.writerow(_csv_safe_row([
             q.get("order_index", 0) + 1,
             q.get("question_text", ""),
-            correct_text,
+            _csv_option_label(q, q.get("correct_option")),
             stats.get("total_answers", 0),
             stats.get("correct_answers", 0),
             stats.get("wrong_answers", 0),
             " / ".join(f"{opt}: {cnt}" for opt, cnt in zip(options, stats.get("option_counts", []))),
+            q.get("bug_explanation") or "",
         ]))
     w.writerow([])
 
@@ -1058,9 +1066,7 @@ async def session_export_csv(
     q_by_id = {q["id"]: q for q in payload.get("questions", [])}
     for a in payload.get("answers", []):
         q = q_by_id.get(a.get("question_id")) or {}
-        options = q.get("options") or []
-        chosen_idx = a.get("chosen_option")
-        chosen_text = options[chosen_idx] if isinstance(chosen_idx, int) and 0 <= chosen_idx < len(options) else ""
+        chosen_text = _csv_option_label(q, a.get("chosen_option"))
         w.writerow(_csv_safe_row([
             a.get("student_name", ""),
             (q.get("order_index", 0) + 1) if q else "",

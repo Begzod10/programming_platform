@@ -2,10 +2,15 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { API_URL, headers, getCurrentUser } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
+import { BugSnippet, BugExplanation } from './BugHuntArena';
 import './StudentTeamGame.css';
 import { Trophy, Timer, Star, Check, X, CircleCheckBig, XCircle } from 'lucide-react';
 
-const OPTION_LABELS = ['A', 'B', 'C', 'D'];
+export const OPTION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
+// Bug-hunt explanations are the whole pedagogical payload — hold the reveal
+// long enough to actually read one, vs. a quick correct/incorrect flash for quiz.
+const QUIZ_REVEAL_MS = 2500;
+const BUG_REVEAL_MS = 5000;
 
 // Rough heuristic for detecting code-flavored answer options (e.g. "<body>",
 // "<head>") so they render in the monospace font per the design spec —
@@ -22,7 +27,7 @@ function looksLikeCode(text) {
 // option's visual state — 'neutral' | 'chosen' | 'correct' | 'wrongPick' | 'faded'.
 // Kept outside the components since it has no dependency on component state
 // beyond its arguments (DRY — both quiz arenas need identical reveal rules).
-function getAnswerState(i, { chosen, showResult, correctOption }) {
+export function getAnswerState(i, { chosen, showResult, correctOption }) {
     if (showResult) {
         if (i === correctOption) return 'correct';
         if (i === chosen && i !== correctOption) return 'wrongPick';
@@ -141,12 +146,14 @@ function QuizOverlay({ question, sessionId, revealData, onDone }) {
         return () => clearInterval(t);
     }, [question]);
 
-    // When teacher reveals: show result for 2.5s then close
+    // When teacher reveals: show result, then close (longer hold for
+    // bug-hunt so there's time to read the explanation)
     useEffect(() => {
         if (!revealData) return;
-        const t = setTimeout(() => onDone(), 2500);
+        const ms = question.question_kind === 'bug_hunt' ? BUG_REVEAL_MS : QUIZ_REVEAL_MS;
+        const t = setTimeout(() => onDone(), ms);
         return () => clearTimeout(t);
-    }, [revealData, onDone]);
+    }, [revealData, onDone, question.question_kind]);
 
     const submit = async (idx) => {
         if (!clickable || chosen !== null || submitting) return;
@@ -201,23 +208,36 @@ function QuizOverlay({ question, sessionId, revealData, onDone }) {
                 <h2>{lang === 'ru' && question.question_text_ru ? question.question_text_ru : question.question_text}</h2>
             </div>
 
-            <div className="stg-quiz-options">
-                {options.map((opt, i) => {
-                    const state = getAnswerState(i, { chosen, showResult, correctOption: revealedCorrectOpt });
-                    return (
-                        <AnswerOption
-                            key={i}
-                            index={i}
-                            text={opt}
-                            state={state}
-                            chosen={chosen}
-                            isCode={looksLikeCode(opt)}
-                            onClick={() => submit(i)}
-                            disabled={chosen !== null || showResult}
-                        />
-                    );
-                })}
-            </div>
+            {question.question_kind === 'bug_hunt' ? (
+                <BugSnippet
+                    code={question.code_snippet}
+                    language={question.code_language}
+                    options={options}
+                    chosen={chosen}
+                    showResult={showResult}
+                    correctOption={revealedCorrectOpt}
+                    onPick={submit}
+                    disabled={chosen !== null || showResult}
+                />
+            ) : (
+                <div className="stg-quiz-options">
+                    {options.map((opt, i) => {
+                        const state = getAnswerState(i, { chosen, showResult, correctOption: revealedCorrectOpt });
+                        return (
+                            <AnswerOption
+                                key={i}
+                                index={i}
+                                text={opt}
+                                state={state}
+                                chosen={chosen}
+                                isCode={looksLikeCode(opt)}
+                                onClick={() => submit(i)}
+                                disabled={chosen !== null || showResult}
+                            />
+                        );
+                    })}
+                </div>
+            )}
 
             {/* Before reveal: show waiting state */}
             {!showResult && chosen !== null && (
@@ -241,6 +261,15 @@ function QuizOverlay({ question, sessionId, revealData, onDone }) {
                                     : t('game.incorrectExclaim')
                     }
                 </FeedbackBanner>
+            )}
+
+            {showResult && question.question_kind === 'bug_hunt' && (
+                <BugExplanation
+                    lang={lang}
+                    text={revealData?.bug_explanation}
+                    textRu={revealData?.bug_explanation_ru}
+                    correctLine={revealData?.bug_line}
+                />
             )}
         </div>
     );
@@ -460,7 +489,8 @@ function AutoQuizFlow({ session, sessionId }) {
             if (res.ok) {
                 const data = await res.json();
                 setResult(data);
-                advanceRef.current = setTimeout(advance, 2500);
+                const revealMs = currentQ.question_kind === 'bug_hunt' ? BUG_REVEAL_MS : QUIZ_REVEAL_MS;
+                advanceRef.current = setTimeout(advance, revealMs);
             } else {
                 // Unexpected error — don't strand the student on this question forever.
                 advanceRef.current = setTimeout(advance, 1500);
@@ -526,23 +556,36 @@ function AutoQuizFlow({ session, sessionId }) {
                 </h2>
             </div>
 
-            <div className="stg-quiz-options">
-                {options.map((opt, i) => {
-                    const state = getAnswerState(i, { chosen, showResult, correctOption: result?.correct_option });
-                    return (
-                        <AnswerOption
-                            key={i}
-                            index={i}
-                            text={opt}
-                            state={state}
-                            chosen={chosen}
-                            isCode={looksLikeCode(opt)}
-                            onClick={() => submit(i)}
-                            disabled={chosen !== null || showResult || timeLeft === 0}
-                        />
-                    );
-                })}
-            </div>
+            {currentQ.question_kind === 'bug_hunt' ? (
+                <BugSnippet
+                    code={currentQ.code_snippet}
+                    language={currentQ.code_language}
+                    options={options}
+                    chosen={chosen}
+                    showResult={showResult}
+                    correctOption={result?.correct_option}
+                    onPick={submit}
+                    disabled={chosen !== null || showResult || timeLeft === 0}
+                />
+            ) : (
+                <div className="stg-quiz-options">
+                    {options.map((opt, i) => {
+                        const state = getAnswerState(i, { chosen, showResult, correctOption: result?.correct_option });
+                        return (
+                            <AnswerOption
+                                key={i}
+                                index={i}
+                                text={opt}
+                                state={state}
+                                chosen={chosen}
+                                isCode={looksLikeCode(opt)}
+                                onClick={() => submit(i)}
+                                disabled={chosen !== null || showResult || timeLeft === 0}
+                            />
+                        );
+                    })}
+                </div>
+            )}
 
             {!showResult && timeLeft === 0 && chosen === null && (
                 <FeedbackBanner variant="danger">{t('game.timeUp')}</FeedbackBanner>
@@ -556,6 +599,19 @@ function AutoQuizFlow({ session, sessionId }) {
                             : t('game.incorrectExclaim')
                         }
                     </FeedbackBanner>
+                    {currentQ.question_kind === 'bug_hunt' && (
+                        <>
+                            <BugExplanation
+                                lang={lang}
+                                text={result.bug_explanation}
+                                textRu={result.bug_explanation_ru}
+                                correctLine={result.bug_line}
+                            />
+                            <button type="button" className="stg-bug-next-btn" onClick={advance}>
+                                {t('game.bug.nextBtn')}
+                            </button>
+                        </>
+                    )}
                     <LiveRanking rankings={result.rankings} myId={result.my_team_id} sessionId={sessionId} />
                 </>
             )}

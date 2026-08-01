@@ -106,6 +106,17 @@ async def _reconcile_indexes(conn) -> None:
             "UPDATE students SET lifetime_points = total_points "
             "WHERE lifetime_points = 0 AND total_points > 0"
         ),
+        # 2026-08-01: bug-hunt question kind on game_questions. Additive —
+        # existing rows default to 'quiz' so the quiz path is byte-identical.
+        text(
+            "ALTER TABLE game_questions "
+            "ADD COLUMN IF NOT EXISTS question_kind VARCHAR(20) NOT NULL DEFAULT 'quiz'"
+        ),
+        text("ALTER TABLE game_questions ADD COLUMN IF NOT EXISTS code_snippet TEXT"),
+        text("ALTER TABLE game_questions ADD COLUMN IF NOT EXISTS code_language VARCHAR(20)"),
+        text("ALTER TABLE game_questions ADD COLUMN IF NOT EXISTS bug_line INTEGER"),
+        text("ALTER TABLE game_questions ADD COLUMN IF NOT EXISTS bug_explanation TEXT"),
+        text("ALTER TABLE game_questions ADD COLUMN IF NOT EXISTS bug_explanation_ru TEXT"),
     ]
     for stmt in statements:
         await conn.execute(stmt)

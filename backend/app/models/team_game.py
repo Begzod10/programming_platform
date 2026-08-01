@@ -84,7 +84,7 @@ class GameQuestion(Base):
     session_id:     Mapped[int]            = mapped_column(ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False)
     question_text:    Mapped[str]            = mapped_column(Text, nullable=False)
     question_text_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    options:          Mapped[list]          = mapped_column(JSON, nullable=False)  # list of 4 strings
+    options:          Mapped[list]          = mapped_column(JSON, nullable=False)  # list of strings (4 for quiz; bug_hunt: candidate line numbers as strings)
     options_ru:       Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # RU variants, same order/length as options
     correct_option: Mapped[int]            = mapped_column(Integer, nullable=False)  # 0-indexed
     time_limit:     Mapped[int]            = mapped_column(Integer, default=30, nullable=False)  # seconds
@@ -93,6 +93,19 @@ class GameQuestion(Base):
     status:         Mapped[QuestionStatus] = mapped_column(Enum(QuestionStatus), default=QuestionStatus.pending, nullable=False)
     activated_at:   Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at:     Mapped[datetime]       = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    # ── Bug-hunt kind ──────────────────────────────────────────────────
+    # question_kind='quiz' (default) leaves every column below NULL and the
+    # existing options/correct_option pipeline untouched. 'bug_hunt' reuses
+    # that same pipeline: options holds candidate line numbers as strings
+    # (e.g. ["3","7","12"]) and correct_option indexes the buggy one — the
+    # code snippet stays the single source of truth for option *text*.
+    question_kind:      Mapped[str]           = mapped_column(String(20), default="quiz", nullable=False)
+    code_snippet:        Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    code_language:       Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    bug_line:             Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 1-indexed
+    bug_explanation:      Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # shown on reveal
+    bug_explanation_ru:   Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     session: Mapped["GameSession"]      = relationship("GameSession", back_populates="questions")
     answers: Mapped[List["GameAnswer"]] = relationship("GameAnswer", back_populates="question", cascade="all, delete-orphan")
