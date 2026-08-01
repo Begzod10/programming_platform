@@ -1,69 +1,12 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { API_URL, API_URL_DOC, getToken } from '../../../api/search/base';
+import { API_URL } from '../../../api/search/base';
 import axiosInstance from '../../../api/axiosInstance';
+import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import './TeacherTeamGame.css';
 
 const GAME_TYPE_LABELS = { team: 'Командная', individual: 'Индивидуальная' };
 const STATUS_LABELS    = { pending: 'Ожидание', active: 'Активна', completed: 'Завершена' };
-
-function wsUrl(sessionId) {
-    const base = API_URL_DOC.replace(/^http/, 'ws').replace(/\/$/, '');
-    const token = encodeURIComponent(getToken() || '');
-    return `${base}/api/v1/game-sessions/${sessionId}/ws?token=${token}`;
-}
-
-// Keeps a WS alive for the given sessionId, calls onUpdate(data) on every push
-function useSessionSocket(sessionId, onUpdate, onDeleted, onRawMessage) {
-    const wsRef = useRef(null);
-    const pingRef = useRef(null);
-    const mountedRef = useRef(true);
-    const reconnectRef = useRef(null);
-
-    const connect = useCallback(() => {
-        if (!sessionId || !mountedRef.current) return;
-        const ws = new WebSocket(wsUrl(sessionId));
-        wsRef.current = ws;
-
-        ws.onmessage = (e) => {
-            try {
-                const msg = JSON.parse(e.data);
-                if (msg.type === 'session_update') onUpdate(msg.data);
-                if (msg.type === 'session_deleted' && onDeleted) onDeleted();
-                if (onRawMessage) onRawMessage(msg);
-            } catch {}
-        };
-
-        ws.onopen = () => {
-            clearTimeout(reconnectRef.current);
-            pingRef.current = setInterval(() => {
-                if (ws.readyState === WebSocket.OPEN) ws.send('ping');
-            }, 25000);
-        };
-
-        ws.onclose = () => {
-            clearInterval(pingRef.current);
-            if (mountedRef.current) {
-                reconnectRef.current = setTimeout(connect, 3000);
-            }
-        };
-
-        ws.onerror = () => ws.close();
-    }, [sessionId, onUpdate]);
-
-    useEffect(() => {
-        mountedRef.current = true;
-        connect();
-        return () => {
-            mountedRef.current = false;
-            clearTimeout(reconnectRef.current);
-            clearInterval(pingRef.current);
-            const ws = wsRef.current;
-            wsRef.current = null;
-            if (ws) ws.close();
-        };
-    }, [connect]);
-}
 
 function CreateSessionModal({ onClose, onCreated }) {
     const [form, setForm] = useState({ title: '', description: '', game_type: 'team', team_count: 2 });

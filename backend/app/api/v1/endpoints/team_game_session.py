@@ -1,5 +1,6 @@
 import asyncio
 import csv
+import hmac
 import io
 import logging
 import random
@@ -14,11 +15,22 @@ from sqlalchemy import func, select, text as sa_text
 from app.config import settings
 
 _bot_logger = logging.getLogger("parent_bot_notify")
+
+# asyncio only holds a *weak* reference to tasks created via create_task — if
+# nothing else references the task object, it can be garbage-collected mid-flight
+# before its await completes. Keep a strong reference here until it's done.
+_background_tasks: set = set()
+
+
+def _spawn_background_task(coro) -> None:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, noload, load_only
 
 from app.core.security import decode_access_token
-from app.dependencies import get_db, get_current_teacher, get_current_student_optional
+from app.dependencies import get_db, get_current_teacher, get_current_student
 from app.models.team_game import (
     GameSession, GameTeam, GameTeamMember, GameQuestion, GameAnswer,
     SessionStatus, QuestionStatus, StudentQuestionOrder, GameType,
@@ -82,9 +94,23 @@ async def _my_auto_progress_map(db: AsyncSession, session_ids: List[int],
     return {sid: (answered.get(sid, 0), total) for sid, total in totals.items()}
 
 
+async def _question_count_map(db: AsyncSession, session_ids: List[int]) -> dict:
+    """Count-only query (no row hydration) so the teacher list's "Вопросы (N)"
+    tab has a real number without eager-loading every question's full text."""
+    if not session_ids:
+        return {}
+    rows = (await db.execute(
+        select(GameQuestion.session_id, func.count(GameQuestion.id))
+        .where(GameQuestion.session_id.in_(session_ids))
+        .group_by(GameQuestion.session_id)
+    )).all()
+    return dict(rows)
+
+
 def _build_session_read(session: GameSession, student_id: Optional[int] = None,
                         course_title: Optional[str] = None,
-                        my_auto_progress: Optional[tuple] = None) -> GameSessionRead:
+                        my_auto_progress: Optional[tuple] = None,
+                        questions_count: int = 0) -> GameSessionRead:
     my_team_id = None
     teams_out = []
     for team in session.teams:
@@ -129,6 +155,7 @@ def _build_session_read(session: GameSession, student_id: Optional[int] = None,
         my_auto_completed=my_auto_completed,
         my_auto_answered=my_auto_answered,
         my_auto_total=my_auto_total,
+        questions_count=questions_count,
     )
 
 
@@ -154,7 +181,9 @@ async def _fetch_and_build(db: AsyncSession, session_id: int,
     session = await _fetch_session(db, session_id)
     ctitle  = await _course_title(db, session.course_id)
     progress_map = await _my_auto_progress_map(db, [session_id], student_id) if session.auto_mode else {}
-    return _build_session_read(session, student_id, ctitle, progress_map.get(session_id))
+    qcount_map = await _question_count_map(db, [session_id])
+    return _build_session_read(session, student_id, ctitle, progress_map.get(session_id),
+                                qcount_map.get(session_id, 0))
 
 
 async def _broadcast_session(db: AsyncSession, session_id: int) -> None:
@@ -170,10 +199,43 @@ async def session_ws(
     token: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ):
+    from app.models.user import UserRole
+    from app.models.course import student_courses
+
     user_id = decode_access_token(token) if token else None
     if user_id is None:
         await websocket.close(code=4001)
         return
+
+    user = (await db.execute(
+        select(Student).where(Student.id == user_id)
+    )).scalar_one_or_none()
+    if not user or not user.is_active:
+        await websocket.close(code=4001)
+        return
+
+    session = (await db.execute(
+        select(GameSession).where(GameSession.id == session_id)
+    )).scalar_one_or_none()
+    if not session:
+        await websocket.close(code=4004)
+        return
+
+    is_teacher = user.role == UserRole.teacher
+    if is_teacher:
+        if session.created_by != user.id:
+            await websocket.close(code=4003)
+            return
+    elif session.course_id is not None:
+        enrolled = (await db.execute(
+            select(student_courses.c.course_id).where(
+                student_courses.c.student_id == user.id,
+                student_courses.c.course_id == session.course_id,
+            )
+        )).first()
+        if not enrolled:
+            await websocket.close(code=4003)
+            return
 
     await manager.connect(session_id, websocket)
     try:
@@ -255,25 +317,37 @@ async def create_session(
 async def list_sessions(
     course_id: Optional[int] = None,
     db: AsyncSession = Depends(get_db),
-    current_student: Optional[Student] = Depends(get_current_student_optional),
+    current_student: Student = Depends(get_current_student),
 ):
     from app.models.user import UserRole
+    from app.models.course import student_courses
+
     q = select(GameSession).options(*_load_opts()).order_by(GameSession.created_at.desc())
     if course_id:
         q = q.where(GameSession.course_id == course_id)
-    is_teacher = bool(current_student and current_student.role == UserRole.teacher)
-    if current_student and not is_teacher:
+    is_teacher = current_student.role == UserRole.teacher
+    if not is_teacher:
         # Students see only in-flight sessions — completed ones are noise
         # on their side. Teachers keep full history so the Завершённые
         # tab in the teacher UI can list them for post-game review.
         q = q.where(GameSession.status != SessionStatus.completed)
+        # ...and only sessions for a course they're actually enrolled in, or
+        # platform-wide sessions with no course_id (open to everyone, same
+        # rule start_session already uses to assign teams to "all students"
+        # when no course is set).
+        enrolled_ids = select(student_courses.c.course_id).where(
+            student_courses.c.student_id == current_student.id
+        )
+        q = q.where(
+            (GameSession.course_id.is_(None)) | (GameSession.course_id.in_(enrolled_ids))
+        )
     if is_teacher:
         # Teachers only see sessions they own — no reason to expose
         # other teachers' rooms in a shared list.
         q = q.where(GameSession.created_by == current_student.id)
     result = await db.execute(q)
     sessions = result.scalars().all()
-    sid = current_student.id if current_student else None
+    sid = current_student.id
 
     # Batch-fetch course titles to avoid N+1
     course_ids = list({s.course_id for s in sessions if s.course_id})
@@ -287,8 +361,12 @@ async def list_sessions(
 
     auto_session_ids = [s.id for s in sessions if s.auto_mode]
     progress_map = await _my_auto_progress_map(db, auto_session_ids, sid)
+    qcount_map = await _question_count_map(db, [s.id for s in sessions])
 
-    return [_build_session_read(s, sid, titles.get(s.course_id), progress_map.get(s.id)) for s in sessions]
+    return [
+        _build_session_read(s, sid, titles.get(s.course_id), progress_map.get(s.id), qcount_map.get(s.id, 0))
+        for s in sessions
+    ]
 
 
 # ── Get single session ─────────────────────────────────────────────────────────
@@ -296,18 +374,37 @@ async def list_sessions(
 async def get_session(
     session_id: int,
     db: AsyncSession = Depends(get_db),
-    current_student: Optional[Student] = Depends(get_current_student_optional),
+    current_student: Student = Depends(get_current_student),
 ):
+    from app.models.user import UserRole
+    from app.models.course import student_courses
+
     result = await db.execute(
         select(GameSession).where(GameSession.id == session_id).options(*_load_opts())
     )
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Game session not found")
-    sid    = current_student.id if current_student else None
+
+    is_teacher = current_student.role == UserRole.teacher
+    if is_teacher:
+        if session.created_by != current_student.id:
+            raise HTTPException(status_code=403, detail="Not your session")
+    elif session.course_id is not None:
+        enrolled = (await db.execute(
+            select(student_courses.c.course_id).where(
+                student_courses.c.student_id == current_student.id,
+                student_courses.c.course_id == session.course_id,
+            )
+        )).first()
+        if not enrolled:
+            raise HTTPException(status_code=403, detail="Not enrolled in this session's course")
+
+    sid    = current_student.id
     ctitle = await _course_title(db, session.course_id)
     progress_map = await _my_auto_progress_map(db, [session_id], sid) if session.auto_mode else {}
-    return _build_session_read(session, sid, ctitle, progress_map.get(session_id))
+    qcount_map = await _question_count_map(db, [session_id])
+    return _build_session_read(session, sid, ctitle, progress_map.get(session_id), qcount_map.get(session_id, 0))
 
 
 # ── Teacher: list available students for a session ────────────────────────────
@@ -832,7 +929,7 @@ async def complete_session(
     # not wait on a bot round-trip and must not see the endpoint fail
     # if the bot is offline. The bot pulls the full snapshot back from
     # /summary-public once it picks up this notification.
-    asyncio.create_task(_notify_parent_bot(session_id))
+    _spawn_background_task(_notify_parent_bot(session_id))
     return await _fetch_and_build(db, session_id)
 
 
@@ -891,6 +988,20 @@ async def session_summary(
 
 # ── Teacher: CSV export ───────────────────────────────────────────────────────
 @router.get("/{session_id}/export.csv")
+def _csv_safe_row(row: list) -> list:
+    """Prefix any cell that starts with a formula-trigger character (=, +, -, @)
+    or a leading tab/CR with an apostrophe, so student/teacher-supplied text
+    (full_name, team names, question text) can't execute as a formula or
+    launch a link when a teacher opens this export in Excel/Sheets."""
+    safe = []
+    for v in row:
+        if isinstance(v, str) and v and v[0] in ("=", "+", "-", "@", "\t", "\r"):
+            safe.append("'" + v)
+        else:
+            safe.append(v)
+    return safe
+
+
 async def session_export_csv(
     session_id: int,
     db: AsyncSession = Depends(get_db),
@@ -904,16 +1015,16 @@ async def session_export_csv(
     w = csv.writer(buf)
 
     session_meta = payload.get("session", {})
-    w.writerow(["Session", session_meta.get("title", ""), f"id={session_meta.get('id')}"])
+    w.writerow(_csv_safe_row(["Session", session_meta.get("title", ""), f"id={session_meta.get('id')}"]))
     w.writerow(["Completed at", snap.completed_at.isoformat() if snap.completed_at else ""])
     w.writerow(["Game type", session_meta.get("game_type", "")])
-    w.writerow(["Course", session_meta.get("course_title") or ""])
+    w.writerow(_csv_safe_row(["Course", session_meta.get("course_title") or ""]))
     w.writerow([])
 
     w.writerow(["=== LEADERBOARD ==="])
     w.writerow(["Rank", "Student", "Team", "Points", "Correct", "Wrong", "Answered"])
     for row in payload.get("leaderboard", []):
-        w.writerow([
+        w.writerow(_csv_safe_row([
             row.get("rank"),
             row.get("full_name", ""),
             row.get("team_name") or "",
@@ -921,7 +1032,7 @@ async def session_export_csv(
             row.get("correct_count", 0),
             row.get("wrong_count", 0),
             row.get("answered_count", 0),
-        ])
+        ]))
     w.writerow([])
 
     w.writerow(["=== QUESTIONS ==="])
@@ -931,7 +1042,7 @@ async def session_export_csv(
         correct_idx = q.get("correct_option")
         correct_text = options[correct_idx] if isinstance(correct_idx, int) and 0 <= correct_idx < len(options) else ""
         stats = q.get("stats", {})
-        w.writerow([
+        w.writerow(_csv_safe_row([
             q.get("order_index", 0) + 1,
             q.get("question_text", ""),
             correct_text,
@@ -939,7 +1050,7 @@ async def session_export_csv(
             stats.get("correct_answers", 0),
             stats.get("wrong_answers", 0),
             " / ".join(f"{opt}: {cnt}" for opt, cnt in zip(options, stats.get("option_counts", []))),
-        ])
+        ]))
     w.writerow([])
 
     w.writerow(["=== PER-STUDENT ANSWERS ==="])
@@ -950,7 +1061,7 @@ async def session_export_csv(
         options = q.get("options") or []
         chosen_idx = a.get("chosen_option")
         chosen_text = options[chosen_idx] if isinstance(chosen_idx, int) and 0 <= chosen_idx < len(options) else ""
-        w.writerow([
+        w.writerow(_csv_safe_row([
             a.get("student_name", ""),
             (q.get("order_index", 0) + 1) if q else "",
             q.get("question_text", "") if q else "",
@@ -958,7 +1069,7 @@ async def session_export_csv(
             "✓" if a.get("is_correct") else "✗",
             a.get("points_earned", 0),
             a.get("answered_at", ""),
-        ])
+        ]))
 
     buf.seek(0)
     filename = f"session-{session_id}.csv"
@@ -978,7 +1089,7 @@ def _require_internal_secret(x_internal_secret: Optional[str]) -> None:
     expected = settings.PARENT_BOT_SECRET
     if not expected:
         raise HTTPException(status_code=503, detail="Parent bot integration not configured")
-    if not x_internal_secret or x_internal_secret != expected:
+    if not x_internal_secret or not hmac.compare_digest(x_internal_secret, expected):
         raise HTTPException(status_code=401, detail="Invalid internal secret")
 
 

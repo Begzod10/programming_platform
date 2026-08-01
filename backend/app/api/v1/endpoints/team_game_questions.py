@@ -38,12 +38,15 @@ async def _build_rankings(db: AsyncSession, session_id: int) -> List[AutoRanking
     return [AutoRankingEntry(id=t.id, name=t.name, color=t.color, score=t.score) for t in teams]
 
 
-async def _get_teacher_session(db: AsyncSession, session_id: int, teacher_id: int) -> GameSession:
+async def _get_teacher_session(db: AsyncSession, session_id: int, teacher_id: int,
+                                block_completed: bool = True) -> GameSession:
     sess = (await db.execute(select(GameSession).where(GameSession.id == session_id))).scalar_one_or_none()
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
     if sess.created_by != teacher_id:
         raise HTTPException(status_code=403, detail="Not your session")
+    if block_completed and sess.status == SessionStatus.completed:
+        raise HTTPException(status_code=400, detail="Session is already completed")
     return sess
 
 
@@ -56,8 +59,6 @@ async def add_question(
     teacher: Student = Depends(get_current_teacher),
 ):
     sess = await _get_teacher_session(db, session_id, teacher.id)
-    if sess.status == SessionStatus.completed:
-        raise HTTPException(status_code=400, detail="Cannot add questions to a completed session")
 
     # Auto-assign order_index if not provided
     count_row = (await db.execute(
@@ -89,7 +90,9 @@ async def list_questions(
     db: AsyncSession = Depends(get_db),
     teacher: Student = Depends(get_current_teacher),
 ):
-    await _get_teacher_session(db, session_id, teacher.id)
+    # Read-only — teachers must still be able to review a completed session's
+    # questions (post-game review), so don't block on status here.
+    await _get_teacher_session(db, session_id, teacher.id, block_completed=False)
     rows = (await db.execute(
         select(GameQuestion)
         .where(GameQuestion.session_id == session_id)
@@ -375,7 +378,20 @@ async def get_my_questions(
         random.shuffle(q_ids)
         order = StudentQuestionOrder(session_id=session_id, student_id=student.id, question_ids=q_ids)
         db.add(order)
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Another concurrent request (double-click, retry) already created
+            # this student's order — the unique constraint on
+            # (session_id, student_id) caught it. Fall back to that row
+            # instead of raising, so this request finishes normally too.
+            await db.rollback()
+            order = (await db.execute(
+                select(StudentQuestionOrder).where(
+                    StudentQuestionOrder.session_id == session_id,
+                    StudentQuestionOrder.student_id == student.id,
+                )
+            )).scalar_one()
     else:
         # Sync in any questions the teacher added after this student's order was
         # first created (e.g. mid-game) — append them so the student isn't stuck
@@ -405,6 +421,8 @@ async def submit_answer_auto(
         raise HTTPException(status_code=404, detail="Session not found")
     if not sess.auto_mode:
         raise HTTPException(status_code=400, detail="Session is not in auto mode")
+    if sess.status != SessionStatus.active:
+        raise HTTPException(status_code=400, detail="Session is not active")
 
     q = (await db.execute(
         select(GameQuestion).where(
@@ -528,11 +546,26 @@ async def import_questions_from_lesson(
     if not lesson_id and not course_id:
         raise HTTPException(status_code=400, detail="Provide lesson_id or course_id")
 
-    sess = (await db.execute(select(GameSession).where(GameSession.id == session_id))).scalar_one_or_none()
-    if not sess:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if sess.created_by != teacher.id:
-        raise HTTPException(status_code=403, detail="Not your session")
+    sess = await _get_teacher_session(db, session_id, teacher.id)
+
+    from app.models.course import Course
+    from app.models.lesson import Lesson as LessonModel
+
+    if lesson_id:
+        lesson_row = (await db.execute(
+            select(LessonModel.course_id).where(LessonModel.id == lesson_id)
+        )).scalar_one_or_none()
+        if lesson_row is None:
+            raise HTTPException(status_code=404, detail="Lesson not found")
+        source_course_id = lesson_row
+    else:
+        source_course_id = course_id
+
+    owns_course = (await db.execute(
+        select(Course.id).where(Course.id == source_course_id, Course.instructor_id == teacher.id)
+    )).first()
+    if not owns_course:
+        raise HTTPException(status_code=403, detail="Not your course")
 
     if lesson_id:
         source_qs = (await db.execute(
@@ -541,7 +574,6 @@ async def import_questions_from_lesson(
             .order_by(LessonQuestion.order_index, LessonQuestion.id)
         )).scalars().all()
     else:
-        from app.models.lesson import Lesson as LessonModel
         lesson_ids_row = (await db.execute(
             select(LessonModel.id).where(LessonModel.course_id == course_id).order_by(LessonModel.order)
         )).scalars().all()

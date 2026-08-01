@@ -1,72 +1,42 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { API_URL, API_URL_DOC, headers, getToken } from '../../../api/search/base';
+import { API_URL, headers, getCurrentUser } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
+import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import './StudentTeamGame.css';
-import { Trophy } from 'lucide-react';
+import { Trophy, Timer, Star, Check, X, CircleCheckBig, XCircle } from 'lucide-react';
 
-const GAME_TYPE_LABELS = { team: 'Командная', individual: 'Индивидуальная' };
-const STATUS_LABELS    = { pending: 'Скоро начнётся', active: 'Идёт сейчас', completed: 'Завершена' };
-const OPTION_LABELS    = ['A', 'B', 'C', 'D'];
-const OPTION_COLORS    = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12'];
+const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 
-function wsUrl(sessionId) {
-    const base = API_URL_DOC.replace(/^http/, 'ws').replace(/\/$/, '');
-    const token = encodeURIComponent(getToken() || '');
-    return `${base}/api/v1/game-sessions/${sessionId}/ws?token=${token}`;
+// Rough heuristic for detecting code-flavored answer options (e.g. "<body>",
+// "<head>") so they render in the monospace font per the design spec —
+// question content stays free-form/author-supplied, this is presentation-only.
+function looksLikeCode(text) {
+    if (typeof text !== 'string') return false;
+    const trimmed = text.trim();
+    return /^<\/?[a-zA-Z][\w-]*\/?>$/.test(trimmed)
+        || /[{};]/.test(trimmed)
+        || /^(function|const|let|var|import|class|def|print|SELECT|INSERT)\b/i.test(trimmed);
 }
 
-function useSessionSocket(sessionId, onUpdate, onDeleted, onMessage) {
-    const wsRef = useRef(null);
-    const pingRef = useRef(null);
-    const mountedRef = useRef(true);
-    const reconnectRef = useRef(null);
-
-    const connect = useCallback(() => {
-        if (!sessionId || !mountedRef.current) return;
-        const ws = new WebSocket(wsUrl(sessionId));
-        wsRef.current = ws;
-
-        ws.onmessage = (e) => {
-            try {
-                const msg = JSON.parse(e.data);
-                if (msg.type === 'session_update') onUpdate(msg.data);
-                if (msg.type === 'session_deleted' && onDeleted) onDeleted();
-                if (onMessage) onMessage(msg);
-            } catch {}
-        };
-
-        ws.onopen = () => {
-            clearTimeout(reconnectRef.current);
-            pingRef.current = setInterval(() => {
-                if (ws.readyState === WebSocket.OPEN) ws.send('ping');
-            }, 25000);
-        };
-
-        ws.onclose = () => {
-            clearInterval(pingRef.current);
-            if (mountedRef.current) {
-                reconnectRef.current = setTimeout(connect, 3000);
-            }
-        };
-
-        ws.onerror = () => ws.close();
-    }, [sessionId, onUpdate, onDeleted, onMessage]);
-
-    useEffect(() => {
-        mountedRef.current = true;
-        connect();
-        return () => {
-            mountedRef.current = false;
-            clearTimeout(reconnectRef.current);
-            clearInterval(pingRef.current);
-            const ws = wsRef.current;
-            wsRef.current = null;
-            if (ws) ws.close();
-        };
-    }, [connect]);
+// Pure helper shared by QuizOverlay and AutoQuizFlow to derive each answer
+// option's visual state — 'neutral' | 'chosen' | 'correct' | 'wrongPick' | 'faded'.
+// Kept outside the components since it has no dependency on component state
+// beyond its arguments (DRY — both quiz arenas need identical reveal rules).
+function getAnswerState(i, { chosen, showResult, correctOption }) {
+    if (showResult) {
+        if (i === correctOption) return 'correct';
+        if (i === chosen && i !== correctOption) return 'wrongPick';
+        return 'faded';
+    }
+    if (chosen === i) return 'chosen';
+    if (chosen !== null) return 'faded';
+    return 'neutral';
 }
 
-// ── Quiz Overlay ──────────────────────────────────────────────────────────────
+// ── Shared language toggle for QUESTION CONTENT (not UI chrome) ───────────────
+// This is a legitimate separate concept from the app's UI language: it flips
+// which authored translation of the question/options is shown, independent of
+// useTranslation()'s chrome language. Reads as a labeled content-language chip.
 function useLang() {
     const [lang, setLangState] = useState(() => localStorage.getItem('game_lang') || 'uz');
     const toggle = () => {
@@ -77,8 +47,67 @@ function useLang() {
     return [lang, toggle];
 }
 
+// ── Shared presentational pieces for the quiz arena ───────────────────────────
+
+function LangChip({ lang, onToggle, label }) {
+    return (
+        <button type="button" className="stg-lang-chip" onClick={onToggle} aria-label={label}>
+            {lang === 'uz' ? "🇺🇿 O'z" : '🇷🇺 Рус'}
+        </button>
+    );
+}
+
+function TimerPill({ seconds, low, label }) {
+    return (
+        <div className={`stg-timer-pill${low ? ' stg-timer-pill--low' : ''}`} role="timer" aria-label={label}>
+            <Timer size={15} className="stg-timer-pill-icon" aria-hidden="true" />
+            <span className="stg-timer-pill-num">{seconds}</span>
+        </div>
+    );
+}
+
+function PointsChip({ children }) {
+    return (
+        <div className="stg-points-chip">
+            <Star size={13} aria-hidden="true" />
+            <span>{children}</span>
+        </div>
+    );
+}
+
+function AnswerOption({ index, text, state, chosen, isCode, onClick, disabled }) {
+    const stateClass = state !== 'neutral' ? ` stg-answer-card--${state}` : '';
+    const letterClass = state === 'correct' ? ' stg-answer-letter--correct'
+        : state === 'wrongPick' ? ' stg-answer-letter--wrong' : '';
+    return (
+        <button
+            type="button"
+            className={`stg-answer-card${stateClass}`}
+            onClick={onClick}
+            disabled={disabled}
+            aria-pressed={chosen === index}
+        >
+            <span className={`stg-answer-letter${letterClass}`}>{OPTION_LABELS[index]}</span>
+            <span className={`stg-answer-text${isCode ? ' stg-answer-text--code' : ''}`}>{text}</span>
+            {state === 'correct' && <Check size={16} className="stg-answer-icon" aria-hidden="true" />}
+            {state === 'wrongPick' && <X size={16} className="stg-answer-icon" aria-hidden="true" />}
+        </button>
+    );
+}
+
+function FeedbackBanner({ variant, children }) {
+    const Icon = variant === 'success' ? CircleCheckBig : XCircle;
+    return (
+        <div className={`stg-feedback-banner stg-feedback-banner--${variant}`} aria-live="polite">
+            <Icon size={20} aria-hidden="true" />
+            <span className="stg-feedback-text">{children}</span>
+        </div>
+    );
+}
+
 // revealData: question_end payload from teacher — when set, show result then close
 function QuizOverlay({ question, sessionId, revealData, onDone }) {
+    const { t } = useTranslation();
     const [chosen, setChosen] = useState(null);
     const [pendingResult, setPendingResult] = useState(null);  // API response stored until reveal
     const [timeLeft, setTimeLeft] = useState(question.time_limit);
@@ -135,86 +164,83 @@ function QuizOverlay({ question, sessionId, revealData, onDone }) {
             } else {
                 setPendingResult('late');
             }
+        } catch {
+            // Network/offline failure — the answer was never recorded server-side,
+            // so this must NOT fall through to the "incorrect" branch below.
+            setPendingResult('error');
         } finally { setSubmitting(false); }
     };
-
-    const pct = question.time_limit > 0 ? (timeLeft / question.time_limit) * 100 : 0;
-    const timerColor = pct > 50 ? '#2ecc71' : pct > 25 ? '#f39c12' : '#e74c3c';
 
     // After reveal: determine result to display
     const revealedCorrectOpt = revealData?.correct_option;
     const showResult = revealData !== null && revealData !== undefined;
-    const resultIsCorrect = pendingResult && pendingResult !== 'late' && pendingResult.is_correct;
-    const resultPts = pendingResult && pendingResult !== 'late' ? pendingResult.points_earned : 0;
+    const resultIsCorrect = pendingResult && pendingResult !== 'late' && pendingResult !== 'error' && pendingResult.is_correct;
+    const resultPts = pendingResult && pendingResult !== 'late' && pendingResult !== 'error' ? pendingResult.points_earned : 0;
     const didNotAnswer = chosen === null;
     const wasLate = pendingResult === 'late';
+    const wasError = pendingResult === 'error';
 
-    // After reveal: highlight correct option in green, chosen wrong in red
-    const getOptClass = (i) => {
-        let cls = 'stg-quiz-opt';
-        if (showResult) {
-            if (i === revealedCorrectOpt) cls += ' stg-quiz-opt--correct-reveal';
-            else if (i === chosen && i !== revealedCorrectOpt) cls += ' stg-quiz-opt--wrong-reveal';
-            else cls += ' stg-quiz-opt--faded';
-        } else {
-            if (chosen === i) cls += ' stg-quiz-opt--chosen';
-            if (chosen !== null && chosen !== i) cls += ' stg-quiz-opt--faded';
-        }
-        return cls;
-    };
+    const options = lang === 'ru' && question.options_ru ? question.options_ru : question.options;
 
     return (
         <div className="stg-quiz-overlay">
-            <div className="stg-quiz-timer-bar-wrap">
-                <div className="stg-quiz-timer-bar" style={{ width: `${pct}%`, background: timerColor }} />
-                <span className="stg-quiz-timer-num" style={{ color: timerColor }}>{timeLeft}с</span>
+            <div className="stg-top-bar-row">
+                <div className="stg-top-bar-spacer" />
                 {question.question_text_ru && (
-                    <button className="stg-quiz-lang-btn" onClick={toggleLang}>
-                        {lang === 'uz' ? "🇺🇿 O'z" : '🇷🇺 Рус'}
-                    </button>
+                    <LangChip lang={lang} onToggle={toggleLang} label={t('game.questionLangTitle')} />
                 )}
+                <TimerPill
+                    seconds={`${timeLeft}${t('game.secondsSuffix')}`}
+                    low={timeLeft <= 5}
+                    label={`${timeLeft} ${t('game.secondsSuffix')}`}
+                />
             </div>
 
             <div className="stg-quiz-question">
-                <div className="stg-quiz-points-badge">⭐ до {question.points} очков</div>
+                <PointsChip>{t('game.pointsUpTo').replace('{points}', question.points)}</PointsChip>
                 <h2>{lang === 'ru' && question.question_text_ru ? question.question_text_ru : question.question_text}</h2>
             </div>
 
             <div className="stg-quiz-options">
-                {(lang === 'ru' && question.options_ru ? question.options_ru : question.options).map((opt, i) => (
-                    <button
-                        key={i}
-                        className={getOptClass(i)}
-                        style={{ '--opt-color': OPTION_COLORS[i] }}
-                        onClick={() => submit(i)}
-                        disabled={chosen !== null || showResult}
-                    >
-                        <span className="stg-quiz-opt-letter">{OPTION_LABELS[i]}</span>
-                        <span className="stg-quiz-opt-text">{opt}</span>
-                    </button>
-                ))}
+                {options.map((opt, i) => {
+                    const state = getAnswerState(i, { chosen, showResult, correctOption: revealedCorrectOpt });
+                    return (
+                        <AnswerOption
+                            key={i}
+                            index={i}
+                            text={opt}
+                            state={state}
+                            chosen={chosen}
+                            isCode={looksLikeCode(opt)}
+                            onClick={() => submit(i)}
+                            disabled={chosen !== null || showResult}
+                        />
+                    );
+                })}
             </div>
 
             {/* Before reveal: show waiting state */}
             {!showResult && chosen !== null && (
-                <p className="stg-quiz-waiting-teacher">⏳ Ждите, пока учитель раскроет ответ…</p>
+                <p className="stg-quiz-waiting-teacher">{t('game.waitingReveal')}</p>
             )}
             {!showResult && timeLeft === 0 && chosen === null && (
-                <div className="stg-quiz-result stg-quiz-result--wrong" style={{ opacity: 0.7 }}>⏰ Время вышло!</div>
+                <FeedbackBanner variant="danger">{t('game.timeUp')}</FeedbackBanner>
             )}
 
             {/* After reveal: show personal result */}
             {showResult && (
-                <div className={`stg-quiz-result stg-quiz-result--${(didNotAnswer || wasLate) ? 'wrong' : resultIsCorrect ? 'correct' : 'wrong'}`}>
+                <FeedbackBanner variant={(didNotAnswer || wasLate || wasError) ? 'danger' : resultIsCorrect ? 'success' : 'danger'}>
                     {didNotAnswer
-                        ? <span>⏰ Вы не успели ответить</span>
+                        ? t('game.notAnswered')
                         : wasLate
-                            ? <span>⏰ Не успели — вопрос уже закрыт</span>
-                            : resultIsCorrect
-                                ? <><span>✅ Правильно!</span><span className="stg-quiz-pts">+{resultPts} очков</span></>
-                                : <span>❌ Неправильно</span>
+                            ? t('game.tooLate')
+                            : wasError
+                                ? t('game.submitError')
+                                : resultIsCorrect
+                                    ? <>{t('game.correctExclaim')} <span className="stg-feedback-pts">+{resultPts} {t('game.pointsSuffix')}</span></>
+                                    : t('game.incorrectExclaim')
                     }
-                </div>
+                </FeedbackBanner>
             )}
         </div>
     );
@@ -222,24 +248,94 @@ function QuizOverlay({ question, sessionId, revealData, onDone }) {
 
 
 // ── Live ranking shown right after each answer in auto mode ────────────────────
-function LiveRanking({ rankings, myId }) {
+// Tracks the student's position across questions via sessionStorage (this
+// component unmounts/remounts every question since it's only rendered while
+// showResult is true), so movement direction and the top-1 streak survive
+// that remount cycle without needing a ref that would reset each time.
+function LiveRanking({ rankings, myId, sessionId }) {
+    const { t } = useTranslation();
+    // Scoped by student id too, not just session id — on a shared classroom
+    // computer, a second student reusing the same browser tab must not
+    // inherit the first student's rank history / top-1 streak.
+    const uid = getCurrentUser()?.id ?? 'anon';
+    const posKey = `auto_prevpos_${sessionId}_${uid}`;
+    const top1Key = `auto_top1_${sessionId}_${uid}`;
+
+    const myIdx = rankings ? rankings.findIndex(r => r.id === myId) : -1;
+    const [movement, setMovement] = useState(null); // 'up' | 'down' | null
+    const [top1Count, setTop1Count] = useState(() => parseInt(sessionStorage.getItem(top1Key) || '0', 10));
+
+    useEffect(() => {
+        if (myIdx === -1) return;
+        const prevRaw = sessionStorage.getItem(posKey);
+        const prev = prevRaw !== null ? parseInt(prevRaw, 10) : null;
+
+        setMovement(prev !== null && prev !== myIdx ? (myIdx < prev ? 'up' : 'down') : null);
+
+        if (myIdx === 0 && prev !== 0) {
+            const nextCount = parseInt(sessionStorage.getItem(top1Key) || '0', 10) + 1;
+            sessionStorage.setItem(top1Key, String(nextCount));
+            setTop1Count(nextCount);
+        }
+        sessionStorage.setItem(posKey, String(myIdx));
+    }, [myIdx, posKey, top1Key]);
+
     if (!rankings || rankings.length === 0) return null;
+
+    const rival = myIdx >= 0 && myIdx < rankings.length - 1 ? rankings[myIdx + 1] : null;
+    const gap = rival ? rankings[myIdx].score - rival.score : null;
+    const isUrgent = gap !== null && gap <= 2;
+
     return (
-        <div className="stg-live-rank">
-            <div className="stg-live-rank-title">🏆 Reyting</div>
-            <div className="stg-live-rank-list">
+        <div className={`stg-rating-panel${movement ? ` stg-rating-panel--${movement}` : ''}`}>
+            <div className="stg-rating-header">
+                <Trophy size={13} className="stg-rating-header-icon" aria-hidden="true" />
+                <span>{t('quiz.teamsRating')}</span>
+                {top1Count > 0 && (
+                    <span className="stg-top1-badge" title={t('game.top1Title')}>🥇 ×{top1Count}</span>
+                )}
+            </div>
+
+            {movement === 'up' && <div className="stg-rank-mood stg-rank-mood--up">🚀 {t('game.risingLabel')}</div>}
+            {movement === 'down' && <div className="stg-rank-mood stg-rank-mood--down">😢 {t('game.fallingLabel')}</div>}
+
+            <div className="stg-rating-rows">
                 {rankings.map((r, i) => (
                     <div
                         key={r.id}
-                        className={`stg-live-rank-row${r.id === myId ? ' stg-live-rank-row--mine' : ''}`}
+                        className={`stg-rating-row${r.id === myId ? ' stg-rating-row--mine' : ''}`}
                     >
-                        <span className="stg-live-rank-pos">{i + 1}</span>
-                        <span className="stg-live-rank-dot" style={{ background: r.color }} />
-                        <span className="stg-live-rank-name">{r.name}</span>
-                        <span className="stg-live-rank-score">{r.score}</span>
+                        <span className="stg-rating-pos">{i + 1}</span>
+                        <span className="stg-rating-dot" style={{ background: r.color }} />
+                        <span className="stg-rating-name">{r.name}</span>
+                        <span className="stg-rating-score">{r.score}</span>
                     </div>
                 ))}
             </div>
+
+            {/* Legend: explains each color dot used in the rows above. Built from
+                the actual live team roster (name + real color) rather than a fixed
+                blue/red/green scheme — sessions can have 2-10 teams with palette
+                colors assigned at random, so a hardcoded 3-color legend would
+                mislabel real teams. See judgment-call note in the task report. */}
+            <div className="stg-rating-legend">
+                {rankings.map(r => (
+                    <span key={r.id} className="stg-rating-legend-item">
+                        <span className="stg-rating-dot" style={{ background: r.color }} />
+                        {r.name}
+                    </span>
+                ))}
+            </div>
+
+            {myIdx === 0 && !rival && (
+                <div className="stg-rank-chase stg-rank-chase--leading">👑 {t('game.youAreLeading')}</div>
+            )}
+            {rival && (
+                <div className={`stg-rank-chase${isUrgent ? ' stg-rank-chase--urgent' : ''}`}>
+                    {(isUrgent ? t('game.catchingUpUrgent') : t('game.catchingUp'))
+                        .replace('{name}', rival.name).replace('{gap}', gap)}
+                </div>
+            )}
         </div>
     );
 }
@@ -247,10 +343,14 @@ function LiveRanking({ rankings, myId }) {
 
 // ── Auto Quiz Flow (auto mode — each student gets personalized random order) ──
 function AutoQuizFlow({ session, sessionId }) {
-    const storageKey = `auto_qidx_${sessionId}`;
+    const { t } = useTranslation();
+    // Scoped by student id too — see LiveRanking's storage keys for why a
+    // shared classroom computer makes session-id-only keys unsafe.
+    const uid = getCurrentUser()?.id ?? 'anon';
+    const storageKey = `auto_qidx_${sessionId}_${uid}`;
     const [questions, setQuestions] = useState(null);
     const [qIdx, setQIdx] = useState(() => {
-        const saved = sessionStorage.getItem(`auto_qidx_${sessionId}`);
+        const saved = sessionStorage.getItem(storageKey);
         return saved ? parseInt(saved, 10) : 0;
     });
     const [timeLeft, setTimeLeft] = useState(null);
@@ -377,70 +477,48 @@ function AutoQuizFlow({ session, sessionId }) {
     }, []);
 
     if (!questions) {
-        return <div className="stg-auto-loading">⏳ Загрузка вопросов...</div>;
+        return <div className="stg-auto-loading">{t('game.loadingQuestions')}</div>;
     }
     if (questions.length === 0) {
-        return <div className="stg-auto-empty">Вопросов нет. Подождите...</div>;
+        return <div className="stg-auto-empty">{t('game.noQuestionsYet')}</div>;
     }
     if (done) {
         return (
             <div className="stg-auto-done">
                 <div className="stg-auto-done-icon">🎉</div>
-                <h3>Все вопросы выполнены!</h3>
-                <p>Ждите финальных результатов.</p>
+                <h3>{t('game.allQuestionsDone')}</h3>
+                <p>{t('game.waitingFinalResults')}</p>
             </div>
         );
     }
 
-    const pct = timeLeft !== null && currentQ.time_limit > 0
-        ? (timeLeft / currentQ.time_limit) * 100
-        : 0;
-    const timerColor = pct > 50 ? '#2ecc71' : pct > 25 ? '#f39c12' : '#e74c3c';
     const showResult = result !== null;
-
-    const getOptClass = (i) => {
-        let cls = 'stg-quiz-opt';
-        if (showResult) {
-            if (i === result.correct_option) cls += ' stg-quiz-opt--correct-reveal';
-            else if (i === chosen && i !== result.correct_option) cls += ' stg-quiz-opt--wrong-reveal';
-            else cls += ' stg-quiz-opt--faded';
-        } else {
-            if (chosen === i) cls += ' stg-quiz-opt--chosen';
-            else if (chosen !== null) cls += ' stg-quiz-opt--faded';
-        }
-        return cls;
-    };
+    const options = lang === 'ru' && currentQ.options_ru ? currentQ.options_ru : currentQ.options;
+    const progressPct = questions.length > 0 ? ((qIdx + 1) / questions.length) * 100 : 0;
 
     return (
         <div className="stg-quiz-overlay">
-            {/* Progress bar */}
-            <div className="stg-auto-progress-row">
-                <span className="stg-auto-progress-label">
-                    {qIdx + 1} / {questions.length}
+            <div className="stg-top-bar-row">
+                <span className="stg-question-counter">
+                    <span className="stg-question-counter-current">{qIdx + 1}</span>
+                    <span className="stg-question-counter-sep"> / </span>
+                    <span className="stg-question-counter-total">{questions.length}</span>
                 </span>
-                <div className="stg-auto-progress-dots">
-                    {questions.map((_, i) => (
-                        <span
-                            key={i}
-                            className={`stg-auto-dot${i < qIdx ? ' stg-auto-dot--done' : i === qIdx ? ' stg-auto-dot--current' : ''}`}
-                        />
-                    ))}
+                <div className="stg-progress-track">
+                    <div className="stg-progress-fill" style={{ width: `${progressPct}%` }} />
                 </div>
-            </div>
-
-            {/* Timer bar */}
-            <div className="stg-quiz-timer-bar-wrap">
-                <div className="stg-quiz-timer-bar" style={{ width: `${pct}%`, background: timerColor }} />
-                <span className="stg-quiz-timer-num" style={{ color: timerColor }}>{timeLeft}с</span>
                 {currentQ.question_text_ru && (
-                    <button className="stg-quiz-lang-btn" onClick={toggleLang}>
-                        {lang === 'uz' ? "🇺🇿 O'z" : '🇷🇺 Рус'}
-                    </button>
+                    <LangChip lang={lang} onToggle={toggleLang} label={t('game.questionLangTitle')} />
                 )}
+                <TimerPill
+                    seconds={`${timeLeft ?? 0}${t('game.secondsSuffix')}`}
+                    low={timeLeft !== null && timeLeft <= 5}
+                    label={`${timeLeft ?? 0} ${t('game.secondsSuffix')}`}
+                />
             </div>
 
             <div className="stg-quiz-question">
-                <div className="stg-quiz-points-badge">⭐ {currentQ.points} очков</div>
+                <PointsChip>{currentQ.points} {t('game.pointsSuffix')}</PointsChip>
                 <h2>
                     {lang === 'ru' && currentQ.question_text_ru
                         ? currentQ.question_text_ru
@@ -449,35 +527,36 @@ function AutoQuizFlow({ session, sessionId }) {
             </div>
 
             <div className="stg-quiz-options">
-                {(lang === 'ru' && currentQ.options_ru ? currentQ.options_ru : currentQ.options).map((opt, i) => (
-                    <button
-                        key={i}
-                        className={getOptClass(i)}
-                        style={{ '--opt-color': OPTION_COLORS[i] }}
-                        onClick={() => submit(i)}
-                        disabled={chosen !== null || showResult || timeLeft === 0}
-                    >
-                        <span className="stg-quiz-opt-letter">{OPTION_LABELS[i]}</span>
-                        <span className="stg-quiz-opt-text">{opt}</span>
-                    </button>
-                ))}
+                {options.map((opt, i) => {
+                    const state = getAnswerState(i, { chosen, showResult, correctOption: result?.correct_option });
+                    return (
+                        <AnswerOption
+                            key={i}
+                            index={i}
+                            text={opt}
+                            state={state}
+                            chosen={chosen}
+                            isCode={looksLikeCode(opt)}
+                            onClick={() => submit(i)}
+                            disabled={chosen !== null || showResult || timeLeft === 0}
+                        />
+                    );
+                })}
             </div>
 
             {!showResult && timeLeft === 0 && chosen === null && (
-                <div className="stg-quiz-result stg-quiz-result--wrong" style={{ opacity: 0.8 }}>
-                    ⏰ Время вышло!
-                </div>
+                <FeedbackBanner variant="danger">{t('game.timeUp')}</FeedbackBanner>
             )}
 
             {showResult && (
                 <>
-                    <div className={`stg-quiz-result stg-quiz-result--${result.is_correct ? 'correct' : 'wrong'}`}>
+                    <FeedbackBanner variant={result.is_correct ? 'success' : 'danger'}>
                         {result.is_correct
-                            ? <><span>✅ Правильно!</span><span className="stg-quiz-pts">+{result.points_earned} очков</span></>
-                            : <span>❌ Неправильно</span>
+                            ? <>{t('game.correctExclaim')} <span className="stg-feedback-pts">+{result.points_earned} {t('game.pointsSuffix')}</span></>
+                            : t('game.incorrectExclaim')
                         }
-                    </div>
-                    <LiveRanking rankings={result.rankings} myId={result.my_team_id} />
+                    </FeedbackBanner>
+                    <LiveRanking rankings={result.rankings} myId={result.my_team_id} sessionId={sessionId} />
                 </>
             )}
         </div>
@@ -486,13 +565,14 @@ function AutoQuizFlow({ session, sessionId }) {
 
 
 function MyTeamBanner({ session }) {
+    const { t } = useTranslation();
     const team = session.teams?.find(t => t.id === session.my_team_id);
     if (!team) return null;
     return (
         <div className="stg-my-banner" style={{ borderColor: team.color }}>
-            <span className="stg-my-label">{session.game_type === 'individual' ? 'Ваш результат' : 'Ваша команда'}</span>
+            <span className="stg-my-label">{session.game_type === 'individual' ? t('game.yourResult') : t('game.yourTeam')}</span>
             <span className="stg-my-name" style={{ color: team.color }}>{team.name}</span>
-            <span className="stg-my-score">{team.score} очков</span>
+            <span className="stg-my-score">{team.score} {t('game.pointsSuffix')}</span>
         </div>
     );
 }
@@ -534,6 +614,7 @@ function AlreadyCompletedNotice() {
 }
 
 function SessionDetail({ initialSession, onBack }) {
+    const { t } = useTranslation();
     const [session, setSession] = useState(initialSession);
     const [gone, setGone] = useState(false);
     const [activeQuestion, setActiveQuestion] = useState(null);  // question_start payload
@@ -578,11 +659,11 @@ function SessionDetail({ initialSession, onBack }) {
     if (gone) {
         return (
             <div className="stg-detail">
-                <button className="stg-back-btn" onClick={onBack}>← Назад</button>
+                <button className="stg-back-btn" onClick={onBack}>{t('game.back')}</button>
                 <div className="stg-empty">
                     <div className="stg-empty-icon">🚫</div>
-                    <h3>Сессия удалена</h3>
-                    <p>Преподаватель удалил эту игровую сессию.</p>
+                    <h3>{t('game.deletedTitle')}</h3>
+                    <p>{t('game.deletedDesc')}</p>
                 </div>
             </div>
         );
@@ -613,16 +694,16 @@ function SessionDetail({ initialSession, onBack }) {
             )}
 
             <div className="stg-top-bar">
-                <button className="stg-back-btn" onClick={onBack}>← Назад</button>
-                <button className="stg-lang-toggle" onClick={toggleLang} title="Язык вопросов">
+                <button className="stg-back-btn" onClick={onBack}>{t('game.back')}</button>
+                <button className="stg-lang-toggle" onClick={toggleLang} title={t('game.questionLangTitle')}>
                     {lang === 'uz' ? "🇺🇿 O'z" : '🇷🇺 Рус'}
                 </button>
             </div>
             <div className="stg-detail-header">
                 <h2>{session.title}</h2>
-                <span className={`stg-badge stg-badge--${session.status}`}>{STATUS_LABELS[session.status]}</span>
-                <span className="stg-badge stg-badge--type">{GAME_TYPE_LABELS[session.game_type]}</span>
-                <span className="stg-live-dot" title="Подключено в реальном времени" />
+                <span className={`stg-badge stg-badge--${session.status}`}>{t(`game.status.${session.status}`)}</span>
+                <span className="stg-badge stg-badge--type">{t(`game.type.${session.game_type}`)}</span>
+                <span className="stg-live-dot" title={t('game.liveTitle')} />
             </div>
             {session.description && <p className="stg-description">{session.description}</p>}
 
@@ -631,22 +712,22 @@ function SessionDetail({ initialSession, onBack }) {
             {/* Show last question result between questions (manual mode only) */}
             {!session.auto_mode && lastResult && !activeQuestion && (
                 <div className="stg-quiz-end-banner">
-                    <h3>📊 Результаты вопроса</h3>
+                    <h3>{t('game.questionResultsTitle')}</h3>
                     <div className="stg-quiz-end-opts">
                         {session.teams && session.teams[0]?.members.length > 0 && lastResult.answers && (
                             <p className="stg-quiz-end-stat">
-                                ✅ Правильно ответили: {lastResult.answers.filter(a => a.is_correct).length} / {lastResult.answers.length}
+                                {t('game.correctAnsweredLabel')} {lastResult.answers.filter(a => a.is_correct).length} / {lastResult.answers.length}
                             </p>
                         )}
                     </div>
-                    <p className="stg-quiz-end-hint">Ждите следующего вопроса...</p>
+                    <p className="stg-quiz-end-hint">{t('game.waitingNextQuestion')}</p>
                 </div>
             )}
 
             {session.status === 'pending' && (
                 <div className="stg-pending-notice">
                     <span>⏳</span>
-                    <p>Команды ещё не сформированы. Ждите, когда преподаватель запустит сессию — страница обновится автоматически.</p>
+                    <p>{t('game.pendingNotice')}</p>
                 </div>
             )}
 
@@ -657,11 +738,11 @@ function SessionDetail({ initialSession, onBack }) {
                             <button
                                 className={`stg-view-tab${view === 'scores' ? ' stg-view-tab--active' : ''}`}
                                 onClick={() => setView('scores')}
-                            >📊 Результаты</button>
+                            >{t('game.tabResults')}</button>
                             <button
                                 className={`stg-view-tab${view === 'teams' ? ' stg-view-tab--active' : ''}`}
                                 onClick={() => setView('teams')}
-                            >👥 Команды</button>
+                            >{t('game.tabTeams')}</button>
                         </div>
                     )}
 
@@ -675,12 +756,12 @@ function SessionDetail({ initialSession, onBack }) {
                                     style={{ borderColor: team.id === session.my_team_id ? team.color : undefined }}>
                                     <div className="stg-team-title" style={{ color: team.color }}>
                                         {team.name}
-                                        {team.id === session.my_team_id && <span className="stg-you-badge">Вы здесь</span>}
+                                        {team.id === session.my_team_id && <span className="stg-you-badge">{t('game.youAreHere')}</span>}
                                     </div>
-                                    <div className="stg-team-score-big">{team.score} <span>очков</span></div>
+                                    <div className="stg-team-score-big">{team.score} <span>{t('game.pointsSuffix')}</span></div>
                                     <div className="stg-member-list">
                                         {team.members.length === 0
-                                            ? <span className="stg-no-members">Ожидаем участников…</span>
+                                            ? <span className="stg-no-members">{t('game.awaitingMembers')}</span>
                                             : team.members.map(m => (
                                                 <div key={m.id} className="stg-member">
                                                     <span className="stg-avatar">{(m.full_name || m.username || '?')[0].toUpperCase()}</span>
@@ -698,7 +779,7 @@ function SessionDetail({ initialSession, onBack }) {
 
             {session.status === 'completed' && (
                 <div className="stg-completed-banner">
-                    <Trophy size={16} aria-hidden="true" /> Игра завершена! {sortedTeams[0] && `Победитель: ${sortedTeams[0].name} (${sortedTeams[0].score} очков)`}
+                    <Trophy size={16} aria-hidden="true" /> {t('game.completedBanner')} {sortedTeams[0] && `${t('game.winnerLabel')} ${sortedTeams[0].name} (${sortedTeams[0].score} ${t('game.pointsSuffix')})`}
                 </div>
             )}
         </div>
@@ -706,6 +787,7 @@ function SessionDetail({ initialSession, onBack }) {
 }
 
 export default function StudentTeamGame() {
+    const { t } = useTranslation();
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selected, setSelected] = useState(null);
@@ -762,23 +844,23 @@ export default function StudentTeamGame() {
     return (
         <div className="stg-page">
             <div className="stg-page-header">
-                <h1>Командные игры</h1>
-                <p className="stg-subtitle">Присоединяйтесь к активным сессиям и наблюдайте за результатами в реальном времени</p>
+                <h1>{t('team_game')}</h1>
+                <p className="stg-subtitle">{t('game.pageSubtitle')}</p>
             </div>
 
             {loading ? (
-                <div className="stg-loading">Загрузка...</div>
+                <div className="stg-loading">{t('loading')}</div>
             ) : sessions.length === 0 ? (
                 <div className="stg-empty">
                     <div className="stg-empty-icon">🎮</div>
-                    <h3>Нет активных игр</h3>
-                    <p>Преподаватель ещё не создал игровую сессию. Страница обновляется автоматически.</p>
-                    <button className="stg-refresh-btn" onClick={() => load()}>Обновить</button>
+                    <h3>{t('game.emptyTitle')}</h3>
+                    <p>{t('game.emptyDesc')}</p>
+                    <button className="stg-refresh-btn" onClick={() => load()}>{t('game.refresh')}</button>
                 </div>
             ) : (
                 <div className="stg-list">
                     {sessions.map(s => {
-                        const myTeam = s.teams?.find(t => t.id === s.my_team_id);
+                        const myTeam = s.teams?.find(team => team.id === s.my_team_id);
                         return (
                             <div key={s.id} className={`stg-card stg-card--${s.status}`} onClick={() => openSession(s.id)}>
                                 <div className="stg-card-top">
@@ -787,23 +869,23 @@ export default function StudentTeamGame() {
                                         {s.description && <p>{s.description}</p>}
                                     </div>
                                     <div className="stg-badges">
-                                        <span className={`stg-badge stg-badge--${s.status}`}>{STATUS_LABELS[s.status]}</span>
-                                        <span className="stg-badge stg-badge--type">{GAME_TYPE_LABELS[s.game_type]}</span>
+                                        <span className={`stg-badge stg-badge--${s.status}`}>{t(`game.status.${s.status}`)}</span>
+                                        <span className="stg-badge stg-badge--type">{t(`game.type.${s.game_type}`)}</span>
                                     </div>
                                 </div>
                                 <div className="stg-card-bottom">
                                     <div className="stg-card-meta">
-                                        <span>👥 {s.team_count} команды</span>
+                                        <span>👥 {s.team_count} {t('game.teamsCountSuffix')}</span>
                                         {s.course_title && <span>📚 {s.course_title}</span>}
                                         {myTeam && (
                                             <span className="stg-my-team-pill" style={{ borderColor: myTeam.color, color: myTeam.color }}>
-                                                Вы: {myTeam.name}
+                                                {t('game.youPrefix')} {myTeam.name}
                                             </span>
                                         )}
                                     </div>
                                     {s.status === 'active' && (
                                         <button className="stg-join-btn" onClick={e => { e.stopPropagation(); openSession(s.id); }}>
-                                            Войти в игру →
+                                            {t('game.joinBtn')}
                                         </button>
                                     )}
                                 </div>

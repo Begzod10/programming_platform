@@ -100,6 +100,7 @@ class GameQuestion(Base):
 
 class StudentQuestionOrder(Base):
     __tablename__ = "student_question_orders"
+    __table_args__ = (UniqueConstraint("session_id", "student_id", name="uq_student_question_order"),)
 
     id:           Mapped[int]      = mapped_column(primary_key=True, autoincrement=True)
     session_id:   Mapped[int]      = mapped_column(ForeignKey("game_sessions.id", ondelete="CASCADE"), nullable=False)

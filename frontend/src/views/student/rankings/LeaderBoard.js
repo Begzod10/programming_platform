@@ -1,67 +1,125 @@
 import { useState, useEffect, useRef } from 'react';
 import './LeaderBoard.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
-import { Trophy } from 'lucide-react';
+import { useAuth } from '../../../context/AuthContext';
+import { useTranslation } from '../../../i18n/useTranslation';
+import {
+    Trophy,
+    Crown,
+    Medal,
+    Infinity as InfinityIcon,
+    CalendarDays,
+    Calendar,
+    Sun,
+} from 'lucide-react';
 
 const TABS = [
-    { key: 'all',     label: 'Всё время',     icon: '∞' },
-    { key: 'monthly', label: 'Месяц',         icon: '◑' },
-    { key: 'weekly',  label: 'Неделя',        icon: '◔' },
-    { key: 'daily',   label: 'Сегодня',       icon: '○' },
+    { key: 'all',     labelKey: 'rating.periods.all',   Icon: InfinityIcon },
+    { key: 'monthly', labelKey: 'rating.periods.month', Icon: CalendarDays },
+    { key: 'weekly',  labelKey: 'rating.periods.week',  Icon: Calendar },
+    { key: 'daily',   labelKey: 'rating.periods.today', Icon: Sun },
 ];
 
-const PODIUM_COLORS = [
-    { bg: '#FFD93D', text: '#7A5800', glow: 'rgba(255,217,61,0.4)',  medal: '🥇' },
-    { bg: '#B8C4CC', text: '#3A4A52', glow: 'rgba(184,196,204,0.4)', medal: '🥈' },
-    { bg: '#CD8B5A', text: '#5C3010', glow: 'rgba(205,139,90,0.4)',  medal: '🥉' },
-];
+// Display order on the podium: silver, gold, bronze
+const PODIUM_RANKS = [2, 1, 3];
 
-function Avatar({ url, name, rank }) {
-    const initials = name
-        ? name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-        : '?';
-    const colors = ['#6C5CE7','#00B894','#E17055','#0984E3','#E84393','#FDCB6E'];
-    const color  = colors[(name?.charCodeAt(0) ?? 0) % colors.length];
+const AVATAR_PALETTE = ['#6C5CE7', '#00B894', '#E17055', '#0984E3', '#E84393', '#FDCB6E'];
+
+function formatPoints(value) {
+    if (typeof value !== 'number' || Number.isNaN(value)) return '—';
+    return value.toLocaleString('ru-RU');
+}
+
+function initialsOf(name) {
+    if (!name) return '?';
+    return name.split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+}
+
+function Avatar({ url, name, size, ring }) {
+    const initials = initialsOf(name);
+    const color = AVATAR_PALETTE[(name?.charCodeAt(0) ?? 0) % AVATAR_PALETTE.length];
 
     return (
-        <div className={`lb-avatar ${rank <= 3 ? 'lb-avatar--top' : ''}`}
-             style={rank <= 3 ? { borderColor: PODIUM_COLORS[rank-1].bg, boxShadow: `0 0 16px ${PODIUM_COLORS[rank-1].glow}` } : {}}>
+        <div
+            className={`lb-avatar ${ring ? `lb-avatar--${ring}` : ''}`}
+            style={{ width: size, height: size }}
+        >
             {url
                 ? <img src={url} alt={name} />
-                : <span style={{ background: color }}>{initials}</span>
-            }
+                : <span style={{ background: color }}>{initials}</span>}
         </div>
     );
 }
 
-function PodiumBar({ student, rank, getPoints }) {
-    const c      = PODIUM_COLORS[rank - 1];
-    const name   = student?.full_name || student?.username || '—';
-    const pts    = student ? getPoints(student) : 0;
-    const heights = { 1: 110, 2: 80, 3: 64 };
+function PodiumColumn({ student, rank, getPoints, isMe, t }) {
+    const empty = !student;
+    const name = student ? (student.full_name || student.username || '—') : '—';
+    const pts  = student ? getPoints(student) : 0;
+    const Icon = rank === 1 ? Crown : Medal;
 
-    if (!student) return (
-        <div className="lb-podium-slot lb-podium-slot--empty">
-            <div className="lb-podium-bar" style={{ height: heights[rank], background: 'rgba(255,255,255,0.04)' }}>
-                <span className="lb-podium-rank-num">{rank}</span>
+    return (
+        <div className={`lb-podium-col lb-podium-col--${rank} ${empty ? 'lb-podium-col--empty' : ''}`}>
+            {!empty && (
+                <>
+                    <Avatar
+                        url={student.avatar_url}
+                        name={name}
+                        size={rank === 1 ? 66 : 56}
+                        ring={rank === 1 ? 'gold' : 'white'}
+                    />
+                    <p className="lb-podium-name">
+                        {name.split(' ')[0]}
+                        {isMe && <span className="lb-chip-you">{t('rating.you')}</span>}
+                    </p>
+                    <p className="lb-podium-pts">
+                        {formatPoints(pts)} <span>{t('rating.pts')}</span>
+                    </p>
+                </>
+            )}
+            <div className={`lb-podium-block lb-podium-block--${rank} ${isMe ? 'lb-podium-block--me' : ''}`}>
+                <Icon size={18} className="lb-podium-icon" aria-hidden="true" />
+                <span className="lb-podium-num">{rank}</span>
             </div>
         </div>
     );
+}
 
+function SkeletonPodium() {
     return (
-        <div className={`lb-podium-slot lb-podium-slot--${rank}`}>
-            <Avatar url={student.avatar_url} name={name} rank={rank} />
-            <p className="lb-podium-name">{name.split(' ')[0]}</p>
-            <p className="lb-podium-pts">{pts} <span>pts</span></p>
-            <div className="lb-podium-bar" style={{ height: heights[rank], background: c.bg }}>
-                <span className="lb-podium-medal">{c.medal}</span>
-            </div>
+        <div className="lb-podium" aria-hidden="true">
+            {PODIUM_RANKS.map(rank => (
+                <div key={rank} className={`lb-podium-col lb-podium-col--${rank}`}>
+                    <div className="lb-skel lb-skel-avatar" />
+                    <div className="lb-skel lb-skel-line" style={{ width: 56 }} />
+                    <div className="lb-skel lb-skel-line" style={{ width: 40 }} />
+                    <div className={`lb-podium-block lb-podium-block--${rank} lb-podium-block--skeleton`} />
+                </div>
+            ))}
         </div>
+    );
+}
+
+function SkeletonRows() {
+    return (
+        <ol className="lb-list" aria-hidden="true">
+            {Array.from({ length: 5 }).map((_, i) => (
+                <li key={i} className="lb-item lb-item--skeleton">
+                    <span className="lb-skel lb-skel-rank" />
+                    <span className="lb-skel lb-skel-avatar-sm" />
+                    <div className="lb-item-info">
+                        <div className="lb-skel lb-skel-line" style={{ width: '48%' }} />
+                        <div className="lb-skel lb-item-bar-wrap" />
+                    </div>
+                </li>
+            ))}
+        </ol>
     );
 }
 
 export default function Leaderboard() {
     const { request } = useHttp();
+    const { user } = useAuth();
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState('all');
     const [data,      setData]      = useState([]);
     const [myRank,    setMyRank]    = useState(null);
@@ -74,7 +132,7 @@ export default function Leaderboard() {
         setError('');
         request(`${API_URL}v1/rankings/leaderboard?period=${period}&limit=50`, 'GET', null, headers())
             .then(res => setData(Array.isArray(res) ? res : []))
-            .catch(() => setError('Не удалось загрузить рейтинг'))
+            .catch(() => setError(t('rating.loadError')))
             .finally(() => setLoading(false));
     };
 
@@ -100,12 +158,12 @@ export default function Leaderboard() {
     };
 
     const getMyPoints = () => {
-        if (!myRank) return '—';
+        if (!myRank) return null;
         switch (activeTab) {
-            case 'daily':   return myRank.daily_points   ?? '—';
-            case 'weekly':  return myRank.weekly_points  ?? '—';
-            case 'monthly': return myRank.monthly_points ?? '—';
-            default:        return myRank.total_points   ?? '—';
+            case 'daily':   return myRank.daily_points   ?? null;
+            case 'weekly':  return myRank.weekly_points  ?? null;
+            case 'monthly': return myRank.monthly_points ?? null;
+            default:        return myRank.total_points   ?? null;
         }
     };
 
@@ -121,46 +179,67 @@ export default function Leaderboard() {
         return (rank && rank !== '-') ? `#${rank}` : '—';
     };
 
-    const top3   = data.slice(0, 3);
-    const rest   = data.slice(3);
+    // MyRankingRead has no student_id/username — match the current user against
+    // list rows via the auth user's id (Ranking.student_id references the same
+    // students table row as the logged-in user), with username as a fallback.
+    const isCurrentUser = (student) => {
+        if (!student || !user) return false;
+        if (student.student_id != null && user.id != null
+            && Number(student.student_id) === Number(user.id)) return true;
+        if (student.username && user.username) return student.username === user.username;
+        return false;
+    };
+
+    const top3 = data.slice(0, 3);
+    const rest = data.slice(3);
+    const leaderPoints = data.length > 0 ? getPoints(data[0]) : 0;
 
     return (
         <div className="lb">
 
-            {/* ── HEADER (sticky) ── */}
+            {/* ── HEADER ── */}
             <div className="lb-header">
                 <div className="lb-header-top">
                     <div className="lb-title-block">
-                        <span className="lb-trophy" aria-hidden="true"><Trophy size={20} /></span>
+                        <span className="lb-trophy-chip" aria-hidden="true"><Trophy size={18} /></span>
                         <div>
-                            <h2 className="lb-title">Рейтинг</h2>
-                            <p className="lb-subtitle">{data.length} студентов</p>
+                            <h1 className="lb-title">{t('rating.title')}</h1>
+                            <p className="lb-subtitle">
+                                {t('rating.students').replace('{count}', data.length.toLocaleString('ru-RU'))}
+                            </p>
                         </div>
                     </div>
+
                     <div className="lb-tabs">
-                        {TABS.map(t => (
-                            <button
-                                key={t.key}
-                                className={`lb-tab ${activeTab === t.key ? 'lb-tab--active' : ''}`}
-                                onClick={() => setActiveTab(t.key)}
-                            >
-                                <span className="lb-tab-icon">{t.icon}</span>
-                                <span className="lb-tab-label">{t.label}</span>
-                            </button>
-                        ))}
+                        {TABS.map(tab => {
+                            const Icon = tab.Icon;
+                            const active = activeTab === tab.key;
+                            return (
+                                <button
+                                    key={tab.key}
+                                    type="button"
+                                    className={`lb-tab ${active ? 'lb-tab--active' : ''}`}
+                                    aria-pressed={active}
+                                    onClick={() => setActiveTab(tab.key)}
+                                >
+                                    <Icon size={13} className="lb-tab-icon" aria-hidden="true" />
+                                    <span className="lb-tab-label">{t(tab.labelKey)}</span>
+                                </button>
+                            );
+                        })}
                     </div>
                 </div>
 
-                {/* My rank band */}
+                {/* My rank band — always anchors the current user, even on the podium */}
                 {myRank && (
                     <div className="lb-myrank">
                         <div className="lb-myrank-left">
-                            <span className="lb-myrank-label">Моё место</span>
+                            <span className="lb-myrank-label">{t('rating.myPlace')}</span>
                             <span className="lb-myrank-pos">{getMyRankValue()}</span>
                         </div>
                         <div className="lb-myrank-right">
-                            <span className="lb-myrank-pts">{getMyPoints()}</span>
-                            <span className="lb-myrank-unit">PTS</span>
+                            <span className="lb-myrank-pts">{formatPoints(getMyPoints())}</span>
+                            <span className="lb-myrank-unit">{t('rating.pts')}</span>
                         </div>
                     </div>
                 )}
@@ -170,76 +249,85 @@ export default function Leaderboard() {
             <div className="lb-body" ref={listRef}>
 
                 {loading ? (
-                    <div className="lb-state">
-                        <div className="lb-spinner" />
-                        <p>Загрузка…</p>
-                    </div>
+                    <>
+                        <SkeletonPodium />
+                        <SkeletonRows />
+                    </>
                 ) : error ? (
                     <div className="lb-state lb-state--error">
-                        <span className="lb-state-icon">⚠</span>
+                        <span className="lb-state-icon" aria-hidden="true">⚠</span>
                         <p>{error}</p>
-                        <button className="lb-retry" onClick={() => fetchRanking(activeTab)}>
-                            Повторить
+                        <button type="button" className="lb-retry" onClick={() => fetchRanking(activeTab)}>
+                            {t('rating.retry')}
                         </button>
                     </div>
                 ) : data.length === 0 ? (
-                    <div className="lb-state">
-                        <span className="lb-state-icon">📭</span>
-                        <p>Пока нет данных</p>
+                    <div className="lb-state lb-state--empty">
+                        <Trophy size={34} className="lb-state-trophy" aria-hidden="true" />
+                        <p className="lb-state-title">{t('rating.emptyTitle')}</p>
+                        <p className="lb-state-hint">{t('rating.emptyHint')}</p>
                     </div>
                 ) : (
                     <>
                         {/* ── PODIUM (top 3) ── */}
                         {top3.length > 0 && (
                             <div className="lb-podium">
-                                <PodiumBar student={top3[1]} rank={2} getPoints={getPoints} />
-                                <PodiumBar student={top3[0]} rank={1} getPoints={getPoints} />
-                                <PodiumBar student={top3[2]} rank={3} getPoints={getPoints} />
+                                {PODIUM_RANKS.map(rank => (
+                                    <PodiumColumn
+                                        key={rank}
+                                        rank={rank}
+                                        student={top3[rank - 1]}
+                                        getPoints={getPoints}
+                                        isMe={isCurrentUser(top3[rank - 1])}
+                                        t={t}
+                                    />
+                                ))}
                             </div>
                         )}
 
                         {/* ── LIST (4+) ── */}
-                        <div className="lb-list">
-                            {rest.map((student, idx) => {
-                                const rank = student.rank ?? idx + 4;
-                                const name = student.full_name || student.username || 'Студент';
-                                const pts  = getPoints(student);
-                                const pct  = data.length > 0 ? (pts / (getPoints(data[0]) || 1)) * 100 : 0;
+                        {rest.length > 0 && (
+                            <>
+                                <div className="lb-list-caption">{t('rating.barCaption')}</div>
+                                <ol className="lb-list">
+                                    {rest.map((student, idx) => {
+                                        const rank = student.rank ?? idx + 4;
+                                        const name = student.full_name || student.username || '—';
+                                        const pts  = getPoints(student);
+                                        const pct  = leaderPoints > 0 ? Math.round((pts / leaderPoints) * 100) : 0;
+                                        const mine = isCurrentUser(student);
 
-                                return (
-                                    <div
-                                        key={student.student_id ?? idx}
-                                        className="lb-item"
-                                        style={{ animationDelay: `${idx * 0.03}s` }}
-                                    >
-                                        <span className="lb-item-rank">{rank}</span>
+                                        return (
+                                            <li
+                                                key={student.student_id ?? idx}
+                                                className={`lb-item ${mine ? 'lb-item--me' : ''}`}
+                                            >
+                                                <span className="lb-item-rank">{rank}</span>
 
-                                        <Avatar url={student.avatar_url} name={name} rank={rank} />
+                                                <Avatar url={student.avatar_url} name={name} size={38} />
 
-                                        <div className="lb-item-info">
-                                            <div className="lb-item-top">
-                                                <span className="lb-item-name">{name}</span>
-                                                <span className="lb-item-pts">{pts} <em>pts</em></span>
-                                            </div>
-                                            <div className="lb-item-bar-wrap">
-                                                <div
-                                                    className="lb-item-bar"
-                                                    style={{ width: `${pct}%` }}
-                                                />
-                                            </div>
-                                            {(student.level || student.projects_completed > 0) && (
-                                                <div className="lb-item-meta">
-                                                    {student.level && <span className="lb-badge">{student.level}</span>}
-                                                    {student.projects_completed > 0 && (
-                                                        <span className="lb-badge lb-badge--dim">📁 {student.projects_completed} проектов</span>
-                                                    )}
+                                                <div className="lb-item-info">
+                                                    <span className="lb-item-name">
+                                                        {name}
+                                                        {mine && <span className="lb-chip-you">{t('rating.you')}</span>}
+                                                    </span>
+                                                    <div className="lb-item-bar-wrap">
+                                                        <div className="lb-item-bar" style={{ width: `${pct}%` }} />
+                                                    </div>
                                                 </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+
+                                                <div className="lb-item-right">
+                                                    <span className="lb-item-pts">
+                                                        {formatPoints(pts)} <em>{t('rating.pts')}</em>
+                                                    </span>
+                                                    <span className="lb-item-pct">{pct}%</span>
+                                                </div>
+                                            </li>
+                                        );
+                                    })}
+                                </ol>
+                            </>
+                        )}
                     </>
                 )}
             </div>

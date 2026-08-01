@@ -42,6 +42,7 @@ class GameSessionRead(BaseModel):
     my_auto_completed:   Optional[bool]      = None
     my_auto_answered:    Optional[int]       = None
     my_auto_total:       Optional[int]       = None
+    questions_count:     int                = 0
     model_config = ConfigDict(from_attributes=True)
 
 

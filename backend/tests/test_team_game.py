@@ -2,7 +2,6 @@
 Integration tests for the /api/v1/game-sessions endpoints.
 
 Covers:
-- Public list access (no auth)
 - Auth requirements (401 without token, 403 for wrong role)
 - Creating sessions as a teacher
 - Validation errors (422) for bad input
@@ -72,17 +71,18 @@ async def teacher_headers(async_client: AsyncClient, db_session) -> dict:
 
 # ── List sessions ─────────────────────────────────────────────────────────────
 
-async def test_list_sessions_public_returns_200(async_client: AsyncClient):
-    """GET /game-sessions is publicly accessible and returns a JSON list."""
+async def test_list_sessions_requires_auth(async_client: AsyncClient):
+    """GET /game-sessions with no token is rejected — this endpoint used to
+    leak every session's full roster (names/usernames/avatars) with zero
+    authentication; auth is now mandatory."""
     resp = await async_client.get(BASE)
-    assert resp.status_code == 200
-    assert isinstance(resp.json(), list)
+    assert resp.status_code == 401
 
 
 async def test_list_sessions_with_auth_returns_200(
     async_client: AsyncClient, auth_headers: dict
 ):
-    """GET /game-sessions with student token also returns 200 (optional auth)."""
+    """GET /game-sessions with a valid student token returns 200."""
     resp = await async_client.get(BASE, headers=auth_headers)
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
@@ -173,21 +173,29 @@ async def test_create_session_missing_game_type_returns_422(
 
 # ── Get single session ────────────────────────────────────────────────────────
 
-async def test_get_nonexistent_session_returns_404(async_client: AsyncClient):
-    """GET /game-sessions/99999 returns 404 for an unknown session."""
+async def test_get_session_requires_auth(async_client: AsyncClient):
+    """GET /game-sessions/{id} with no token is rejected."""
     resp = await async_client.get(f"{BASE}/99999")
+    assert resp.status_code == 401
+
+
+async def test_get_nonexistent_session_returns_404(
+    async_client: AsyncClient, auth_headers: dict
+):
+    """GET /game-sessions/99999 returns 404 for an unknown session."""
+    resp = await async_client.get(f"{BASE}/99999", headers=auth_headers)
     assert resp.status_code == 404
 
 
 async def test_get_session_by_id_after_create(
     async_client: AsyncClient, teacher_headers: dict
 ):
-    """Create a session, then retrieve it by ID."""
+    """Create a session, then retrieve it by ID as the owning teacher."""
     create = await async_client.post(BASE, json=_session_payload(), headers=teacher_headers)
     assert create.status_code == 201
     session_id = create.json()["id"]
 
-    resp = await async_client.get(f"{BASE}/{session_id}")
+    resp = await async_client.get(f"{BASE}/{session_id}", headers=teacher_headers)
     assert resp.status_code == 200
     data = resp.json()
     assert data["id"] == session_id
@@ -220,5 +228,5 @@ async def test_delete_session_as_creator_returns_204(
     assert resp.status_code == 204
 
     # Confirm it is gone
-    check = await async_client.get(f"{BASE}/{session_id}")
+    check = await async_client.get(f"{BASE}/{session_id}", headers=teacher_headers)
     assert check.status_code == 404
