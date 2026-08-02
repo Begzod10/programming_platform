@@ -634,23 +634,30 @@ async def import_questions_from_lesson(
     if not source_qs:
         raise HTTPException(status_code=404, detail="No questions found for this lesson/course")
 
-    # Split by language and pair UZ+RU by position so students see both
-    uz_qs = sorted([lq for lq in source_qs if _detect_lang(lq.question_text) == 'uz'], key=lambda x: (x.order_index, x.id))
-    ru_qs = sorted([lq for lq in source_qs if _detect_lang(lq.question_text) == 'ru'], key=lambda x: (x.order_index, x.id))
+    quiz_source = [lq for lq in source_qs if lq.question_kind == 'quiz']
+    bug_source = sorted(
+        [lq for lq in source_qs if lq.question_kind == 'bug_hunt'],
+        key=lambda x: (x.order_index, x.id),
+    )
 
-    if not uz_qs and not ru_qs:
+    # Split quiz rows by language and pair UZ+RU by position so students see both
+    uz_qs = sorted([lq for lq in quiz_source if _detect_lang(lq.question_text) == 'uz'], key=lambda x: (x.order_index, x.id))
+    ru_qs = sorted([lq for lq in quiz_source if _detect_lang(lq.question_text) == 'ru'], key=lambda x: (x.order_index, x.id))
+
+    if not uz_qs and not ru_qs and not bug_source:
         raise HTTPException(status_code=404, detail="No questions found for this lesson/course")
 
-    count = max(len(uz_qs), len(ru_qs))
+    quiz_count = max(len(uz_qs), len(ru_qs))
 
     # Get current max order_index in game session
     max_order = (await db.execute(
         sa_text("SELECT COALESCE(MAX(order_index), -1) FROM game_questions WHERE session_id = :sid"),
         {"sid": session_id}
     )).scalar()
+    next_order = int(max_order) + 1
 
     created = []
-    for i in range(count):
+    for i in range(quiz_count):
         uz_lq = uz_qs[i] if i < len(uz_qs) else None
         ru_lq = ru_qs[i] if i < len(ru_qs) else None
         base = uz_lq or ru_lq
@@ -673,9 +680,37 @@ async def import_questions_from_lesson(
             correct_option=shuffled_correct,
             time_limit=base.time_limit,
             points=base.points,
-            order_index=int(max_order) + 1 + i,
+            order_index=next_order,
             status=QuestionStatus.pending,
         )
+        next_order += 1
+        db.add(gq)
+        created.append(gq)
+
+    # Bug-hunt rows are single-row (question_text + optional bug_explanation_ru,
+    # no UZ/RU pairing like quiz) — same shuffle helper add_bug_question uses.
+    for lq in bug_source:
+        candidates = [lq.bug_line, *(lq.distractor_lines or [])]
+        order, shuffled_correct = _shuffle_permutation(len(candidates), 0)
+        shuffled = _apply_permutation(candidates, order)
+
+        gq = GameQuestion(
+            session_id=session_id,
+            question_text=lq.question_text,
+            options=[str(n) for n in shuffled],
+            correct_option=shuffled_correct,
+            time_limit=lq.time_limit,
+            points=lq.points,
+            order_index=next_order,
+            status=QuestionStatus.pending,
+            question_kind='bug_hunt',
+            code_snippet=lq.code_snippet,
+            code_language=lq.code_language,
+            bug_line=lq.bug_line,
+            bug_explanation=lq.bug_explanation,
+            bug_explanation_ru=lq.bug_explanation_ru,
+        )
+        next_order += 1
         db.add(gq)
         created.append(gq)
 

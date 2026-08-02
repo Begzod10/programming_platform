@@ -117,6 +117,21 @@ async def _reconcile_indexes(conn) -> None:
         text("ALTER TABLE game_questions ADD COLUMN IF NOT EXISTS bug_line INTEGER"),
         text("ALTER TABLE game_questions ADD COLUMN IF NOT EXISTS bug_explanation TEXT"),
         text("ALTER TABLE game_questions ADD COLUMN IF NOT EXISTS bug_explanation_ru TEXT"),
+        # 2026-08-02: bug-hunt kind on lesson_questions (the reusable per-lesson
+        # bank, mirrors game_questions above) + relax quiz-only NOT NULLs so
+        # bug_hunt rows can leave options/correct_option empty.
+        text("ALTER TABLE lesson_questions ALTER COLUMN options DROP NOT NULL"),
+        text("ALTER TABLE lesson_questions ALTER COLUMN correct_option DROP NOT NULL"),
+        text(
+            "ALTER TABLE lesson_questions "
+            "ADD COLUMN IF NOT EXISTS question_kind VARCHAR(20) NOT NULL DEFAULT 'quiz'"
+        ),
+        text("ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS code_snippet TEXT"),
+        text("ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS code_language VARCHAR(20)"),
+        text("ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS bug_line INTEGER"),
+        text("ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS distractor_lines JSON"),
+        text("ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS bug_explanation TEXT"),
+        text("ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS bug_explanation_ru TEXT"),
     ]
     for stmt in statements:
         await conn.execute(stmt)
