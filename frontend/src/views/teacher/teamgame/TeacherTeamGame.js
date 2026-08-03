@@ -426,7 +426,14 @@ function ImportFromLessonModal({ session, onClose, onImported, addedLessonIds, o
                                             {!selectedCourseId && l.course_title && (
                                                 <span className="tg-import-lesson-course">{l.course_title}</span>
                                             )}
-                                            <span className="tg-import-lesson-count">{l.question_count} вопр.</span>
+                                            <span className="tg-import-lesson-count">
+                                                {l.question_count} вопр.
+                                                {l.bug_count > 0 && (
+                                                    <span className="tg-import-lesson-bugcount" title={`${l.bug_count} из них — баги для поиска`}>
+                                                        {' '}(🐛 {l.bug_count})
+                                                    </span>
+                                                )}
+                                            </span>
                                         </div>
                                         {already ? (
                                             <span className="tg-import-added-badge">✓ Добавлено</span>

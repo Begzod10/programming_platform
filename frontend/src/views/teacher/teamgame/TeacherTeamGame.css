@@ -434,6 +434,7 @@
 .tg-import-lesson-title { font-size: 0.9rem; color: #111827; font-weight: 500; display: block; }
 .tg-import-lesson-count { font-size: 0.75rem; color: #6b7280; margin-top: 2px; display: block; }
 .tg-import-lesson-course { font-size: 0.75rem; color: #6366f1; margin-top: 1px; display: block; }
+.tg-import-lesson-bugcount { color: #b45309; font-weight: 600; }
 .tg-import-added-badge {
     font-size: 0.78rem;
     font-weight: 600;

@@ -144,6 +144,7 @@ async def list_all_lessons_with_questions(
     rows = (await db.execute(
         sa_text("""
             SELECT l.id, l.title, l.order, COUNT(lq.id) AS question_count,
+                   COUNT(lq.id) FILTER (WHERE lq.question_kind = 'bug_hunt') AS bug_count,
                    c.id AS course_id, c.title AS course_title
             FROM lessons l
             LEFT JOIN lesson_questions lq ON lq.lesson_id = l.id
@@ -155,7 +156,7 @@ async def list_all_lessons_with_questions(
     )).all()
     return [
         {"id": r[0], "title": r[1], "order": r[2], "question_count": r[3],
-         "course_id": r[4], "course_title": r[5]}
+         "bug_count": r[4], "course_id": r[5], "course_title": r[6]}
         for r in rows
     ]
 
