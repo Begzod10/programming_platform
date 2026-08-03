@@ -93,7 +93,7 @@ class GameQuestionCreate(BaseModel):
     options:        List[str]  = Field(..., min_length=2, max_length=6)
     correct_option: int        = Field(..., ge=0, le=5)
     time_limit:     int        = Field(30, ge=5, le=120)
-    points:         int        = Field(1000, ge=100, le=5000)
+    points:         int        = Field(6, ge=0, le=10)
     order_index:    int        = Field(0, ge=0)
 
     @field_validator("correct_option")
@@ -205,7 +205,7 @@ class BugQuestionCreate(BaseModel):
     bug_explanation:      str        = Field(..., min_length=1)
     bug_explanation_ru:   Optional[str] = None
     time_limit:          int        = Field(90, ge=5, le=120)
-    points:              int        = Field(1500, ge=100, le=5000)
+    points:              int        = Field(8, ge=0, le=10)
 
     @field_validator("distractor_lines")
     @classmethod

@@ -24,7 +24,7 @@ export default function BugAddForm({ session, onClose, onSaved }) {
     const [explanation, setExplanation] = useState('');
     const [explanationRu, setExplanationRu] = useState('');
     const [timeLimit, setTimeLimit] = useState(90);
-    const [points, setPoints] = useState(1500);
+    const [points, setPoints] = useState(8);
     const [saving, setSaving] = useState(false);
 
     const lines = code.split('\n');
@@ -187,7 +187,7 @@ export default function BugAddForm({ session, onClose, onSaved }) {
                         onChange={e => setTimeLimit(Number(e.target.value))} />
                 </label>
                 <label>⭐ {points} очков
-                    <input type="range" min={100} max={5000} step={100} value={points}
+                    <input type="range" min={0} max={10} step={1} value={points}
                         onChange={e => setPoints(Number(e.target.value))} />
                 </label>
             </div>

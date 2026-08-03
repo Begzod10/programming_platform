@@ -459,7 +459,7 @@ function QuizManager({ session }) {
     const [addMode, setAddMode] = useState(null); // null | 'quiz' | 'bug'
     const [showImport, setShowImport] = useState(false);
     const [addedLessonIds, setAddedLessonIds] = useState(new Set());
-    const [form, setForm] = useState({ question_text: '', options: ['', '', '', ''], correct_option: 0, time_limit: 30, points: 1000 });
+    const [form, setForm] = useState({ question_text: '', options: ['', '', '', ''], correct_option: 0, time_limit: 30, points: 6 });
     const [saving, setSaving] = useState(false);
     const [actionId, setActionId] = useState(null);
     const [progress, setProgress] = useState({}); // question_id → {answered, total}
@@ -604,7 +604,7 @@ function QuizManager({ session }) {
                                 onChange={e => setForm(f => ({ ...f, time_limit: Number(e.target.value) }))} />
                         </label>
                         <label>⭐ {form.points} очков
-                            <input type="range" min={100} max={5000} step={100} value={form.points}
+                            <input type="range" min={0} max={10} step={1} value={form.points}
                                 onChange={e => setForm(f => ({ ...f, points: Number(e.target.value) }))} />
                         </label>
                     </div>

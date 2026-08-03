@@ -19,7 +19,7 @@ class LessonQuestion(Base):
     options:        Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # list of 2-4 strings (quiz kind only)
     correct_option: Mapped[Optional[int]]  = mapped_column(Integer, nullable=True)  # 0-indexed (quiz kind only)
     time_limit:     Mapped[int]            = mapped_column(Integer, default=30, nullable=False)
-    points:         Mapped[int]            = mapped_column(Integer, default=1000, nullable=False)
+    points:         Mapped[int]            = mapped_column(Integer, default=6, nullable=False)
     order_index:    Mapped[int]            = mapped_column(Integer, default=0, nullable=False)
     created_at:     Mapped[datetime]       = mapped_column(DateTime(timezone=True), default=utcnow)
 

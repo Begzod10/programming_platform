@@ -30,8 +30,10 @@ from sqlalchemy import select  # noqa: E402
 
 from app.db.database import AsyncSessionLocal  # noqa: E402
 from app.db import base as _base  # noqa: E402,F401
+from app.models.course import Course  # noqa: E402
 from app.models.lesson import Lesson  # noqa: E402
 from app.models.lesson_question import LessonQuestion  # noqa: E402
+from app.services.points_scale import points_for_difficulty  # noqa: E402
 
 SUPPORTED_LANGUAGES = {"javascript", "python", "html", "css"}
 
@@ -122,12 +124,15 @@ async def main(json_path: str) -> None:
             )).scalars().all()
             next_order = len(base_order)
 
+            course = (await db.execute(select(Course).where(Course.id == lesson.course_id))).scalar_one_or_none()
+            default_points = points_for_difficulty(course.difficulty_level if course else None)
+
             for q in entry["questions"]:
                 db.add(LessonQuestion(
                     lesson_id=lesson_id,
                     question_text=q["question_text"],
                     time_limit=q.get("time_limit", 90),
-                    points=q.get("points", 1500),
+                    points=q.get("points", default_points),
                     order_index=next_order,
                     question_kind="bug_hunt",
                     code_snippet=q["code_snippet"],

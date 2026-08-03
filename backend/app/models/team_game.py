@@ -88,7 +88,7 @@ class GameQuestion(Base):
     options_ru:       Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # RU variants, same order/length as options
     correct_option: Mapped[int]            = mapped_column(Integer, nullable=False)  # 0-indexed
     time_limit:     Mapped[int]            = mapped_column(Integer, default=30, nullable=False)  # seconds
-    points:         Mapped[int]            = mapped_column(Integer, default=1000, nullable=False)
+    points:         Mapped[int]            = mapped_column(Integer, default=6, nullable=False)
     order_index:    Mapped[int]            = mapped_column(Integer, default=0, nullable=False)
     status:         Mapped[QuestionStatus] = mapped_column(Enum(QuestionStatus), default=QuestionStatus.pending, nullable=False)
     activated_at:   Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
