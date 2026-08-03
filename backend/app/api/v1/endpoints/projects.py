@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, status, Query, HTTPException, Body
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,7 +31,37 @@ from app.config import settings
 PROJECTS_UPLOAD_DIR = Path(settings.UPLOAD_DIR) / "projects"
 PROJECTS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+
+async def _run_ai_review_and_persist_failure(db: AsyncSession, project: Project) -> dict:
+    """Run the AI pipeline for a ZIP upload and make sure a failure is never
+    silent. run_ai_review_for_project(raise_on_error=False) already avoids
+    raising for expected failures (transient AI outage, quota, etc), but the
+    upload-zip endpoints used to just drop that reason into the HTTP
+    response and never write it to the project row -- once the upload
+    dialog closed, the project sat blank ("Submitted", no grade, no
+    feedback) with no trace of why, and no way for the student or teacher
+    to know a retry ( POST /{project_id}/ai-review ) could fix it.
+    An unhandled exception is also caught here so it can't 500 the
+    request after the project row has already been committed.
+    """
+    try:
+        ai_result = await run_ai_review_for_project(db, project, raise_on_error=False)
+    except Exception as e:
+        logger.warning("[ai-zip] project=%d unhandled error: %s", project.id, e)
+        ai_result = {"success": False, "reason": "AI baholash vaqtincha ishlamayapti. "
+                                                   "O'qituvchi loyihangizni tez orada baholaydi.",
+                     "http_status": 0}
+
+    if not ai_result.get("success") and project.reviewed_at is None:
+        project.instructor_feedback = ai_result.get("reason", "AI tekshirish muvaffaqiyatsiz")
+        await db.commit()
+        await db.refresh(project)
+
+    return ai_result
 
 
 def get_project_service(db: AsyncSession = Depends(get_db)) -> ProjectService:
@@ -169,9 +201,10 @@ async def upload_project_zip(
 
     # Run full AI grading pipeline (same path as the submit button).
     # On success sets status "Approved"/"Rejected", awards points, and
-    # creates LessonCompletion. On failure leaves status "Submitted" so
-    # the teacher can grade manually.
-    ai_result = await run_ai_review_for_project(db, new_project, raise_on_error=False)
+    # creates LessonCompletion. On failure leaves status "Submitted" and
+    # persists why, so the teacher can grade manually and the student can
+    # see the reason instead of a permanently blank review.
+    ai_result = await _run_ai_review_and_persist_failure(db, new_project)
     await db.refresh(new_project)
 
     return {
@@ -588,7 +621,7 @@ async def upload_project_zip_by_id(
         await db.commit()
         await db.refresh(db_project)
 
-        ai_result = await run_ai_review_for_project(db, db_project, raise_on_error=False)
+        ai_result = await _run_ai_review_and_persist_failure(db, db_project)
         await db.refresh(db_project)
     else:
         ai_result = {}
