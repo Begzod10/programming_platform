@@ -39,16 +39,41 @@ const RULES = {
     ],
 };
 
+// Matches any <span class="hl-...">...</span> a rule below just inserted,
+// so it can be protected from re-matching by later rules.
+const SPAN_RE = /(<span class="hl-[a-z]+">[\s\S]*?<\/span>)/g;
+
 export const highlight = (code, lang) => {
     if (!code) return '';
-    let escaped = code
+    const escaped = code
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
 
     const langRules = RULES[lang] || RULES.javascript;
+
+    // Applying each rule's regex to a single growing HTML string lets a
+    // later rule re-match text INSIDE a span an earlier rule just inserted
+    // -- e.g. the string-highlighting rule matching the literal "hl-kw"
+    // inside class="hl-kw" from the keyword rule, corrupting the tag into
+    // broken markup that renders as visible garbage text. Instead, track
+    // alternating text/html segments: only 'text' segments are re-scanned
+    // by later rules; already-tokenized 'html' segments are left alone.
+    let segments = [{ type: 'text', value: escaped }];
+
     langRules.forEach(([pattern, replacement]) => {
-        escaped = escaped.replace(pattern, replacement);
+        const next = [];
+        segments.forEach((seg) => {
+            if (seg.type === 'html') { next.push(seg); return; }
+            const replaced = seg.value.replace(pattern, replacement);
+            if (replaced === seg.value) { next.push(seg); return; }
+            replaced.split(SPAN_RE).forEach((part) => {
+                if (!part) return;
+                next.push(part.startsWith('<span') ? { type: 'html', value: part } : { type: 'text', value: part });
+            });
+        });
+        segments = next;
     });
-    return sanitizeHtml(escaped);
+
+    return sanitizeHtml(segments.map(s => s.value).join(''));
 };
