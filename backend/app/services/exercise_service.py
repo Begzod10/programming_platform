@@ -155,6 +155,21 @@ def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "u
                 correct_answers_raw = translated
         correct = [a.strip().lower() for a in correct_answers_raw.split(",")]
         answers = [a.strip().lower() for a in student_answer.split(",")]
+
+        # Tolerate a leading "." on an answer: CSS class names are almost
+        # universally written with a leading dot in docs/selectors even
+        # though the class="..." attribute value itself never has one, so
+        # ".is-invalid" for an expected "is-invalid" is an extremely common,
+        # harmless mistake. Only strip when the correct answer doesn't
+        # itself require a literal leading dot (e.g. a filename like ".env"
+        # or a full CSS rule) -- so an answer that genuinely needs the dot
+        # is never silently accepted without it.
+        correct_set = set(correct)
+        answers = [
+            a[1:] if a.startswith(".") and a[1:] in correct_set and a not in correct_set else a
+            for a in answers
+        ]
+
         is_correct = sorted(correct) == sorted(answers)
         return {
             "is_correct": is_correct,

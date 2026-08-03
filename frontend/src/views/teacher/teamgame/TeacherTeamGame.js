@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { API_URL } from '../../../api/search/base';
 import axiosInstance from '../../../api/axiosInstance';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
-import BugAddForm from './BugAddForm';
 import './TeacherTeamGame.css';
 
 const GAME_TYPE_LABELS = { team: 'Командная', individual: 'Индивидуальная' };
@@ -323,6 +322,7 @@ function ImportFromLessonModal({ session, onClose, onImported, addedLessonIds, o
     const [importingCourse, setImportingCourse] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [selectedCourseId, setSelectedCourseId] = useState(session.course_id || '');
+    const [kindFilter, setKindFilter] = useState(''); // '' = all, 'quiz', 'bug_hunt'
 
     useEffect(() => {
         axiosInstance.get(`${API_URL}v1/lessons-with-questions`)
@@ -341,9 +341,20 @@ function ImportFromLessonModal({ session, onClose, onImported, addedLessonIds, o
         return acc;
     }, []);
 
-    const visibleLessons = selectedCourseId
+    // quiz_count isn't sent by the API — it's just question_count minus the
+    // bug_hunt ones already returned, so no backend round-trip is needed.
+    const countForKind = (l) => {
+        if (kindFilter === 'bug_hunt') return l.bug_count || 0;
+        if (kindFilter === 'quiz') return l.question_count - (l.bug_count || 0);
+        return l.question_count;
+    };
+
+    const visibleLessons = (selectedCourseId
         ? lessons.filter(l => l.course_id === Number(selectedCourseId))
-        : lessons;
+        : lessons
+    ).filter(l => countForKind(l) > 0);
+
+    const kindQuery = kindFilter ? `&question_kind=${kindFilter}` : '';
 
     const importLesson = async (lessonId) => {
         if (addedLessonIds.has(lessonId)) return;
@@ -351,7 +362,7 @@ function ImportFromLessonModal({ session, onClose, onImported, addedLessonIds, o
         setSuccessMsg('');
         try {
             const res = await axiosInstance.post(
-                `${API_URL}v1/game-sessions/${session.id}/import-questions?lesson_id=${lessonId}`
+                `${API_URL}v1/game-sessions/${session.id}/import-questions?lesson_id=${lessonId}${kindQuery}`
             );
             onLessonAdded(lessonId);
             onImported(res.data.length);
@@ -366,7 +377,7 @@ function ImportFromLessonModal({ session, onClose, onImported, addedLessonIds, o
         setSuccessMsg('');
         try {
             const res = await axiosInstance.post(
-                `${API_URL}v1/game-sessions/${session.id}/import-questions?course_id=${courseId}`
+                `${API_URL}v1/game-sessions/${session.id}/import-questions?course_id=${courseId}${kindQuery}`
             );
             visibleLessons.forEach(l => onLessonAdded(l.id));
             onImported(res.data.length);
@@ -376,7 +387,7 @@ function ImportFromLessonModal({ session, onClose, onImported, addedLessonIds, o
         } finally { setImportingCourse(false); }
     };
 
-    const selectedCourseTotal = visibleLessons.reduce((s, l) => s + l.question_count, 0);
+    const selectedCourseTotal = visibleLessons.reduce((s, l) => s + countForKind(l), 0);
     const isImporting = importingId !== null || importingCourse;
 
     return (
@@ -404,6 +415,22 @@ function ImportFromLessonModal({ session, onClose, onImported, addedLessonIds, o
                                 ))}
                             </select>
                         </div>
+                        <div className="tg-kind-filter" style={{ marginBottom: '0.75rem' }}>
+                            {[
+                                { value: '', label: 'Все' },
+                                { value: 'quiz', label: '📝 Вопросы' },
+                                { value: 'bug_hunt', label: '🐛 Баги' },
+                            ].map(opt => (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    className={`tg-kind-filter-btn ${kindFilter === opt.value ? 'tg-kind-filter-active' : ''}`}
+                                    onClick={() => setKindFilter(opt.value)}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
+                        </div>
                         {selectedCourseId && (
                             <button
                                 className="tg-btn-primary tg-import-all-btn"
@@ -427,12 +454,20 @@ function ImportFromLessonModal({ session, onClose, onImported, addedLessonIds, o
                                                 <span className="tg-import-lesson-course">{l.course_title}</span>
                                             )}
                                             <span className="tg-import-lesson-count">
-                                                {l.question_count} вопр.
-                                                {l.bug_count > 0 && (
-                                                    <span className="tg-import-lesson-bugcount" title={`${l.bug_count} из них — баги для поиска`}>
-                                                        {' '}(🐛 {l.bug_count})
-                                                    </span>
-                                                )}
+                                                {kindFilter === 'bug_hunt'
+                                                    ? `${l.bug_count} баг(ов)`
+                                                    : kindFilter === 'quiz'
+                                                        ? `${l.question_count - (l.bug_count || 0)} вопр.`
+                                                        : (
+                                                            <>
+                                                                {l.question_count} вопр.
+                                                                {l.bug_count > 0 && (
+                                                                    <span className="tg-import-lesson-bugcount" title={`${l.bug_count} из них — баги для поиска`}>
+                                                                        {' '}(🐛 {l.bug_count})
+                                                                    </span>
+                                                                )}
+                                                            </>
+                                                        )}
                                             </span>
                                         </div>
                                         {already ? (
@@ -463,11 +498,8 @@ function ImportFromLessonModal({ session, onClose, onImported, addedLessonIds, o
 function QuizManager({ session }) {
     const [questions, setQuestions] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [addMode, setAddMode] = useState(null); // null | 'quiz' | 'bug'
     const [showImport, setShowImport] = useState(false);
     const [addedLessonIds, setAddedLessonIds] = useState(new Set());
-    const [form, setForm] = useState({ question_text: '', options: ['', '', '', ''], correct_option: 0, time_limit: 30, points: 6 });
-    const [saving, setSaving] = useState(false);
     const [actionId, setActionId] = useState(null);
     const [progress, setProgress] = useState({}); // question_id → {answered, total}
 
@@ -498,22 +530,6 @@ function QuizManager({ session }) {
         return () => window.removeEventListener('tg_ws_message', handler);
     }, [loadQuestions]);
 
-    const saveQuestion = async (e) => {
-        e.preventDefault();
-        if (form.options.some(o => !o.trim())) { alert('Заполните все варианты'); return; }
-        setSaving(true);
-        try {
-            await axiosInstance.post(`${API_URL}v1/game-sessions/${session.id}/questions`, {
-                ...form, options: form.options.map(o => o.trim()),
-            });
-            setAddMode(null);
-            setForm({ question_text: '', options: ['', '', '', ''], correct_option: 0, time_limit: 30, points: 1000 });
-            loadQuestions();
-        } catch (err) {
-            alert(err.response?.data?.detail || 'Ошибка');
-        } finally { setSaving(false); }
-    };
-
     const deleteQuestion = async (qid) => {
         if (!window.confirm('Удалить вопрос?')) return;
         await axiosInstance.delete(`${API_URL}v1/game-sessions/${session.id}/questions/${qid}`).catch(() => {});
@@ -540,8 +556,6 @@ function QuizManager({ session }) {
         } finally { setActionId(null); }
     };
 
-    const setOption = (idx, val) => setForm(f => { const opts = [...f.options]; opts[idx] = val; return { ...f, options: opts }; });
-
     return (
         <div className="tg-quiz-manager">
             {session.auto_mode && (
@@ -555,12 +569,6 @@ function QuizManager({ session }) {
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                         <button className="tg-btn-secondary tg-btn-sm" onClick={() => setShowImport(true)}>
                             📚 Из урока
-                        </button>
-                        <button className="tg-btn-secondary tg-btn-sm" onClick={() => setAddMode(m => m === 'quiz' ? null : 'quiz')}>
-                            {addMode === 'quiz' ? '✕ Отмена' : '+ Вопрос'}
-                        </button>
-                        <button className="tg-btn-secondary tg-btn-sm" onClick={() => setAddMode(m => m === 'bug' ? null : 'bug')}>
-                            {addMode === 'bug' ? '✕ Отмена' : '🐛 + Баг'}
                         </button>
                     </div>
                 )}
@@ -576,54 +584,9 @@ function QuizManager({ session }) {
                 />
             )}
 
-            {addMode === 'bug' && (
-                <BugAddForm
-                    session={session}
-                    onClose={() => setAddMode(null)}
-                    onSaved={() => { setAddMode(null); loadQuestions(); }}
-                />
-            )}
-
-            {addMode === 'quiz' && (
-                <form className="tg-quiz-add-form" onSubmit={saveQuestion}>
-                    <textarea
-                        required placeholder="Текст вопроса"
-                        value={form.question_text}
-                        onChange={e => setForm(f => ({ ...f, question_text: e.target.value }))}
-                        rows={2}
-                    />
-                    <div className="tg-quiz-options-grid">
-                        {form.options.map((opt, i) => (
-                            <div key={i} className={`tg-quiz-option-row${form.correct_option === i ? ' tg-quiz-option-row--correct' : ''}`}>
-                                <button type="button" className="tg-quiz-letter" onClick={() => setForm(f => ({ ...f, correct_option: i }))}>
-                                    {OPTION_LABELS[i]}
-                                </button>
-                                <input
-                                    required placeholder={`Вариант ${OPTION_LABELS[i]}`}
-                                    value={opt} onChange={e => setOption(i, e.target.value)}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                    <div className="tg-quiz-meta-row">
-                        <label>⏱ {form.time_limit}с
-                            <input type="range" min={5} max={120} step={5} value={form.time_limit}
-                                onChange={e => setForm(f => ({ ...f, time_limit: Number(e.target.value) }))} />
-                        </label>
-                        <label>⭐ {form.points} очков
-                            <input type="range" min={0} max={10} step={1} value={form.points}
-                                onChange={e => setForm(f => ({ ...f, points: Number(e.target.value) }))} />
-                        </label>
-                    </div>
-                    <div className="tg-modal-actions">
-                        <button type="submit" className="tg-btn-primary" disabled={saving}>{saving ? 'Сохранение...' : '💾 Сохранить'}</button>
-                    </div>
-                </form>
-            )}
-
             {loading ? <div className="tg-quiz-loading">Загрузка...</div> : (
                 <div className="tg-quiz-list">
-                    {questions.length === 0 && !addMode && (
+                    {questions.length === 0 && (
                         <p className="tg-quiz-empty">Нет вопросов. Добавьте хотя бы один перед запуском!</p>
                     )}
                     {questions.map((q, idx) => {

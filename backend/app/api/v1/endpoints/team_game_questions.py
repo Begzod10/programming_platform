@@ -588,11 +588,14 @@ async def import_questions_from_lesson(
     session_id: int,
     lesson_id: Optional[int] = None,
     course_id: Optional[int] = None,
+    question_kind: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     teacher: Student = Depends(get_current_teacher),
 ):
     if not lesson_id and not course_id:
         raise HTTPException(status_code=400, detail="Provide lesson_id or course_id")
+    if question_kind is not None and question_kind not in ("quiz", "bug_hunt"):
+        raise HTTPException(status_code=400, detail="question_kind must be 'quiz' or 'bug_hunt'")
 
     sess = await _get_teacher_session(db, session_id, teacher.id)
 
@@ -630,6 +633,9 @@ async def import_questions_from_lesson(
             .where(LessonQuestion.lesson_id.in_(lesson_ids_row))
             .order_by(LessonQuestion.lesson_id, LessonQuestion.order_index)
         )).scalars().all()
+
+    if question_kind is not None:
+        source_qs = [lq for lq in source_qs if lq.question_kind == question_kind]
 
     if not source_qs:
         raise HTTPException(status_code=404, detail="No questions found for this lesson/course")

@@ -147,6 +147,53 @@ async def test_import_mixed_quiz_and_bug_hunt_from_lesson(
     assert bug_q["options"][bug_q["correct_option"]] == "3"
 
 
+async def test_import_question_kind_filter_selects_only_that_kind(
+    async_client: AsyncClient, db_session, teacher, lesson_id, session_id
+):
+    """Teacher-facing filter: ?question_kind=bug_hunt (or quiz) imports only
+    that kind from a mixed lesson, so a teacher can build a bugs-only or
+    quiz-only session from a lesson that has both."""
+    _, headers = teacher
+    db_session.add(LessonQuestion(
+        lesson_id=lesson_id, question_text="Python nima?",
+        options=["Til", "Ilon", "Kitob", "Fayl"], correct_option=0,
+        time_limit=30, points=1000, order_index=0,
+    ))
+    db_session.add(LessonQuestion(
+        lesson_id=lesson_id, question_text="Xato qayerda?",
+        time_limit=90, points=1500, order_index=1,
+        question_kind="bug_hunt",
+        code_snippet="a = 1\nb = 2\nprint(a - b)",
+        code_language="python",
+        bug_line=3,
+        distractor_lines=[1, 2],
+        bug_explanation="+ bo'lishi kerak edi",
+    ))
+    await db_session.commit()
+
+    resp = await async_client.post(
+        f"{BASE}/{session_id}/import-questions",
+        params={"lesson_id": lesson_id, "question_kind": "bug_hunt"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["question_kind"] == "bug_hunt"
+
+
+async def test_import_question_kind_invalid_value_rejected(
+    async_client: AsyncClient, teacher, lesson_id, session_id
+):
+    _, headers = teacher
+    resp = await async_client.post(
+        f"{BASE}/{session_id}/import-questions",
+        params={"lesson_id": lesson_id, "question_kind": "not_a_kind"},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+
+
 async def test_import_quiz_only_lesson_unaffected_by_bug_hunt_branch(
     async_client: AsyncClient, db_session, teacher, lesson_id, session_id
 ):

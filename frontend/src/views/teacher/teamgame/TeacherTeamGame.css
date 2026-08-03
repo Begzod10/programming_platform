@@ -466,6 +466,20 @@
     cursor: pointer;
 }
 .tg-course-filter-select:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
+.tg-kind-filter { display: flex; gap: 6px; }
+.tg-kind-filter-btn {
+    flex: 1;
+    padding: 0.4rem 0.6rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #374151;
+    background: #fff;
+    cursor: pointer;
+}
+.tg-kind-filter-btn:hover { border-color: #9ca3af; }
+.tg-kind-filter-active { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
 
 /* ── Auto Mode ─────────────────────────────────────────── */
 .tg-btn-auto {
