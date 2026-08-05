@@ -617,8 +617,8 @@ function QuizManager({ session }) {
                                         </span>
                                     ))}
                                 </div>
-                                {q.question_kind === 'bug_hunt' && q.bug_explanation && (
-                                    <p className="tg-quiz-bug-explain">💡 {q.bug_explanation}</p>
+                                {q.question_kind === 'bug_hunt' && (q.bug_explanation_ru || q.bug_explanation) && (
+                                    <p className="tg-quiz-bug-explain">💡 {q.bug_explanation_ru || q.bug_explanation}</p>
                                 )}
                                 {prog && (
                                     <div className="tg-quiz-progress">
@@ -815,8 +815,8 @@ export function SessionSummary({ sessionId }) {
                                         );
                                     })}
                                 </div>
-                                {isBugHunt && q.bug_explanation && (
-                                    <p className="tg-quiz-bug-explain">💡 {q.bug_explanation}</p>
+                                {isBugHunt && (q.bug_explanation_ru || q.bug_explanation) && (
+                                    <p className="tg-quiz-bug-explain">💡 {q.bug_explanation_ru || q.bug_explanation}</p>
                                 )}
                                 {(answersByQ[q.id] || []).length > 0 && (
                                     <details className="tg-summary-answers">

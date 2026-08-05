@@ -193,7 +193,10 @@ function QuizOverlay({ question, sessionId, revealData, onDone }) {
         <div className="stg-quiz-overlay">
             <div className="stg-top-bar-row">
                 <div className="stg-top-bar-spacer" />
-                {question.question_text_ru && (
+                {/* bug_hunt questions never have question_text_ru (the code/question
+                    itself isn't translated) but bug_explanation_ru still is, so the
+                    toggle must stay available to pick which language that reveal uses. */}
+                {(question.question_text_ru || question.question_kind === 'bug_hunt') && (
                     <LangChip lang={lang} onToggle={toggleLang} label={t('game.questionLangTitle')} />
                 )}
                 <TimerPill
@@ -377,6 +380,10 @@ function AutoQuizFlow({ session, sessionId }) {
     // shared classroom computer makes session-id-only keys unsafe.
     const uid = getCurrentUser()?.id ?? 'anon';
     const storageKey = `auto_qidx_${sessionId}_${uid}`;
+    // Persists when the CURRENT question's countdown actually started, so a
+    // page refresh resumes the clock instead of granting a fresh full
+    // time_limit — see the countdown effect below for how it's read back.
+    const timeStorageKey = `auto_qstart_${sessionId}_${uid}`;
     const [questions, setQuestions] = useState(null);
     const [qIdx, setQIdx] = useState(() => {
         const saved = sessionStorage.getItem(storageKey);
@@ -439,11 +446,12 @@ function AutoQuizFlow({ session, sessionId }) {
                 }
             } catch {}
             sessionStorage.removeItem(storageKey);
+            sessionStorage.removeItem(timeStorageKey);
             setDone(true);
         } else {
             setQIdx(i => i + 1);
         }
-    }, [qIdx, questions, storageKey, sessionId]);
+    }, [qIdx, questions, storageKey, timeStorageKey, sessionId]);
 
     // Reset click guard on each new question
     useEffect(() => {
@@ -455,9 +463,24 @@ function AutoQuizFlow({ session, sessionId }) {
     // Countdown timer — only runs when no result yet
     useEffect(() => {
         if (!currentQ || result !== null) return;
-        setTimeLeft(currentQ.time_limit);
-        const start = Date.now();
-        timerRef.current = setInterval(() => {
+
+        // Resume the existing countdown across a refresh instead of granting
+        // a fresh full time_limit: reuse the saved start timestamp if it's
+        // for this same question, otherwise this is a genuinely new question
+        // and we stamp a fresh start.
+        let start;
+        try {
+            const saved = JSON.parse(sessionStorage.getItem(timeStorageKey) || 'null');
+            start = saved && saved.id === currentQ.id ? saved.ts : null;
+        } catch {
+            start = null;
+        }
+        if (start === null) {
+            start = Date.now();
+            sessionStorage.setItem(timeStorageKey, JSON.stringify({ id: currentQ.id, ts: start }));
+        }
+
+        const tick = () => {
             const elapsed = (Date.now() - start) / 1000;
             const remaining = Math.max(0, Math.ceil(currentQ.time_limit - elapsed));
             setTimeLeft(remaining);
@@ -468,10 +491,12 @@ function AutoQuizFlow({ session, sessionId }) {
                     advanceRef.current = setTimeout(advance, 1500);
                 }
             }
-        }, 250);
+        };
+        tick();
+        timerRef.current = setInterval(tick, 250);
         // Only clear the interval on cleanup — never cancel advanceRef here
         return () => clearInterval(timerRef.current);
-    }, [currentQ?.id, result, advance]);
+    }, [currentQ?.id, result, advance, timeStorageKey]);
 
     const submit = async (idx) => {
         if (!clickable || chosen !== null || result !== null || timeLeft === 0) return;
@@ -537,7 +562,10 @@ function AutoQuizFlow({ session, sessionId }) {
                 <div className="stg-progress-track">
                     <div className="stg-progress-fill" style={{ width: `${progressPct}%` }} />
                 </div>
-                {currentQ.question_text_ru && (
+                {/* bug_hunt questions never have question_text_ru (the code/question
+                    itself isn't translated) but bug_explanation_ru still is, so the
+                    toggle must stay available to pick which language that reveal uses. */}
+                {(currentQ.question_text_ru || currentQ.question_kind === 'bug_hunt') && (
                     <LangChip lang={lang} onToggle={toggleLang} label={t('game.questionLangTitle')} />
                 )}
                 <TimerPill
