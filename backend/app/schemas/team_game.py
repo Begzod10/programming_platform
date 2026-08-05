@@ -198,6 +198,7 @@ class BugQuestionCreate(BaseModel):
     distractor_lines (shuffled) so a teacher can't mismark the answer index,
     and so the candidate line numbers can never drift from the snippet."""
     question_text:      str        = Field(..., min_length=1)
+    question_text_ru:    Optional[str] = None
     code_snippet:        str        = Field(..., min_length=1, max_length=4000)
     code_language:       Literal['javascript', 'python', 'html', 'css']
     bug_line:             int        = Field(..., ge=1)

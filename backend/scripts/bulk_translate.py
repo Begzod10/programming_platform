@@ -286,4 +286,5 @@ async def main():
     print(f"\nDone. Total time: {time.monotonic()-t_start:.0f}s")
     await engine.dispose()
 
-asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())

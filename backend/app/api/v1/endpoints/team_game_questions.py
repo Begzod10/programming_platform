@@ -114,6 +114,7 @@ async def add_bug_question(
     return await _insert_question(
         db, session_id,
         question_text=body.question_text,
+        question_text_ru=body.question_text_ru,
         options=[str(n) for n in shuffled],
         correct_option=correct_option,
         time_limit=body.time_limit,
@@ -703,6 +704,7 @@ async def import_questions_from_lesson(
         gq = GameQuestion(
             session_id=session_id,
             question_text=lq.question_text,
+            question_text_ru=lq.question_text_ru,
             options=[str(n) for n in shuffled],
             correct_option=shuffled_correct,
             time_limit=lq.time_limit,

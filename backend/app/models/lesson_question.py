@@ -16,6 +16,10 @@ class LessonQuestion(Base):
     id:             Mapped[int]            = mapped_column(primary_key=True, autoincrement=True)
     lesson_id:      Mapped[int]            = mapped_column(ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False)
     question_text:  Mapped[str]            = mapped_column(Text, nullable=False)
+    # RU translation of the prompt itself — only meaningful for bug_hunt kind
+    # (quiz achieves bilingual prompts via a separate paired uz/ru row instead,
+    # see import_questions_from_lesson in team_game_questions.py).
+    question_text_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     options:        Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # list of 2-4 strings (quiz kind only)
     correct_option: Mapped[Optional[int]]  = mapped_column(Integer, nullable=True)  # 0-indexed (quiz kind only)
     time_limit:     Mapped[int]            = mapped_column(Integer, default=30, nullable=False)

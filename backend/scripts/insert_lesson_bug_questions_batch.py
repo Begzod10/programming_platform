@@ -131,6 +131,7 @@ async def main(json_path: str) -> None:
                 db.add(LessonQuestion(
                     lesson_id=lesson_id,
                     question_text=q["question_text"],
+                    question_text_ru=q.get("question_text_ru"),
                     time_limit=q.get("time_limit", 90),
                     points=q.get("points", default_points),
                     order_index=next_order,

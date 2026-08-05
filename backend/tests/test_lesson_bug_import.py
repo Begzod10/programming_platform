@@ -82,6 +82,7 @@ async def test_import_bug_hunt_question_from_lesson(
     db_session.add(LessonQuestion(
         lesson_id=lesson_id,
         question_text="Nega natija noto'g'ri?",
+        question_text_ru="Почему результат неверный?",
         time_limit=90, points=1500, order_index=0,
         question_kind="bug_hunt",
         code_snippet="function sum(a, b) {\n  return a - b;\n}\nconsole.log(sum(2, 3));",
@@ -106,6 +107,10 @@ async def test_import_bug_hunt_question_from_lesson(
     assert q["bug_line"] == 2
     assert set(q["options"]) == {"2", "1", "4"}
     assert q["options"][q["correct_option"]] == "2"
+    # question_text_ru must survive the import, same as bug_explanation_ru —
+    # this was the gap: the bank column existed for years with nothing ever
+    # copying it into the live GameQuestion.
+    assert q["question_text_ru"] == "Почему результат неверный?"
 
 
 async def test_import_mixed_quiz_and_bug_hunt_from_lesson(
