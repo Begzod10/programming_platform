@@ -5,6 +5,7 @@ No HTTP routes live here — only helpers imported by the split modules.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -20,6 +21,8 @@ from app.models.lesson_file import LessonFile
 from app.models.project import Project
 from app.models.submission import Submission
 from app.models.user import Student, UserRole
+
+logger = logging.getLogger(__name__)
 
 LESSONS_FILES_DIR = Path(settings.UPLOAD_DIR) / "lesson_files"
 LESSONS_FILES_DIR.mkdir(parents=True, exist_ok=True)
@@ -341,17 +344,42 @@ async def _try_auto_ai_review(db: AsyncSession, project: Project) -> None:
     """Best-effort AI grading after a lesson project is submitted.
 
     Wrapped here so a missing key, an HTTP timeout, or a malformed AI
-    response can never break the student's submission flow. Logs the
-    failure and lets the project sit at status="Submitted" for the
-    teacher to review manually.
+    response can never break the student's submission flow. Records why
+    the review didn't happen and lets the project sit at
+    status="Submitted" for the teacher to review manually.
+
+    Accepts ZIP uploads as well as GitHub URLs: run_ai_review_for_project
+    grades either source. Requiring github_url here used to drop every
+    ZIP-based lesson submission out of the grader with nothing written
+    anywhere, so those projects sat unreviewed and un-diagnosable.
     """
-    if project is None or not project.github_url:
+    if project is None:
         return
+    if not project.github_url and not project.project_files:
+        # Nothing to grade yet — the ZIP upload endpoint re-triggers the
+        # review once a file lands, so this is an expected no-op.
+        return
+
     try:
         from app.services.ai_review_service import run_ai_review_for_project
-        await run_ai_review_for_project(db, project, raise_on_error=False)
-    except Exception:
-        pass
+        result = await run_ai_review_for_project(db, project, raise_on_error=False)
+    except Exception as e:
+        logger.warning("[ai-auto] project=%s unhandled error: %s", project.id, e)
+        result = {
+            "success": False,
+            "reason": "AI baholash vaqtincha ishlamayapti. "
+                      "O'qituvchi loyihangizni tez orada baholaydi.",
+        }
+
+    # Leave a trace of the failure on the row. Without this a skipped
+    # review is indistinguishable from one that never ran, and neither the
+    # student nor the teacher has any way to know a retry would fix it.
+    if not result.get("success") and project.reviewed_at is None:
+        reason = result.get("reason", "AI tekshirish muvaffaqiyatsiz")
+        logger.info("[ai-auto] project=%s not graded: %s", project.id, reason)
+        project.instructor_feedback = reason
+        await db.commit()
+        await db.refresh(project)
 
 
 async def _check_completion_gate(

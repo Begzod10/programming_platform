@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, case
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
@@ -11,6 +11,18 @@ from app.models.project import Project
 from app.models.submission import Submission
 
 router = APIRouter()
+
+# A project in one of these states still needs a verdict from the teacher.
+# `Draft` is excluded on purpose — the student hasn't handed it in yet.
+PENDING_STATUSES = ("Submitted", "Under Review")
+
+# Tab name → predicate. "pending" spans two statuses, which is why the API
+# takes a bucket rather than making the caller enumerate raw status strings.
+_BUCKET_FILTERS = {
+    "pending": Project.status.in_(PENDING_STATUSES),
+    "approved": Project.status == "Approved",
+    "rejected": Project.status == "Rejected",
+}
 
 
 def _teacher_students_subq(teacher_id: int):
@@ -217,29 +229,82 @@ async def get_teacher_statistics(
 
 @router.get("/projects")
 async def get_teacher_projects(
-        status: Optional[str] = Query(None, description="Filter by status: Submitted, Approved, Rejected, Under Review"),
+        status: Optional[str] = Query(None, description="Exact status match: Submitted, Approved, Rejected, Under Review, Draft"),
+        bucket: Optional[str] = Query(None, description="Grouped filter: pending, approved, rejected"),
+        search: Optional[str] = Query(None, max_length=100, description="Match project title or student name/username/email"),
         skip: int = Query(0, ge=0),
-        limit: int = Query(200, ge=1, le=500),
+        limit: int = Query(50, ge=1, le=500),
         db: AsyncSession = Depends(get_db),
         current_teacher: Student = Depends(get_current_instructor),
 ):
-    """All projects from the current teacher's own students, optionally filtered by status."""
+    """Projects from the current teacher's own students, one page at a time.
+
+    Filtering, searching and paging all happen here rather than in the browser.
+    A teacher with a few thousand projects would otherwise only ever see the
+    newest page client-side, and any older unreviewed work would be silently
+    unreachable — which is exactly how submissions ended up sitting in
+    `Under Review` for months.
+
+    Returns an envelope so the UI can label its tabs from whole-table counts
+    instead of counting the rows it happens to be holding.
+    """
     student_ids_sq = _teacher_students_subq(current_teacher.id)
+
+    scope = [Project.student_id.in_(student_ids_sq)]
+    if search and search.strip():
+        like = f"%{search.strip().lower()}%"
+        scope.append(
+            func.lower(func.coalesce(Project.title, "")).like(like)
+            | func.lower(func.coalesce(Student.full_name, "")).like(like)
+            | func.lower(func.coalesce(Student.username, "")).like(like)
+            | func.lower(func.coalesce(Student.email, "")).like(like)
+        )
+
+    # Tab counts describe the whole (searched) table, not the current page,
+    # and deliberately ignore `bucket` — each tab shows its own total.
+    count_rows = (
+        await db.execute(
+            select(Project.status, func.count())
+            .join(Student, Student.id == Project.student_id)
+            .where(*scope)
+            .group_by(Project.status)
+        )
+    ).all()
+    by_status = {row[0]: row[1] for row in count_rows}
+    counts = {
+        "all": sum(by_status.values()),
+        "pending": sum(by_status.get(s, 0) for s in PENDING_STATUSES),
+        "approved": by_status.get("Approved", 0),
+        "rejected": by_status.get("Rejected", 0),
+    }
 
     q = (
         select(Project)
+        .join(Student, Student.id == Project.student_id)
         .options(selectinload(Project.student))
-        .where(Project.student_id.in_(student_ids_sq))
+        .where(*scope)
     )
     if status:
         q = q.where(Project.status == status)
+    if bucket in _BUCKET_FILTERS:
+        q = q.where(_BUCKET_FILTERS[bucket])
 
-    q = q.order_by(Project.submitted_at.desc().nullslast(), Project.created_at.desc())
+    total = (
+        await db.execute(select(func.count()).select_from(q.subquery()))
+    ).scalar() or 0
+
+    # Anything still awaiting a verdict floats to the top, so a backlog can
+    # never be buried under newer already-graded work.
+    q = q.order_by(
+        case((Project.status.in_(PENDING_STATUSES), 0), else_=1),
+        Project.submitted_at.desc().nullslast(),
+        Project.created_at.desc(),
+    )
     q = q.offset(skip).limit(limit)
 
     rows = (await db.execute(q)).scalars().all()
 
-    return [
+    items = [
         {
             "id": p.id,
             "title": p.title,
@@ -267,3 +332,5 @@ async def get_teacher_projects(
         }
         for p in rows
     ]
+
+    return {"items": items, "total": total, "counts": counts}

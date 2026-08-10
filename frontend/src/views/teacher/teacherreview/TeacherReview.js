@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import './TeacherReview.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
@@ -159,24 +159,48 @@ function TeacherReview() {
     const [points, setPoints] = useState('');
     const [status, setStatus] = useState('Approved');
     const [page, setPage] = useState(1);
+    const [counts, setCounts] = useState({ all: 0, pending: 0, approved: 0, rejected: 0 });
+    const [total, setTotal] = useState(0);
 
-    const fetchProjects = () => {
+    // Debounced copy of `search` — the query now hits the server, so we wait
+    // for the teacher to stop typing instead of firing a request per keystroke.
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    useEffect(() => {
+        const id = setTimeout(() => setDebouncedSearch(search), 300);
+        return () => clearTimeout(id);
+    }, [search]);
+
+    // Filtering, searching and paging are all server-side. Doing them in the
+    // browser meant we only ever held one page of a multi-thousand-row table,
+    // so old unreviewed projects were unreachable no matter which tab you
+    // picked.
+    const fetchProjects = useCallback(() => {
         setLoading(true);
         setLoadError(null);
-        request(`${API_URL}v1/teacher/projects`, 'GET', null, headers())
+        const params = new URLSearchParams({
+            skip: String((page - 1) * PAGE_SIZE),
+            limit: String(PAGE_SIZE),
+        });
+        if (filter !== 'all') params.set('bucket', filter);
+        if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+
+        request(`${API_URL}v1/teacher/projects?${params}`, 'GET', null, headers())
             .then(data => {
-                setProjects(Array.isArray(data) ? data : []);
+                setProjects(Array.isArray(data?.items) ? data.items : []);
+                setTotal(data?.total || 0);
+                if (data?.counts) setCounts(data.counts);
             })
             .catch(() => {
                 setProjects([]);
+                setTotal(0);
                 setLoadError('Не удалось загрузить проекты');
             })
             .finally(() => setLoading(false));
-    };
+    }, [page, filter, debouncedSearch]); // eslint-disable-line
 
     useEffect(() => {
         fetchProjects();
-    }, []); // eslint-disable-line
+    }, [fetchProjects]);
 
     const openDetail = (p) => {
         setDetail(p);
@@ -203,7 +227,9 @@ function TeacherReview() {
             setProjects(p => p.map(pr => pr.id === id ? updated : pr));
             setDetail(updated);
             setMsg('✅ Проверка сохранена!');
-            setTimeout(() => setDetail(null), 900);
+            // Refetch once the modal closes: the row may no longer belong to
+            // the active tab, and the tab counts live on the server now.
+            setTimeout(() => { setDetail(null); fetchProjects(); }, 900);
         } catch {
             setMsg('❌ Ошибка при сохранении');
         } finally {
@@ -211,30 +237,9 @@ function TeacherReview() {
         }
     };
 
-    const filtered = projects.filter(p => {
-        const q = search.toLowerCase();
-        const matchSearch =
-            (p.title || '').toLowerCase().includes(q) ||
-            (p.student_name || p.student_id?.toString() || '').toLowerCase().includes(q);
-        const matchFilter =
-            filter === 'all'      ? true :
-            filter === 'pending'  ? (p.status === 'Submitted' || p.status === 'Under Review') :
-            filter === 'approved' ? p.status === 'Approved' :
-            filter === 'rejected' ? p.status === 'Rejected' : true;
-        return matchSearch && matchFilter;
-    });
+    useEffect(() => { setPage(1); }, [debouncedSearch, filter]);
 
-    useEffect(() => { setPage(1); }, [search, filter]); // eslint-disable-line
-
-    const counts = {
-        all:      projects.length,
-        pending:  projects.filter(p => p.status === 'Submitted' || p.status === 'Under Review').length,
-        approved: projects.filter(p => p.status === 'Approved').length,
-        rejected: projects.filter(p => p.status === 'Rejected').length,
-    };
-
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-    const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
     return (
         <div className="tr-container">
@@ -294,7 +299,7 @@ function TeacherReview() {
                         }}
                     >Повторить</button>
                 </div>
-            ) : filtered.length === 0 ? (
+            ) : projects.length === 0 ? (
                 <div className="tr-empty">📭 Проектов не найдено</div>
             ) : (
                 <div className="tr-table-wrapper">
@@ -308,7 +313,7 @@ function TeacherReview() {
                         <span style={{ textAlign: 'right' }}>Действие</span>
                     </div>
                     <div className="tr-rows">
-                        {paginated.map(p => (
+                        {projects.map(p => (
                             <div key={p.id} className="tr-row" onClick={() => openDetail(p)}>
                                 <div className="tr-col-main">
                                     <StudentAvatar student={p.student} />
@@ -369,7 +374,7 @@ function TeacherReview() {
             )}
 
             {/* Pagination */}
-            {!loading && !loadError && filtered.length > PAGE_SIZE && (
+            {!loading && !loadError && total > PAGE_SIZE && (
                 <div className="tr-pagination">
                     <button
                         className="tr-page-btn"
@@ -378,7 +383,7 @@ function TeacherReview() {
                     >← Пред.</button>
                     <span className="tr-page-info">
                         Страница {page} из {totalPages}
-                        <span className="tr-page-total"> ({filtered.length} проектов)</span>
+                        <span className="tr-page-total"> ({total} проектов)</span>
                     </span>
                     <button
                         className="tr-page-btn"
