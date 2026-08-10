@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import mermaid from 'mermaid';
 import './StudentLessonPage.css';
 import {API_URL, useHttp, headers} from '../../../../api/search/base';
+import {useTranslation} from '../../../../i18n/useTranslation';
 import DictSelectionPopup from '../LessonPage/Dictselectionpopup';
 import LessonDictionaryDrawer from './LessonDictionaryDrawer';
 import LessonVocabCard from './LessonVocabCard';
@@ -41,6 +42,11 @@ mermaid.initialize({
 ═══════════════════════════════════════════════════════════ */
 const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onComplete}) => {
     const {request} = useHttp();
+    const {lang} = useTranslation();
+
+    // AI review feedback is authored in Uzbek; the backend translates it on
+    // read when we say which language the student is reading in.
+    const langParam = lang && lang !== 'uz' ? `?lang=${lang}` : '';
 
     const [copiedId, setCopiedId] = useState(null);
     const [justCompleted, setJustCompleted] = useState(false);
@@ -182,7 +188,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
         let cancelled = false;
         setProjectStatusLoading(true);
         request(
-            `${API_URL}v1/courses/${course.id}/lessons/${lesson.id}/submission`,
+            `${API_URL}v1/courses/${course.id}/lessons/${lesson.id}/submission${langParam}`,
             'GET',
             null,
             headers(),
@@ -204,7 +210,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             })
             .finally(() => { if (!cancelled) setProjectStatusLoading(false); });
         return () => { cancelled = true; };
-    }, [projectSection, course?.id, lesson?.id, request]);
+        // langParam is a dependency so flipping UZ/RU refetches the verdict
+        // in the newly selected language instead of leaving the old text.
+    }, [projectSection, course?.id, lesson?.id, request, langParam]);
 
     // Hydrate exercise submissions on lesson load so a refresh restores the
     // student's previous answers + checkmarks. The student can still resubmit.
@@ -401,7 +409,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             let fresh = null;
             try {
                 fresh = await request(
-                    `${API_URL}v1/courses/${course.id}/lessons/${lesson.id}/submission`,
+                    `${API_URL}v1/courses/${course.id}/lessons/${lesson.id}/submission${langParam}`,
                     'GET', null, headers(),
                 );
                 if (fresh) setProjectSubmission(fresh);

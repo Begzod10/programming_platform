@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from typing import Optional
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -21,6 +22,7 @@ from app.models.lesson_file import LessonFile
 from app.models.project import Project
 from app.models.submission import Submission
 from app.models.user import Student, UserRole
+from app.services.translation_service import DEFAULT_SOURCE_LANG, translate_fields
 
 logger = logging.getLogger(__name__)
 
@@ -380,6 +382,76 @@ async def _try_auto_ai_review(db: AsyncSession, project: Project) -> None:
         project.instructor_feedback = reason
         await db.commit()
         await db.refresh(project)
+
+
+async def translate_project_feedback(
+        db: AsyncSession,
+        *,
+        project_id: int,
+        lang: Optional[str],
+        feedback: Optional[str],
+        strengths: list,
+        improvements: list,
+        bugs: list,
+) -> tuple[Optional[str], list, list, list]:
+    """Serve AI review feedback in the student's chosen language.
+
+    The grader always writes Uzbek, so a student reading the platform in
+    Russian saw Russian chrome and a Russian task description wrapped
+    around an Uzbek verdict. Rather than re-grading, we translate on read
+    through the same cache the lesson/course text uses — that keeps the
+    stored grade authoritative and fixes the whole back catalogue, not
+    just newly graded work.
+
+    The three AI fields are JSON arrays of bare strings, which
+    translate_json_blob cannot walk (it only descends into dict keys), so
+    each item is cached as its own field: `ai_strengths.0`, `.1`, …
+    Falls back to the Uzbek source on any failure — an untranslated
+    verdict beats no verdict.
+    """
+    if not lang or lang == DEFAULT_SOURCE_LANG:
+        return feedback, strengths, improvements, bugs
+
+    lists = {
+        "ai_strengths": strengths,
+        "ai_improvements": improvements,
+        "ai_bugs": bugs,
+    }
+
+    fields: dict[str, Optional[str]] = {"instructor_feedback": feedback}
+    for name, values in lists.items():
+        for i, item in enumerate(values):
+            if isinstance(item, str):
+                fields[f"{name}.{i}"] = item
+
+    try:
+        out = await translate_fields(
+            db,
+            entity_type="project",
+            entity_id=project_id,
+            target_lang=lang,
+            fields=fields,
+            source_lang=DEFAULT_SOURCE_LANG,
+        )
+    except Exception:
+        logger.exception(
+            "translate_project_feedback: failed for project=%s lang=%s",
+            project_id, lang,
+        )
+        return feedback, strengths, improvements, bugs
+
+    def _rebuild(name: str, values: list) -> list:
+        return [
+            out.get(f"{name}.{i}", item) if isinstance(item, str) else item
+            for i, item in enumerate(values)
+        ]
+
+    return (
+        out.get("instructor_feedback", feedback),
+        _rebuild("ai_strengths", strengths),
+        _rebuild("ai_improvements", improvements),
+        _rebuild("ai_bugs", bugs),
+    )
 
 
 async def _check_completion_gate(

@@ -29,6 +29,7 @@ from .lesson_helpers import (
     _subtract_points,
     _try_auto_ai_review,
     _check_completion_gate,
+    translate_project_feedback,
 )
 
 router = APIRouter()
@@ -562,6 +563,7 @@ async def submit_lesson_project(
 async def get_lesson_submission(
         course_id: int,
         lesson_id: int,
+        lang: Optional[str] = None,
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
@@ -609,6 +611,22 @@ async def get_lesson_submission(
     ai_bugs = _parse_json_list(project.ai_bugs if project else None)
     ai_improvements = _parse_json_list(project.ai_improvements if project else None)
     ai_strengths = _parse_json_list(project.ai_strengths if project else None)
+
+    # The grader writes Uzbek regardless of who's reading, so translate the
+    # verdict to match the rest of the page.
+    if project is not None:
+        feedback, ai_strengths, ai_improvements, ai_bugs = (
+            await translate_project_feedback(
+                db,
+                project_id=project.id,
+                lang=lang,
+                feedback=feedback,
+                strengths=ai_strengths,
+                improvements=ai_improvements,
+                bugs=ai_bugs,
+            )
+        )
+
     reviewed = proj_status in ("Approved", "Rejected")
     passed = (
         points_earned >= PROJECT_PASS_THRESHOLD
