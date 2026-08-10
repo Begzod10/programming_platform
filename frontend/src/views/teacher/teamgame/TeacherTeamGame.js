@@ -82,6 +82,7 @@ function StartModal({ session, onClose, onStarted }) {
     const [starting, setStarting] = useState(false);
     const [error, setError] = useState('');
     const [filterGroup, setFilterGroup] = useState('');
+    const [search, setSearch] = useState('');
     // Step 2: teamId -> student objects
     const [assignments, setAssignments] = useState({});
 
@@ -114,9 +115,14 @@ function StartModal({ session, onClose, onStarted }) {
         return acc;
     }, []);
 
-    const visible = filterGroup
-        ? students.filter(s => s.group_id === Number(filterGroup))
-        : students;
+    // Search narrows what's shown but never touches `selected` — a teacher
+    // can search, tick a few names, clear the box, and keep those ticks.
+    const query = search.trim().toLowerCase();
+    const visible = students.filter(s => {
+        if (filterGroup && s.group_id !== Number(filterGroup)) return false;
+        if (!query) return true;
+        return (s.full_name || s.username || '').toLowerCase().includes(query);
+    });
 
     const toggle = (id) => setSelected(prev => {
         const next = new Set(prev);
@@ -202,7 +208,7 @@ function StartModal({ session, onClose, onStarted }) {
             <div className="tg-modal tg-start-modal" onClick={e => e.stopPropagation()}>
                 <div className="tg-divide-header">
                     <h2>Выбор студентов</h2>
-                    <button className="tg-btn-secondary" onClick={toggleVisible}>
+                    <button className="tg-btn-secondary" onClick={toggleVisible} disabled={visible.length === 0}>
                         {visibleAllChecked ? 'Снять все' : 'Выбрать все'}
                     </button>
                 </div>
@@ -222,9 +228,29 @@ function StartModal({ session, onClose, onStarted }) {
                         </select>
                     </div>
                 )}
+                <div className="tg-student-search">
+                    <span className="tg-student-search-icon" aria-hidden="true">🔍</span>
+                    <input
+                        type="text"
+                        className="tg-student-search-input"
+                        placeholder="Поиск студента..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                    />
+                    {search && (
+                        <button
+                            type="button"
+                            className="tg-student-search-clear"
+                            onClick={() => setSearch('')}
+                            title="Очистить"
+                        >×</button>
+                    )}
+                </div>
                 {error && <p className="tg-error">{error}</p>}
                 {loading ? (
                     <div className="tg-loading">Загрузка...</div>
+                ) : visible.length === 0 ? (
+                    <div className="tg-student-pick-empty">Студенты не найдены</div>
                 ) : (
                     <div className="tg-student-pick-list">
                         {visible.map(s => {

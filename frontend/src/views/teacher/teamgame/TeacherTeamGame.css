@@ -190,6 +190,36 @@
 .tg-student-pick-name { font-size: 0.9rem; }
 .tg-pick-count { font-size: 0.85rem; color: #64748b; margin-right: auto; }
 
+/* Student search — matches .tg-course-filter-select above it so the two
+   filter controls read as one stack. */
+.tg-student-search { position: relative; display: flex; align-items: center; margin-bottom: 0.75rem; }
+.tg-student-search-icon { position: absolute; left: 0.7rem; font-size: 0.85rem; opacity: 0.55; pointer-events: none; }
+.tg-student-search-input {
+    width: 100%;
+    padding: 0.5rem 2rem 0.5rem 2.1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    color: #111827;
+    background: #fff;
+    outline: none;
+}
+.tg-student-search-input::placeholder { color: #9ca3af; }
+.tg-student-search-input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.15); }
+.tg-student-search-clear {
+    position: absolute;
+    right: 0.5rem;
+    border: none;
+    background: none;
+    color: #9ca3af;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.25rem;
+}
+.tg-student-search-clear:hover { color: #4b5563; }
+.tg-student-pick-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-size: 0.875rem; padding: 1.5rem 0; margin-bottom: 12px; }
+
 /* Team assignment step 2 */
 .tg-assign-modal { max-width: 720px; width: 95vw; max-height: 85vh; display: flex; flex-direction: column; }
 .tg-team-assign-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; overflow-y: auto; flex: 1; margin-bottom: 12px; }
