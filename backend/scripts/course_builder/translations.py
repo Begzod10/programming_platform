@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.lesson import Lesson
 from app.models.exercise import Exercise
 
-from write_ru_translations import translate_lesson, translate_exercises
+from write_ru_translations import translate_lesson, translate_exercises, _write
 from course_builder.db_helpers import derive_correct_order_ru, is_natural_language_answer
 
 # Fixed section labels build_sections_json stamps onto every lesson — these
@@ -20,6 +20,26 @@ from course_builder.db_helpers import derive_correct_order_ru, is_natural_langua
 # string needs a translation" check is satisfied with this static map
 # rather than something the spec author has to think about per lesson.
 _SECTION_LABELS_RU = {"Matn": "Текст", "Kod": "Код", "Video": "Видео", "Mashqlar": "Упражнения"}
+
+
+async def translate_course_from_spec(db: AsyncSession, course, course_spec: dict) -> int:
+    """Write RU translations for the course's own title/description.
+
+    GET /courses reads these via _translate_course_dto() (courses.py) — this
+    is NOT a dead/unread field the way exercise *_ru columns are. A prior
+    round of course builds this session shipped 6 courses with no
+    course-level RU translation at all, on the wrong assumption that no
+    serving code read it; check_ru_coverage.py now flags this too, so a
+    missing course_ru is a real, caught gap, not a silent one.
+    Returns the number of fields written (0, 1, or 2)."""
+    written = 0
+    if course_spec.get("title_ru"):
+        await _write(db, "course", course.id, "title", course.title, course_spec["title_ru"])
+        written += 1
+    if course_spec.get("description_ru"):
+        await _write(db, "course", course.id, "description", course.description, course_spec["description_ru"])
+        written += 1
+    return written
 
 
 async def translate_lesson_from_spec(db: AsyncSession, lesson: Lesson, lesson_spec: dict) -> int:

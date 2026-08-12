@@ -11,6 +11,12 @@ existing one) to catch that class of gap immediately instead of silently.
 
 This checks EXACTLY what the live serving code reads — not what "seems
 like" it should be translated:
+  - Course fields: title, description — read by GET /courses via
+    _translate_course_dto() (app/api/v1/endpoints/courses.py). This gap was
+    found live: 6 courses built in one session had no course-level RU
+    translation at all, because course_builder's own contract wrongly
+    assumed (until corrected) that no serving code ever read a course-level
+    translation — it does, so this is a required, not optional, field.
   - Lesson fields: title, text_content, and every string
     _collect_translatable_strings() finds inside sections_json (mirrors
     write_ru_translations.py::translate_lesson()).
@@ -114,6 +120,13 @@ async def check_course(db, course_id: int) -> list[str]:
     course = (await db.execute(select(Course).where(Course.id == course_id))).scalar_one_or_none()
     if not course:
         return [f"course {course_id}: does not exist"]
+
+    course_ru = await _load_ru_cache(db, "course", [course_id])
+    if (course_id, "title") not in course_ru:
+        problems.append(f"course {course_id} ({course.title!r}): missing RU title "
+                         f"(read by GET /courses via _translate_course_dto)")
+    if course.description and course.description.strip() and (course_id, "description") not in course_ru:
+        problems.append(f"course {course_id} ({course.title!r}): missing RU description")
 
     lessons = (await db.execute(
         select(Lesson).where(Lesson.course_id == course_id)

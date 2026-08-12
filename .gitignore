@@ -42,3 +42,6 @@ instance/
 
 # Alembic migrations — managed on server, never committed
 backend/alembic/versions/
+# Browser profile captured during local testing — 241 MB of cookies,
+# sessions and cache. Never belongs in the repo.
+antigravity-browser-profile/

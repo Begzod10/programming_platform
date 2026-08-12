@@ -21,6 +21,7 @@ from app.db import base as _base  # noqa: E402,F401 ensure all models registered
 
 from course_builder.spec_loader import load_spec, require  # noqa: E402
 from course_builder.db_helpers import get_or_create_course  # noqa: E402
+from course_builder.translations import translate_course_from_spec  # noqa: E402
 
 
 async def main(spec_path: str, dry_run: bool) -> int:
@@ -29,14 +30,17 @@ async def main(spec_path: str, dry_run: bool) -> int:
 
     async with AsyncSessionLocal() as db:
         course, created = await get_or_create_course(db, course_spec)
+        ru_written = await translate_course_from_spec(db, course, course_spec)
         if dry_run:
             await db.rollback()
             print(f"DRY RUN — would {'create' if created else 'reuse'} course "
-                  f"{course_spec['title']!r} (id={course.id if not created else '?'})")
+                  f"{course_spec['title']!r} (id={course.id if not created else '?'}), "
+                  f"RU fields: {ru_written}")
         else:
             await db.commit()
             print(f"{'Created' if created else 'Reusing existing'} course: "
-                  f"id={course.id} title={course.title!r} published={course.is_published}")
+                  f"id={course.id} title={course.title!r} published={course.is_published} "
+                  f"(RU fields written: {ru_written})")
 
     await engine.dispose()
     return 0

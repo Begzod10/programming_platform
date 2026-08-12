@@ -25,7 +25,15 @@ A spec module (e.g. course_specs/my_course.py) must define:
     instructor_id, difficulty_level, duration_weeks, max_points. Optional:
     category_id, prerequisite_course_id, display_order, image_url,
     thumbnail_url, is_active (default True), is_published (default False —
-    leave False until a human reviews the course).
+    leave False until a human reviews the course), title_ru, description_ru.
+
+    title_ru/description_ru are NOT optional in practice — GET /courses
+    reads them at request time via _translate_course_dto() (courses.py),
+    exactly like it reads a lesson's RU translation. A round of course
+    builds shipped 6 courses missing these on the wrong assumption that no
+    serving code read a course-level translation; it does, so treat this
+    the same as any other required bilingual field. check_ru_coverage.py
+    now checks for it too.
 
   LESSONS: list[dict] — one dict per lesson, in course order. Each lesson
     dict:

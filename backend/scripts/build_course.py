@@ -36,7 +36,7 @@ from course_builder.db_helpers import (  # noqa: E402
     sync_lesson_sample, apply_submission_task,
 )
 from course_builder.translations import (  # noqa: E402
-    translate_lesson_from_spec, translate_exercises_from_spec,
+    translate_course_from_spec, translate_lesson_from_spec, translate_exercises_from_spec,
 )
 from check_exercise_integrity import check_course as check_exercises  # noqa: E402
 from check_ru_coverage import check_course as check_ru  # noqa: E402
@@ -50,7 +50,9 @@ async def main(spec_path: str, dry_run: bool) -> int:
 
     async with AsyncSessionLocal() as db:
         course, created = await get_or_create_course(db, course_spec)
-        print(f"{'Created' if created else 'Reusing'} course id={course.id} {course.title!r}")
+        course_ru_count = await translate_course_from_spec(db, course, course_spec)
+        print(f"{'Created' if created else 'Reusing'} course id={course.id} {course.title!r} "
+              f"(RU fields: {course_ru_count})")
 
         for lesson_spec in lessons_spec:
             lesson, l_created = await get_or_create_lesson(db, course.id, lesson_spec)
