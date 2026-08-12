@@ -18,7 +18,9 @@ class GennisService:
     @classmethod
     async def login(cls, username: str, password: str) -> Optional[Dict[str, Any]]:
         """Gennis tizimiga login qilish"""
-        url = f"{cls.BASE_URL}/base/login"
+        # v2's shim mirrors old gennis's /base/login, including the request
+        # field name, so the body below is unchanged from the old integration.
+        url = f"{cls.BASE_URL}/login"
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(url, json={"username": username, "password": password})
@@ -32,7 +34,10 @@ class GennisService:
     @classmethod
     async def fetch_group_students(cls, group_id: int, token: str) -> List[Dict[str, Any]]:
         """Guruhdagi barcha talabalarni Gennis API dan tortib olish"""
-        url = f"{cls.BASE_URL}/group/students/{group_id}"
+        # v2 keys this on the GENNIS group id — the same id the login response
+        # returns and the same one stored as Group.gennis_id — but orders the
+        # path differently from old gennis's /group/students/{id}.
+        url = f"{cls.BASE_URL}/group/{group_id}/students"
         headers = {"Authorization": f"Bearer {token}"}
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
