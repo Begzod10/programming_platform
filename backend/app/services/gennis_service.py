@@ -192,6 +192,53 @@ class GennisService:
         await db.flush()
         return group
 
+    @staticmethod
+    def _normalized_name(value: Optional[str]) -> str:
+        """Case- and spacing-insensitive name form, used to re-link students."""
+        return " ".join((value or "").split()).casefold()
+
+    @classmethod
+    async def _find_renumbered_student(
+        cls, db: AsyncSession, s_data: Dict[str, Any], group_id: int
+    ) -> Optional[Student]:
+        """Find a current group member who is this same person under an old GENNIS id.
+
+        GENNIS re-issued every student id during the v2 cutover, so the
+        `gennis_{id}` lookup misses for people who were already on the platform.
+        Minting a fresh row in that case strands the student's entire history —
+        points, projects, enrolments — on an abandoned account, so before
+        creating we look for them among the group's existing members by name.
+
+        Scoping the search to `group_id` is what makes this safe: a candidate
+        must already be in the very group GENNIS places this student in, so two
+        different people can't be collapsed into one.
+        """
+        full_name = cls._normalized_name(
+            f"{s_data.get('name', '')} {s_data.get('surname', '')}"
+        )
+        if not full_name:
+            return None
+
+        result = await db.execute(
+            select(Student)
+            .join(student_groups, student_groups.c.student_id == Student.id)
+            .where(
+                student_groups.c.group_id == group_id,
+                Student.role == UserRole.student,
+                Student.gennis_id.isnot(None),
+                Student.gennis_id != s_data.get("id"),
+            )
+        )
+        matches = [
+            s for s in result.scalars().all()
+            if cls._normalized_name(s.full_name) == full_name
+        ]
+        # Ambiguity means we can't tell which row is the right one — fall back
+        # to creating a new student rather than guessing and merging a stranger.
+        if len(matches) != 1:
+            return None
+        return matches[0]
+
     @classmethod
     async def _sync_student(cls, db: AsyncSession, s_data: Dict[str, Any], group_id: int) -> Student:
         """Talabani ism-familiyasi bilan birga sinxronlash (O'qituvchi logini uchun)"""
@@ -207,6 +254,20 @@ class GennisService:
 
         result = await db.execute(select(Student).where(Student.username == s_username))
         student = result.scalar_one_or_none()
+
+        if not student:
+            # No row under the current id — check whether GENNIS renumbered
+            # someone we already have before assuming this is a new person.
+            student = await cls._find_renumbered_student(db, s_data, group_id)
+            if student is not None:
+                logger.warning(
+                    "Talaba '%s' yangi GENNIS id oldi: %s → %s. "
+                    "Mavjud hisob qayta bog'landi (yangi hisob yaratilmadi).",
+                    student.username, student.gennis_id, s_id,
+                )
+                # `s_username` is free — the lookup above found nothing.
+                student.username = s_username
+                student.email = f"{s_username}@gennis.uz"
 
         if not student:
             student = Student(
