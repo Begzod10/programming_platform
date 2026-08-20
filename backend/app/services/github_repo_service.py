@@ -442,9 +442,15 @@ async def fetch_github_snapshot(github_url: str, *, capstone: bool = False) -> d
 
 # Refuse to read any single ZIP entry whose declared uncompressed size is
 # larger than this. Defense against zip bombs (e.g. 10 KB ZIP that expands
-# to 10 GB). 32 KB is 4x our per-file truncation cap, which is plenty of
-# headroom for any real source file we'd want to grade.
-MAX_ZIP_ENTRY_BYTES = 4 * MAX_FILE_BYTES
+# to 10 GB). 2 MB is memory-safe to decompress while still admitting any
+# real source file: entries under this are READ and then truncated to
+# MAX_FILE_BYTES for the AI (see the truncation below). The previous 32 KB
+# cap (4x MAX_FILE_BYTES) SILENTLY DROPPED legitimate single-file projects —
+# e.g. a 34 KB one-file "combine every Browser API" capstone was skipped
+# entirely, leaving the ZIP with zero readable files and failing review
+# with a misleading "no code" message even though zip_bytes_have_code_file()
+# had already confirmed a code file was present.
+MAX_ZIP_ENTRY_BYTES = 2_000_000
 
 
 def _is_zip_path_unsafe(name: str) -> bool:

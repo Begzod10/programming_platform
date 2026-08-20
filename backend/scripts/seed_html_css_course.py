@@ -604,7 +604,7 @@ LESSON_TASKS: dict[int, dict] = {
     },
     3: {
         "title": "Kartochkalar to'plami (class va id)",
-        "description": "Mahsulotlar yoki xizmatlar uchun 6 ta kartochka ro'yxati. Har kartochka umumiy .card class ishlatadi, lekin alohida #header sticky qismi unique id bilan stilladi. Class qayta ishlatish va id unique ekanligini ko'rsating.",
+        "description": "Mahsulotlar yoki xizmatlar uchun 6 ta kartochka ro'yxati. Har kartochka umumiy .card class ishlatadi, lekin alohida #header qismi unique id bilan stilladi. Class qayta ishlatish va id unique ekanligini ko'rsating.",
         "requirements": "• .card class kamida 6 ta elementga qo'llangan\n• #header unique id (sahifada faqat 1 marta)\n• .card-title, .card-body, .card-footer kabi sub-selectorlar\n• 3 ta turli ranglardagi card variants (.card.primary, .card.danger ...)\n• #cta unique id li 'asosiy harakat' tugmasi\n• README: nima uchun class va qachon id kerakligi izohlangan",
         "technologies": "HTML5, CSS3, class, id, selectors",
         "deadline_days": 3,
