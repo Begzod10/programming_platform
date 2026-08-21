@@ -165,20 +165,44 @@ class ProjectService:
         if project.student_id != student_id:
             raise HTTPException(status_code=403, detail="Ruxsat yo'q")
 
-        # Revoke any points this project credited to the wallet BEFORE deleting.
-        # An Approved project (score ≥ 75) already bumped total_points and
-        # lifetime_points via add_points_to_student. Deleting the row without
-        # backing those out let a student farm points: submit → Approved
-        # (+points) → delete (points stay, and the delete also removes the
-        # Submission that would otherwise block re-submit) → resubmit the same
-        # lesson → +points again. Rejected projects store points_earned for
-        # display but never credited the wallet, so only reverse for Approved
-        # — mirrors the resubmit path in create_project.
-        if (project.points_earned or 0) > 0 and project.status == "Approved":
+        # Deleting an Approved project must fully undo what passing it granted,
+        # or a student can farm: submit → Approved → delete → resubmit the same
+        # lesson → granted again (deleting removes the Submission that would
+        # otherwise block re-submit, and used to leave the points + unlock
+        # behind). Passing a project credits TWO things (see
+        # ai_review_service): the score `points_earned`, and — when the
+        # LessonCompletion is first created — the lesson's `points_reward`
+        # bonus. Reverse both, and remove the completion so the lesson re-locks.
+        # Rejected projects never credited the wallet or created a completion,
+        # so only act for Approved.
+        if project.status == "Approved":
             from app.services.ranking_service import RankingService
-            await RankingService(self.db).revoke_earned_points(
-                student_id, project.points_earned
+            from app.models.lesson import LessonCompletion, Lesson
+            ranking = RankingService(self.db)
+
+            if (project.points_earned or 0) > 0:
+                await ranking.revoke_earned_points(student_id, project.points_earned)
+
+            sub_res = await self.db.execute(
+                select(Submission).where(Submission.project_id == project_id)
             )
+            sub = sub_res.scalar_one_or_none()
+            if sub is not None and sub.lesson_id is not None:
+                comp_res = await self.db.execute(
+                    select(LessonCompletion).where(
+                        LessonCompletion.student_id == student_id,
+                        LessonCompletion.lesson_id == sub.lesson_id,
+                    )
+                )
+                completion = comp_res.scalar_one_or_none()
+                if completion is not None:
+                    lesson = (await self.db.execute(
+                        select(Lesson).where(Lesson.id == sub.lesson_id)
+                    )).scalar_one_or_none()
+                    reward = (getattr(lesson, "points_reward", 0) or 0) if lesson else 0
+                    if reward > 0:
+                        await ranking.revoke_earned_points(student_id, reward)
+                    await self.db.delete(completion)
 
         await self.db.delete(project)
         await self.db.commit()
