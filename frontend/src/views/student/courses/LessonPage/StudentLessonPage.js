@@ -42,7 +42,7 @@ mermaid.initialize({
 ═══════════════════════════════════════════════════════════ */
 const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onComplete}) => {
     const {request} = useHttp();
-    const {lang} = useTranslation();
+    const {t, lang} = useTranslation();
 
     // AI review feedback is authored in Uzbek; the backend translates it on
     // read when we say which language the student is reading in.
@@ -56,6 +56,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [projectForm, setProjectForm] = useState({github_url: '', live_demo_url: '', description: ''});
     const [projectSubmission, setProjectSubmission] = useState(null);
     const [projectStatusLoading, setProjectStatusLoading] = useState(false);
+    // Daily AI-review budget { used_today, limit, remaining, can_submit }.
+    // Drives the disabled state of the project-submit button so a student
+    // can't submit once the cap is hit (the auto-review would be skipped
+    // and the project left pending). null until the first fetch resolves.
+    const [aiQuota, setAiQuota] = useState(null);
     const [projectSaving, setProjectSaving] = useState(false);
     const [projectError, setProjectError] = useState('');
     const [downloadingFile, setDownloadingFile] = useState(null);
@@ -144,6 +149,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
 
     // Record when the project modal opens
     const handleProjectModalOpen = () => {
+        // Daily AI-review cap reached → don't even open the modal; the
+        // submit would be skipped and the project stranded in "pending".
+        if (quotaExhausted) return;
         if (!projectOpenedAtRef.current) {
             projectOpenedAtRef.current = Date.now();
         }
@@ -213,6 +221,27 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
         // langParam is a dependency so flipping UZ/RU refetches the verdict
         // in the newly selected language instead of leaving the old text.
     }, [projectSection, course?.id, lesson?.id, request, langParam]);
+
+    // Fetch the student's remaining AI-review budget for the day, but only
+    // on lessons that actually have a project to submit. Refetched via
+    // refreshAiQuota() after a submit so the button reflects the review
+    // just consumed.
+    const refreshAiQuota = useCallback(() => {
+        if (!projectSection) return;
+        request(`${API_URL}v1/ai/quota`, 'GET', null, headers())
+            .then(res => { if (res) setAiQuota(res); })
+            .catch(() => { /* leave button enabled if the check fails */ });
+    }, [projectSection, request]);
+
+    useEffect(() => {
+        if (!projectSection) { setAiQuota(null); return; }
+        refreshAiQuota();
+    }, [projectSection, lesson?.id, refreshAiQuota]);
+
+    const quotaExhausted = aiQuota != null && aiQuota.can_submit === false;
+    const quotaMessage = aiQuota
+        ? t('lcb.quotaExhausted').replace('{limit}', aiQuota.limit)
+        : '';
 
     // Hydrate exercise submissions on lesson load so a refresh restores the
     // student's previous answers + checkmarks. The student can still resubmit.
@@ -414,6 +443,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 );
                 if (fresh) setProjectSubmission(fresh);
             } catch { /* fall through */ }
+            // The submit (or ZIP upload) just consumed one AI review — refresh
+            // the budget so the button disables the moment the cap is reached.
+            refreshAiQuota();
             setProjectModal(false);
             // ── Code explanation step ────────────────────────────────────────
             if (created?.id) {
@@ -466,6 +498,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     };
 
     const isSubmitDisabled = () => {
+        if (quotaExhausted) return true;
         if (projectSaving) return true;
         if (uploadMethod === 'github') return !projectForm.github_url.trim();
         if (!zipFile) return true;
@@ -561,6 +594,8 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                     loading: projectStatusLoading,
                     submission: projectSubmission,
                     passThreshold,
+                    quotaExhausted,
+                    quotaMessage,
                 }}
                 onProjectOpen={handleProjectModalOpen}
             />
@@ -640,6 +675,8 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 projectSaving={projectSaving}
                 isSubmitDisabled={isSubmitDisabled}
                 onSubmit={handleProjectSubmit}
+                quotaExhausted={quotaExhausted}
+                quotaMessage={quotaMessage}
                 keystrokeCountRef={keystrokeCountRef}
                 pasteCountRef={pasteCountRef}
             />

@@ -57,6 +57,8 @@ export const LessonContentBlocks = ({
         loading: projectStatusLoading,
         submission: projectSubmission,
         passThreshold,
+        quotaExhausted,
+        quotaMessage,
     } = projectStatus;
 
     if (!lesson.sections || lesson.sections.length === 0) {
@@ -312,9 +314,14 @@ export const LessonContentBlocks = ({
                                             <div className="slp-project-deadline" style={{background: '#fef2f2', color: '#991b1b', borderLeft: '3px solid #dc2626', padding: '8px 12px'}}>
                                                 ⚠️ {t('lcb.failedThreshold').replace('{threshold}', passThreshold)}
                                             </div>
-                                            <button className="slp-project-btn" onClick={onProjectOpen} style={{marginTop: 8}}>
+                                            <button className="slp-project-btn" onClick={onProjectOpen} style={{marginTop: 8}} disabled={quotaExhausted}>
                                                 {t('lcb.reuploadBtn')}
                                             </button>
+                                            {quotaExhausted && (
+                                                <div className="slp-project-deadline" style={{marginTop: 8, background: '#fffbeb', color: '#92400e', borderLeft: '3px solid #f59e0b', padding: '8px 12px'}}>
+                                                    ⏳ {quotaMessage}
+                                                </div>
+                                            )}
                                         </>
                                     ) : projectPending ? (
                                         <div className="slp-project-submitted">
@@ -329,9 +336,16 @@ export const LessonContentBlocks = ({
                                                 : <span>{t('lcb.projectSubmitted')}</span>}
                                         </div>
                                     ) : (
-                                        <button className="slp-project-btn" onClick={onProjectOpen}>
-                                            <Upload size={14} aria-hidden="true" /> {t('lcb.uploadProjectBtn')}
-                                        </button>
+                                        <>
+                                            <button className="slp-project-btn" onClick={onProjectOpen} disabled={quotaExhausted}>
+                                                <Upload size={14} aria-hidden="true" /> {t('lcb.uploadProjectBtn')}
+                                            </button>
+                                            {quotaExhausted && (
+                                                <div className="slp-project-deadline" style={{marginTop: 8, background: '#fffbeb', color: '#92400e', borderLeft: '3px solid #f59e0b', padding: '8px 12px'}}>
+                                                    ⏳ {quotaMessage}
+                                                </div>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             )}

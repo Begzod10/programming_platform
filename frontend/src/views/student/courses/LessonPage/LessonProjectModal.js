@@ -145,6 +145,8 @@ export const LessonProjectModal = ({
     projectSaving,
     isSubmitDisabled,
     onSubmit,
+    quotaExhausted,
+    quotaMessage,
     keystrokeCountRef,
     pasteCountRef,
 }) => {
@@ -239,6 +241,9 @@ export const LessonProjectModal = ({
                         <div className={`slp-zip-msg ${zipMsg.startsWith('✅') ? 'success' : 'warn'}`}>
                             {zipMsg}
                         </div>
+                    )}
+                    {quotaExhausted && (
+                        <div className="slp-project-error" style={{background: '#fffbeb', color: '#92400e', border: '1px solid #f59e0b'}}>⏳ {quotaMessage}</div>
                     )}
                     {projectError && (
                         <div className="slp-project-error">⚠️ {projectError}</div>
