@@ -14,11 +14,17 @@ router = APIRouter()
 # Window applies to projects.reviewed_at (falling back to submitted_at) so
 # the rankings reflect the work that landed inside the window — not just
 # total lifetime project points.
+#
+# Calendar-aligned, NOT rolling: "day" = since local midnight, "week" =
+# since Monday, "month" = since the 1st. date_trunc runs in the server's
+# session timezone (Asia/Tashkent). Earlier these were rolling NOW()-Nd
+# intervals, which made the "Сегодня" tab count the trailing 24h — a
+# student could show 31 "today" (19 from yesterday evening + 12 today).
 _PROJECT_WINDOW_SQL = {
     "all":   "",
-    "day":   "AND COALESCE(p.reviewed_at, p.submitted_at) >= NOW() - INTERVAL '1 day'",
-    "week":  "AND COALESCE(p.reviewed_at, p.submitted_at) >= NOW() - INTERVAL '7 days'",
-    "month": "AND COALESCE(p.reviewed_at, p.submitted_at) >= NOW() - INTERVAL '30 days'",
+    "day":   "AND COALESCE(p.reviewed_at, p.submitted_at) >= date_trunc('day', NOW())",
+    "week":  "AND COALESCE(p.reviewed_at, p.submitted_at) >= date_trunc('week', NOW())",
+    "month": "AND COALESCE(p.reviewed_at, p.submitted_at) >= date_trunc('month', NOW())",
 }
 
 
