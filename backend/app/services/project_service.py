@@ -164,6 +164,22 @@ class ProjectService:
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")
         if project.student_id != student_id:
             raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+
+        # Revoke any points this project credited to the wallet BEFORE deleting.
+        # An Approved project (score ≥ 75) already bumped total_points and
+        # lifetime_points via add_points_to_student. Deleting the row without
+        # backing those out let a student farm points: submit → Approved
+        # (+points) → delete (points stay, and the delete also removes the
+        # Submission that would otherwise block re-submit) → resubmit the same
+        # lesson → +points again. Rejected projects store points_earned for
+        # display but never credited the wallet, so only reverse for Approved
+        # — mirrors the resubmit path in create_project.
+        if (project.points_earned or 0) > 0 and project.status == "Approved":
+            from app.services.ranking_service import RankingService
+            await RankingService(self.db).revoke_earned_points(
+                student_id, project.points_earned
+            )
+
         await self.db.delete(project)
         await self.db.commit()
 
