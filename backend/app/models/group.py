@@ -22,6 +22,9 @@ class Group(Base):
     description: Mapped[Optional[str]] = mapped_column(String(500))
     price: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     gennis_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, unique=True)
+    # Kept separate from gennis_id for the same reason as Student.turon_id —
+    # gennis and turon group ids are independent, overlapping numeric spaces.
+    turon_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, unique=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

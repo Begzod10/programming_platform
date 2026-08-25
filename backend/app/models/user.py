@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from app.models.student_degree import StudentDegree
     from app.models.ranking import Ranking
     from app.models.group import Group
+    from app.models.flow import Flow
     from app.models.certificate import CourseCertificate
 
 
@@ -100,6 +101,11 @@ class Student(Base):
     surname: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     gennis_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     gennis_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    # Turon and gennis mint ids independently, so the same integer can refer to
+    # two different real people — this MUST stay a separate column from
+    # gennis_id, never a shared "external_id". See auth_service.login's
+    # `source` branch.
+    turon_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
@@ -122,6 +128,14 @@ class Student(Base):
     groups: Mapped[List["Group"]] = relationship(
         "Group",
         secondary="student_groups",
+        back_populates="students",
+        lazy="selectin"
+    )
+
+    # Turon-only — see app/models/flow.py. Gennis has no equivalent concept.
+    flows: Mapped[List["Flow"]] = relationship(
+        "Flow",
+        secondary="student_flows",
         back_populates="students",
         lazy="selectin"
     )

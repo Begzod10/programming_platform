@@ -88,19 +88,23 @@ async def login(db: AsyncSession, username: str, password: str):
     """Login - Gennis birinchi, keyin lokal"""
     username = username.strip()
 
-    # 1. Gennis bilan login qilib ko'ramiz
+    # 1. Gennis/turon bilan login qilib ko'ramiz (v2's shim resolves which one —
+    # see its "source" field, since gennis and turon ids are independent,
+    # overlapping numeric spaces and must never share a column/prefix).
     # NOTE: usernamelarni log qilish o'chirildi — login formaga parolni
     # username maydoniga noto'g'ri yozish hodisalari log fayllarga
     # plaintext maxfiy ma'lumotni tushiradi.
     gennis_data = await GennisService.login(username, password)
 
     if gennis_data:
-        # Gennis login muvaffaqiyatli
+        # Login muvaffaqiyatli
+        source = gennis_data.get("source") or "gennis"  # older shim responses had no field — gennis
+        id_col = f"{source}_id"
         user_data = gennis_data.get("user", {})
-        gennis_id = user_data.get("id") or user_data.get("user_id")
+        ext_id = user_data.get("id") or user_data.get("user_id")
 
-        if gennis_id:
-            # role_str ni to'g'ri aniqlash (Gennis API ba'zan dict qaytaradi)
+        if ext_id:
+            # role_str ni to'g'ri aniqlash (API ba'zan dict qaytaradi)
             raw_role = user_data.get("role")
             if isinstance(raw_role, dict):
                 role_str = raw_role.get("name")
@@ -108,33 +112,33 @@ async def login(db: AsyncSession, username: str, password: str):
                 role_str = raw_role
             else:
                 role_str = gennis_data.get("type_user")
-            
+
             # Biznying bazadan foydalanuvchini topamiz (username yoki email orqali)
             stmt = select(Student).where(
-                (Student.username == username) | 
+                (Student.username == username) |
                 (Student.email == username) |
-                (Student.username == f"gennis_{gennis_id}")
+                (Student.username == f"{source}_{ext_id}")
             )
             result = await db.execute(stmt)
             user = result.scalars().first()
-            
+
             if not user:
                 import os as _os
                 from app.core.security import get_password_hash as _ghp
                 role = UserRole.teacher if role_str == 'teacher' else UserRole.student
                 user = Student(
-                    username=username if role == UserRole.teacher else f"gennis_{gennis_id}",
-                    email=user_data.get("email") or f"{username}@gennis.uz",
+                    username=username if role == UserRole.teacher else f"{source}_{ext_id}",
+                    email=user_data.get("email") or f"{username}@{source}.uz",
                     full_name=f"{user_data.get('name', '')} {user_data.get('surname', '')}".strip(),
                     hashed_password=_ghp(_os.urandom(32).hex()),
                     role=role,
                     is_active=True,
-                    gennis_id=gennis_id,
+                    **{id_col: ext_id},
                 )
                 db.add(user)
                 await db.commit()
                 await db.refresh(user)
-                
+
                 if user.role == UserRole.student:
                     await create_ranking(db, user.id)
             else:
@@ -143,8 +147,8 @@ async def login(db: AsyncSession, username: str, password: str):
                 if user.role != correct_role:
                     user.role = correct_role
                     changed = True
-                if user.gennis_id != gennis_id:
-                    user.gennis_id = gennis_id
+                if getattr(user, id_col) != ext_id:
+                    setattr(user, id_col, ext_id)
                     changed = True
 
                 if correct_role == UserRole.teacher and user.username != username:
@@ -163,10 +167,10 @@ async def login(db: AsyncSession, username: str, password: str):
                     await db.refresh(user)
 
             if user.role == UserRole.teacher:
-                await GennisService.sync_teacher_data(db, user, gennis_data)
+                await GennisService.sync_teacher_data(db, user, gennis_data, system=source)
             elif user.role == UserRole.student:
-                await GennisService.sync_student_data(db, user, gennis_data)
-                
+                await GennisService.sync_student_data(db, user, gennis_data, system=source)
+
             return {
                 "access_token": create_access_token(subject=user.id),
                 "token_type": "bearer",

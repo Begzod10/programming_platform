@@ -9,6 +9,7 @@ from app.models.course import Course
 from app.models.degree import Degree
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.group import Group
+from app.models.flow import Flow
 from app.models.exercise import Exercise
 from app.models.video_watch import VideoWatch
 from app.models.lesson_feedback import LessonFeedback
