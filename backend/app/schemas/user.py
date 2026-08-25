@@ -64,7 +64,17 @@ class UserUpdate(BaseModel):
 class UserRead(BaseModel):
     id: int
     username: str
-    email: EmailStr
+    # Deliberately `str`, not `EmailStr`: this is an OUTPUT schema reading
+    # back whatever is already in the DB. gennis/turon-synced accounts get a
+    # synthetic email (f"{username}@{source}.uz" or whatever the source
+    # system's own record holds) that a real person never typed and never
+    # confirmed — EmailStr's stricter checks (e.g. rejecting reserved-use
+    # domains) can reject values that are already stored, which crashed
+    # /auth/login with a 500 for an otherwise-successful login. Format
+    # validation belongs on the way in (UserCreate.email), where it protects
+    # a real user's own registration — not on the way out, where the account
+    # already exists and a synthetic email is a normal, expected shape.
+    email: str
 
     @field_validator("email", mode="before")
     @classmethod
