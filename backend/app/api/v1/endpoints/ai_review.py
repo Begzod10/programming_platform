@@ -2,12 +2,41 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.dependencies import get_current_student, get_db
 from app.models.project import Project
 from app.models.user import Student
-from app.services.ai_review_service import run_ai_review_for_project
+from app.services.ai_review_service import (
+    count_reviews_today,
+    run_ai_review_for_project,
+)
 
 router = APIRouter()
+
+
+@router.get("/quota")
+async def ai_quota(
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db),
+):
+    """Today's AI-review budget for the current student.
+
+    The lesson page reads this to disable the project-submit button once
+    the daily cap is reached, so a student never submits into a dead-end
+    (the auto-review would otherwise be skipped and the project left
+    pending — see run_ai_review_for_project). Uses the same
+    count_reviews_today the review pipeline enforces, so the button and
+    the server agree on when submission is allowed.
+    """
+    used = await count_reviews_today(db, current_student.id)
+    limit = settings.MAX_AI_REVIEWS_PER_DAY
+    remaining = max(0, limit - used)
+    return {
+        "used_today": used,
+        "limit": limit,
+        "remaining": remaining,
+        "can_submit": remaining > 0,
+    }
 
 
 @router.post("/{project_id}/ai-review")
