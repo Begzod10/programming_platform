@@ -769,6 +769,20 @@ a future bug that "sets the password to the existing hash" — **verify at the p
 use whether that fix actually replaced this literal or lives alongside it**; the two
 files were not cross-checked against each other while writing this doc.
 
+### 10.6 Repointed to management-v2, `GENNIS_API_URL` renamed (2026-08-26)
+management-v2 grew its own copy of gennis-v2's `/integrations/student-platform`
+shim (`POST /login`, `GET /group/{id}/students`, `GET /flow/{id}/students`) — same
+contract, but reads the shared `user`/`gennis_*`/`turon_*_v2` tables directly
+instead of gennis-v2's read-only mirror. The setting was renamed
+`GENNIS_API_URL` → `MGMT_INTEGRATION_URL` and repointed at
+`https://office.gennis.uz/...` to reflect that this now goes straight to the
+DB owner, not gennis-v2. There is **no fallback to gennis-v2's copy** — if
+management-v2 is unreachable, `GennisService.login()` returns `None` and
+`auth_service.login()` falls through to local auth exactly as it always has
+on any other failure; it does not retry a second URL. Live-verified against
+one real account per (system, role) combination at cutover time: gennis
+student, gennis teacher, turon student, turon teacher.
+
 ---
 
 ## 11. Testing
@@ -811,7 +825,7 @@ only below — **never put actual values from `.env` into this file or any commi
 | `REFRESH_TOKEN_EXPIRE_DAYS` | default 7 |
 | `UPLOAD_DIR`, `MAX_FILE_SIZE`, `ALLOWED_EXTENSIONS` | file upload limits |
 | `BACKEND_CORS_ORIGINS` | comma-separated (also tolerates legacy JSON-list `.env` syntax) — **wildcard forbidden**, see §10 |
-| `GENNIS_API_URL` | points at gennis-v2's compatibility shim, not old admin.gennis.uz (§10.4) |
+| `MGMT_INTEGRATION_URL` | points at management-v2's compatibility shim, not old admin.gennis.uz or gennis-v2's own copy (§10.4, §10.6) |
 | `AI_PROVIDER_CHAIN` | comma-separated `groq,gemini,openai` — **currently forced to `openai` only** in practice (§7.1); re-adding a fallback without a configured key reintroduces a past outage |
 | `OPENAI_BASE_URL`, `OPENAI_API_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` | `OPENAI_BASE_URL` optionally points at a relay/proxy to bypass geo-blocks |
 | `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_API_URL` | configured in code but currently unused (no key set) |

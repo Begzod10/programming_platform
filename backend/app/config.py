@@ -28,12 +28,14 @@ class Settings(BaseSettings):
     BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     APP_VERSION: str = "1.0.0"
     # The old system (admin.gennis.uz) was switched off at the cutover, so its
-    # /base/login no longer answers. Both gennis-v2 and management-v2 expose a
-    # compatibility endpoint that returns the same shape the sync code below
-    # expects, which is why GennisService keeps its original parsing. Pointed
-    # at management-v2 (the DB owner) rather than gennis-v2 (which reads the
-    # same data through a read-only mirror) — one less hop, same contract.
-    GENNIS_API_URL: str = "https://office.gennis.uz/api/v1/integrations/student-platform"
+    # /base/login no longer answers. management-v2 exposes a compatibility
+    # endpoint (POST /login, GET /group/{id}/students, GET /flow/{id}/students)
+    # returning the same shape the sync code below expects, which is why
+    # GennisService keeps its original parsing. Points at management-v2 (the
+    # DB owner) directly — no fallback to gennis-v2's own copy of this shim;
+    # if this URL is ever unreachable, login falls through to local auth the
+    # same way it always has, it does NOT retry against gennis-v2.
+    MGMT_INTEGRATION_URL: str = "https://office.gennis.uz/api/v1/integrations/student-platform"
     # ─── AI providers ────────────────────────────────────────────────────
     # AI calls iterate through this chain in order, using the first provider
     # whose API key is set and whose call succeeds. OpenAI-only per explicit

@@ -15,7 +15,7 @@ from app.models.student_achievement import StudentAchievement
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-GENNIS_BOT_BASE = f"{settings.GENNIS_API_URL}/bot"
+GENNIS_BOT_BASE = f"{settings.MGMT_INTEGRATION_URL}/bot"
 
 
 async def _get_children_from_gennis(parent_gennis_id: int, client: httpx.AsyncClient) -> list[dict]:

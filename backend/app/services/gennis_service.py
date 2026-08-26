@@ -14,19 +14,23 @@ from app.models.flow import Flow, student_flows
 logger = logging.getLogger(__name__)
 
 class GennisService:
-    """Talks to gennis-v2's student_platform integration shim.
+    """Talks to management-v2's student_platform integration endpoint.
 
-    Despite the name, this now serves BOTH gennis and turon accounts — v2
-    authenticates against one shared management account and, after that,
-    resolves either a gennis or a turon teacher/student record, tagging its
-    response with `"source"` so callers know which. Every sync method below
-    takes a `system` ("gennis" | "turon") that says which id column
+    Despite the name, this now serves BOTH gennis and turon accounts —
+    management-v2 authenticates against one shared user account and, after
+    that, resolves either a gennis or a turon teacher/student record, tagging
+    its response with `"source"` so callers know which. Every sync method
+    below takes a `system` ("gennis" | "turon") that says which id column
     (Student.gennis_id / Student.turon_id, Group.gennis_id / Group.turon_id)
     and which username/email prefix ("gennis_" / "turon_") to use — gennis and
     turon ids are independent, overlapping numeric spaces, so the two must
     never be written to the same column. See auth_service.login.
+
+    No fallback to gennis-v2's own copy of this shim: if MGMT_INTEGRATION_URL
+    is unreachable, `login()` returns None and the caller falls through to
+    local auth, same as any other failure — it never retries a second URL.
     """
-    BASE_URL = settings.GENNIS_API_URL
+    BASE_URL = settings.MGMT_INTEGRATION_URL
 
     @classmethod
     async def login(cls, username: str, password: str) -> Optional[Dict[str, Any]]:
