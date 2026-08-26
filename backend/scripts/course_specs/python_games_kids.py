@@ -786,36 +786,57 @@ LESSONS = [
             "<p>Yakuniy o'yin — <b>Tosh-qaychi-qog'oz</b>! Kompyuter tasodifiy "
             "tanlaydi, o'yinchi ham tanlaydi, keyin dastur kim yutganini "
             "aytadi.</p>"
-            "<pre><code>import random\n"
-            "variantlar = [\"tosh\", \"qaychi\", \"qog'oz\"]\n"
-            "kompyuter = random.choice(variantlar)\n"
-            "sen = input(\"tosh, qaychi yoki qog'oz? \")\n"
-            "print(\"Kompyuter:\", kompyuter)\n"
-            "if sen == kompyuter:\n"
+            "<h2>Kim kimni yutadi?</h2>"
+            "<p>Uchta qoida bor:</p>"
+            "<ul>"
+            "<li><b>Tosh</b> qaychini yutadi (qaychini sindiradi)</li>"
+            "<li><b>Qaychi</b> qog'ozni yutadi (qog'ozni kesadi)</li>"
+            "<li><b>Qog'oz</b> toshni yutadi (toshni o'raydi)</li>"
+            "</ul>"
+            "<p>Har bir qoidani alohida <code>elif</code> bilan tekshiramiz:</p>"
+            "<pre><code>if sen == kompyuter:\n"
             "    print(\"Durrang!\")\n"
+            "elif sen == \"tosh\" and kompyuter == \"qaychi\":\n"
+            "    print(\"Sen yutding!\")\n"
+            "elif sen == \"qaychi\" and kompyuter == \"qog'oz\":\n"
+            "    print(\"Sen yutding!\")\n"
+            "elif sen == \"qog'oz\" and kompyuter == \"tosh\":\n"
+            "    print(\"Sen yutding!\")\n"
             "else:\n"
-            "    print(\"O'yin tugadi!\")</code></pre>"
-            "<p><code>random.choice(variantlar)</code> ro'yxatdan tasodifiy "
-            "bittasini tanlaydi. <code>==</code> bilan ikkalasi bir xilmi, deb "
-            "tekshiramiz.</p>"
+            "    print(\"Kompyuter yutdi!\")</code></pre>"
+            "<p><code>and</code> — \"va\" degani: ikkala shart ham rost "
+            "bo'lsagina, elif ishga tushadi. Yuqoridagi uchta elif — o'yinchi "
+            "yutadigan uchta holat. Boshqa hamma holatda (durrang bo'lmasa-yu, "
+            "o'yinchi yutgan holatlardan birortasiga to'g'ri kelmasa) — "
+            "<code>else</code> ishlaydi, ya'ni kompyuter yutgan bo'ladi.</p>"
         ),
         "text_content_ru": (
             "<h2>Играем против компьютера</h2>"
-            "<p>Итоговая игра — <b>Камень-ножницы-бумага</b>! Компьютер выбирает "
-            "случайно, игрок тоже выбирает, потом программа говорит, кто "
-            "выиграл.</p>"
-            "<pre><code>import random\n"
-            "variantlar = [\"tosh\", \"qaychi\", \"qog'oz\"]\n"
-            "kompyuter = random.choice(variantlar)\n"
-            "sen = input(\"tosh, qaychi yoki qog'oz? \")\n"
-            "print(\"Kompyuter:\", kompyuter)\n"
-            "if sen == kompyuter:\n"
+            "<p>Итоговая игра — <b>Камень-ножницы-бумага</b>! Компьютер "
+            "выбирает случайно, игрок тоже выбирает, потом программа говорит, "
+            "кто выиграл.</p>"
+            "<h2>Кто кого побеждает?</h2>"
+            "<p>Есть три правила:</p>"
+            "<ul>"
+            "<li><b>Камень</b> побеждает ножницы (ломает их)</li>"
+            "<li><b>Ножницы</b> побеждают бумагу (режут её)</li>"
+            "<li><b>Бумага</b> побеждает камень (заворачивает его)</li>"
+            "</ul>"
+            "<p>Каждое правило проверяем отдельным <code>elif</code>:</p>"
+            "<pre><code>if sen == kompyuter:\n"
             "    print(\"Durrang!\")\n"
+            "elif sen == \"tosh\" and kompyuter == \"qaychi\":\n"
+            "    print(\"Sen yutding!\")\n"
+            "elif sen == \"qaychi\" and kompyuter == \"qog'oz\":\n"
+            "    print(\"Sen yutding!\")\n"
+            "elif sen == \"qog'oz\" and kompyuter == \"tosh\":\n"
+            "    print(\"Sen yutding!\")\n"
             "else:\n"
-            "    print(\"O'yin tugadi!\")</code></pre>"
-            "<p><code>random.choice(variantlar)</code> выбирает случайный "
-            "элемент из списка. Через <code>==</code> проверяем, одинаковы ли "
-            "оба.</p>"
+            "    print(\"Kompyuter yutdi!\")</code></pre>"
+            "<p><code>and</code> — значит «и»: elif срабатывает только если "
+            "оба условия верны. Три elif выше — три случая, когда выигрывает "
+            "игрок. Во всех остальных случаях (не ничья и не победа игрока) "
+            "срабатывает <code>else</code> — значит, выиграл компьютер.</p>"
         ),
         "code_content": None,
         "code_language": None,
@@ -834,10 +855,17 @@ LESSONS = [
                         "kompyuter = random.choice(variantlar)\n"
                         "sen = input(\"tosh, qaychi yoki qog'oz? \")\n"
                         "print(\"Kompyuter tanladi:\", kompyuter)\n"
+                        "\n"
                         "if sen == kompyuter:\n"
                         "    print(\"Durrang!\")\n"
+                        "elif sen == \"tosh\" and kompyuter == \"qaychi\":\n"
+                        "    print(\"Sen yutding! Tosh qaychini sindiradi.\")\n"
+                        "elif sen == \"qaychi\" and kompyuter == \"qog'oz\":\n"
+                        "    print(\"Sen yutding! Qaychi qog'ozni kesadi.\")\n"
+                        "elif sen == \"qog'oz\" and kompyuter == \"tosh\":\n"
+                        "    print(\"Sen yutding! Qog'oz toshni o'raydi.\")\n"
                         "else:\n"
-                        "    print(\"O'yin qiziq bo'ldi!\")\n"
+                        "    print(\"Kompyuter yutdi!\")\n"
                     ),
                 }
             ],
@@ -912,33 +940,54 @@ LESSONS = [
                 "difficulty_level": "Medium",
                 "points": 5,
             },
+            {
+                "title": "Kim kimni yutadi?",
+                "title_ru": "Кто кого побеждает?",
+                "description": "Tosh kimni yutadi?",
+                "description_ru": "Кого побеждает камень?",
+                "exercise_type": "multiple_choice",
+                "options": ["Qaychini", "Qog'ozni", "O'zini", "Hech kimni"],
+                "options_ru": ["Ножницы", "Бумагу", "Себя", "Никого"],
+                "correct_answers": "A",
+                "is_multiple_select": False,
+                "hint": "Tosh qattiq, u qaychini sindiradi.",
+                "hint_ru": "Камень твёрдый, он ломает ножницы.",
+                "explanation": "Tosh qaychini yutadi, qaychi qog'ozni yutadi, qog'oz toshni yutadi.",
+                "difficulty_level": "Easy",
+                "points": 5,
+            },
         ],
         "task": {
             "task_title": "Yakuniy loyiha: Tosh-qaychi-qog'oz o'yini",
             "task_title_ru": "Итоговый проект: игра Камень-ножницы-бумага",
             "task_description": (
                 "Kursda o'rgangan hamma narsani birlashtiring: kompyuter "
-                "tasodifiy tanlaydigan, o'yinchi bilan solishtirib kim yutganini "
-                "aytadigan Tosh-qaychi-qog'oz o'yinini yozing. tqq.py ni ZIP "
+                "tasodifiy tanlaydigan, o'yinchi bilan solishtirib UCHALA "
+                "holatni ham (durrang, o'yinchi yutdi, kompyuter yutdi) to'g'ri "
+                "aniqlaydigan Tosh-qaychi-qog'oz o'yinini yozing. tqq.py ni ZIP "
                 "qilib topshiring — bu sizning eng katta o'yiningiz!"
             ),
             "task_description_ru": (
                 "Объедини всё выученное: напиши игру Камень-ножницы-бумага, где "
-                "компьютер выбирает случайно, а программа сравнивает с игроком и "
-                "говорит, кто выиграл. Отправь tqq.py в ZIP — это твоя самая "
-                "большая игра!"
+                "компьютер выбирает случайно, а программа правильно определяет "
+                "ВСЕ ТРИ исхода (ничья, победил игрок, победил компьютер). "
+                "Отправь tqq.py в ZIP — это твоя самая большая игра!"
             ),
             "task_requirements": (
                 "• import random va variantlar ro'yxati bo'lsin\n"
                 "• random.choice bilan kompyuter tanlasin\n"
                 "• input bilan o'yinchi tanlasin\n"
-                "• if/else bilan durrang yoki natija aytilsin"
+                "• Barcha uchta g'alaba holati (tosh-qaychi, qaychi-qog'oz, "
+                "qog'oz-tosh) elif bilan tekshirilsin\n"
+                "• Durrang va kompyuter g'alabasi ham to'g'ri aniqlansin"
             ),
             "task_requirements_ru": (
                 "• Есть import random и список вариантов\n"
                 "• Компьютер выбирает через random.choice\n"
                 "• Игрок выбирает через input\n"
-                "• if/else сообщает ничью или результат"
+                "• Все три исхода победы игрока (камень-ножницы, "
+                "ножницы-бумага, бумага-камень) проверяются через elif\n"
+                "• Ничья и победа компьютера тоже определяются верно"
             ),
             "task_technologies": "Python",
             "task_deadline_days": 5,
