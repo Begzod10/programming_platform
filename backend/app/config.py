@@ -27,11 +27,13 @@ class Settings(BaseSettings):
     # and the CORS spec forbids it.
     BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     APP_VERSION: str = "1.0.0"
-    # Gennis v2. The old system (admin.gennis.uz) was switched off at the
-    # cutover, so its /base/login no longer answers. v2 exposes a compatibility
-    # endpoint that returns the same shape the sync code below expects, which is
-    # why GennisService keeps its original parsing.
-    GENNIS_API_URL: str = "https://v2.gennis.uz/api/v1/integrations/student-platform"
+    # The old system (admin.gennis.uz) was switched off at the cutover, so its
+    # /base/login no longer answers. Both gennis-v2 and management-v2 expose a
+    # compatibility endpoint that returns the same shape the sync code below
+    # expects, which is why GennisService keeps its original parsing. Pointed
+    # at management-v2 (the DB owner) rather than gennis-v2 (which reads the
+    # same data through a read-only mirror) — one less hop, same contract.
+    GENNIS_API_URL: str = "https://office.gennis.uz/api/v1/integrations/student-platform"
     # ─── AI providers ────────────────────────────────────────────────────
     # AI calls iterate through this chain in order, using the first provider
     # whose API key is set and whose call succeeds. OpenAI-only per explicit
