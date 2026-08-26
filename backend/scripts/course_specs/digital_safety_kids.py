@@ -20,7 +20,7 @@ kids course, but shows a worked example dialogue/scenario as sample_type
 sample_type "code" for non-executable illustrative content) rather than
 runnable code.
 
-Reviewed by a human before seeding; is_published stays False.
+Published 2026-08-26 (user directive, after the review window).
 """
 
 COURSE = {
@@ -48,7 +48,7 @@ COURSE = {
     "prerequisite_course_id": None,
     "display_order": 0,
     "is_active": True,
-    "is_published": False,
+    "is_published": True,
 }
 
 LESSONS = [

@@ -19,7 +19,7 @@ Block names use the site's `scratch-block` color-coded span convention
 (see StudentLessonPage.css) rather than plain `<code>` — matches the fix
 already applied to courses 144 and 149.
 
-Reviewed by a human before seeding; is_published stays False.
+Published 2026-08-26 (user directive, after the review window).
 """
 
 COURSE = {
@@ -47,7 +47,7 @@ COURSE = {
     "prerequisite_course_id": 149,
     "display_order": 0,
     "is_active": True,
-    "is_published": False,
+    "is_published": True,
 }
 
 LESSONS = [

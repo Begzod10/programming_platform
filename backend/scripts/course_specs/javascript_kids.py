@@ -16,7 +16,7 @@ would prematurely close the JS string and break real code a child copies.
 Apostrophes are fine anywhere in plain HTML text (headings, prose, button
 labels) since those aren't JS string literals.
 
-Reviewed by a human before seeding; is_published stays False.
+Published 2026-08-26 (user directive, after the review window).
 """
 
 COURSE = {
@@ -42,7 +42,7 @@ COURSE = {
     "prerequisite_course_id": 150,
     "display_order": 0,
     "is_active": True,
-    "is_published": False,
+    "is_published": True,
 }
 
 LESSONS = [

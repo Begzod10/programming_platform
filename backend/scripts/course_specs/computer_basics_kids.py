@@ -15,7 +15,7 @@ response") instead of a programming language. Every `sample` shows a worked
 example/analogy as sample_type "code" with language "text" (matching the
 Scratch courses' convention for non-executable illustrative content).
 
-Reviewed by a human before seeding; is_published stays False.
+Published 2026-08-26 (user directive, after the review window).
 """
 
 COURSE = {
@@ -41,7 +41,7 @@ COURSE = {
     "prerequisite_course_id": None,
     "display_order": 0,
     "is_active": True,
-    "is_published": False,
+    "is_published": True,
 }
 
 LESSONS = [
