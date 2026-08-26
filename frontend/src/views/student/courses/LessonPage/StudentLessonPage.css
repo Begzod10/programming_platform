@@ -303,6 +303,68 @@
     font-weight: 500;
 }
 
+/* Scratch block badges — real Scratch blocks are color-coded by category
+   (Harakat=blue, Ko'rinish=purple, Ovoz=pink, Hodisa=gold, Boshqarish=orange,
+   Sezish=cyan, Amallar=green, O'zgaruvchi=orange-red). Lesson text used to
+   show every block name as an identical purple `code` pill, so kids had no
+   visual way to tell which palette group a block came from — this makes the
+   block name itself carry the same color it has inside real Scratch. */
+.slp-text-content .scratch-block {
+    display: inline-block;
+    padding: 3px 10px;
+    margin: 0 1px;
+    border-radius: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.875em;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.55);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 1px 2px rgba(0,0,0,0.12);
+    white-space: nowrap;
+    line-height: 1.6;
+}
+.slp-text-content .scratch-block--motion    { background: #4C97FF; }
+.slp-text-content .scratch-block--looks     { background: #9966FF; }
+.slp-text-content .scratch-block--sound     { background: #CF63CF; }
+.slp-text-content .scratch-block--events    { background: #D9A600; }
+.slp-text-content .scratch-block--control   { background: #E8820A; }
+.slp-text-content .scratch-block--sensing   { background: #47A8D8; }
+.slp-text-content .scratch-block--operators { background: #59C059; }
+.slp-text-content .scratch-block--variables { background: #E85D0A; }
+
+/* One-time color key, shown at the top of each course's first lesson so
+   kids learn the color-to-category mapping before it's used elsewhere. */
+.slp-text-content .scratch-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    margin: 4px 0 18px;
+    padding: 12px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--ink-12);
+    border-radius: var(--r-md);
+}
+.slp-text-content .scratch-legend .scratch-block { font-size: 0.82em; }
+
+/* Stacked "script" — a readable stand-in for a real Scratch script (blocks
+   snapped together vertically). Blocks nested inside a loop/if body (e.g.
+   under `doim takrorla`) get indented under their parent block, mirroring
+   how those blocks visually wrap their contents in the real Scratch editor. */
+.slp-text-content .scratch-script {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    margin: 14px 0;
+    padding: 14px 16px;
+    background: #f7f8fc;
+    border: 1px solid var(--ink-12);
+    border-radius: var(--r-md);
+}
+.slp-text-content .scratch-script .scratch-block { white-space: normal; text-align: left; }
+.slp-text-content .scratch-script .scratch-block--nested { margin-left: 22px; }
+.slp-text-content .scratch-script .scratch-block--nested2 { margin-left: 44px; }
+
 /* Block code (pre > code) — dark theme matching the code section style */
 .slp-text-content pre {
     background: #0d0e1a;
