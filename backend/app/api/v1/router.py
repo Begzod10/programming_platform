@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (
     quizzes,
     lessons,
     groups,
+    flows,
     exercises,
     ai_review,
     lesson_feedback,
@@ -39,6 +40,7 @@ api_router.include_router(achievements.router, prefix="/achievements", tags=["Ac
 api_router.include_router(lessons.router, prefix="", tags=["Lessons"])
 api_router.include_router(quizzes.router, prefix="/quizzes", tags=["Quizzes"])
 api_router.include_router(groups.router, prefix="/groups", tags=["Groups"])
+api_router.include_router(flows.router, prefix="/flows", tags=["Flows"])
 api_router.include_router(exercises.router, prefix="/courses/{course_id}/lessons", tags=["Exercises"])
 api_router.include_router(ai_review.router, prefix="/ai", tags=["AI Review"])
 api_router.include_router(teacher_students.router, prefix="/teacher/students", tags=["Teacher - Students"])

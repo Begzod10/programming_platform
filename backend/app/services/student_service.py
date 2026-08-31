@@ -9,9 +9,9 @@ from app.models.ranking import Ranking
 from app.models.project import Project  # ✅ Project modelini import qiling
 from app.models.course import Course
 from app.models.exercise import Exercise, ExerciseSubmission
-from app.models.group import Group
 from app.models.lesson import Lesson, LessonCompletion
 from app.schemas.user import UserUpdate
+from app.services.teacher_students import teacher_student_ids_subquery
 
 
 class StudentService:
@@ -31,11 +31,9 @@ class StudentService:
                 selectinload(Student.groups),
                 selectinload(Student.enrolled_courses),
             )
-            .join(Student.groups)
-            .where(Group.teacher_id == teacher_id)
-            .distinct()
+            .where(Student.id.in_(select(teacher_student_ids_subquery(teacher_id).c.student_id)))
         )
-        
+
         if search:
             query = query.where(
                 or_(
@@ -46,7 +44,7 @@ class StudentService:
                     Student.surname.ilike(f"%{search}%"),
                 )
             )
-            
+
         result = await self.db.execute(query.offset(skip).limit(limit).order_by(Student.id.desc()))
         students = result.scalars().all()
         return [await self.build_teacher_progress_dto(student) for student in students]
@@ -64,9 +62,7 @@ class StudentService:
                 selectinload(Student.groups),
                 selectinload(Student.enrolled_courses),
             )
-            .join(Student.groups)
-            .where(Group.teacher_id == teacher_id)
-            .distinct()
+            .where(Student.id.in_(select(teacher_student_ids_subquery(teacher_id).c.student_id)))
         )
 
         if search:
@@ -104,8 +100,10 @@ class StudentService:
                 selectinload(Student.groups),
                 selectinload(Student.enrolled_courses),
             )
-            .join(Student.groups)
-            .where(Student.id == student_id, Group.teacher_id == teacher_id)
+            .where(
+                Student.id == student_id,
+                Student.id.in_(select(teacher_student_ids_subquery(teacher_id).c.student_id)),
+            )
             .limit(1)
         )
         student = result.scalars().first()
@@ -188,16 +186,11 @@ class StudentService:
             "all":   Student.total_points,
         }.get(period, Student.total_points)
 
-        # Teacher membership via an EXISTS-style subquery (each student
-        # appears once even when in multiple groups under this teacher) so
+        # Teacher membership via a Group-or-Flow union subquery (each student
+        # appears once even when in multiple containers under this teacher) so
         # the outer SELECT doesn't need DISTINCT — Postgres rejects ORDER BY
         # on joined columns under SELECT DISTINCT.
-        teacher_students_subq = (
-            select(Student.id)
-            .join(Student.groups)
-            .where(Group.teacher_id == teacher_id)
-            .subquery()
-        )
+        teacher_students_subq = teacher_student_ids_subquery(teacher_id)
 
         query = (
             select(Student)
@@ -205,7 +198,7 @@ class StudentService:
                 selectinload(Student.groups),
                 selectinload(Student.enrolled_courses),
             )
-            .where(Student.id.in_(select(teacher_students_subq.c.id)))
+            .where(Student.id.in_(select(teacher_students_subq.c.student_id)))
         )
 
         if search:

@@ -49,6 +49,23 @@ class GennisService:
         return None
 
     @classmethod
+    async def fetch_flow_students(cls, flow_id: int, token: str) -> List[Dict[str, Any]]:
+        """Flow-dagi barcha talabalarni Turon API dan tortib olish (faqat
+        turon — gennis'da flow yo'q, shuning uchun `source` param yo'q, xuddi
+        v2's /flow/{id}/students shim'i kabi)."""
+        url = f"{cls.BASE_URL}/flow/{flow_id}/students"
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data.get("students", []) if isinstance(data, dict) else data
+        except Exception as e:
+            logger.error(f"Flow talabalarini olishda xato: {e}")
+        return []
+
+    @classmethod
     async def fetch_group_students(cls, group_id: int, token: str, system: str = "gennis") -> List[Dict[str, Any]]:
         """Guruhdagi barcha talabalarni Gennis/Turon API dan tortib olish"""
         # v2 keys this on the group id IN ITS OWN SYSTEM — the same id the
@@ -74,6 +91,10 @@ class GennisService:
         user_info = login_data.get("user", {})
         teacher_info = user_info.get("teacher", {})
         groups_data = teacher_info.get("group", [])
+        # Turon-only, independent from group[] — see app/models/flow.py.
+        # teacher_info.get("flow") is always [] for gennis, so the loop below
+        # is a no-op there.
+        flows_data = teacher_info.get("flow", [])
 
         # O'qituvchi profilini yangilash
         teacher.gennis_token = token
@@ -143,6 +164,59 @@ class GennisService:
                 )
                 stale_group.teacher_id = None
 
+        # Flow tomoni — Guruh bilan bir xil pattern, lekin alohida konteyner
+        # (student_flows, Flow.teacher_id). Faqat turon'da ma'no bor; gennis
+        # uchun flows_data doim [] bo'ladi, shuning uchun bu blok no-op.
+        current_flow_ext_ids = {f_data.get("id") for f_data in flows_data if f_data.get("id") is not None}
+
+        for f_data in flows_data:
+            flow = await cls._sync_flow(db, f_data, teacher.id)
+
+            students_list = await cls.fetch_flow_students(flow.turon_id, token)
+            for s_data in students_list:
+                await cls._sync_flow_student(db, s_data, flow.id, system=system)
+
+            current_student_ext_ids = {s.get("id") for s in students_list if s.get("id") is not None}
+            if current_student_ext_ids:
+                stale_members_result = await db.execute(
+                    select(Student.id, Student.username)
+                    .join(student_flows, student_flows.c.student_id == Student.id)
+                    .where(
+                        student_flows.c.flow_id == flow.id,
+                        getattr(Student, id_col).isnot(None),
+                        getattr(Student, id_col).notin_(current_student_ext_ids),
+                    )
+                )
+                stale_members = stale_members_result.all()
+                if stale_members:
+                    stale_student_ids = [row[0] for row in stale_members]
+                    for _, username in stale_members:
+                        logger.info(
+                            f"Talaba '{username}' endi flow '{flow.name}'da emas — chiqarilmoqda."
+                        )
+                    await db.execute(
+                        delete(student_flows).where(
+                            student_flows.c.flow_id == flow.id,
+                            student_flows.c.student_id.in_(stale_student_ids),
+                        )
+                    )
+
+        if current_flow_ext_ids:
+            stale_flow_result = await db.execute(
+                select(Flow).where(
+                    Flow.teacher_id == teacher.id,
+                    Flow.turon_id.isnot(None),
+                    Flow.turon_id.notin_(current_flow_ext_ids),
+                )
+            )
+            stale_flows = stale_flow_result.scalars().all()
+            for stale_flow in stale_flows:
+                logger.info(
+                    f"Flow '{stale_flow.name}' (turon_id={stale_flow.turon_id}) endi "
+                    f"o'qituvchi {teacher.username} da emas — bo'shatilmoqda."
+                )
+                stale_flow.teacher_id = None
+
         await db.commit()
         logger.info(f"O'qituvchi {teacher.username} sinxronizatsiyasi yakunlandi.")
 
@@ -201,17 +275,19 @@ class GennisService:
         logger.info(f"Talaba {student.username} ma'lumotlari yangilandi.")
 
     @classmethod
-    async def _sync_flow(cls, db: AsyncSession, f_data: Dict[str, Any]) -> Flow:
+    async def _sync_flow(cls, db: AsyncSession, f_data: Dict[str, Any], teacher_id: Optional[int] = None) -> Flow:
         """Flow bazada yaratish yoki yangilash (faqat turon — group[] bilan mustaqil)."""
         f_id = f_data.get("id")
         result = await db.execute(select(Flow).where(Flow.turon_id == f_id))
         flow = result.scalar_one_or_none()
 
         if not flow:
-            flow = Flow(name=f_data.get("name"), turon_id=f_id)
+            flow = Flow(name=f_data.get("name"), turon_id=f_id, teacher_id=teacher_id)
             db.add(flow)
         else:
             flow.name = f_data.get("name")
+            if teacher_id:
+                flow.teacher_id = teacher_id
 
         await db.flush()
         return flow
@@ -248,20 +324,23 @@ class GennisService:
 
     @classmethod
     async def _find_renumbered_student(
-        cls, db: AsyncSession, s_data: Dict[str, Any], group_id: int, system: str = "gennis"
+        cls, db: AsyncSession, s_data: Dict[str, Any], container_id: int, system: str = "gennis",
+        member_table=student_groups, member_id_col: str = "group_id",
     ) -> Optional[Student]:
-        """Find a current group member who is this same person under an old id.
+        """Find a current group/flow member who is this same person under an old id.
 
         Both GENNIS (during the v2 cutover) and TURON can re-issue a person's
         id, so an `{system}_{id}` lookup can miss for people already on the
         platform. Minting a fresh row in that case strands the student's entire
         history — points, projects, enrolments — on an abandoned account, so
-        before creating we look for them among the group's existing members by
-        name.
+        before creating we look for them among the container's existing
+        members by name.
 
-        Scoping the search to `group_id` is what makes this safe: a candidate
-        must already be in the very group the source system places this
-        student in, so two different people can't be collapsed into one.
+        Scoping the search to `container_id` (a Group id when
+        member_table=student_groups, a Flow id when member_table=
+        student_flows) is what makes this safe: a candidate must already be
+        in the very container the source system places this student in, so
+        two different people can't be collapsed into one.
         """
         full_name = cls._normalized_name(
             f"{s_data.get('name', '')} {s_data.get('surname', '')}"
@@ -272,9 +351,9 @@ class GennisService:
         id_col = f"{system}_id"
         result = await db.execute(
             select(Student)
-            .join(student_groups, student_groups.c.student_id == Student.id)
+            .join(member_table, member_table.c.student_id == Student.id)
             .where(
-                student_groups.c.group_id == group_id,
+                getattr(member_table.c, member_id_col) == container_id,
                 Student.role == UserRole.student,
                 getattr(Student, id_col).isnot(None),
                 getattr(Student, id_col) != s_data.get("id"),
@@ -292,7 +371,34 @@ class GennisService:
 
     @classmethod
     async def _sync_student(cls, db: AsyncSession, s_data: Dict[str, Any], group_id: int, system: str = "gennis") -> Student:
-        """Talabani ism-familiyasi bilan birga sinxronlash (O'qituvchi logini uchun)"""
+        """Talabani ism-familiyasi bilan birga sinxronlash, Guruh a'zoligi
+        orqali (O'qituvchi logini uchun). Bu ham Student.group_id — birlamchi
+        guruh ko'rsatkichini — yangilaydi."""
+        return await cls._sync_container_student(
+            db, s_data, group_id, system=system,
+            member_table=student_groups, member_id_col="group_id",
+            insert_table="student_groups", insert_col="group_id",
+            set_primary_group=True,
+        )
+
+    @classmethod
+    async def _sync_flow_student(cls, db: AsyncSession, s_data: Dict[str, Any], flow_id: int, system: str = "turon") -> Student:
+        """Talabani ism-familiyasi bilan birga sinxronlash, Flow a'zoligi
+        orqali. Student.group_id ga TEGMAYDI — Flow Group'dan mustaqil,
+        alohida konteyner (unrelated denormalized pointer)."""
+        return await cls._sync_container_student(
+            db, s_data, flow_id, system=system,
+            member_table=student_flows, member_id_col="flow_id",
+            insert_table="student_flows", insert_col="flow_id",
+            set_primary_group=False,
+        )
+
+    @classmethod
+    async def _sync_container_student(
+        cls, db: AsyncSession, s_data: Dict[str, Any], container_id: int, system: str,
+        *, member_table, member_id_col: str, insert_table: str, insert_col: str,
+        set_primary_group: bool,
+    ) -> Student:
         id_col = f"{system}_id"
         s_id = s_data.get("id")
         s_username = f"{system}_{s_id}"
@@ -310,7 +416,10 @@ class GennisService:
         if not student:
             # No row under the current id — check whether the source system
             # renumbered someone we already have before assuming this is a new person.
-            student = await cls._find_renumbered_student(db, s_data, group_id, system=system)
+            student = await cls._find_renumbered_student(
+                db, s_data, container_id, system=system,
+                member_table=member_table, member_id_col=member_id_col,
+            )
             if student is not None:
                 logger.warning(
                     "Talaba '%s' yangi %s id oldi: %s → %s. "
@@ -331,7 +440,7 @@ class GennisService:
                 phone=str(s_data.get("phone"))[:50],
                 balance=s_data.get("balance", 0),
                 surname=last_name,
-                group_id=group_id,
+                group_id=container_id if set_primary_group else None,
                 **{id_col: s_id},
             )
             db.add(student)
@@ -341,16 +450,17 @@ class GennisService:
             student.surname = last_name
             student.phone = str(s_data.get("phone"))[:50]
             student.balance = s_data.get("balance", 0)
-            student.group_id = group_id
+            if set_primary_group:
+                student.group_id = container_id
             setattr(student, id_col, s_id)
 
         # Bog'liqlikni bazada yangilash (Xato bermasligi uchun ON CONFLICT)
-        query = text("""
-            INSERT INTO student_groups (student_id, group_id)
-            VALUES (:s_id, :g_id)
-            ON CONFLICT (student_id, group_id) DO NOTHING
+        query = text(f"""
+            INSERT INTO {insert_table} (student_id, {insert_col})
+            VALUES (:s_id, :c_id)
+            ON CONFLICT (student_id, {insert_col}) DO NOTHING
         """)
-        await db.execute(query, {"s_id": student.id, "g_id": group_id})
+        await db.execute(query, {"s_id": student.id, "c_id": container_id})
 
         await db.flush()
         return student

@@ -15,9 +15,9 @@ from app.schemas.teacher_progress import (
     TeacherStudentRankingList,
 )
 from app.models.user import Student
-from app.models.group import Group
 from app.models.student_achievement import StudentAchievement
 from app.services.student_service import StudentService
+from app.services.teacher_students import teacher_student_ids_subquery
 
 router = APIRouter()
 
@@ -49,14 +49,16 @@ async def get_students_rankings(
     )
 
 
-async def _student_is_in_teachers_group(
+async def _student_belongs_to_teacher(
     db: AsyncSession, student_id: int, teacher_id: int
 ) -> bool:
-    """Return True iff `student_id` belongs to a group owned by `teacher_id`."""
+    """Return True iff `student_id` is reachable by `teacher_id` via a group
+    OR a flow they own (see teacher_student_ids_subquery)."""
     res = await db.execute(
-        select(Student)
-        .join(Student.groups)
-        .where(Student.id == student_id, Group.teacher_id == teacher_id)
+        select(Student.id).where(
+            Student.id == student_id,
+            Student.id.in_(select(teacher_student_ids_subquery(teacher_id).c.student_id)),
+        )
         .limit(1)
     )
     return res.scalars().first() is not None
@@ -122,7 +124,7 @@ async def teacher_delete_student(
     requesting teacher owns. Without this check any teacher can delete
     any student account on the platform.
     """
-    if not await _student_is_in_teachers_group(db, student_id, current_teacher.id):
+    if not await _student_belongs_to_teacher(db, student_id, current_teacher.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Bu studentni o'chirish huquqi yo'q (sizning guruhingizda emas)",
@@ -164,13 +166,9 @@ async def get_students_achievements_overview(
     Returns every student (sorted by achievement count desc) with a flat
     list of their badges — name, icon, category, points, and date earned.
     """
-    from app.models.group import Group, student_groups
-    teacher_student_ids_sq = (
-        select(student_groups.c.student_id)
-        .join(Group, Group.id == student_groups.c.group_id)
-        .where(Group.teacher_id == current_teacher.id)
-        .scalar_subquery()
-    )
+    teacher_student_ids_sq = select(
+        teacher_student_ids_subquery(current_teacher.id).c.student_id
+    ).scalar_subquery()
     students_res = await db.execute(
         select(Student)
         .where(Student.id.in_(teacher_student_ids_sq))

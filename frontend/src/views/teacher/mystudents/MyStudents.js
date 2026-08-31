@@ -31,8 +31,11 @@ const StudentRow = ({ student, onOpen }) => {
   );
 };
 
-/* ─── GroupCard ─── */
-const GroupCard = ({ group, onOpenStudent }) => {
+/* ─── GroupCard ───
+ * Also used for Flow — turon's second, independent student container (see
+ * backend/app/models/flow.py). A Flow has no price, so `group.price` is
+ * simply undefined for one and the 💰 segment is omitted. */
+const GroupCard = ({ group, onOpenStudent, icon = '🏫' }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
 
@@ -46,16 +49,17 @@ const GroupCard = ({ group, onOpenStudent }) => {
   });
 
   const totalBalance = students.reduce((sum, s) => sum + (s.balance || 0), 0);
+  const hasPrice = group.price !== undefined && group.price !== null;
 
   return (
     <div className={`ms-group-card ${open ? 'expanded' : ''}`}>
       <div className="ms-group-header" onClick={() => setOpen(o => !o)}>
         <div className="ms-group-left">
-          <div className="ms-group-icon">🏫</div>
+          <div className="ms-group-icon">{icon}</div>
           <div className="ms-group-meta">
             <span className="ms-group-name">{group.name}</span>
             <span className="ms-group-sub">
-              👥 {students.length} talaba · 💰 {fmt(group.price)}
+              👥 {students.length} talaba{hasPrice ? ` · 💰 ${fmt(group.price)}` : ''}
             </span>
           </div>
         </div>
@@ -106,14 +110,23 @@ const MyStudents = () => {
   const navigate = useNavigate(); // ← useNavigate instead of modal state
 
   const [groups,  setGroups]  = useState([]);
+  // Turon-only — a subject teacher reachable ONLY through a Flow (never set
+  // as a group's own teacher) still needs to show up here. Always [] for a
+  // gennis-only account. See backend/app/models/flow.py.
+  const [flows,   setFlows]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
 
   const loadData = useCallback(() => {
     setLoading(true);
-    request(`${API_URL}v1/groups/`, 'GET', null, headers())
-      .then(data => setGroups(Array.isArray(data) ? data : []))
-      .catch(() => setGroups([]))
+    Promise.all([
+      request(`${API_URL}v1/groups/`, 'GET', null, headers()).catch(() => []),
+      request(`${API_URL}v1/flows/`, 'GET', null, headers()).catch(() => []),
+    ])
+      .then(([groupsData, flowsData]) => {
+        setGroups(Array.isArray(groupsData) ? groupsData : []);
+        setFlows(Array.isArray(flowsData) ? flowsData : []);
+      })
       .finally(() => setLoading(false));
   }, [request]);
 
@@ -129,8 +142,13 @@ const MyStudents = () => {
   const filteredGroups = groups.filter(g =>
     (g.name || '').toLowerCase().includes(search.toLowerCase())
   );
+  const filteredFlows = flows.filter(f =>
+    (f.name || '').toLowerCase().includes(search.toLowerCase())
+  );
 
-  const totalStudents = groups.reduce((s, g) => s + (g.students?.length || 0), 0);
+  const totalStudents =
+    groups.reduce((s, g) => s + (g.students?.length || 0), 0) +
+    flows.reduce((s, f) => s + (f.students?.length || 0), 0);
 
   return (
     <div className="ms-container">
@@ -158,6 +176,9 @@ const MyStudents = () => {
 
       <div className="ms-stats-row">
         <div className="ms-stat-chip">🏫 Guruhlar: {groups.length}</div>
+        {flows.length > 0 && (
+          <div className="ms-stat-chip">🧩 Flow'lar: {flows.length}</div>
+        )}
         <div className="ms-stat-chip">👥 Talabalar: {totalStudents}</div>
       </div>
 
@@ -166,15 +187,23 @@ const MyStudents = () => {
           <div className="ms-spinner" />
           <span>Ma'lumotlar yuklanmoqda...</span>
         </div>
-      ) : filteredGroups.length === 0 ? (
+      ) : filteredGroups.length === 0 && filteredFlows.length === 0 ? (
         <div className="ms-empty-row">Guruhlar topilmadi</div>
       ) : (
         <div className="ms-groups-list">
           {filteredGroups.map(g => (
             <GroupCard
-              key={g.id}
+              key={`group-${g.id}`}
               group={g}
               onOpenStudent={handleOpenStudent}
+            />
+          ))}
+          {filteredFlows.map(f => (
+            <GroupCard
+              key={`flow-${f.id}`}
+              group={f}
+              onOpenStudent={handleOpenStudent}
+              icon="🧩"
             />
           ))}
         </div>

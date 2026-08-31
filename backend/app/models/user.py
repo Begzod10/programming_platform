@@ -202,6 +202,13 @@ class Student(Base):
         foreign_keys="Group.teacher_id"
     )
 
+    # Turon-only, mirrors managed_groups — see app/models/flow.py.
+    managed_flows: Mapped[List["Flow"]] = relationship(
+        "Flow",
+        back_populates="teacher",
+        foreign_keys="Flow.teacher_id"
+    )
+
     dictionary_words = relationship("UserDictionary", back_populates="student")
 
     @validates('lifetime_points')

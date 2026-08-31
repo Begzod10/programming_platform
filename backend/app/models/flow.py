@@ -19,9 +19,11 @@ class Flow(Base):
     Group membership (see gennis-v2's student_platform_login shim). Gennis has
     no equivalent concept, so this table only ever holds turon_id rows.
 
-    Deliberately has no price/teacher_id: unlike Group this isn't a billing
-    unit, and teacher-side flow sync isn't wired up (nothing populates it —
-    see GennisService.sync_teacher_data)."""
+    Deliberately has no price: unlike Group this isn't a billing unit. It DOES
+    have teacher_id — a turon teacher can be reachable ONLY through a flow
+    (e.g. a subject teacher scheduled to a flow rather than a group in the
+    timetable), so without it that teacher would sync zero students at all.
+    See GennisService.sync_teacher_data / _sync_flow."""
     __tablename__ = "flows"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -30,9 +32,21 @@ class Flow(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    teacher_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("students.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
     students: Mapped[List["Student"]] = relationship(
         "Student",
         secondary=student_flows,
         back_populates="flows",
         lazy="selectin"
+    )
+
+    teacher: Mapped[Optional["Student"]] = relationship(
+        "Student",
+        back_populates="managed_flows",
+        foreign_keys="Flow.teacher_id"
     )
