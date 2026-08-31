@@ -99,38 +99,52 @@ class RankingService:
     ):
         """Leaderboard query.
 
+        LEFT JOINs Ranking onto Student (not the other way round) — a
+        student who hasn't earned any points yet, or simply hasn't opened
+        their own dashboard yet (Ranking rows are created lazily on first
+        view), still shows up here with 0 points. Otherwise a freshly
+        synced class is invisible to itself: their teacher's login just
+        populated the group correctly, but nobody in it appears on the
+        leaderboard until each of them individually triggers Ranking-row
+        creation. Missing values are coalesced to 0 throughout.
+
         peer_student_id: when set, restrict the ranking to students who share
         at least one teacher with the given student (i.e. the caller's peers
         under any of their teachers). Used to scope the student-facing
         leaderboard so it doesn't leak platform-wide totals.
         """
         from app.models.group import Group, student_groups
+        daily = func.coalesce(Ranking.daily_points, 0)
+        weekly = func.coalesce(Ranking.weekly_points, 0)
+        monthly = func.coalesce(Ranking.monthly_points, 0)
+        total = func.coalesce(Ranking.total_points, 0)
         sort_column_map = {
-            "daily": Ranking.daily_points,
-            "weekly": Ranking.weekly_points + Ranking.daily_points,
-            "monthly": Ranking.monthly_points + Ranking.daily_points,
-            "all": Ranking.total_points
+            "daily": daily,
+            "weekly": weekly + daily,
+            "monthly": monthly + daily,
+            "all": total,
         }
-        target_col = sort_column_map.get(period, Ranking.total_points)
+        target_col = sort_column_map.get(period, total)
 
         query = (
             select(
-                Ranking.student_id,
-                Ranking.daily_points,
-                Ranking.weekly_points,
-                Ranking.monthly_points,
-                Ranking.total_points,
-                Ranking.projects_completed,
+                Student.id.label("student_id"),
+                daily.label("daily_points"),
+                weekly.label("weekly_points"),
+                monthly.label("monthly_points"),
+                total.label("total_points"),
+                func.coalesce(Ranking.projects_completed, 0).label("projects_completed"),
                 Student.username,
                 Student.full_name,
                 Student.avatar_url,
                 Student.current_level,
                 func.row_number().over(
-                    order_by=(target_col.desc(), Ranking.student_id.asc())
+                    order_by=(target_col.desc(), Student.id.asc())
                 ).label("period_rank")
             )
-            .join(Student, Ranking.student_id == Student.id)
-            .where(Student.is_active == True)
+            .select_from(Student)
+            .outerjoin(Ranking, Ranking.student_id == Student.id)
+            .where(Student.is_active == True, Student.role == UserRole.student)
         )
 
         if level:
@@ -138,7 +152,7 @@ class RankingService:
 
         if group_id is not None:
             query = query.where(
-                Ranking.student_id.in_(
+                Student.id.in_(
                     select(student_groups.c.student_id).where(student_groups.c.group_id == group_id)
                 )
             )
@@ -154,7 +168,7 @@ class RankingService:
                 .join(Group, Group.id == student_groups.c.group_id)
                 .where(Group.teacher_id.in_(my_teachers_subq))
             )
-            query = query.where(Ranking.student_id.in_(peer_ids_subq))
+            query = query.where(Student.id.in_(peer_ids_subq))
 
         query = query.order_by(target_col.desc()).limit(limit).offset(offset)
 
