@@ -453,6 +453,14 @@ async def regrade_project(
     if not db_project:
         raise HTTPException(status_code=404, detail="Loyiha topilmadi!")
 
+    # See upload_project_zip_by_id for why this must happen before the
+    # status reset: once status flips to "Submitted", run_ai_review_for_project
+    # can no longer tell the old grade was ever "Approved", so its own
+    # revoke-before-reaward guard would never fire for the points already
+    # earned by the grade being replaced.
+    if db_project.status == "Approved" and (db_project.points_earned or 0) > 0:
+        await RankingService(db).revoke_earned_points(
+            db_project.student_id, db_project.points_earned)
     db_project.reviewed_at = None
     db_project.status = "Submitted"
     await db.commit()
@@ -615,6 +623,15 @@ async def upload_project_zip_by_id(
     project_result = await db.execute(select(Project).where(Project.id == project_id))
     db_project = project_result.scalar_one_or_none()
     if db_project:
+        # This reset makes run_ai_review_for_project see old_status=="Submitted"
+        # (never "Approved"), so its own revoke-before-reaward guard never
+        # fires for the *previous* grade on this project. Without revoking
+        # here first, points already earned by an earlier Approved review
+        # are orphaned forever if the resubmission fails/scores low, or
+        # silently doubled if it re-passes.
+        if db_project.status == "Approved" and (db_project.points_earned or 0) > 0:
+            await RankingService(db).revoke_earned_points(
+                db_project.student_id, db_project.points_earned)
         db_project.reviewed_at = None
         db_project.status = "Submitted"
         db_project.submitted_at = datetime.utcnow()
