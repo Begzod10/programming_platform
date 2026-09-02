@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Code2, Eye, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
-import { API_URL } from '../../../../api/search/base';
+import axiosInstance from '../../../../api/axiosInstance';
 import './SampleProject.css';
 
 const WEB_TABS = [
@@ -17,10 +17,9 @@ const SampleProject = ({ lessonId }) => {
 
     useEffect(() => {
         if (!lessonId) return;
-        fetch(`${API_URL}v1/lessons/${lessonId}/sample`)
-            .then(r => r.ok ? r.json() : null)
-            .then(data => { setSample(data); setLoading(false); })
-            .catch(() => setLoading(false));
+        axiosInstance.get(`v1/lessons/${lessonId}/sample`)
+            .then(r => { setSample(r.data); setLoading(false); })
+            .catch(() => { setSample(null); setLoading(false); });
     }, [lessonId]);
 
     useEffect(() => {

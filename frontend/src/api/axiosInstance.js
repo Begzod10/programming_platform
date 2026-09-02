@@ -36,6 +36,7 @@ const TRANSLATABLE_PATTERNS = [
     /\/v1\/courses\/\d+\/lessons\/\d+($|\?)/,
     /\/v1\/courses\/\d+\/lessons\/\d+\/exercises(\?|$)/,
     /\/v1\/lessons\/\d+\/exercises(\?|$)/,
+    /\/v1\/lessons\/\d+\/sample(\?|$)/,
 ];
 
 axiosInstance.interceptors.request.use(

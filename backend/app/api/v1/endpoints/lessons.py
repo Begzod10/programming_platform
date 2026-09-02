@@ -660,6 +660,7 @@ async def get_lesson_submission(
 @router.get("/lessons/{lesson_id}/sample")
 async def get_lesson_sample(
         lesson_id: int,
+        lang: Optional[str] = None,
         db: AsyncSession = Depends(get_db),
 ):
     from app.models.lesson_sample import LessonSample
@@ -668,7 +669,19 @@ async def get_lesson_sample(
     sample = result.scalar_one_or_none()
     if not sample:
         raise HTTPException(status_code=404, detail="Sample topilmadi")
-    return LessonSampleRead.model_validate(sample)
+    dto = LessonSampleRead.model_validate(sample)
+
+    # code/html_code/css_code/js_code/code_files_json are source code, never
+    # translated (matches lesson.code_content — see translation_service's
+    # _NEVER_TRANSLATE_KEYS). Only title/description are natural language.
+    if lang and lang != "uz":
+        from app.services import translation_store as ts
+        for field_name in ("title", "description"):
+            tr = ts.get("lesson_sample", sample.id, lang, field_name)
+            if tr is not None:
+                setattr(dto, field_name, tr)
+
+    return dto
 
 
 # ─────────────────────────────────────────────────────────────────────────────
