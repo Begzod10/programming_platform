@@ -4,6 +4,7 @@ import store from './store/store';
 import { AuthProvider } from './context/AuthContext';
 import { StoreProvider } from './context/StoreContext';
 import AppRouter from './AppRouter';
+import SSOHandler from './components/SSOHandler';
 import './App.css';
 
 function App() {
@@ -12,7 +13,9 @@ function App() {
             <AuthProvider>
                 <StoreProvider>
                     <BrowserRouter>
-                        <AppRouter />
+                        <SSOHandler>
+                            <AppRouter />
+                        </SSOHandler>
                     </BrowserRouter>
                 </StoreProvider>
             </AuthProvider>
