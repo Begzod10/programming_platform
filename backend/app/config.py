@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # if this URL is ever unreachable, login falls through to local auth the
     # same way it always has, it does NOT retry against gennis-v2.
     MGMT_INTEGRATION_URL: str = "https://office.gennis.uz/api/v1/integrations/student-platform"
+    # Shared secret for verifying classroom's SSO handoff tokens (POST
+    # /auth/sso) — see docs/CLASSROOM_SSO_FOR_STUDENT_PLATFORM.md. Deliberately
+    # separate from SECRET_KEY: if one leaks, the other stays safe. Empty by
+    # default so /auth/sso 503s rather than silently trusting an unset secret.
+    SSO_SHARED_SECRET: str = ""
     # ─── AI providers ────────────────────────────────────────────────────
     # AI calls iterate through this chain in order, using the first provider
     # whose API key is set and whose call succeeds. OpenAI-only per explicit

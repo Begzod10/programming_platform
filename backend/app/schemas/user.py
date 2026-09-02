@@ -152,6 +152,16 @@ class UserLogin(BaseModel):
     password: str
 
 
+class SSOLogin(BaseModel):
+    """POST /auth/sso body — see docs/CLASSROOM_SSO_FOR_STUDENT_PLATFORM.md.
+
+    Bounds are deliberately generous (a real HS256 JWT with these claims
+    runs a few hundred characters) but still reject obvious garbage before
+    it reaches jwt.decode.
+    """
+    token: str = Field(..., min_length=20, max_length=4096)
+
+
 class TokenPayload(BaseModel):
     sub: Optional[int] = None
     exp: Optional[int] = None
