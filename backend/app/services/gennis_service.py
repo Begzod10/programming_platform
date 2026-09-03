@@ -146,23 +146,32 @@ class GennisService:
                     )
 
         # Gennis/turon endi bu o'qituvchiga bermayotgan guruhlarni bo'shatamiz (teacher_id = NULL).
-        # groups_data bo'sh bo'lsa (API vaqtinchalik hech narsa qaytarmasa) hech narsani
-        # o'chirmaymiz — bu holat ehtimol API xatosi, haqiqiy bo'shatish emas.
-        if current_ext_ids:
-            stale_result = await db.execute(
-                select(Group).where(
-                    Group.teacher_id == teacher.id,
-                    getattr(Group, id_col).isnot(None),
-                    getattr(Group, id_col).notin_(current_ext_ids),
-                )
+        #
+        # groups_data bu yerga faqat login()dan MUVAFFAQIYATLI (200 OK) javob
+        # kelgandagina yetib keladi — auth_service.login shim None qaytarsa,
+        # sync_teacher_data umuman chaqirilmaydi. Demak bo'sh ro'yxat "API
+        # vaqtinchalik xato berdi" degani emas, balki management-v2'ning
+        # _groups_for_teacher_turon'i "bu o'qituvchida hozir faol/o'chirilmagan
+        # guruh yo'q" deb aniq javob bergani. Ilgari bu yerda `if
+        # current_ext_ids:` bo'sh ro'yxatda tozalashni butunlay o'tkazib
+        # yuborardi — natijada oxirgi tayinlovi (masalan bitta timetable
+        # yozuvi) o'chirilgan o'qituvchi eski guruhini (va uning talabalarini)
+        # student_platform'da abadiy ko'rib turaverdi (rimefara_teach_turon /
+        # "1-blue"da tasdiqlandi, 2026-09-03).
+        stale_result = await db.execute(
+            select(Group).where(
+                Group.teacher_id == teacher.id,
+                getattr(Group, id_col).isnot(None),
+                getattr(Group, id_col).notin_(current_ext_ids),
             )
-            stale_groups = stale_result.scalars().all()
-            for stale_group in stale_groups:
-                logger.info(
-                    f"Guruh '{stale_group.name}' ({id_col}={getattr(stale_group, id_col)}) endi "
-                    f"o'qituvchi {teacher.username} da emas — bo'shatilmoqda."
-                )
-                stale_group.teacher_id = None
+        )
+        stale_groups = stale_result.scalars().all()
+        for stale_group in stale_groups:
+            logger.info(
+                f"Guruh '{stale_group.name}' ({id_col}={getattr(stale_group, id_col)}) endi "
+                f"o'qituvchi {teacher.username} da emas — bo'shatilmoqda."
+            )
+            stale_group.teacher_id = None
 
         # Flow tomoni — Guruh bilan bir xil pattern, lekin alohida konteyner
         # (student_flows, Flow.teacher_id). Faqat turon'da ma'no bor; gennis
@@ -201,21 +210,23 @@ class GennisService:
                         )
                     )
 
-        if current_flow_ext_ids:
-            stale_flow_result = await db.execute(
-                select(Flow).where(
-                    Flow.teacher_id == teacher.id,
-                    Flow.turon_id.isnot(None),
-                    Flow.turon_id.notin_(current_flow_ext_ids),
-                )
+        # Same reasoning as the group cleanup above — flows_data is only
+        # ever a genuinely-empty *successful* answer here, never a stand-in
+        # for a failed call, so it's trusted the same way.
+        stale_flow_result = await db.execute(
+            select(Flow).where(
+                Flow.teacher_id == teacher.id,
+                Flow.turon_id.isnot(None),
+                Flow.turon_id.notin_(current_flow_ext_ids),
             )
-            stale_flows = stale_flow_result.scalars().all()
-            for stale_flow in stale_flows:
-                logger.info(
-                    f"Flow '{stale_flow.name}' (turon_id={stale_flow.turon_id}) endi "
-                    f"o'qituvchi {teacher.username} da emas — bo'shatilmoqda."
-                )
-                stale_flow.teacher_id = None
+        )
+        stale_flows = stale_flow_result.scalars().all()
+        for stale_flow in stale_flows:
+            logger.info(
+                f"Flow '{stale_flow.name}' (turon_id={stale_flow.turon_id}) endi "
+                f"o'qituvchi {teacher.username} da emas — bo'shatilmoqda."
+            )
+            stale_flow.teacher_id = None
 
         await db.commit()
         logger.info(f"O'qituvchi {teacher.username} sinxronizatsiyasi yakunlandi.")
