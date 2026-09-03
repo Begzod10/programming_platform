@@ -79,6 +79,30 @@
 }
 .ms-search-clear:hover { background: #f0f0f8; color: #666; }
 
+/* ── class filter (My Students flat list) ── */
+.ms-class-filter {
+  padding: 11px 34px 11px 14px;
+  border: 1.5px solid #e8e8f0;
+  border-radius: 12px;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  outline: none;
+  background: #fafafa;
+  color: #1a1a2e;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 180px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+.ms-class-filter:focus {
+  border-color: var(--color-primary);
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(108,92,231,0.08);
+}
+
 /* ── STATS ── */
 .ms-stats-row { display: flex; gap: 10px; flex-wrap: wrap; }
 .ms-stat-chip {
@@ -114,6 +138,68 @@
   background: #fafafa;
   border-radius: 16px;
   border: 1.5px dashed #e0e0f0;
+}
+
+/* ═══════════════════════════════════════
+   STUDENT TABLE (flat "Мои студенты" list)
+═══════════════════════════════════════ */
+.ms-student-table {
+  background: #fff;
+  border: 1.5px solid #f0f0f8;
+  border-radius: 20px;
+  overflow: clip;
+}
+
+.ms-student-table-head,
+.ms-student-table-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1.2fr 1.2fr 1.4fr;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 22px;
+}
+
+.ms-student-table-head {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #999;
+  border-bottom: 1.5px solid #f0f0f8;
+  background: #fafafa;
+}
+
+.ms-student-table-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.ms-student-table-row {
+  cursor: pointer;
+  border-bottom: 1.5px solid #f5f5fa;
+  transition: background 0.15s;
+  font-size: 13px;
+  color: #444;
+}
+.ms-student-table-row:last-child { border-bottom: none; }
+.ms-student-table-row:hover { background: #f8f7ff; }
+
+.ms-std-name {
+  font-weight: 700;
+  color: #1a1a2e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ms-std-username {
+  color: #8888a8;
+}
+
+.ms-std-class {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ═══════════════════════════════════════
@@ -551,6 +637,19 @@
   .ms-modal-body   { padding: 18px 20px; }
   .ms-modal-footer { padding: 0 20px 20px; }
   .ms-confirm      { padding: 36px 28px 28px; }
+
+  .ms-class-filter { min-width: 0; width: 100%; }
+  .ms-student-table-head { display: none; }
+  .ms-student-table-row {
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding: 12px 16px;
+  }
+  .ms-std-class {
+    font-size: 12px;
+    color: #999;
+    white-space: normal;
+  }
 }
 
 /* ═══════════════════════════════════════

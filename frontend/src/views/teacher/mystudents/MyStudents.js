@@ -1,123 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './MyStudents.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 
-/* ─── helpers ─── */
-const balanceColor = (b) => {
-  if (b < 0)       return 'neg';
-  if (b < 100000)  return 'warn';
-  return 'pos';
-};
-const fmt = (n) =>
-  new Intl.NumberFormat('uz-UZ').format(n) + ' so\'m';
+/* Namespaced like AssignStudentsModal's `key={`group-${g.id}`}` — group and
+ * flow ids are separate tables and can collide numerically, so the filter
+ * value has to carry which container it means. */
+const optionValue = (kind, id) => `${kind}-${id}`;
 
-/* ─── StudentRow ─── */
-const StudentRow = ({ student, onOpen }) => {
-  const bc = balanceColor(student.balance);
-  const displayName = student.full_name || student.username || '—';
-  const words = displayName.trim().split(/\s+/);
-  const initials = words.slice(0, 2).map(w => w[0]).join('').toUpperCase();
-
-  return (
-    <div className="ms-student-row" onClick={() => onOpen(student.id)} style={{ cursor: 'pointer' }}>
-      <div className="ms-sr-avatar">{initials}</div>
-      <div className="ms-sr-info">
-        <span className="ms-sr-name">{displayName}</span>
-        <span className="ms-sr-phone">📱 {student.phone}</span>
-      </div>
-      <div className={`ms-sr-balance ${bc}`}>{fmt(student.balance)}</div>
-    </div>
-  );
-};
-
-/* ─── GroupCard ───
- * Also used for Flow — turon's second, independent student container (see
- * backend/app/models/flow.py). A Flow has no price, so `group.price` is
- * simply undefined for one and the 💰 segment is omitted. */
-const GroupCard = ({ group, onOpenStudent, icon = '🏫' }) => {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-
-  const students = group.students || [];
-  const filtered = students.filter(s => {
-    const q = search.toLowerCase();
-    return (
-      (s.full_name || s.username || '').toLowerCase().includes(q) ||
-      (s.phone   || '').includes(q)
-    );
-  });
-
-  const totalBalance = students.reduce((sum, s) => sum + (s.balance || 0), 0);
-  const hasPrice = group.price !== undefined && group.price !== null;
-
-  return (
-    <div className={`ms-group-card ${open ? 'expanded' : ''}`}>
-      <div className="ms-group-header" onClick={() => setOpen(o => !o)}>
-        <div className="ms-group-left">
-          <div className="ms-group-icon">{icon}</div>
-          <div className="ms-group-meta">
-            <span className="ms-group-name">{group.name}</span>
-            <span className="ms-group-sub">
-              👥 {students.length} talaba{hasPrice ? ` · 💰 ${fmt(group.price)}` : ''}
-            </span>
-          </div>
-        </div>
-        <div className="ms-group-right">
-          <span className={`ms-total-balance ${balanceColor(totalBalance)}`}>
-            {fmt(totalBalance)}
-          </span>
-          <span className={`ms-chevron ${open ? 'open' : ''}`}>▾</span>
-        </div>
-      </div>
-
-      {open && (
-        <div className="ms-group-body">
-          {students.length > 4 && (
-            <div className="ms-group-search-wrap">
-              <span className="ms-search-icon">🔍</span>
-              <input
-                className="ms-group-search"
-                placeholder="Talabani qidirish..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                onClick={e => e.stopPropagation()}
-              />
-              {search && (
-                <button className="ms-search-clear" onClick={() => setSearch('')}>✕</button>
-              )}
-            </div>
-          )}
-
-          {filtered.length === 0 ? (
-            <div className="ms-no-students">Talabalar topilmadi</div>
-          ) : (
-            <div className="ms-students-list">
-              {filtered.map(s => (
-                <StudentRow key={s.id} student={s} onOpen={onOpenStudent} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-/* ─── Main ─── */
+/* ─── Main ───
+ * Flat, filterable roster — one row per student, not per group. Reuses the
+ * exact same teacher-scoped /groups/ and /flows/ endpoints the group-cards
+ * view (now at /teacher/groups, see MyGroups.js) already fetches; both
+ * already nest each container's own students, so no new backend endpoint
+ * was needed to build this list or its group filter. */
 const MyStudents = () => {
   const { request } = useHttp();
-  const navigate = useNavigate(); // ← useNavigate instead of modal state
+  const navigate = useNavigate();
 
   const [groups,  setGroups]  = useState([]);
-  // Turon-only — a subject teacher reachable ONLY through a Flow (never set
-  // as a group's own teacher) still needs to show up here. Always [] for a
-  // gennis-only account. See backend/app/models/flow.py.
   const [flows,   setFlows]   = useState([]);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
+  const [classFilter, setClassFilter] = useState('all');
 
-  const loadData = useCallback(() => {
+  useEffect(() => {
     setLoading(true);
     Promise.all([
       request(`${API_URL}v1/groups/`, 'GET', null, headers()).catch(() => []),
@@ -130,32 +37,58 @@ const MyStudents = () => {
       .finally(() => setLoading(false));
   }, [request]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const classOptions = useMemo(() => [
+    ...groups.map(g => ({ value: optionValue('group', g.id), label: g.name, icon: '🏫' })),
+    ...flows.map(f => ({ value: optionValue('flow', f.id), label: f.name, icon: '🧩' })),
+  ], [groups, flows]);
 
-  // ← Navigate to separate page instead of opening modal
+  /* One row per unique student — a student in more than one group/flow
+   * (e.g. a homeroom group plus an IT-subject flow) gets every class name
+   * it belongs to joined in the Class column, matching how
+   * AssignStudentsModal already renders multi-group membership, rather
+   * than duplicating that student into several rows. */
+  const allStudents = useMemo(() => {
+    const byId = new Map();
+    const addFrom = (container, kind, icon) => {
+      const optValue = optionValue(kind, container.id);
+      (container.students || []).forEach(s => {
+        let row = byId.get(s.id);
+        if (!row) {
+          row = { ...s, classNames: [], classValues: new Set() };
+          byId.set(s.id, row);
+        }
+        row.classNames.push(`${icon} ${container.name}`);
+        row.classValues.add(optValue);
+      });
+    };
+    groups.forEach(g => addFrom(g, 'group', '🏫'));
+    flows.forEach(f => addFrom(f, 'flow', '🧩'));
+    return [...byId.values()];
+  }, [groups, flows]);
+
+  const filteredStudents = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return allStudents.filter(s => {
+      if (classFilter !== 'all' && !s.classValues.has(classFilter)) return false;
+      if (!q) return true;
+      return (
+        (s.full_name || '').toLowerCase().includes(q) ||
+        (s.surname   || '').toLowerCase().includes(q) ||
+        (s.username  || '').toLowerCase().includes(q)
+      );
+    });
+  }, [allStudents, search, classFilter]);
+
   const handleOpenStudent = (studentId) => {
     navigate(`/teacher/students/${studentId}`);
   };
-
-  const filteredGroups = groups.filter(g =>
-    (g.name || '').toLowerCase().includes(search.toLowerCase())
-  );
-  const filteredFlows = flows.filter(f =>
-    (f.name || '').toLowerCase().includes(search.toLowerCase())
-  );
-
-  const totalStudents =
-    groups.reduce((s, g) => s + (g.students?.length || 0), 0) +
-    flows.reduce((s, f) => s + (f.students?.length || 0), 0);
 
   return (
     <div className="ms-container">
       <div className="ms-header">
         <div>
           <h2>Мои студенты</h2>
-          <p className="ms-subtitle">Группы и студенты в Gennis</p>
+          <p className="ms-subtitle">Все ваши студенты в Gennis</p>
         </div>
       </div>
 
@@ -164,7 +97,7 @@ const MyStudents = () => {
           <span className="ms-search-icon">🔍</span>
           <input
             className="ms-search"
-            placeholder="Guruh nomi bo'yicha qidirish..."
+            placeholder="Ism / familiya / username bo'yicha qidirish..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -172,14 +105,21 @@ const MyStudents = () => {
             <button className="ms-search-clear" onClick={() => setSearch('')}>✕</button>
           )}
         </div>
+
+        <select
+          className="ms-class-filter"
+          value={classFilter}
+          onChange={e => setClassFilter(e.target.value)}
+        >
+          <option value="all">Barcha guruhlar</option>
+          {classOptions.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.icon} {opt.label}</option>
+          ))}
+        </select>
       </div>
 
       <div className="ms-stats-row">
-        <div className="ms-stat-chip">🏫 Guruhlar: {groups.length}</div>
-        {flows.length > 0 && (
-          <div className="ms-stat-chip">🧩 Flow'lar: {flows.length}</div>
-        )}
-        <div className="ms-stat-chip">👥 Talabalar: {totalStudents}</div>
+        <div className="ms-stat-chip">👥 Talabalar: {filteredStudents.length}</div>
       </div>
 
       {loading ? (
@@ -187,25 +127,30 @@ const MyStudents = () => {
           <div className="ms-spinner" />
           <span>Ma'lumotlar yuklanmoqda...</span>
         </div>
-      ) : filteredGroups.length === 0 && filteredFlows.length === 0 ? (
-        <div className="ms-empty-row">Guruhlar topilmadi</div>
+      ) : filteredStudents.length === 0 ? (
+        <div className="ms-empty-row">Talabalar topilmadi</div>
       ) : (
-        <div className="ms-groups-list">
-          {filteredGroups.map(g => (
-            <GroupCard
-              key={`group-${g.id}`}
-              group={g}
-              onOpenStudent={handleOpenStudent}
-            />
-          ))}
-          {filteredFlows.map(f => (
-            <GroupCard
-              key={`flow-${f.id}`}
-              group={f}
-              onOpenStudent={handleOpenStudent}
-              icon="🧩"
-            />
-          ))}
+        <div className="ms-student-table">
+          <div className="ms-student-table-head">
+            <span>Ism</span>
+            <span>Familiya</span>
+            <span>Username</span>
+            <span>Sinf</span>
+          </div>
+          <div className="ms-student-table-body">
+            {filteredStudents.map(s => (
+              <div
+                key={s.id}
+                className="ms-student-table-row"
+                onClick={() => handleOpenStudent(s.id)}
+              >
+                <span className="ms-std-name">{s.full_name || s.username || '—'}</span>
+                <span>{s.surname || '—'}</span>
+                <span className="ms-std-username">@{s.username}</span>
+                <span className="ms-std-class">{s.classNames.join(', ')}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

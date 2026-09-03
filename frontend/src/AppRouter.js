@@ -26,6 +26,7 @@ import TeacherCourses           from './views/teacher/courses/TeacherCourses/Tea
 import TeacherProfile           from './views/teacher/profile/TeacherProfile';
 import TeacherReview            from './views/teacher/teacherreview/TeacherReview';
 import MyStudents               from './views/teacher/mystudents/MyStudents';
+import MyGroups                 from './views/teacher/mygroups/MyGroups';
 import StudentProfilePage       from './views/teacher/mystudents/StudentProfile';
 import TeacherStatistics        from './views/teacher/statistics/TeacherStatistics';
 import TeacherFeedback          from './views/teacher/feedback/TeacherFeedback';
@@ -129,6 +130,7 @@ function AppRouter() {
                 <Route path="review"                                      element={<TeacherReview />} />
                 <Route path="students"                                    element={<MyStudents />} />
                 <Route path="students/:studentId"                         element={<StudentProfilePage />} />
+                <Route path="groups"                                      element={<MyGroups />} />
                 <Route path="certificates"                                element={<TeacherCertificates />} />
                 <Route path="achievements"                                element={<TeacherAchievements />} />
                 <Route path="statistics"                                  element={<TeacherStatistics />} />
