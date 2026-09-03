@@ -32,6 +32,7 @@ from app.models.store import (
     StudentPurchase,
     StudentInventoryItem,
 )
+from app.models.early_learning import EarlyModule, EarlyActivity, EarlyActivityCompletion
 
 __all__ = [
     "Base",
@@ -70,4 +71,7 @@ __all__ = [
     "WalletLedgerEntry",
     "StudentPurchase",
     "StudentInventoryItem",
+    "EarlyModule",
+    "EarlyActivity",
+    "EarlyActivityCompletion",
 ]
