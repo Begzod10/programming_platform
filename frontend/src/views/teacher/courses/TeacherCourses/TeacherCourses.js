@@ -54,7 +54,6 @@ const TeacherCourses = () => {
     const [loading,          setLoading]          = useState(true);
     const [activeFilter,     setActiveFilter]     = useState('all');
     const [confirmCourse,    setConfirmCourse]    = useState(null);
-    const [confirmLesson,    setConfirmLesson]    = useState(null);
     const [showCourseModal,  setShowCourseModal]  = useState(false);
     const [savingCourse,     setSavingCourse]     = useState(false);
     const [courseSaveError,  setCourseSaveError]  = useState('');
@@ -208,20 +207,6 @@ const TeacherCourses = () => {
         });
         setShowCourseModal(true);
     };
-    const openEditCourse = (course, e) => {
-        e.stopPropagation();
-        setEditingCourse(course);
-        setNewCourse({
-            title: course.title,
-            description: course.description,
-            image: course.image,
-            difficulty_level: course.difficulty_level || 'Beginner',
-            duration_weeks: course.duration_weeks || '4',
-            max_points: course.max_points || '100',
-            category_name: course.category_name || '',
-        });
-        setShowCourseModal(true);
-    };
     const saveCourse = () => {
         if (savingCourse) return; // guard against double-click
         if (!newCourse.title.trim() || !newCourse.description.trim()) {
@@ -325,17 +310,6 @@ const TeacherCourses = () => {
             )
         );
     };
-    const doDeleteLesson = (lId) => {
-        if (!activeCourse) return;
-        fetch(`${API_URL}v1/courses/${activeCourse.id}/lessons/${lId}`, { method: 'DELETE', mode: 'cors', headers: headers() })
-            .then(() => {
-                setCourses(cs => cs.map(c => sameId(c.id, activeCourse.id) ? { ...c, lessons: c.lessons.filter(l => !sameId(l.id, lId)) } : c));
-                setConfirmLesson(null);
-                if (sameId(lessonId, lId)) navigate(`/teacher/courses/${activeCourse.id}`);
-            })
-            .catch(() => setConfirmLesson(null));
-    };
-
     /* ═══════════ VIEWS ═══════════ */
 
     const Loader = () => <div style={{ textAlign: 'center', padding: '60px', color: 'rgba(26,26,46,0.4)' }}>Загрузка...</div>;
@@ -345,16 +319,13 @@ const TeacherCourses = () => {
     /* ── Новый урок ── */
     if (view === 'new' && activeCourse) {
         return (
-            <>
-                <LessonEditorPage
-                    course={activeCourse}
-                    lesson={null}
-                    chapters={categories.map(c => c.name)}
-                    onSave={saveLesson}
-                    onClose={() => navigate(`/teacher/courses/${activeCourse.id}`)}
-                />
-                {confirmLesson && <ConfirmModal title="Удалить урок?" text="Это действие нельзя отменить." onConfirm={() => doDeleteLesson(confirmLesson)} onClose={() => setConfirmLesson(null)} />}
-            </>
+            <LessonEditorPage
+                course={activeCourse}
+                lesson={null}
+                chapters={categories.map(c => c.name)}
+                onSave={saveLesson}
+                onClose={() => navigate(`/teacher/courses/${activeCourse.id}`)}
+            />
         );
     }
 
@@ -362,16 +333,13 @@ const TeacherCourses = () => {
     if (view === 'edit' && activeCourse) {
         if (!editingLesson) return <Loader />;
         return (
-            <>
-                <LessonEditorPage
-                    course={activeCourse}
-                    lesson={editingLesson}
-                    chapters={categories.map(c => c.name)}
-                    onSave={saveLesson}
-                    onClose={() => navigate(`/teacher/courses/${activeCourse.id}`)}
-                />
-                {confirmLesson && <ConfirmModal title="Удалить урок?" text="Это действие нельзя отменить." onConfirm={() => doDeleteLesson(confirmLesson)} onClose={() => setConfirmLesson(null)} />}
-            </>
+            <LessonEditorPage
+                course={activeCourse}
+                lesson={editingLesson}
+                chapters={categories.map(c => c.name)}
+                onSave={saveLesson}
+                onClose={() => navigate(`/teacher/courses/${activeCourse.id}`)}
+            />
         );
     }
 
@@ -379,52 +347,30 @@ const TeacherCourses = () => {
     if (view === 'lesson' && activeCourse) {
         if (!activeLesson) return <Loader />;
         return (
-            <>
-                <LessonPage
-                    lesson={activeLesson}
-                    course={activeCourse}
-                    allLessons={activeCourse.lessons}
-                    onBack={(target) => {
-                        if (target === 'courses') navigate('/teacher/courses');
-                        else navigate(`/teacher/courses/${activeCourse.id}`);
-                    }}
-                    onNavigate={(l) => navigate(`/teacher/courses/${activeCourse.id}/lessons/${l.id}`)}
-                    onEdit={() => navigate(`/teacher/courses/${activeCourse.id}/lessons/${activeLesson.id}/edit`)}
-                    onDelete={() => setConfirmLesson(activeLesson.id)}
-                />
-                {confirmLesson && (
-                    <ConfirmModal
-                        title="Удалить урок?" text="Это действие нельзя отменить."
-                        onConfirm={() => doDeleteLesson(confirmLesson)}
-                        onClose={() => setConfirmLesson(null)}
-                    />
-                )}
-            </>
+            <LessonPage
+                lesson={activeLesson}
+                course={activeCourse}
+                allLessons={activeCourse.lessons}
+                onBack={(target) => {
+                    if (target === 'courses') navigate('/teacher/courses');
+                    else navigate(`/teacher/courses/${activeCourse.id}`);
+                }}
+                onNavigate={(l) => navigate(`/teacher/courses/${activeCourse.id}/lessons/${l.id}`)}
+            />
         );
     }
 
     /* ── Страница курса (список уроков) ── */
     if (view === 'course' && activeCourse) {
         return (
-            <>
-                <CourseDetailPage
-                    course={activeCourse}
-                    onBack={() => navigate('/teacher/courses')}
-                    onOpenLesson={(lesson) => navigate(`/teacher/courses/${activeCourse.id}/lessons/${lesson.id}`)}
-                    onAddLesson={() => navigate(`/teacher/courses/${activeCourse.id}/lessons/new`)}
-                    onEditLesson={(lesson) => navigate(`/teacher/courses/${activeCourse.id}/lessons/${lesson.id}/edit`)}
-                    onDeleteLesson={(id) => setConfirmLesson(id)}
-                    onToggleLessonPublish={toggleLessonPublish}
-                    onReorderLessons={reorderLessons}
-                />
-                {confirmLesson && (
-                    <ConfirmModal
-                        title="Удалить урок?" text="Это действие нельзя отменить."
-                        onConfirm={() => doDeleteLesson(confirmLesson)}
-                        onClose={() => setConfirmLesson(null)}
-                    />
-                )}
-            </>
+            <CourseDetailPage
+                course={activeCourse}
+                onBack={() => navigate('/teacher/courses')}
+                onOpenLesson={(lesson) => navigate(`/teacher/courses/${activeCourse.id}/lessons/${lesson.id}`)}
+                onAddLesson={() => navigate(`/teacher/courses/${activeCourse.id}/lessons/new`)}
+                onToggleLessonPublish={toggleLessonPublish}
+                onReorderLessons={reorderLessons}
+            />
         );
     }
 
@@ -487,7 +433,6 @@ const TeacherCourses = () => {
                                         currentUserId={getCurrentUser().id}
                                         navigate={navigate}
                                         onPublishToggle={toggleCoursePublish}
-                                        onEdit={openEditCourse}
                                         onConfirmDelete={setConfirmCourse}
                                         onAssign={setAssignCourse}
                                     />

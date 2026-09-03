@@ -298,7 +298,7 @@ const ExerciseBlock = ({ section }) => {
 /* ═══════════════════════════════════════════
    Main LessonPage
 ═══════════════════════════════════════════ */
-const LessonPage = ({ lesson, course, allLessons, onBack, onNavigate, onEdit, onDelete }) => {
+const LessonPage = ({ lesson, course, allLessons, onBack, onNavigate }) => {
     const [copiedId, setCopiedId] = useState(null);
 
     useEffect(() => {
@@ -361,10 +361,6 @@ const LessonPage = ({ lesson, course, allLessons, onBack, onNavigate, onEdit, on
                     <span className="lp-breadcrumb-current">{lesson.title}</span>
                 </div>
                 <div className="lp-top-actions">
-                    <div className="lp-lesson-action-btns">
-                        <button className="lp-edit-btn" onClick={onEdit}>✏️ Редактировать</button>
-                        <button className="lp-delete-btn" onClick={onDelete}>🗑️ Удалить</button>
-                    </div>
                     <div className="lp-nav-btns">
                         <button className="lp-nav-btn" onClick={() => prevLesson && onNavigate(prevLesson)} disabled={!prevLesson}>
                             ← Предыдущий

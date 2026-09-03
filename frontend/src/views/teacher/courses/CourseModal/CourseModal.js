@@ -189,8 +189,6 @@ const CourseModal = ({
     onBack,
     onOpenLesson,
     onAddLesson,
-    onEditLesson,
-    onDeleteLesson,
     onToggleLessonPublish,
     onReorderLessons,
 }) => {
@@ -228,8 +226,6 @@ const CourseModal = ({
             isDragging={dragId === lesson.id}
             isOver={overId === lesson.id && dragId !== lesson.id}
             onOpen={() => { if (!isDragging) onOpenLesson(lesson); }}
-            onEdit={() => onEditLesson(lesson)}
-            onDelete={() => onDeleteLesson(lesson.id)}
             onTogglePublish={() => onToggleLessonPublish(lesson)}
             onDragHandleMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, lesson.id); }}
             onMouseEnter={() => handleMouseEnter(lesson.id)}
@@ -339,7 +335,7 @@ const CourseModal = ({
 ───────────────────────────────────────── */
 const LessonCard = ({
     lesson, index,
-    onOpen, onEdit, onDelete, onTogglePublish,
+    onOpen, onTogglePublish,
     isDragging, isOver,
     onDragHandleMouseDown,
     onMouseEnter, onMouseUp,
@@ -387,21 +383,6 @@ const LessonCard = ({
                     : <div className="cdp-lesson-no-img">📹</div>
                 }
                 <span className="cdp-lesson-num-badge">Урок {index}</span>
-
-                <div className="cdp-lesson-card-actions" onClick={e => e.stopPropagation()}>
-                    <button
-                        className="cdp-lesson-action-btn edit"
-                        onMouseDown={e => e.stopPropagation()}
-                        onClick={e => { e.stopPropagation(); onEdit(); }}
-                        aria-label="Редактировать урок"
-                    >✏️</button>
-                    <button
-                        className="cdp-lesson-action-btn del"
-                        onMouseDown={e => e.stopPropagation()}
-                        onClick={e => { e.stopPropagation(); onDelete(); }}
-                        aria-label="Удалить урок"
-                    >🗑️</button>
-                </div>
 
                 <div className="cdp-lesson-play-overlay">
                     <div className="cdp-lesson-play-circle">▶</div>
