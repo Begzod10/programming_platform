@@ -18,7 +18,15 @@ class Group(Base):
     __tablename__ = "groups"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    # NOT unique: class names like "1-blue"/"4-green" are short room/cohort
+    # labels reused across branches — turon_id/gennis_id (below) are the
+    # actual identity _sync_group looks rows up by. Was unique=True until a
+    # branch-wide teacher sync (see gennis_service.py's
+    # _teaches_student_platform_subject) hit two different branches' real
+    # "4-green" groups in the same login and 500'd on insert (turon_id 188
+    # vs 684, 2026-09-03) — dropped live in prod, this migration makes it
+    # permanent.
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(String(500))
     price: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     gennis_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, unique=True)
