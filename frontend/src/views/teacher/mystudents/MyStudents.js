@@ -8,6 +8,16 @@ import { API_URL, useHttp, headers } from '../../../api/search/base';
  * value has to carry which container it means. */
 const optionValue = (kind, id) => `${kind}-${id}`;
 
+/* Class names are "0 blu" / "1-blue" / "10-green" — sorting them as plain
+ * strings puts "10-blue" right after "1-blue" and before "2-blue". Pull the
+ * leading number out instead so the order matches how the classes are
+ * actually numbered. A name with no leading digits sorts to the end rather
+ * than colliding at 0. */
+const classNumber = (name) => {
+  const m = /^\D*(\d+)/.exec(name || '');
+  return m ? Number(m[1]) : Infinity;
+};
+
 /* ─── Main ───
  * Flat, filterable roster — one row per student, not per group. Reuses the
  * exact same teacher-scoped /groups/ and /flows/ endpoints the group-cards
@@ -23,6 +33,7 @@ const MyStudents = () => {
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
   const [classFilter, setClassFilter] = useState('all');
+  const [sortDir, setSortDir] = useState('asc');
 
   useEffect(() => {
     setLoading(true);
@@ -46,19 +57,22 @@ const MyStudents = () => {
    * (e.g. a homeroom group plus an IT-subject flow) gets every class name
    * it belongs to joined in the Class column, matching how
    * AssignStudentsModal already renders multi-group membership, rather
-   * than duplicating that student into several rows. */
+   * than duplicating that student into several rows. minClassNumber is the
+   * lowest of those (a student in "1-blue" and "10-blue" sorts under 1). */
   const allStudents = useMemo(() => {
     const byId = new Map();
     const addFrom = (container, kind, icon) => {
       const optValue = optionValue(kind, container.id);
+      const num = classNumber(container.name);
       (container.students || []).forEach(s => {
         let row = byId.get(s.id);
         if (!row) {
-          row = { ...s, classNames: [], classValues: new Set() };
+          row = { ...s, classNames: [], classValues: new Set(), minClassNumber: Infinity };
           byId.set(s.id, row);
         }
         row.classNames.push(`${icon} ${container.name}`);
         row.classValues.add(optValue);
+        row.minClassNumber = Math.min(row.minClassNumber, num);
       });
     };
     groups.forEach(g => addFrom(g, 'group', '🏫'));
@@ -68,7 +82,7 @@ const MyStudents = () => {
 
   const filteredStudents = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return allStudents.filter(s => {
+    const rows = allStudents.filter(s => {
       if (classFilter !== 'all' && !s.classValues.has(classFilter)) return false;
       if (!q) return true;
       return (
@@ -77,7 +91,9 @@ const MyStudents = () => {
         (s.username  || '').toLowerCase().includes(q)
       );
     });
-  }, [allStudents, search, classFilter]);
+    const sign = sortDir === 'asc' ? 1 : -1;
+    return rows.sort((a, b) => sign * (a.minClassNumber - b.minClassNumber));
+  }, [allStudents, search, classFilter, sortDir]);
 
   const handleOpenStudent = (studentId) => {
     navigate(`/teacher/students/${studentId}`);
@@ -135,7 +151,14 @@ const MyStudents = () => {
             <span>Ism</span>
             <span>Familiya</span>
             <span>Username</span>
-            <span>Sinf</span>
+            <button
+              type="button"
+              className="ms-sort-btn"
+              onClick={() => setSortDir(d => (d === 'asc' ? 'desc' : 'asc'))}
+              title="Sinf raqami bo'yicha tartibni almashtirish"
+            >
+              Sinf <span className={`ms-sort-arrow ${sortDir}`}>▲</span>
+            </button>
           </div>
           <div className="ms-student-table-body">
             {filteredStudents.map(s => (
