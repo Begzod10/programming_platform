@@ -613,11 +613,20 @@ async def import_questions_from_lesson(
     else:
         source_course_id = course_id
 
-    owns_course = (await db.execute(
-        select(Course.id).where(Course.id == source_course_id, Course.instructor_id == teacher.id)
+    # Courses here are a centrally-authored shared catalog, not per-teacher
+    # content — every course in production belongs to a single content-owner
+    # account, so a strict Course.instructor_id == teacher.id check 403'd
+    # every other teacher (in particular every turon-synced account, which
+    # owns zero courses by construction) out of importing from any course
+    # but their own. GET .../lessons-with-questions, which populates this
+    # same import picker in the frontend, already lists every course to
+    # every teacher with no ownership filter — match that here instead of
+    # gatekeeping the POST behind an ACL the GET never enforced.
+    course_exists = (await db.execute(
+        select(Course.id).where(Course.id == source_course_id)
     )).first()
-    if not owns_course:
-        raise HTTPException(status_code=403, detail="Not your course")
+    if not course_exists:
+        raise HTTPException(status_code=404, detail="Course not found")
 
     if lesson_id:
         source_qs = (await db.execute(
