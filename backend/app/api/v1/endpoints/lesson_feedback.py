@@ -111,16 +111,22 @@ async def get_my_lesson_feedback(
 async def _require_course_owner(
     db: AsyncSession, course_id: int, teacher: Student
 ) -> Course:
+    """Despite the name, this no longer requires *ownership* — courses here
+    are a centrally-authored shared catalog (every production course
+    belongs to a single content-owner account), not per-teacher content.
+    The old instructor_id == teacher.id check 403'd every other teacher —
+    in particular every turon-synced account, which owns zero courses by
+    construction — out of viewing feedback on lessons they actually teach
+    with their own students. This is a read-only view, so it's opened up
+    to any teacher, matching how lesson_questions.py already treats the
+    same catalog. See the identical fix in team_game_questions.py's
+    import_questions_from_lesson for the first instance of this bug.
+    """
     course = (
         await db.execute(select(Course).where(Course.id == course_id))
     ).scalar_one_or_none()
     if not course:
         raise HTTPException(status_code=404, detail="Kurs topilmadi")
-    if course.instructor_id != teacher.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Bu kursning instruktori emassiz",
-        )
     return course
 
 
