@@ -106,12 +106,25 @@ async def _hydrate_exercise_sections(db: AsyncSession, lessons_data: list, lang:
     since GET .../exercises is never called by any frontend code) silently
     showed Uzbek text to Russian students for every exercise stored as a
     stub, no matter how complete translation_cache was for that exercise.
+
+    Non-stub (fully embedded) exercises are also patched when `lang` is
+    set, but only for `options`/`drag_items`. Those two keys are on
+    translate_json_blob's _NEVER_TRANSLATE_KEYS list (translating a choice
+    array would break the frontend's answer-matching logic if done as a
+    raw-string tree walk), so the sections_json-level lesson translation
+    that generates the rest of an embedded exercise's Russian text (title/
+    description/hint/explanation) always leaves its options in Uzbek. This
+    is the one place that owns entity_type='exercise' translations, so it
+    patches the two skipped fields back in from the same per-field cache,
+    same as it already does for hydrated stubs.
     """
     from app.models.exercise import Exercise
     from app.services import translation_store as ts
 
+    translate = bool(lang) and lang != "uz"
+
     parsed_by_lesson: dict[int, list] = {}
-    needed_ids: set[int] = set()
+    stub_ids: set[int] = set()
     for dto in lessons_data:
         if not dto.sections_json:
             continue
@@ -119,25 +132,30 @@ async def _hydrate_exercise_sections(db: AsyncSession, lessons_data: list, lang:
             sections = json.loads(dto.sections_json)
         except Exception:
             continue
-        has_stub = False
+        needs_processing = False
         for sec in sections:
             if sec.get("type") != "exercise":
                 continue
             for ex in sec.get("exercises", []) or []:
-                if "description" not in ex and ex.get("id"):
-                    has_stub = True
-                    needed_ids.add(ex["id"])
-        if has_stub:
+                if not ex.get("id"):
+                    continue
+                if "description" not in ex:
+                    stub_ids.add(ex["id"])
+                    needs_processing = True
+                elif translate:
+                    needs_processing = True
+        if needs_processing:
             parsed_by_lesson[dto.id] = sections
 
-    if not needed_ids:
+    if not parsed_by_lesson:
         return
 
-    rows = (await db.execute(
-        select(Exercise).where(Exercise.id.in_(needed_ids))
-    )).scalars().all()
-    by_id = {row.id: row for row in rows}
-    translate = bool(lang) and lang != "uz"
+    by_id: dict[int, Exercise] = {}
+    if stub_ids:
+        rows = (await db.execute(
+            select(Exercise).where(Exercise.id.in_(stub_ids))
+        )).scalars().all()
+        by_id = {row.id: row for row in rows}
 
     for dto in lessons_data:
         sections = parsed_by_lesson.get(dto.id)
@@ -148,7 +166,8 @@ async def _hydrate_exercise_sections(db: AsyncSession, lessons_data: list, lang:
                 continue
             hydrated = []
             for ex in sec.get("exercises", []) or []:
-                row = by_id.get(ex.get("id")) if "description" not in ex else None
+                is_stub = "description" not in ex
+                row = by_id.get(ex.get("id")) if is_stub else None
                 if row is not None:
                     payload = {f: getattr(row, f) for f in _EXERCISE_RENDER_FIELDS}
                     if translate:
@@ -157,6 +176,13 @@ async def _hydrate_exercise_sections(db: AsyncSession, lessons_data: list, lang:
                             if tr:
                                 payload[field] = tr
                     hydrated.append({"id": row.id, **payload})
+                elif translate and ex.get("id"):
+                    patched = dict(ex)
+                    for field in ("options", "drag_items"):
+                        tr = ts.get("exercise", ex["id"], lang, field)
+                        if tr:
+                            patched[field] = tr
+                    hydrated.append(patched)
                 else:
                     hydrated.append(ex)
             sec["exercises"] = hydrated
