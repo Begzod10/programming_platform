@@ -5,6 +5,7 @@ from the points/achievements system) and
 backend/scripts/_seed_early_learning.py for how content gets in.
 """
 import json
+from datetime import date
 from typing import Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,7 +15,7 @@ from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_db, get_current_student
 from app.models.early_learning import EarlyActivity, EarlyActivityCompletion, EarlyModule
-from app.models.user import Student
+from app.models.user import Student, UserRole
 from app.schemas.early_learning import (
     EarlyActivityCompleteIn,
     EarlyActivityCompleteOut,
@@ -47,6 +48,40 @@ async def _completions_by_activity(
 
 def _visible_activities(module: EarlyModule) -> List[EarlyActivity]:
     return [a for a in module.activities if a.is_active and a.is_published]
+
+
+# Grace band around a module's own age_min/age_max — this was always meant
+# to be a soft, advisory range (see EarlyModule's docstring), not a razor
+# cutoff that excludes a real kid a few months either side of it.
+_AGE_GRACE_YEARS = 2
+
+
+def _age_from_birth_date(birth_date: date) -> int:
+    today = date.today()
+    return today.year - birth_date.year - (
+        (today.month, today.day) < (birth_date.month, birth_date.day)
+    )
+
+
+def _is_age_eligible(student: Student, module: EarlyModule) -> bool:
+    """Whether `student` should see `module` at all.
+
+    Most accounts have no birth_date yet (every gennis-synced student, plus
+    turon students who haven't logged in/been rostered since the sync
+    started carrying it — see gennis_service.py), so this can only ever
+    exclude a CONFIRMED mismatch, never require proof of eligibility —
+    doing the latter would lock out nearly everyone, including the actual
+    5-8 year olds this is for. Teachers always pass, matching the existing
+    teacher-preview access to this whole feature (see EarlyLearning.js /
+    TeacherSidebar.js) — the point of gating is keeping the feature scoped
+    to young kids among *students*, not hiding it from staff previewing it.
+    """
+    if student.role != UserRole.student:
+        return True
+    if student.birth_date is None:
+        return True
+    age = _age_from_birth_date(student.birth_date)
+    return (module.age_min - _AGE_GRACE_YEARS) <= age <= (module.age_max + _AGE_GRACE_YEARS)
 
 
 def _list_item(module: EarlyModule, completions: Dict[int, EarlyActivityCompletion]) -> EarlyModuleListItem:
@@ -99,6 +134,7 @@ async def list_early_modules(
             .order_by(EarlyModule.display_order)
         )
     ).scalars().all()
+    modules = [m for m in modules if _is_age_eligible(current_student, m)]
 
     activity_ids = [a.id for m in modules for a in _visible_activities(m)]
     completions = await _completions_by_activity(db, current_student.id, activity_ids)
@@ -120,7 +156,12 @@ async def get_early_module(
             .options(selectinload(EarlyModule.activities))
         )
     ).scalar_one_or_none()
-    if module is None or not module.is_published or not module.is_active:
+    if (
+        module is None
+        or not module.is_published
+        or not module.is_active
+        or not _is_age_eligible(current_student, module)
+    ):
         raise HTTPException(status_code=404, detail="Modul topilmadi")
 
     activities = sorted(_visible_activities(module), key=lambda a: a.order)
@@ -159,6 +200,7 @@ async def complete_early_activity(
         or not activity.is_published
         or not activity.module.is_active
         or not activity.module.is_published
+        or not _is_age_eligible(current_student, activity.module)
     ):
         raise HTTPException(status_code=404, detail="Faoliyat topilmadi")
 

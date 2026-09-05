@@ -8,6 +8,7 @@ on that script's content.
 """
 import json
 import uuid
+from datetime import date
 
 import pytest
 import pytest_asyncio
@@ -54,7 +55,38 @@ async def instructor_id(async_client: AsyncClient, db_session) -> int:
     return user_id
 
 
-async def _make_module(db_session, instructor_id: int, published: bool, activity_published: bool = True):
+async def _register(async_client: AsyncClient, db_session, prefix: str, role: UserRole = UserRole.student):
+    """Register a fresh account, optionally flip its role, log in. Returns
+    (student_id, headers) — generalizes the instructor_id fixture's
+    register-then-flip-role pattern with a role param, for the
+    teacher-exemption test."""
+    uid = uuid.uuid4().hex[:8]
+    username = f"{prefix}_{uid}"
+    reg = await async_client.post(
+        "/api/v1/auth/register",
+        json={"username": username, "email": f"{username}@example.com", "password": "TestPass123!"},
+    )
+    assert reg.status_code == 201, reg.text
+    student_id = reg.json()["user"]["id"]
+    if role != UserRole.student:
+        await db_session.execute(update(Student).where(Student.id == student_id).values(role=role))
+        await db_session.commit()
+    login = await async_client.post(
+        "/api/v1/auth/login", json={"username": username, "password": "TestPass123!"}
+    )
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    return student_id, headers
+
+
+async def _set_birth_date(db_session, student_id: int, birth_date) -> None:
+    await db_session.execute(update(Student).where(Student.id == student_id).values(birth_date=birth_date))
+    await db_session.commit()
+
+
+async def _make_module(
+    db_session, instructor_id: int, published: bool, activity_published: bool = True,
+    age_min: int = 4, age_max: int = 6,
+):
     uid = uuid.uuid4().hex[:8]
     module = EarlyModule(
         title=f"test-module-{uid}",
@@ -63,6 +95,8 @@ async def _make_module(db_session, instructor_id: int, published: bool, activity
         instructor_id=instructor_id,
         is_published=published,
         is_active=True,
+        age_min=age_min,
+        age_max=age_max,
     )
     db_session.add(module)
     await db_session.flush()
@@ -247,3 +281,98 @@ async def test_completions_are_isolated_per_student(
     activity_out = next(a for a in body["activities"] if a["id"] == activity.id)
     assert activity_out["best_stars"] == 0
     assert activity_out["attempts"] == 0
+
+
+# ── Age gating ──────────────────────────────────────────────────────────────
+# Most accounts have no birth_date at all (see gennis_service.py) — gating
+# must only ever exclude a CONFIRMED mismatch, never require proof of
+# eligibility, or it would lock out nearly everyone including real 5-8 year
+# olds. See early_learning.py's _is_age_eligible.
+
+def _years_ago(n: int) -> date:
+    today = date.today()
+    try:
+        return today.replace(year=today.year - n)
+    except ValueError:  # Feb 29 on a non-leap target year
+        return today.replace(year=today.year - n, day=28)
+
+
+@pytest.mark.asyncio
+async def test_module_hidden_from_confirmed_too_old_student(
+    async_client: AsyncClient, db_session, instructor_id
+):
+    # Arrange: age_min=5, age_max=8, grace=2 → eligible up to 10; 16 is well outside it
+    module, _ = await _make_module(db_session, instructor_id, published=True, age_min=5, age_max=8)
+    student_id, headers = await _register(async_client, db_session, "el_age_old")
+    await _set_birth_date(db_session, student_id, _years_ago(16))
+
+    # Act
+    list_response = await async_client.get("/api/v1/early-learning/modules", headers=headers)
+    detail_response = await async_client.get(f"/api/v1/early-learning/modules/{module.id}", headers=headers)
+
+    # Assert: invisible in the list, and 404 (not a special error) on direct access —
+    # same treatment as an unpublished module, so age is never leaked to the client.
+    assert module.id not in [m["id"] for m in list_response.json()]
+    assert detail_response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_module_visible_to_student_in_range(async_client: AsyncClient, db_session, instructor_id):
+    # Arrange
+    module, _ = await _make_module(db_session, instructor_id, published=True, age_min=5, age_max=8)
+    student_id, headers = await _register(async_client, db_session, "el_age_ok")
+    await _set_birth_date(db_session, student_id, _years_ago(6))
+
+    # Act
+    response = await async_client.get("/api/v1/early-learning/modules", headers=headers)
+
+    # Assert
+    assert module.id in [m["id"] for m in response.json()]
+
+
+@pytest.mark.asyncio
+async def test_module_visible_when_birth_date_unknown(async_client: AsyncClient, db_session, instructor_id):
+    # Arrange: no _set_birth_date call — birth_date stays NULL, the common case today
+    module, _ = await _make_module(db_session, instructor_id, published=True, age_min=5, age_max=8)
+    student_id, headers = await _register(async_client, db_session, "el_age_unknown")
+
+    # Act
+    response = await async_client.get("/api/v1/early-learning/modules", headers=headers)
+
+    # Assert: unknown age never excludes — only a confirmed mismatch does
+    assert module.id in [m["id"] for m in response.json()]
+
+
+@pytest.mark.asyncio
+async def test_teacher_sees_module_regardless_of_age(async_client: AsyncClient, db_session, instructor_id):
+    """A teacher previewing this feature (see EarlyLearning.js's
+    /teacher/early-learning route) must never be excluded by age — the
+    point of gating is scoping it to young kids among *students*, not
+    hiding it from staff who are supposed to be able to check it."""
+    module, _ = await _make_module(db_session, instructor_id, published=True, age_min=5, age_max=8)
+    teacher_id, headers = await _register(async_client, db_session, "el_age_teacher", role=UserRole.teacher)
+    await _set_birth_date(db_session, teacher_id, _years_ago(30))
+
+    response = await async_client.get("/api/v1/early-learning/modules", headers=headers)
+
+    assert module.id in [m["id"] for m in response.json()]
+
+
+@pytest.mark.asyncio
+async def test_complete_404s_for_confirmed_too_old_student(
+    async_client: AsyncClient, db_session, instructor_id
+):
+    # Arrange
+    _, activity = await _make_module(db_session, instructor_id, published=True, age_min=5, age_max=8)
+    student_id, headers = await _register(async_client, db_session, "el_age_old_complete")
+    await _set_birth_date(db_session, student_id, _years_ago(20))
+
+    # Act
+    response = await async_client.post(
+        f"/api/v1/early-learning/activities/{activity.id}/complete",
+        json={"stars": 3},
+        headers=headers,
+    )
+
+    # Assert
+    assert response.status_code == 404

@@ -286,6 +286,8 @@ MODULES = [
         "icon_emoji": "🏙️",
         "color_accent": "#FF9F40",
         "display_order": 5,
+        "age_min": 5,
+        "age_max": 8,
         "is_published": True,
         "activities": [
             {
@@ -481,6 +483,8 @@ MODULES = [
         "icon_emoji": "🍂",
         "color_accent": "#4DAA57",
         "display_order": 6,
+        "age_min": 5,
+        "age_max": 8,
         "is_published": True,
         "activities": [
             {
@@ -584,6 +588,8 @@ MODULES = [
         "icon_emoji": "🐾",
         "color_accent": "#FF8C69",
         "display_order": 7,
+        "age_min": 5,
+        "age_max": 8,
         "is_published": True,
         "activities": [
             {
@@ -733,6 +739,8 @@ MODULES = [
         "icon_emoji": "🚦",
         "color_accent": "#4DA6FF",
         "display_order": 8,
+        "age_min": 5,
+        "age_max": 8,
         "is_published": True,
         "activities": [
             {
@@ -813,6 +821,8 @@ MODULES = [
         "icon_emoji": "🎨",
         "color_accent": "#FF6FA8",
         "display_order": 9,
+        "age_min": 5,
+        "age_max": 8,
         "is_published": True,
         "activities": [
             {
@@ -930,6 +940,12 @@ async def _upsert_module(db, data: dict) -> EarlyModule:
     # are icon-based (no missing assets) and ship complete, so they opt in
     # via this flag instead.
     existing.is_published = data.get("is_published", False)
+    # Falls back to the model default (4-6, the drafts' original target)
+    # for any module that doesn't specify its own — only the matching-game
+    # packs below set 5-8 explicitly. Now actually enforced (see
+    # early_learning.py's _is_age_eligible), not just advisory metadata.
+    existing.age_min = data.get("age_min", 4)
+    existing.age_max = data.get("age_max", 6)
     await db.flush()  # populate .id for a brand-new row
     return existing
 

@@ -257,7 +257,7 @@ export default function EarlyLearning() {
                         </button>
                     ))}
                     {modules.length === 0 && (
-                        <div className="el-empty">Hozircha o'yinlar tayyorlanmoqda. Tez orada qaytib keling!</div>
+                        <div className="el-empty">Hozircha bu yerda o'yin yo'q.</div>
                     )}
                 </div>
                 {leaderboard && <Leaderboard entries={leaderboard.entries} hasClass={leaderboard.has_class} />}
