@@ -6,7 +6,7 @@ import { useTranslation } from '../../i18n/useTranslation';
 import StreakBadge from './StreakBadge';
 import {
     LayoutDashboard, User, BookOpen, Map, Monitor, BookMarked,
-    Gamepad2, BarChart2, Trophy, Construction, GraduationCap, Award,
+    Gamepad2, BarChart2, Trophy, Construction, GraduationCap, Award, Puzzle,
 } from 'lucide-react';
 
 const COLLAPSED_KEY = 'sidebar:collapsed';
@@ -61,6 +61,7 @@ function Sidebar({ activeTab, onLogout, role }) {
         { id: 'projects',       label: t('my_projects'),                Icon: Monitor,         section: 'main' },
         { id: 'dictionary',     label: t('dictionary'),                 Icon: BookMarked,      section: 'main' },
         { id: 'team-game',      label: t('team_game'),                  Icon: Gamepad2,        section: 'main' },
+        { id: 'early-learning', label: t('early_learning'),             Icon: Puzzle,          section: 'main' },
         { id: 'statistics',     label: t('statistics') || 'Статистика', Icon: BarChart2,       section: 'insights' },
         { id: 'rankings',       label: t('rankings'),                   Icon: Trophy,          section: 'insights' },
         { id: 'project-rating', label: t('top_projects'),               Icon: Construction,    section: 'insights' },

@@ -1,0 +1,10 @@
+.eac-stars {
+    display: flex;
+    gap: 6px;
+    animation: eac-stars-pop 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes eac-stars-pop {
+    from { transform: scale(0.4) rotate(-10deg); opacity: 0; }
+    to   { transform: scale(1) rotate(0deg);     opacity: 1; }
+}

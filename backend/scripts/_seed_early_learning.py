@@ -1,7 +1,10 @@
-"""One-off: seed the initial "early learner" (age 4-6) catalog — 4 modules
-covering literacy/math/logic/creative, each with a first pass of activities.
-See project_student_platform memory / early_learning.py for the model design
-rationale (no AI grading, star-based completion instead of points).
+"""One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
+modules covering literacy/math/logic/creative (each a first pass, left
+unpublished pending real media), plus 2 complete, published matching-game
+packs ("Kasblar shaharchasi" / "Fasllar dunyosi") that use icon-based
+content instead of image assets. See project_student_platform memory /
+early_learning.py for the model design rationale (no AI grading, star-based
+completion instead of points).
 
 Creates the early_modules / early_activities / early_activity_completions
 tables directly via Base.metadata.create_all() scoped to just those three,
@@ -204,6 +207,313 @@ MODULES = [
             },
         ],
     },
+    # ── "Kasblar shaharchasi" / "Fasllar dunyosi": tap-to-select matching
+    # packs, activity_type=match with a new content["mode"]="select" shape
+    # (character + correct_items + distractor_items, each item carrying a
+    # lucide-react icon name instead of an image_url) — unlike the drafts
+    # above, these ship complete (icon-based, no missing media), so
+    # is_published=True. See docs/plans or the early-learning feature plan
+    # for the design rationale (subject stays "logic" — categorization is a
+    # logic skill, and adding a new EarlySubject value would need an
+    # ALTER TYPE against the already-materialized Postgres enum).
+    {
+        "title": "Kasblar shaharchasi",
+        "description": "Kasbni tanla va unga kerakli asboblarni top.",
+        "subject": EarlySubject.logic,
+        "icon_emoji": "🏙️",
+        "color_accent": "#FF9F40",
+        "display_order": 5,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Oshpaz",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Oshpazga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "👨‍🍳", "label": "Oshpaz"},
+                    "correct_items": [
+                        {"id": "chef_hat", "label": "Oshpaz qalpog'i", "icon": "ChefHat"},
+                        {"id": "recipe_book", "label": "Retsept kitobi", "icon": "BookOpen"},
+                        {"id": "mixing_bowl", "label": "Aralashtirish kosasi", "icon": "CookingPot"},
+                        {"id": "chef_knife", "label": "Oshpaz pichog'i", "icon": "UtensilsCrossed"},
+                        {"id": "fire", "label": "Olov", "icon": "Flame"},
+                        {"id": "soup_pot", "label": "Sho'rva qozoni", "icon": "Soup"},
+                    ],
+                    "distractor_items": [
+                        {"id": "keyboard", "label": "Klaviatura", "icon": "Keyboard"},
+                        {"id": "stethoscope", "label": "Stetoskop", "icon": "Stethoscope"},
+                        {"id": "hammer", "label": "Bolg'a", "icon": "Hammer"},
+                        {"id": "shield", "label": "Qalqon", "icon": "Shield"},
+                    ],
+                },
+            },
+            {
+                "title": "Shifokor",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Shifokorga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🩺", "label": "Shifokor"},
+                    "correct_items": [
+                        {"id": "stethoscope", "label": "Stetoskop", "icon": "Stethoscope"},
+                        {"id": "syringe", "label": "Shprits", "icon": "Syringe"},
+                        {"id": "pill", "label": "Dori", "icon": "Pill"},
+                        {"id": "heart_pulse", "label": "Yurak monitori", "icon": "HeartPulse"},
+                        {"id": "bandage", "label": "Bint", "icon": "Bandage"},
+                        {"id": "thermometer", "label": "Termometr", "icon": "Thermometer"},
+                    ],
+                    "distractor_items": [
+                        {"id": "chef_hat", "label": "Oshpaz qalpog'i", "icon": "ChefHat"},
+                        {"id": "wrench", "label": "Kalit", "icon": "Wrench"},
+                        {"id": "telescope", "label": "Teleskop", "icon": "Telescope"},
+                        {"id": "graduation_cap", "label": "Bitiruv qalpog'i", "icon": "GraduationCap"},
+                    ],
+                },
+            },
+            {
+                "title": "Mexanik",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Mexanikga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🔧", "label": "Mexanik"},
+                    "correct_items": [
+                        {"id": "wrench", "label": "Kalit", "icon": "Wrench"},
+                        {"id": "cog", "label": "Tishli g'ildirak", "icon": "Cog"},
+                        {"id": "battery", "label": "Akkumulyator", "icon": "BatteryCharging"},
+                        {"id": "truck", "label": "Yuk mashinasi", "icon": "Truck"},
+                        {"id": "gauge", "label": "O'lchagich", "icon": "Gauge"},
+                        {"id": "toolbox", "label": "Asboblar qutisi", "icon": "Toolbox"},
+                    ],
+                    "distractor_items": [
+                        {"id": "stethoscope", "label": "Stetoskop", "icon": "Stethoscope"},
+                        {"id": "book", "label": "Kitob", "icon": "BookOpen"},
+                        {"id": "microscope", "label": "Mikroskop", "icon": "Microscope"},
+                        {"id": "shield", "label": "Qalqon", "icon": "Shield"},
+                    ],
+                },
+            },
+            {
+                "title": "Quruvchi",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Quruvchiga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "👷", "label": "Quruvchi"},
+                    "correct_items": [
+                        {"id": "hard_hat", "label": "Qattiq shlyapa", "icon": "HardHat"},
+                        {"id": "hammer", "label": "Bolg'a", "icon": "Hammer"},
+                        {"id": "ruler", "label": "Chizg'ich", "icon": "Ruler"},
+                        {"id": "brick_wall", "label": "G'isht devor", "icon": "BrickWall"},
+                        {"id": "construction", "label": "Qurilish belgisi", "icon": "Construction"},
+                        {"id": "shovel", "label": "Belkurak", "icon": "Shovel"},
+                    ],
+                    "distractor_items": [
+                        {"id": "syringe", "label": "Shprits", "icon": "Syringe"},
+                        {"id": "keyboard", "label": "Klaviatura", "icon": "Keyboard"},
+                        {"id": "fire", "label": "Olov", "icon": "Flame"},
+                        {"id": "siren", "label": "Sirena", "icon": "Siren"},
+                    ],
+                },
+            },
+            {
+                "title": "Tadqiqotchi",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Tadqiqotchiga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🔬", "label": "Tadqiqotchi"},
+                    "correct_items": [
+                        {"id": "microscope", "label": "Mikroskop", "icon": "Microscope"},
+                        {"id": "flask", "label": "Kolba", "icon": "FlaskConical"},
+                        {"id": "test_tube", "label": "Probirka", "icon": "TestTube"},
+                        {"id": "atom", "label": "Atom", "icon": "Atom"},
+                        {"id": "telescope", "label": "Teleskop", "icon": "Telescope"},
+                        {"id": "magnet", "label": "Magnit", "icon": "Magnet"},
+                    ],
+                    "distractor_items": [
+                        {"id": "chef_hat", "label": "Oshpaz qalpog'i", "icon": "ChefHat"},
+                        {"id": "hammer", "label": "Bolg'a", "icon": "Hammer"},
+                        {"id": "shield", "label": "Qalqon", "icon": "Shield"},
+                        {"id": "pencil", "label": "Qalam", "icon": "Pencil"},
+                    ],
+                },
+            },
+            {
+                "title": "Dasturchi",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Dasturchiga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "💻", "label": "Dasturchi"},
+                    "correct_items": [
+                        {"id": "laptop", "label": "Noutbuk", "icon": "Laptop"},
+                        {"id": "keyboard", "label": "Klaviatura", "icon": "Keyboard"},
+                        {"id": "monitor", "label": "Monitor", "icon": "Monitor"},
+                        {"id": "code", "label": "Kod", "icon": "Code2"},
+                        {"id": "cpu", "label": "Protsessor", "icon": "Cpu"},
+                        {"id": "terminal", "label": "Terminal", "icon": "Terminal"},
+                    ],
+                    "distractor_items": [
+                        {"id": "stethoscope", "label": "Stetoskop", "icon": "Stethoscope"},
+                        {"id": "hard_hat", "label": "Qattiq shlyapa", "icon": "HardHat"},
+                        {"id": "fire", "label": "Olov", "icon": "Flame"},
+                        {"id": "graduation_cap", "label": "Bitiruv qalpog'i", "icon": "GraduationCap"},
+                    ],
+                },
+            },
+            {
+                "title": "O'qituvchi",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "O'qituvchiga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "👩‍🏫", "label": "O'qituvchi"},
+                    "correct_items": [
+                        {"id": "graduation_cap", "label": "Bitiruv qalpog'i", "icon": "GraduationCap"},
+                        {"id": "textbook", "label": "Darslik", "icon": "BookMarked"},
+                        {"id": "pen_tool", "label": "Qalam uchi", "icon": "PenTool"},
+                        {"id": "pencil", "label": "Qalam", "icon": "Pencil"},
+                        {"id": "backpack", "label": "Ryukzak", "icon": "Backpack"},
+                        {"id": "apple", "label": "Olma", "icon": "Apple"},
+                    ],
+                    "distractor_items": [
+                        {"id": "wrench", "label": "Kalit", "icon": "Wrench"},
+                        {"id": "syringe", "label": "Shprits", "icon": "Syringe"},
+                        {"id": "fire", "label": "Olov", "icon": "Flame"},
+                        {"id": "car", "label": "Mashina", "icon": "CarFront"},
+                    ],
+                },
+            },
+            {
+                "title": "Politsiyachi",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Politsiyachiga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "👮", "label": "Politsiyachi"},
+                    "correct_items": [
+                        {"id": "shield", "label": "Qalqon", "icon": "Shield"},
+                        {"id": "badge", "label": "Nishon", "icon": "BadgeCheck"},
+                        {"id": "siren", "label": "Sirena", "icon": "Siren"},
+                        {"id": "car", "label": "Politsiya mashinasi", "icon": "CarFront"},
+                        {"id": "traffic_cone", "label": "Yo'l konusi", "icon": "TrafficCone"},
+                        {"id": "hand", "label": "To'xta belgisi", "icon": "Hand"},
+                    ],
+                    "distractor_items": [
+                        {"id": "chef_hat", "label": "Oshpaz qalpog'i", "icon": "ChefHat"},
+                        {"id": "textbook", "label": "Darslik", "icon": "BookMarked"},
+                        {"id": "flask", "label": "Kolba", "icon": "FlaskConical"},
+                        {"id": "hammer", "label": "Bolg'a", "icon": "Hammer"},
+                    ],
+                },
+            },
+        ],
+    },
+    {
+        "title": "Fasllar dunyosi",
+        "description": "Fasllarga mos narsalarni top.",
+        "subject": EarlySubject.logic,
+        "icon_emoji": "🍂",
+        "color_accent": "#4DAA57",
+        "display_order": 6,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Bahor",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Bahorga mos narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🌱", "label": "Bahor"},
+                    "correct_items": [
+                        {"id": "flower", "label": "Gul", "icon": "Flower"},
+                        {"id": "tulip", "label": "Lola", "icon": "Flower2"},
+                        {"id": "sprout", "label": "Nihol", "icon": "Sprout"},
+                        {"id": "umbrella", "label": "Soyabon", "icon": "Umbrella"},
+                        {"id": "rain_cloud", "label": "Yomg'irli bulut", "icon": "CloudRain"},
+                        {"id": "rainbow", "label": "Kamalak", "icon": "Rainbow"},
+                    ],
+                    "distractor_items": [
+                        {"id": "snowflake", "label": "Qor parchasi", "icon": "Snowflake"},
+                        {"id": "ice_cream", "label": "Muzqaymoq", "icon": "IceCream"},
+                        {"id": "leaf", "label": "Barg", "icon": "Leaf"},
+                        {"id": "gift", "label": "Sovg'a", "icon": "Gift"},
+                    ],
+                },
+            },
+            {
+                "title": "Yoz",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Yozga mos narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "☀️", "label": "Yoz"},
+                    "correct_items": [
+                        {"id": "sun", "label": "Quyosh", "icon": "Sun"},
+                        {"id": "glasses", "label": "Ko'zoynak", "icon": "Glasses"},
+                        {"id": "ice_cream", "label": "Muzqaymoq", "icon": "IceCream"},
+                        {"id": "sailboat", "label": "Qayiq", "icon": "Sailboat"},
+                        {"id": "droplets", "label": "Suv tomchilari", "icon": "Droplets"},
+                        {"id": "footprints", "label": "Yalangoyoq izlar", "icon": "Footprints"},
+                    ],
+                    "distractor_items": [
+                        {"id": "snowflake", "label": "Qor parchasi", "icon": "Snowflake"},
+                        {"id": "umbrella", "label": "Soyabon", "icon": "Umbrella"},
+                        {"id": "leaf", "label": "Barg", "icon": "Leaf"},
+                        {"id": "tree_pine", "label": "Archa", "icon": "TreePine"},
+                    ],
+                },
+            },
+            {
+                "title": "Kuz",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Kuzga mos narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🍂", "label": "Kuz"},
+                    "correct_items": [
+                        {"id": "leaf", "label": "Barg", "icon": "Leaf"},
+                        {"id": "wind", "label": "Shamol", "icon": "Wind"},
+                        {"id": "wheat", "label": "Bug'doy", "icon": "Wheat"},
+                        {"id": "tree_deciduous", "label": "Yaproqli daraxt", "icon": "TreeDeciduous"},
+                        {"id": "backpack", "label": "Maktab ryukzagi", "icon": "Backpack"},
+                        {"id": "squirrel", "label": "Sincob", "icon": "Squirrel"},
+                    ],
+                    "distractor_items": [
+                        {"id": "sun", "label": "Quyosh", "icon": "Sun"},
+                        {"id": "flower", "label": "Gul", "icon": "Flower"},
+                        {"id": "snowflake", "label": "Qor parchasi", "icon": "Snowflake"},
+                        {"id": "ice_cream", "label": "Muzqaymoq", "icon": "IceCream"},
+                    ],
+                },
+            },
+            {
+                "title": "Qish",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Qishga mos narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "❄️", "label": "Qish"},
+                    "correct_items": [
+                        {"id": "snowflake", "label": "Qor parchasi", "icon": "Snowflake"},
+                        {"id": "cold_thermometer", "label": "Sovuq termometri", "icon": "ThermometerSnowflake"},
+                        {"id": "gift", "label": "Sovg'a", "icon": "Gift"},
+                        {"id": "tree_pine", "label": "Archa", "icon": "TreePine"},
+                        {"id": "cloud_snow", "label": "Qorli bulut", "icon": "CloudSnow"},
+                        {"id": "candy_cane", "label": "Konfet tayoqcha", "icon": "CandyCane"},
+                    ],
+                    "distractor_items": [
+                        {"id": "sun", "label": "Quyosh", "icon": "Sun"},
+                        {"id": "flower", "label": "Gul", "icon": "Flower"},
+                        {"id": "leaf", "label": "Barg", "icon": "Leaf"},
+                        {"id": "sprout", "label": "Nihol", "icon": "Sprout"},
+                    ],
+                },
+            },
+        ],
+    },
 ]
 
 
@@ -220,11 +530,16 @@ async def _upsert_module(db, data: dict) -> EarlyModule:
     existing.color_accent = data["color_accent"]
     existing.display_order = data["display_order"]
     existing.title = data["title"]
+    # Draft modules (literacy/math/logic/creative above) intentionally stay
+    # is_published=False pending real media. The matching-game packs below
+    # are icon-based (no missing assets) and ship complete, so they opt in
+    # via this flag instead.
+    existing.is_published = data.get("is_published", False)
     await db.flush()  # populate .id for a brand-new row
     return existing
 
 
-async def _upsert_activity(db, module_id: int, order: int, data: dict) -> None:
+async def _upsert_activity(db, module_id: int, order: int, data: dict, is_published: bool = False) -> None:
     existing = (
         await db.execute(
             select(EarlyActivity).where(
@@ -241,6 +556,10 @@ async def _upsert_activity(db, module_id: int, order: int, data: dict) -> None:
     existing.activity_type = data["activity_type"]
     existing.instruction_text = data["instruction_text"]
     existing.content_json = json.dumps(data["content"], ensure_ascii=False)
+    # Activities publish along with their module — this pack has no
+    # per-activity draft state (unlike the module-level literacy/math/etc.
+    # drafts, every activity here ships complete in one pass).
+    existing.is_published = is_published
 
 
 async def main():
@@ -261,12 +580,13 @@ async def main():
             module = await _upsert_module(db, mod_data)
             modules_written += 1
             for i, act_data in enumerate(mod_data["activities"]):
-                await _upsert_activity(db, module.id, i, act_data)
+                await _upsert_activity(db, module.id, i, act_data, is_published=mod_data.get("is_published", False))
                 activities_written += 1
         await db.commit()
 
     print(f"wrote {modules_written} modules, {activities_written} activities "
-          f"(all is_published=False — media URLs still need filling in)")
+          f"(publish state follows each module — drafts stay unpublished "
+          f"pending media, the icon-based matching packs publish complete)")
     await engine.dispose()
 
 
