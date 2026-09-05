@@ -418,11 +418,20 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                     await uploadZip(created.id, zipFile);
                     setZipMsg('✅ ZIP загружен успешно');
                 } catch (err) {
-                    if (err.message === 'EMPTY_FILE') {
-                        setZipMsg('❌ ZIP-файл пустой — загрузка отменена');
-                    } else {
-                        setZipMsg('⚠️ Проект создан, но ZIP не загрузился');
-                    }
+                    // The project row already exists (status stays "Draft" —
+                    // create_project() only flips to "Submitted" on the
+                    // github_url path, not zip), but nothing else in this
+                    // flow runs a fallback /submit for zip uploads. Silently
+                    // closing the modal here used to leave the student
+                    // believing they'd submitted when nothing was actually
+                    // sent for review — keep it open and let them retry
+                    // instead (get_lesson_submission already treats a
+                    // Draft-status project as "not submitted").
+                    setZipMsg(err.message === 'EMPTY_FILE'
+                        ? '❌ ZIP-файл пустой — загрузка отменена'
+                        : '⚠️ Проект создан, но ZIP не загрузился');
+                    setProjectError('ZIP fayl yuklanmadi. Qayta urinib ko\'ring.');
+                    return;
                 } finally {
                     setZipUploading(false);
                 }

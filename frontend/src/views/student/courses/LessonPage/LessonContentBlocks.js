@@ -323,6 +323,15 @@ export const LessonContentBlocks = ({
                                                 </div>
                                             )}
                                         </>
+                                    ) : projectPending && projectSubmission?.stuck ? (
+                                        <>
+                                            <div className="slp-project-deadline" style={{background: '#fffbeb', color: '#92400e', borderLeft: '3px solid #f59e0b', padding: '8px 12px'}}>
+                                                ⚠️ {t('lcb.submitStuck')}
+                                            </div>
+                                            <button className="slp-project-btn" onClick={onProjectOpen} style={{marginTop: 8}} disabled={quotaExhausted}>
+                                                {t('lcb.retryBtn')}
+                                            </button>
+                                        </>
                                     ) : projectPending ? (
                                         <div className="slp-project-submitted">
                                             <span aria-hidden="true"><Clock size={18} /></span>

@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +20,38 @@ logger = logging.getLogger(__name__)
 # Minimum project score (0-100) to consider a submission "passing".
 # Mirrors PROJECT_PASS_THRESHOLD in app/api/v1/endpoints/lessons.py.
 PROJECT_PASS_THRESHOLD = 75
+
+# create_project() marks a lesson-linked, github-url project "Submitted"
+# immediately on creation (see the github_url branch below) so the UI has
+# something to show right away, relying on a SEPARATE submit_project()
+# call to actually set submitted_at and trigger AI review. If that second
+# call never completes — dropped connection, closed tab between the two
+# sequential requests the frontend makes for one "submit" click — the
+# project is left at status="Submitted" with submitted_at permanently
+# NULL: indistinguishable from a genuinely-in-review submission to a plain
+# status check, and (before this) blocking the student from ever
+# resubmitting via the guard in create_project() below. Give it a short
+# grace period — comfortably longer than one HTTP round trip, far shorter
+# than the AI review that only ever starts once submitted_at IS set —
+# before treating it as orphaned rather than still in flight.
+ORPHANED_SUBMIT_GRACE_MINUTES = 2
+
+
+def is_orphaned_submission(project: Optional[Project]) -> bool:
+    """True if `project` looks like a half-finished submit_project() call
+    that never completed, rather than a genuine pending review."""
+    if project is None or project.status != "Submitted" or project.submitted_at is not None:
+        return False
+    reference = project.created_at or project.updated_at
+    if reference is None:
+        return False
+    # created_at/updated_at come from the DB as tz-aware (server_default
+    # func.now()), but the rest of this module treats datetime.utcnow()'s
+    # naive value as implicitly UTC (e.g. submitted_at is set that way a
+    # few lines below) — normalize to naive-UTC to compare like with like.
+    if reference.tzinfo is not None:
+        reference = reference.replace(tzinfo=None)
+    return (datetime.utcnow() - reference) > timedelta(minutes=ORPHANED_SUBMIT_GRACE_MINUTES)
 
 
 class ProjectService:
@@ -57,7 +89,7 @@ class ProjectService:
                 old_status = old_project.status if old_project else existing_sub.status
                 old_points = old_project.points_earned if old_project else 0
 
-                if old_status == "Submitted":
+                if old_status == "Submitted" and not is_orphaned_submission(old_project):
                     raise HTTPException(
                         status_code=400,
                         detail="Loyihangiz hali tekshirilmoqda — natijani kuting",

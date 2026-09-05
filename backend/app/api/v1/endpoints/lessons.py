@@ -11,6 +11,7 @@ from starlette import status
 from app.dependencies import get_db, get_current_student, get_current_teacher, get_current_student_optional, \
     get_current_instructor
 from app.services import lesson_service, achievement_service
+from app.services.project_service import is_orphaned_submission
 from app.schemas.lesson import LessonCreate, LessonUpdate, LessonRead
 from app.models.user import Student
 from app.models.submission import Submission
@@ -633,12 +634,20 @@ async def get_lesson_submission(
         and proj_status not in ("Rejected", "Draft")
     )
     can_resubmit = reviewed and not passed
+    # "Submitted" can mean genuinely awaiting review, or a half-finished
+    # submit that never actually reached the server (see
+    # project_service.is_orphaned_submission) — the latter would otherwise
+    # show the student an endless "waiting for teacher" message with no
+    # way out, since create_project()'s own guard used to block resubmit
+    # in both cases alike.
+    stuck = is_orphaned_submission(project)
 
     return {
         "submitted": True,
         "submission_id": submission.id,
         "project_id": submission.project_id,
         "status": proj_status,
+        "stuck": stuck,
         "github_url": submission.github_url,
         "live_demo_url": submission.live_demo_url,
         "description": submission.description,
