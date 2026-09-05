@@ -44,6 +44,51 @@ from app.models.early_learning import (  # noqa: E402
 
 INSTRUCTOR_ID = 2  # rimefara_teach / Begzod Jumaniyozov — existing teacher account
 
+# Many kids at this age (5-8) can't reliably read yet, in either language —
+# the lucide `icon` name alone (rendered as a small monochrome line-glyph)
+# isn't recognizable enough at a glance, and the Uzbek label under it is
+# useless to a non-reader. Emoji are colorful, high-contrast, and kids
+# recognize them without reading — so every `match`/select item also gets
+# an `emoji`, keyed once here by item id rather than repeated inline (the
+# same id shows up as a distractor in several other activities, and it
+# must render identically everywhere it appears). `icon` stays as a
+# fallback for any id this dict doesn't cover.
+ITEM_EMOJI = {
+    # Kasblar shaharchasi
+    "chef_hat": "👨‍🍳", "recipe_book": "📖", "mixing_bowl": "🥣", "chef_knife": "🔪",
+    "fire": "🔥", "soup_pot": "🍲",
+    "stethoscope": "🩺", "syringe": "💉", "pill": "💊", "heart_pulse": "💓",
+    "bandage": "🩹", "thermometer": "🌡️",
+    "wrench": "🔧", "cog": "⚙️", "battery": "🔋", "truck": "🚚", "gauge": "🎛️", "toolbox": "🧰",
+    "hard_hat": "⛑️", "hammer": "🔨", "ruler": "📏", "brick_wall": "🧱",
+    "construction": "🚧", "shovel": "⛏️",
+    "microscope": "🔬", "flask": "⚗️", "test_tube": "🧪", "atom": "⚛️",
+    "telescope": "🔭", "magnet": "🧲",
+    "laptop": "💻", "keyboard": "⌨️", "monitor": "🖥️", "code": "👨‍💻", "cpu": "🔌", "terminal": "🖱️",
+    "graduation_cap": "🎓", "textbook": "📚", "pen_tool": "🖊️", "pencil": "✏️",
+    "backpack": "🎒", "apple": "🍎",
+    "shield": "🛡️", "badge": "🎖️", "siren": "🚨", "car": "🚓",
+    "traffic_cone": "🚦", "hand": "✋", "book": "📖",
+    # Fasllar dunyosi
+    "flower": "🌸", "tulip": "🌷", "sprout": "🌱", "umbrella": "☔",
+    "rain_cloud": "🌧️", "rainbow": "🌈",
+    "snowflake": "❄️", "ice_cream": "🍦", "leaf": "🍁", "gift": "🎁",
+    "sun": "☀️", "glasses": "🕶️", "sailboat": "⛵", "droplets": "💧", "footprints": "👣",
+    "tree_pine": "🌲", "wind": "💨", "wheat": "🌾", "tree_deciduous": "🌳",
+    "squirrel": "🐿️", "cold_thermometer": "🥶", "cloud_snow": "🌨️", "candy_cane": "🍬",
+}
+
+
+def _with_emoji(content: dict) -> dict:
+    """Inject `emoji` into every item of a mode="select" content dict,
+    looked up from ITEM_EMOJI by id. No-op for any other content shape."""
+    if content.get("mode") != "select":
+        return content
+    for key in ("correct_items", "distractor_items"):
+        for item in content.get(key, []):
+            item["emoji"] = ITEM_EMOJI.get(item["id"], "❓")
+    return content
+
 MODULES = [
     {
         "title": "Harflar sayohati",
@@ -555,7 +600,7 @@ async def _upsert_activity(db, module_id: int, order: int, data: dict, is_publis
     existing.order = order
     existing.activity_type = data["activity_type"]
     existing.instruction_text = data["instruction_text"]
-    existing.content_json = json.dumps(data["content"], ensure_ascii=False)
+    existing.content_json = json.dumps(_with_emoji(data["content"]), ensure_ascii=False)
     # Activities publish along with their module — this pack has no
     # per-activity draft state (unlike the module-level literacy/math/etc.
     # drafts, every activity here ships complete in one pass).

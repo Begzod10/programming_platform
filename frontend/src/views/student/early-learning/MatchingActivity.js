@@ -23,14 +23,22 @@ function starsForWrongCount(wrongCount) {
     return 1;
 }
 
-function ItemIcon({ name, size = 32 }) {
-    const Icon = Icons[name] || HelpCircle;
+/** Emoji is the primary visual — many kids this age (5-8) can't reliably
+ * read yet, in either language, so a small monochrome lucide line-glyph
+ * plus a text label they can't read isn't enough to identify an item at a
+ * glance. Emoji are colorful and kids recognize them without reading.
+ * `icon` (a lucide name) is only a fallback for the rare item without one. */
+function ItemIcon({ emoji, icon, size = 32 }) {
+    if (emoji) {
+        return <span className="ma-item-emoji" style={{ fontSize: size }}>{emoji}</span>;
+    }
+    const Icon = Icons[icon] || HelpCircle;
     return <Icon size={size} />;
 }
 
 /** One "select the correct items for this character" round.
  * activity.content shape (mode: "select"):
- *   { character: {emoji,label}, correct_items: [{id,label,icon}], distractor_items: [...] }
+ *   { character: {emoji,label}, correct_items: [{id,label,icon,emoji}], distractor_items: [...] }
  */
 export default function MatchingActivity({ activity, onBack, onComplete }) {
     const { request } = useHttp();
@@ -133,7 +141,9 @@ export default function MatchingActivity({ activity, onBack, onComplete }) {
                             disabled={isFound}
                         >
                             <span className="ma-item-icon">
-                                {isFlashing ? <span className="ma-item-sad" aria-hidden="true">😕</span> : <ItemIcon name={item.icon} />}
+                                {isFlashing
+                                    ? <span className="ma-item-sad" aria-hidden="true">😕</span>
+                                    : <ItemIcon emoji={item.emoji} icon={item.icon} size={40} />}
                             </span>
                             <span className="ma-item-label">{item.label}</span>
                             {isFound && <span className="ma-item-check" aria-hidden="true">✓</span>}
