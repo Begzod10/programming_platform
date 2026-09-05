@@ -144,6 +144,8 @@ function AppRouter() {
                 <Route path="team-game/:sessionId"                        element={<TeacherTeamGameSession />} />
                 <Route path="activity-analytics"                          element={<ActivityAnalytics />} />
                 <Route path="store"                                       element={<Store />} />
+                <Route path="early-learning"                              element={<EarlyLearning />} />
+                <Route path="early-learning/:moduleId"                    element={<EarlyLearning />} />
 
                 {/* Курсы */}
                 <Route path="courses"                                     element={<TeacherCourses />} />

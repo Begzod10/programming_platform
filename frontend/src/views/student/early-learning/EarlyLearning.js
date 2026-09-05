@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import './EarlyLearning.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
@@ -32,8 +32,15 @@ function StarRow({ stars, size = 16 }) {
 export default function EarlyLearning() {
     const { moduleId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const { request } = useHttp();
     const { t } = useTranslation();
+
+    // This view is mounted under both /student/early-learning (kids playing)
+    // and /teacher/early-learning (a teacher checking what's live) — same
+    // API (get_current_student accepts any role), same components, just a
+    // different base path to navigate within.
+    const basePath = location.pathname.startsWith('/teacher') ? '/teacher' : '/student';
 
     const [modules, setModules] = useState([]);
     const [modulesLoading, setModulesLoading] = useState(true);
@@ -100,7 +107,7 @@ export default function EarlyLearning() {
         }
         return (
             <div className="el-page">
-                <button className="el-back-btn" onClick={() => navigate('/student/early-learning')}>
+                <button className="el-back-btn" onClick={() => navigate(`${basePath}/early-learning`)}>
                     <ArrowLeft size={18} /> Qaytish
                 </button>
                 <div className="el-module-header" style={{ '--el-accent': moduleDetail.color_accent || '#6c5ce7' }}>
@@ -152,7 +159,7 @@ export default function EarlyLearning() {
                         key={module.id}
                         className="el-module-card"
                         style={{ '--el-accent': module.color_accent || '#6c5ce7' }}
-                        onClick={() => navigate(`/student/early-learning/${module.id}`)}
+                        onClick={() => navigate(`${basePath}/early-learning/${module.id}`)}
                     >
                         <span className="el-module-card-emoji">{module.icon_emoji}</span>
                         <span className="el-module-card-title">{module.title}</span>
