@@ -230,3 +230,71 @@ async def test_delete_session_as_creator_returns_204(
     # Confirm it is gone
     check = await async_client.get(f"{BASE}/{session_id}", headers=teacher_headers)
     assert check.status_code == 404
+
+
+# ── Course-less session visibility (teacher's own students only) ───────────────
+#
+# A course-less game used to be "open to everyone" regardless of who made it —
+# a student with no relationship at all to the creating teacher still saw
+# (and could be auto-assigned into) that teacher's games. See
+# app/services/teacher_students.py::student_teacher_ids_subquery.
+
+async def _register_and_login(async_client: AsyncClient, prefix: str) -> tuple[int, dict]:
+    uid = uuid.uuid4().hex[:8]
+    username = f"{prefix}_{uid}"
+    password = "testpassword123"
+    reg = await async_client.post(
+        "/api/v1/auth/register",
+        json={"username": username, "email": f"{username}@example.com", "password": password},
+    )
+    assert reg.status_code == 201, f"Register failed: {reg.text}"
+    user_id = reg.json()["user"]["id"]
+
+    login = await async_client.post(
+        "/api/v1/auth/login", json={"username": username, "password": password}
+    )
+    assert login.status_code == 200, f"Login failed: {login.text}"
+    headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    return user_id, headers
+
+
+async def test_courseless_session_hidden_from_unrelated_student(
+    async_client: AsyncClient, teacher_headers: dict, auth_headers: dict
+):
+    """A student with no Group/Flow tie to the creating teacher must not see
+    that teacher's course-less session in their list."""
+    create = await async_client.post(BASE, json=_session_payload(), headers=teacher_headers)
+    assert create.status_code == 201
+    session_id = create.json()["id"]
+
+    resp = await async_client.get(BASE, headers=auth_headers)
+    assert resp.status_code == 200
+    assert session_id not in {s["id"] for s in resp.json()}
+
+
+async def test_courseless_session_visible_to_teachers_own_student(
+    async_client: AsyncClient, teacher_headers: dict, db_session,
+):
+    """A student who IS in one of the creating teacher's own groups sees the
+    course-less session — the fix must not hide it from its real audience."""
+    from app.models.group import Group, student_groups
+    from sqlalchemy import insert
+
+    teacher_id = (await async_client.get("/api/v1/auth/me", headers=teacher_headers)).json()["id"]
+    student_id, student_headers = await _register_and_login(async_client, "myclassstudent")
+
+    group = Group(name=f"test-group-{uuid.uuid4().hex[:8]}", teacher_id=teacher_id)
+    db_session.add(group)
+    await db_session.flush()
+    await db_session.execute(
+        insert(student_groups).values(student_id=student_id, group_id=group.id)
+    )
+    await db_session.commit()
+
+    create = await async_client.post(BASE, json=_session_payload(), headers=teacher_headers)
+    assert create.status_code == 201
+    session_id = create.json()["id"]
+
+    resp = await async_client.get(BASE, headers=student_headers)
+    assert resp.status_code == 200
+    assert session_id in {s["id"] for s in resp.json()}

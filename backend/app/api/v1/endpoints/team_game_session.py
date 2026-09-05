@@ -311,8 +311,10 @@ async def list_sessions(
     db: AsyncSession = Depends(get_db),
     current_student: Student = Depends(get_current_student),
 ):
+    from sqlalchemy import and_, or_
     from app.models.user import UserRole
     from app.models.course import student_courses
+    from app.services.teacher_students import student_teacher_ids_subquery
 
     q = select(GameSession).options(*_load_opts()).order_by(GameSession.created_at.desc())
     if course_id:
@@ -323,15 +325,23 @@ async def list_sessions(
         # on their side. Teachers keep full history so the Завершённые
         # tab in the teacher UI can list them for post-game review.
         q = q.where(GameSession.status != SessionStatus.completed)
-        # ...and only sessions for a course they're actually enrolled in, or
-        # platform-wide sessions with no course_id (open to everyone, same
-        # rule start_session already uses to assign teams to "all students"
-        # when no course is set).
+        # ...and only sessions they could actually end up on a team in:
+        # either a course they're enrolled in, or a course-less session
+        # created by a teacher who actually has them (via Group/Flow) —
+        # NOT every course-less session platform-wide. A course-less game
+        # used to be "open to everyone" regardless of who made it, so a
+        # turon student who'd never met a given gennis teacher still saw
+        # (and could join) that teacher's games. Mirrors start_session's
+        # own fallback below, which now resolves the same way.
         enrolled_ids = select(student_courses.c.course_id).where(
             student_courses.c.student_id == current_student.id
         )
+        my_teacher_ids = select(student_teacher_ids_subquery(current_student.id))
         q = q.where(
-            (GameSession.course_id.is_(None)) | (GameSession.course_id.in_(enrolled_ids))
+            or_(
+                and_(GameSession.course_id.isnot(None), GameSession.course_id.in_(enrolled_ids)),
+                and_(GameSession.course_id.is_(None), GameSession.created_by.in_(my_teacher_ids)),
+            )
         )
     if is_teacher:
         # Teachers only see sessions they own — no reason to expose
@@ -416,9 +426,12 @@ async def get_session_students(
 
     from app.models.user import UserRole
     from app.models.group import Group, student_groups
+    from app.services.teacher_students import teacher_student_ids_subquery
 
-    # Teacher's own groups' membership — used both to scope student-less-of-a-course
-    # sessions to only this teacher's students, and to label each student's group.
+    # Teacher's own groups' membership — used to label each student's group
+    # in the response below. Kept Group-only (Flow has no equivalent "class"
+    # label); scoping itself now goes through teacher_student_ids_subquery
+    # just below, which also reaches students the teacher only has via a Flow.
     group_rows = (await db.execute(
         select(student_groups.c.student_id, Group.id, Group.name)
         .join(Group, Group.id == student_groups.c.group_id)
@@ -444,8 +457,8 @@ async def get_session_students(
             .order_by(Student.full_name)
         )).scalars().all()
     else:
-        teacher_student_ids = list(student_group_map.keys())
-        rows = [] if not teacher_student_ids else (await db.execute(
+        teacher_student_ids = select(teacher_student_ids_subquery(teacher.id))
+        rows = (await db.execute(
             select(Student)
             .where(
                 Student.id.in_(teacher_student_ids),
@@ -515,9 +528,21 @@ async def start_session(
         )
         students = enroll_res.scalars().all()
     else:
+        # No course, no explicit picks — used to fall back to literally
+        # every active student on the platform, so a course-less game
+        # silently pulled in other teachers' (including other systems')
+        # students who'd never even met this teacher. Scope it to this
+        # teacher's own students instead, same as get_session_students
+        # above shows the teacher before they start it.
+        from app.services.teacher_students import teacher_student_ids_subquery
+        teacher_student_ids = select(teacher_student_ids_subquery(teacher.id))
         stu_res = await db.execute(
             select(Student)
-            .where(Student.role == UserRole.student, Student.is_active == True)
+            .where(
+                Student.id.in_(teacher_student_ids),
+                Student.role == UserRole.student,
+                Student.is_active == True,
+            )
             .order_by(Student.full_name)
         )
         students = stu_res.scalars().all()

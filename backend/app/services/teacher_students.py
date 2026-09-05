@@ -29,3 +29,23 @@ def teacher_student_ids_subquery(teacher_id: int) -> Subquery:
         .where(Flow.teacher_id == teacher_id)
     )
     return union(from_groups, from_flows).subquery()
+
+
+def student_teacher_ids_subquery(student_id: int) -> Subquery:
+    """Inverse of teacher_student_ids_subquery: the teacher ids a student is
+    reachable BY, via either container. Used to scope a course-less game
+    session's visibility to only the teacher who actually owns this student
+    (via a Group or Flow) — without this, any teacher's course-less game
+    (gennis or turon) was visible to every student platform-wide, including
+    a different teacher's turon students who'd never even met that teacher."""
+    from_groups = (
+        select(Group.teacher_id)
+        .join(student_groups, student_groups.c.group_id == Group.id)
+        .where(student_groups.c.student_id == student_id, Group.teacher_id.isnot(None))
+    )
+    from_flows = (
+        select(Flow.teacher_id)
+        .join(student_flows, student_flows.c.flow_id == Flow.id)
+        .where(student_flows.c.student_id == student_id, Flow.teacher_id.isnot(None))
+    )
+    return union(from_groups, from_flows).subquery()
