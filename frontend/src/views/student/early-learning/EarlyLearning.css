@@ -1,8 +1,110 @@
+/* ══════════════════════════════════════════════════════════════════════
+   THE SKY — full-bleed backdrop for the whole feature (no sidebar chrome
+   here, see StudentLayout.js / TeacherLayout.js's "isImmersive" branch).
+   ══════════════════════════════════════════════════════════════════════ */
+.el-shell {
+    position: relative;
+    min-height: 100vh;
+    width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    padding: 32px 20px 56px;
+    background: linear-gradient(180deg, #5fb3e8 0%, #8ed4f2 28%, #cdeefb 58%, #fff6e0 100%);
+}
+
+.el-sky {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.el-sun {
+    position: absolute;
+    top: -60px;
+    right: -60px;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff6b8 0%, #ffe17a 45%, rgba(255, 225, 122, 0) 72%);
+    animation: el-sun-glow 4s ease-in-out infinite;
+}
+
+@keyframes el-sun-glow {
+    0%, 100% { opacity: 0.85; transform: scale(1); }
+    50%      { opacity: 1;    transform: scale(1.06); }
+}
+
+.el-cloud {
+    position: absolute;
+    font-size: 3rem;
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.06));
+    opacity: 0.9;
+    animation: el-drift 26s ease-in-out infinite;
+}
+
+.el-cloud-1 { top: 8%;  left: -10%; font-size: 3.6rem; animation-duration: 32s; }
+.el-cloud-2 { top: 22%; left: -14%; font-size: 2.4rem; animation-duration: 24s; animation-delay: -8s; }
+.el-cloud-3 { top: 4%;  left: -18%; font-size: 2rem;   animation-duration: 20s; animation-delay: -14s; }
+
+@keyframes el-drift {
+    0%   { transform: translateX(0); }
+    50%  { transform: translateX(60vw); }
+    100% { transform: translateX(0); }
+}
+
+.el-plane {
+    position: absolute;
+    top: 14%;
+    left: 60%;
+    font-size: 2rem;
+    transform: rotate(20deg);
+    animation: el-fly 18s ease-in-out infinite;
+}
+
+@keyframes el-fly {
+    0%, 100% { transform: translate(0, 0) rotate(20deg); }
+    50%      { transform: translate(-8vw, 6vh) rotate(24deg); }
+}
+
+.el-kite {
+    position: absolute;
+    top: 34%;
+    left: 8%;
+    font-size: 2.2rem;
+    animation: el-bob 5s ease-in-out infinite;
+}
+
+@keyframes el-bob {
+    0%, 100% { transform: translateY(0) rotate(-6deg); }
+    50%      { transform: translateY(-14px) rotate(6deg); }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   THE ISLAND — the actual content, floating on top of the sky
+   ══════════════════════════════════════════════════════════════════════ */
 .el-page {
+    position: relative;
+    z-index: 1;
     width: 100%;
     max-width: 1100px;
     margin: 0 auto;
-    padding: 24px 20px 48px;
+    padding: 28px 28px 40px;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    animation: el-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes el-island-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)     scale(1); }
 }
 
 .el-loading {
@@ -14,24 +116,26 @@
     color: #888;
 }
 
-/* ── Shared back button ── */
+/* ── Shared back/exit button ── */
 .el-back-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: #fff;
-    border: 1px solid #e5e7eb;
+    background: linear-gradient(135deg, #ffb84d, #ff8a5c);
+    border: none;
     border-radius: 999px;
-    padding: 8px 16px;
+    padding: 10px 18px;
     font-size: 0.9rem;
-    font-weight: 600;
-    color: #4b5563;
+    font-weight: 700;
+    color: #fff;
     cursor: pointer;
     margin-bottom: 20px;
+    box-shadow: 0 6px 16px rgba(255, 138, 92, 0.35);
     transition: transform 0.15s, box-shadow 0.15s;
 }
 
-.el-back-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+.el-back-btn:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 10px 22px rgba(255, 138, 92, 0.45); }
+.el-back-btn:active { transform: translateY(0) scale(0.98); }
 .el-back-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
 
 /* ── Star badge / row ── */
@@ -63,16 +167,22 @@
 }
 
 .el-hero h1 {
-    font-size: 2.2rem;
-    font-weight: 800;
-    color: #1f2937;
+    font-size: 2.6rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #ff6b8a, #7c5cff 55%, #26c6da);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
     margin: 0;
+    text-shadow: 0 4px 24px rgba(124, 92, 255, 0.15);
 }
 
 .el-hero p {
-    color: #6b7280;
+    color: #52607a;
     margin: 0;
-    font-size: 1.05rem;
+    font-size: 1.1rem;
+    font-weight: 600;
 }
 
 /* ── Module picker grid ── */
@@ -84,10 +194,10 @@
 
 .el-module-card {
     --el-accent: #6c5ce7;
-    background: linear-gradient(160deg, color-mix(in srgb, var(--el-accent) 14%, #fff), #fff 65%);
-    border: 2px solid color-mix(in srgb, var(--el-accent) 30%, #fff);
-    border-radius: 22px;
-    padding: 24px 20px;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--el-accent) 18%, #fff), #fff 65%);
+    border: 2px solid color-mix(in srgb, var(--el-accent) 35%, #fff);
+    border-radius: 24px;
+    padding: 26px 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -96,15 +206,21 @@
     text-align: center;
     font-family: inherit;
     transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s;
+    animation: el-card-pop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes el-card-pop {
+    from { opacity: 0; transform: translateY(14px) scale(0.9); }
+    to   { opacity: 1; transform: translateY(0)     scale(1); }
 }
 
 .el-module-card:hover {
-    transform: translateY(-4px) scale(1.02);
-    box-shadow: 0 14px 32px color-mix(in srgb, var(--el-accent) 25%, transparent);
+    transform: translateY(-6px) scale(1.04) rotate(-1deg);
+    box-shadow: 0 18px 36px color-mix(in srgb, var(--el-accent) 30%, transparent);
 }
 
-.el-module-card-emoji { font-size: 2.6rem; line-height: 1; }
-.el-module-card-title { font-size: 1.15rem; font-weight: 800; color: #1f2937; }
+.el-module-card-emoji { font-size: 3rem; line-height: 1; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.12)); }
+.el-module-card-title { font-size: 1.2rem; font-weight: 800; color: #1f2937; }
 .el-module-card-desc { font-size: 0.85rem; color: #6b7280; }
 
 .el-empty {
@@ -120,14 +236,14 @@
     display: flex;
     align-items: center;
     gap: 16px;
-    background: linear-gradient(120deg, color-mix(in srgb, var(--el-accent) 12%, #fff), #fff 70%);
-    border-radius: 20px;
+    background: linear-gradient(120deg, color-mix(in srgb, var(--el-accent) 16%, #fff), #fff 70%);
+    border-radius: 22px;
     padding: 20px 24px;
     margin-bottom: 24px;
 }
 
 .el-module-emoji { font-size: 3rem; line-height: 1; }
-.el-module-header h1 { margin: 0 0 4px; font-size: 1.5rem; font-weight: 800; color: #1f2937; }
+.el-module-header h1 { margin: 0 0 4px; font-size: 1.6rem; font-weight: 800; color: #1f2937; }
 .el-module-header p { margin: 0; color: #6b7280; }
 .el-module-header .el-star-badge { margin-left: auto; }
 
@@ -141,7 +257,7 @@
 .el-activity-card {
     background: #fff;
     border: 2px solid #eef0f4;
-    border-radius: 18px;
+    border-radius: 20px;
     padding: 18px 12px;
     display: flex;
     flex-direction: column;
@@ -150,18 +266,22 @@
     cursor: pointer;
     font-family: inherit;
     transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    animation: el-card-pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .el-activity-card:hover {
-    transform: translateY(-3px);
+    transform: translateY(-4px) scale(1.05) rotate(1deg);
     border-color: #c7d2fe;
-    box-shadow: 0 10px 24px rgba(99, 102, 241, 0.15);
+    box-shadow: 0 12px 26px rgba(99, 102, 241, 0.18);
 }
 
-.el-activity-emoji { font-size: 2.2rem; line-height: 1; }
+.el-activity-emoji { font-size: 2.4rem; line-height: 1; filter: drop-shadow(0 3px 5px rgba(0,0,0,0.1)); }
 .el-activity-title { font-weight: 700; color: #1f2937; font-size: 0.95rem; }
 
 @media (max-width: 480px) {
+    .el-shell { padding: 16px 10px 40px; }
+    .el-page { padding: 20px 16px 28px; border-radius: 24px; }
+    .el-hero h1 { font-size: 2rem; }
     .el-module-header { flex-wrap: wrap; }
     .el-module-header .el-star-badge { margin-left: 0; }
 }

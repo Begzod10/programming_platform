@@ -13,6 +13,11 @@ function TeacherLayout() {
 
     const isScrollable = SCROLLABLE_SEGMENTS.includes(segment);
 
+    // Same full-bleed treatment as StudentLayout — see that file's comment.
+    if (segment === 'early-learning') {
+        return <Outlet />;
+    }
+
     return (
         <div className="main-layout">
             <TeacherSidebar activeTab={segment} onLogout={logout} />

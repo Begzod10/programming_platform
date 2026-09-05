@@ -10,6 +10,13 @@ function StudentLayout() {
     const path = location.pathname;
     const segment = path.split('/')[2] || 'dashboard';
 
+    // The kids' early-learning game runs full-bleed with its own sky
+    // backdrop — no sidebar, no glass-panel chrome. It provides its own
+    // "Qaytish" exit button since there's no sidebar to navigate away from.
+    if (segment === 'early-learning') {
+        return <Outlet />;
+    }
+
     return (
         <div className="main-layout">
             <Sidebar activeTab={segment} onLogout={logout} role="student" />
