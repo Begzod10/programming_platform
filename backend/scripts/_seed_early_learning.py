@@ -1,8 +1,9 @@
 """One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
 modules covering literacy/math/logic/creative (each a first pass, left
-unpublished pending real media), plus 2 complete, published matching-game
-packs ("Kasblar shaharchasi" / "Fasllar dunyosi") that use icon-based
-content instead of image assets. See project_student_platform memory /
+unpublished pending real media), plus 5 complete, published matching-game
+packs ("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
+"Transport olami" / "Rang olami") that use emoji-first, icon-based content
+instead of image assets. See project_student_platform memory /
 early_learning.py for the model design rationale (no AI grading, star-based
 completion instead of points).
 
@@ -76,6 +77,23 @@ ITEM_EMOJI = {
     "sun": "☀️", "glasses": "🕶️", "sailboat": "⛵", "droplets": "💧", "footprints": "👣",
     "tree_pine": "🌲", "wind": "💨", "wheat": "🌾", "tree_deciduous": "🌳",
     "squirrel": "🐿️", "cold_thermometer": "🥶", "cloud_snow": "🌨️", "candy_cane": "🍬",
+    # Hayvonot olami
+    "fish": "🐟", "milk": "🥛", "mouse": "🐭", "yarn": "🧶", "paw": "🐾", "basket": "🧺",
+    "bone": "🦴", "tennis_ball": "🎾", "pet_bowl": "🥣", "doghouse": "🏠", "rope_toy": "🪢",
+    "grass": "🌿", "cheese": "🧀", "cowbell": "🔔", "bucket": "🪣",
+    "carrot": "🥕", "cabbage": "🥬", "clover": "🍀", "dandelion": "🌼", "hole": "🕳️",
+    "meat": "🍖", "crown": "👑", "peanut": "🥜", "banana": "🍌", "tree": "🌳", "green_leaf": "🍃",
+    # Transport olami
+    "sedan_car": "🚗", "bus": "🚌", "bicycle": "🚲", "train": "🚆", "motorcycle": "🏍️",
+    "cargo_ship": "🚢", "speedboat": "🚤", "canoe": "🛶", "ferry": "⛴️", "anchor": "⚓",
+    "airplane": "✈️", "rocket": "🚀", "small_plane": "🛩️", "parachute": "🪂", "ufo": "🛸",
+    "helicopter": "🚁",
+    # Rang olami
+    "strawberry": "🍓", "cherry": "🍒", "heart": "❤️", "fire_truck": "🚒", "rose": "🌹",
+    "lemon": "🍋", "corn": "🌽", "chick": "🐤", "star": "⭐",
+    "broccoli": "🥦", "frog": "🐸", "cucumber": "🥒", "cactus": "🌵",
+    "blueberries": "🫐", "wave": "🌊", "whale": "🐳", "blue_bird": "🐦", "gem": "💎",
+    "grapes": "🍇",
 }
 
 
@@ -554,6 +572,338 @@ MODULES = [
                         {"id": "flower", "label": "Gul", "icon": "Flower"},
                         {"id": "leaf", "label": "Barg", "icon": "Leaf"},
                         {"id": "sprout", "label": "Nihol", "icon": "Sprout"},
+                    ],
+                },
+            },
+        ],
+    },
+    {
+        "title": "Hayvonot olami",
+        "description": "Hayvonga kerakli narsalarni top.",
+        "subject": EarlySubject.logic,
+        "icon_emoji": "🐾",
+        "color_accent": "#FF8C69",
+        "display_order": 7,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Mushuk",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Mushukka kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🐱", "label": "Mushuk"},
+                    "correct_items": [
+                        {"id": "fish", "label": "Baliq", "icon": "Fish"},
+                        {"id": "milk", "label": "Sut", "icon": "Milk"},
+                        {"id": "mouse", "label": "Sichqon", "icon": "Mouse"},
+                        {"id": "yarn", "label": "Yigiruv ipi", "icon": "Yarn"},
+                        {"id": "paw", "label": "Panja izi", "icon": "PawPrint"},
+                        {"id": "basket", "label": "Savatcha", "icon": "Basket"},
+                    ],
+                    "distractor_items": [
+                        {"id": "bone", "label": "Suyak", "icon": "Bone"},
+                        {"id": "carrot", "label": "Sabzi", "icon": "Carrot"},
+                        {"id": "grass", "label": "O't", "icon": "Sprout"},
+                        {"id": "meat", "label": "Go'sht", "icon": "Beef"},
+                    ],
+                },
+            },
+            {
+                "title": "It",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Itga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🐶", "label": "It"},
+                    "correct_items": [
+                        {"id": "bone", "label": "Suyak", "icon": "Bone"},
+                        {"id": "tennis_ball", "label": "To'pcha", "icon": "Circle"},
+                        {"id": "pet_bowl", "label": "Idishcha", "icon": "Soup"},
+                        {"id": "doghouse", "label": "It uychasi", "icon": "Home"},
+                        {"id": "paw", "label": "Panja izi", "icon": "PawPrint"},
+                        {"id": "rope_toy", "label": "Arqoncha", "icon": "Knot"},
+                    ],
+                    "distractor_items": [
+                        {"id": "fish", "label": "Baliq", "icon": "Fish"},
+                        {"id": "cabbage", "label": "Karam", "icon": "Leafy"},
+                        {"id": "cheese", "label": "Pishloq", "icon": "Sandwich"},
+                        {"id": "peanut", "label": "Yeryong'oq", "icon": "Nut"},
+                    ],
+                },
+            },
+            {
+                "title": "Sigir",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Sigirga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🐄", "label": "Sigir"},
+                    "correct_items": [
+                        {"id": "grass", "label": "O't", "icon": "Sprout"},
+                        {"id": "milk", "label": "Sut", "icon": "Milk"},
+                        {"id": "cheese", "label": "Pishloq", "icon": "Sandwich"},
+                        {"id": "cowbell", "label": "Qo'ng'iroqcha", "icon": "Bell"},
+                        {"id": "bucket", "label": "Chelak", "icon": "Container"},
+                        {"id": "wheat", "label": "Pichan", "icon": "Wheat"},
+                    ],
+                    "distractor_items": [
+                        {"id": "bone", "label": "Suyak", "icon": "Bone"},
+                        {"id": "banana", "label": "Banan", "icon": "Banana"},
+                        {"id": "crown", "label": "Toj", "icon": "Crown"},
+                        {"id": "clover", "label": "Beda", "icon": "Clover"},
+                    ],
+                },
+            },
+            {
+                "title": "Quyon",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Quyonga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🐰", "label": "Quyon"},
+                    "correct_items": [
+                        {"id": "carrot", "label": "Sabzi", "icon": "Carrot"},
+                        {"id": "cabbage", "label": "Karam", "icon": "Leafy"},
+                        {"id": "clover", "label": "Beda", "icon": "Clover"},
+                        {"id": "dandelion", "label": "Qoqio't", "icon": "Flower2"},
+                        {"id": "hole", "label": "Uyacha", "icon": "CircleDashed"},
+                        {"id": "sprout", "label": "Nihol", "icon": "Sprout"},
+                    ],
+                    "distractor_items": [
+                        {"id": "fish", "label": "Baliq", "icon": "Fish"},
+                        {"id": "tennis_ball", "label": "To'pcha", "icon": "Circle"},
+                        {"id": "cheese", "label": "Pishloq", "icon": "Sandwich"},
+                        {"id": "meat", "label": "Go'sht", "icon": "Beef"},
+                    ],
+                },
+            },
+            {
+                "title": "Sher",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Sherga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🦁", "label": "Sher"},
+                    "correct_items": [
+                        {"id": "meat", "label": "Go'sht", "icon": "Beef"},
+                        {"id": "crown", "label": "Toj", "icon": "Crown"},
+                        {"id": "grass", "label": "Savana o'ti", "icon": "Sprout"},
+                        {"id": "paw", "label": "Panja izi", "icon": "PawPrint"},
+                        {"id": "sun", "label": "Quyosh", "icon": "Sun"},
+                        {"id": "hole", "label": "Uyasi", "icon": "CircleDashed"},
+                    ],
+                    "distractor_items": [
+                        {"id": "milk", "label": "Sut", "icon": "Milk"},
+                        {"id": "carrot", "label": "Sabzi", "icon": "Carrot"},
+                        {"id": "peanut", "label": "Yeryong'oq", "icon": "Nut"},
+                        {"id": "yarn", "label": "Yigiruv ipi", "icon": "Yarn"},
+                    ],
+                },
+            },
+            {
+                "title": "Fil",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Filga kerakli narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🐘", "label": "Fil"},
+                    "correct_items": [
+                        {"id": "peanut", "label": "Yeryong'oq", "icon": "Nut"},
+                        {"id": "banana", "label": "Banan", "icon": "Banana"},
+                        {"id": "droplets", "label": "Suv", "icon": "Droplets"},
+                        {"id": "tree", "label": "Daraxt", "icon": "Trees"},
+                        {"id": "grass", "label": "O't", "icon": "Sprout"},
+                        {"id": "green_leaf", "label": "Barg", "icon": "Leaf"},
+                    ],
+                    "distractor_items": [
+                        {"id": "bone", "label": "Suyak", "icon": "Bone"},
+                        {"id": "cheese", "label": "Pishloq", "icon": "Sandwich"},
+                        {"id": "crown", "label": "Toj", "icon": "Crown"},
+                        {"id": "dandelion", "label": "Qoqio't", "icon": "Flower2"},
+                    ],
+                },
+            },
+        ],
+    },
+    {
+        "title": "Transport olami",
+        "description": "Transport turini tanla va unga mos vositalarni top.",
+        "subject": EarlySubject.logic,
+        "icon_emoji": "🚦",
+        "color_accent": "#4DA6FF",
+        "display_order": 8,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Yer transporti",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Yerda yuradigan transportlarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🚗", "label": "Yer transporti"},
+                    "correct_items": [
+                        {"id": "sedan_car", "label": "Mashina", "icon": "Car"},
+                        {"id": "bus", "label": "Avtobus", "icon": "Bus"},
+                        {"id": "bicycle", "label": "Velosiped", "icon": "Bike"},
+                        {"id": "train", "label": "Poyezd", "icon": "TrainFront"},
+                        {"id": "motorcycle", "label": "Mototsikl", "icon": "Bike"},
+                        {"id": "truck", "label": "Yuk mashinasi", "icon": "Truck"},
+                    ],
+                    "distractor_items": [
+                        {"id": "sailboat", "label": "Yelkanli qayiq", "icon": "Sailboat"},
+                        {"id": "airplane", "label": "Samolyot", "icon": "Plane"},
+                        {"id": "cargo_ship", "label": "Kema", "icon": "Ship"},
+                        {"id": "helicopter", "label": "Vertolyot", "icon": "Rotate3d"},
+                    ],
+                },
+            },
+            {
+                "title": "Suv transporti",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Suvda yuradigan transportlarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "⛵", "label": "Suv transporti"},
+                    "correct_items": [
+                        {"id": "sailboat", "label": "Yelkanli qayiq", "icon": "Sailboat"},
+                        {"id": "cargo_ship", "label": "Kema", "icon": "Ship"},
+                        {"id": "speedboat", "label": "Tezyurar qayiq", "icon": "Sailboat"},
+                        {"id": "canoe", "label": "Kanoe", "icon": "Sailboat"},
+                        {"id": "ferry", "label": "Parom", "icon": "Ship"},
+                        {"id": "anchor", "label": "Langar", "icon": "Anchor"},
+                    ],
+                    "distractor_items": [
+                        {"id": "sedan_car", "label": "Mashina", "icon": "Car"},
+                        {"id": "airplane", "label": "Samolyot", "icon": "Plane"},
+                        {"id": "train", "label": "Poyezd", "icon": "TrainFront"},
+                        {"id": "rocket", "label": "Raketa", "icon": "Rocket"},
+                    ],
+                },
+            },
+            {
+                "title": "Havo transporti",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Havoda uchadigan transportlarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "✈️", "label": "Havo transporti"},
+                    "correct_items": [
+                        {"id": "airplane", "label": "Samolyot", "icon": "Plane"},
+                        {"id": "helicopter", "label": "Vertolyot", "icon": "Rotate3d"},
+                        {"id": "rocket", "label": "Raketa", "icon": "Rocket"},
+                        {"id": "small_plane", "label": "Kichik samolyot", "icon": "Plane"},
+                        {"id": "parachute", "label": "Parashyut", "icon": "Wind"},
+                        {"id": "ufo", "label": "NUO", "icon": "Sparkle"},
+                    ],
+                    "distractor_items": [
+                        {"id": "bus", "label": "Avtobus", "icon": "Bus"},
+                        {"id": "cargo_ship", "label": "Kema", "icon": "Ship"},
+                        {"id": "bicycle", "label": "Velosiped", "icon": "Bike"},
+                        {"id": "canoe", "label": "Kanoe", "icon": "Sailboat"},
+                    ],
+                },
+            },
+        ],
+    },
+    {
+        "title": "Rang olami",
+        "description": "Rangni tanla va unga mos narsalarni top.",
+        "subject": EarlySubject.logic,
+        "icon_emoji": "🎨",
+        "color_accent": "#FF6FA8",
+        "display_order": 9,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Qizil",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Qizil rangdagi narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🔴", "label": "Qizil"},
+                    "correct_items": [
+                        {"id": "apple", "label": "Olma", "icon": "Apple"},
+                        {"id": "strawberry", "label": "Qulupnay", "icon": "Cherry"},
+                        {"id": "cherry", "label": "Gilos", "icon": "Cherry"},
+                        {"id": "heart", "label": "Yurak", "icon": "Heart"},
+                        {"id": "fire_truck", "label": "O't o'chirish mashinasi", "icon": "Truck"},
+                        {"id": "rose", "label": "Atirgul", "icon": "Flower"},
+                    ],
+                    "distractor_items": [
+                        {"id": "banana", "label": "Banan", "icon": "Banana"},
+                        {"id": "broccoli", "label": "Brokkoli", "icon": "Broccoli"},
+                        {"id": "blueberries", "label": "Ko'kat rezavor", "icon": "Grape"},
+                        {"id": "grapes", "label": "Uzum", "icon": "Grape"},
+                    ],
+                },
+            },
+            {
+                "title": "Sariq",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Sariq rangdagi narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🟡", "label": "Sariq"},
+                    "correct_items": [
+                        {"id": "banana", "label": "Banan", "icon": "Banana"},
+                        {"id": "lemon", "label": "Limon", "icon": "Citrus"},
+                        {"id": "sun", "label": "Quyosh", "icon": "Sun"},
+                        {"id": "corn", "label": "Makkajo'xori", "icon": "Wheat"},
+                        {"id": "chick", "label": "Jo'ja", "icon": "Bird"},
+                        {"id": "star", "label": "Yulduz", "icon": "Star"},
+                    ],
+                    "distractor_items": [
+                        {"id": "apple", "label": "Olma", "icon": "Apple"},
+                        {"id": "cucumber", "label": "Bodring", "icon": "Salad"},
+                        {"id": "blueberries", "label": "Ko'kat rezavor", "icon": "Grape"},
+                        {"id": "cherry", "label": "Gilos", "icon": "Cherry"},
+                    ],
+                },
+            },
+            {
+                "title": "Yashil",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Yashil rangdagi narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🟢", "label": "Yashil"},
+                    "correct_items": [
+                        {"id": "broccoli", "label": "Brokkoli", "icon": "Broccoli"},
+                        {"id": "green_leaf", "label": "Barg", "icon": "Leaf"},
+                        {"id": "tree", "label": "Daraxt", "icon": "Trees"},
+                        {"id": "frog", "label": "Qurbaqa", "icon": "Turtle"},
+                        {"id": "cucumber", "label": "Bodring", "icon": "Salad"},
+                        {"id": "cactus", "label": "Kaktus", "icon": "Flower"},
+                    ],
+                    "distractor_items": [
+                        {"id": "strawberry", "label": "Qulupnay", "icon": "Cherry"},
+                        {"id": "banana", "label": "Banan", "icon": "Banana"},
+                        {"id": "blueberries", "label": "Ko'kat rezavor", "icon": "Grape"},
+                        {"id": "fire_truck", "label": "O't o'chirish mashinasi", "icon": "Truck"},
+                    ],
+                },
+            },
+            {
+                "title": "Ko'k",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Ko'k rangdagi narsalarni top.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🔵", "label": "Ko'k"},
+                    "correct_items": [
+                        {"id": "blueberries", "label": "Ko'kat rezavor", "icon": "Grape"},
+                        {"id": "wave", "label": "To'lqin", "icon": "Waves"},
+                        {"id": "whale", "label": "Kit", "icon": "Fish"},
+                        {"id": "droplets", "label": "Suv tomchisi", "icon": "Droplets"},
+                        {"id": "blue_bird", "label": "Qush", "icon": "Bird"},
+                        {"id": "gem", "label": "Qimmatbaho tosh", "icon": "Gem"},
+                    ],
+                    "distractor_items": [
+                        {"id": "apple", "label": "Olma", "icon": "Apple"},
+                        {"id": "lemon", "label": "Limon", "icon": "Citrus"},
+                        {"id": "cactus", "label": "Kaktus", "icon": "Flower"},
+                        {"id": "strawberry", "label": "Qulupnay", "icon": "Cherry"},
                     ],
                 },
             },
