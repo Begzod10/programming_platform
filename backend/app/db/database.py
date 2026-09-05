@@ -132,6 +132,10 @@ async def _reconcile_indexes(conn) -> None:
         text("ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS distractor_lines JSON"),
         text("ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS bug_explanation TEXT"),
         text("ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS bug_explanation_ru TEXT"),
+        # 2026-09-05: birth_date synced from gennis/turon (see
+        # gennis_service.py) — student_platform never collected this
+        # itself, so it's purely a mirror of upstream data, nullable.
+        text("ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_date DATE"),
     ]
     for stmt in statements:
         await conn.execute(stmt)

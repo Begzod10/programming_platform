@@ -99,6 +99,12 @@ class Student(Base):
     phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     balance: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     surname: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # Synced from gennis/turon (see gennis_service.py's sync_*_data) — both
+    # source systems have real birth-date data for most accounts, but
+    # student_platform itself has no registration-time collection of its
+    # own, so this stays nullable and is advisory: never gate access on it
+    # being present, only on it being absent-vs-a-real-value when it is.
+    birth_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     gennis_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     gennis_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     # Turon and gennis mint ids independently, so the same integer can refer to

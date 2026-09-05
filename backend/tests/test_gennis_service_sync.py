@@ -12,6 +12,7 @@ hiccup, it's an authoritative "this teacher has zero groups/flows now".
 """
 
 import uuid
+from datetime import date, datetime
 
 import pytest
 import pytest_asyncio
@@ -138,3 +139,93 @@ async def test_active_group_still_synced_with_students(db_session, turon_teacher
         await db_session.execute(select(Student).where(Student.turon_id == student_turon_id))
     ).scalar_one()
     assert student in group.students
+
+
+class TestParseBirthDate:
+    """_parse_birth_date backs management-v2's new `birth_date` field on
+    /login and the roster endpoints — see gennis_service.py's docstring and
+    the STUDENT_PLATFORM_INTEGRATION_API.md contract it implements. Real
+    upstream data includes junk (a gennis row with a negative age, a turon
+    "test test" account dated 2024 per the age-data investigation), so this
+    must reject out-of-range years rather than trust the source blindly."""
+
+    def test_accepts_valid_iso_string(self):
+        assert GennisService._parse_birth_date("2015-07-04") == date(2015, 7, 4)
+
+    def test_rejects_none_and_empty(self):
+        assert GennisService._parse_birth_date(None) is None
+        assert GennisService._parse_birth_date("") is None
+
+    def test_rejects_malformed_string(self):
+        assert GennisService._parse_birth_date("not-a-date") is None
+
+    def test_rejects_implausible_future_year(self):
+        # A birth year in the future is never valid, regardless of what
+        # "today" happens to be when this runs — avoids the test rotting
+        # once the _MAX_BIRTH_YEAR = current_year - 2 boundary moves.
+        future_year = datetime.utcnow().year + 1
+        assert GennisService._parse_birth_date(f"{future_year}-01-01") is None
+
+    def test_rejects_implausibly_old_year(self):
+        assert GennisService._parse_birth_date("1950-01-01") is None
+
+    def test_passes_through_a_real_date_object(self):
+        assert GennisService._parse_birth_date(date(2016, 3, 12)) == date(2016, 3, 12)
+
+
+@pytest.mark.asyncio
+async def test_roster_sync_maps_birth_date_onto_new_student(db_session, turon_teacher, monkeypatch):
+    """A student created via the teacher-roster sync path (the common case
+    — most students never log in themselves before their teacher does)
+    gets birth_date populated from the roster entry's `birth_date` field."""
+    group_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+    student_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+
+    async def _one_student(*args, **kwargs):
+        return [{
+            "id": student_turon_id, "name": "Dilnoza", "surname": "Yusupova",
+            "birth_date": "2017-09-01",
+        }]
+
+    monkeypatch.setattr(GennisService, "fetch_group_students", classmethod(_one_student))
+
+    await GennisService.sync_teacher_data(
+        db_session,
+        turon_teacher,
+        _login_data(groups=[{"id": group_turon_id, "name": f"1-blue-test-{group_turon_id}", "price": 0}]),
+        system="turon",
+    )
+
+    student = (
+        await db_session.execute(select(Student).where(Student.turon_id == student_turon_id))
+    ).scalar_one()
+    assert student.birth_date == date(2017, 9, 1)
+
+
+@pytest.mark.asyncio
+async def test_roster_sync_does_not_clobber_birth_date_with_missing_value(db_session, turon_teacher, monkeypatch):
+    """A later sync where the roster entry omits birth_date (e.g. a
+    transient upstream gap) must not erase a previously-synced value."""
+    group_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+    student_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+
+    async def _with_birth_date(*args, **kwargs):
+        return [{
+            "id": student_turon_id, "name": "Dilnoza", "surname": "Yusupova",
+            "birth_date": "2017-09-01",
+        }]
+
+    monkeypatch.setattr(GennisService, "fetch_group_students", classmethod(_with_birth_date))
+    login_data = _login_data(groups=[{"id": group_turon_id, "name": f"1-blue-test-{group_turon_id}", "price": 0}])
+    await GennisService.sync_teacher_data(db_session, turon_teacher, login_data, system="turon")
+
+    async def _without_birth_date(*args, **kwargs):
+        return [{"id": student_turon_id, "name": "Dilnoza", "surname": "Yusupova"}]
+
+    monkeypatch.setattr(GennisService, "fetch_group_students", classmethod(_without_birth_date))
+    await GennisService.sync_teacher_data(db_session, turon_teacher, login_data, system="turon")
+
+    student = (
+        await db_session.execute(select(Student).where(Student.turon_id == student_turon_id))
+    ).scalar_one()
+    assert student.birth_date == date(2017, 9, 1)

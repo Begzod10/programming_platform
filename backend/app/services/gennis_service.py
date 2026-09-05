@@ -1,5 +1,6 @@
 import httpx
 import logging
+from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, delete
@@ -12,6 +13,15 @@ from app.models.group import Group, student_groups
 from app.models.flow import Flow, student_flows
 
 logger = logging.getLogger(__name__)
+
+# A "student" outside this range is almost certainly bad upstream data
+# (test/admin accounts, data-entry typos) rather than a real birth date —
+# the age-data investigation into gennis/turon found both, e.g. a gennis
+# row with a negative age and a turon "test test" account dated 2024.
+# Reject rather than guess-correct; None is always a safe fallback since
+# birth_date is advisory everywhere it's read.
+_MIN_BIRTH_YEAR = 1990
+_MAX_BIRTH_YEAR = datetime.utcnow().year - 2
 
 class GennisService:
     """Talks to management-v2's student_platform integration endpoint.
@@ -248,6 +258,10 @@ class GennisService:
         student.surname = user_info.get("surname", "")
         student.balance = user_info.get("balance", student_info.get("combined_debt", 0))
 
+        parsed_birth_date = cls._parse_birth_date(user_info.get("birth_date"))
+        if parsed_birth_date is not None:
+            student.birth_date = parsed_birth_date
+
         phones = user_info.get("phone", [])
         if phones:
             student.phone = str(phones[0].get("phone"))[:50]
@@ -327,6 +341,28 @@ class GennisService:
 
         await db.flush()
         return group
+
+    @staticmethod
+    def _parse_birth_date(raw: Any) -> Optional[date]:
+        """Parse the sync payload's `birth_date` (an ISO "YYYY-MM-DD" string
+        from management-v2's shim, or already a date if some caller passes
+        one directly), tolerating the source systems' occasional junk.
+        Returns None — never raises — so one bad value can't fail the rest
+        of a teacher's roster sync."""
+        if not raw:
+            return None
+        if isinstance(raw, date):
+            parsed = raw
+        elif isinstance(raw, str):
+            try:
+                parsed = date.fromisoformat(raw[:10])
+            except ValueError:
+                return None
+        else:
+            return None
+        if not (_MIN_BIRTH_YEAR <= parsed.year <= _MAX_BIRTH_YEAR):
+            return None
+        return parsed
 
     @staticmethod
     def _normalized_name(value: Optional[str]) -> str:
@@ -420,6 +456,7 @@ class GennisService:
         full_name = f"{first_name} {last_name}".strip()
         if not full_name:
             full_name = s_username # Agar ism kelmasa username qo'yiladi
+        parsed_birth_date = cls._parse_birth_date(s_data.get("birth_date"))
 
         result = await db.execute(select(Student).where(Student.username == s_username))
         student = result.scalar_one_or_none()
@@ -451,6 +488,7 @@ class GennisService:
                 phone=str(s_data.get("phone"))[:50],
                 balance=s_data.get("balance", 0),
                 surname=last_name,
+                birth_date=parsed_birth_date,
                 group_id=container_id if set_primary_group else None,
                 **{id_col: s_id},
             )
@@ -461,6 +499,8 @@ class GennisService:
             student.surname = last_name
             student.phone = str(s_data.get("phone"))[:50]
             student.balance = s_data.get("balance", 0)
+            if parsed_birth_date is not None:
+                student.birth_date = parsed_birth_date
             if set_primary_group:
                 student.group_id = container_id
             setattr(student, id_col, s_id)
