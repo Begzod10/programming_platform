@@ -49,3 +49,33 @@ def student_teacher_ids_subquery(student_id: int) -> Subquery:
         .where(student_flows.c.student_id == student_id, Flow.teacher_id.isnot(None))
     )
     return union(from_groups, from_flows).subquery()
+
+
+def classmate_ids_subquery(student_id: int) -> Subquery:
+    """All students who share at least one teacher-owned Group or Flow with
+    `student_id` — the reverse of teacher_student_ids_subquery, applied over
+    EVERY teacher this student is reachable by (student_teacher_ids_subquery),
+    not just one, since a student can belong to more than one Group/Flow.
+    Includes student_id itself (a student is always a member of their own
+    container). Returns zero rows for a student with no Group/Flow
+    membership at all — callers must treat that as "no class assigned yet",
+    not an error.
+
+    Was written for the early-learning leaderboard (student's own view of
+    "my classmates' stars"), but is the general building block for any
+    "students who share a teacher with me" query — prefer this over
+    reimplementing the Group+Flow union inline (see the module docstring
+    above on why Group-only silently misses turon Flow-owned classmates).
+    """
+    my_teacher_ids = select(student_teacher_ids_subquery(student_id).c.teacher_id)
+    from_groups = (
+        select(student_groups.c.student_id)
+        .join(Group, Group.id == student_groups.c.group_id)
+        .where(Group.teacher_id.in_(my_teacher_ids))
+    )
+    from_flows = (
+        select(student_flows.c.student_id)
+        .join(Flow, Flow.id == student_flows.c.flow_id)
+        .where(Flow.teacher_id.in_(my_teacher_ids))
+    )
+    return union(from_groups, from_flows).subquery()

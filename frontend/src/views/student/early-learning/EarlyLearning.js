@@ -4,7 +4,9 @@ import './EarlyLearning.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
 import MatchingActivity from './MatchingActivity';
-import { ArrowLeft, Star } from 'lucide-react';
+import { ArrowLeft, Star, Trophy } from 'lucide-react';
+
+const MEDALS = ['🥇', '🥈', '🥉'];
 
 /** Small inline "N / M" star badge — used for the whole-module progress on
  * the picker card, where M can be double digits (too many to render as
@@ -26,6 +28,37 @@ function StarRow({ stars, size = 16 }) {
                 <Star key={i} size={size} fill={i < stars ? 'currentColor' : 'none'} className={i < stars ? 'el-star-filled' : 'el-star-empty'} />
             ))}
         </span>
+    );
+}
+
+/** Classmates ranked by total stars — scoped server-side to "whoever shares
+ * a teacher with me" (see the backend's classmate_ids_subquery), never
+ * platform-wide: a young kid doesn't know or care about a stranger three
+ * schools over, and a global ranking would just be discouraging noise for
+ * most of them. Shows a friendly empty state instead of a lonely
+ * one-person list when the student has no class assigned yet. */
+function Leaderboard({ entries, hasClass }) {
+    if (!hasClass) {
+        return (
+            <div className="el-leaderboard el-leaderboard-empty">
+                <Trophy size={28} />
+                <p>Guruhingiz tayinlanganda, sinfdoshlaringiz bilan yulduzlarni solishtira olasiz!</p>
+            </div>
+        );
+    }
+    return (
+        <div className="el-leaderboard">
+            <h2><Trophy size={20} /> Sinfdoshlar reytingi</h2>
+            <div className="el-leaderboard-list">
+                {entries.map((entry) => (
+                    <div key={entry.student_id} className={`el-leaderboard-row ${entry.is_me ? 'el-leaderboard-me' : ''}`}>
+                        <span className="el-leaderboard-rank">{MEDALS[entry.rank - 1] || `#${entry.rank}`}</span>
+                        <span className="el-leaderboard-name">{entry.name}{entry.is_me ? ' (Siz)' : ''}</span>
+                        <span className="el-leaderboard-stars"><Star size={14} fill="currentColor" /> {entry.total_stars}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 }
 
@@ -67,6 +100,7 @@ export default function EarlyLearning() {
 
     const [modules, setModules] = useState([]);
     const [modulesLoading, setModulesLoading] = useState(true);
+    const [leaderboard, setLeaderboard] = useState(null);
 
     const [moduleDetail, setModuleDetail] = useState(null);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -79,6 +113,11 @@ export default function EarlyLearning() {
             .then(setModules)
             .catch(console.error)
             .finally(() => setModulesLoading(false));
+        // Independent of the module list — a leaderboard fetch failing
+        // shouldn't block the games themselves from loading.
+        request(`${API_URL}v1/early-learning/leaderboard`, 'GET', null, headers())
+            .then(setLeaderboard)
+            .catch(console.error);
     }, [request]);
 
     const fetchModuleDetail = useCallback((id) => {
@@ -107,6 +146,11 @@ export default function EarlyLearning() {
             return { ...prev, activities, earned_stars };
         });
         setPlayingActivityId(null);
+        // Refresh the leaderboard so a completion shows up right away
+        // instead of only after the next full page load.
+        request(`${API_URL}v1/early-learning/leaderboard`, 'GET', null, headers())
+            .then(setLeaderboard)
+            .catch(console.error);
     };
 
     // ── Playing a single activity ──
@@ -216,6 +260,7 @@ export default function EarlyLearning() {
                         <div className="el-empty">Hozircha o'yinlar tayyorlanmoqda. Tez orada qaytib keling!</div>
                     )}
                 </div>
+                {leaderboard && <Leaderboard entries={leaderboard.entries} hasClass={leaderboard.has_class} />}
             </div>
         </div>
     );

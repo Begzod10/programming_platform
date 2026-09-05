@@ -56,3 +56,17 @@ class EarlyActivityCompleteOut(BaseModel):
     stars_earned: int
     attempts: int
     first_completed_at: datetime
+
+
+class EarlyLeaderboardEntry(BaseModel):
+    student_id: int
+    name: str
+    avatar_url: Optional[str] = None
+    total_stars: int
+    rank: int
+    is_me: bool
+
+
+class EarlyLeaderboardOut(BaseModel):
+    has_class: bool
+    entries: List[EarlyLeaderboardEntry]

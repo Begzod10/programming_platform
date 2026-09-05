@@ -278,6 +278,69 @@
 .el-activity-emoji { font-size: 2.4rem; line-height: 1; filter: drop-shadow(0 3px 5px rgba(0,0,0,0.1)); }
 .el-activity-title { font-weight: 700; color: #1f2937; font-size: 0.95rem; }
 
+/* ── Classmates leaderboard ── */
+.el-leaderboard {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 2px dashed #e5e7eb;
+}
+
+.el-leaderboard h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #92400e;
+    margin: 0 0 14px;
+}
+
+.el-leaderboard-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.el-leaderboard-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+    border: 2px solid #f3f4f6;
+    border-radius: 14px;
+    padding: 10px 16px;
+}
+
+.el-leaderboard-rank { font-size: 1.3rem; width: 32px; text-align: center; flex-shrink: 0; }
+.el-leaderboard-name { flex: 1; font-weight: 700; color: #1f2937; }
+.el-leaderboard-stars {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 800;
+    color: #b45309;
+    flex-shrink: 0;
+}
+
+.el-leaderboard-me {
+    background: #fff7e6;
+    border-color: #f59e0b;
+}
+
+.el-leaderboard-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+    color: #92400e;
+    padding: 20px;
+    background: #fff7e6;
+    border-radius: 18px;
+}
+
+.el-leaderboard-empty p { margin: 0; font-weight: 600; max-width: 320px; }
+
 @media (max-width: 480px) {
     .el-shell { padding: 16px 10px 40px; }
     .el-page { padding: 20px 16px 28px; border-radius: 24px; }

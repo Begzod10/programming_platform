@@ -8,7 +8,7 @@ import json
 from typing import Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -19,9 +19,12 @@ from app.schemas.early_learning import (
     EarlyActivityCompleteIn,
     EarlyActivityCompleteOut,
     EarlyActivityOut,
+    EarlyLeaderboardEntry,
+    EarlyLeaderboardOut,
     EarlyModuleDetail,
     EarlyModuleListItem,
 )
+from app.services.teacher_students import classmate_ids_subquery
 
 router = APIRouter()
 
@@ -183,3 +186,70 @@ async def complete_early_activity(
     await db.commit()
     await db.refresh(existing)
     return EarlyActivityCompleteOut.model_validate(existing)
+
+
+@router.get("/leaderboard", response_model=EarlyLeaderboardOut)
+async def get_early_learning_leaderboard(
+    limit: int = 20,
+    current_student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+) -> EarlyLeaderboardOut:
+    """Rank the current student against their own classmates (anyone who
+    shares a teacher-owned Group or Flow with them — see
+    classmate_ids_subquery) by total stars earned across every published
+    early-learning activity. Deliberately not platform-wide: a 6-year-old
+    doesn't know or care about a stranger three schools over, and turning
+    this into a global ranking would just be discouraging noise for most
+    kids. A student with no Group/Flow membership at all gets
+    has_class=False instead of a lonely one-row leaderboard.
+    """
+    limit = max(1, min(limit, 100))
+    classmate_ids = (
+        await db.execute(select(classmate_ids_subquery(current_student.id).c.student_id))
+    ).scalars().all()
+    has_class = len(classmate_ids) > 0
+    if not has_class:
+        classmate_ids = [current_student.id]
+
+    stars_rows = (
+        await db.execute(
+            select(
+                EarlyActivityCompletion.student_id,
+                func.sum(EarlyActivityCompletion.stars_earned).label("total_stars"),
+            )
+            .join(EarlyActivity, EarlyActivity.id == EarlyActivityCompletion.activity_id)
+            .where(
+                EarlyActivityCompletion.student_id.in_(classmate_ids),
+                EarlyActivity.is_published.is_(True),
+                EarlyActivity.is_active.is_(True),
+            )
+            .group_by(EarlyActivityCompletion.student_id)
+        )
+    ).all()
+    stars_by_student = {row.student_id: row.total_stars for row in stars_rows}
+
+    classmates = (
+        await db.execute(
+            select(Student.id, Student.full_name, Student.username, Student.avatar_url)
+            .where(Student.id.in_(classmate_ids))
+        )
+    ).all()
+
+    ranked = sorted(
+        classmates,
+        key=lambda s: stars_by_student.get(s.id, 0),
+        reverse=True,
+    )[:limit]
+
+    entries = [
+        EarlyLeaderboardEntry(
+            student_id=s.id,
+            name=s.full_name or s.username,
+            avatar_url=s.avatar_url,
+            total_stars=stars_by_student.get(s.id, 0),
+            rank=i + 1,
+            is_me=(s.id == current_student.id),
+        )
+        for i, s in enumerate(ranked)
+    ]
+    return EarlyLeaderboardOut(has_class=has_class, entries=entries)
