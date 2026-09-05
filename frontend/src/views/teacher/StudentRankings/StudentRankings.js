@@ -237,11 +237,14 @@ export default function TeacherStudentsRankings() {
                         {/* ── LIST ── */}
                         <div className="tsr-list">
                             {listItems.map((s, idx) => {
-                                // When filtering by period, rank by visible-window points order;
-                                // global_rank is lifetime and would be misleading here.
-                                const rank   = period === 'all'
-                                    ? (s.global_rank ?? (page * LIMIT + (showPodium ? idx + 4 : idx + 1)))
-                                    : (page * LIMIT + idx + 1);
+                                // Always rank by this teacher's own visible-window points order.
+                                // s.global_rank is the student's rank across the WHOLE platform
+                                // (every teacher's students combined), so it's neither sequential
+                                // nor even monotonic within one teacher's own list — e.g. a
+                                // teacher's #4 student can easily be globally #52. Same reasoning
+                                // already applied to the period-filtered case; it just didn't
+                                // extend it to period === 'all'.
+                                const rank = page * LIMIT + (showPodium ? idx + 4 : idx + 1);
                                 const name   = s.full_name || s.username || 'Студент';
                                 const pts    = ptsOf(s);
                                 const pct    = Math.min(100, (pts / maxPts) * 100);
