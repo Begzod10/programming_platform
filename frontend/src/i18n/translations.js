@@ -253,7 +253,9 @@ const translations = {
     "el.star2Sub":          "🎉 Deyarli hammasi to'g'ri!",
     "el.star1Title":        "Ajoyib urinish!",
     "el.star1Sub":          "✅ Davom et, sen uddalaysan!",
-    "el.continueBtn":       "Davom etish →"
+    "el.continueBtn":       "Davom etish →",
+    "el.traceClear":        "Tozalash",
+    "el.traceDone":         "Tayyor!"
   },
   ru: {
     // Common
@@ -509,7 +511,9 @@ const translations = {
     "el.star2Sub":          "🎉 Почти всё правильно!",
     "el.star1Title":        "Отличная попытка!",
     "el.star1Sub":          "✅ Продолжай, у тебя получится!",
-    "el.continueBtn":       "Продолжить →"
+    "el.continueBtn":       "Продолжить →",
+    "el.traceClear":        "Очистить",
+    "el.traceDone":         "Готово!"
   }
 };
 

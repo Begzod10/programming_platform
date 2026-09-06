@@ -1,10 +1,11 @@
 """One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
 modules covering literacy/math/logic/creative (each a first pass, left
-unpublished pending real media), plus 6 complete, published packs that use
+unpublished pending real media), plus 7 complete, published packs that use
 emoji-first, icon-based content instead of image assets: 5 tap-to-match
 ("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
-"Transport olami" / "Rang olami", content.mode="select") and 1
-drag-to-assemble ("Yasash o'yinlari", content.mode="build"). See
+"Transport olami" / "Rang olami", content.mode="select"), 1
+drag-to-assemble ("Yasash o'yinlari", content.mode="build"), and 1
+trace-the-outline ("Chizib o'rganamiz", content.mode="trace"). See
 project_student_platform memory / early_learning.py for the model design
 rationale (no AI grading, star-based completion instead of points).
 
@@ -1082,6 +1083,52 @@ MODULES = [
                         {"id": "sunglasses", "label": "Ko'zoynak", "label_ru": "Очки", "emoji": "🕶️"},
                         {"id": "flipflops", "label": "Shippak", "label_ru": "Шлёпанцы", "emoji": "🩴"},
                         {"id": "sunhat", "label": "Salqin shlyapa", "label_ru": "Летняя шляпа", "emoji": "👒"},
+                    ],
+                },
+            },
+        ],
+    },
+    # ── "Chizib o'rganamiz": trace-the-outline, activity_type=trace (unlike
+    # the "select"/"build" content above, `trace` was already a member of
+    # EarlyActivityType from day one — SQLAlchemy registers every enum
+    # member into the Postgres native type at DDL time, not just the ones
+    # with data yet — so no ALTER TYPE workaround needed here). subject=motor
+    # is its first real use: the enum's own comment names tracing as the
+    # paradigm case ("tracing, cutting-practice style taps"). New dedicated
+    # module rather than resurrecting the draft "Ijodkorlik burchagi"'s own
+    # trace stub, same reasoning as "Yasash o'yinlari" above — that module
+    # also holds an unbuilt "Erkin bo'yash" (coloring) draft, and
+    # _upsert_activity has no per-activity publish override, so publishing
+    # the module would publish that broken stub too.
+    {
+        "title": "Chizib o'rganamiz",
+        "title_ru": "Учимся, рисуя",
+        "description": "Barmog'ing bilan shakllarni chiz.",
+        "description_ru": "Обводи фигуры пальцем.",
+        "subject": EarlySubject.motor,
+        "icon_emoji": "✏️",
+        "color_accent": "#38BDF8",
+        "display_order": 8,
+        "age_min": 5,
+        "age_max": 8,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Shakllarni chizamiz",
+                "title_ru": "Рисуем фигуры",
+                "activity_type": EarlyActivityType.trace,
+                "instruction_text": "Barmog'ing bilan shaklni chiz.",
+                "instruction_text_ru": "Обведи фигуру пальцем.",
+                "content": {
+                    "mode": "trace",
+                    "character": {"emoji": "✏️", "label": "Shakllarni chizamiz", "label_ru": "Рисуем фигуры"},
+                    # `shape` is a closed set (circle/square/triangle) the
+                    # frontend maps to a guide-drawing + checkpoint-geometry
+                    # function — no hand-authored path data needed per shape.
+                    "targets": [
+                        {"id": "circle", "shape": "circle", "label": "Aylana", "label_ru": "Круг"},
+                        {"id": "square", "shape": "square", "label": "Kvadrat", "label_ru": "Квадрат"},
+                        {"id": "triangle", "shape": "triangle", "label": "Uchburchak", "label_ru": "Треугольник"},
                     ],
                 },
             },

@@ -58,20 +58,27 @@ def _localize_items(items: list | None, lang: str) -> list | None:
     ]
 
 
+_LOCALIZED_ITEM_KEYS = {
+    "select": ("correct_items", "distractor_items"),
+    "build": ("slots", "distractor_items"),
+    "trace": ("targets",),
+}
+
+
 def _localize_content(content: dict, lang: str) -> dict:
-    """Only mode="select" (tap-to-match) and mode="build" (drag-to-assemble)
-    carry per-item translations today — any other content shape (the draft
-    literacy/math/logic/creative modules) just renders in uz regardless of
-    `lang` until it gets its own translation pass; that's a content gap, not
-    a bug.
+    """Only mode="select" (tap-to-match), mode="build" (drag-to-assemble) and
+    mode="trace" (trace-the-outline) carry per-item translations today — any
+    other content shape (the draft literacy/math/logic/creative modules)
+    just renders in uz regardless of `lang` until it gets its own
+    translation pass; that's a content gap, not a bug.
     """
     mode = content.get("mode")
-    if lang != "ru" or mode not in ("select", "build"):
+    item_keys = _LOCALIZED_ITEM_KEYS.get(mode)
+    if lang != "ru" or item_keys is None:
         return content
     character = content.get("character")
     if character and character.get("label_ru"):
         content = {**content, "character": {**character, "label": character["label_ru"]}}
-    item_keys = ("correct_items", "distractor_items") if mode == "select" else ("slots", "distractor_items")
     for key in item_keys:
         content = {**content, key: _localize_items(content.get(key), lang)}
     return content

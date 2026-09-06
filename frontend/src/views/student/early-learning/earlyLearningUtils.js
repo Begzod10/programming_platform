@@ -25,3 +25,12 @@ export function starsForWrongCount(wrongCount) {
     if (wrongCount <= 2) return 2;
     return 1;
 }
+
+/** Same idea as starsForWrongCount, for TraceActivity.js's coverage-based
+ * scoring (% of a shape's outline actually traced) — never below 1 star,
+ * same "a kid who tried shouldn't score zero" floor. */
+export function starsForCoverage(pct) {
+    if (pct >= 0.85) return 3;
+    if (pct >= 0.55) return 2;
+    return 1;
+}

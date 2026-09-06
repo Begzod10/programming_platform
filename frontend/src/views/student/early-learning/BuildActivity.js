@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import './BuildActivity.css';
 import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
@@ -209,10 +210,17 @@ export default function BuildActivity({ activity, onBack, onComplete, lang, togg
                 ))}
             </div>
 
-            {dragPos && draggingPieceRef.current && (
+            {dragPos && draggingPieceRef.current && ReactDOM.createPortal(
+                // Portalled straight to <body> — .ba-page has a lingering
+                // `animation: ... both` transform (see BuildActivity.css),
+                // and ANY non-`none` transform on an ancestor becomes the
+                // containing block for a `position: fixed` descendant, which
+                // silently offset this ghost from the real cursor position
+                // by however far .ba-page sits from the viewport's corner.
                 <div className="ba-drag-ghost" style={{ left: dragPos.x, top: dragPos.y }}>
                     <span className="ba-piece-emoji">{draggingPieceRef.current.emoji}</span>
-                </div>
+                </div>,
+                document.body
             )}
 
             {celebration !== null && (
