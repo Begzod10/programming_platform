@@ -1,11 +1,12 @@
 """One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
 modules covering literacy/math/logic/creative (each a first pass, left
-unpublished pending real media), plus 5 complete, published matching-game
-packs ("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
-"Transport olami" / "Rang olami") that use emoji-first, icon-based content
-instead of image assets. See project_student_platform memory /
-early_learning.py for the model design rationale (no AI grading, star-based
-completion instead of points).
+unpublished pending real media), plus 6 complete, published packs that use
+emoji-first, icon-based content instead of image assets: 5 tap-to-match
+("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
+"Transport olami" / "Rang olami", content.mode="select") and 1
+drag-to-assemble ("Yasash o'yinlari", content.mode="build"). See
+project_student_platform memory / early_learning.py for the model design
+rationale (no AI grading, star-based completion instead of points).
 
 Every module/activity/item is authored in Uzbek first (title/description/
 instruction_text/label — matches EarlyModule.source_lang's default) with a
@@ -1021,6 +1022,66 @@ MODULES = [
                         {"id": "lemon", "label": "Limon", "label_ru": "Лимон", "icon": "Citrus"},
                         {"id": "cactus", "label": "Kaktus", "label_ru": "Кактус", "icon": "Flower"},
                         {"id": "strawberry", "label": "Qulupnay", "label_ru": "Клубника", "icon": "Cherry"},
+                    ],
+                },
+            },
+        ],
+    },
+    # ── "Yasash o'yinlari": drag-to-assemble, activity_type=match with a
+    # third content["mode"]="build" shape (character + slots +
+    # distractor_items — slots carry the same per-occurrence label/label_ru/
+    # emoji convention as mode="select"'s items, plus an x/y/w/h drop-zone
+    # rectangle in percent of the scene). Reuses activity_type=match rather
+    # than a new EarlyActivityType value for the same reason the packs above
+    # stay subject=logic — avoiding an ALTER TYPE against the
+    # already-materialized Postgres enum; activity_type is never branched on
+    # server-side (see early_learning.py's _activity_out), only content.mode
+    # is. subject=creative here (assembling a picture is a constructive act,
+    # distinct from the tap-to-categorize packs above).
+    {
+        "title": "Yasash o'yinlari",
+        "title_ru": "Собери сам",
+        "description": "Bo'laklarni surib, rasmni yasab chiq.",
+        "description_ru": "Перетаскивай детали и собери картинку.",
+        "subject": EarlySubject.creative,
+        "icon_emoji": "🧩",
+        "color_accent": "#4ECDC4",
+        "display_order": 7,
+        "age_min": 5,
+        "age_max": 8,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Qorbobo yasaymiz",
+                "title_ru": "Собираем снеговика",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Har bir bo'lakni o'z joyiga sur.",
+                "instruction_text_ru": "Перетащи каждую деталь на своё место.",
+                "content": {
+                    "mode": "build",
+                    "scene": "snowman",
+                    "character": {"emoji": "⛄", "label": "Qorbobo yasaymiz", "label_ru": "Собираем снеговика"},
+                    "slots": [
+                        {"id": "hat", "label": "Shlyapa", "label_ru": "Шляпа", "emoji": "🎩", "x": 38, "y": 3, "w": 24, "h": 16},
+                        {"id": "nose", "label": "Burun", "label_ru": "Нос", "emoji": "🥕", "x": 42, "y": 20, "w": 16, "h": 12},
+                        {"id": "scarf", "label": "Sharf", "label_ru": "Шарф", "emoji": "🧣", "x": 30, "y": 34, "w": 40, "h": 12},
+                        # The 3 buttons are visually and semantically
+                        # interchangeable (unlike hat/nose/scarf/arms, which
+                        # are each unique) — matchGroup lets any of the 3
+                        # button pieces fill any of the 3 button slots,
+                        # rather than requiring the exact button1↔button1
+                        # pairing a kid has no way to tell apart. See
+                        # BuildActivity.js's resolveDrop.
+                        {"id": "button1", "label": "Tugma", "label_ru": "Пуговица", "emoji": "⚫", "x": 46, "y": 50, "w": 8, "h": 8, "matchGroup": "button"},
+                        {"id": "button2", "label": "Tugma", "label_ru": "Пуговица", "emoji": "⚫", "x": 46, "y": 60, "w": 8, "h": 8, "matchGroup": "button"},
+                        {"id": "button3", "label": "Tugma", "label_ru": "Пуговица", "emoji": "⚫", "x": 46, "y": 70, "w": 8, "h": 8, "matchGroup": "button"},
+                        {"id": "arm_l", "label": "Qo'l", "label_ru": "Рука", "emoji": "🌿", "x": 12, "y": 46, "w": 20, "h": 10},
+                        {"id": "arm_r", "label": "Qo'l", "label_ru": "Рука", "emoji": "🌿", "x": 68, "y": 46, "w": 20, "h": 10},
+                    ],
+                    "distractor_items": [
+                        {"id": "sunglasses", "label": "Ko'zoynak", "label_ru": "Очки", "emoji": "🕶️"},
+                        {"id": "flipflops", "label": "Shippak", "label_ru": "Шлёпанцы", "emoji": "🩴"},
+                        {"id": "sunhat", "label": "Salqin shlyapa", "label_ru": "Летняя шляпа", "emoji": "👒"},
                     ],
                 },
             },

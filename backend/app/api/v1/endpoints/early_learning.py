@@ -45,30 +45,35 @@ def _localized(uz_value: str | None, ru_value: str | None, lang: str) -> str | N
     return uz_value
 
 
+def _localize_items(items: list | None, lang: str) -> list | None:
+    """Translate a list of {label, label_ru, ...} item dicts — shared by both
+    of the content shapes below (mode="select"'s correct/distractor_items,
+    mode="build"'s slots/distractor_items), same per-occurrence label_ru
+    authoring convention either way (see _seed_early_learning.py)."""
+    if not items:
+        return items
+    return [
+        {**item, "label": item["label_ru"]} if item.get("label_ru") else item
+        for item in items
+    ]
+
+
 def _localize_content(content: dict, lang: str) -> dict:
-    """Only the mode="select" matching-game shape carries per-item
-    translations today (see _seed_early_learning.py's ITEM_LABEL_RU) — any
-    other content shape (the draft literacy/math/logic/creative modules)
-    just renders in uz regardless of `lang` until it gets its own
-    translation pass; that's a content gap, not a bug.
+    """Only mode="select" (tap-to-match) and mode="build" (drag-to-assemble)
+    carry per-item translations today — any other content shape (the draft
+    literacy/math/logic/creative modules) just renders in uz regardless of
+    `lang` until it gets its own translation pass; that's a content gap, not
+    a bug.
     """
-    if lang != "ru" or content.get("mode") != "select":
+    mode = content.get("mode")
+    if lang != "ru" or mode not in ("select", "build"):
         return content
     character = content.get("character")
     if character and character.get("label_ru"):
-        character = {**character, "label": character["label_ru"]}
-        content = {**content, "character": character}
-    for key in ("correct_items", "distractor_items"):
-        items = content.get(key)
-        if not items:
-            continue
-        content = {
-            **content,
-            key: [
-                {**item, "label": item["label_ru"]} if item.get("label_ru") else item
-                for item in items
-            ],
-        }
+        content = {**content, "character": {**character, "label": character["label_ru"]}}
+    item_keys = ("correct_items", "distractor_items") if mode == "select" else ("slots", "distractor_items")
+    for key in item_keys:
+        content = {**content, key: _localize_items(content.get(key), lang)}
     return content
 
 

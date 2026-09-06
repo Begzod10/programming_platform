@@ -6,23 +6,7 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
-
-const WRONG_FLASH_MS = 1200;
-
-function shuffle(arr) {
-    const a = [...arr];
-    for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
-}
-
-function starsForWrongCount(wrongCount) {
-    if (wrongCount === 0) return 3;
-    if (wrongCount <= 2) return 2;
-    return 1;
-}
+import { shuffle, starsForWrongCount, WRONG_FLASH_MS } from './earlyLearningUtils';
 
 /** Emoji is the primary visual — many kids this age (5-8) can't reliably
  * read yet, in either language, so a small monochrome lucide line-glyph
