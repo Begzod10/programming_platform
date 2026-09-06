@@ -39,8 +39,15 @@ export default function MatchingActivity({ activity, onBack, onComplete, lang, t
             ...distractorItems.map((it) => ({ ...it, isCorrect: false })),
         ];
         return shuffle(tagged);
+        // Depend on activity.content, not lang directly — see
+        // BuildActivity.js's identical fix for why: lang flips
+        // synchronously while the re-fetch it triggers is async, so
+        // depending on lang re-ran this memo too early (still against the
+        // pre-fetch content) and then never again once the translated
+        // content actually arrived. activity.content only changes
+        // reference when a fresh fetch actually replaces it.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activity.id]);
+    }, [activity.id, activity.content]);
 
     const [found, setFound] = useState(() => new Set());
     const [wrongCount, setWrongCount] = useState(0);

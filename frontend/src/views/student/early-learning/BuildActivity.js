@@ -59,8 +59,20 @@ export default function BuildActivity({ activity, onBack, onComplete, lang, togg
             ...distractorItems.map((d) => ({ ...d, isCorrect: false })),
         ];
         return shuffle(tagged);
+        // Depend on activity.content, not just activity.id (or lang —
+        // tried that first, but lang flips synchronously while the
+        // re-fetch it triggers is async, so the memo re-ran too early on
+        // the lang change itself and then never again once the translated
+        // content actually arrived). activity.content is referentially
+        // stable across unrelated re-renders (EarlyLearning.js's `.find()`
+        // returns the same object from `moduleDetail.activities` every
+        // time) and changes exactly when a fresh fetch replaces it — e.g.
+        // when toggling language while already on this play screen swaps
+        // in label/label_ru translations (see fetchModuleDetail). Found via
+        // a real bug report: the (unmemoized) character header above
+        // updated correctly on toggle, the tray silently didn't.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activity.id]);
+    }, [activity.id, activity.content]);
 
     // Two separate sets, not one: a slot's own id (which *scene position*
     // is visually filled — drives the picture + the completion check) is
@@ -203,7 +215,17 @@ export default function BuildActivity({ activity, onBack, onComplete, lang, togg
                             className={`ba-slot ${filled ? 'ba-slot-filled' : ''}`}
                             style={{ left: `${slot.x}%`, top: `${slot.y}%`, width: `${slot.w}%`, height: `${slot.h}%` }}
                         >
-                            <span className="ba-slot-emoji">{slot.emoji}</span>
+                            {/* Only reveal the emoji once filled — an empty
+                                slot still shows WHERE a piece goes (the
+                                dashed outline) and roughly its size, but not
+                                WHAT goes there. Showing the target emoji
+                                up front turned this into pure icon-matching
+                                (spot the tray tile with the same picture)
+                                instead of actually knowing e.g. that a
+                                chimney belongs on a roof — flagged directly
+                                as "too easy" after the house scene shipped
+                                with 8 uniquely-iconed slots made it obvious. */}
+                            {filled && <span className="ba-slot-emoji">{slot.emoji}</span>}
                         </div>
                     );
                 })}
