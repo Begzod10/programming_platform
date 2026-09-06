@@ -54,6 +54,15 @@ function pointsOnPolygon(vertices, n) {
 
 const SQUARE_VERTICES = [{ x: 70, y: 70 }, { x: 230, y: 70 }, { x: 230, y: 230 }, { x: 70, y: 230 }];
 const TRIANGLE_VERTICES = [{ x: 150, y: 55 }, { x: 235, y: 225 }, { x: 65, y: 225 }];
+// Wider than tall (190x100) — visually distinct from the square, same
+// footprint scale as the other shapes.
+const RECTANGLE_VERTICES = [{ x: 55, y: 100 }, { x: 245, y: 100 }, { x: 245, y: 200 }, { x: 55, y: 200 }];
+// 5-pointed star, 10 vertices alternating outer radius 100 / inner radius 45
+// around (150,150), starting at the top and stepping every 36°.
+const STAR_VERTICES = [
+    { x: 150, y: 50 }, { x: 176, y: 114 }, { x: 245, y: 119 }, { x: 193, y: 164 }, { x: 209, y: 231 },
+    { x: 150, y: 195 }, { x: 91, y: 231 }, { x: 107, y: 164 }, { x: 55, y: 119 }, { x: 124, y: 114 },
+];
 
 /** `shape` → {draw, checkpoints}. content only ever names a shape id
  * ("circle"/"square"/"triangle") — no hand-authored path data — the
@@ -78,6 +87,21 @@ const SHAPES = {
             ctx.stroke();
         },
         checkpoints: () => pointsOnPolygon(TRIANGLE_VERTICES, CHECKPOINT_COUNT),
+    },
+    star: {
+        draw: (ctx) => {
+            ctx.beginPath();
+            STAR_VERTICES.forEach((v, i) => {
+                if (i === 0) ctx.moveTo(v.x, v.y); else ctx.lineTo(v.x, v.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+        },
+        checkpoints: () => pointsOnPolygon(STAR_VERTICES, CHECKPOINT_COUNT),
+    },
+    rectangle: {
+        draw: (ctx) => { ctx.beginPath(); ctx.rect(55, 100, 190, 100); ctx.stroke(); },
+        checkpoints: () => pointsOnPolygon(RECTANGLE_VERTICES, CHECKPOINT_COUNT),
     },
 };
 

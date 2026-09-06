@@ -10,9 +10,7 @@ import { ArrowLeft } from 'lucide-react';
 
 /** Non-interactive silhouette for content.scene === "snowman" — plain CSS
  * circles, not an image, since this app has no illustration pipeline (see
- * MatchingActivity.js's ItemIcon docstring). A second scene later (e.g. a
- * house) would add its own small component + a lookup by `scene`; not built
- * as a registry yet for just one scene (YAGNI). */
+ * MatchingActivity.js's ItemIcon docstring). */
 function SnowmanBase() {
     return (
         <div className="ba-snowman" aria-hidden="true">
@@ -23,7 +21,21 @@ function SnowmanBase() {
     );
 }
 
-const SCENES = { snowman: SnowmanBase };
+/** Non-interactive silhouette for content.scene === "house" — a plain CSS
+ * rectangle (walls) plus a clip-path triangle (roof), same no-image
+ * reasoning as SnowmanBase above. clip-path is used instead of the classic
+ * border-triangle trick because border-width is fixed px/em and won't scale
+ * with this container's percentage-based sizing; clip-path does. */
+function HouseBase() {
+    return (
+        <div className="ba-house" aria-hidden="true">
+            <span className="ba-house-roof" />
+            <span className="ba-house-wall" />
+        </div>
+    );
+}
+
+const SCENES = { snowman: SnowmanBase, house: HouseBase };
 
 /** One "drag each piece onto its own spot" round.
  * activity.content shape (mode: "build"):

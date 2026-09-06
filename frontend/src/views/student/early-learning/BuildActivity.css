@@ -86,6 +86,34 @@
 .ba-snowman-middle { width: 46%; aspect-ratio: 1; top: 38%; transform: translateX(-50%); }
 .ba-snowman-top    { width: 32%; aspect-ratio: 1; top: 16%; transform: translateX(-50%); }
 
+/* Pure-CSS house body — see BuildActivity.js's HouseBase docstring for why
+   this isn't an image. Purely decorative, sits under the drag slots. The
+   roof is drawn wider than the walls (eaves) so the two shapes read as one
+   silhouette rather than a rectangle with a triangle floating above it. */
+.ba-house { position: absolute; inset: 0; }
+.ba-house-wall {
+    position: absolute;
+    left: 18%;
+    top: 42%;
+    width: 64%;
+    height: 36%;
+    background: #fff3d6;
+    border-radius: 0 0 10px 10px;
+    box-shadow: inset -6px -8px 0 rgba(196, 164, 108, 0.25), 0 4px 10px rgba(30, 64, 110, 0.12);
+}
+.ba-house-roof {
+    position: absolute;
+    left: 10%;
+    top: 14%;
+    width: 80%;
+    height: 28%;
+    background: #e8735c;
+    /* box-shadow would be clipped away along with the rest of the box, so
+       use drop-shadow instead — it follows the clipped triangle shape. */
+    filter: drop-shadow(0 3px 5px rgba(30, 64, 110, 0.16));
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+
 .ba-slot {
     position: absolute;
     display: flex;

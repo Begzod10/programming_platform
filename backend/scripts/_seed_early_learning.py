@@ -1,14 +1,15 @@
 """One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
 modules covering literacy/math/logic/creative (each a first pass, left
-unpublished pending real media), plus 8 complete, published packs that use
-emoji-first, icon-based content instead of image assets: 5 tap-to-match
+unpublished pending real media), plus 9 complete, published packs that use
+emoji-first, icon-based content instead of image assets: 6 tap-to-match
 ("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
-"Transport olami" / "Rang olami", content.mode="select"), 1
-drag-to-assemble ("Yasash o'yinlari", content.mode="build"), 1
-trace-the-outline ("Chizib o'rganamiz", content.mode="trace"), and 1
-arrow-pathfinding maze ("Yo'lni topamiz", content.mode="maze"). See
-project_student_platform memory / early_learning.py for the model design
-rationale (no AI grading, star-based completion instead of points).
+"Transport olami" / "Rang olami" / "Dengiz olami", content.mode="select"), 1
+drag-to-assemble ("Yasash o'yinlari" — build a snowman + build a house,
+content.mode="build"), 1 trace-the-outline ("Chizib o'rganamiz" — 5 shapes,
+content.mode="trace"), and 1 arrow-pathfinding maze pack ("Yo'lni topamiz" —
+3 difficulty levels, content.mode="maze"). See project_student_platform
+memory / early_learning.py for the model design rationale (no AI grading,
+star-based completion instead of points).
 
 Every module/activity/item is authored in Uzbek first (title/description/
 instruction_text/label — matches EarlyModule.source_lang's default) with a
@@ -110,6 +111,9 @@ ITEM_EMOJI = {
     "broccoli": "🥦", "frog": "🐸", "cucumber": "🥒", "cactus": "🌵",
     "blueberries": "🫐", "wave": "🌊", "whale": "🐳", "blue_bird": "🐦", "gem": "💎",
     "grapes": "🍇",
+    # Dengiz olami
+    "hoop": "⭕", "bubbles": "🫧", "shell": "🐚", "seaweed": "🌿", "jellyfish": "🪼",
+    "sand": "🏖️", "egg": "🥚", "coral": "🪸", "rock": "🪨", "ink_cloud": "🌫️",
 }
 
 
@@ -1087,6 +1091,37 @@ MODULES = [
                     ],
                 },
             },
+            {
+                "title": "Uy quramiz",
+                "title_ru": "Строим дом",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Har bir bo'lakni o'z joyiga sur.",
+                "instruction_text_ru": "Перетащи каждую деталь на своё место.",
+                "content": {
+                    "mode": "build",
+                    "scene": "house",
+                    "character": {"emoji": "🏠", "label": "Uy quramiz", "label_ru": "Строим дом"},
+                    "slots": [
+                        {"id": "door", "label": "Eshik", "label_ru": "Дверь", "emoji": "🚪", "x": 41, "y": 58, "w": 18, "h": 20},
+                        # The 2 windows are visually and semantically
+                        # interchangeable (same reasoning as the snowman's 3
+                        # buttons above) — matchGroup lets either window
+                        # piece fill either window slot.
+                        {"id": "window_l", "label": "Deraza", "label_ru": "Окно", "emoji": "🪟", "x": 24, "y": 48, "w": 14, "h": 14, "matchGroup": "window"},
+                        {"id": "window_r", "label": "Deraza", "label_ru": "Окно", "emoji": "🪟", "x": 62, "y": 48, "w": 14, "h": 14, "matchGroup": "window"},
+                        {"id": "chimney", "label": "Mo'ri", "label_ru": "Труба", "emoji": "🧱", "x": 56, "y": 28, "w": 12, "h": 12},
+                        {"id": "smoke", "label": "Tutun", "label_ru": "Дым", "emoji": "💨", "x": 55, "y": 8, "w": 14, "h": 14},
+                        {"id": "doorbell", "label": "Qo'ng'iroq", "label_ru": "Звонок", "emoji": "🔔", "x": 61, "y": 64, "w": 8, "h": 8},
+                        {"id": "flower", "label": "Gul", "label_ru": "Цветок", "emoji": "🌷", "x": 22, "y": 64, "w": 16, "h": 10},
+                        {"id": "doormat", "label": "Gilamcha", "label_ru": "Коврик", "emoji": "🟫", "x": 38, "y": 80, "w": 24, "h": 8},
+                    ],
+                    "distractor_items": [
+                        {"id": "car", "label": "Mashina", "label_ru": "Машина", "emoji": "🚗"},
+                        {"id": "bicycle", "label": "Velosiped", "label_ru": "Велосипед", "emoji": "🚲"},
+                        {"id": "traffic_light", "label": "Svetofor", "label_ru": "Светофор", "emoji": "🚦"},
+                    ],
+                },
+            },
         ],
     },
     # ── "Chizib o'rganamiz": trace-the-outline, activity_type=trace (unlike
@@ -1130,6 +1165,8 @@ MODULES = [
                         {"id": "circle", "shape": "circle", "label": "Aylana", "label_ru": "Круг"},
                         {"id": "square", "shape": "square", "label": "Kvadrat", "label_ru": "Квадрат"},
                         {"id": "triangle", "shape": "triangle", "label": "Uchburchak", "label_ru": "Треугольник"},
+                        {"id": "star", "shape": "star", "label": "Yulduz", "label_ru": "Звезда"},
+                        {"id": "rectangle", "shape": "rectangle", "label": "To'rtburchak", "label_ru": "Прямоугольник"},
                     ],
                 },
             },
@@ -1172,6 +1209,216 @@ MODULES = [
                     "start": [0, 0],
                     "end": [4, 4],
                     "walls": [[0, 2], [1, 1], [1, 3], [2, 1], [2, 3], [3, 3]],
+                },
+            },
+            {
+                "title": "Yo'lni top: o'rta bosqich",
+                "title_ru": "Найди путь: средний уровень",
+                "activity_type": EarlyActivityType.maze,
+                "instruction_text": "Kattaroq labirintda o'qlar yordamida yo'l top.",
+                "instruction_text_ru": "В лабиринте побольше найди путь с помощью стрелок.",
+                "content": {
+                    "mode": "maze",
+                    "character": {"emoji": "🐇", "label": "Quyon", "label_ru": "Зайка"},
+                    # [row, col] throughout. Hand-verified solvable path:
+                    # (0,0)->(0,1)->(0,2)->(1,2)->(2,2)->(2,3)->(2,4)->(3,4)->(4,4)->(4,5)->(5,5),
+                    # 10 moves, none of them walls.
+                    "grid": {"rows": 6, "cols": 6},
+                    "start": [0, 0],
+                    "end": [5, 5],
+                    "walls": [
+                        [0, 3], [0, 4], [1, 0], [1, 1], [1, 3], [1, 5],
+                        [2, 0], [2, 1], [3, 1], [3, 3], [4, 1], [4, 3],
+                    ],
+                },
+            },
+            {
+                "title": "Yo'lni top: qiyin bosqich",
+                "title_ru": "Найди путь: сложный уровень",
+                "activity_type": EarlyActivityType.maze,
+                "instruction_text": "Eng qiyin labirintda o'qlar yordamida yo'lni top.",
+                "instruction_text_ru": "В самом сложном лабиринте найди путь с помощью стрелок.",
+                "content": {
+                    "mode": "maze",
+                    "character": {"emoji": "🦊", "label": "Tulki", "label_ru": "Лиса"},
+                    # [row, col] throughout. Hand-verified solvable path:
+                    # (0,0)->(1,0)->(2,0)->(2,1)->(2,2)->(1,2)->(0,2)->(0,3)->(0,4)->(1,4)->
+                    # (2,4)->(3,4)->(3,3)->(3,2)->(4,2)->(5,2)->(5,3)->(5,4)->(5,5)->(4,5)->
+                    # (4,6)->(5,6)->(6,6), 22 moves, none of them walls.
+                    "grid": {"rows": 7, "cols": 7},
+                    "start": [0, 0],
+                    "end": [6, 6],
+                    "walls": [
+                        [0, 1], [0, 5], [0, 6], [1, 1], [1, 3], [1, 5], [1, 6], [2, 3], [2, 5], [2, 6],
+                        [3, 0], [3, 1], [3, 5], [3, 6], [4, 0], [4, 3], [4, 4], [5, 0], [5, 1], [6, 2],
+                    ],
+                },
+            },
+        ],
+    },
+    # ── "Dengiz olami": ocean-themed tap-to-match pack, mode="select" (same
+    # shape as the other 5 select-mode packs above).
+    {
+        "title": "Dengiz olami",
+        "title_ru": "Мир океана",
+        "description": "Dengiz jonzotiga kerakli narsalarni top.",
+        "description_ru": "Найди то, что нужно морскому обитателю.",
+        "subject": EarlySubject.logic,
+        "icon_emoji": "🌊",
+        "color_accent": "#17A2B8",
+        "display_order": 10,
+        "age_min": 5,
+        "age_max": 8,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Delfin",
+                "title_ru": "Дельфин",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Delfinga kerakli narsalarni top.",
+                "instruction_text_ru": "Найди то, что нужно дельфину.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🐬", "label": "Delfin", "label_ru": "Дельфин"},
+                    "correct_items": [
+                        {"id": "fish", "label": "Baliqcha", "label_ru": "Рыбка", "icon": "Fish"},
+                        {"id": "wave", "label": "To'lqin", "label_ru": "Волна", "icon": "Waves"},
+                        {"id": "bubbles", "label": "Pufakchalar", "label_ru": "Пузырьки", "icon": "Sparkles"},
+                        {"id": "hoop", "label": "Halqa", "label_ru": "Обруч", "icon": "Circle"},
+                        {"id": "sun", "label": "Quyosh", "label_ru": "Солнце", "icon": "Sun"},
+                        {"id": "droplets", "label": "Suv tomchilari", "label_ru": "Капли воды", "icon": "Droplets"},
+                    ],
+                    "distractor_items": [
+                        {"id": "bone", "label": "Suyak", "label_ru": "Кость", "icon": "Bone"},
+                        {"id": "carrot", "label": "Sabzi", "label_ru": "Морковь", "icon": "Carrot"},
+                        {"id": "grass", "label": "O't", "label_ru": "Трава", "icon": "Sprout"},
+                        {"id": "crown", "label": "Toj", "label_ru": "Корона", "icon": "Crown"},
+                    ],
+                },
+            },
+            {
+                "title": "Dengiz toshbaqasi",
+                "title_ru": "Морская черепаха",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Dengiz toshbaqasiga kerakli narsalarni top.",
+                "instruction_text_ru": "Найди то, что нужно морской черепахе.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🐢", "label": "Toshbaqa", "label_ru": "Черепаха"},
+                    "correct_items": [
+                        {"id": "shell", "label": "Chig'anoq", "label_ru": "Ракушка", "icon": "Shell"},
+                        {"id": "seaweed", "label": "Suv o'ti", "label_ru": "Водоросли", "icon": "Leaf"},
+                        {"id": "jellyfish", "label": "Meduza", "label_ru": "Медуза", "icon": "Sparkles"},
+                        {"id": "sand", "label": "Qumloq", "label_ru": "Песок", "icon": "Palmtree"},
+                        {"id": "egg", "label": "Tuxum", "label_ru": "Яйцо", "icon": "Egg"},
+                        {"id": "wave", "label": "To'lqin", "label_ru": "Волна", "icon": "Waves"},
+                    ],
+                    "distractor_items": [
+                        {"id": "milk", "label": "Sut", "label_ru": "Молоко", "icon": "Milk"},
+                        {"id": "cheese", "label": "Pishloq", "label_ru": "Сыр", "icon": "Sandwich"},
+                        {"id": "peanut", "label": "Yeryong'oq", "label_ru": "Арахис", "icon": "Nut"},
+                        {"id": "banana", "label": "Banan", "label_ru": "Банан", "icon": "Banana"},
+                    ],
+                },
+            },
+            {
+                "title": "Ahtapot",
+                "title_ru": "Осьминог",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Ahtapotga kerakli narsalarni top.",
+                "instruction_text_ru": "Найди то, что нужно осьминогу.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🐙", "label": "Ahtapot", "label_ru": "Осьминог"},
+                    "correct_items": [
+                        {"id": "shell", "label": "Chig'anoq", "label_ru": "Ракушка", "icon": "Shell"},
+                        {"id": "coral", "label": "Marjon", "label_ru": "Коралл", "icon": "Flower2"},
+                        {"id": "rock", "label": "Qoya", "label_ru": "Камень", "icon": "Mountain"},
+                        {"id": "ink_cloud", "label": "Siyoh buluti", "label_ru": "Чернильное облако", "icon": "CloudFog"},
+                        {"id": "seaweed", "label": "Suv o'ti", "label_ru": "Водоросли", "icon": "Leaf"},
+                        {"id": "hole", "label": "Uyasi", "label_ru": "Нора", "icon": "CircleDashed"},
+                    ],
+                    "distractor_items": [
+                        {"id": "bone", "label": "Suyak", "label_ru": "Кость", "icon": "Bone"},
+                        {"id": "carrot", "label": "Sabzi", "label_ru": "Морковь", "icon": "Carrot"},
+                        {"id": "milk", "label": "Sut", "label_ru": "Молоко", "icon": "Milk"},
+                        {"id": "crown", "label": "Toj", "label_ru": "Корона", "icon": "Crown"},
+                    ],
+                },
+            },
+            {
+                "title": "Qisqichbaqa",
+                "title_ru": "Краб",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Qisqichbaqaga kerakli narsalarni top.",
+                "instruction_text_ru": "Найди то, что нужно крабу.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🦀", "label": "Qisqichbaqa", "label_ru": "Краб"},
+                    "correct_items": [
+                        {"id": "sand", "label": "Qumloq", "label_ru": "Песок", "icon": "Palmtree"},
+                        {"id": "shell", "label": "Chig'anoq", "label_ru": "Ракушка", "icon": "Shell"},
+                        {"id": "seaweed", "label": "Suv o'ti", "label_ru": "Водоросли", "icon": "Leaf"},
+                        {"id": "bubbles", "label": "Pufakchalar", "label_ru": "Пузырьки", "icon": "Sparkles"},
+                        {"id": "hole", "label": "Inini", "label_ru": "Нора", "icon": "CircleDashed"},
+                        {"id": "wave", "label": "To'lqin", "label_ru": "Волна", "icon": "Waves"},
+                    ],
+                    "distractor_items": [
+                        {"id": "grass", "label": "O't", "label_ru": "Трава", "icon": "Sprout"},
+                        {"id": "cheese", "label": "Pishloq", "label_ru": "Сыр", "icon": "Sandwich"},
+                        {"id": "tennis_ball", "label": "To'pcha", "label_ru": "Мячик", "icon": "Circle"},
+                        {"id": "wheat", "label": "Pichan", "label_ru": "Сено", "icon": "Wheat"},
+                    ],
+                },
+            },
+            {
+                "title": "Akula",
+                "title_ru": "Акула",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Akulaga kerakli narsalarni top.",
+                "instruction_text_ru": "Найди то, что нужно акуле.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🦈", "label": "Akula", "label_ru": "Акула"},
+                    "correct_items": [
+                        {"id": "fish", "label": "Baliqcha", "label_ru": "Рыбка", "icon": "Fish"},
+                        {"id": "wave", "label": "To'lqin", "label_ru": "Волна", "icon": "Waves"},
+                        {"id": "droplets", "label": "Suv tomchilari", "label_ru": "Капли воды", "icon": "Droplets"},
+                        {"id": "rock", "label": "Qoya", "label_ru": "Камень", "icon": "Mountain"},
+                        {"id": "seaweed", "label": "Suv o'ti", "label_ru": "Водоросли", "icon": "Leaf"},
+                        {"id": "shell", "label": "Chig'anoq", "label_ru": "Ракушка", "icon": "Shell"},
+                    ],
+                    "distractor_items": [
+                        {"id": "milk", "label": "Sut", "label_ru": "Молоко", "icon": "Milk"},
+                        {"id": "carrot", "label": "Sabzi", "label_ru": "Морковь", "icon": "Carrot"},
+                        {"id": "crown", "label": "Toj", "label_ru": "Корона", "icon": "Crown"},
+                        {"id": "peanut", "label": "Yeryong'oq", "label_ru": "Арахис", "icon": "Nut"},
+                    ],
+                },
+            },
+            {
+                "title": "Kit",
+                "title_ru": "Кит",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Kitga kerakli narsalarni top.",
+                "instruction_text_ru": "Найди то, что нужно киту.",
+                "content": {
+                    "mode": "select",
+                    "character": {"emoji": "🐳", "label": "Kit", "label_ru": "Кит"},
+                    "correct_items": [
+                        {"id": "wave", "label": "To'lqin", "label_ru": "Волна", "icon": "Waves"},
+                        {"id": "droplets", "label": "Suv fontani", "label_ru": "Фонтан воды", "icon": "Droplets"},
+                        {"id": "bubbles", "label": "Pufakchalar", "label_ru": "Пузырьки", "icon": "Sparkles"},
+                        {"id": "fish", "label": "Mayda baliqchalar", "label_ru": "Мелкая рыбка", "icon": "Fish"},
+                        {"id": "sun", "label": "Quyosh", "label_ru": "Солнце", "icon": "Sun"},
+                        {"id": "rock", "label": "Dengiz tubi qoyasi", "label_ru": "Камень на дне", "icon": "Mountain"},
+                    ],
+                    "distractor_items": [
+                        {"id": "bone", "label": "Suyak", "label_ru": "Кость", "icon": "Bone"},
+                        {"id": "cheese", "label": "Pishloq", "label_ru": "Сыр", "icon": "Sandwich"},
+                        {"id": "banana", "label": "Banan", "label_ru": "Банан", "icon": "Banana"},
+                        {"id": "crown", "label": "Toj", "label_ru": "Корона", "icon": "Crown"},
+                    ],
                 },
             },
         ],
