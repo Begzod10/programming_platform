@@ -1,11 +1,12 @@
 """One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
 modules covering literacy/math/logic/creative (each a first pass, left
-unpublished pending real media), plus 7 complete, published packs that use
+unpublished pending real media), plus 8 complete, published packs that use
 emoji-first, icon-based content instead of image assets: 5 tap-to-match
 ("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
 "Transport olami" / "Rang olami", content.mode="select"), 1
-drag-to-assemble ("Yasash o'yinlari", content.mode="build"), and 1
-trace-the-outline ("Chizib o'rganamiz", content.mode="trace"). See
+drag-to-assemble ("Yasash o'yinlari", content.mode="build"), 1
+trace-the-outline ("Chizib o'rganamiz", content.mode="trace"), and 1
+arrow-pathfinding maze ("Yo'lni topamiz", content.mode="maze"). See
 project_student_platform memory / early_learning.py for the model design
 rationale (no AI grading, star-based completion instead of points).
 
@@ -1130,6 +1131,47 @@ MODULES = [
                         {"id": "square", "shape": "square", "label": "Kvadrat", "label_ru": "Квадрат"},
                         {"id": "triangle", "shape": "triangle", "label": "Uchburchak", "label_ru": "Треугольник"},
                     ],
+                },
+            },
+        ],
+    },
+    # ── "Yo'lni topamiz": arrow pathfinding, activity_type=maze — like
+    # `trace`, `maze` was already a member of EarlyActivityType from day
+    # one (no ALTER TYPE concern). subject=logic is EarlySubject's own
+    # named case ("sequencing, patterns, mazes"). New dedicated module
+    # rather than resurrecting the draft "Fikrlash o'yinlari"'s own maze
+    # stub (grid_size/walls: [] — a trivial non-puzzle), which also holds
+    # two other unbuilt drafts ("Kunlik tartib"/sequence, "Naqshni davom
+    # ettir"/pattern) with no per-activity publish override.
+    {
+        "title": "Yo'lni topamiz",
+        "title_ru": "Найдём путь",
+        "description": "O'qlar yordamida qahramonni bayroqqa olib bor.",
+        "description_ru": "Веди героя стрелками до флажка.",
+        "subject": EarlySubject.logic,
+        "icon_emoji": "🧭",
+        "color_accent": "#FFD166",
+        "display_order": 9,
+        "age_min": 5,
+        "age_max": 8,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Yo'lni top",
+                "title_ru": "Найди путь",
+                "activity_type": EarlyActivityType.maze,
+                "instruction_text": "O'qlar yordamida boshidan oxirigacha yo'l top.",
+                "instruction_text_ru": "С помощью стрелок найди путь от начала до конца.",
+                "content": {
+                    "mode": "maze",
+                    "character": {"emoji": "🦸", "label": "Yo'lni top", "label_ru": "Найди путь"},
+                    # [row, col] throughout. Hand-verified solvable path:
+                    # (0,0)->(1,0)->(2,0)->(3,0)->(3,1)->(3,2)->(4,2)->(4,3)->(4,4),
+                    # 8 moves, none of them walls.
+                    "grid": {"rows": 5, "cols": 5},
+                    "start": [0, 0],
+                    "end": [4, 4],
+                    "walls": [[0, 2], [1, 1], [1, 3], [2, 1], [2, 3], [3, 3]],
                 },
             },
         ],

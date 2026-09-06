@@ -6,6 +6,7 @@ import { useTranslation } from '../../../i18n/useTranslation';
 import MatchingActivity from './MatchingActivity';
 import BuildActivity from './BuildActivity';
 import TraceActivity from './TraceActivity';
+import MazeActivity from './MazeActivity';
 import LangToggle from './LangToggle';
 import { ArrowLeft, Star, Trophy } from 'lucide-react';
 
@@ -164,12 +165,17 @@ export default function EarlyLearning() {
         if (activity) {
             // content.mode picks the mechanic: "build" drags pieces onto
             // their own spot (BuildActivity.js), "trace" draws a shape's
-            // outline freehand (TraceActivity.js), anything else (the
-            // shipped "select" mode, or an activity with no mode yet) taps
-            // items out of a pool (MatchingActivity.js, the original/
+            // outline freehand (TraceActivity.js), "maze" walks a character
+            // to a flag via arrow taps (MazeActivity.js), anything else
+            // (the shipped "select" mode, or an activity with no mode yet)
+            // taps items out of a pool (MatchingActivity.js, the original/
             // default game).
             const mode = activity.content?.mode;
-            const ActivityScreen = mode === 'trace' ? TraceActivity : mode === 'build' ? BuildActivity : MatchingActivity;
+            const ActivityScreen =
+                mode === 'trace' ? TraceActivity :
+                mode === 'build' ? BuildActivity :
+                mode === 'maze' ? MazeActivity :
+                MatchingActivity;
             return (
                 <div className="el-shell">
                     <Sky />
