@@ -62,7 +62,13 @@
 .mz-scene {
     position: relative;
     width: 100%;
-    max-width: 300px;
+    /* The grid cells and avatar position are all %-based (see
+       MazeActivity.js), so widening this cap is purely cosmetic and stays
+       correct at any rendered size. min(400px, 90vw) keeps roughly the old
+       size on phones (container width binds well before 90vw does) but
+       lets the maze grow on tablets, where 300px capped it well below the
+       available width. */
+    max-width: min(400px, 90vw);
     aspect-ratio: 1 / 1;
     margin: 0 auto 20px;
     background: #fffbeb;
@@ -139,3 +145,32 @@
 
 .mz-pad-btn:hover:not(:disabled) { transform: translateY(-2px); }
 .mz-pad-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* .mz-page's own 28px/24px padding stacks on top of .el-shell's — trims to
+   match .el-page's existing mobile treatment (EarlyLearning.css) for a
+   little extra width on the narrowest phones. The arrow pad itself is
+   already comfortably narrow: .mz-pad-row's 56px gap + two 52px buttons =
+   160px total, which fits even a bare 320px viewport with no shell/page
+   padding at all, so it needs no adjustment here. */
+@media (max-width: 480px) {
+    .mz-page { padding: 20px 16px 28px; border-radius: 24px; }
+}
+
+/* Short viewports (landscape phones/tablets) — the fluid min(400px, 90vw)
+   maze cap above actually grows *larger* on a wide-but-short landscape
+   window (more horizontal room), which is backwards when height is what's
+   scarce: it would push the arrow pad further off-screen. Shrink the maze
+   back down here, along with the character emoji, paddings and the pad's
+   own gaps — the buttons themselves only shrink to 46px, still comfortably
+   above the 44px --touch-min floor. Scrolling itself still works throughout
+   (no overflow trap in this shell) — this only reduces how much is needed. */
+@media (max-height: 500px) {
+    .mz-page { padding: 16px 20px 20px; }
+    .mz-character-header { margin-bottom: 2px; }
+    .mz-character-emoji { font-size: 2.2rem; }
+    .mz-instruction { margin-bottom: 6px; }
+    .mz-scene { max-width: 170px; margin-bottom: 10px; }
+    .mz-pad { gap: 6px; }
+    .mz-pad-row { gap: 40px; }
+    .mz-pad-btn { width: 46px; height: 46px; }
+}

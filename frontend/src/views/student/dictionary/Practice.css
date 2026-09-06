@@ -679,8 +679,8 @@
     margin-top: 4px;
 }
 
-/* ── responsive ────────────────────────────────────────────────────── */
-@media (max-width: 640px) {
+/* ── responsive — canonical 820px tablet breakpoint (was 640px) ──────── */
+@media (max-width: 820px) {
     .pr-root { padding: 18px; }
     .pr-section { padding: 16px; }
     .pr-card { padding: 22px 18px; }
@@ -1229,7 +1229,7 @@
     margin-top: 2px;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 820px) {
     .pr-streak {
         grid-template-columns: auto 1fr;
         grid-template-areas: 'flame body' 'meta meta';
@@ -1506,7 +1506,7 @@
     padding: 8px 0;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 820px) {
     .pr-scope { grid-template-columns: 1fr; }
     .pr-scope-clear { width: 100%; }
     .pr-breakdown { grid-template-columns: 1fr; gap: 18px; }
@@ -1745,7 +1745,7 @@
 .pr-sess-pct--mid { color: #f59e0b; }
 .pr-sess-pct--bad { color: #f43f5e; }
 
-@media (max-width: 720px) {
+@media (max-width: 820px) {
     .pr-period-row { grid-template-columns: 60px 1fr 90px; gap: 8px; }
     .pr-sess-row {
         grid-template-columns: 1fr auto;

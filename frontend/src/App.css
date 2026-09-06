@@ -150,9 +150,20 @@ body {
     .page-container { padding: 22px; border-radius: 20px; }
 }
 
-@media (max-width: 768px) {
-    .main-layout { flex-direction: column; height: auto; min-height: 100vh; overflow: auto; }
-    .content-area { height: auto; padding: 12px; gap: 12px; overflow: visible; }
+@media (max-width: 820px) {
+    /* .main-layout stays row here (NOT column) — the sidebar is still an
+       inline icon-only rail at this width (sidebar.css's own 820px
+       breakpoint), not yet the off-canvas drawer (that starts at 480px
+       below). Stacking a rail above content in a column would put its
+       own auto-height (as tall as its full menu list) between the top of
+       the page and the actual content — real bug, found via live
+       testing: a 5-8 (well, adult too) user would see a wall of icons
+       and have to scroll past all of them before reaching any content.
+       content-area keeps its base height:100vh + overflow:hidden here
+       (matching the desktop side-by-side pattern), just with tighter
+       padding — .page-container's own overflow-y:auto below still
+       handles internal scrolling exactly like on desktop. */
+    .content-area { padding: 12px; gap: 12px; }
     .main-header h1 { font-size: 20px; }
     .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .page-container {
@@ -164,17 +175,17 @@ body {
 }
 
 @media (max-width: 480px) {
-    .content-area { padding: 8px; gap: 10px; }
+    /* Column stacking belongs here, not 820px — this is where the
+       sidebar actually leaves the layout flow (sidebar.css's own 480px
+       breakpoint makes it position:fixed, an off-canvas drawer opened by
+       the hamburger button), so there's no rail left inline to push
+       content down. */
+    .main-layout { flex-direction: column; height: auto; min-height: 100vh; overflow: auto; }
+    .content-area { height: auto; padding: 8px; gap: 10px; overflow: visible; }
     .main-header h1 { font-size: 18px; }
     .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .page-container { padding: 14px; border-radius: 16px; }
     .projects-grid { grid-template-columns: 1fr; gap: 12px; }
     .view-header { flex-direction: column; align-items: flex-start; }
     .add-project-btn { width: 100%; text-align: center; }
-}
-
-@media (max-width: 360px) {
-    .content-area { padding: 6px; }
-    .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
-    .page-container { padding: 12px; border-radius: 14px; }
 }

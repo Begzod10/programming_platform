@@ -120,11 +120,17 @@
 .el-back-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     background: linear-gradient(135deg, #ffb84d, #ff8a5c);
     border: none;
     border-radius: 999px;
     padding: 10px 18px;
+    /* 10px padding + ~18px content lands around 38px tall — under the
+       --touch-min WCAG floor. This is a 5-8 year old's exit from every
+       screen in the feature, so guarantee the floor directly rather than
+       relying on padding/font math staying right forever. */
+    min-height: var(--touch-min);
     font-size: 0.9rem;
     font-weight: 700;
     color: #fff;
@@ -161,11 +167,18 @@
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 .el-lang-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: none;
     background: transparent;
     border-radius: 999px;
-    padding: 6px 12px;
-    font-size: 0.78rem;
+    padding: 8px 14px;
+    /* Padding alone (6-8px * 2 + ~13px text) lands well under 44px — this
+       pill is tapped directly by a 5-8 year old on every screen, so give it
+       the WCAG floor explicitly rather than relying on padding math. */
+    min-height: var(--touch-min);
+    font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     color: #94714f;
@@ -387,4 +400,16 @@
     .el-hero h1 { font-size: 2rem; }
     .el-module-header { flex-wrap: wrap; }
     .el-module-header .el-star-badge { margin-left: 0; }
+}
+
+/* Short viewports (landscape phones, short tablet windows) — the module
+   picker/activity grid can still exceed the viewport height with a big hero
+   and generous vertical padding; el-shell/body scroll handles overflow fine,
+   but shrinking the biggest vertical offenders means less scrolling for a
+   young kid before they see the actual content. */
+@media (max-height: 500px) {
+    .el-shell { padding: 14px 10px 20px; }
+    .el-page { padding: 16px 20px 20px; }
+    .el-hero { padding: 6px 0 16px; gap: 6px; }
+    .el-hero h1 { font-size: 1.6rem; }
 }

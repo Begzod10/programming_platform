@@ -343,6 +343,12 @@
 /* ══════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════ */
+/* Genuine one-off, not the canonical 480/820 pair: the zigzag path uses
+ * `calc(50% - 40px)` per side, so each card needs real width. Raising
+ * this to 820 would kill the two-column zigzag well before it's
+ * actually cramped; lowering it to 480 would let the two-column layout
+ * persist into the 481-640px band where cards get uncomfortably
+ * narrow. 640px is where the single-column fallback is actually needed. */
 @media (max-width: 640px) {
     .rm-path::before { left: 28px; }
 

@@ -140,7 +140,7 @@
 }
 
 /* ===== Mobile/tablet collapsed sidebar ===== */
-@media (max-width: 860px) {
+@media (max-width: 820px) {
     .streak-badge {
         padding: 6px 8px;
         gap: 4px;

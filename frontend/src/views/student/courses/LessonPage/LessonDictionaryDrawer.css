@@ -414,7 +414,15 @@
 @keyframes ldd-spin { to { transform: rotate(360deg); } }
 
 /* ===== RESPONSIVE ===== */
-@media (max-width: 600px) {
+/* Mobile portrait (≤480px) — was a standalone ≤600px query; moved onto
+ * the canonical mobile breakpoint. Drawer goes edge-to-edge (the 95vw
+ * cap otherwise leaves an unnecessary sliver on a narrow phone), the
+ * FAB trigger shrinks a touch, and the close/scope tap targets grow
+ * toward the 44px WCAG minimum without changing the compact desktop
+ * drawer's proportions. */
+@media (max-width: 480px) {
     .ldd-drawer { width: 100vw; max-width: 100vw; }
     .ldd-fab { right: 16px; bottom: 16px; width: 50px; height: 50px; border-radius: 14px; }
+    .ldd-close { width: 40px; height: 40px; }
+    .ldd-scope__btn { min-height: 40px; }
 }

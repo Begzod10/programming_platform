@@ -591,6 +591,13 @@
   .sc-card-img-wrap { height: 140px; }
   .sc-stats-bar     { width: 100%; justify-content: space-around; }
   .sc-stat-item     { padding: 0 16px; }
+  /* Folded in from a standalone ≤640px query — kept on the canonical
+   * tablet breakpoint so the lang grid doesn't jump separately from
+   * the rest of the header/grid changes above. */
+  .sc-lang-grid     { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+  .sc-lang-card     { padding: 12px 8px 10px; border-radius: 12px; }
+  .sc-lang-icon     { font-size: 22px; }
+  .sc-lang-name     { font-size: 11.5px; }
 }
 
 /* Mobile portrait (≤480px) — single-column grid, bigger card images
@@ -783,9 +790,4 @@
   z-index: 1;
 }
 
-@media (max-width: 640px) {
-  .sc-lang-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
-  .sc-lang-card { padding: 12px 8px 10px; border-radius: 12px; }
-  .sc-lang-icon { font-size: 22px; }
-  .sc-lang-name { font-size: 11.5px; }
-}
+/* Rules for ≤820px moved up into the shared "Tablet portrait" block. */

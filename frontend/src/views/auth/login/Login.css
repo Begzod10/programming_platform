@@ -68,6 +68,12 @@
   right: 18px;
   z-index: 20;
   padding: 6px 14px;
+  /* Directly-tapped corner control, isolated from other elements —
+     enforce the WCAG 44px minimum tap target. */
+  min-height: var(--touch-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
@@ -328,19 +334,24 @@
 }
 
 /* ── Eye toggle button ── */
+/* padding/right tuned so the invisible hit-area grows to the WCAG 44px
+   min tap target while the visible icon glyph stays put (it sits inside
+   the input's reserved 68px icon gutter, so growing left doesn't
+   overlap typed text — the check icon it may cover has pointer-events:none). */
 .lp-eye {
   position: absolute;
-  right: 10px;
+  right: 2px;
   top: 50%;
   transform: translateY(-50%);
   background: none;
   border: none;
-  padding: 5px;
+  padding: 14px;
   border-radius: 6px;
   cursor: pointer;
   color: rgba(255, 255, 255, 0.42);
   display: flex;
   align-items: center;
+  justify-content: center;
   line-height: 0;
   transition: color 0.2s;
 }
@@ -514,8 +525,8 @@
   .lp-spinner       { animation: none !important; }
 }
 
-/* ── Mobile ── */
-@media (max-width: 520px) {
+/* ── Mobile (canonical breakpoint) ── */
+@media (max-width: 480px) {
   .lp-card {
     width: min(430px, calc(100vw - 32px));
     padding: 34px 24px;
@@ -525,12 +536,6 @@
   .lp-logo   { width: 64px; height: 64px; }
   .lp-logo img { width: 52px; height: 52px; }
   .lp-center { padding: 40px 16px; }
-}
-
-@media (max-width: 360px) {
-  .lp-card   { padding: 28px 18px; }
-  .lp-title  { font-size: 20px; }
-  .lp-submit { font-size: 14px; padding: 12px 14px; }
 }
 
 /* ── Legacy .app wrapper (from AppRouter.js) — kept neutral so it

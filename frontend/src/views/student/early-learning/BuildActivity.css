@@ -58,11 +58,19 @@
 
 /* Fixed-aspect scene the kid builds inside — width capped so the whole
    picture (and every slot's % coordinates) stays legible on a tablet
-   without needing a per-breakpoint layout of its own. */
+   without needing a per-breakpoint layout of its own. Every slot is
+   positioned with %/aspect-ratio (see BuildActivity.js), so widening this
+   cap is purely cosmetic — the hit-testing math (getBoundingClientRect() in
+   hitTestSlot) reads the live rendered rect, not a hardcoded size, and
+   recalculates correctly at any width. min(400px, 90vw) keeps the old
+   300px-ish size on phones (container width binds well before 90vw does)
+   but lets it grow up to 400px on tablets, where 300px left a lot of the
+   actual play area (and the tap targets in it) smaller than it needed to
+   be. */
 .ba-scene {
     position: relative;
     width: 100%;
-    max-width: 300px;
+    max-width: min(400px, 90vw);
     aspect-ratio: 3 / 4;
     margin: 0 auto 24px;
     background: linear-gradient(180deg, #dff3ff 0%, #dff3ff 72%, #f3faff 72%, #f3faff 100%);
@@ -197,3 +205,29 @@
 }
 
 .ba-drag-ghost .ba-piece-emoji { font-size: 2.4rem; }
+
+/* .ba-page's own 28px/24px padding stacks on top of .el-shell's — trims to
+   match .el-page's existing mobile treatment (EarlyLearning.css) for a
+   little extra width on the narrowest phones (320-375px). The tray's
+   minmax(110px,1fr) already collapses to a clean 2-column layout at these
+   widths (e.g. at 320px: 320 - 20 shell - 32 page = 268px content, (268+12)/
+   (110+12) ≈ 2.3 → 2 columns of ~128px, comfortably above the 110px floor),
+   so no change needed there. */
+@media (max-width: 480px) {
+    .ba-page { padding: 20px 16px 28px; border-radius: 24px; }
+}
+
+/* Short viewports (landscape phones/tablets) — the fixed-aspect scene is the
+   single biggest vertical element in this screen's stack, and the fluid
+   min(400px, 90vw) cap above actually makes it *larger* on a wide-but-short
+   landscape window (more horizontal room to grow into), which is exactly
+   backwards when height is what's scarce. Shrink it back down here, along
+   with the character emoji and paddings, so the tray and its pieces need
+   less scrolling to reach. Scrolling itself still works throughout (no
+   overflow trap in this shell) — this only reduces how much is needed. */
+@media (max-height: 500px) {
+    .ba-page { padding: 16px 20px 20px; }
+    .ba-character { margin-bottom: 8px; }
+    .ba-character-emoji { font-size: 2.4rem; }
+    .ba-scene { max-width: 180px; margin-bottom: 12px; }
+}

@@ -43,8 +43,22 @@
     min-height: 340px;
 }
 
-@media (max-width: 768px) {
-    .sp-panes { grid-template-columns: 1fr; }
+/* Tablet portrait (≤820px) — was a standalone ≤768px query, moved onto
+ * the canonical breakpoint. Also stacks `.sp-panes--full` (the
+ * Python/SQL layout), which the old rule missed — that variant left
+ * the terminal-hint column and the code panel squeezed side-by-side
+ * on narrow screens instead of stacking like the web preview/code
+ * split does. */
+@media (max-width: 820px) {
+    .sp-panes,
+    .sp-panes--full {
+        grid-template-columns: 1fr;
+    }
+    .sp-terminal-hint {
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .sp-tab { min-height: 44px; }
 }
 
 .sp-preview {

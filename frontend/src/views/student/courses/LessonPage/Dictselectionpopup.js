@@ -10,7 +10,7 @@
  *   lessonId  — number (текущий урок, пишем в lesson_id)
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
 import './Dictselectionpopup.css';
@@ -47,6 +47,29 @@ export default function DictSelectionPopup({ lessonId }) {
     const btnRef                = useRef(null);
 
     const hide = useCallback(() => setPopup(null), []);
+
+    // Keep the popup fully on-screen. `left`/`top` are computed from the
+    // selection's midpoint and the box is centered on that point via
+    // `translateX(-50%) translateY(-100%)` — for a selection near the
+    // left/right edge (routine on a 360-390px phone) or near the very
+    // top of the viewport, that centering pushes part of the popup off
+    // screen. Measure the rendered box after layout and nudge it back
+    // in with an inline transform override.
+    useLayoutEffect(() => {
+        if (!popup || !btnRef.current) return;
+        const el = btnRef.current;
+        el.style.transform = '';
+        const margin = 8;
+        const rect = el.getBoundingClientRect();
+        let dx = 0;
+        if (rect.left < margin) dx = margin - rect.left;
+        else if (rect.right > window.innerWidth - margin) dx = (window.innerWidth - margin) - rect.right;
+        let dy = 0;
+        if (rect.top < margin) dy = margin - rect.top;
+        if (dx !== 0 || dy !== 0) {
+            el.style.transform = `translate(calc(-50% + ${dx}px), calc(-100% + ${dy}px))`;
+        }
+    });
 
     useEffect(() => {
         // Walk up from a text/element node to the nearest Element so .closest()

@@ -19,6 +19,10 @@
     color: var(--text-hi, #1a1a2e);
     border-radius: 999px;
     padding: 8px 36px 8px 16px;
+    /* Directly-tapped select — WCAG 44px minimum. Kept in sync with
+       .tsr-period-chip in StudentRankings.css, which this is deliberately
+       sized to match. */
+    min-height: var(--touch-min);
     font: 600 13px/1 var(--font-ui);
     cursor: pointer;
     transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
@@ -39,7 +43,7 @@
     box-shadow: 0 0 0 3px var(--accent-glow, rgba(108, 92, 231, 0.22));
 }
 
-@media (max-width: 720px) {
+@media (max-width: 820px) {
     .tsr-course-select {
         margin-left: 0;
         max-width: 100%;

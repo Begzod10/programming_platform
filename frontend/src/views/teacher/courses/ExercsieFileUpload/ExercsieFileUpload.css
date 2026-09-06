@@ -633,32 +633,16 @@
   .efu-code-body          { max-height: 380px; }
 }
 
-/* Tablet portrait / large phone (≤640px) — kept from original */
-@media (max-width: 640px) {
-  .efu-upload-zone        { padding: 20px 14px; }
-  .efu-upload-icon        { font-size: 28px; }
-  .efu-upload-text strong { font-size: 13px; }
-
-  .efu-file-card-head     { padding: 10px 12px; }
-  .efu-file-card-name     { max-width: 160px; font-size: 12px; }
-
-  .efu-view-toggle-btn    { padding: 4px 9px; font-size: 11px; }
-
-  .efu-code-body          { max-height: 320px; }
-  .efu-code-pre           { font-size: 12px; }
-  .efu-line-num           { font-size: 11px; min-width: 36px; }
-
-  .efu-preview-iframe     { height: 280px; }
-
-  .efu-header-stats       { display: none; }
-}
-
-/* Mobile portrait (≤480px) — minimum viable layout */
+/* Mobile portrait (≤480px) — minimum viable layout
+ * (folds in what used to be a separate ad-hoc ≤640px tier — the two
+ * steps were only cosmetic size tweaks, not a layout change). */
 @media (max-width: 480px) {
   .efu-upload-zone        { padding: 18px 12px; }
   .efu-upload-icon        { font-size: 26px; }
   .efu-upload-text strong { font-size: 12.5px; line-height: 1.35; }
   .efu-file-card-name     { max-width: 120px; }
+
+  .efu-file-card-head     { padding: 10px 12px; }
 
   /* Code body shorter so the surrounding controls remain visible */
   .efu-code-body          { max-height: 260px; }
@@ -666,6 +650,8 @@
   .efu-line-num           { font-size: 10.5px; min-width: 30px; }
 
   .efu-preview-iframe     { height: 240px; }
+
+  .efu-header-stats       { display: none; }
 
   /* Toggle bar wraps; each toggle stays a 32px tap target */
   .efu-view-toggle-btn    { min-height: 32px; padding: 5px 10px; }

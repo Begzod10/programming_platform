@@ -462,15 +462,17 @@
 
 /* ================================================================
    RESPONSIVE
+   Consolidated onto the canonical 820px tablet breakpoint (was two
+   ad-hoc queries at 900px and 640px). The fixed-width podium columns
+   (150px × 3 + gaps) fit comfortably up to 820px, so moving the
+   3-column/44px-avatar switch up from 900px changes nothing visually
+   in the 821-900px range.
    ================================================================ */
-@media (max-width: 900px) {
+@media (max-width: 820px) {
     .lb-podium { gap: 8px; padding: 22px 12px 0; }
     .lb-podium-col { width: 31%; flex-basis: 31%; }
     .lb-avatar--white { width: 44px !important; height: 44px !important; }
     .lb-podium-col--1 .lb-avatar--gold { width: 52px !important; height: 52px !important; }
-}
-
-@media (max-width: 640px) {
     .lb-item-pct { display: none; }
     .lb-myrank-pos, .lb-myrank-pts { font-size: 16px; }
     .lb-tab-label { display: none; }

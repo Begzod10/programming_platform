@@ -10,6 +10,7 @@
     padding: 9px 12px;
     margin: 0 0 14px;
     width: 100%;
+    min-height: var(--touch-min);
     border-radius: 14px;
     background: linear-gradient(135deg, rgba(255, 205, 60, 0.18), rgba(255, 140, 40, 0.10));
     border: 1px solid rgba(255, 200, 80, 0.28);
@@ -88,6 +89,7 @@
     padding: 6px 8px;
     justify-content: center;
     gap: 6px;
+    min-height: var(--touch-min);
 }
 .coin-chip--mini .coin-chip__icon {
     width: 28px;
@@ -96,4 +98,19 @@
 }
 .coin-chip--mini .coin-chip__count {
     font-size: 13px;
+}
+
+/* ===== Tablet icon-only rail (sidebar auto-narrows to 72px here via
+   sidebar.css's own 820px breakpoint, independent of the `collapsed`
+   JS prop) — without this, the full-width chip's body/sub-text would
+   overflow the narrow rail whenever the sidebar hasn't been manually
+   collapsed. Mirrors StreakBadge.css's equivalent block. ===== */
+@media (max-width: 820px) {
+    .coin-chip {
+        padding: 6px 8px;
+        gap: 4px;
+        justify-content: center;
+    }
+    .coin-chip__body { display: none; }
+    .coin-chip__icon { width: 28px; height: 28px; border-radius: 8px; }
 }

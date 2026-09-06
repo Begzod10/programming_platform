@@ -122,8 +122,8 @@
 .scs-empty  { text-align: center; padding: 40px; color: #94a3b8; }
 .scs-empty-icon { font-size: 2.5rem; margin-bottom: 8px; }
 
-/* ── Responsive ── */
-@media (max-width: 600px) {
+/* ── Responsive — canonical 480px mobile breakpoint (was 600px). ── */
+@media (max-width: 480px) {
     .scs-page { padding: 16px; gap: 16px; }
     .scs-profile-card { flex-direction: column; align-items: flex-start; }
     .scs-profile-divider { display: none; }

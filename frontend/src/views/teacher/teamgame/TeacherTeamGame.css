@@ -162,7 +162,7 @@
 
 /* Modal */
 .tg-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-.tg-modal { background: #fff; border-radius: 14px; padding: 28px; width: 100%; max-width: 480px; box-shadow: 0 8px 40px rgba(0,0,0,0.18); }
+.tg-modal { background: #fff; border-radius: 14px; padding: 28px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 40px rgba(0,0,0,0.18); }
 .tg-modal h2 { margin: 0 0 16px; font-size: 1.3rem; }
 .tg-error { color: #ef4444; margin-bottom: 12px; font-size: 0.9rem; }
 
@@ -649,7 +649,7 @@
 .tg-fin-row-medal { white-space: nowrap; }
 .tg-fin-row-medal b { color: #0f172a; margin-left: 2px; }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
     .tg-fin-row-head {
         grid-template-columns: auto 1fr;
         row-gap: 0.35rem;

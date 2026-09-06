@@ -189,6 +189,7 @@
     margin: 0;
     color: var(--store-ink-strong);
     text-wrap: balance;
+    overflow-wrap: break-word;
 }
 
 .store-card__desc {
@@ -305,8 +306,8 @@
     border-radius: var(--r-card);
 }
 
-/* Responsive tweaks */
-@media (max-width: 600px) {
+/* Responsive tweaks — canonical 480px mobile breakpoint (was 600px). */
+@media (max-width: 480px) {
     .store-page { padding: 18px 16px 40px; }
     .store-header { flex-direction: column; align-items: flex-start; }
     .store-wallet { align-items: flex-start; }

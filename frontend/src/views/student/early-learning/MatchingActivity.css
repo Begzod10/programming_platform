@@ -132,3 +132,23 @@
 }
 
 .ma-item-sad { font-size: 2.5rem; line-height: 1; }
+
+/* .ma-page's own 28px/24px padding stacks on top of .el-shell's — at 320px
+   this still fits (320 - 20 shell - 48 page = 252px content; the item grid's
+   minmax(140px,1fr) collapses to a single full-width 252px column, not a
+   squeezed one), but trims to match .el-page's existing mobile treatment
+   (EarlyLearning.css) for consistency and a little extra breathing room. */
+@media (max-width: 480px) {
+    .ma-page { padding: 20px 16px 28px; border-radius: 24px; }
+}
+
+/* Short viewports (landscape phones/tablets) — shrink the biggest vertical
+   items so less scrolling stands between a young kid and the item grid.
+   Scrolling itself already works (no overflow trap anywhere in this shell),
+   this just reduces how much of it is needed. */
+@media (max-height: 500px) {
+    .ma-page { padding: 16px 20px 20px; }
+    .ma-character { margin-bottom: 8px; }
+    .ma-character-emoji { font-size: 2.6rem; }
+    .ma-progress-bar { margin-bottom: 12px; }
+}

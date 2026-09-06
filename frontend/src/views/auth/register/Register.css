@@ -163,7 +163,7 @@
 /* ============================================================
    RESPONSIVE
    ============================================================ */
-@media (max-width: 768px) {
+@media (max-width: 820px) {
     .register-card {
         max-width: 460px;
         padding: 34px 32px 28px;
@@ -181,12 +181,6 @@
     .register-card input { font-size: 16px; }
     .register-btn { font-size: 16px; padding: 14px; }
 }
-
-@media (max-width: 360px) {
-    .register-card { padding: 22px 14px; }
-    .register-card h1 { font-size: 20px; }
-    .logo-wrapper { width: 80px; height: 80px; }
-}
 /* Добавь или обнови эти строки в конце своего файла */
 
 .password-field-wrapper {
@@ -197,7 +191,11 @@
 
 .password-toggle-icon {
     position: absolute;
-    right: 16px;
+    /* right/padding tuned together so the icon glyph stays visually in
+       the same spot while the invisible hit-area grows to the WCAG
+       44px min tap target (fits inside the input's own 46px reserved
+       right-padding gutter below, so it doesn't cover typed text). */
+    right: 2px;
     top: 23px;
     transform: translateY(-50%);
     cursor: pointer;
@@ -209,7 +207,10 @@
     /* Reset native <button> styling so the toggle keeps its inline-icon look */
     background: transparent;
     border: none;
-    padding: 0;
+    padding: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     line-height: 0;
     border-radius: 6px;
 }

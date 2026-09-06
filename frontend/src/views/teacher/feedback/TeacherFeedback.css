@@ -171,10 +171,6 @@
     grid-template-columns: minmax(220px, 280px) 1fr;
     gap: 26px;
 }
-@media (max-width: 720px) {
-    .tfb-lesson-body { grid-template-columns: 1fr; }
-}
-
 .tfb-breakdown {
     display: flex;
     flex-direction: column;
@@ -300,7 +296,8 @@
    RESPONSIVE
 ═══════════════════════════════════════════════ */
 /* Tablet portrait (≤820px) — outer padding shrinks, summary grid
- * tightens, lesson body still side-by-side but smaller sidebar. */
+ * tightens, lesson body stacks to a single column (was two separate
+ * ad-hoc breakpoints — 820 shrink + 720 stack — folded into one). */
 @media (max-width: 820px) {
     .tfb-root        { padding: 22px 20px 48px; }
     .tfb-title       { font-size: 20px; }
@@ -308,13 +305,6 @@
     .tfb-summary     { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
     .tfb-summary-card{ padding: 14px 16px; }
     .tfb-summary-value { font-size: 20px; }
-    .tfb-lesson-body { grid-template-columns: minmax(200px, 240px) 1fr; gap: 22px; }
-}
-
-/* Tablet / small portrait (≤720px) — lesson body stacks fully
- * (kept from the original ad-hoc breakpoint; folded into the new
- * canonical set as part of the responsive sweep). */
-@media (max-width: 720px) {
     .tfb-lesson-body { grid-template-columns: 1fr; gap: 16px; }
 }
 

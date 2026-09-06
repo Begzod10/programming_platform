@@ -89,8 +89,9 @@
     .stats-info p  { font-size: 11px; }
 }
 
-/* Mobile — компактные карточки */
-@media (max-width: 768px) {
+/* Mobile — компактные карточки (canonical 820px tablet breakpoint,
+   was 768px) */
+@media (max-width: 820px) {
     .stats-card {
         padding: 12px 14px;
         gap: 10px;

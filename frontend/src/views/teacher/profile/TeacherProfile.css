@@ -359,7 +359,7 @@
 }
 
 /* Small tablet */
-@media (max-width: 768px) {
+@media (max-width: 820px) {
     .tp-header-card { padding: 20px; gap: 16px; }
     .tp-main-info h2 { font-size: 20px; }
     .tp-avatar-box { width: 72px; height: 72px; min-width: 72px; font-size: 34px; }

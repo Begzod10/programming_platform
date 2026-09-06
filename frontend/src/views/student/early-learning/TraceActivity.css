@@ -64,7 +64,15 @@
 .ta-canvas-wrap {
     position: relative;
     width: 100%;
-    max-width: 300px;
+    /* Both canvases keep their fixed 300x300 *logical* drawing space
+       (CANVAS_SIZE in TraceActivity.js) regardless of this cap — pointer
+       coordinates are converted through getBoundingClientRect() on every
+       move, so widening the on-screen size is purely cosmetic and the
+       tracing math stays correct. min(400px, 90vw) keeps roughly the old
+       size on phones (container width binds well before 90vw does) but
+       lets the actual drawing surface grow on tablets, where 300px capped
+       it well below the available width. */
+    max-width: min(400px, 90vw);
     aspect-ratio: 1 / 1;
     margin: 0 auto 16px;
     background: #f0f9ff;
@@ -86,7 +94,9 @@
 
 .ta-coverage-row {
     width: 100%;
-    max-width: 300px;
+    /* Kept in sync with .ta-canvas-wrap's cap so the progress bar always
+       spans the same width as the canvas above it. */
+    max-width: min(400px, 90vw);
     display: flex;
     align-items: center;
     gap: 10px;
@@ -122,9 +132,17 @@
 }
 
 .ta-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: none;
     border-radius: 14px;
     padding: 12px 22px;
+    /* 12px padding + ~16px text lands right around 40px — under the
+       --touch-min WCAG floor, and this is "Tozalash"/"Tayyor!" (Clear/Done),
+       a control a 5-8 year old taps directly and repeatedly. Set generously
+       above the floor rather than exactly at it. */
+    min-height: 48px;
     font-weight: 700;
     font-size: 0.95rem;
     cursor: pointer;
@@ -145,4 +163,27 @@
     background: linear-gradient(135deg, #38bdf8, #0ea5e9);
     color: #fff;
     box-shadow: 0 10px 22px rgba(14, 165, 233, 0.3);
+}
+
+/* .ta-page's own 28px/24px padding stacks on top of .el-shell's — trims to
+   match .el-page's existing mobile treatment (EarlyLearning.css) for a
+   little extra width on the narrowest phones (320-375px). */
+@media (max-width: 480px) {
+    .ta-page { padding: 20px 16px 28px; border-radius: 24px; }
+}
+
+/* Short viewports (landscape phones/tablets) — the fluid min(400px, 90vw)
+   canvas cap above actually grows *larger* on a wide-but-short landscape
+   window (more horizontal room), which is backwards when height is what's
+   scarce: it would push the Tozalash/Tayyor! buttons further off-screen.
+   Shrink the canvas back down here, along with the character emoji and
+   paddings, so those controls need less scrolling to reach. Scrolling
+   itself still works throughout (no overflow trap in this shell) — this
+   only reduces how much is needed. */
+@media (max-height: 500px) {
+    .ta-page { padding: 16px 20px 20px; }
+    .ta-character { margin-bottom: 4px; }
+    .ta-character-emoji { font-size: 2.2rem; }
+    .ta-canvas-wrap { max-width: 180px; margin-bottom: 10px; }
+    .ta-coverage-row { max-width: 180px; margin-bottom: 12px; }
 }

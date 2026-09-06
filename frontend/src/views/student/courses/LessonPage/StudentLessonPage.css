@@ -1155,10 +1155,8 @@
     line-height: 1;
 }
 
-@media (max-width: 600px) {
-    .slp-feedback { padding: 18px 16px; }
-    .slp-feedback-star { font-size: 26px; padding: 3px 4px; }
-}
+/* Feedback block responsive rules moved into the canonical ≤480px
+ * "Mobile portrait" query below (was a standalone ≤600px query). */
 
 /* ═══════════════════════════════════════════════
    BOTTOM NAV
@@ -1469,6 +1467,7 @@
     /* Modal: bottom sheet pattern */
     .slp-overlay      { padding: 0; align-items: flex-end; }
     .slp-modal        { border-radius: var(--r-xl) var(--r-xl) 0 0; max-height: 94vh; }
+    .slp-modal-close  { width: 40px; height: 40px; }
     .slp-modal-footer { flex-direction: column; gap: 8px; }
     .slp-modal-cancel,
     .slp-modal-submit { width: 100%; text-align: center; justify-content: center; min-height: 44px; }
@@ -1488,6 +1487,10 @@
     .slp-ex-fill-input{ width: 80px; }
     .slp-dropzone     { padding: 20px 14px; }
     .slp-method-selector { border-radius: var(--r-md); }
+
+    /* Feedback block (folded in from a standalone ≤600px query) */
+    .slp-feedback       { padding: 18px 16px; }
+    .slp-feedback-star  { font-size: 26px; padding: 3px 4px; }
 }
 
 /* Very small phones (≤360px) — squeeze further */
