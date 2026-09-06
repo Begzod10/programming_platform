@@ -22,6 +22,19 @@ const CHECKPOINT_COUNT = 36;
 // to count it as traced — forgiving on purpose, see the plan's "coverage
 // only, no stay-inside-the-lines penalty" rationale.
 const HIT_RADIUS = 22;
+// A checkpoint only counts once a SINGLE stroke sweeps past it *and* its
+// immediate neighbors in order — see creditableCheckpointsForStroke below.
+// Without this, "coverage" could be earned by dabbing 36 disconnected taps
+// around the outline instead of actually tracing it; this is the fix for
+// that gap. MAX_JUMP tolerates normal hand jitter/backtracking between two
+// checkpoints hit right after each other in the same stroke (checkpoints
+// are close together — a real continuous drag naturally lands on the same
+// or a neighboring one from one recorded point to the next); MIN_RUN
+// is the shortest connected sweep that earns any credit at all — small
+// enough that drawing one side of a square still easily qualifies (~9
+// checkpoints), large enough that a single tap (a run of 1) never does.
+const MAX_JUMP = 3;
+const MIN_RUN_CHECKPOINTS = 3;
 const INK_COLOR = '#f97316';
 const GUIDE_COLOR = 'rgba(100, 116, 139, 0.5)';
 
@@ -50,6 +63,64 @@ function pointsOnPolygon(vertices, n) {
         }
     });
     return points;
+}
+
+/** Which checkpoints a single stroke (one pointerdown-to-pointerup path)
+ * actually earns credit for. A checkpoint is only credited when it's part
+ * of a *connected* run — the stroke passed near it and near its immediate
+ * neighbors in outline order, right after one another — not just touched
+ * in isolation at some point during the stroke. This is what makes a
+ * "sweep along the outline" score well while a series of disconnected taps
+ * around the shape doesn't, without requiring the stroke to be perfectly
+ * smooth or go in one fixed direction (small back-and-forth jitter within
+ * MAX_JUMP is tolerated, checkpoint order is cyclic since the shape is a
+ * closed loop). Multiple separate strokes are still expected and fine —
+ * e.g. drawing a square's 4 sides one at a time — each stroke is scored
+ * independently and their credited checkpoints are just unioned together.
+ */
+function creditableCheckpointsForStroke(strokePoints, checkpoints) {
+    const n = checkpoints.length;
+    if (n === 0) return [];
+
+    // Nearest checkpoint (within HIT_RADIUS) for each recorded point, in
+    // temporal order; -1 where the point isn't near any checkpoint.
+    const touched = strokePoints.map((p) => {
+        let best = -1;
+        let bestDist = HIT_RADIUS;
+        checkpoints.forEach((cp, i) => {
+            const d = Math.hypot(p.x - cp.x, p.y - cp.y);
+            if (d <= bestDist) { bestDist = d; best = i; }
+        });
+        return best;
+    });
+
+    // Collapse to the sequence of checkpoints actually visited, dropping
+    // misses and consecutive repeats of the same checkpoint.
+    const seq = [];
+    for (const idx of touched) {
+        if (idx === -1) continue;
+        if (seq.length === 0 || seq[seq.length - 1] !== idx) seq.push(idx);
+    }
+    if (seq.length === 0) return [];
+
+    const cyclicDist = (a, b) => { const d = Math.abs(a - b); return Math.min(d, n - d); };
+
+    // Split into runs wherever consecutive visited checkpoints are too far
+    // apart to be "the same continuous sweep" (a lift-and-reposition, or a
+    // jump across the shape rather than along it).
+    const runs = [[seq[0]]];
+    for (let i = 1; i < seq.length; i++) {
+        const run = runs[runs.length - 1];
+        if (cyclicDist(run[run.length - 1], seq[i]) <= MAX_JUMP) {
+            run.push(seq[i]);
+        } else {
+            runs.push([seq[i]]);
+        }
+    }
+
+    return runs
+        .filter((run) => new Set(run).size >= MIN_RUN_CHECKPOINTS)
+        .flat();
 }
 
 const SQUARE_VERTICES = [{ x: 70, y: 70 }, { x: 230, y: 70 }, { x: 230, y: 230 }, { x: 70, y: 230 }];
@@ -109,8 +180,12 @@ const SHAPES = {
  * "trace"): { character: {emoji,label}, targets: [{id,shape,label,label_ru}] }.
  * Third sibling of MatchingActivity.js/BuildActivity.js — same completion
  * flow, different input: freehand pointer drawing on a canvas, scored by
- * how much of the guide outline's own checkpoints got traced near enough
- * (see HIT_RADIUS), not pixel-perfect path matching.
+ * how much of the guide outline actually got swept by a continuous stroke
+ * (see creditableCheckpointsForStroke) — forgiving on precision (HIT_RADIUS
+ * is generous, no pixel-perfect path matching) but not on requiring real
+ * tracing: a checkpoint only counts as part of a connected run within one
+ * stroke, so dabbing disconnected taps around the outline instead of
+ * actually drawing it doesn't score.
  */
 export default function TraceActivity({ activity, onBack, onComplete, lang, toggleLang, t }) {
     const { request } = useHttp();
@@ -129,8 +204,12 @@ export default function TraceActivity({ activity, onBack, onComplete, lang, togg
     // Drawn points and checkpoint-hit flags live in refs, not state — a
     // stroke can generate dozens of pointermove events per second, and
     // none of that needs to trigger a React re-render; only coveragePct
-    // (updated once per stroke, on pointerup) does.
-    const pointsRef = useRef([]);
+    // (updated once per stroke, on pointerup) does. strokePointsRef holds
+    // only the CURRENT in-progress stroke (reset on every pointerdown) —
+    // past strokes' results are already folded into hitFlagsRef by then,
+    // see creditableCheckpointsForStroke's docstring for why scoring works
+    // per-stroke rather than against the full accumulated point history.
+    const strokePointsRef = useRef([]);
     const checkpointsRef = useRef([]);
     const hitFlagsRef = useRef([]);
     const drawingRef = useRef(false);
@@ -161,7 +240,7 @@ export default function TraceActivity({ activity, onBack, onComplete, lang, togg
 
         checkpointsRef.current = shapeDef.checkpoints();
         hitFlagsRef.current = checkpointsRef.current.map(() => false);
-        pointsRef.current = [];
+        strokePointsRef.current = [];
         setCoveragePct(0);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [targetIndex]);
@@ -174,20 +253,19 @@ export default function TraceActivity({ activity, onBack, onComplete, lang, togg
         };
     };
 
-    const recomputeCoverage = () => {
-        const pts = pointsRef.current;
+    const coveragePctFromFlags = () => {
         const flags = hitFlagsRef.current;
-        checkpointsRef.current.forEach((cp, i) => {
-            if (flags[i]) return;
-            for (const p of pts) {
-                if (Math.hypot(p.x - cp.x, p.y - cp.y) <= HIT_RADIUS) {
-                    flags[i] = true;
-                    break;
-                }
-            }
-        });
         const hitCount = flags.filter(Boolean).length;
-        const pct = flags.length ? hitCount / flags.length : 0;
+        return flags.length ? hitCount / flags.length : 0;
+    };
+
+    // Scores the just-finished stroke on its own (see
+    // creditableCheckpointsForStroke) and folds any newly-earned
+    // checkpoints into the running total.
+    const creditFinishedStroke = () => {
+        const earned = creditableCheckpointsForStroke(strokePointsRef.current, checkpointsRef.current);
+        for (const i of earned) hitFlagsRef.current[i] = true;
+        const pct = coveragePctFromFlags();
         setCoveragePct(pct);
         return pct;
     };
@@ -203,7 +281,7 @@ export default function TraceActivity({ activity, onBack, onComplete, lang, togg
         try { canvas.setPointerCapture(e.pointerId); } catch { /* not capturable */ }
         drawingRef.current = true;
         const p = toCanvasPoint(e);
-        pointsRef.current.push(p);
+        strokePointsRef.current = [p];
         const ctx = canvas.getContext('2d');
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
@@ -216,7 +294,7 @@ export default function TraceActivity({ activity, onBack, onComplete, lang, togg
     const handlePointerMove = (e) => {
         if (!drawingRef.current) return;
         const p = toCanvasPoint(e);
-        pointsRef.current.push(p);
+        strokePointsRef.current.push(p);
         const ctx = inkCanvasRef.current.getContext('2d');
         ctx.lineTo(p.x, p.y);
         ctx.stroke();
@@ -226,18 +304,18 @@ export default function TraceActivity({ activity, onBack, onComplete, lang, togg
         if (!drawingRef.current) return;
         drawingRef.current = false;
         try { inkCanvasRef.current.releasePointerCapture(e.pointerId); } catch { /* already released */ }
-        recomputeCoverage();
+        creditFinishedStroke();
     };
 
     const handleClear = () => {
         inkCanvasRef.current.getContext('2d').clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-        pointsRef.current = [];
+        strokePointsRef.current = [];
         hitFlagsRef.current = checkpointsRef.current.map(() => false);
         setCoveragePct(0);
     };
 
     const handleDone = () => {
-        const finalPct = recomputeCoverage();
+        const finalPct = coveragePctFromFlags();
         playSynth(finalPct >= 0.55 ? 'chime' : 'laser');
         const results = [...coverageResults, finalPct];
         if (targetIndex + 1 < targets.length) {
