@@ -136,6 +136,13 @@ async def _reconcile_indexes(conn) -> None:
         # gennis_service.py) — student_platform never collected this
         # itself, so it's purely a mirror of upstream data, nullable.
         text("ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_date DATE"),
+        # 2026-09-06: ru renderings of early-learning content, picked by the
+        # API when ?lang=ru is requested — see EarlyModule.title_ru's
+        # docstring. Nullable; a missing translation falls back to uz.
+        text("ALTER TABLE early_modules ADD COLUMN IF NOT EXISTS title_ru VARCHAR(150)"),
+        text("ALTER TABLE early_modules ADD COLUMN IF NOT EXISTS description_ru TEXT"),
+        text("ALTER TABLE early_activities ADD COLUMN IF NOT EXISTS title_ru VARCHAR(150)"),
+        text("ALTER TABLE early_activities ADD COLUMN IF NOT EXISTS instruction_text_ru TEXT"),
     ]
     for stmt in statements:
         await conn.execute(stmt)

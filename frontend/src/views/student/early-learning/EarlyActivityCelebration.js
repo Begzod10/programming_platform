@@ -25,22 +25,22 @@ const PIECES = Array.from({ length: 40 }, (_, i) => ({
  * 0-3 star model, so this reuses its confetti CSS classes/structure but
  * renders 3 stars instead of a numeric score.
  */
-const EarlyActivityCelebration = ({ stars, onDone }) => {
+const EarlyActivityCelebration = ({ stars, onDone, t }) => {
     const [visible, setVisible] = useState(true);
 
     useEffect(() => {
-        const t = setTimeout(() => {
+        const timer = setTimeout(() => {
             setVisible(false);
             setTimeout(onDone, 400);
         }, 3200);
-        return () => clearTimeout(t);
+        return () => clearTimeout(timer);
     }, [onDone]);
 
     const messages = stars === 3
-        ? ['Zo\'r!', '🌟 Barcha narsalarni topding!']
+        ? [t('el.star3Title'), t('el.star3Sub')]
         : stars === 2
-        ? ['Yaxshi!', '🎉 Deyarli hammasi to\'g\'ri!']
-        : ['Ajoyib urinish!', '✅ Davom et, sen uddalaysan!'];
+        ? [t('el.star2Title'), t('el.star2Sub')]
+        : [t('el.star1Title'), t('el.star1Sub')];
 
     const close = () => { setVisible(false); setTimeout(onDone, 400); };
 
@@ -69,7 +69,7 @@ const EarlyActivityCelebration = ({ stars, onDone }) => {
                 </div>
                 <div className="cel-headline">{messages[0]}</div>
                 <div className="cel-sub">{messages[1]}</div>
-                <button className="cel-btn" onClick={close}>Davom etish →</button>
+                <button className="cel-btn" onClick={close}>{t('el.continueBtn')}</button>
             </div>
         </div>,
         document.body

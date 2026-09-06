@@ -24,10 +24,15 @@ from app.models.early_learning import (
 from app.models.user import Student, UserRole
 
 
-def _select_content(character: str, n_correct: int = 2, n_distractor: int = 1) -> dict:
+def _select_content(
+    character: str, n_correct: int = 2, n_distractor: int = 1, character_ru: str | None = None
+) -> dict:
+    char = {"emoji": "🧪", "label": character}
+    if character_ru:
+        char["label_ru"] = character_ru
     return {
         "mode": "select",
-        "character": {"emoji": "🧪", "label": character},
+        "character": char,
         "correct_items": [
             {"id": f"c{i}", "label": f"correct {i}", "icon": "BookOpen"} for i in range(n_correct)
         ],
@@ -86,10 +91,15 @@ async def _set_birth_date(db_session, student_id: int, birth_date) -> None:
 async def _make_module(
     db_session, instructor_id: int, published: bool, activity_published: bool = True,
     age_min: int = 4, age_max: int = 6,
+    title_ru: str | None = None, description_ru: str | None = None,
+    activity_title_ru: str | None = None, instruction_text_ru: str | None = None,
+    character_ru: str | None = None,
 ):
     uid = uuid.uuid4().hex[:8]
     module = EarlyModule(
         title=f"test-module-{uid}",
+        title_ru=title_ru,
+        description_ru=description_ru,
         subject=EarlySubject.logic,
         display_order=0,
         instructor_id=instructor_id,
@@ -103,8 +113,11 @@ async def _make_module(
     activity = EarlyActivity(
         module_id=module.id,
         title=f"test-activity-{uid}",
+        title_ru=activity_title_ru,
         activity_type=EarlyActivityType.match,
-        content_json=json.dumps(_select_content("Test")),
+        instruction_text="uz instruction",
+        instruction_text_ru=instruction_text_ru,
+        content_json=json.dumps(_select_content("Test", character_ru=character_ru)),
         max_stars=3,
         is_published=activity_published,
         is_active=True,
@@ -376,3 +389,62 @@ async def test_complete_404s_for_confirmed_too_old_student(
 
     # Assert
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_lang_ru_returns_translated_fields(async_client: AsyncClient, auth_headers: dict, db_session, instructor_id):
+    # Arrange
+    module, activity = await _make_module(
+        db_session, instructor_id, published=True,
+        title_ru="ru module", description_ru="ru description",
+        activity_title_ru="ru activity", instruction_text_ru="ru instruction",
+        character_ru="ru character",
+    )
+
+    # Act
+    list_resp = await async_client.get("/api/v1/early-learning/modules?lang=ru", headers=auth_headers)
+    detail_resp = await async_client.get(f"/api/v1/early-learning/modules/{module.id}?lang=ru", headers=auth_headers)
+
+    # Assert
+    listed = next(m for m in list_resp.json() if m["id"] == module.id)
+    assert listed["title"] == "ru module"
+    assert listed["description"] == "ru description"
+
+    detail = detail_resp.json()
+    act = next(a for a in detail["activities"] if a["id"] == activity.id)
+    assert act["title"] == "ru activity"
+    assert act["instruction_text"] == "ru instruction"
+    assert act["content"]["character"]["label"] == "ru character"
+    assert act["content"]["correct_items"][0]["label"] == "correct 0"  # no ru label seeded → falls back to uz
+
+
+@pytest.mark.asyncio
+async def test_lang_ru_falls_back_to_uz_when_untranslated(
+    async_client: AsyncClient, auth_headers: dict, published_module
+):
+    """A module/activity with no *_ru fields at all (the common case for
+    anything not yet translated) must still render — in uz — rather than
+    going blank or erroring, same fallback philosophy as age-gating's
+    "unknown data → allow"."""
+    module, activity = published_module
+
+    response = await async_client.get(f"/api/v1/early-learning/modules/{module.id}?lang=ru", headers=auth_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["title"] == module.title
+    act = body["activities"][0]
+    assert act["title"] == activity.title
+
+
+@pytest.mark.asyncio
+async def test_lang_uz_is_the_default(async_client: AsyncClient, auth_headers: dict, db_session, instructor_id):
+    """No ?lang at all must behave exactly like ?lang=uz, not like ?lang=ru
+    — uz is the content's source language (EarlyModule.source_lang)."""
+    module, _ = await _make_module(db_session, instructor_id, published=True, title_ru="ru module")
+
+    response = await async_client.get("/api/v1/early-learning/modules", headers=auth_headers)
+
+    listed = next(m for m in response.json() if m["id"] == module.id)
+    assert listed["title"] == module.title
+    assert listed["title"] != "ru module"

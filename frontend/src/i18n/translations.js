@@ -238,7 +238,22 @@ const translations = {
     "lcb.filePreviewAlt":   "Loyiha ko'rinishi",
     "lcb.filePreviewBadge": "Natija shunday ko'rinadi",
     "lcb.resultPreviewTitle": "🖼 Natija ko'rinishi",
-    "lcb.resultPreviewAlt": "Loyiha natijasi"
+    "lcb.resultPreviewAlt": "Loyiha natijasi",
+
+    // Early learning (kids' matching games)
+    "el.subtitle":        "O'yin orqali o'rgan — kasblarni, fasllarni va yana ko'p narsalarni tanib ol!",
+    "el.back":             "Qaytish",
+    "el.empty":             "Hozircha bu yerda o'yin yo'q.",
+    "el.leaderboardTitle":  "Sinfdoshlar reytingi",
+    "el.leaderboardEmpty":  "Guruhingiz tayinlanganda, sinfdoshlaringiz bilan yulduzlarni solishtira olasiz!",
+    "el.you":               "(Siz)",
+    "el.star3Title":        "Zo'r!",
+    "el.star3Sub":          "🌟 Barcha narsalarni topding!",
+    "el.star2Title":        "Yaxshi!",
+    "el.star2Sub":          "🎉 Deyarli hammasi to'g'ri!",
+    "el.star1Title":        "Ajoyib urinish!",
+    "el.star1Sub":          "✅ Davom et, sen uddalaysan!",
+    "el.continueBtn":       "Davom etish →"
   },
   ru: {
     // Common
@@ -479,7 +494,22 @@ const translations = {
     "lcb.filePreviewAlt":   "Вид проекта",
     "lcb.filePreviewBadge": "Результат будет выглядеть так",
     "lcb.resultPreviewTitle": "🖼 Вид результата",
-    "lcb.resultPreviewAlt": "Результат проекта"
+    "lcb.resultPreviewAlt": "Результат проекта",
+
+    // Early learning (kids' matching games)
+    "el.subtitle":        "Учись играя — узнавай профессии, времена года и многое другое!",
+    "el.back":             "Назад",
+    "el.empty":             "Здесь пока нет игр.",
+    "el.leaderboardTitle":  "Рейтинг одноклассников",
+    "el.leaderboardEmpty":  "Когда вам назначат группу, вы сможете сравнивать звёзды с одноклассниками!",
+    "el.you":               "(Вы)",
+    "el.star3Title":        "Отлично!",
+    "el.star3Sub":          "🌟 Ты нашёл всё!",
+    "el.star2Title":        "Хорошо!",
+    "el.star2Sub":          "🎉 Почти всё правильно!",
+    "el.star1Title":        "Отличная попытка!",
+    "el.star1Sub":          "✅ Продолжай, у тебя получится!",
+    "el.continueBtn":       "Продолжить →"
   }
 };
 

@@ -46,6 +46,21 @@ class EarlyModule(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Russian translation of title/description — source_lang below stays "uz"
+    # (that's still where the content is authored first), these are just a
+    # second rendering picked by the API when ?lang=ru is requested. Nullable
+    # so an untranslated module falls back to the uz text instead of 404ing.
+    #
+    # Deliberately NOT routed through app/services/translation_service.py's
+    # translate_fields/translate_json_blob (the generic AI-translate-and-cache
+    # path lessons/courses/exercises use) — this whole catalog is a small,
+    # fixed, hand-authored vocabulary (professions, seasons, colors...) where
+    # a wrong AI guess on a kids' game term is worse than the cost of typing
+    # the ~40 module/activity strings by hand once in the seed script. Content
+    # that grows or gets teacher-authored later is the signal to switch this
+    # over to the shared translation_cache path instead.
+    title_ru: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    description_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     subject: Mapped[EarlySubject] = mapped_column(Enum(EarlySubject), nullable=False, index=True)
 
@@ -99,6 +114,9 @@ class EarlyActivity(Base):
     )
     title: Mapped[str] = mapped_column(String(150), nullable=False)
     order: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Russian translations — see EarlyModule.title_ru for the fallback rule
+    # (null renders as the uz text, never a 404).
+    title_ru: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
 
     activity_type: Mapped[EarlyActivityType] = mapped_column(Enum(EarlyActivityType), nullable=False)
 
@@ -107,6 +125,7 @@ class EarlyActivity(Base):
     # save drafts before recording, but the publish flow should validate it.
     instruction_audio_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     instruction_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # captions / translation source
+    instruction_text_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Shape depends on activity_type, validated at the Pydantic/schema layer,
     # e.g. {"items": [...], "targets": [...], "image_url": "..."} for match;

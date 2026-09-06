@@ -8,7 +8,7 @@ import json
 from datetime import date
 from typing import Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -28,6 +28,48 @@ from app.schemas.early_learning import (
 from app.services.teacher_students import classmate_ids_subquery
 
 router = APIRouter()
+
+# The whole feature is authored in Uzbek first (EarlyModule/EarlyActivity's
+# own source_lang) with an optional Russian rendering stored alongside each
+# translatable field (title_ru / description_ru / instruction_text_ru, plus
+# label_ru inside a mode="select" activity's content_json — see
+# _seed_early_learning.py). ?lang picks which one comes back; a field with
+# no ru translation yet falls back to uz rather than going blank or 404ing,
+# same fallback rule already used for age-gating's "unknown data → allow".
+_LangQuery = Query("uz", pattern="^(uz|ru)$")
+
+
+def _localized(uz_value: str | None, ru_value: str | None, lang: str) -> str | None:
+    if lang == "ru" and ru_value:
+        return ru_value
+    return uz_value
+
+
+def _localize_content(content: dict, lang: str) -> dict:
+    """Only the mode="select" matching-game shape carries per-item
+    translations today (see _seed_early_learning.py's ITEM_LABEL_RU) — any
+    other content shape (the draft literacy/math/logic/creative modules)
+    just renders in uz regardless of `lang` until it gets its own
+    translation pass; that's a content gap, not a bug.
+    """
+    if lang != "ru" or content.get("mode") != "select":
+        return content
+    character = content.get("character")
+    if character and character.get("label_ru"):
+        character = {**character, "label": character["label_ru"]}
+        content = {**content, "character": character}
+    for key in ("correct_items", "distractor_items"):
+        items = content.get(key)
+        if not items:
+            continue
+        content = {
+            **content,
+            key: [
+                {**item, "label": item["label_ru"]} if item.get("label_ru") else item
+                for item in items
+            ],
+        }
+    return content
 
 
 async def _completions_by_activity(
@@ -84,13 +126,15 @@ def _is_age_eligible(student: Student, module: EarlyModule) -> bool:
     return (module.age_min - _AGE_GRACE_YEARS) <= age <= (module.age_max + _AGE_GRACE_YEARS)
 
 
-def _list_item(module: EarlyModule, completions: Dict[int, EarlyActivityCompletion]) -> EarlyModuleListItem:
+def _list_item(
+    module: EarlyModule, completions: Dict[int, EarlyActivityCompletion], lang: str = "uz"
+) -> EarlyModuleListItem:
     activities = _visible_activities(module)
     earned = sum(completions[a.id].stars_earned for a in activities if a.id in completions)
     return EarlyModuleListItem(
         id=module.id,
-        title=module.title,
-        description=module.description,
+        title=_localized(module.title, module.title_ru, lang),
+        description=_localized(module.description, module.description_ru, lang),
         subject=module.subject,
         icon_emoji=module.icon_emoji,
         color_accent=module.color_accent,
@@ -101,18 +145,20 @@ def _list_item(module: EarlyModule, completions: Dict[int, EarlyActivityCompleti
     )
 
 
-def _activity_out(activity: EarlyActivity, completion: EarlyActivityCompletion | None) -> EarlyActivityOut:
+def _activity_out(
+    activity: EarlyActivity, completion: EarlyActivityCompletion | None, lang: str = "uz"
+) -> EarlyActivityOut:
     try:
         content = json.loads(activity.content_json)
     except (TypeError, ValueError):
         content = {}
     return EarlyActivityOut(
         id=activity.id,
-        title=activity.title,
+        title=_localized(activity.title, activity.title_ru, lang),
         order=activity.order,
         activity_type=activity.activity_type,
-        instruction_text=activity.instruction_text,
-        content=content,
+        instruction_text=_localized(activity.instruction_text, activity.instruction_text_ru, lang),
+        content=_localize_content(content, lang),
         max_stars=activity.max_stars,
         best_stars=completion.stars_earned if completion else 0,
         attempts=completion.attempts if completion else 0,
@@ -121,6 +167,7 @@ def _activity_out(activity: EarlyActivity, completion: EarlyActivityCompletion |
 
 @router.get("/modules", response_model=List[EarlyModuleListItem])
 async def list_early_modules(
+    lang: str = _LangQuery,
     current_student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ) -> List[EarlyModuleListItem]:
@@ -138,12 +185,13 @@ async def list_early_modules(
 
     activity_ids = [a.id for m in modules for a in _visible_activities(m)]
     completions = await _completions_by_activity(db, current_student.id, activity_ids)
-    return [_list_item(m, completions) for m in modules]
+    return [_list_item(m, completions, lang) for m in modules]
 
 
 @router.get("/modules/{module_id}", response_model=EarlyModuleDetail)
 async def get_early_module(
     module_id: int,
+    lang: str = _LangQuery,
     current_student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ) -> EarlyModuleDetail:
@@ -167,10 +215,10 @@ async def get_early_module(
     activities = sorted(_visible_activities(module), key=lambda a: a.order)
     completions = await _completions_by_activity(db, current_student.id, [a.id for a in activities])
 
-    base = _list_item(module, completions)
+    base = _list_item(module, completions, lang)
     return EarlyModuleDetail(
         **base.model_dump(),
-        activities=[_activity_out(a, completions.get(a.id)) for a in activities],
+        activities=[_activity_out(a, completions.get(a.id), lang) for a in activities],
     )
 
 

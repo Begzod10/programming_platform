@@ -3,6 +3,7 @@ import * as Icons from 'lucide-react';
 import { ArrowLeft, HelpCircle } from 'lucide-react';
 import './MatchingActivity.css';
 import EarlyActivityCelebration from './EarlyActivityCelebration';
+import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
 
@@ -40,7 +41,7 @@ function ItemIcon({ emoji, icon, size = 32 }) {
  * activity.content shape (mode: "select"):
  *   { character: {emoji,label}, correct_items: [{id,label,icon,emoji}], distractor_items: [...] }
  */
-export default function MatchingActivity({ activity, onBack, onComplete }) {
+export default function MatchingActivity({ activity, onBack, onComplete, lang, toggleLang, t }) {
     const { request } = useHttp();
     const content = activity.content || {};
     const character = content.character || {};
@@ -80,7 +81,16 @@ export default function MatchingActivity({ activity, onBack, onComplete }) {
         } else {
             playSynth('laser');
             setWrongCount((c) => c + 1);
-            setFlash({ id: item.id, message: `Oh-oh! "${item.label}" ${character.label || ''} uchun mos emas.` });
+            // Uzbek's postposition ("X" Y uchun mos emas) and Russian's
+            // preposition (Ой! «X» не подходит для Y) put the character
+            // name on opposite sides of the verb — not a fill-in-the-blank
+            // template t() can express with fixed slot order, so this one
+            // sentence is branched directly rather than composed from keys.
+            const charLabel = character.label || '';
+            const message = lang === 'ru'
+                ? `Ой! «${item.label}» не подходит для: ${charLabel}.`
+                : `Oh-oh! "${item.label}" ${charLabel} uchun mos emas.`;
+            setFlash({ id: item.id, message });
             setTimeout(() => setFlash((f) => (f?.id === item.id ? null : f)), WRONG_FLASH_MS);
         }
     };
@@ -113,9 +123,12 @@ export default function MatchingActivity({ activity, onBack, onComplete }) {
 
     return (
         <div className="ma-page">
-            <button className="el-back-btn" onClick={onBack} disabled={submitting}>
-                <ArrowLeft size={18} /> Qaytish
-            </button>
+            <div className="el-page-topbar">
+                <button className="el-back-btn" onClick={onBack} disabled={submitting}>
+                    <ArrowLeft size={18} /> {t('el.back')}
+                </button>
+                <LangToggle lang={lang} toggleLang={toggleLang} />
+            </div>
 
             <div className="ma-character">
                 <span className="ma-character-emoji">{character.emoji || '🎲'}</span>
@@ -153,7 +166,7 @@ export default function MatchingActivity({ activity, onBack, onComplete }) {
             </div>
 
             {celebration !== null && (
-                <EarlyActivityCelebration stars={celebration} onDone={handleCelebrationDone} />
+                <EarlyActivityCelebration stars={celebration} onDone={handleCelebrationDone} t={t} />
             )}
         </div>
     );

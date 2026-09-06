@@ -138,6 +138,46 @@
 .el-back-btn:active { transform: translateY(0) scale(0.98); }
 .el-back-btn:disabled { opacity: 0.6; cursor: default; transform: none; }
 
+/* Holds the back button and the UZ/RU switch on one row — this whole
+   feature is full-bleed with no sidebar (see StudentLayout.js's
+   "isImmersive" branch), so the language switch has to live in-page. */
+.el-page-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+.el-page-topbar .el-back-btn { margin-bottom: 0; }
+
+/* Same pill look as the sidebar's own sidebar-lang__pill, so switching
+   language reads as the same control wherever it appears. */
+.el-lang-toggle {
+    display: inline-flex;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.6);
+    border-radius: 999px;
+    padding: 4px;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+.el-lang-pill {
+    border: none;
+    background: transparent;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #94714f;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+.el-lang-pill.is-active {
+    background: linear-gradient(135deg, #ffb84d, #ff8a5c);
+    color: #fff;
+    box-shadow: 0 4px 10px rgba(255, 138, 92, 0.35);
+}
+
 /* ── Star badge / row ── */
 .el-star-badge {
     display: inline-flex;

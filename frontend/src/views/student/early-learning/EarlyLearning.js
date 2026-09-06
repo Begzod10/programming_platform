@@ -4,6 +4,7 @@ import './EarlyLearning.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
 import MatchingActivity from './MatchingActivity';
+import LangToggle from './LangToggle';
 import { ArrowLeft, Star, Trophy } from 'lucide-react';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -37,23 +38,23 @@ function StarRow({ stars, size = 16 }) {
  * schools over, and a global ranking would just be discouraging noise for
  * most of them. Shows a friendly empty state instead of a lonely
  * one-person list when the student has no class assigned yet. */
-function Leaderboard({ entries, hasClass }) {
+function Leaderboard({ entries, hasClass, t }) {
     if (!hasClass) {
         return (
             <div className="el-leaderboard el-leaderboard-empty">
                 <Trophy size={28} />
-                <p>Guruhingiz tayinlanganda, sinfdoshlaringiz bilan yulduzlarni solishtira olasiz!</p>
+                <p>{t('el.leaderboardEmpty')}</p>
             </div>
         );
     }
     return (
         <div className="el-leaderboard">
-            <h2><Trophy size={20} /> Sinfdoshlar reytingi</h2>
+            <h2><Trophy size={20} /> {t('el.leaderboardTitle')}</h2>
             <div className="el-leaderboard-list">
                 {entries.map((entry) => (
                     <div key={entry.student_id} className={`el-leaderboard-row ${entry.is_me ? 'el-leaderboard-me' : ''}`}>
                         <span className="el-leaderboard-rank">{MEDALS[entry.rank - 1] || `#${entry.rank}`}</span>
-                        <span className="el-leaderboard-name">{entry.name}{entry.is_me ? ' (Siz)' : ''}</span>
+                        <span className="el-leaderboard-name">{entry.name}{entry.is_me ? ` ${t('el.you')}` : ''}</span>
                         <span className="el-leaderboard-stars"><Star size={14} fill="currentColor" /> {entry.total_stars}</span>
                     </div>
                 ))}
@@ -61,6 +62,7 @@ function Leaderboard({ entries, hasClass }) {
         </div>
     );
 }
+
 
 /** Decorative sky background — sun, drifting clouds, a paper plane — the
  * whole feature runs full-bleed with no sidebar (see StudentLayout.js /
@@ -85,7 +87,7 @@ export default function EarlyLearning() {
     const navigate = useNavigate();
     const location = useLocation();
     const { request } = useHttp();
-    const { t } = useTranslation();
+    const { t, lang, toggleLang } = useTranslation();
 
     // This view is mounted under both /student/early-learning (kids playing)
     // and /teacher/early-learning (a teacher checking what's live) — same
@@ -109,24 +111,25 @@ export default function EarlyLearning() {
 
     const fetchModules = useCallback(() => {
         setModulesLoading(true);
-        request(`${API_URL}v1/early-learning/modules`, 'GET', null, headers())
+        request(`${API_URL}v1/early-learning/modules?lang=${lang}`, 'GET', null, headers())
             .then(setModules)
             .catch(console.error)
             .finally(() => setModulesLoading(false));
         // Independent of the module list — a leaderboard fetch failing
-        // shouldn't block the games themselves from loading.
+        // shouldn't block the games themselves from loading. Names aren't
+        // translated (they're student profile data), so no ?lang here.
         request(`${API_URL}v1/early-learning/leaderboard`, 'GET', null, headers())
             .then(setLeaderboard)
             .catch(console.error);
-    }, [request]);
+    }, [request, lang]);
 
     const fetchModuleDetail = useCallback((id) => {
         setDetailLoading(true);
-        request(`${API_URL}v1/early-learning/modules/${id}`, 'GET', null, headers())
+        request(`${API_URL}v1/early-learning/modules/${id}?lang=${lang}`, 'GET', null, headers())
             .then(setModuleDetail)
             .catch(console.error)
             .finally(() => setDetailLoading(false));
-    }, [request]);
+    }, [request, lang]);
 
     useEffect(() => {
         if (!moduleId) {
@@ -164,6 +167,9 @@ export default function EarlyLearning() {
                         activity={activity}
                         onBack={() => setPlayingActivityId(null)}
                         onComplete={(result) => handleActivityComplete(activity.id, result)}
+                        lang={lang}
+                        toggleLang={toggleLang}
+                        t={t}
                     />
                 </div>
             );
@@ -184,9 +190,12 @@ export default function EarlyLearning() {
             <div className="el-shell">
                 <Sky />
                 <div className="el-page">
-                    <button className="el-back-btn" onClick={() => navigate(`${basePath}/early-learning`)}>
-                        <ArrowLeft size={18} /> Qaytish
-                    </button>
+                    <div className="el-page-topbar">
+                        <button className="el-back-btn" onClick={() => navigate(`${basePath}/early-learning`)}>
+                            <ArrowLeft size={18} /> {t('el.back')}
+                        </button>
+                        <LangToggle lang={lang} toggleLang={toggleLang} />
+                    </div>
                     <div className="el-module-header" style={{ '--el-accent': moduleDetail.color_accent || '#6c5ce7' }}>
                         <span className="el-module-emoji">{moduleDetail.icon_emoji}</span>
                         <div>
@@ -234,12 +243,15 @@ export default function EarlyLearning() {
         <div className="el-shell">
             <Sky />
             <div className="el-page">
-                <button className="el-back-btn" onClick={() => navigate(exitPath)}>
-                    <ArrowLeft size={18} /> Qaytish
-                </button>
+                <div className="el-page-topbar">
+                    <button className="el-back-btn" onClick={() => navigate(exitPath)}>
+                        <ArrowLeft size={18} /> {t('el.back')}
+                    </button>
+                    <LangToggle lang={lang} toggleLang={toggleLang} />
+                </div>
                 <div className="el-hero">
                     <h1>{t('early_learning')}</h1>
-                    <p>O'yin orqali o'rgan — kasblarni, fasllarni va yana ko'p narsalarni tanib ol!</p>
+                    <p>{t('el.subtitle')}</p>
                     {totalMax > 0 && <StarBadge earned={totalEarned} max={totalMax} />}
                 </div>
                 <div className="el-module-grid">
@@ -257,10 +269,10 @@ export default function EarlyLearning() {
                         </button>
                     ))}
                     {modules.length === 0 && (
-                        <div className="el-empty">Hozircha bu yerda o'yin yo'q.</div>
+                        <div className="el-empty">{t('el.empty')}</div>
                     )}
                 </div>
-                {leaderboard && <Leaderboard entries={leaderboard.entries} hasClass={leaderboard.has_class} />}
+                {leaderboard && <Leaderboard entries={leaderboard.entries} hasClass={leaderboard.has_class} t={t} />}
             </div>
         </div>
     );
