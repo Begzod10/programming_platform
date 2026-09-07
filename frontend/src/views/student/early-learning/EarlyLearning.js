@@ -8,6 +8,7 @@ import BuildActivity from './BuildActivity';
 import TraceActivity from './TraceActivity';
 import MazeActivity from './MazeActivity';
 import LangToggle from './LangToggle';
+import { applyGuestModuleStars, applyGuestActivityStars } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy } from 'lucide-react';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -85,23 +86,27 @@ function Sky() {
     );
 }
 
-export default function EarlyLearning() {
+export default function EarlyLearning({ guest = false }) {
     const { moduleId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
     const { request } = useHttp();
     const { t, lang, toggleLang } = useTranslation();
 
-    // This view is mounted under both /student/early-learning (kids playing)
-    // and /teacher/early-learning (a teacher checking what's live) — same
-    // API (get_current_student accepts any role), same components, just a
-    // different base path to navigate within.
-    const basePath = location.pathname.startsWith('/teacher') ? '/teacher' : '/student';
+    // This view is mounted under /student/early-learning (kids playing),
+    // /teacher/early-learning (a teacher checking what's live), AND — with
+    // guest=true — the top-level /play route (no login at all, see
+    // AppRouter.js). Same components either way; only the base path to
+    // navigate within, and which API/storage backs star progress, differ.
+    const basePath = guest ? '/play' : (location.pathname.startsWith('/teacher') ? '/teacher' : '/student');
+    const routeBase = guest ? basePath : `${basePath}/early-learning`;
     // No sidebar exists on this full-bleed page (see the layout's
     // "isImmersive" branch) — the top-level list view's back button is the
     // only way out, so it exits to each role's normal home instead of
-    // stepping up within the feature (there's nothing above the list).
-    const exitPath = basePath === '/teacher' ? `${basePath}/profile` : `${basePath}/dashboard`;
+    // stepping up within the feature (there's nothing above the list). A
+    // guest has no home to go back to — /login is the natural landing spot
+    // for someone who just finished trying the games out.
+    const exitPath = guest ? '/login' : (basePath === '/teacher' ? `${basePath}/profile` : `${basePath}/dashboard`);
 
     const [modules, setModules] = useState([]);
     const [modulesLoading, setModulesLoading] = useState(true);
@@ -114,25 +119,36 @@ export default function EarlyLearning() {
 
     const fetchModules = useCallback(() => {
         setModulesLoading(true);
-        request(`${API_URL}v1/early-learning/modules?lang=${lang}`, 'GET', null, headers())
-            .then(setModules)
+        const url = guest
+            ? `${API_URL}v1/early-learning/public/modules?lang=${lang}`
+            : `${API_URL}v1/early-learning/modules?lang=${lang}`;
+        request(url, 'GET', null, headers())
+            .then((data) => setModules(guest ? applyGuestModuleStars(data) : data))
             .catch(console.error)
             .finally(() => setModulesLoading(false));
+        // A guest has no classmates (no account at all) to rank against —
+        // skip the fetch entirely rather than hitting the authed endpoint
+        // and eating an avoidable 401. leaderboard stays null, which the
+        // render below already treats as "don't show the section".
+        if (guest) return;
         // Independent of the module list — a leaderboard fetch failing
         // shouldn't block the games themselves from loading. Names aren't
         // translated (they're student profile data), so no ?lang here.
         request(`${API_URL}v1/early-learning/leaderboard`, 'GET', null, headers())
             .then(setLeaderboard)
             .catch(console.error);
-    }, [request, lang]);
+    }, [request, lang, guest]);
 
     const fetchModuleDetail = useCallback((id) => {
         setDetailLoading(true);
-        request(`${API_URL}v1/early-learning/modules/${id}?lang=${lang}`, 'GET', null, headers())
-            .then(setModuleDetail)
+        const url = guest
+            ? `${API_URL}v1/early-learning/public/modules/${id}?lang=${lang}`
+            : `${API_URL}v1/early-learning/modules/${id}?lang=${lang}`;
+        request(url, 'GET', null, headers())
+            .then((data) => setModuleDetail(guest ? applyGuestActivityStars(data) : data))
             .catch(console.error)
             .finally(() => setDetailLoading(false));
-    }, [request, lang]);
+    }, [request, lang, guest]);
 
     useEffect(() => {
         if (!moduleId) {
@@ -152,6 +168,7 @@ export default function EarlyLearning() {
             return { ...prev, activities, earned_stars };
         });
         setPlayingActivityId(null);
+        if (guest) return;
         // Refresh the leaderboard so a completion shows up right away
         // instead of only after the next full page load.
         request(`${API_URL}v1/early-learning/leaderboard`, 'GET', null, headers())
@@ -186,6 +203,7 @@ export default function EarlyLearning() {
                         lang={lang}
                         toggleLang={toggleLang}
                         t={t}
+                        guest={guest}
                     />
                 </div>
             );
@@ -207,7 +225,7 @@ export default function EarlyLearning() {
                 <Sky />
                 <div className="el-page">
                     <div className="el-page-topbar">
-                        <button className="el-back-btn" onClick={() => navigate(`${basePath}/early-learning`)}>
+                        <button className="el-back-btn" onClick={() => navigate(routeBase)}>
                             <ArrowLeft size={18} /> {t('el.back')}
                         </button>
                         <LangToggle lang={lang} toggleLang={toggleLang} />
@@ -276,7 +294,7 @@ export default function EarlyLearning() {
                             key={module.id}
                             className="el-module-card"
                             style={{ '--el-accent': module.color_accent || '#6c5ce7', animationDelay: `${i * 0.08}s` }}
-                            onClick={() => navigate(`${basePath}/early-learning/${module.id}`)}
+                            onClick={() => navigate(`${routeBase}/${module.id}`)}
                         >
                             <span className="el-module-card-emoji">{module.icon_emoji}</span>
                             <span className="el-module-card-title">{module.title}</span>

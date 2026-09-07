@@ -437,6 +437,121 @@ async def test_lang_ru_falls_back_to_uz_when_untranslated(
     assert act["title"] == activity.title
 
 
+# ── Guest ("no login", /play) endpoints ─────────────────────────────────────
+# No auth_headers anywhere below — that's the entire point of these routes
+# (see EarlyLearning.js's guest mode + the /public/modules* endpoints in
+# early_learning.py). Star progress for a guest lives client-side in
+# localStorage, so unlike the authed tests above there's nothing here about
+# best_stars/attempts ever moving off zero — that's covered by frontend
+# logic (earlyLearningUtils.js), not this API.
+
+@pytest.mark.asyncio
+async def test_public_list_modules_requires_no_auth(async_client: AsyncClient, published_module):
+    # Arrange
+    pub_module, _ = published_module
+
+    # Act: deliberately no Authorization header at all
+    response = await async_client.get("/api/v1/early-learning/public/modules")
+
+    # Assert
+    assert response.status_code == 200
+    ids = [m["id"] for m in response.json()]
+    assert pub_module.id in ids
+
+
+@pytest.mark.asyncio
+async def test_public_list_modules_excludes_unpublished(
+    async_client: AsyncClient, published_module, unpublished_module
+):
+    # Arrange
+    pub_module, _ = published_module
+    unpub_module, _ = unpublished_module
+
+    # Act
+    response = await async_client.get("/api/v1/early-learning/public/modules")
+
+    # Assert
+    ids = [m["id"] for m in response.json()]
+    assert pub_module.id in ids
+    assert unpub_module.id not in ids
+
+
+@pytest.mark.asyncio
+async def test_public_module_detail_404s_when_unpublished(
+    async_client: AsyncClient, unpublished_module
+):
+    # Arrange
+    module, _ = unpublished_module
+
+    # Act
+    response = await async_client.get(f"/api/v1/early-learning/public/modules/{module.id}")
+
+    # Assert
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_public_module_detail_404s_when_missing(async_client: AsyncClient):
+    response = await async_client.get("/api/v1/early-learning/public/modules/999999999")
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_public_list_exposes_activity_ids(async_client: AsyncClient, published_module):
+    """The frontend guest picker sums its own localStorage progress per
+    module via this field — the authed /modules list doesn't need it since
+    its earned_stars is already server-computed (see
+    applyGuestModuleStars in earlyLearningUtils.js)."""
+    module, activity = published_module
+
+    response = await async_client.get("/api/v1/early-learning/public/modules")
+
+    listed = next(m for m in response.json() if m["id"] == module.id)
+    assert listed["earned_stars"] == 0
+    assert listed["activity_ids"] == [activity.id]
+
+
+@pytest.mark.asyncio
+async def test_public_module_detail_has_zero_progress_and_activity_ids(
+    async_client: AsyncClient, published_module
+):
+    module, activity = published_module
+
+    response = await async_client.get(f"/api/v1/early-learning/public/modules/{module.id}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["activity_ids"] == [activity.id]
+    activity_out = next(a for a in body["activities"] if a["id"] == activity.id)
+    assert activity_out["best_stars"] == 0
+    assert activity_out["attempts"] == 0
+    assert activity_out["content"]["mode"] == "select"
+
+
+@pytest.mark.asyncio
+async def test_public_module_visible_regardless_of_age(async_client: AsyncClient, db_session, instructor_id):
+    """No Student is attached to a guest request, so there's nothing to
+    age-gate against — a module with a narrow age range must still show up,
+    unlike the authed list's confirmed-mismatch exclusion tested above."""
+    module, _ = await _make_module(db_session, instructor_id, published=True, age_min=5, age_max=8)
+
+    response = await async_client.get("/api/v1/early-learning/public/modules")
+
+    assert module.id in [m["id"] for m in response.json()]
+
+
+@pytest.mark.asyncio
+async def test_public_endpoints_have_no_write_route():
+    """A guest's stars never touch the backend — see recordGuestCompletion
+    in earlyLearningUtils.js. Regression guard against ever accidentally
+    exposing an unauthenticated write endpoint here."""
+    from app.api.v1.endpoints.early_learning import router
+
+    public_paths = {r.path for r in router.routes if r.path.startswith("/public")}
+    assert public_paths == {"/public/modules", "/public/modules/{module_id}"}
+
+
 @pytest.mark.asyncio
 async def test_lang_uz_is_the_default(async_client: AsyncClient, auth_headers: dict, db_session, instructor_id):
     """No ?lang at all must behave exactly like ?lang=uz, not like ?lang=ru

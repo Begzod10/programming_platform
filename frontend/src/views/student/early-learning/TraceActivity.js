@@ -4,7 +4,7 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
-import { starsForCoverage } from './earlyLearningUtils';
+import { starsForCoverage, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
 // Logical canvas resolution — CSS scales the element visually (see
@@ -187,7 +187,7 @@ const SHAPES = {
  * stroke, so dabbing disconnected taps around the outline instead of
  * actually drawing it doesn't score.
  */
-export default function TraceActivity({ activity, onBack, onComplete, lang, toggleLang, t }) {
+export default function TraceActivity({ activity, onBack, onComplete, lang, toggleLang, t, guest = false }) {
     const { request } = useHttp();
     const content = activity.content || {};
     const character = content.character || {};
@@ -331,6 +331,12 @@ export default function TraceActivity({ activity, onBack, onComplete, lang, togg
 
     const handleCelebrationDone = () => {
         const stars = celebration;
+        // Guest (/play, no login): record straight to localStorage — see
+        // MatchingActivity.js's identical branch for why.
+        if (guest) {
+            onComplete(recordGuestCompletion(activity.id, stars));
+            return;
+        }
         setSubmitting(true);
         request(`${API_URL}v1/early-learning/activities/${activity.id}/complete`, 'POST', { stars }, headers())
             .then((result) => onComplete(result))

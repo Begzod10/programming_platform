@@ -45,6 +45,21 @@ class EarlyModuleDetail(EarlyModuleListItem):
     activities: List[EarlyActivityOut]
 
 
+class EarlyPublicModuleListItem(EarlyModuleListItem):
+    """Guest ("no login", /play in the frontend) variant of
+    EarlyModuleListItem. earned_stars always comes back 0 here — there's no
+    Student to scope an EarlyActivityCompletion to, so the guest frontend
+    tracks its own progress in localStorage and needs each visible
+    activity's id to sum it per module; the authed list doesn't expose this
+    since its earned_stars is already server-computed from real rows."""
+
+    activity_ids: List[int]
+
+
+class EarlyPublicModuleDetail(EarlyPublicModuleListItem):
+    activities: List[EarlyActivityOut]
+
+
 class EarlyActivityCompleteIn(BaseModel):
     stars: int = Field(ge=0, le=3)
 

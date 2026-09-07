@@ -89,6 +89,13 @@ function AppRouter() {
             {/* Public profile (no auth) — sharable URL: /u/<username> */}
             <Route path="/u/:username" element={<PublicProfile />} />
 
+            {/* Kids' early-learning games, playable without an account —
+                stars are tracked client-side in localStorage instead of the
+                backend (see EarlyLearning.js's guest mode + the /public
+                endpoints in early_learning.py). Linked from the login page. */}
+            <Route path="/play" element={<EarlyLearning guest />} />
+            <Route path="/play/:moduleId" element={<EarlyLearning guest />} />
+
             {/* ══════════ STUDENT ══════════ */}
             <Route
                 path="/student"

@@ -24,6 +24,8 @@ from app.schemas.early_learning import (
     EarlyLeaderboardOut,
     EarlyModuleDetail,
     EarlyModuleListItem,
+    EarlyPublicModuleDetail,
+    EarlyPublicModuleListItem,
 )
 from app.services.teacher_students import classmate_ids_subquery
 
@@ -235,6 +237,65 @@ async def get_early_module(
     return EarlyModuleDetail(
         **base.model_dump(),
         activities=[_activity_out(a, completions.get(a.id), lang) for a in activities],
+    )
+
+
+@router.get("/public/modules", response_model=List[EarlyPublicModuleListItem])
+async def list_public_early_modules(
+    lang: str = _LangQuery,
+    db: AsyncSession = Depends(get_db),
+) -> List[EarlyPublicModuleListItem]:
+    """Guest entry point — no login required (see /play in the frontend,
+    mounted outside ProtectedRoute). Same published/active module set as
+    list_early_modules, but with no Student to scope completions or
+    age-gating to: earned_stars always comes back 0 (the guest frontend
+    sums its own localStorage progress via activity_ids instead — see
+    applyGuestModuleStars in earlyLearningUtils.js) and every module is
+    shown regardless of age, since there's no birth_date to gate against.
+    """
+    modules = (
+        await db.execute(
+            select(EarlyModule)
+            .where(EarlyModule.is_published.is_(True), EarlyModule.is_active.is_(True))
+            .options(selectinload(EarlyModule.activities))
+            .order_by(EarlyModule.display_order)
+        )
+    ).scalars().all()
+    return [
+        EarlyPublicModuleListItem(
+            **_list_item(m, {}, lang).model_dump(),
+            activity_ids=[a.id for a in _visible_activities(m)],
+        )
+        for m in modules
+    ]
+
+
+@router.get("/public/modules/{module_id}", response_model=EarlyPublicModuleDetail)
+async def get_public_early_module(
+    module_id: int,
+    lang: str = _LangQuery,
+    db: AsyncSession = Depends(get_db),
+) -> EarlyPublicModuleDetail:
+    """Guest entry point's module detail — see list_public_early_modules.
+    There's deliberately no /public/.../complete route: a guest's stars
+    never touch the backend at all, they're written straight to
+    localStorage client-side (recordGuestCompletion)."""
+    module = (
+        await db.execute(
+            select(EarlyModule)
+            .where(EarlyModule.id == module_id)
+            .options(selectinload(EarlyModule.activities))
+        )
+    ).scalar_one_or_none()
+    if module is None or not module.is_published or not module.is_active:
+        raise HTTPException(status_code=404, detail="Modul topilmadi")
+
+    activities = sorted(_visible_activities(module), key=lambda a: a.order)
+    base = _list_item(module, {}, lang)
+    return EarlyPublicModuleDetail(
+        **base.model_dump(),
+        activity_ids=[a.id for a in activities],
+        activities=[_activity_out(a, None, lang) for a in activities],
     )
 
 

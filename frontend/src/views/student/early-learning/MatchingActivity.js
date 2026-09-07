@@ -6,7 +6,7 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
-import { shuffle, starsForWrongCount, WRONG_FLASH_MS } from './earlyLearningUtils';
+import { shuffle, starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
 
 /** Emoji is the primary visual — many kids this age (5-8) can't reliably
  * read yet, in either language, so a small monochrome lucide line-glyph
@@ -25,7 +25,7 @@ function ItemIcon({ emoji, icon, size = 32 }) {
  * activity.content shape (mode: "select"):
  *   { character: {emoji,label}, correct_items: [{id,label,icon,emoji}], distractor_items: [...] }
  */
-export default function MatchingActivity({ activity, onBack, onComplete, lang, toggleLang, t }) {
+export default function MatchingActivity({ activity, onBack, onComplete, lang, toggleLang, t, guest = false }) {
     const { request } = useHttp();
     const content = activity.content || {};
     const character = content.character || {};
@@ -99,6 +99,13 @@ export default function MatchingActivity({ activity, onBack, onComplete, lang, t
 
     const handleCelebrationDone = () => {
         const stars = celebration;
+        // Guest (/play, no login): nothing to POST — there's no Student row
+        // to attach a completion to. Record straight to localStorage and
+        // skip the request/submitting dance entirely.
+        if (guest) {
+            onComplete(recordGuestCompletion(activity.id, stars));
+            return;
+        }
         setSubmitting(true);
         request(`${API_URL}v1/early-learning/activities/${activity.id}/complete`, 'POST', { stars }, headers())
             .then((result) => onComplete(result))

@@ -4,7 +4,7 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
-import { starsForWrongCount, WRONG_FLASH_MS } from './earlyLearningUtils';
+import { starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft, ArrowUp, ArrowDown, ArrowLeft as ArrowLeftIcon, ArrowRight, Flag } from 'lucide-react';
 
 const DIRECTIONS = {
@@ -25,7 +25,7 @@ const wrongMessage = (lang) => (lang === 'ru' ? 'Ой! Там стена.' : 'Oh
  * A wall bump is scored exactly like a wrong tap/drop elsewhere — reuses
  * starsForWrongCount as-is, no new scoring rule needed.
  */
-export default function MazeActivity({ activity, onBack, onComplete, lang, toggleLang, t }) {
+export default function MazeActivity({ activity, onBack, onComplete, lang, toggleLang, t, guest = false }) {
     const { request } = useHttp();
     const content = activity.content || {};
     const character = content.character || {};
@@ -76,6 +76,12 @@ export default function MazeActivity({ activity, onBack, onComplete, lang, toggl
 
     const handleCelebrationDone = () => {
         const stars = celebration;
+        // Guest (/play, no login): record straight to localStorage — see
+        // MatchingActivity.js's identical branch for why.
+        if (guest) {
+            onComplete(recordGuestCompletion(activity.id, stars));
+            return;
+        }
         setSubmitting(true);
         request(`${API_URL}v1/early-learning/activities/${activity.id}/complete`, 'POST', { stars }, headers())
             .then((result) => onComplete(result))

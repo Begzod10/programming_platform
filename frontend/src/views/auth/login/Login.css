@@ -506,6 +506,37 @@
   font-weight: 600;
 }
 
+/* ── Guest play link — same outlined-pill treatment as .lp-register above,
+   just a <button> (client-side navigate, no href) instead of a link. Sits
+   right under the submit button as the "or, skip the account" option. ── */
+.lp-guest-link {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 16px;
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: none;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 14px;
+  font-family: var(--font-ui);
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+  box-sizing: border-box;
+}
+
+.lp-guest-link:hover {
+  border-color: var(--color-primary-mid);
+  background: rgba(108, 92, 231, 0.08);
+  color: #fff;
+}
+
+.lp-guest-link:focus-visible {
+  outline: 2px solid var(--color-primary-mid);
+  outline-offset: 2px;
+}
+
 /* ── Dev hint ── */
 .lp-demo-hint {
   margin: 16px 0 0;

@@ -106,6 +106,7 @@ const translations = {
     "auth.or":           "yoki",
     "auth.noAccount":    "Hisobingiz yo'qmi?",
     "auth.register":     "Ro'yxatdan o'tish",
+    "auth.playGuest":    "🎈 Kirishsiz o'ynash (5-8 yosh)",
     "auth.errorInvalid": "Login yoki parol noto'g'ri",
     "auth.success":      "Muvaffaqiyatli kirdingiz ✓",
 
@@ -364,6 +365,7 @@ const translations = {
     "auth.or":           "или",
     "auth.noAccount":    "Нет аккаунта?",
     "auth.register":     "Зарегистрироваться",
+    "auth.playGuest":    "🎈 Играть без входа (5-8 лет)",
     "auth.errorInvalid": "Неверный логин или пароль",
     "auth.success":      "Вход выполнен ✓",
 

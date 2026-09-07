@@ -243,6 +243,18 @@ export default function Login({ onLogin }) {
               {submitting ? t('auth.signingIn') : t('auth.signin')}
             </button>
 
+            {/* No-account entry point to the kids' games — see AppRouter.js's
+                /play route + EarlyLearning.js's guest mode. Stars are saved
+                in this browser's localStorage instead of an account, so a
+                child (or a parent trying it out) doesn't need credentials
+                just to play. */}
+            <button
+              type="button"
+              className="lp-guest-link"
+              onClick={() => navigate('/play')}
+            >
+              {t('auth.playGuest')}
+            </button>
 
             {/* Dev-only credential hint */}
             {process.env.NODE_ENV === 'development' && (
