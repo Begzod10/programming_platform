@@ -30,6 +30,7 @@ from app.services.github_repo_service import (
 from app.services.grok_service import analyze_project_with_grok
 from app.services.lesson_context_resolver import load_lesson_context_for_project
 from app.services.ranking_service import RankingService
+from app.services.sample_copy_check import check_against_sample, load_lesson_sample_code
 from app.models.submission import Submission
 from app.models.lesson import LessonCompletion
 
@@ -168,45 +169,87 @@ async def run_ai_review_for_project(
         return _fail(raise_on_error, 400,
                      f"{source_label} bo'sh yoki o'qiladigan fayllar topilmadi")
 
-    repo_summary = (
-        f"manba={source_label}, "
-        f"default_branch={snapshot['default_branch']}, "
-        f"jami fayl soni={snapshot['file_count']}, "
-        f"kiritildi ({len(snapshot['files_included'])}): "
-        f"{', '.join(snapshot['files_included'])}"
-        + (" [truncated]" if snapshot["truncated"] else "")
+    # Deterministic copy check against the lesson's OWN sample project —
+    # see sample_copy_check.py's module docstring for why this can't be
+    # left to the AI grader alone (the sample necessarily satisfies the
+    # lesson's own rubric perfectly, since we wrote it). Runs BEFORE the
+    # AI call: if this is confirmed near-verbatim, there's no reason to
+    # spend an AI call (or the student's daily quota slot) rubber-stamping
+    # something we already know deterministically isn't their own work.
+    # A synthetic `review` dict is built instead — everything below (points/
+    # ranking/project fields/response shape) is shared with the real AI
+    # path so the two can never drift out of sync.
+    sample_code = await load_lesson_sample_code(
+        db, lesson_context.get("lesson_id") if lesson_context else None
     )
+    copy_check = check_against_sample(snapshot["content_text"], sample_code)
 
-    technologies = (project.technologies_used.split(",")
-                    if project.technologies_used else [])
+    if copy_check.is_copy:
+        logger.info(
+            "[sample-copy] project=%d flagged, ratio=%.2f",
+            project.id, copy_check.ratio,
+        )
+        review = {
+            "grade": "F",
+            "points": 0,
+            "feedback": (
+                "Bu loyiha darsning NAMUNA (sample) kodiga deyarli AYNAN bir xil "
+                f"({copy_check.ratio:.0%} mos keladi). Namunani ko'chirib "
+                "yuborish o'rniga, topshiriqni o'zingiz mustaqil bajarib qayta "
+                "yuboring — namunadagi g'oyani tushunib, o'zingizning "
+                "yechimingizni yozing."
+            ),
+            "strengths": [],
+            "improvements": [
+                "Namuna loyihani nusxalash o'rniga, dars mavzusini o'zingiz "
+                "qanday tushunganingizni ko'rsatadigan mustaqil kod yozing.",
+            ],
+            "bugs": [],
+            "summary": "Topshiriq darsning namuna kodi bilan deyarli bir xil — mustaqil ishlanmagan.",
+            "provider": None,
+            "sample_copy_flagged": True,
+            "sample_similarity_ratio": round(copy_check.ratio, 3),
+        }
+    else:
+        repo_summary = (
+            f"manba={source_label}, "
+            f"default_branch={snapshot['default_branch']}, "
+            f"jami fayl soni={snapshot['file_count']}, "
+            f"kiritildi ({len(snapshot['files_included'])}): "
+            f"{', '.join(snapshot['files_included'])}"
+            + (" [truncated]" if snapshot["truncated"] else "")
+        )
 
-    review = await analyze_project_with_grok(
-        title=project.title,
-        description=project.description or "",
-        github_url=project.github_url or f"(ZIP: {project.project_files})",
-        technologies=technologies,
-        difficulty_level=str(project.difficulty_level or "Easy"),
-        repo_content=snapshot["content_text"],
-        repo_summary=repo_summary,
-        authorship=snapshot.get("authorship"),
-        lesson_context=lesson_context,
-    )
+        technologies = (project.technologies_used.split(",")
+                        if project.technologies_used else [])
 
-    # AI call failed (all providers down, rate-limited, no key, etc.).
-    # Do NOT write to DB — project stays "Submitted" for teacher manual review.
-    if review.get("error"):
-        raw = review.get("feedback") or ""
-        if "429" in raw or "rate" in raw.lower():
-            friendly = (
-                "AI baholash vaqtincha mavjud emas (limit tugagan). "
-                "O'qituvchi loyihangizni tez orada baholaydi."
-            )
-        else:
-            friendly = (
-                "AI baholash vaqtincha ishlamayapti. "
-                "O'qituvchi loyihangizni tez orada baholaydi."
-            )
-        return _fail(raise_on_error, status.HTTP_502_BAD_GATEWAY, friendly)
+        review = await analyze_project_with_grok(
+            title=project.title,
+            description=project.description or "",
+            github_url=project.github_url or f"(ZIP: {project.project_files})",
+            technologies=technologies,
+            difficulty_level=str(project.difficulty_level or "Easy"),
+            repo_content=snapshot["content_text"],
+            repo_summary=repo_summary,
+            authorship=snapshot.get("authorship"),
+            lesson_context=lesson_context,
+        )
+
+        # AI call failed (all providers down, rate-limited, no key, etc.).
+        # Do NOT write to DB — project stays "Submitted" for teacher manual review.
+        if review.get("error"):
+            raw = review.get("feedback") or ""
+            if "429" in raw or "rate" in raw.lower():
+                friendly = (
+                    "AI baholash vaqtincha mavjud emas (limit tugagan). "
+                    "O'qituvchi loyihangizni tez orada baholaydi."
+                )
+            else:
+                friendly = (
+                    "AI baholash vaqtincha ishlamayapti. "
+                    "O'qituvchi loyihangizni tez orada baholaydi."
+                )
+            return _fail(raise_on_error, status.HTTP_502_BAD_GATEWAY, friendly)
 
     # Default to 0 (NOT 60) — malformed AI response must never grant free points.
     new_points = int(review.get("points", 0) or 0)
