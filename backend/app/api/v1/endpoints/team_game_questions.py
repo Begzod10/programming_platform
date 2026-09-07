@@ -634,6 +634,7 @@ async def import_questions_from_lesson(
             .where(LessonQuestion.lesson_id == lesson_id)
             .order_by(LessonQuestion.order_index, LessonQuestion.id)
         )).scalars().all()
+        lesson_order = [lesson_id]
     else:
         lesson_ids_row = (await db.execute(
             select(LessonModel.id).where(LessonModel.course_id == course_id).order_by(LessonModel.order)
@@ -643,6 +644,7 @@ async def import_questions_from_lesson(
             .where(LessonQuestion.lesson_id.in_(lesson_ids_row))
             .order_by(LessonQuestion.lesson_id, LessonQuestion.order_index)
         )).scalars().all()
+        lesson_order = list(lesson_ids_row)
 
     if question_kind is not None:
         source_qs = [lq for lq in source_qs if lq.question_kind == question_kind]
@@ -656,14 +658,18 @@ async def import_questions_from_lesson(
         key=lambda x: (x.order_index, x.id),
     )
 
-    # Split quiz rows by language and pair UZ+RU by position so students see both
-    uz_qs = sorted([lq for lq in quiz_source if _detect_lang(lq.question_text) == 'uz'], key=lambda x: (x.order_index, x.id))
-    ru_qs = sorted([lq for lq in quiz_source if _detect_lang(lq.question_text) == 'ru'], key=lambda x: (x.order_index, x.id))
+    # Group quiz rows by lesson_id BEFORE pairing UZ/RU by position. LessonQuestion.order_index
+    # only restarts at 0 within each lesson (it is not globally unique across a course), so
+    # pairing UZ/RU across a single pooled cross-lesson list would zip a UZ question from one
+    # lesson with an unrelated RU question from another lesson that merely landed at the same
+    # position. Pairing independently within each lesson keeps the UZ/RU pair topically correct;
+    # for the single-lesson (lesson_id given) path this is a no-op since there is only one group.
+    quiz_by_lesson: dict = {}
+    for lq in quiz_source:
+        quiz_by_lesson.setdefault(lq.lesson_id, []).append(lq)
 
-    if not uz_qs and not ru_qs and not bug_source:
+    if not quiz_source and not bug_source:
         raise HTTPException(status_code=404, detail="No questions found for this lesson/course")
-
-    quiz_count = max(len(uz_qs), len(ru_qs))
 
     # Get current max order_index in game session
     max_order = (await db.execute(
@@ -673,35 +679,46 @@ async def import_questions_from_lesson(
     next_order = int(max_order) + 1
 
     created = []
-    for i in range(quiz_count):
-        uz_lq = uz_qs[i] if i < len(uz_qs) else None
-        ru_lq = ru_qs[i] if i < len(ru_qs) else None
-        base = uz_lq or ru_lq
-        order, shuffled_correct = _shuffle_permutation(len(base.options), base.correct_option)
-        shuffled_opts = _apply_permutation(base.options, order)
+    for lid in lesson_order:
+        lesson_qs = quiz_by_lesson.get(lid)
+        if not lesson_qs:
+            continue
 
-        # Only carry RU option variants when the paired RU question has the same
-        # option count — otherwise the index-aligned permutation can't be applied
-        # safely, so we drop options_ru rather than mismatch it against options.
-        shuffled_opts_ru = None
-        if uz_lq and ru_lq and len(ru_lq.options) == len(uz_lq.options):
-            shuffled_opts_ru = _apply_permutation(ru_lq.options, order)
+        # Split this lesson's quiz rows by language and pair UZ+RU by position (within the
+        # lesson only) so students see both languages for the same underlying question.
+        uz_qs = sorted([lq for lq in lesson_qs if _detect_lang(lq.question_text) == 'uz'], key=lambda x: (x.order_index, x.id))
+        ru_qs = sorted([lq for lq in lesson_qs if _detect_lang(lq.question_text) == 'ru'], key=lambda x: (x.order_index, x.id))
+        quiz_count = max(len(uz_qs), len(ru_qs))
 
-        gq = GameQuestion(
-            session_id=session_id,
-            question_text=uz_lq.question_text if uz_lq else ru_lq.question_text,
-            question_text_ru=ru_lq.question_text if ru_lq else None,
-            options=shuffled_opts,
-            options_ru=shuffled_opts_ru,
-            correct_option=shuffled_correct,
-            time_limit=base.time_limit,
-            points=base.points,
-            order_index=next_order,
-            status=QuestionStatus.pending,
-        )
-        next_order += 1
-        db.add(gq)
-        created.append(gq)
+        for i in range(quiz_count):
+            uz_lq = uz_qs[i] if i < len(uz_qs) else None
+            ru_lq = ru_qs[i] if i < len(ru_qs) else None
+            base = uz_lq or ru_lq
+            order, shuffled_correct = _shuffle_permutation(len(base.options), base.correct_option)
+            shuffled_opts = _apply_permutation(base.options, order)
+
+            # Only carry RU option variants when the paired RU question has the same
+            # option count — otherwise the index-aligned permutation can't be applied
+            # safely, so we drop options_ru rather than mismatch it against options.
+            shuffled_opts_ru = None
+            if uz_lq and ru_lq and len(ru_lq.options) == len(uz_lq.options):
+                shuffled_opts_ru = _apply_permutation(ru_lq.options, order)
+
+            gq = GameQuestion(
+                session_id=session_id,
+                question_text=uz_lq.question_text if uz_lq else ru_lq.question_text,
+                question_text_ru=ru_lq.question_text if ru_lq else None,
+                options=shuffled_opts,
+                options_ru=shuffled_opts_ru,
+                correct_option=shuffled_correct,
+                time_limit=base.time_limit,
+                points=base.points,
+                order_index=next_order,
+                status=QuestionStatus.pending,
+            )
+            next_order += 1
+            db.add(gq)
+            created.append(gq)
 
     # Bug-hunt rows are single-row (question_text + optional bug_explanation_ru,
     # no UZ/RU pairing like quiz) — same shuffle helper add_bug_question uses.
