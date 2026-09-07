@@ -97,23 +97,37 @@ function StartModal({ session, onClose, onStarted }) {
             .finally(() => setLoading(false));
     }, [session.id]);
 
-    // When group filter changes, update selection to only that group
-    useEffect(() => {
-        if (!students.length) return;
-        if (filterGroup) {
-            const ids = students.filter(s => s.group_id === Number(filterGroup)).map(s => s.id);
-            setSelected(new Set(ids));
-        } else {
-            setSelected(new Set(students.map(s => s.id)));
-        }
-    }, [filterGroup]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Group filter narrows which students are VISIBLE — same rule the search
+    // box already follows (see the comment below): it must never touch
+    // `selected` itself. This used to overwrite the whole selection with
+    // "everyone in the newly-picked group" on every filterGroup change, so
+    // ticking students in one group and then switching the filter to check
+    // another group silently wiped the first group's picks. Selection now
+    // only ever changes from an explicit tick, toggleVisible, or the
+    // initial load — so picks made under one group filter survive
+    // switching to another and picking more, letting a teacher build up a
+    // combined roster across several groups.
+
+    // Leading class number in a group's name ("6-blue" → 6, "0 blu" → 0,
+    // "11-green" → 11) — group names aren't authored in a consistent
+    // "N-color" format (some use a space, digits aren't zero-padded), so a
+    // plain alphabetical sort put "11-green" before "2-blue". Sorting on
+    // the parsed number (falling back to the end of the list for a name
+    // with no digit at all) gives the class order teachers actually expect.
+    const groupNumber = (name) => {
+        const match = (name || '').match(/\d+/);
+        return match ? parseInt(match[0], 10) : Number.MAX_SAFE_INTEGER;
+    };
 
     const groups = students.reduce((acc, s) => {
         if (s.group_id && !acc.find(g => g.id === s.group_id)) {
             acc.push({ id: s.group_id, name: s.group_name });
         }
         return acc;
-    }, []);
+    }, []).sort((a, b) => {
+        const diff = groupNumber(a.name) - groupNumber(b.name);
+        return diff !== 0 ? diff : (a.name || '').localeCompare(b.name || '');
+    });
 
     // Search narrows what's shown but never touches `selected` — a teacher
     // can search, tick a few names, clear the box, and keep those ticks.
@@ -209,7 +223,10 @@ function StartModal({ session, onClose, onStarted }) {
                 <div className="tg-divide-header">
                     <h2>Выбор студентов</h2>
                     <button className="tg-btn-secondary" onClick={toggleVisible} disabled={visible.length === 0}>
-                        {visibleAllChecked ? 'Снять все' : 'Выбрать все'}
+                        {/* Scoped to the currently visible (filtered/searched) list, not
+                            everyone — spelled out so it's clear this won't touch students
+                            hidden by the group filter or search box right now. */}
+                        {visibleAllChecked ? 'Снять видимых' : 'Выбрать видимых'}
                     </button>
                 </div>
                 {groups.length > 0 && (
@@ -219,12 +236,18 @@ function StartModal({ session, onClose, onStarted }) {
                             value={filterGroup}
                             onChange={e => setFilterGroup(e.target.value)}
                         >
-                            <option value="">— Все группы ({students.length} студ.) —</option>
-                            {groups.map(g => (
-                                <option key={g.id} value={g.id}>
-                                    {g.name} ({students.filter(s => s.group_id === g.id).length} студ.)
-                                </option>
-                            ))}
+                            <option value="">
+                                — Все группы ({selected.size}/{students.length} выбрано) —
+                            </option>
+                            {groups.map(g => {
+                                const groupStudentIds = students.filter(s => s.group_id === g.id).map(s => s.id);
+                                const selectedInGroup = groupStudentIds.filter(id => selected.has(id)).length;
+                                return (
+                                    <option key={g.id} value={g.id}>
+                                        {g.name} ({selectedInGroup}/{groupStudentIds.length} выбрано)
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
                 )}
