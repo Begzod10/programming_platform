@@ -4,7 +4,7 @@ import Sidebar from '../components/sidebar/sidebar';
 import { useAuth } from '../context/AuthContext';
 
 function StudentLayout() {
-    const { logout } = useAuth();
+    const { logout, user } = useAuth();
     const location = useLocation();
 
     const path = location.pathname;
@@ -19,7 +19,7 @@ function StudentLayout() {
 
     return (
         <div className="main-layout">
-            <Sidebar activeTab={segment} onLogout={logout} role="student" />
+            <Sidebar activeTab={segment} onLogout={logout} role="student" earlyLearningEligible={user?.early_learning_eligible !== false} />
 
             <main className="content-area">
                 <div className={`page-container ${segment === 'profile' ? '' : 'scrollable'}`}>

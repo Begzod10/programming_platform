@@ -1,8 +1,32 @@
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator, Field, model_validator
 from typing import Optional, List, Any
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from app.models.user import UserRole
+
+
+def _early_learning_eligible(birth_date: Optional[date]) -> bool:
+    """Whether the "Kichkinalar uchun" nav link should show for this
+    student — a single coarse cutoff (age < 11), distinct from
+    early_learning.py's per-MODULE _is_age_eligible (which checks each
+    module's own age_min/age_max +/- a grace band). Duplicated rather than
+    imported from that endpoints module to avoid a schemas-depends-on-
+    endpoints layering violation; keep the age-from-birth_date arithmetic
+    in sync with _age_from_birth_date there if either changes.
+
+    Most accounts have no birth_date synced yet (see early_learning.py's
+    _is_age_eligible docstring) — unknown stays permissive, same "can only
+    ever exclude a CONFIRMED mismatch" policy, so the nav link never
+    disappears out from under an account that just hasn't synced this
+    field yet.
+    """
+    if birth_date is None:
+        return True
+    today = date.today()
+    age = today.year - birth_date.year - (
+        (today.month, today.day) < (birth_date.month, birth_date.day)
+    )
+    return age < 11
 
 
 # --- ACHIEVEMENT SCHEMAS ---
@@ -119,24 +143,50 @@ class UserRead(BaseModel):
     # nested `Achievement` ma'lumotini chiqaramiz.
     achievements: List[AchievementRead] = Field(default_factory=list)
 
+    # Not the raw birth_date itself (no reason to hand that to the
+    # frontend) — just the derived yes/no the sidebar needs. See
+    # _early_learning_eligible's docstring above.
+    early_learning_eligible: bool = Field(default=True)
+
     @model_validator(mode="before")
     @classmethod
     def collect_achievements(cls, data: Any) -> Any:
         # `from_attributes=True` rejimida `data` ORM model bo'lishi mumkin.
+        if isinstance(data, dict):
+            return data
+        # Pydantic v2 dict update qila olmaydi — yangi dict yasaymiz.
         try:
-            if hasattr(data, "student_achievements") and not isinstance(data, dict):
-                joined = getattr(data, "student_achievements", None) or []
-                # Sodda dict ko'rinishida qaytaramiz, AchievementRead esa
-                # `from_attributes` orqali maydonlarni xaritaga soladi.
-                extracted = [getattr(sa, "achievement", None) for sa in joined]
-                extracted = [a for a in extracted if a is not None]
-                # Pydantic v2 dict update qila olmaydi — yangi dict yasaymiz.
-                base = {k: getattr(data, k, None) for k in cls.model_fields.keys()}
-                base["achievements"] = extracted
-                return base
+            base = {k: getattr(data, k, None) for k in cls.model_fields.keys()}
         except Exception:
-            pass
-        return data
+            return data
+
+        # `student_achievements` — lazy-loaded relationship. Accessing it
+        # outside an active async session context (or without eager-loading)
+        # can raise (e.g. MissingGreenlet), not just return empty — that
+        # failure must NOT also take early_learning_eligible down with it,
+        # which is exactly what happened when both lived in one try/except:
+        # the exception skipped the eligibility computation entirely and it
+        # silently fell back to the field's bare default. Two independent
+        # try/excepts now, so a birth_date-only login response no longer
+        # depends on the achievements relationship resolving cleanly.
+        try:
+            joined = getattr(data, "student_achievements", None) or []
+            # Sodda dict ko'rinishida qaytaramiz, AchievementRead esa
+            # `from_attributes` orqali maydonlarni xaritaga soladi.
+            base["achievements"] = [
+                a for a in (getattr(sa, "achievement", None) for sa in joined) if a is not None
+            ]
+        except Exception:
+            base["achievements"] = []
+
+        try:
+            base["early_learning_eligible"] = _early_learning_eligible(
+                getattr(data, "birth_date", None)
+            )
+        except Exception:
+            base["early_learning_eligible"] = True
+
+        return base
 
     # Pydantic v2 uchun sozlama
     model_config = ConfigDict(

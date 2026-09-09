@@ -7,12 +7,28 @@ are fully independent and can run in any order.
 """
 
 import uuid
+from datetime import date
+
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
+
+from app.models.user import Student
 
 
 def _unique() -> str:
     return uuid.uuid4().hex[:8]
+
+
+def _birth_date_for_age(age: int) -> date:
+    """A birth_date that makes the age-from-birth_date arithmetic
+    (early_learning.py's _age_from_birth_date and schemas/user.py's
+    _early_learning_eligible use the same formula) resolve to exactly
+    `age` today, regardless of what day this test runs on. Pinning the
+    month/day to January 1st means "has the birthday happened yet this
+    year" is always true, so the result is just today.year - birth_year —
+    no boundary case to dodge."""
+    return date(date.today().year - age, 1, 1)
 
 
 # ── Registration ──────────────────────────────────────────────────────────────
@@ -207,6 +223,52 @@ async def test_get_me_with_valid_token_returns_user_data(
 async def test_get_me_without_token_returns_401(async_client: AsyncClient):
     resp = await async_client.get("/api/v1/auth/me")
     assert resp.status_code == 401
+
+
+# ── early_learning_eligible ─────────────────────────────────────────────────
+# Drives whether the "Kichkinalar uchun" sidebar link shows at all — see
+# schemas/user.py's _early_learning_eligible. A blanket age<11 cutoff,
+# distinct from early_learning.py's own per-module _is_age_eligible.
+
+async def test_early_learning_eligible_defaults_true_with_no_birth_date(
+    async_client: AsyncClient, auth_headers: dict
+):
+    # Most accounts have no synced birth_date at all — unknown must stay
+    # permissive, or the link would vanish for the majority of students who
+    # simply haven't had this field synced yet, not because they're 11+.
+    resp = await async_client.get("/api/v1/auth/me", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["early_learning_eligible"] is True
+
+
+async def test_early_learning_eligible_true_under_11(
+    async_client: AsyncClient, db_session, auth_headers: dict
+):
+    me = await async_client.get("/api/v1/auth/me", headers=auth_headers)
+    user_id = me.json()["id"]
+    await db_session.execute(
+        update(Student).where(Student.id == user_id).values(birth_date=_birth_date_for_age(8))
+    )
+    await db_session.commit()
+
+    resp = await async_client.get("/api/v1/auth/me", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["early_learning_eligible"] is True
+
+
+async def test_early_learning_eligible_false_at_11_and_over(
+    async_client: AsyncClient, db_session, auth_headers: dict
+):
+    me = await async_client.get("/api/v1/auth/me", headers=auth_headers)
+    user_id = me.json()["id"]
+    await db_session.execute(
+        update(Student).where(Student.id == user_id).values(birth_date=_birth_date_for_age(11))
+    )
+    await db_session.commit()
+
+    resp = await async_client.get("/api/v1/auth/me", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["early_learning_eligible"] is False
 
 
 # ── Logout ────────────────────────────────────────────────────────────────────

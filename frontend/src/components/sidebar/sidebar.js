@@ -32,7 +32,7 @@ function ChevronIcon({ direction = 'left' }) {
     );
 }
 
-function Sidebar({ activeTab, onLogout, role }) {
+function Sidebar({ activeTab, onLogout, role, earlyLearningEligible = true }) {
     const navigate = useNavigate();
     const { request } = useHttp();
     const { t, lang, toggleLang } = useTranslation();
@@ -61,7 +61,15 @@ function Sidebar({ activeTab, onLogout, role }) {
         { id: 'projects',       label: t('my_projects'),                Icon: Monitor,         section: 'main' },
         { id: 'dictionary',     label: t('dictionary'),                 Icon: BookMarked,      section: 'main' },
         { id: 'team-game',      label: t('team_game'),                  Icon: Gamepad2,        section: 'main' },
-        { id: 'early-learning', label: t('early_learning'),             Icon: Puzzle,          section: 'main' },
+        // Backend-computed (see schemas/user.py's early_learning_eligible,
+        // a coarse age<11 cutoff distinct from early_learning.py's own
+        // per-module eligibility) — an older student doesn't need a "for
+        // little kids" link cluttering their nav. Defaults permissive
+        // (StudentLayout.js's `!== false`) so an account whose birth_date
+        // hasn't synced yet — the majority — still sees it.
+        ...(earlyLearningEligible
+            ? [{ id: 'early-learning', label: t('early_learning'), Icon: Puzzle, section: 'main' }]
+            : []),
         { id: 'statistics',     label: t('statistics') || 'Статистика', Icon: BarChart2,       section: 'insights' },
         { id: 'rankings',       label: t('rankings'),                   Icon: Trophy,          section: 'insights' },
         { id: 'project-rating', label: t('top_projects'),               Icon: Construction,    section: 'insights' },
