@@ -64,21 +64,25 @@ _LOCALIZED_ITEM_KEYS = {
     "select": ("correct_items", "distractor_items"),
     "build": ("slots", "distractor_items"),
     "trace": ("targets",),
-    # maze has no per-cell labels to translate — an empty tuple still routes
+    # maze and count have no per-item labels to translate (a maze cell has
+    # no text; a counting round is just an emoji repeated N times — the
+    # number itself needs no translation) — an empty tuple still routes
     # through the mode not None check below, so the character (translated
     # unconditionally, right after) still gets its ru rendering.
     "maze": (),
     "pairs": ("cards",),
+    "count": (),
 }
 
 
 def _localize_content(content: dict, lang: str) -> dict:
     """Only mode="select" (tap-to-match), mode="build" (drag-to-assemble),
-    mode="trace" (trace-the-outline), mode="maze" (arrow pathfinding) and
-    mode="pairs" (memory/pairs matching) carry translations today — any
-    other content shape (the draft literacy/math/creative modules) just
-    renders in uz regardless of `lang` until it gets its own translation
-    pass; that's a content gap, not a bug.
+    mode="trace" (trace-the-outline), mode="maze" (arrow pathfinding),
+    mode="pairs" (memory/pairs matching) and mode="count" (tap-to-count)
+    carry translations today — any other content shape (the draft
+    literacy/math/creative modules) just renders in uz regardless of
+    `lang` until it gets its own translation pass; that's a content gap,
+    not a bug.
     """
     mode = content.get("mode")
     item_keys = _LOCALIZED_ITEM_KEYS.get(mode)

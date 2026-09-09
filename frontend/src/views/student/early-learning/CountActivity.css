@@ -1,0 +1,149 @@
+.ca-page {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 28px 24px 40px;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    animation: ca-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+@keyframes ca-island-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+
+.ca-page .el-page-topbar { width: 100%; }
+
+.ca-character-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.ca-character-emoji { font-size: 3.2rem; line-height: 1; }
+.ca-character-header h2 { margin: 0; font-size: 1.3rem; font-weight: 800; color: #1f2937; }
+
+.ca-instruction {
+    margin: 0 0 18px;
+    color: #6b7280;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+/* The counting scene itself — items wrap freely rather than sitting in a
+   fixed grid, since count varies round to round (2-9 here) and a loose
+   wrap reads more like "a pile of things to count" than a rigid table,
+   which matters for what's actually being taught. */
+.ca-scene {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    width: 100%;
+    max-width: 420px;
+    min-height: 120px;
+    margin: 0 auto 22px;
+    padding: 18px;
+    background: #f0fdf4;
+    border-radius: 24px;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    box-shadow: inset 0 2px 12px rgba(30, 110, 64, 0.08);
+}
+
+.ca-item {
+    font-size: clamp(1.8rem, 8vw, 2.4rem);
+    line-height: 1;
+    filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.12));
+}
+
+.ca-options {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.ca-option-btn {
+    /* WCAG touch-target floor, and comfortably bigger than that by default
+       — these are the primary, only-thing-to-tap control on this screen. */
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+    border: none;
+    background: #ffffff;
+    color: #1f2937;
+    font-size: 1.4rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(30, 64, 110, 0.14);
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.ca-option-btn:hover:not(:disabled) { transform: translateY(-2px); }
+.ca-option-btn:disabled { opacity: 0.6; cursor: default; }
+
+.ca-option-btn-wrong {
+    background: #fef2f2;
+    color: #b91c1c;
+    animation: ca-shake 0.4s ease;
+}
+
+@keyframes ca-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+}
+
+.ca-option-btn-correct {
+    background: #10b981;
+    color: #ffffff;
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
+    animation: ca-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes ca-pop {
+    0%   { transform: scale(0.9); }
+    70%  { transform: scale(1.12); }
+    100% { transform: scale(1); }
+}
+
+.ca-progress {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #9ca3af;
+}
+
+@media (max-width: 480px) {
+    .ca-page { padding: 20px 16px 28px; border-radius: 24px; }
+    .ca-scene { padding: 14px; gap: 10px; }
+    .ca-option-btn { width: 50px; height: 50px; font-size: 1.25rem; }
+}
+
+/* Short viewports (landscape phones/tablets) — the scene is the single
+   biggest vertical element here, same reasoning as every sibling's own
+   max-height query. */
+@media (max-height: 500px) {
+    .ca-page { padding: 16px 20px 20px; }
+    .ca-character-header { margin-bottom: 2px; }
+    .ca-character-emoji { font-size: 2.2rem; }
+    .ca-instruction { margin-bottom: 8px; }
+    .ca-scene { min-height: 80px; padding: 10px; gap: 8px; margin-bottom: 12px; }
+    .ca-item { font-size: clamp(1.3rem, 6vw, 1.8rem); }
+    .ca-option-btn { width: 46px; height: 46px; font-size: 1.1rem; }
+}

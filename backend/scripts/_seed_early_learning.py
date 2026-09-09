@@ -1,15 +1,16 @@
 """One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
 modules covering literacy/math/logic/creative (each a first pass, left
-unpublished pending real media), plus 10 complete, published packs that use
+unpublished pending real media), plus 11 complete, published packs that use
 emoji-first, icon-based content instead of image assets: 6 tap-to-match
 ("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
 "Transport olami" / "Rang olami" / "Dengiz olami", content.mode="select"), 1
 drag-to-assemble ("Yasash o'yinlari" — build a snowman + build a house,
 content.mode="build"), 1 trace-the-outline ("Chizib o'rganamiz" — 5 shapes,
 content.mode="trace"), 1 arrow-pathfinding maze pack ("Yo'lni topamiz" —
-3 difficulty levels, content.mode="maze"), and 1 memory/pairs-matching pack
+3 difficulty levels, content.mode="maze"), 1 memory/pairs-matching pack
 ("Juftlarni topamiz" — flip cards to find matching pairs,
-content.mode="pairs"). See project_student_platform memory /
+content.mode="pairs"), and 1 tap-to-count pack ("Sanashni o'rganamiz" — 6
+rounds, 1-10, content.mode="count"). See project_student_platform memory /
 early_learning.py for the model design rationale (no AI grading, star-based
 completion instead of points).
 
@@ -1468,6 +1469,47 @@ MODULES = [
                         {"id": "parrot", "label": "Toti", "label_ru": "Попугай"},
                         {"id": "fish", "label": "Baliqcha", "label_ru": "Рыбка"},
                         {"id": "hamster", "label": "Xomyak", "label_ru": "Хомяк"},
+                    ],
+                },
+            },
+        ],
+    },
+    {
+        # Tap-to-count — the first pack using content.mode="count" (and the
+        # first to use EarlySubject.math at all: every prior pack is logic/
+        # motor/creative). No per-item labels to translate (see
+        # _LOCALIZED_ITEM_KEYS's "count": () in early_learning.py) — a
+        # counting round is just an emoji repeated N times plus a row of
+        # number buttons, and numbers don't need translating. See
+        # CountActivity.js.
+        "title": "Sanashni o'rganamiz",
+        "title_ru": "Учимся считать",
+        "description": "Nechta narsa borligini san va to'g'ri sonni bos.",
+        "description_ru": "Посчитай предметы и нажми на правильное число.",
+        "subject": EarlySubject.math,
+        "icon_emoji": "🔢",
+        "color_accent": "#3D9970",
+        "display_order": 12,
+        "age_min": 5,
+        "age_max": 8,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "1 dan 10 gacha sanaymiz",
+                "title_ru": "Считаем от 1 до 10",
+                "activity_type": EarlyActivityType.count,
+                "instruction_text": "Nechta narsa borligini san, keyin to'g'ri sonni bos.",
+                "instruction_text_ru": "Посчитай, сколько предметов, и нажми на правильное число.",
+                "content": {
+                    "mode": "count",
+                    "character": {"emoji": "🔢", "label": "Sanashni o'rganamiz", "label_ru": "Учимся считать"},
+                    "rounds": [
+                        {"emoji": "🍎", "count": 3, "options": [2, 3, 4, 5]},
+                        {"emoji": "🐶", "count": 5, "options": [3, 4, 5, 6]},
+                        {"emoji": "⭐", "count": 7, "options": [5, 6, 7, 8]},
+                        {"emoji": "🎈", "count": 2, "options": [1, 2, 3, 4]},
+                        {"emoji": "🚗", "count": 6, "options": [4, 5, 6, 7]},
+                        {"emoji": "🐟", "count": 9, "options": [7, 8, 9, 10]},
                     ],
                 },
             },
