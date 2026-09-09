@@ -1,23 +1,26 @@
 """One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
 modules covering literacy/math/logic/creative (each a first pass, left
-unpublished pending real media), plus 15 complete, published packs that use
+unpublished pending real media), plus 14 complete, published packs that use
 emoji-first, icon-based content instead of image assets: 6 tap-to-match
 ("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
 "Transport olami" / "Rang olami" / "Dengiz olami", content.mode="select"), 1
 drag-to-assemble ("Yasash o'yinlari" — build a snowman + build a house,
 content.mode="build"), 1 trace-the-outline ("Chizib o'rganamiz" — 5 shapes,
 content.mode="trace"), 1 arrow-pathfinding maze pack ("Yo'lni topamiz" —
-3 difficulty levels, content.mode="maze"), 1 memory/pairs-matching pack
-("Juftlarni topamiz" — flip cards to find matching pairs,
-content.mode="pairs"), 1 tap-to-count pack ("Sanashni o'rganamiz" — 6
-rounds, 1-10, content.mode="count"), 1 sort-into-bins pack ("Mevami,
-sabzavotmi?" — 8 items into 2 bins, content.mode="sort"), 1 step-ordering
-pack ("Kun tartibi" — a 4-step morning routine, content.mode="sequence"),
-1 pattern-completion pack ("Naqshni davom ettiramiz" — 6 what-comes-next
-rounds, content.mode="pattern"), and 1 cause-and-effect pack ("Sabab va
-natija" — 6 everyday-reasoning rounds, content.mode="cause_effect"). See
-project_student_platform memory / early_learning.py for the model design
-rationale (no AI grading, star-based completion instead of points).
+3 difficulty levels, content.mode="maze"), 1 tap-to-count pack ("Sanashni
+o'rganamiz" — 6 rounds, 1-10, content.mode="count"), 1 sort-into-bins pack
+("Mevami, sabzavotmi?" — 8 items into 2 bins, content.mode="sort"), 1
+step-ordering pack ("Kun tartibi" — a 4-step morning routine,
+content.mode="sequence"), 1 pattern-completion pack ("Naqshni davom
+ettiramiz" — 6 what-comes-next rounds, content.mode="pattern"), and 1
+cause-and-effect pack ("Sabab va natija" — 6 everyday-reasoning rounds,
+content.mode="cause_effect"). See project_student_platform memory /
+early_learning.py for the model design rationale (no AI grading, star-based
+completion instead of points).
+
+A 15th pack, "Juftlarni topamiz" (memory/pairs matching,
+content.mode="pairs"), exists below but is deliberately kept
+is_published=False — see its own comment for why.
 
 Every module/activity/item is authored in Uzbek first (title/description/
 instruction_text/label — matches EarlyModule.source_lang's default) with a
@@ -1451,12 +1454,24 @@ MODULES = [
         ],
     },
     {
-        # Memory/pairs matching — the first pack using content.mode="pairs"
-        # (activity_type stays EarlyActivityType.match, same as every
-        # mode="select" pack above: `match`'s own docstring is literally
-        # "tap-to-match pairs", and activity_type is a coarse DB category,
-        # not the frontend mechanic discriminator — that's content.mode,
-        # read by EarlyLearning.js's dispatcher. See PairsActivity.js.
+        # Memory/pairs matching — content.mode="pairs" (activity_type stays
+        # EarlyActivityType.match, same as every mode="select" pack above:
+        # `match`'s own docstring is literally "tap-to-match pairs", and
+        # activity_type is a coarse DB category, not the frontend mechanic
+        # discriminator — that's content.mode, read by EarlyLearning.js's
+        # dispatcher. See PairsActivity.js.
+        #
+        # UNPUBLISHED 2026-09-09: a live user report ("I clicked the
+        # emojis, nothing happened") turned out to be more than the
+        # missing-wrong-feedback UX gap fixed in that same investigation —
+        # after redeploying that fix, a live re-test found a SINGLE tap on
+        # a still-face-down tile does nothing at all, even though the
+        # deployed bundle was diffed byte-for-byte against source and
+        # matched the (correct-looking) handleTap logic exactly. Root
+        # cause not yet found. Pulled from the module list rather than
+        # left live and broken while that's tracked down — is_published
+        # flips back to True (and PairsActivity.js/.css stay as-is,
+        # untouched) once it's fixed and re-verified, not before.
         "title": "Juftlarni topamiz",
         "title_ru": "Найдём пары",
         "description": "Bir xil rasmli ikkita kartani top.",
@@ -1467,7 +1482,7 @@ MODULES = [
         "display_order": 11,
         "age_min": 5,
         "age_max": 8,
-        "is_published": True,
+        "is_published": False,
         "activities": [
             {
                 "title": "Uy hayvonlari",
