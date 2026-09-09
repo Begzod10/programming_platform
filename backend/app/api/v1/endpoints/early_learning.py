@@ -68,15 +68,17 @@ _LOCALIZED_ITEM_KEYS = {
     # through the mode not None check below, so the character (translated
     # unconditionally, right after) still gets its ru rendering.
     "maze": (),
+    "pairs": ("cards",),
 }
 
 
 def _localize_content(content: dict, lang: str) -> dict:
     """Only mode="select" (tap-to-match), mode="build" (drag-to-assemble),
-    mode="trace" (trace-the-outline) and mode="maze" (arrow pathfinding)
-    carry translations today — any other content shape (the draft literacy/
-    math/creative modules) just renders in uz regardless of `lang` until it
-    gets its own translation pass; that's a content gap, not a bug.
+    mode="trace" (trace-the-outline), mode="maze" (arrow pathfinding) and
+    mode="pairs" (memory/pairs matching) carry translations today — any
+    other content shape (the draft literacy/math/creative modules) just
+    renders in uz regardless of `lang` until it gets its own translation
+    pass; that's a content gap, not a bug.
     """
     mode = content.get("mode")
     item_keys = _LOCALIZED_ITEM_KEYS.get(mode)

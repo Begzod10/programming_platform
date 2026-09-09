@@ -1,15 +1,17 @@
 """One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
 modules covering literacy/math/logic/creative (each a first pass, left
-unpublished pending real media), plus 9 complete, published packs that use
+unpublished pending real media), plus 10 complete, published packs that use
 emoji-first, icon-based content instead of image assets: 6 tap-to-match
 ("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
 "Transport olami" / "Rang olami" / "Dengiz olami", content.mode="select"), 1
 drag-to-assemble ("Yasash o'yinlari" — build a snowman + build a house,
 content.mode="build"), 1 trace-the-outline ("Chizib o'rganamiz" — 5 shapes,
-content.mode="trace"), and 1 arrow-pathfinding maze pack ("Yo'lni topamiz" —
-3 difficulty levels, content.mode="maze"). See project_student_platform
-memory / early_learning.py for the model design rationale (no AI grading,
-star-based completion instead of points).
+content.mode="trace"), 1 arrow-pathfinding maze pack ("Yo'lni topamiz" —
+3 difficulty levels, content.mode="maze"), and 1 memory/pairs-matching pack
+("Juftlarni topamiz" — flip cards to find matching pairs,
+content.mode="pairs"). See project_student_platform memory /
+early_learning.py for the model design rationale (no AI grading, star-based
+completion instead of points).
 
 Every module/activity/item is authored in Uzbek first (title/description/
 instruction_text/label — matches EarlyModule.source_lang's default) with a
@@ -114,15 +116,23 @@ ITEM_EMOJI = {
     # Dengiz olami
     "hoop": "⭕", "bubbles": "🫧", "shell": "🐚", "seaweed": "🌿", "jellyfish": "🪼",
     "sand": "🏖️", "egg": "🥚", "coral": "🪸", "rock": "🪨", "ink_cloud": "🌫️",
+    # Juftlarni topamiz
+    "cat": "🐱", "dog": "🐶", "rabbit": "🐰", "parrot": "🦜", "hamster": "🐹",
 }
 
 
 def _with_emoji(content: dict) -> dict:
-    """Inject `emoji` into every item of a mode="select" content dict,
-    looked up from ITEM_EMOJI by id. No-op for any other content shape."""
-    if content.get("mode") != "select":
+    """Inject `emoji` into every item of a mode="select" or mode="pairs"
+    content dict, looked up from ITEM_EMOJI by id. No-op for any other
+    content shape."""
+    mode = content.get("mode")
+    if mode == "select":
+        keys = ("correct_items", "distractor_items")
+    elif mode == "pairs":
+        keys = ("cards",)
+    else:
         return content
-    for key in ("correct_items", "distractor_items"):
+    for key in keys:
         for item in content.get(key, []):
             item["emoji"] = ITEM_EMOJI.get(item["id"], "❓")
     return content
@@ -1418,6 +1428,46 @@ MODULES = [
                         {"id": "cheese", "label": "Pishloq", "label_ru": "Сыр", "icon": "Sandwich"},
                         {"id": "banana", "label": "Banan", "label_ru": "Банан", "icon": "Banana"},
                         {"id": "crown", "label": "Toj", "label_ru": "Корона", "icon": "Crown"},
+                    ],
+                },
+            },
+        ],
+    },
+    {
+        # Memory/pairs matching — the first pack using content.mode="pairs"
+        # (activity_type stays EarlyActivityType.match, same as every
+        # mode="select" pack above: `match`'s own docstring is literally
+        # "tap-to-match pairs", and activity_type is a coarse DB category,
+        # not the frontend mechanic discriminator — that's content.mode,
+        # read by EarlyLearning.js's dispatcher. See PairsActivity.js.
+        "title": "Juftlarni topamiz",
+        "title_ru": "Найдём пары",
+        "description": "Bir xil rasmli ikkita kartani top.",
+        "description_ru": "Найди две карточки с одинаковой картинкой.",
+        "subject": EarlySubject.logic,
+        "icon_emoji": "🧠",
+        "color_accent": "#F2545B",
+        "display_order": 11,
+        "age_min": 5,
+        "age_max": 8,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Uy hayvonlari",
+                "title_ru": "Домашние животные",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Bir xil hayvonli ikkita kartani top.",
+                "instruction_text_ru": "Найди две карточки с одинаковым животным.",
+                "content": {
+                    "mode": "pairs",
+                    "character": {"emoji": "🧠", "label": "Juftlarni top", "label_ru": "Найди пары"},
+                    "cards": [
+                        {"id": "cat", "label": "Mushuk", "label_ru": "Кошка"},
+                        {"id": "dog", "label": "It", "label_ru": "Собака"},
+                        {"id": "rabbit", "label": "Quyon", "label_ru": "Кролик"},
+                        {"id": "parrot", "label": "Toti", "label_ru": "Попугай"},
+                        {"id": "fish", "label": "Baliqcha", "label_ru": "Рыбка"},
+                        {"id": "hamster", "label": "Xomyak", "label_ru": "Хомяк"},
                     ],
                 },
             },

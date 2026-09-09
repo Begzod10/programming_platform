@@ -256,7 +256,8 @@ const translations = {
     "el.star1Sub":          "✅ Davom et, sen uddalaysan!",
     "el.continueBtn":       "Davom etish →",
     "el.traceClear":        "Tozalash",
-    "el.traceDone":         "Tayyor!"
+    "el.traceDone":         "Tayyor!",
+    "el.pairsCardHidden":   "Yashirin karta"
   },
   ru: {
     // Common
@@ -515,7 +516,8 @@ const translations = {
     "el.star1Sub":          "✅ Продолжай, у тебя получится!",
     "el.continueBtn":       "Продолжить →",
     "el.traceClear":        "Очистить",
-    "el.traceDone":         "Готово!"
+    "el.traceDone":         "Готово!",
+    "el.pairsCardHidden":   "Скрытая карточка"
   }
 };
 
