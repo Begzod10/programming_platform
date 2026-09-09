@@ -4,6 +4,7 @@ No HTTP routes live here — only helpers imported by the split modules.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -368,6 +369,30 @@ async def _subtract_points(db: AsyncSession, student_id: int, points: int) -> in
     return student.total_points if student else 0
 
 
+# Wall-clock ceiling for the whole auto-review call (github fetch + the
+# full AI-provider fallback chain). Prod runs AI_PROVIDER_CHAIN=gemini,openai
+# — each provider's own httpx client already allows up to 60s
+# (grok_ai_client.py), and github_repo_service's own fetch up to 20s more,
+# so a real worst case (github fetch + both providers timing out in
+# sequence) is ~140s. Cloudflare sits in front of this app (see
+# `curl -sI` showing `server: cloudflare`) with a ~100s default proxy
+# timeout to origin, and nginx's own /api/ location has no override either
+# (only /api/v1/game-sessions does, for its websocket). Whichever edge
+# gives up first just drops the client-facing connection while this
+# coroutine keeps running server-side — and if IT gets cancelled instead
+# (e.g. uvicorn detects the disconnect), that raises asyncio.CancelledError,
+# which is a BaseException since Python 3.8, NOT an Exception, so it skips
+# straight past the `except Exception` below without ever writing the
+# fallback trace this function exists to guarantee. That is exactly what
+# left a real submission (project 4638, 2026-09-09) stuck at
+# status="Submitted" forever with no instructor_feedback, no error-log
+# entry, and no server-log trace of the request ever completing.
+# Bounding the whole call ourselves, comfortably under both edges' ceiling,
+# means a slow AI call can only ever end in an ordinary asyncio.TimeoutError
+# — a plain Exception subclass the code below already handles.
+_AUTO_REVIEW_TIMEOUT_S = 80
+
+
 async def _try_auto_ai_review(db: AsyncSession, project: Project) -> None:
     """Best-effort AI grading after a lesson project is submitted.
 
@@ -390,9 +415,32 @@ async def _try_auto_ai_review(db: AsyncSession, project: Project) -> None:
 
     try:
         from app.services.ai_review_service import run_ai_review_for_project
-        result = await run_ai_review_for_project(db, project, raise_on_error=False)
+        result = await asyncio.wait_for(
+            run_ai_review_for_project(db, project, raise_on_error=False),
+            timeout=_AUTO_REVIEW_TIMEOUT_S,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "[ai-auto] project=%s timed out after %ss", project.id, _AUTO_REVIEW_TIMEOUT_S
+        )
+        # The cancelled call may have been mid-write (run_ai_review_for_project
+        # commits its own writes) — never assume the session is still clean.
+        # rollback() expires every object on the session, `project` included
+        # — the plain `project.reviewed_at` touch just below can't lazily
+        # reload an expired attribute on an AsyncSession (that raises
+        # MissingGreenlet, not a silent implicit fetch), so refresh() has to
+        # bring it back to a loaded state before anything reads from it again.
+        await db.rollback()
+        await db.refresh(project)
+        result = {
+            "success": False,
+            "reason": "AI baholash vaqtincha ishlamayapti (juda uzoq davom etdi). "
+                      "O'qituvchi loyihangizni tez orada baholaydi.",
+        }
     except Exception as e:
         logger.warning("[ai-auto] project=%s unhandled error: %s", project.id, e)
+        await db.rollback()
+        await db.refresh(project)
         result = {
             "success": False,
             "reason": "AI baholash vaqtincha ishlamayapti. "
