@@ -1,6 +1,6 @@
 """One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
 modules covering literacy/math/logic/creative (each a first pass, left
-unpublished pending real media), plus 11 complete, published packs that use
+unpublished pending real media), plus 12 complete, published packs that use
 emoji-first, icon-based content instead of image assets: 6 tap-to-match
 ("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
 "Transport olami" / "Rang olami" / "Dengiz olami", content.mode="select"), 1
@@ -9,10 +9,11 @@ content.mode="build"), 1 trace-the-outline ("Chizib o'rganamiz" — 5 shapes,
 content.mode="trace"), 1 arrow-pathfinding maze pack ("Yo'lni topamiz" —
 3 difficulty levels, content.mode="maze"), 1 memory/pairs-matching pack
 ("Juftlarni topamiz" — flip cards to find matching pairs,
-content.mode="pairs"), and 1 tap-to-count pack ("Sanashni o'rganamiz" — 6
-rounds, 1-10, content.mode="count"). See project_student_platform memory /
-early_learning.py for the model design rationale (no AI grading, star-based
-completion instead of points).
+content.mode="pairs"), 1 tap-to-count pack ("Sanashni o'rganamiz" — 6
+rounds, 1-10, content.mode="count"), and 1 sort-into-bins pack ("Mevami,
+sabzavotmi?" — 8 items into 2 bins, content.mode="sort"). See
+project_student_platform memory / early_learning.py for the model design
+rationale (no AI grading, star-based completion instead of points).
 
 Every module/activity/item is authored in Uzbek first (title/description/
 instruction_text/label — matches EarlyModule.source_lang's default) with a
@@ -123,14 +124,18 @@ ITEM_EMOJI = {
 
 
 def _with_emoji(content: dict) -> dict:
-    """Inject `emoji` into every item of a mode="select" or mode="pairs"
+    """Inject `emoji` into every item of a mode="select"/"pairs"/"sort"
     content dict, looked up from ITEM_EMOJI by id. No-op for any other
-    content shape."""
+    content shape. mode="sort"'s `bins` are deliberately excluded — a bin
+    id ("fruit"/"veg") isn't an individual ITEM_EMOJI entry, its emoji is
+    authored inline in MODULES instead."""
     mode = content.get("mode")
     if mode == "select":
         keys = ("correct_items", "distractor_items")
     elif mode == "pairs":
         keys = ("cards",)
+    elif mode == "sort":
+        keys = ("items",)
     else:
         return content
     for key in keys:
@@ -1510,6 +1515,53 @@ MODULES = [
                         {"emoji": "🎈", "count": 2, "options": [1, 2, 3, 4]},
                         {"emoji": "🚗", "count": 6, "options": [4, 5, 6, 7]},
                         {"emoji": "🐟", "count": 9, "options": [7, 8, 9, 10]},
+                    ],
+                },
+            },
+        ],
+    },
+    {
+        # Sort-into-bins — the first pack using content.mode="sort". Input
+        # is tap-item-then-tap-bin rather than a true pointer-drag (the
+        # only sibling using real drag is BuildActivity.js, for a 1:1
+        # piece-to-slot fit) — a two-step tap is more reliable across touch
+        # devices for "which of N buckets does this belong to" and matches
+        # the platform's dominant interaction pattern anyway (every other
+        # sibling but Build is tap-based). See SortActivity.js.
+        "title": "Mevami, sabzavotmi?",
+        "title_ru": "Фрукт или овощ?",
+        "description": "Har bir narsani to'g'ri qutiga joylashtir.",
+        "description_ru": "Помести каждый предмет в правильную коробку.",
+        "subject": EarlySubject.logic,
+        "icon_emoji": "🗂️",
+        "color_accent": "#8E5B3C",
+        "display_order": 13,
+        "age_min": 5,
+        "age_max": 8,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Meva va sabzavotlar",
+                "title_ru": "Фрукты и овощи",
+                "activity_type": EarlyActivityType.sort,
+                "instruction_text": "Har bir narsani to'g'ri qutiga bos.",
+                "instruction_text_ru": "Нажми, чтобы поместить каждый предмет в правильную коробку.",
+                "content": {
+                    "mode": "sort",
+                    "character": {"emoji": "🗂️", "label": "Saralaymiz", "label_ru": "Сортируем"},
+                    "bins": [
+                        {"id": "fruit", "label": "Mevalar", "label_ru": "Фрукты", "emoji": "🍎"},
+                        {"id": "veg", "label": "Sabzavotlar", "label_ru": "Овощи", "emoji": "🥕"},
+                    ],
+                    "items": [
+                        {"id": "apple", "label": "Olma", "label_ru": "Яблоко", "bin": "fruit"},
+                        {"id": "banana", "label": "Banan", "label_ru": "Банан", "bin": "fruit"},
+                        {"id": "strawberry", "label": "Qulupnay", "label_ru": "Клубника", "bin": "fruit"},
+                        {"id": "cherry", "label": "Gilos", "label_ru": "Вишня", "bin": "fruit"},
+                        {"id": "carrot", "label": "Sabzi", "label_ru": "Морковь", "bin": "veg"},
+                        {"id": "cabbage", "label": "Karam", "label_ru": "Капуста", "bin": "veg"},
+                        {"id": "broccoli", "label": "Brokkoli", "label_ru": "Брокколи", "bin": "veg"},
+                        {"id": "cucumber", "label": "Bodring", "label_ru": "Огурец", "bin": "veg"},
                     ],
                 },
             },

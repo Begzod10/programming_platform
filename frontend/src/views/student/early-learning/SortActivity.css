@@ -1,0 +1,161 @@
+.so-page {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 28px 24px 40px;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    animation: so-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes so-island-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+
+.so-character-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.so-character-emoji { font-size: 3.2rem; line-height: 1; }
+.so-character-header h2 { margin: 0; font-size: 1.3rem; font-weight: 800; color: #1f2937; text-align: center; }
+
+.so-instruction {
+    margin: 0 0 18px;
+    color: #6b7280;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+/* The drop targets. Dashed border reads as "empty container waiting for
+   something" even before a kid has picked an item up — .so-bin-receiving
+   (a real button state, not just decorative) makes that invitation
+   explicit once an item is actually selected and has somewhere to go. */
+.so-bins {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 22px;
+}
+
+.so-bin {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 140px;
+    min-height: 110px;
+    padding: 14px 18px;
+    border: 2px dashed rgba(108, 92, 231, 0.35);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s, transform 0.15s;
+}
+
+.so-bin:disabled { cursor: default; }
+
+.so-bin-receiving {
+    border-style: solid;
+    border-color: #6c5ce7;
+    background: rgba(108, 92, 231, 0.08);
+    animation: so-bin-pulse 1s ease-in-out infinite;
+}
+
+@keyframes so-bin-pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.03); }
+}
+
+.so-bin-wrong {
+    border-style: solid;
+    border-color: #ef4444;
+    background: #fef2f2;
+    animation: so-bin-shake 0.4s ease;
+}
+
+@keyframes so-bin-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+}
+
+.so-bin-emoji { font-size: 2rem; line-height: 1; }
+.so-bin-label { font-weight: 800; color: #1f2937; font-size: 0.95rem; }
+
+.so-bin-placed {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px;
+    min-height: 1.4rem;
+}
+
+.so-bin-placed-emoji { font-size: 1.1rem; line-height: 1; }
+
+/* The unsorted tray — same "grid of tappable cards" shape as BuildActivity
+   .ba-piece, reused here (own prefix) rather than shared, since the two
+   screens' cards differ in what happens on tap (pick-up-to-drag there vs.
+   select-then-tap-a-bin here). */
+.so-tray {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+}
+
+.so-item {
+    background: #fff;
+    border: 2px solid #eef0f4;
+    border-radius: 18px;
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: #374151;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.so-item:hover:not(:disabled) {
+    transform: translateY(-3px);
+    border-color: #99e6de;
+    box-shadow: 0 10px 22px rgba(15, 118, 110, 0.14);
+}
+
+.so-item:disabled { cursor: default; opacity: 0.7; }
+
+.so-item-selected {
+    border-color: #6c5ce7;
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.25);
+    transform: translateY(-3px);
+}
+
+.so-item-emoji { font-size: 1.8rem; line-height: 1; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.12)); }
+.so-item-label { font-size: 0.78rem; font-weight: 600; text-align: center; }
+
+@media (max-width: 480px) {
+    .so-page { padding: 20px 16px 28px; border-radius: 24px; }
+    .so-bin { min-width: 120px; min-height: 96px; padding: 10px 12px; }
+    .so-tray { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+}
+
+@media (max-height: 500px) {
+    .so-page { padding: 16px 20px 20px; }
+    .so-character-header { margin-bottom: 2px; }
+    .so-character-emoji { font-size: 2.2rem; }
+    .so-instruction { margin-bottom: 10px; }
+    .so-bins { margin-bottom: 12px; }
+    .so-bin { min-height: 80px; padding: 8px 12px; }
+}

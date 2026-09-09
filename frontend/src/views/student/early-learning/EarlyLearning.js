@@ -9,6 +9,7 @@ import TraceActivity from './TraceActivity';
 import MazeActivity from './MazeActivity';
 import PairsActivity from './PairsActivity';
 import CountActivity from './CountActivity';
+import SortActivity from './SortActivity';
 import LangToggle from './LangToggle';
 import { applyGuestModuleStars, applyGuestActivityStars } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy } from 'lucide-react';
@@ -188,8 +189,9 @@ export default function EarlyLearning({ guest = false }) {
             // to a flag via arrow taps (MazeActivity.js), "pairs" flips
             // cards to find matches (PairsActivity.js), "count" taps the
             // number matching how many items you see (CountActivity.js),
-            // anything else (the shipped "select" mode, or an activity
-            // with no mode yet) taps items out of a pool
+            // "sort" taps an item then taps the bin it belongs in
+            // (SortActivity.js), anything else (the shipped "select" mode,
+            // or an activity with no mode yet) taps items out of a pool
             // (MatchingActivity.js, the original/default game).
             const mode = activity.content?.mode;
             const ActivityScreen =
@@ -198,6 +200,7 @@ export default function EarlyLearning({ guest = false }) {
                 mode === 'maze' ? MazeActivity :
                 mode === 'pairs' ? PairsActivity :
                 mode === 'count' ? CountActivity :
+                mode === 'sort' ? SortActivity :
                 MatchingActivity;
             return (
                 <div className="el-shell">
