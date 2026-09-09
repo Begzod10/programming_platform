@@ -1,6 +1,6 @@
 """One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
 modules covering literacy/math/logic/creative (each a first pass, left
-unpublished pending real media), plus 12 complete, published packs that use
+unpublished pending real media), plus 13 complete, published packs that use
 emoji-first, icon-based content instead of image assets: 6 tap-to-match
 ("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
 "Transport olami" / "Rang olami" / "Dengiz olami", content.mode="select"), 1
@@ -10,10 +10,12 @@ content.mode="trace"), 1 arrow-pathfinding maze pack ("Yo'lni topamiz" —
 3 difficulty levels, content.mode="maze"), 1 memory/pairs-matching pack
 ("Juftlarni topamiz" — flip cards to find matching pairs,
 content.mode="pairs"), 1 tap-to-count pack ("Sanashni o'rganamiz" — 6
-rounds, 1-10, content.mode="count"), and 1 sort-into-bins pack ("Mevami,
-sabzavotmi?" — 8 items into 2 bins, content.mode="sort"). See
-project_student_platform memory / early_learning.py for the model design
-rationale (no AI grading, star-based completion instead of points).
+rounds, 1-10, content.mode="count"), 1 sort-into-bins pack ("Mevami,
+sabzavotmi?" — 8 items into 2 bins, content.mode="sort"), and 1
+step-ordering pack ("Kun tartibi" — a 4-step morning routine,
+content.mode="sequence"). See project_student_platform memory /
+early_learning.py for the model design rationale (no AI grading, star-based
+completion instead of points).
 
 Every module/activity/item is authored in Uzbek first (title/description/
 instruction_text/label — matches EarlyModule.source_lang's default) with a
@@ -1562,6 +1564,47 @@ MODULES = [
                         {"id": "cabbage", "label": "Karam", "label_ru": "Капуста", "bin": "veg"},
                         {"id": "broccoli", "label": "Brokkoli", "label_ru": "Брокколи", "bin": "veg"},
                         {"id": "cucumber", "label": "Bodring", "label_ru": "Огурец", "bin": "veg"},
+                    ],
+                },
+            },
+        ],
+    },
+    {
+        # Step ordering — the first pack using content.mode="sequence".
+        # `steps` is authored in the CORRECT order (the answer key); the
+        # frontend shuffles it for display. Input is tap-in-order rather
+        # than a true drag-to-reorder, same "tap is more reliable on touch
+        # than drag" reasoning as SortActivity.js — the kid taps whichever
+        # tile they believe comes next; a correct tap locks into the next
+        # open slot, a wrong one just shakes and waits for another try
+        # (nothing moves), so there's no drag-cancel/reorder-mid-gesture
+        # edge case to get wrong. See SequenceActivity.js.
+        "title": "Kun tartibi",
+        "title_ru": "Распорядок дня",
+        "description": "Voqealarni to'g'ri tartibda joylashtir.",
+        "description_ru": "Расставь события в правильном порядке.",
+        "subject": EarlySubject.logic,
+        "icon_emoji": "📋",
+        "color_accent": "#5B8DEF",
+        "display_order": 14,
+        "age_min": 5,
+        "age_max": 8,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Ertalabki tartib",
+                "title_ru": "Утренний распорядок",
+                "activity_type": EarlyActivityType.sequence,
+                "instruction_text": "Ertalab nima qilishimiz kerak? To'g'ri tartibda bos.",
+                "instruction_text_ru": "Что мы делаем утром? Нажимай в правильном порядке.",
+                "content": {
+                    "mode": "sequence",
+                    "character": {"emoji": "📋", "label": "Tartibga solamiz", "label_ru": "Расставим по порядку"},
+                    "steps": [
+                        {"id": "wake", "emoji": "⏰", "label": "Uyg'onish", "label_ru": "Просыпаемся"},
+                        {"id": "brush", "emoji": "🪥", "label": "Tish yuvish", "label_ru": "Чистим зубы"},
+                        {"id": "dress", "emoji": "👕", "label": "Kiyinish", "label_ru": "Одеваемся"},
+                        {"id": "eat", "emoji": "🍳", "label": "Nonushta qilish", "label_ru": "Завтракаем"},
                     ],
                 },
             },

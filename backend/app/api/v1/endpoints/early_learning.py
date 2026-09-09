@@ -76,17 +76,18 @@ _LOCALIZED_ITEM_KEYS = {
     # bins they land in (a bin's own label is user-facing text too, e.g.
     # "Mevalar"/"Фрукты" on the drop target itself).
     "sort": ("items", "bins"),
+    "sequence": ("steps",),
 }
 
 
 def _localize_content(content: dict, lang: str) -> dict:
     """Only mode="select" (tap-to-match), mode="build" (drag-to-assemble),
     mode="trace" (trace-the-outline), mode="maze" (arrow pathfinding),
-    mode="pairs" (memory/pairs matching), mode="count" (tap-to-count) and
-    mode="sort" (sort-into-bins) carry translations today — any other
-    content shape (the draft literacy/math/creative modules) just renders
-    in uz regardless of `lang` until it gets its own translation pass;
-    that's a content gap, not a bug.
+    mode="pairs" (memory/pairs matching), mode="count" (tap-to-count),
+    mode="sort" (sort-into-bins) and mode="sequence" (step ordering) carry
+    translations today — any other content shape (the draft literacy/
+    math/creative modules) just renders in uz regardless of `lang` until
+    it gets its own translation pass; that's a content gap, not a bug.
     """
     mode = content.get("mode")
     item_keys = _LOCALIZED_ITEM_KEYS.get(mode)

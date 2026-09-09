@@ -1,0 +1,156 @@
+.sq-page {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 28px 24px 40px;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    animation: sq-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes sq-island-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+
+.sq-character-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.sq-character-emoji { font-size: 3.2rem; line-height: 1; }
+.sq-character-header h2 { margin: 0; font-size: 1.3rem; font-weight: 800; color: #1f2937; text-align: center; }
+
+.sq-instruction {
+    margin: 0 0 20px;
+    color: #6b7280;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+/* The sequence being built, left to right. Numbered so the "which
+   position am I filling next" question never depends on remembering —
+   the number is right there on every slot, filled or not. */
+.sq-slots {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 26px;
+}
+
+.sq-slot {
+    position: relative;
+    width: 68px;
+    height: 68px;
+    border: 2px dashed rgba(91, 141, 239, 0.4);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.sq-slot-num {
+    position: absolute;
+    top: -9px;
+    left: -9px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #5b8def;
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sq-slot-emoji { font-size: 1.8rem; line-height: 1; }
+
+.sq-slot-filled {
+    border-style: solid;
+    border-color: #10b981;
+    background: #ecfdf5;
+    animation: sq-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes sq-pop {
+    0%   { transform: scale(0.7); }
+    70%  { transform: scale(1.12); }
+    100% { transform: scale(1); }
+}
+
+/* The unplaced tray — same "grid of tappable cards" shape as
+   BuildActivity's .ba-piece / SortActivity's .so-item, reused here (own
+   prefix) since interaction differs per screen (drag-to-slot there,
+   select-then-tap-bin there, tap-in-order here). */
+.sq-tray {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 12px;
+}
+
+.sq-item {
+    background: #fff;
+    border: 2px solid #eef0f4;
+    border-radius: 18px;
+    padding: 12px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    color: #374151;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.sq-item:hover:not(:disabled) {
+    transform: translateY(-3px);
+    border-color: #99e6de;
+    box-shadow: 0 10px 22px rgba(15, 118, 110, 0.14);
+}
+
+.sq-item:disabled { cursor: default; opacity: 0.7; }
+
+.sq-item-wrong {
+    background: #fef2f2;
+    border-color: #fca5a5;
+    animation: sq-shake 0.4s ease;
+}
+
+@keyframes sq-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+}
+
+.sq-item-emoji { font-size: 1.8rem; line-height: 1; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.12)); }
+.sq-item-label { font-size: 0.78rem; font-weight: 600; text-align: center; }
+
+@media (max-width: 480px) {
+    .sq-page { padding: 20px 16px 28px; border-radius: 24px; }
+    .sq-slot { width: 56px; height: 56px; }
+    .sq-tray { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+}
+
+@media (max-height: 500px) {
+    .sq-page { padding: 16px 20px 20px; }
+    .sq-character-header { margin-bottom: 2px; }
+    .sq-character-emoji { font-size: 2.2rem; }
+    .sq-instruction { margin-bottom: 10px; }
+    .sq-slots { margin-bottom: 14px; }
+    .sq-slot { width: 50px; height: 50px; }
+    .sq-slot-emoji { font-size: 1.4rem; }
+}
