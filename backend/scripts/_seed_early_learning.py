@@ -90,7 +90,14 @@ ITEM_EMOJI = {
     "construction": "🚧", "shovel": "⛏️",
     "microscope": "🔬", "flask": "⚗️", "test_tube": "🧪", "atom": "⚛️",
     "telescope": "🔭", "magnet": "🧲",
-    "laptop": "💻", "keyboard": "⌨️", "monitor": "🖥️", "code": "👨‍💻", "cpu": "🔌", "terminal": "🖱️",
+    # cpu/terminal: no literal "chip"/"command-line" emoji exists with wide
+    # support, so these lean on kid-recognizable analogies instead of the
+    # previous plug/mouse-cursor picks (which read as wrong, not just
+    # imperfect, per the 2026-09-09 translation audit) — 🧠 is the common
+    # "the processor is the computer's brain" teaching metaphor, 🧮 keeps a
+    # distinct computing/counting silhouette that doesn't collide with any
+    # other item in the same "Dasturchi" activity.
+    "laptop": "💻", "keyboard": "⌨️", "monitor": "🖥️", "code": "👨‍💻", "cpu": "🧠", "terminal": "🧮",
     "graduation_cap": "🎓", "textbook": "📚", "pen_tool": "🖊️", "pencil": "✏️",
     "backpack": "🎒", "apple": "🍎",
     "shield": "🛡️", "badge": "🎖️", "siren": "🚨", "car": "🚓",
@@ -430,7 +437,7 @@ MODULES = [
                         {"id": "cog", "label": "Tishli g'ildirak", "label_ru": "Шестерёнка", "icon": "Cog"},
                         {"id": "battery", "label": "Akkumulyator", "label_ru": "Аккумулятор", "icon": "BatteryCharging"},
                         {"id": "truck", "label": "Yuk mashinasi", "label_ru": "Грузовик", "icon": "Truck"},
-                        {"id": "gauge", "label": "O'lchagich", "label_ru": "Прибор измерения", "icon": "Gauge"},
+                        {"id": "gauge", "label": "O'lchagich", "label_ru": "Измерительный прибор", "icon": "Gauge"},
                         {"id": "toolbox", "label": "Asboblar qutisi", "label_ru": "Ящик с инструментами", "icon": "Toolbox"},
                     ],
                     "distractor_items": [
@@ -667,7 +674,7 @@ MODULES = [
                     "character": {"emoji": "❄️", "label": "Qish", "label_ru": "Зима"},
                     "correct_items": [
                         {"id": "snowflake", "label": "Qor parchasi", "label_ru": "Снежинка", "icon": "Snowflake"},
-                        {"id": "cold_thermometer", "label": "Sovuq termometri", "label_ru": "Термометр холода", "icon": "ThermometerSnowflake"},
+                        {"id": "cold_thermometer", "label": "Sovuq termometri", "label_ru": "Холодный термометр", "icon": "ThermometerSnowflake"},
                         {"id": "gift", "label": "Sovg'a", "label_ru": "Подарок", "icon": "Gift"},
                         {"id": "tree_pine", "label": "Archa", "label_ru": "Ель", "icon": "TreePine"},
                         {"id": "cloud_snow", "label": "Qorli bulut", "label_ru": "Снежное облако", "icon": "CloudSnow"},
@@ -1158,7 +1165,7 @@ MODULES = [
     # the module would publish that broken stub too.
     {
         "title": "Chizib o'rganamiz",
-        "title_ru": "Учимся, рисуя",
+        "title_ru": "Учимся рисовать",
         "description": "Barmog'ing bilan shakllarni chiz.",
         "description_ru": "Обводи фигуры пальцем.",
         "subject": EarlySubject.motor,
