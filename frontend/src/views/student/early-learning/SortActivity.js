@@ -4,7 +4,7 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
-import { shuffle, starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
+import { shuffle, starsForWrongCount, WRONG_FLASH_MS, STREAK_THRESHOLD, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
 /** One "which box does this belong in?" round. activity.content shape
@@ -39,6 +39,8 @@ export default function SortActivity({ activity, onBack, onComplete, lang, toggl
     const [sortedIds, setSortedIds] = useState(() => new Set());
     const [wrongCount, setWrongCount] = useState(0);
     const [shakeBinId, setShakeBinId] = useState(null); // { token, binId } | null
+    const [, setStreak] = useState(0); // consecutive correct placements, resets on any wrong bin — see STREAK_THRESHOLD's doc comment in earlyLearningUtils.js
+    const [streakFlash, setStreakFlash] = useState(null); // { token, count } | null
     const [celebration, setCelebration] = useState(null);
     const [submitting, setSubmitting] = useState(false);
 
@@ -66,12 +68,27 @@ export default function SortActivity({ activity, onBack, onComplete, lang, toggl
         if (!item) return;
 
         if (item.bin === bin.id) {
-            playSynth('chime');
+            // See STREAK_THRESHOLD's doc comment — a brighter "coin" cue on
+            // every Nth correct placement instead of the usual chime,
+            // purely presentational (wrongCount/scoring untouched).
+            setStreak((s) => {
+                const next = s + 1;
+                if (next % STREAK_THRESHOLD === 0) {
+                    playSynth('coin');
+                    const token = Date.now();
+                    setStreakFlash({ token, count: next });
+                    setTimeout(() => setStreakFlash((f) => (f?.token === token ? null : f)), 900);
+                } else {
+                    playSynth('chime');
+                }
+                return next;
+            });
             setPlacedByBin((prev) => ({ ...prev, [bin.id]: [...(prev[bin.id] || []), item] }));
             setSortedIds((prev) => new Set(prev).add(item.id));
             setSelectedId(null);
         } else {
             playSynth('laser');
+            setStreak(0);
             setWrongCount((c) => c + 1);
             setSelectedId(null);
             const token = Date.now();
@@ -115,6 +132,12 @@ export default function SortActivity({ activity, onBack, onComplete, lang, toggl
             </div>
 
             {activity.instruction_text && <p className="so-instruction">{activity.instruction_text}</p>}
+
+            {streakFlash && (
+                <div className="so-streak-badge" key={streakFlash.token}>
+                    🔥 {streakFlash.count}!
+                </div>
+            )}
 
             <div className="so-bins">
                 {bins.map((bin) => {

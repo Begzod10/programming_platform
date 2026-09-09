@@ -18,10 +18,10 @@ export function shuffle(arr) {
 }
 
 /** Consecutive-correct-tap threshold for the little "streak" flourish (a
- * brighter sound + a fleeting "🔥 N!" badge) used by MatchingActivity.js
- * and CountActivity.js — the two screens where every tap gives the exact
- * same feedback regardless of how well the round is going, which read
- * flattest in the 2026-09-09 mechanic review. Picked at 3: frequent enough
+ * brighter sound + a fleeting "🔥 N!" badge) used by MatchingActivity.js,
+ * CountActivity.js, and SortActivity.js — screens where every tap gives
+ * the exact same feedback regardless of how well the round is going,
+ * which read flattest in the 2026-09-09 mechanic review. Picked at 3: frequent enough
  * to land at least once in a typical 6-8 item round, not so frequent it
  * fires on every other tap and stops feeling like a bonus. Purely a
  * presentation layer — never touches wrongCount/starsForWrongCount, so

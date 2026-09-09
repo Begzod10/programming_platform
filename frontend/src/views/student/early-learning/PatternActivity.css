@@ -42,16 +42,21 @@
     text-align: center;
 }
 
-/* The pattern strip itself — a fixed row (never wraps, so the repeating
-   rhythm the kid needs to read stays a single visual line) ending in the
-   "?" blank slot, which gets its own distinct dashed styling so it reads
-   as "the thing you're solving for", not just one more pattern cell. */
+/* The pattern strip itself — wraps onto a second line rather than
+   scrolling. An earlier version kept this a fixed nowrap row with
+   overflow-x: auto so the repeating rhythm stayed a single visual line,
+   but the longer rounds (8 items + the "?" blank = 9 cells) overflowed
+   .pt-scene's own max-width well before the container did, leaving a
+   horizontal scrollbar hiding the blank slot itself — a kid has no reason
+   to think to scroll sideways inside a card. Wrapping keeps every cell
+   reachable with no extra gesture; the "?" blank still gets its own
+   distinct dashed styling so it reads as "the thing you're solving for",
+   not just one more pattern cell. */
 .pt-scene {
     display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
     gap: 10px;
     width: 100%;
     max-width: 480px;

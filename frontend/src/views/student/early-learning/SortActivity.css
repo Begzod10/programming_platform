@@ -37,6 +37,32 @@
     text-align: center;
 }
 
+/* Streak bonus badge — same idea as MatchingActivity.css's .ma-streak-badge
+   (see STREAK_THRESHOLD's doc comment in earlyLearningUtils.js), warm and
+   self-clearing rather than a persistent UI element. */
+.so-streak-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+    background: linear-gradient(90deg, #fef3c7, #fed7aa);
+    color: #9a3412;
+    border-radius: 999px;
+    padding: 8px 20px;
+    font-weight: 800;
+    font-size: 1rem;
+    width: fit-content;
+    animation: so-streak-pop 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes so-streak-pop {
+    0%   { opacity: 0; transform: scale(0.7) translateY(-6px); }
+    20%  { opacity: 1; transform: scale(1.1)  translateY(0); }
+    35%  { transform: scale(1); }
+    80%  { opacity: 1; }
+    100% { opacity: 0; transform: scale(1) translateY(-4px); }
+}
+
 /* The drop targets. Dashed border reads as "empty container waiting for
    something" even before a kid has picked an item up — .so-bin-receiving
    (a real button state, not just decorative) makes that invitation
