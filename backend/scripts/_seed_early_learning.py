@@ -1,6 +1,6 @@
 """One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
 modules covering literacy/math/logic/creative (each a first pass, left
-unpublished pending real media), plus 13 complete, published packs that use
+unpublished pending real media), plus 14 complete, published packs that use
 emoji-first, icon-based content instead of image assets: 6 tap-to-match
 ("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
 "Transport olami" / "Rang olami" / "Dengiz olami", content.mode="select"), 1
@@ -11,9 +11,10 @@ content.mode="trace"), 1 arrow-pathfinding maze pack ("Yo'lni topamiz" —
 ("Juftlarni topamiz" — flip cards to find matching pairs,
 content.mode="pairs"), 1 tap-to-count pack ("Sanashni o'rganamiz" — 6
 rounds, 1-10, content.mode="count"), 1 sort-into-bins pack ("Mevami,
-sabzavotmi?" — 8 items into 2 bins, content.mode="sort"), and 1
-step-ordering pack ("Kun tartibi" — a 4-step morning routine,
-content.mode="sequence"). See project_student_platform memory /
+sabzavotmi?" — 8 items into 2 bins, content.mode="sort"), 1 step-ordering
+pack ("Kun tartibi" — a 4-step morning routine, content.mode="sequence"),
+and 1 pattern-completion pack ("Naqshni davom ettiramiz" — 6 what-comes-next
+rounds, content.mode="pattern"). See project_student_platform memory /
 early_learning.py for the model design rationale (no AI grading, star-based
 completion instead of points).
 
@@ -1605,6 +1606,47 @@ MODULES = [
                         {"id": "brush", "emoji": "🪥", "label": "Tish yuvish", "label_ru": "Чистим зубы"},
                         {"id": "dress", "emoji": "👕", "label": "Kiyinish", "label_ru": "Одеваемся"},
                         {"id": "eat", "emoji": "🍳", "label": "Nonushta qilish", "label_ru": "Завтракаем"},
+                    ],
+                },
+            },
+        ],
+    },
+    {
+        # Pattern completion — the first pack using content.mode="pattern".
+        # `sequence` is shown exactly as authored (already in its repeating
+        # order) with a "?" blank at the end; the kid taps whichever option
+        # emoji continues the rhythm. No per-item labels anywhere in this
+        # shape — sequence/answer/options are all bare emoji, like count's
+        # bare numbers (see _LOCALIZED_ITEM_KEYS's "pattern": () in
+        # early_learning.py). See PatternActivity.js.
+        "title": "Naqshni davom ettiramiz",
+        "title_ru": "Продолжаем узор",
+        "description": "Naqshni o'rgan va davomini top.",
+        "description_ru": "Изучи узор и найди его продолжение.",
+        "subject": EarlySubject.logic,
+        "icon_emoji": "🧩",
+        "color_accent": "#7C4DFF",
+        "display_order": 15,
+        "age_min": 5,
+        "age_max": 8,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Keyingisi qaysi?",
+                "title_ru": "Что дальше?",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Naqshga qara va uni davom ettiradigan belgini bos.",
+                "instruction_text_ru": "Посмотри на узор и нажми на значок, который его продолжает.",
+                "content": {
+                    "mode": "pattern",
+                    "character": {"emoji": "🧩", "label": "Naqshni topamiz", "label_ru": "Находим узор"},
+                    "rounds": [
+                        {"sequence": ["🍎", "🔵", "🍎", "🔵", "🍎", "🔵", "🍎"], "answer": "🔵", "options": ["🔵", "🍎", "🟢"]},
+                        {"sequence": ["⭐", "🎈", "⭐", "🎈", "⭐"], "answer": "🎈", "options": ["🎈", "⭐", "🌙"]},
+                        {"sequence": ["🔺", "🔺", "🔵", "🔺", "🔺", "🔵", "🔺", "🔺"], "answer": "🔵", "options": ["🔵", "🔺", "🟢"]},
+                        {"sequence": ["🐶", "🐱", "🐶", "🐱", "🐶"], "answer": "🐱", "options": ["🐱", "🐶", "🐰"]},
+                        {"sequence": ["🟥", "🟨", "🟦", "🟥", "🟨", "🟦", "🟥", "🟨"], "answer": "🟦", "options": ["🟦", "🟥", "🟨"]},
+                        {"sequence": ["🍎", "🍎", "🍏", "🍎", "🍎", "🍏", "🍎", "🍎"], "answer": "🍏", "options": ["🍏", "🍎", "🍊"]},
                     ],
                 },
             },

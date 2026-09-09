@@ -77,6 +77,9 @@ _LOCALIZED_ITEM_KEYS = {
     # "Mevalar"/"Фрукты" on the drop target itself).
     "sort": ("items", "bins"),
     "sequence": ("steps",),
+    # pattern is another emoji-only shape like count — sequence/answer/
+    # options are all bare emoji, nothing to swap per-item.
+    "pattern": (),
 }
 
 
@@ -84,10 +87,11 @@ def _localize_content(content: dict, lang: str) -> dict:
     """Only mode="select" (tap-to-match), mode="build" (drag-to-assemble),
     mode="trace" (trace-the-outline), mode="maze" (arrow pathfinding),
     mode="pairs" (memory/pairs matching), mode="count" (tap-to-count),
-    mode="sort" (sort-into-bins) and mode="sequence" (step ordering) carry
-    translations today — any other content shape (the draft literacy/
-    math/creative modules) just renders in uz regardless of `lang` until
-    it gets its own translation pass; that's a content gap, not a bug.
+    mode="sort" (sort-into-bins), mode="sequence" (step ordering) and
+    mode="pattern" (what-comes-next) carry translations today — any other
+    content shape (the draft literacy/math/creative modules) just renders
+    in uz regardless of `lang` until it gets its own translation pass;
+    that's a content gap, not a bug.
     """
     mode = content.get("mode")
     item_keys = _LOCALIZED_ITEM_KEYS.get(mode)

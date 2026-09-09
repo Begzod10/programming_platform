@@ -11,6 +11,7 @@ import PairsActivity from './PairsActivity';
 import CountActivity from './CountActivity';
 import SortActivity from './SortActivity';
 import SequenceActivity from './SequenceActivity';
+import PatternActivity from './PatternActivity';
 import LangToggle from './LangToggle';
 import { applyGuestModuleStars, applyGuestActivityStars } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy } from 'lucide-react';
@@ -192,9 +193,11 @@ export default function EarlyLearning({ guest = false }) {
             // number matching how many items you see (CountActivity.js),
             // "sort" taps an item then taps the bin it belongs in
             // (SortActivity.js), "sequence" taps steps in the right order
-            // (SequenceActivity.js), anything else (the shipped "select"
-            // mode, or an activity with no mode yet) taps items out of a
-            // pool (MatchingActivity.js, the original/default game).
+            // (SequenceActivity.js), "pattern" taps the emoji that
+            // continues a repeating pattern (PatternActivity.js), anything
+            // else (the shipped "select" mode, or an activity with no mode
+            // yet) taps items out of a pool (MatchingActivity.js, the
+            // original/default game).
             const mode = activity.content?.mode;
             const ActivityScreen =
                 mode === 'trace' ? TraceActivity :
@@ -204,6 +207,7 @@ export default function EarlyLearning({ guest = false }) {
                 mode === 'count' ? CountActivity :
                 mode === 'sort' ? SortActivity :
                 mode === 'sequence' ? SequenceActivity :
+                mode === 'pattern' ? PatternActivity :
                 MatchingActivity;
             return (
                 <div className="el-shell">

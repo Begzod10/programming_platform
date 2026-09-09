@@ -1,0 +1,160 @@
+.pt-page {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 28px 24px 40px;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    animation: pt-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+@keyframes pt-island-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+
+.pt-page .el-page-topbar { width: 100%; }
+
+.pt-character-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.pt-character-emoji { font-size: 3.2rem; line-height: 1; }
+.pt-character-header h2 { margin: 0; font-size: 1.3rem; font-weight: 800; color: #1f2937; text-align: center; }
+
+.pt-instruction {
+    margin: 0 0 18px;
+    color: #6b7280;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+/* The pattern strip itself — a fixed row (never wraps, so the repeating
+   rhythm the kid needs to read stays a single visual line) ending in the
+   "?" blank slot, which gets its own distinct dashed styling so it reads
+   as "the thing you're solving for", not just one more pattern cell. */
+.pt-scene {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto 22px;
+    padding: 18px;
+    background: #f0fdf4;
+    border-radius: 24px;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    box-shadow: inset 0 2px 12px rgba(30, 110, 64, 0.08);
+}
+
+.pt-cell {
+    flex: 0 0 auto;
+    font-size: clamp(1.6rem, 7vw, 2.2rem);
+    line-height: 1;
+    filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.12));
+}
+
+.pt-cell-blank {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.6em;
+    height: 1.6em;
+    border-radius: 14px;
+    border: 2px dashed rgba(91, 141, 239, 0.5);
+    background: rgba(255, 255, 255, 0.6);
+    filter: none;
+    color: #5b8def;
+    font-weight: 800;
+}
+
+.pt-options {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.pt-option-btn {
+    /* WCAG touch-target floor, and comfortably bigger than that by default
+       — these are the primary, only-thing-to-tap control on this screen. */
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+    width: 60px;
+    height: 60px;
+    border-radius: 18px;
+    border: none;
+    background: #ffffff;
+    font-size: 1.7rem;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(30, 64, 110, 0.14);
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s, opacity 0.15s;
+}
+
+.pt-option-btn:hover:not(:disabled) { transform: translateY(-2px); }
+.pt-option-btn:disabled { opacity: 0.6; cursor: default; }
+
+.pt-option-btn-wrong {
+    background: #fef2f2;
+    animation: pt-shake 0.4s ease;
+}
+
+@keyframes pt-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+}
+
+.pt-option-btn-correct {
+    background: #10b981;
+    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
+    animation: pt-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes pt-pop {
+    0%   { transform: scale(0.9); }
+    70%  { transform: scale(1.12); }
+    100% { transform: scale(1); }
+}
+
+.pt-progress {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #9ca3af;
+}
+
+@media (max-width: 480px) {
+    .pt-page { padding: 20px 16px 28px; border-radius: 24px; }
+    .pt-scene { padding: 14px; gap: 8px; }
+    .pt-option-btn { width: 52px; height: 52px; font-size: 1.4rem; }
+}
+
+/* Short viewports (landscape phones/tablets) — the scene is the single
+   biggest vertical element here, same reasoning as every sibling's own
+   max-height query. */
+@media (max-height: 500px) {
+    .pt-page { padding: 16px 20px 20px; }
+    .pt-character-header { margin-bottom: 2px; }
+    .pt-character-emoji { font-size: 2.2rem; }
+    .pt-instruction { margin-bottom: 8px; }
+    .pt-scene { padding: 10px; gap: 6px; margin-bottom: 12px; }
+    .pt-cell { font-size: clamp(1.2rem, 5vw, 1.6rem); }
+    .pt-option-btn { width: 46px; height: 46px; font-size: 1.2rem; }
+}
