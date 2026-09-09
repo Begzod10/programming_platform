@@ -4,7 +4,7 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
-import { shuffle, starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
+import { shuffle, starsForWrongCount, WRONG_FLASH_MS, STREAK_THRESHOLD, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
 // How long a correct tap stays highlighted before the round advances —
@@ -37,6 +37,8 @@ export default function CountActivity({ activity, onBack, onComplete, lang, togg
     const [flash, setFlash] = useState(null); // { token } | null — a just-tapped wrong number
     const [correctNum, setCorrectNum] = useState(null); // briefly set on a correct tap, before advancing
     const [locked, setLocked] = useState(false); // true during the correct-tap pause — blocks further taps
+    const [, setStreak] = useState(0); // consecutive correctly-solved rounds, resets on any wrong tap — only the setter is used, the count itself is read via streakFlash
+    const [streakFlash, setStreakFlash] = useState(null); // { token, count } | null
     const [celebration, setCelebration] = useState(null);
     const [submitting, setSubmitting] = useState(false);
 
@@ -57,7 +59,21 @@ export default function CountActivity({ activity, onBack, onComplete, lang, togg
         if (celebration !== null || submitting || locked || !round) return;
 
         if (num === round.count) {
-            playSynth('chime');
+            // See STREAK_THRESHOLD's doc comment — a brighter "coin" cue on
+            // every Nth correctly-solved round instead of the usual chime,
+            // purely presentational (wrongCount/scoring untouched).
+            setStreak((s) => {
+                const next = s + 1;
+                if (next % STREAK_THRESHOLD === 0) {
+                    playSynth('coin');
+                    const token = Date.now();
+                    setStreakFlash({ token, count: next });
+                    setTimeout(() => setStreakFlash((f) => (f?.token === token ? null : f)), 900);
+                } else {
+                    playSynth('chime');
+                }
+                return next;
+            });
             setLocked(true);
             setCorrectNum(num);
             setTimeout(() => {
@@ -72,6 +88,7 @@ export default function CountActivity({ activity, onBack, onComplete, lang, togg
             }, CORRECT_PULSE_MS);
         } else {
             playSynth('laser');
+            setStreak(0);
             setWrongCount((c) => c + 1);
             const token = Date.now();
             setFlash({ token, num });
@@ -116,6 +133,12 @@ export default function CountActivity({ activity, onBack, onComplete, lang, togg
             </div>
 
             {activity.instruction_text && <p className="ca-instruction">{activity.instruction_text}</p>}
+
+            {streakFlash && (
+                <div className="ca-streak-badge" key={streakFlash.token}>
+                    🔥 {streakFlash.count}!
+                </div>
+            )}
 
             <div className="ca-scene">
                 {Array.from({ length: round.count }, (_, i) => (

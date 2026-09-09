@@ -6,7 +6,7 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
-import { shuffle, starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
+import { shuffle, starsForWrongCount, WRONG_FLASH_MS, STREAK_THRESHOLD, recordGuestCompletion } from './earlyLearningUtils';
 
 /** Emoji is the primary visual — many kids this age (5-8) can't reliably
  * read yet, in either language, so a small monochrome lucide line-glyph
@@ -52,6 +52,8 @@ export default function MatchingActivity({ activity, onBack, onComplete, lang, t
     const [found, setFound] = useState(() => new Set());
     const [wrongCount, setWrongCount] = useState(0);
     const [flash, setFlash] = useState(null); // { id, message } | null
+    const [, setStreak] = useState(0); // consecutive correct taps, resets on any wrong tap — only the setter is used, the count itself is read via streakFlash
+    const [streakFlash, setStreakFlash] = useState(null); // { token, count } | null
     const [celebration, setCelebration] = useState(null); // stars earned, once round is done
     const [submitting, setSubmitting] = useState(false);
 
@@ -59,7 +61,21 @@ export default function MatchingActivity({ activity, onBack, onComplete, lang, t
         if (found.has(item.id) || celebration !== null) return;
 
         if (item.isCorrect) {
-            playSynth('chime');
+            // See STREAK_THRESHOLD's doc comment — a brighter "coin" cue on
+            // every Nth correct tap instead of the usual chime, purely
+            // presentational (wrongCount/scoring untouched).
+            setStreak((s) => {
+                const next = s + 1;
+                if (next % STREAK_THRESHOLD === 0) {
+                    playSynth('coin');
+                    const token = Date.now();
+                    setStreakFlash({ token, count: next });
+                    setTimeout(() => setStreakFlash((f) => (f?.token === token ? null : f)), 900);
+                } else {
+                    playSynth('chime');
+                }
+                return next;
+            });
             // Functional update — two correct taps landing in the same React
             // batch (an excited 5-8 year old double-tapping is routine) must
             // not both compute their `next` Set from the same stale `found`
@@ -71,6 +87,7 @@ export default function MatchingActivity({ activity, onBack, onComplete, lang, t
             });
         } else {
             playSynth('laser');
+            setStreak(0);
             setWrongCount((c) => c + 1);
             // Uzbek's postposition ("X" Y uchun mos emas) and Russian's
             // preposition (Ой! «X» не подходит для Y) put the character
@@ -135,6 +152,11 @@ export default function MatchingActivity({ activity, onBack, onComplete, lang, t
             </div>
 
             {flash && <div className="ma-error-banner">{flash.message}</div>}
+            {streakFlash && (
+                <div className="ma-streak-badge" key={streakFlash.token}>
+                    🔥 {streakFlash.count}!
+                </div>
+            )}
 
             <div className="ma-progress-bar">
                 <div className="ma-progress-fill" style={{ width: `${(found.size / totalCorrect) * 100}%` }} />
