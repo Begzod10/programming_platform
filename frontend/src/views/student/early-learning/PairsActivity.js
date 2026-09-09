@@ -45,6 +45,13 @@ export default function PairsActivity({ activity, onBack, onComplete, lang, togg
     const [flippedIds, setFlippedIds] = useState([]); // tileIds currently face-up, pending resolution (max 2)
     const [matchedCardIds, setMatchedCardIds] = useState(() => new Set());
     const [wrongCount, setWrongCount] = useState(0);
+    // tileIds of the current mismatched pair, shown red+shaking for the
+    // RESOLVE_MS window before both flip back down — every OTHER activity
+    // in this feature pairs a wrong answer with a visible shake/red flash,
+    // not just a sound; Pairs originally only played the 'laser' cue and
+    // silently reset, which a 5-8yo (or anyone with sound off/unnoticed)
+    // reads as "I tapped and nothing happened" — reported live 2026-09-09.
+    const [wrongTileIds, setWrongTileIds] = useState(() => new Set());
     const [resolving, setResolving] = useState(false); // true while a flipped pair is settling — blocks further taps
     const [celebration, setCelebration] = useState(null);
     const [submitting, setSubmitting] = useState(false);
@@ -83,8 +90,10 @@ export default function PairsActivity({ activity, onBack, onComplete, lang, togg
         } else {
             playSynth('laser');
             setWrongCount((c) => c + 1);
+            setWrongTileIds(new Set([firstTileId, secondTileId]));
             setTimeout(() => {
                 setFlippedIds([]);
+                setWrongTileIds(new Set());
                 setResolving(false);
             }, RESOLVE_MS);
         }
@@ -122,6 +131,13 @@ export default function PairsActivity({ activity, onBack, onComplete, lang, togg
             <div className="pa-character-header">
                 <span className="pa-character-emoji">{character.emoji || '🧠'}</span>
                 <h2>{character.label || activity.title}</h2>
+                {/* Pairs had no persistent progress indicator at all — every
+                    other activity does (a "N / M" badge, a numbered slot
+                    row, ...) — so "did my match actually count?" had no
+                    lasting answer besides re-counting matched-looking tiles
+                    by eye. Same visual language as MatchingActivity.js's
+                    ma-progress-badge. */}
+                <span className="pa-progress-badge">{matchedCardIds.size} / {cards.length}</span>
             </div>
 
             {activity.instruction_text && <p className="pa-instruction">{activity.instruction_text}</p>}
@@ -130,10 +146,11 @@ export default function PairsActivity({ activity, onBack, onComplete, lang, togg
                 {tiles.map((tile) => {
                     const matched = matchedCardIds.has(tile.id);
                     const faceUp = matched || flippedIds.includes(tile.tileId);
+                    const wrong = wrongTileIds.has(tile.tileId);
                     return (
                         <button
                             key={tile.tileId}
-                            className={`pa-tile ${faceUp ? 'pa-tile-up' : ''} ${matched ? 'pa-tile-matched' : ''}`}
+                            className={`pa-tile ${faceUp ? 'pa-tile-up' : ''} ${matched ? 'pa-tile-matched' : ''} ${wrong ? 'pa-tile-wrong' : ''}`}
                             onClick={() => handleTap(tile)}
                             disabled={submitting || matched}
                             aria-label={faceUp ? (tile.label || tile.id) : t('el.pairsCardHidden') }

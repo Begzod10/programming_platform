@@ -35,6 +35,15 @@
 .pa-character-emoji { font-size: 3.2rem; line-height: 1; }
 .pa-character-header h2 { margin: 0; font-size: 1.3rem; font-weight: 800; color: #1f2937; }
 
+.pa-progress-badge {
+    background: #eef2ff;
+    color: #4338ca;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 4px 14px;
+    font-size: 0.9rem;
+}
+
 .pa-instruction {
     margin: 0 0 16px;
     color: #6b7280;
@@ -123,6 +132,31 @@
     0%   { transform: rotateY(180deg) scale(0.85); }
     70%  { transform: rotateY(180deg) scale(1.08); }
     100% { transform: rotateY(180deg) scale(1); }
+}
+
+/* A mismatched pair — previously the only "wrong" cue anywhere in this
+   feature that was audio-only (a 'laser' sound, then a silent flip back
+   down with no visual trace) — reads as "I tapped and nothing happened"
+   to anyone who doesn't catch the sound. Every sibling activity pairs a
+   wrong answer with a visible shake/red flash; this matches that
+   language. The shake keyframes re-assert rotateY(180deg) at every step
+   (not just translateX) since .pa-tile-up already holds that rotation via
+   its own transition — an animation on the same property fully replaces
+   it for the animation's duration, so the wobble has to carry the flip
+   itself or the card would snap back to face-down mid-shake. */
+.pa-tile-wrong .pa-tile-front {
+    background: #fef2f2;
+    box-shadow: inset 0 0 0 2px #fca5a5, 0 4px 10px rgba(30, 64, 110, 0.12);
+}
+
+.pa-tile-wrong .pa-tile-inner {
+    animation: pa-shake 0.4s ease;
+}
+
+@keyframes pa-shake {
+    0%, 100% { transform: rotateY(180deg) translateX(0); }
+    25%      { transform: rotateY(180deg) translateX(-5px); }
+    75%      { transform: rotateY(180deg) translateX(5px); }
 }
 
 @media (max-width: 480px) {
