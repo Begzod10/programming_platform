@@ -33,6 +33,7 @@ from app.models.store import (
     StudentInventoryItem,
 )
 from app.models.early_learning import EarlyModule, EarlyActivity, EarlyActivityCompletion
+from app.models.error_log import AppErrorLog
 
 __all__ = [
     "Base",
@@ -74,4 +75,5 @@ __all__ = [
     "EarlyModule",
     "EarlyActivity",
     "EarlyActivityCompletion",
+    "AppErrorLog",
 ]

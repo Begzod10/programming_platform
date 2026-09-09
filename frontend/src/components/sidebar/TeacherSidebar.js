@@ -6,10 +6,16 @@ import CoinChip from './CoinChip';
 import {
     User, Download, Users, BookOpen, Gamepad2,
     Trophy, Construction, Award, Medal, TrendingUp, Star, Activity,
-    ShoppingBag, Building2, Puzzle,
+    ShoppingBag, Building2, Puzzle, Bug,
 } from 'lucide-react';
 
 const COLLAPSED_KEY = 'sidebar:teacher:collapsed';
+
+// Mirrors backend/app/api/v1/endpoints/teacher/error_log.py's
+// _ALLOWED_USERNAMES — purely cosmetic (the backend 403s anyone else
+// regardless), just keeps the menu item from dangling in front of every
+// other teacher for a page they'd immediately get denied on.
+const ERROR_LOG_USERNAMES = new Set(['rimefara_teach', 'rimefara_teach_turon']);
 
 function ChevronIcon({ direction = 'left' }) {
     return (
@@ -32,7 +38,7 @@ function ChevronIcon({ direction = 'left' }) {
     );
 }
 
-function TeacherSidebar({ activeTab, onLogout }) {
+function TeacherSidebar({ activeTab, onLogout, username }) {
     const navigate = useNavigate();
     const { request } = useHttp();
     const [isOpen, setIsOpen] = useState(false);
@@ -57,6 +63,9 @@ function TeacherSidebar({ activeTab, onLogout }) {
         { id: 'statistics',          label: 'Статистика',      Icon: TrendingUp,   section: 'insights' },
         { id: 'activity-analytics', label: 'Faollik tahlili', Icon: Activity,     section: 'insights' },
         { id: 'feedback',           label: 'Отзывы',          Icon: Star,         section: 'insights' },
+        ...(ERROR_LOG_USERNAMES.has(username)
+            ? [{ id: 'error-log', label: 'Xato jurnali', Icon: Bug, section: 'insights' }]
+            : []),
     ];
 
     const sections = [

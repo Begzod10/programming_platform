@@ -2,10 +2,10 @@ import { Outlet, useLocation } from 'react-router-dom';
 import TeacherSidebar from '../components/sidebar/TeacherSidebar';
 import { useAuth } from '../context/AuthContext';
 
-const SCROLLABLE_SEGMENTS = ['students', 'groups', 'review', 'statistics', 'courses', 'certificates', 'feedback', 'achievements', 'activity-analytics', 'team-game', 'store'];
+const SCROLLABLE_SEGMENTS = ['students', 'groups', 'review', 'statistics', 'courses', 'certificates', 'feedback', 'achievements', 'activity-analytics', 'team-game', 'store', 'error-log'];
 
 function TeacherLayout() {
-    const { logout } = useAuth();
+    const { logout, user } = useAuth();
     const location = useLocation();
 
     // Определяем активный таб по URL: /teacher/courses/123 → 'courses'
@@ -20,7 +20,7 @@ function TeacherLayout() {
 
     return (
         <div className="main-layout">
-            <TeacherSidebar activeTab={segment} onLogout={logout} />
+            <TeacherSidebar activeTab={segment} onLogout={logout} username={user?.username} />
 
             <main className="content-area">
                 <div className={`page-container ${isScrollable ? 'scrollable' : ''}`}>

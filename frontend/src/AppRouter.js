@@ -39,6 +39,7 @@ import TeacherAchievements      from './views/teacher/TeacherAchievements/Teache
 import ProjectLeaderboard       from './views/shared/ProjectLeaderboard/ProjectLeaderboard';
 import PublicProfile            from './views/public/PublicProfile/PublicProfile';
 import ActivityAnalytics        from './views/teacher/activityanalytics/ActivityAnalytics';
+import ErrorLogPage             from './views/teacher/errorlog/ErrorLogPage';
 
 /* ─── helpers ─── */
 function RootRedirect() {
@@ -150,6 +151,7 @@ function AppRouter() {
                 <Route path="team-game"                                   element={<TeacherTeamGame />} />
                 <Route path="team-game/:sessionId"                        element={<TeacherTeamGameSession />} />
                 <Route path="activity-analytics"                          element={<ActivityAnalytics />} />
+                <Route path="error-log"                                   element={<ErrorLogPage />} />
                 <Route path="store"                                       element={<Store />} />
                 <Route path="early-learning"                              element={<EarlyLearning />} />
                 <Route path="early-learning/:moduleId"                    element={<EarlyLearning />} />
