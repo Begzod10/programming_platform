@@ -60,6 +60,24 @@ def _localize_items(items: list | None, lang: str) -> list | None:
     ]
 
 
+def _localize_cause_effect_rounds(rounds: list | None, lang: str) -> list | None:
+    """mode="cause_effect" nests its text one level deeper than every other
+    mode — each round has its own `cause` dict (not shared with the other
+    rounds, so it can't ride the top-level `character` special-case) and
+    its own `options` list (shaped just like _localize_items' items, so
+    that helper is reused as-is for those)."""
+    if not rounds:
+        return rounds
+    localized = []
+    for round_ in rounds:
+        cause = round_.get("cause")
+        new_round = {**round_, "options": _localize_items(round_.get("options"), lang)}
+        if cause and cause.get("label_ru"):
+            new_round["cause"] = {**cause, "label": cause["label_ru"]}
+        localized.append(new_round)
+    return localized
+
+
 _LOCALIZED_ITEM_KEYS = {
     "select": ("correct_items", "distractor_items"),
     "build": ("slots", "distractor_items"),
@@ -80,6 +98,14 @@ _LOCALIZED_ITEM_KEYS = {
     # pattern is another emoji-only shape like count — sequence/answer/
     # options are all bare emoji, nothing to swap per-item.
     "pattern": (),
+    # cause_effect's item lists live one level deeper (each round has its
+    # own `cause` dict and `options` list, not one shared top-level list),
+    # so the generic per-key loop below doesn't reach them — an empty
+    # tuple here still routes through the mode-not-None check (so the
+    # character still gets translated), and _localize_content special-cases
+    # `rounds` for this mode right after, the same way it already
+    # special-cases `character` for every mode.
+    "cause_effect": (),
 }
 
 
@@ -87,11 +113,12 @@ def _localize_content(content: dict, lang: str) -> dict:
     """Only mode="select" (tap-to-match), mode="build" (drag-to-assemble),
     mode="trace" (trace-the-outline), mode="maze" (arrow pathfinding),
     mode="pairs" (memory/pairs matching), mode="count" (tap-to-count),
-    mode="sort" (sort-into-bins), mode="sequence" (step ordering) and
-    mode="pattern" (what-comes-next) carry translations today — any other
-    content shape (the draft literacy/math/creative modules) just renders
-    in uz regardless of `lang` until it gets its own translation pass;
-    that's a content gap, not a bug.
+    mode="sort" (sort-into-bins), mode="sequence" (step ordering),
+    mode="pattern" (what-comes-next) and mode="cause_effect" (pick the
+    matching effect) carry translations today — any other content shape
+    (the draft literacy/math/creative modules) just renders in uz
+    regardless of `lang` until it gets its own translation pass; that's a
+    content gap, not a bug.
     """
     mode = content.get("mode")
     item_keys = _LOCALIZED_ITEM_KEYS.get(mode)
@@ -102,6 +129,8 @@ def _localize_content(content: dict, lang: str) -> dict:
         content = {**content, "character": {**character, "label": character["label_ru"]}}
     for key in item_keys:
         content = {**content, key: _localize_items(content.get(key), lang)}
+    if mode == "cause_effect":
+        content = {**content, "rounds": _localize_cause_effect_rounds(content.get("rounds"), lang)}
     return content
 
 

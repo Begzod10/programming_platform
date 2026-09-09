@@ -12,6 +12,7 @@ import CountActivity from './CountActivity';
 import SortActivity from './SortActivity';
 import SequenceActivity from './SequenceActivity';
 import PatternActivity from './PatternActivity';
+import CauseEffectActivity from './CauseEffectActivity';
 import LangToggle from './LangToggle';
 import { applyGuestModuleStars, applyGuestActivityStars } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy } from 'lucide-react';
@@ -194,10 +195,11 @@ export default function EarlyLearning({ guest = false }) {
             // "sort" taps an item then taps the bin it belongs in
             // (SortActivity.js), "sequence" taps steps in the right order
             // (SequenceActivity.js), "pattern" taps the emoji that
-            // continues a repeating pattern (PatternActivity.js), anything
-            // else (the shipped "select" mode, or an activity with no mode
-            // yet) taps items out of a pool (MatchingActivity.js, the
-            // original/default game).
+            // continues a repeating pattern (PatternActivity.js),
+            // "cause_effect" taps the effect that follows a given cause
+            // (CauseEffectActivity.js), anything else (the shipped "select"
+            // mode, or an activity with no mode yet) taps items out of a
+            // pool (MatchingActivity.js, the original/default game).
             const mode = activity.content?.mode;
             const ActivityScreen =
                 mode === 'trace' ? TraceActivity :
@@ -208,6 +210,7 @@ export default function EarlyLearning({ guest = false }) {
                 mode === 'sort' ? SortActivity :
                 mode === 'sequence' ? SequenceActivity :
                 mode === 'pattern' ? PatternActivity :
+                mode === 'cause_effect' ? CauseEffectActivity :
                 MatchingActivity;
             return (
                 <div className="el-shell">

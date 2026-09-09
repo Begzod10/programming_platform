@@ -1,6 +1,6 @@
 """One-off: seed the initial "early learner" (age 4-6) catalog — 4 draft
 modules covering literacy/math/logic/creative (each a first pass, left
-unpublished pending real media), plus 14 complete, published packs that use
+unpublished pending real media), plus 15 complete, published packs that use
 emoji-first, icon-based content instead of image assets: 6 tap-to-match
 ("Kasblar shaharchasi" / "Fasllar dunyosi" / "Hayvonot olami" /
 "Transport olami" / "Rang olami" / "Dengiz olami", content.mode="select"), 1
@@ -13,10 +13,11 @@ content.mode="pairs"), 1 tap-to-count pack ("Sanashni o'rganamiz" — 6
 rounds, 1-10, content.mode="count"), 1 sort-into-bins pack ("Mevami,
 sabzavotmi?" — 8 items into 2 bins, content.mode="sort"), 1 step-ordering
 pack ("Kun tartibi" — a 4-step morning routine, content.mode="sequence"),
-and 1 pattern-completion pack ("Naqshni davom ettiramiz" — 6 what-comes-next
-rounds, content.mode="pattern"). See project_student_platform memory /
-early_learning.py for the model design rationale (no AI grading, star-based
-completion instead of points).
+1 pattern-completion pack ("Naqshni davom ettiramiz" — 6 what-comes-next
+rounds, content.mode="pattern"), and 1 cause-and-effect pack ("Sabab va
+natija" — 6 everyday-reasoning rounds, content.mode="cause_effect"). See
+project_student_platform memory / early_learning.py for the model design
+rationale (no AI grading, star-based completion instead of points).
 
 Every module/activity/item is authored in Uzbek first (title/description/
 instruction_text/label — matches EarlyModule.source_lang's default) with a
@@ -1647,6 +1648,97 @@ MODULES = [
                         {"sequence": ["🐶", "🐱", "🐶", "🐱", "🐶"], "answer": "🐱", "options": ["🐱", "🐶", "🐰"]},
                         {"sequence": ["🟥", "🟨", "🟦", "🟥", "🟨", "🟦", "🟥", "🟨"], "answer": "🟦", "options": ["🟦", "🟥", "🟨"]},
                         {"sequence": ["🍎", "🍎", "🍏", "🍎", "🍎", "🍏", "🍎", "🍎"], "answer": "🍏", "options": ["🍏", "🍎", "🍊"]},
+                    ],
+                },
+            },
+        ],
+    },
+    {
+        # Cause and effect — the first pack using content.mode="cause_effect".
+        # Each round shows one `cause` and asks which of 3 `options` is its
+        # effect (answer holds the correct option's id). Unlike pattern/
+        # count, every option here IS real text (an everyday-reasoning
+        # sentence, not a bare emoji), so this is the first non-emoji-only
+        # mode since sequence/sort — see _localize_cause_effect_rounds in
+        # early_learning.py for why the translation needed its own helper
+        # instead of piggybacking straight onto _localize_items. See
+        # CauseEffectActivity.js.
+        "title": "Sabab va natija",
+        "title_ru": "Причина и следствие",
+        "description": "Sabab nima olib kelishini top.",
+        "description_ru": "Найди, к чему приводит причина.",
+        "subject": EarlySubject.logic,
+        "icon_emoji": "🔗",
+        "color_accent": "#EF476F",
+        "display_order": 16,
+        "age_min": 5,
+        "age_max": 8,
+        "is_published": True,
+        "activities": [
+            {
+                "title": "Nima bo'ladi?",
+                "title_ru": "Что произойдёт?",
+                "activity_type": EarlyActivityType.match,
+                "instruction_text": "Sababni o'qi va to'g'ri natijani bos.",
+                "instruction_text_ru": "Прочитай причину и нажми на правильное следствие.",
+                "content": {
+                    "mode": "cause_effect",
+                    "character": {"emoji": "🔗", "label": "Sabab-natija", "label_ru": "Причина и следствие"},
+                    "rounds": [
+                        {
+                            "cause": {"emoji": "🌧️", "label": "Yomg'ir yog'moqda", "label_ru": "Идёт дождь"},
+                            "answer": "umbrella",
+                            "options": [
+                                {"id": "umbrella", "emoji": "☂️", "label": "Soyabon ochiladi", "label_ru": "Раскрывают зонт"},
+                                {"id": "sunglasses", "emoji": "🕶️", "label": "Ko'zoynak taqiladi", "label_ru": "Надевают очки"},
+                                {"id": "icecream", "emoji": "🍦", "label": "Muzqaymoq yeyiladi", "label_ru": "Едят мороженое"},
+                            ],
+                        },
+                        {
+                            "cause": {"emoji": "☀️", "label": "Quyosh chiqdi, issiq", "label_ru": "Светит солнце, жарко"},
+                            "answer": "sunglasses",
+                            "options": [
+                                {"id": "sunglasses", "emoji": "🕶️", "label": "Ko'zoynak taqiladi", "label_ru": "Надевают очки"},
+                                {"id": "umbrella", "emoji": "☂️", "label": "Soyabon ochiladi", "label_ru": "Раскрывают зонт"},
+                                {"id": "coat", "emoji": "🧥", "label": "Palto kiyiladi", "label_ru": "Надевают пальто"},
+                            ],
+                        },
+                        {
+                            "cause": {"emoji": "🌱", "label": "Urug' sug'oriladi", "label_ru": "Семечко поливают"},
+                            "answer": "flower",
+                            "options": [
+                                {"id": "flower", "emoji": "🌻", "label": "Gul o'sadi", "label_ru": "Вырастает цветок"},
+                                {"id": "snow", "emoji": "❄️", "label": "Qor yog'adi", "label_ru": "Идёт снег"},
+                                {"id": "fish", "emoji": "🐟", "label": "Baliq suzadi", "label_ru": "Рыба плавает"},
+                            ],
+                        },
+                        {
+                            "cause": {"emoji": "⏰", "label": "Soat zang uradi", "label_ru": "Звонит будильник"},
+                            "answer": "wake",
+                            "options": [
+                                {"id": "wake", "emoji": "🧒", "label": "Bola uyg'onadi", "label_ru": "Ребёнок просыпается"},
+                                {"id": "cat", "emoji": "🐱", "label": "Mushuk uxlaydi", "label_ru": "Кошка спит"},
+                                {"id": "fish", "emoji": "🐟", "label": "Baliq suzadi", "label_ru": "Рыба плавает"},
+                            ],
+                        },
+                        {
+                            "cause": {"emoji": "🧊", "label": "Muz quyoshda qoladi", "label_ru": "Лёд остаётся на солнце"},
+                            "answer": "melt",
+                            "options": [
+                                {"id": "melt", "emoji": "💧", "label": "Muz eriydi", "label_ru": "Лёд тает"},
+                                {"id": "freeze", "emoji": "❄️", "label": "Muz qotadi", "label_ru": "Лёд замерзает"},
+                                {"id": "flower", "emoji": "🌷", "label": "Gul ochiladi", "label_ru": "Цветок распускается"},
+                            ],
+                        },
+                        {
+                            "cause": {"emoji": "🥶", "label": "Tashqarida sovuq", "label_ru": "На улице холодно"},
+                            "answer": "sweater",
+                            "options": [
+                                {"id": "sweater", "emoji": "🧣", "label": "Sviter kiyiladi", "label_ru": "Надевают свитер"},
+                                {"id": "shorts", "emoji": "🩳", "label": "Shortik kiyiladi", "label_ru": "Надевают шорты"},
+                                {"id": "icecream", "emoji": "🍦", "label": "Muzqaymoq yeyiladi", "label_ru": "Едят мороженое"},
+                            ],
+                        },
                     ],
                 },
             },
