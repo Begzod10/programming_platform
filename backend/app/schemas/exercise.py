@@ -8,7 +8,7 @@ class ExerciseCreate(BaseModel):
     title_ru: Optional[str] = None
     description: str
     description_ru: Optional[str] = None
-    exercise_type: str = "text_input"  # fill_in_blank | drag_and_drop | multiple_choice | text_input
+    exercise_type: str = "text_input"  # fill_in_blank | drag_and_drop | multiple_choice | text_input | matching
 
     # Fill in blank
     correct_answers: Optional[str] = None  # "javob1,javob2"
@@ -20,6 +20,12 @@ class ExerciseCreate(BaseModel):
     # Multiple choice
     options: Optional[str] = None         # JSON: ["A variant","B variant","C variant"]
     is_multiple_select: bool = False
+
+    # Matching — reuses drag_items (left column / terms, fixed order) and
+    # options (right column / definitions): options[i] must be authored as
+    # the correct match for drag_items[i]. No separate correct-answer
+    # field — the identity pairing IS the answer key. See
+    # exercise_service.check_answer_locally's "matching" branch.
 
     # Text input
     expected_answer: Optional[str] = None

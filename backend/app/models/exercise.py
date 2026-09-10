@@ -15,6 +15,13 @@ class ExerciseType(str, enum.Enum):
     drag_and_drop = "drag_and_drop"  # Sudrab tashlash
     multiple_choice = "multiple_choice"  # Ko'p tanlov
     text_input = "text_input"  # Matn kiritish
+    # Reuses drag_items (left column, terms) + options (right column,
+    # definitions) exactly like drag_and_drop/multiple_choice reuse the
+    # same generic columns for their own shapes — see
+    # exercise_service.check_answer_locally's "matching" branch for the
+    # content/grading contract (options[i] is the correct match for
+    # drag_items[i]; no new columns needed).
+    matching = "matching"  # Moslashtirish (juftlarni bog'lash)
 
 
 class Exercise(Base):

@@ -45,7 +45,7 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
     // Reconstruct each exercise type's input state from the saved
     // student_answer string. Mirrors buildAnswer()'s encoding.
     const initialInputs = useMemo(() => {
-        const blank = {textAnswer: '', selected: [], fillAnswers: [], dragDropped: []};
+        const blank = {textAnswer: '', selected: [], fillAnswers: [], dragDropped: [], matchedPairs: null};
         if (!previousSubmission?.student_answer) return blank;
         const ans = previousSubmission.student_answer;
         if (exType === 'multiple_choice') {
@@ -59,6 +59,12 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
         if (exType === 'drag_and_drop') {
             try { return {...blank, dragDropped: JSON.parse(ans) || []}; }
             catch { return blank; }
+        }
+        if (exType === 'matching') {
+            try {
+                const parsed = JSON.parse(ans);
+                return {...blank, matchedPairs: Array.isArray(parsed) ? parsed : null};
+            } catch { return blank; }
         }
         return {...blank, textAnswer: ans};
     }, [previousSubmission, exType, fillBlankCount]);
@@ -81,6 +87,27 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
         return [...remaining].sort(() => Math.random() - 0.5);
     });
     const [dragDropped, setDragDropped] = useState(initialInputs.dragDropped);
+
+    // MATCHING — cleanDragItems doubles as the left column (terms, fixed
+    // order) and cleanOptions as the right column (definitions), exactly
+    // like drag_and_drop/multiple_choice reuse the same two generic
+    // fields for their own shapes. matchedPairs[i] is the right column's
+    // ORIGINAL (pre-shuffle) index paired with left item i, or null if
+    // that term isn't matched yet — mirrors buildAnswer()'s encoding.
+    // rightDisplayOrder is shuffled once per mount (same "shuffle into
+    // state once via the initializer, not on every render" pattern as
+    // dragAvailable above), not re-derived, so the right column's on-
+    // screen order stays stable while the student is working.
+    const [matchedPairs, setMatchedPairs] = useState(() => {
+        const prev = initialInputs.matchedPairs;
+        if (prev && prev.length === cleanDragItems.length) return prev;
+        return cleanDragItems.map(() => null);
+    });
+    const [selectedLeftIndex, setSelectedLeftIndex] = useState(null);
+    const [rightDisplayOrder, setRightDisplayOrder] = useState(() =>
+        cleanOptions.map((_, i) => i).sort(() => Math.random() - 0.5)
+    );
+
     const [result, setResult] = useState(initialResult);
     const [aiFeedback, setAiFeedback] = useState(previousSubmission?.ai_feedback || '');
     const [score, setScore] = useState(previousSubmission?.score ?? null);
@@ -100,6 +127,14 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
         if (exType === 'fill_in_blank') return fillAnswers.slice(0, fillBlankCount).join(',');
         if (exType === 'drag_and_drop') return JSON.stringify(dragDropped.map(s => s.trim()));
         if (exType === 'multiple_choice') return selected.join(',');
+        if (exType === 'matching') {
+            // Require every term matched before allowing submit — a
+            // partial mapping has no useful "is this right so far?"
+            // answer, unlike drag_and_drop where a partial order is at
+            // least a well-formed (if incomplete) sequence.
+            if (matchedPairs.some(v => v === null || v === undefined)) return '';
+            return JSON.stringify(matchedPairs);
+        }
         return textAnswer.trim();
     };
 
@@ -142,6 +177,38 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
         setFillAnswers([]);
         setDragDropped([]);
         setDragAvailable([...cleanDragItems].sort(() => Math.random() - 0.5));
+        setMatchedPairs(cleanDragItems.map(() => null));
+        setSelectedLeftIndex(null);
+        setRightDisplayOrder(cleanOptions.map((_, i) => i).sort(() => Math.random() - 0.5));
+    };
+
+    // MATCHING interaction — tap a left term, then tap an available right
+    // definition to pair them; tapping an already-matched left term again
+    // clears that one pairing so the student can redo it (mirrors
+    // drag_and_drop's tap-a-dropped-chip-to-remove-it pattern above).
+    const usedRightIndices = new Set(matchedPairs.filter(v => v !== null && v !== undefined));
+
+    const handleMatchLeftTap = (leftIdx) => {
+        if (isDone) return;
+        if (matchedPairs[leftIdx] !== null && matchedPairs[leftIdx] !== undefined) {
+            const next = [...matchedPairs];
+            next[leftIdx] = null;
+            setMatchedPairs(next);
+            setResult(null);
+            return;
+        }
+        setSelectedLeftIndex(prev => prev === leftIdx ? null : leftIdx);
+    };
+
+    const handleMatchRightTap = (rightOriginalIdx) => {
+        if (isDone) return;
+        if (usedRightIndices.has(rightOriginalIdx)) return;
+        if (selectedLeftIndex === null) return;
+        const next = [...matchedPairs];
+        next[selectedLeftIndex] = rightOriginalIdx;
+        setMatchedPairs(next);
+        setSelectedLeftIndex(null);
+        setResult(null);
     };
 
     const DIFF_COLOR = {Easy: '#00b894', Medium: '#e17055', Hard: '#d63031'};
@@ -191,6 +258,7 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                             multiple_choice: '🔘 Выбор ответа',
                             drag_and_drop: '↕️ Расставь порядок',
                             text_input: '📝 Свободный ответ',
+                            matching: '🔗 Найди пару',
                         }[exType] || '❓ Задание'}
                     </span>
                 </div>
@@ -333,6 +401,55 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                                     </span>
                                 ))}
                             </div>
+                        </div>
+                    </>
+                )}
+
+                {exType === 'matching' && (
+                    <>
+                        {ex.description && <div className="slp-ex-question">{ex.description}</div>}
+                        <div className="slp-ex-match-wrap">
+                            <div className="slp-ex-match-columns">
+                                <div className="slp-ex-match-col">
+                                    {cleanDragItems.map((term, i) => {
+                                        const pairNum = matchedPairs[i] !== null && matchedPairs[i] !== undefined
+                                            ? i + 1 : null;
+                                        const isSelected = selectedLeftIndex === i;
+                                        return (
+                                            <button
+                                                key={i}
+                                                className={`slp-ex-match-item slp-ex-match-left ${isSelected ? 'selected' : ''} ${pairNum ? 'matched' : ''}`}
+                                                disabled={isDone}
+                                                onClick={() => handleMatchLeftTap(i)}
+                                            >
+                                                {pairNum && <span className="slp-ex-match-num">{pairNum}</span>}
+                                                <span className="slp-ex-match-text">{term}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div className="slp-ex-match-col">
+                                    {rightDisplayOrder.map((originalIdx) => {
+                                        const leftIdx = matchedPairs.findIndex(v => v === originalIdx);
+                                        const pairNum = leftIdx !== -1 ? leftIdx + 1 : null;
+                                        const isUsed = usedRightIndices.has(originalIdx);
+                                        return (
+                                            <button
+                                                key={originalIdx}
+                                                className={`slp-ex-match-item slp-ex-match-right ${isUsed ? 'matched' : ''} ${selectedLeftIndex !== null && !isUsed ? 'targetable' : ''}`}
+                                                disabled={isDone || isUsed}
+                                                onClick={() => handleMatchRightTap(originalIdx)}
+                                            >
+                                                {pairNum && <span className="slp-ex-match-num">{pairNum}</span>}
+                                                <span className="slp-ex-match-text">{cleanOptions[originalIdx]}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                            {selectedLeftIndex !== null && (
+                                <div className="slp-ex-match-hint">👉 Теперь выберите пару справа</div>
+                            )}
                         </div>
                     </>
                 )}

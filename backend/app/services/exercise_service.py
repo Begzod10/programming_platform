@@ -273,6 +273,48 @@ def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "u
             "feedback": "To'g'ri!" if is_correct else None
         }
 
+    elif exercise_type == "matching":
+        # Reuses drag_items (left column / terms, fixed order) and options
+        # (right column / definitions) exactly like drag_and_drop and
+        # multiple_choice reuse the same generic columns for their own
+        # shapes — options[i] is authored as the correct match for
+        # drag_items[i], so the correct pairing is simply the identity
+        # permutation, never stored separately. The frontend shuffles the
+        # right column for display but submits each match as the RIGHT
+        # item's ORIGINAL (pre-shuffle) index, e.g. student_answer =
+        # "[2,0,1]" means drag_items[0] was paired with options[2], etc.
+        # Unlike fill_in_blank/drag_and_drop above, grading never compares
+        # translated text — it's a pure index comparison, so a RU-language
+        # student needs no separate translated-correct-answer lookup here.
+        try:
+            left_items = json.loads(exercise.drag_items or "[]")
+            right_items = json.loads(exercise.options or "[]")
+            student_pairs = json.loads(student_answer)
+            is_correct = (
+                isinstance(student_pairs, list)
+                and len(right_items) > 0
+                and len(student_pairs) == len(right_items)
+                and all(isinstance(v, int) for v in student_pairs)
+                and student_pairs == list(range(len(right_items)))
+            )
+            correct_answer_str = ", ".join(
+                f"{l} → {r}" for l, r in zip(left_items, right_items)
+            )
+            return {
+                "is_correct": is_correct,
+                "partial_score": 1.0 if is_correct else 0.0,
+                "needs_ai_explanation": not is_correct,
+                "correct_answer": correct_answer_str,
+                "feedback": "To'g'ri!" if is_correct else None
+            }
+        except Exception:
+            return {
+                "is_correct": False,
+                "partial_score": 0,
+                "needs_ai_explanation": False,
+                "feedback": "Javob formati noto'g'ri"
+            }
+
     else:
         return None
 

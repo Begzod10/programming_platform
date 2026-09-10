@@ -13,6 +13,7 @@ export const ExerciseRow = ({ ex, index, onUpdate, onDelete, onMoveUp, onMoveDow
         multiple_choice: '☑️ Выбор ответа',
         drag_and_drop: '🔀 Drag & Drop',
         fill_in_blank: '✏️ Заполни пропуск',
+        matching: '🔗 Найди пару',
     };
 
     return (
@@ -91,6 +92,20 @@ export const ExerciseRow = ({ ex, index, onUpdate, onDelete, onMoveUp, onMoveDow
                             <label>Правильный порядок <span className="lep-ex-hint-label">(через запятую)</span></label>
                             <input className="lep-ex-input" value={ex.correct_order}
                                    onChange={e => upd({ correct_order: e.target.value })} placeholder="Элемент 1, Элемент 3, Элемент 2"/>
+                        </div>
+                    </>)}
+
+                    {ex.exercise_type === 'matching' && (<>
+                        <div className="lep-ex-field">
+                            <label>Термины <span className="lep-ex-hint-label">(левый столбец, через запятую)</span></label>
+                            <input className="lep-ex-input" value={ex.drag_items}
+                                   onChange={e => upd({ drag_items: e.target.value })} placeholder="list, tuple, dict"/>
+                        </div>
+                        <div className="lep-ex-field">
+                            <label>Определения <span className="lep-ex-hint-label">(правый столбец — ПО ПОРЯДКУ, N-е определение это пара N-го термина)</span></label>
+                            <input className="lep-ex-input" value={ex.options}
+                                   onChange={e => upd({ options: e.target.value })}
+                                   placeholder="изменяемый список, неизменяемый кортеж, пары ключ-значение"/>
                         </div>
                     </>)}
 
