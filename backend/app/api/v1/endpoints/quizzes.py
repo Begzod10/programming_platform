@@ -17,10 +17,12 @@ router = APIRouter()
 async def get_quizzes(
         skip: int = Query(0, ge=0),
         limit: int = Query(10, ge=1, le=100),
+        current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    """Barcha testlar"""
-    return await quiz_service.get_all_quizzes(db, skip, limit)
+    """Talabaga tegishli testlar — sinf oralig'i (grade_min/grade_max)
+    bo'yicha filtrlangan holda."""
+    return await quiz_service.get_all_quizzes(db, skip, limit, student=current_student)
 
 
 @router.get("/my-results", response_model=List[QuizResultRead])

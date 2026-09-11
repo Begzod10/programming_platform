@@ -41,6 +41,8 @@ class QuizCreate(BaseModel):
     time_limit_minutes: Optional[int] = None
     passing_score: int = 60
     points_reward: int = 0
+    grade_min: Optional[int] = None
+    grade_max: Optional[int] = None
 
 
 class QuizUpdate(BaseModel):
@@ -51,6 +53,8 @@ class QuizUpdate(BaseModel):
     passing_score: Optional[int] = None
     points_reward: Optional[int] = None
     is_active: Optional[bool] = None
+    grade_min: Optional[int] = None
+    grade_max: Optional[int] = None
 
 
 class QuizRead(BaseModel):
@@ -62,6 +66,8 @@ class QuizRead(BaseModel):
     passing_score: int
     points_reward: int
     is_active: bool
+    grade_min: Optional[int] = None
+    grade_max: Optional[int] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
 

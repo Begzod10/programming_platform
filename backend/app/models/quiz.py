@@ -16,6 +16,14 @@ class Quiz(Base):
     passing_score: Mapped[int] = mapped_column(Integer, default=60)  # o'tish bali (%)
     points_reward: Mapped[int] = mapped_column(Integer, default=0)  # o'tganda beriladigan ball
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # Sinf oralig'i (masalan 5-8 sinf uchun viktorina). NULL = cheklovsiz,
+    # hamma sinfga ko'rinadi (eski testlar shunday qoladi). Student modelida
+    # sinf maydoni yo'q — student_service._student_grades() buni uning
+    # guruh nomlaridan ("5-green" -> 5) chiqarib oladi, EarlyModule.age_min/
+    # age_max bilan bir xil naqsh.
+    grade_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    grade_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
