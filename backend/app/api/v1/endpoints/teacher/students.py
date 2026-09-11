@@ -18,6 +18,8 @@ from app.models.user import Student
 from app.models.student_achievement import StudentAchievement
 from app.services.student_service import StudentService
 from app.services.teacher_students import teacher_student_ids_subquery
+from app.services.skill_profile_service import build_skill_profile
+from app.schemas.team_project import SkillProfile
 
 router = APIRouter()
 
@@ -117,6 +119,23 @@ async def get_student_progress(
 ):
     service = StudentService(db)
     return await service.get_teacher_student_progress(current_teacher.id, student_id)
+
+
+@router.get("/{student_id}/skill-profile", response_model=SkillProfile)
+async def get_student_skill_profile(
+        student_id: int,
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """The knowledge/skill snapshot the team-project AI planner (Phase 3)
+    builds assignments from — also what StudentProfile.js's teacher view
+    surfaces (Phase 7)."""
+    if not await _student_belongs_to_teacher(db, student_id, current_teacher.id):
+        raise HTTPException(status_code=404, detail="Student not found")
+    profile = await build_skill_profile(db, student_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return profile
 
 
 @router.delete("/{student_id}")
