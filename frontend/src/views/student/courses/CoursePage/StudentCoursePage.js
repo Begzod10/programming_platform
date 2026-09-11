@@ -175,7 +175,7 @@ const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
     const groups = [];
     let offset = 0;
     map.forEach((ls, key) => {
-      groups.push({ title: key === '__none__' ? '' : key, lessons: ls, startIndex: offset });
+      groups.push({ key, title: key === '__none__' ? '' : key, lessons: ls, startIndex: offset });
       offset += ls.length;
     });
     return { groups };
@@ -319,9 +319,9 @@ const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
         </div>
       ) : (
         <div className="scp-chapters">
-          {groups.map((g, gi) => (
+          {groups.map((g) => (
             <ChapterBlock
-              key={gi}
+              key={g.key}
               title={g.title}
               lessons={g.lessons}
               startIndex={g.startIndex}

@@ -8,8 +8,21 @@ export const useTranslation = () => {
     const handleLangChange = (e) => {
       setLang(e.detail);
     };
+    // Fires in OTHER tabs/windows when `lang` changes in localStorage (the
+    // tab that made the change never receives its own `storage` event, so
+    // this complements — not replaces — the custom `languageChange` event
+    // used for same-tab updates).
+    const handleStorageChange = (e) => {
+      if (e.key === 'lang' && e.newValue) {
+        setLang(e.newValue);
+      }
+    };
     window.addEventListener('languageChange', handleLangChange);
-    return () => window.removeEventListener('languageChange', handleLangChange);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('languageChange', handleLangChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const toggleLang = () => {

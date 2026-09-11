@@ -125,6 +125,7 @@ export default function Leaderboard() {
     const [myRank,    setMyRank]    = useState(null);
     const [loading,   setLoading]   = useState(true);
     const [error,     setError]     = useState('');
+    const [myRankError, setMyRankError] = useState('');
     const listRef = useRef(null);
 
     const fetchRanking = (period) => {
@@ -137,9 +138,10 @@ export default function Leaderboard() {
     };
 
     const fetchMyRank = (period) => {
+        setMyRankError('');
         request(`${API_URL}v1/rankings/me?period=${period}`, 'GET', null, headers())
             .then(res => setMyRank(res))
-            .catch(() => {});
+            .catch(() => setMyRankError(t('rating.loadError')));
     };
 
     useEffect(() => {
@@ -231,7 +233,7 @@ export default function Leaderboard() {
                 </div>
 
                 {/* My rank band — always anchors the current user, even on the podium */}
-                {myRank && (
+                {myRank ? (
                     <div className="lb-myrank">
                         <div className="lb-myrank-left">
                             <span className="lb-myrank-label">{t('rating.myPlace')}</span>
@@ -241,6 +243,17 @@ export default function Leaderboard() {
                             <span className="lb-myrank-pts">{formatPoints(getMyPoints())}</span>
                             <span className="lb-myrank-unit">{t('rating.pts')}</span>
                         </div>
+                    </div>
+                ) : myRankError && (
+                    <div className="lb-myrank lb-myrank--error">
+                        <span className="lb-myrank-error-text">{myRankError}</span>
+                        <button
+                            type="button"
+                            className="lb-retry lb-retry--sm"
+                            onClick={() => fetchMyRank(activeTab)}
+                        >
+                            {t('rating.retry')}
+                        </button>
                     </div>
                 )}
             </div>

@@ -7,11 +7,26 @@ import { FONT_SIZES, FONT_FAMILIES, HEADINGS } from './lessonEditorConstants';
 export const RichTextEditor = ({ value, onChange }) => {
     const editorRef = useRef(null);
     const savedRange = useRef(null);
+    // Tracks the HTML we last pushed out via onChange. Lets the effect below
+    // tell "value changed because the user typed in this editor" (DOM is
+    // already correct, skip) apart from "value changed for an external
+    // reason — e.g. switching to a different section/lesson" (DOM is stale,
+    // must resync). Without this distinction, adding `value` to the deps
+    // array naively would re-set editorRef.current.innerHTML on every
+    // keystroke and reset the caret position.
+    const lastEmitted = useRef(undefined);
 
     useEffect(() => {
+        if (value === lastEmitted.current) return;
         if (editorRef.current && editorRef.current.innerHTML !== (value || ''))
             editorRef.current.innerHTML = value || '';
-    }, []);
+        lastEmitted.current = value;
+    }, [value]);
+
+    const emitChange = (html) => {
+        lastEmitted.current = html;
+        onChange(html);
+    };
 
     const saveSelection = () => {
         const sel = window.getSelection();
@@ -26,19 +41,19 @@ export const RichTextEditor = ({ value, onChange }) => {
     const exec = (cmd, val = null) => {
         restoreSelection();
         document.execCommand(cmd, false, val);
-        onChange(editorRef.current.innerHTML);
+        emitChange(editorRef.current.innerHTML);
         saveSelection();
     };
     const setBlock = (e) => {
         restoreSelection();
         document.execCommand('formatBlock', false, e.target.value === 'Paragraph' ? 'p' : e.target.value.toLowerCase());
-        onChange(editorRef.current.innerHTML);
+        emitChange(editorRef.current.innerHTML);
         editorRef.current.focus();
     };
     const applyFontFamily = (e) => {
         restoreSelection();
         document.execCommand('fontName', false, e.target.value);
-        onChange(editorRef.current.innerHTML);
+        emitChange(editorRef.current.innerHTML);
         editorRef.current.focus();
     };
     const applyFontSize = (e) => {
@@ -47,7 +62,7 @@ export const RichTextEditor = ({ value, onChange }) => {
         if (savedRange.current && !savedRange.current.collapsed) {
             const span = document.createElement('span');
             span.style.fontSize = size;
-            try { savedRange.current.surroundContents(span); onChange(editorRef.current.innerHTML); } catch {}
+            try { savedRange.current.surroundContents(span); emitChange(editorRef.current.innerHTML); } catch {}
         } else {
             document.execCommand('fontSize', false, '3');
             const fonts = editorRef.current.querySelectorAll('font[size]');
@@ -56,14 +71,14 @@ export const RichTextEditor = ({ value, onChange }) => {
                 last.removeAttribute('size');
                 last.style.fontSize = size;
             }
-            onChange(editorRef.current.innerHTML);
+            emitChange(editorRef.current.innerHTML);
         }
         editorRef.current.focus();
     };
     const applyColor = (e, cmd) => {
         restoreSelection();
         document.execCommand(cmd, false, e.target.value);
-        onChange(editorRef.current.innerHTML);
+        emitChange(editorRef.current.innerHTML);
         editorRef.current.focus();
     };
 
@@ -109,7 +124,7 @@ export const RichTextEditor = ({ value, onChange }) => {
             <div className="lep-rte-editor" ref={editorRef} contentEditable suppressContentEditableWarning
                  data-placeholder="Введите текст урока..."
                  onFocus={saveSelection} onKeyUp={saveSelection} onMouseUp={saveSelection} onSelect={saveSelection}
-                 onInput={() => { onChange(editorRef.current.innerHTML); saveSelection(); }}/>
+                 onInput={() => { emitChange(editorRef.current.innerHTML); saveSelection(); }}/>
         </div>
     );
 };
