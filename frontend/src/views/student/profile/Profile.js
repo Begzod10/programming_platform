@@ -185,6 +185,11 @@ function Profile({user: initialUser, onLogout}) {
         avatar_url: '',
     });
 
+    // Timer for the transient "success" banner — cleared on unmount so a
+    // late-firing setSuccess('') can't fire after the component is gone.
+    const successTimerRef = useRef(null);
+    useEffect(() => () => clearTimeout(successTimerRef.current), []);
+
     useEffect(() => {
         request(`${API_URL}v1/student/me`, 'GET', null, headers())
             .then(data => {
@@ -212,7 +217,7 @@ function Profile({user: initialUser, onLogout}) {
                 setProfile(p => ({...p, ...updated}));
                 setEditMode(false);
                 setSuccess(t('profile_updated'));
-                setTimeout(() => setSuccess(''), 3000);
+                successTimerRef.current = setTimeout(() => setSuccess(''), 3000);
             })
             .catch(() => setError(t('save_error')))
             .finally(() => setSaving(false));
@@ -233,14 +238,14 @@ function Profile({user: initialUser, onLogout}) {
             setForm(f => ({...f, avatar_url: resolved}));
         }
         setSuccess('Фото профиля обновлено ✓');
-        setTimeout(() => setSuccess(''), 3000);
+        successTimerRef.current = setTimeout(() => setSuccess(''), 3000);
     };
 
     const handleAvatarDeleted = () => {
         setProfile(p => ({...p, avatar_url: null}));
         setForm(f => ({...f, avatar_url: ''}));
         setSuccess('Фото профиля удалено');
-        setTimeout(() => setSuccess(''), 3000);
+        successTimerRef.current = setTimeout(() => setSuccess(''), 3000);
     };
 
     if (loading) {
@@ -305,7 +310,7 @@ function Profile({user: initialUser, onLogout}) {
                                         navigator.clipboard?.writeText(url)
                                             .then(() => {
                                                 setSuccess('Ссылка на ваш публичный профиль скопирована');
-                                                setTimeout(() => setSuccess(''), 3000);
+                                                successTimerRef.current = setTimeout(() => setSuccess(''), 3000);
                                             })
                                             .catch(() => {});
                                     }}

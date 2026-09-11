@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './TeacherProfile.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
@@ -12,9 +12,19 @@ function TeacherProfile({ user: initialUser }) {
     const [editMode,  setEditMode]  = useState(false);
     const [editClose, setEditClose] = useState(false);
 
+    // Timers scheduled below are cleared on unmount so a late-firing setter
+    // can't run once the component is gone ("state update on unmounted
+    // component").
+    const closeEditTimerRef = useRef(null);
+    const successTimerRef   = useRef(null);
+    useEffect(() => () => {
+        clearTimeout(closeEditTimerRef.current);
+        clearTimeout(successTimerRef.current);
+    }, []);
+
     const closeEdit = () => {
         setEditClose(true);
-        setTimeout(() => { setEditMode(false); setEditClose(false); setError(''); }, 280);
+        closeEditTimerRef.current = setTimeout(() => { setEditMode(false); setEditClose(false); setError(''); }, 280);
     };
     const [saving,   setSaving]   = useState(false);
     const [success,  setSuccess]  = useState('');
@@ -62,7 +72,7 @@ function TeacherProfile({ user: initialUser }) {
                 setProfile(p => ({ ...p, ...updated }));
                 closeEdit();
                 setSuccess(t('profile_updated'));
-                setTimeout(() => setSuccess(''), 3000);
+                successTimerRef.current = setTimeout(() => setSuccess(''), 3000);
             })
             .catch(() => setError(t('save_error')))
             .finally(() => setSaving(false));

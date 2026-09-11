@@ -53,12 +53,9 @@ function Register({ onLogin, onGoLogin }) {
             password: form.password,
         }))
             .then(res => {
-                const token = res.access_token || res.token || res.access;
-                if (token) localStorage.setItem('token', token);
-                // [REFACTOR] Store refresh token if present
-                if (res.refresh_token) localStorage.setItem('refresh_token', res.refresh_token);
+                // Auth state (token/refresh_token/user) is written once by
+                // AuthContext.login() below — do not duplicate the writes here.
                 const userData = res.user || res;
-                localStorage.setItem('user', JSON.stringify(userData));
                 onLogin(res);
                 // [REFACTOR] Navigate to appropriate dashboard
                 const role = userData.role || 'student';

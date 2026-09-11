@@ -162,6 +162,11 @@ function TeacherReview() {
     const [counts, setCounts] = useState({ all: 0, pending: 0, approved: 0, rejected: 0 });
     const [total, setTotal] = useState(0);
 
+    // Timer for the post-review modal close — cleared on unmount so
+    // setDetail/fetchProjects can't run after the component is gone.
+    const reviewCloseTimerRef = useRef(null);
+    useEffect(() => () => clearTimeout(reviewCloseTimerRef.current), []);
+
     // Debounced copy of `search` — the query now hits the server, so we wait
     // for the teacher to stop typing instead of firing a request per keystroke.
     const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -229,7 +234,7 @@ function TeacherReview() {
             setMsg('✅ Проверка сохранена!');
             // Refetch once the modal closes: the row may no longer belong to
             // the active tab, and the tab counts live on the server now.
-            setTimeout(() => { setDetail(null); fetchProjects(); }, 900);
+            reviewCloseTimerRef.current = setTimeout(() => { setDetail(null); fetchProjects(); }, 900);
         } catch {
             setMsg('❌ Ошибка при сохранении');
         } finally {
