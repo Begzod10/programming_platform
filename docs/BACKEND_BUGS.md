@@ -118,6 +118,11 @@ Status legend: ✅ fixed in commit `1766039`, 🟡 partial / mitigation only, �
 - **What:** On every startup, before accepting a single request, the app looped over every active course and called `translate_text_with_ai()` (an OpenAI request) for any title/description not yet cached. A slow/rate-limited/unreachable OpenAI, or a missing `OPENAI_API_KEY`, delayed the whole server's boot — a course-translation backfill should never be able to block the platform from coming up.
 - **Fix (2026-09-11):** extracted the loop into `app/services/translation_backfill.py::backfill_course_translations()`, scheduled via `app/scheduler.py` — runs once ~30s after startup (`DateTrigger`) and then daily at 03:00 (`CronTrigger`), off the request path entirely. `lifespan()` now only keeps `translation_store.load(db)` (a local-DB-only read, fast, genuinely needed before serving translated content). Verified: startup completes in milliseconds with `OPENAI_API_KEY` empty.
 
+### ✅ Team-game session CSV export completely unreachable
+- **Where:** `app/api/v1/endpoints/team_game_session.py` (now `team_game_session_reports.py` after the Phase 6 split, see PROJECT_KNOWLEDGE.md §4)
+- **What:** Found incidentally while splitting this file. `@router.get("/{session_id}/export.csv")` sat directly above `_csv_option_label`, a private helper with an unrelated `(q: dict, idx) -> str` signature — not above `session_export_csv`, the actual handler defined right after it. FastAPI registered `_csv_option_label` as the route's endpoint function; `session_export_csv` had no decorator at all and was never reachable. Confirmed live-broken by inspecting `app.routes` before the fix: `GET /{session_id}/export.csv` resolved to `_csv_option_label`. No test covered this endpoint at all, which is how it went unnoticed.
+- **Fix (2026-09-11):** moved the decorator to `session_export_csv`. Added `backend/tests/test_team_game_session_split.py::test_export_csv_route_resolves_to_the_real_handler` as a route-introspection regression guard (asserts the route table maps this exact path+method to `session_export_csv`, not any other function name).
+
 ---
 
 ## MEDIUM

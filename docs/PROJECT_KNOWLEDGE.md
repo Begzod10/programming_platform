@@ -339,7 +339,7 @@ have been multiple incidents of routes shipping with no auth dependency at all (
 | `store.py` | catalogue, purchase, inventory, equip |
 | `dictionary.py`, `practice.py`, `practice_session.py`, `practice_stats.py`, `practice_words.py` | vocabulary/SRS subsystem |
 | `quizzes.py` | the legacy A/B/C/D quiz system |
-| `team_game.py`, `team_game_common.py`, `team_game_questions.py`, `team_game_session.py` | live quiz game — session lifecycle, question bank import, WS-adjacent REST endpoints |
+| `team_game_common.py`, `team_game_questions.py`, `team_game_session.py`, `team_game_session_reports.py` | live quiz game — session lifecycle + WS (`team_game_session.py`), snapshot/summary/CSV-export/parent-bot routes (`team_game_session_reports.py`, split out 2026-09-11 from a single 1200+-line file), question bank import (`team_game_questions.py`), shared session-loading/broadcast helpers (`team_game_common.py`). `team_game.py` is a dead router-aggregator module nothing imports — `router.py` mounts the three route files directly with `prefix="/game-sessions"`; also can't actually be imported standalone (a pre-existing, unrelated latent bug — `include_router()` with no prefix on a router that has an empty-path route). |
 | `categories.py` | course category CRUD (mostly auto-create-on-write) |
 | `parent.py` | endpoints the Telegram parent bot calls (secret-authenticated, not JWT) |
 | `bot_stats.py` | stats endpoints for bot integrations |
