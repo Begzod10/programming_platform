@@ -374,7 +374,12 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                                 {dragDropped.length === 0
                                     ? <span className="slp-drop-hint">Перетащите элементы сюда по порядку</span>
                                     : dragDropped.map((w, i) => (
-                                        <span key={i} className="slp-ex-dropped-chip"
+                                        // Key combines word + position (not just index): dragDropped's
+                                        // membership and order both change as chips are dropped/removed,
+                                        // so a bare index key reuses a slot's identity for whatever word
+                                        // now occupies it. Word alone isn't enough either since the same
+                                        // word can appear twice in an ordering exercise.
+                                        <span key={`${w}__${i}`} className="slp-ex-dropped-chip"
                                               onClick={() => {
                                                   if (isDone) return;
                                                   setDragDropped(d => d.filter((_, j) => j !== i));
@@ -391,8 +396,10 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                             <div className="slp-ex-drag-chips-label">Доступные элементы:</div>
                             <div className="slp-ex-drag-words">
                                 {dragAvailable.map((w, i) => (
+                                    // Same reasoning as dragDropped above: this list's membership and
+                                    // order shift as words move to/from the dropzone.
                                     <span
-                                        key={i}
+                                        key={`${w}__${i}`}
                                         className="slp-ex-drag-chip"
                                         draggable={!isDone}
                                         onDragStart={e => e.dataTransfer.setData('word', w)}
