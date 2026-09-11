@@ -275,8 +275,21 @@ async def like_project(
         current_student: Student = Depends(get_current_student),
         service: ProjectService = Depends(get_project_service),
 ):
-    """Proyektni like qilish"""
+    """Proyektni like qilish (bir talaba bitta proyektni faqat bir marta like qila oladi)"""
     return await service.like_project(
+        project_id=project_id,
+        student_id=current_student.id
+    )
+
+
+@router.delete("/{project_id}/like", response_model=ProjectRead)
+async def unlike_project(
+        project_id: int,
+        current_student: Student = Depends(get_current_student),
+        service: ProjectService = Depends(get_project_service),
+):
+    """Proyektdan like'ni olib tashlash (like qo'ymagan bo'lsa ham xato bermaydi)"""
+    return await service.unlike_project(
         project_id=project_id,
         student_id=current_student.id
     )

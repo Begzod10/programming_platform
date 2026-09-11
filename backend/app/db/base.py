@@ -7,7 +7,7 @@ from app.db.base_class import Base
 from app.models.user import Student
 from app.models.category import Category
 from app.models.course import Course
-from app.models.project import Project
+from app.models.project import Project, ProjectLike
 from app.models.submission import Submission
 from app.models.ranking import Ranking
 from app.models.degree import Degree
@@ -41,6 +41,7 @@ __all__ = [
     "Category",
     "Course",
     "Project",
+    "ProjectLike",
     "Submission",
     "Ranking",
     "Degree",

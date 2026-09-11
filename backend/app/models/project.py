@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional, List
-from sqlalchemy import String, Integer, Text, DateTime, ForeignKey
+from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 
@@ -53,4 +53,34 @@ class Project(Base):
     lessons: Mapped[List["Lesson"]] = relationship(
         "Lesson",
         back_populates="project"
+    )
+
+
+class ProjectLike(Base):
+    """One row per (student, project) like — the real per-student dedup
+    mechanism for `Project.likes_count`.
+
+    Before this table existed, `likes_count` was a bare counter bumped on
+    every POST /like with no identity check at all (only self-likes were
+    blocked) — the same other student could like a project unlimited
+    times. The unique constraint below is what makes a repeat like a
+    clean no-op instead of counter spam; see
+    `ProjectService.like_project`/`unlike_project`, which recompute
+    `likes_count` from this table rather than incrementing it in place.
+    """
+    __tablename__ = "project_likes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("student_id", "project_id", name="uq_project_like_student_project"),
     )

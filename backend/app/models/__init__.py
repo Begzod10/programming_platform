@@ -1,5 +1,5 @@
 from app.models.user import Student
-from app.models.project import Project
+from app.models.project import Project, ProjectLike
 from app.models.submission import Submission
 from app.models.ranking import Ranking
 from app.models.student_degree import StudentDegree

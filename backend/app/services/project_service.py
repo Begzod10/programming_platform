@@ -7,9 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 
-from app.models.project import Project
+from app.models.project import Project, ProjectLike
 from app.models.submission import Submission
 from app.models.user import Student
 from app.schemas.project import ProjectCreate, ProjectUpdate
@@ -421,18 +422,79 @@ class ProjectService:
         await self.db.refresh(project)
         return project
 
+    async def _count_project_likes(self, project_id: int) -> int:
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(ProjectLike)
+            .where(ProjectLike.project_id == project_id)
+        )
+        return result.scalar_one()
+
     async def like_project(self, project_id: int, student_id: int = None) -> Project:
         """Like a project.
 
-        Self-likes are blocked. Per-user dedup is not enforced yet (needs a
-        dedicated project_likes join table — see TODO in the bug report).
+        Self-likes are blocked (unchanged). Per-student dedup is enforced
+        by `ProjectLike`'s unique constraint on (student_id, project_id):
+        a repeat like from the same student is a clean no-op — no second
+        row, no double-counted `likes_count`, and (via the pre-check plus
+        the IntegrityError fallback for a genuine concurrent race) never
+        a 500.
+
+        `likes_count` is recomputed from `project_likes` rather than
+        incremented in place — that keeps it always exactly correct with
+        no risk of drifting from the real row count, and a COUNT over
+        one project's likes is cheap (like volume per project is small).
         """
         project = await self.get_project(project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Loyiha topilmadi")
         if student_id is not None and project.student_id == student_id:
             raise HTTPException(status_code=400, detail="O'z loyihangizga like bosa olmaysiz")
-        project.likes_count += 1
+
+        if student_id is not None:
+            existing = await self.db.execute(
+                select(ProjectLike).where(
+                    ProjectLike.student_id == student_id,
+                    ProjectLike.project_id == project_id,
+                )
+            )
+            if existing.scalar_one_or_none() is None:
+                self.db.add(ProjectLike(student_id=student_id, project_id=project_id))
+                try:
+                    await self.db.commit()
+                except IntegrityError:
+                    # Two concurrent likes from the same student both passed
+                    # the pre-check above; the unique constraint caught the
+                    # duplicate insert. Treat it exactly like the
+                    # already-liked no-op path instead of a 500.
+                    await self.db.rollback()
+
+        project = await self.get_project(project_id)
+        project.likes_count = await self._count_project_likes(project_id)
+        await self.db.commit()
+        await self.db.refresh(project)
+        return project
+
+    async def unlike_project(self, project_id: int, student_id: int) -> Project:
+        """Remove a like. Unliking something never liked is a no-op, not
+        an error — `likes_count` never goes negative because it's always
+        recomputed from `project_likes`, never decremented blindly."""
+        project = await self.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Loyiha topilmadi")
+
+        result = await self.db.execute(
+            select(ProjectLike).where(
+                ProjectLike.student_id == student_id,
+                ProjectLike.project_id == project_id,
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing is not None:
+            await self.db.delete(existing)
+            await self.db.flush()
+
+        project.likes_count = await self._count_project_likes(project_id)
         await self.db.commit()
         await self.db.refresh(project)
         return project
