@@ -288,6 +288,12 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
         if (!fileName) return;
         setDownloadingFile(fileName);
         try {
+            // Stays on raw fetch(): this needs a binary blob response, and
+            // useHttp().request() (src/api/search/base.js) always returns
+            // axios's parsed response.data with no way to request
+            // responseType:'blob' — extending that shared helper is outside
+            // this file's scope. A 401 here still fails outright instead of
+            // refreshing, same as before.
             const token = headers()?.Authorization || headers()?.authorization || '';
             const url = `${API_URL}v1/courses/${course.id}/lessons/${lessonId}/download?file_name=${encodeURIComponent(fileName)}`;
             const response = await fetch(url, {
@@ -319,12 +325,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
         if (file.size > 15 * 1024 * 1024) throw new Error('TOO_LARGE');
         const formData = new FormData();
         formData.append('file', file);
-        const h = headers();
-        delete h['Content-Type'];
-        const r = await fetch(`${API_URL}v1/project/${projectId}/upload-zip`, {
-            method: 'POST', headers: h, body: formData,
-        });
-        if (!r.ok) throw new Error('UPLOAD_FAILED');
+        // No headers() here: useHttp's request() skips custom headers for
+        // FormData bodies (axios sets the multipart boundary itself) and
+        // axiosInstance's request interceptor already attaches the bearer
+        // token, so this still goes out authenticated.
+        await request(`${API_URL}v1/project/${projectId}/upload-zip`, 'POST', formData);
     };
 
     const handleComplete = async () => {
@@ -338,9 +343,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             const isLastLesson = currentIndex === allLessons.length - 1;
             if (isLastLesson && course.id) {
                 try {
-                    await fetch(
+                    await request(
                         `${API_URL}v1/achievements/check-and-earn-certificate?course_id=${course.id}`,
-                        {method: 'POST', headers: headers()}
+                        'POST', null, headers()
                     );
                 } catch (e) {
                     console.warn('check-and-earn-certificate failed:', e);
@@ -474,9 +479,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 const isLastLesson = currentIndex === allLessons.length - 1;
                 if (isLastLesson && course.id) {
                     try {
-                        await fetch(
+                        await request(
                             `${API_URL}v1/achievements/check-and-earn-certificate?course_id=${course.id}`,
-                            {method: 'POST', headers: headers()}
+                            'POST', null, headers()
                         );
                     } catch (e) {
                         console.warn('check-and-earn-certificate failed:', e);
@@ -724,9 +729,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                     if (!explanationProjectId || explanationText.trim().length < 20) return;
                                     setExplanationSaving(true);
                                     try {
-                                        await fetch(
+                                        await request(
                                             `${API_URL}v1/project/${explanationProjectId}/explanation`,
-                                            { method: 'PATCH', headers: {...headers(), 'Content-Type':'application/json'}, body: JSON.stringify({explanation: explanationText.trim()}) }
+                                            'PATCH',
+                                            JSON.stringify({explanation: explanationText.trim()}),
+                                            headers()
                                         );
                                     } catch { /* best-effort */ }
                                     setExplanationSaving(false);
