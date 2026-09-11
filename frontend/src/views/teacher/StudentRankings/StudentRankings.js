@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './StudentRankings.css';
-import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { API_URL, useHttp, headers, getCurrentUser } from '../../../api/search/base';
 import { Trophy, Star } from 'lucide-react';
 
 const LIMIT = 50;
@@ -86,16 +86,24 @@ export default function TeacherStudentsRankings() {
     const [page,    setPage]    = useState(0);
     const [period,  setPeriod]  = useState('all');
 
+    // Class (group) filter — turon teachers only. Gennis has no equivalent
+    // concept of a teacher owning multiple named classes the same way, so
+    // the dropdown stays hidden for them rather than showing an empty list.
+    const isTuron   = !!getCurrentUser()?.is_turon;
+    const [groups,  setGroups]  = useState([]);
+    const [groupId, setGroupId] = useState('');
+
     const searchTimer = useRef(null);
     const bodyRef     = useRef(null);
 
-    const fetchData = (skip, searchVal, periodVal) => {
+    const fetchData = (skip, searchVal, periodVal, groupIdVal) => {
         setLoading(true);
         setError('');
         const q = searchVal ? `&search=${encodeURIComponent(searchVal)}` : '';
         const p = `&period=${encodeURIComponent(periodVal || 'all')}`;
+        const g = groupIdVal ? `&group_id=${encodeURIComponent(groupIdVal)}` : '';
         request(
-            `${API_URL}v1/teacher/students/rankings?skip=${skip}&limit=${LIMIT}${q}${p}`,
+            `${API_URL}v1/teacher/students/rankings?skip=${skip}&limit=${LIMIT}${q}${p}${g}`,
             'GET', null, headers()
         )
             .then(res => { setItems(res.items || []); setTotal(res.total || 0); })
@@ -103,27 +111,43 @@ export default function TeacherStudentsRankings() {
             .finally(() => setLoading(false));
     };
 
-    useEffect(() => { fetchData(0, '', 'all'); }, []);
+    useEffect(() => {
+        fetchData(0, '', 'all', '');
+        if (isTuron) {
+            request(`${API_URL}v1/groups/`, 'GET', null, headers())
+                .then(res => setGroups(Array.isArray(res) ? res : []))
+                .catch(() => setGroups([]));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleSearch = (e) => {
         const val = e.target.value;
         setSearch(val);
         setPage(0);
         clearTimeout(searchTimer.current);
-        searchTimer.current = setTimeout(() => fetchData(0, val, period), 420);
+        searchTimer.current = setTimeout(() => fetchData(0, val, period, groupId), 420);
     };
 
     const handlePeriod = (next) => {
         if (next === period) return;
         setPeriod(next);
         setPage(0);
-        fetchData(0, search, next);
+        fetchData(0, search, next, groupId);
+        bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleGroup = (e) => {
+        const next = e.target.value;
+        setGroupId(next);
+        setPage(0);
+        fetchData(0, search, period, next);
         bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handlePage = (p) => {
         setPage(p);
-        fetchData(p * LIMIT, search, period);
+        fetchData(p * LIMIT, search, period, groupId);
         bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -178,9 +202,22 @@ export default function TeacherStudentsRankings() {
                             onChange={handleSearch}
                         />
                         {search && (
-                            <button className="tsr-search-clear" onClick={() => { setSearch(''); fetchData(0, '', period); setPage(0); }}>✕</button>
+                            <button className="tsr-search-clear" onClick={() => { setSearch(''); fetchData(0, '', period, groupId); setPage(0); }}>✕</button>
                         )}
                     </div>
+                    {isTuron && groups.length > 0 && (
+                        <select
+                            className="tsr-search"
+                            value={groupId}
+                            onChange={handleGroup}
+                            aria-label="Sinf bo'yicha filtrlash"
+                        >
+                            <option value="">Barcha sinflar</option>
+                            {groups.map(g => (
+                                <option key={g.id} value={g.id}>{g.name}</option>
+                            ))}
+                        </select>
+                    )}
                 </div>
                 <div className="tsr-period-row" role="tablist" aria-label="Период">
                     {PERIOD_OPTIONS.map(opt => (
@@ -212,7 +249,7 @@ export default function TeacherStudentsRankings() {
                     <div className="tsr-state tsr-state--error">
                         <span className="tsr-state-icon">⚠️</span>
                         <p>{error}</p>
-                        <button className="tsr-retry" onClick={() => fetchData(page * LIMIT, search, period)}>Повторить</button>
+                        <button className="tsr-retry" onClick={() => fetchData(page * LIMIT, search, period, groupId)}>Повторить</button>
                     </div>
                 )}
 

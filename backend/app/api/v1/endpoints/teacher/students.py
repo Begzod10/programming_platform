@@ -34,6 +34,10 @@ async def get_students_rankings(
             "all",
             description="day | week | month | all — which Ranking bucket to read",
         ),
+        group_id: Optional[int] = Query(
+            None,
+            description="Restrict to one of the teacher's own groups (turon class filter)",
+        ),
         current_teacher: Student = Depends(get_current_instructor),
         db: AsyncSession = Depends(get_db)
 ):
@@ -46,6 +50,7 @@ async def get_students_rankings(
         limit=limit,
         search=search,
         period=period,
+        group_id=group_id,
     )
 
 

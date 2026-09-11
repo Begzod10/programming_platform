@@ -10,6 +10,7 @@ from app.models.project import Project  # ✅ Project modelini import qiling
 from app.models.course import Course
 from app.models.exercise import Exercise, ExerciseSubmission
 from app.models.lesson import Lesson, LessonCompletion
+from app.models.group import student_groups
 from app.schemas.user import UserUpdate
 from app.services.teacher_students import teacher_student_ids_subquery
 
@@ -174,6 +175,7 @@ class StudentService:
             limit: int = 10,
             search: Optional[str] = None,
             period: str = "all",
+            group_id: Optional[int] = None,
     ) -> dict:
         # Map the period to the Ranking bucket column we sort + return on.
         # 'all' reads from Student.total_points (lifetime) because the
@@ -206,6 +208,18 @@ class StudentService:
                 or_(
                     Student.username.ilike(f"%{search}%"),
                     Student.full_name.ilike(f"%{search}%"),
+                )
+            )
+
+        if group_id is not None:
+            # Intersected with teacher_students_subq above, so a group_id the
+            # teacher doesn't actually own just yields zero rows rather than
+            # leaking another teacher's group membership.
+            query = query.where(
+                Student.id.in_(
+                    select(student_groups.c.student_id).where(
+                        student_groups.c.group_id == group_id
+                    )
                 )
             )
 

@@ -148,6 +148,12 @@ class UserRead(BaseModel):
     # _early_learning_eligible's docstring above.
     early_learning_eligible: bool = Field(default=True)
 
+    # Derived from turon_id, not exposing the raw id itself — the frontend
+    # only needs to know which source system this account synced from (e.g.
+    # to show turon-only UI like the class filter on the teacher ranking
+    # page), never the numeric id.
+    is_turon: bool = Field(default=False)
+
     @model_validator(mode="before")
     @classmethod
     def collect_achievements(cls, data: Any) -> Any:
@@ -185,6 +191,8 @@ class UserRead(BaseModel):
             )
         except Exception:
             base["early_learning_eligible"] = True
+
+        base["is_turon"] = getattr(data, "turon_id", None) is not None
 
         return base
 

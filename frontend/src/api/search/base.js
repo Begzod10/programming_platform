@@ -3,7 +3,7 @@ import axiosInstance from '../axiosInstance';
 
 // ── API URL ──
 // Используй нужную строку, остальные закомментируй
-export const API_URL_DOC = process.env.REACT_APP_API_URL || `http://localhost:8000/`
+export const API_URL_DOC = process.env.REACT_APP_API_URL || `https://tech.gennis.uz/`
 // export const API_URL_DOC = `http://192.168.43.70:8000/`
 // export const API_URL_DOC = `http://100.67.61.71:8000/`
 // export const API_URL_DOC = `http://100.68.60.126:8000/`
