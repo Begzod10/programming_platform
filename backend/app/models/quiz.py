@@ -24,11 +24,20 @@ class Quiz(Base):
     # age_max bilan bir xil naqsh.
     grade_min: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     grade_max: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # NULL = kursga bog'lanmagan, hamma ko'radi (eski xatti-harakat). Bog'lansa,
+    # faqat shu kursni 100% tugatgan talaba ko'radi (CourseService.calc_progress).
+    course_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("courses.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     questions: Mapped[List["Question"]] = relationship("Question", back_populates="quiz", cascade="all, delete-orphan")
     results: Mapped[List["StudentQuizResult"]] = relationship("StudentQuizResult", back_populates="quiz", cascade="all, delete-orphan")
+    # viewonly + no back_populates: Course doesn't need to know about quizzes
+    # pointing at it, this is purely so QuizRead can surface course_title.
+    course: Mapped[Optional["Course"]] = relationship("Course", lazy="selectin", viewonly=True)
 
 
 class Question(Base):

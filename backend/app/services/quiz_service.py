@@ -10,6 +10,7 @@ from app.models.quiz import Quiz, Question, StudentQuizResult
 from app.models.user import Student
 from app.schemas.quiz import QuizCreate, QuizUpdate, QuestionCreate, QuizSubmit
 from app.services.ranking_service import RankingService
+from app.services.course_service import CourseService
 
 _GRADE_PREFIX_RE = re.compile(r"^\s*(\d{1,2})")
 
@@ -59,6 +60,23 @@ async def get_all_quizzes(
     if student is not None:
         grades = student_grades(student)
         quizzes = [q for q in quizzes if _quiz_visible_to_grades(q, grades)]
+
+        # course_id bog'langan testlar — faqat shu kursni 100% tugatgan
+        # talabaga ko'rinadi. Bir xil course_id'li testlar orasida progress
+        # bir marta hisoblanadi (cache), N ta test uchun N marta emas.
+        progress_cache: dict[int, int] = {}
+        visible = []
+        for q in quizzes:
+            if q.course_id is None:
+                visible.append(q)
+                continue
+            if q.course_id not in progress_cache:
+                progress_cache[q.course_id] = await CourseService.calc_progress(
+                    db, q.course_id, student.id
+                )
+            if progress_cache[q.course_id] >= 100:
+                visible.append(q)
+        quizzes = visible
 
     return quizzes[skip: skip + limit]
 

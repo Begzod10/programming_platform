@@ -2,34 +2,42 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import './Quiz.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
-import { HelpCircle, CheckCircle2, XCircle, Trophy, ArrowLeft, Clock } from 'lucide-react';
+import { HelpCircle, CheckCircle2, XCircle, Trophy, ArrowLeft, Clock, BookOpen, Sparkles } from 'lucide-react';
 
 const OPTION_KEYS = ['A', 'B', 'C', 'D'];
 
+const DIFF_EMOJI = { beginner: '🌱', intermediate: '🔥', advanced: '⚡' };
+
 function QuizCard({ quiz, myResult, onStart }) {
     const passed = myResult?.passed;
+    const diffKey = (quiz.difficulty_level || 'beginner').toLowerCase();
     return (
-        <button className="qz-card" onClick={() => onStart(quiz.id)}>
+        <button className={`qz-card qz-card--${diffKey}`} onClick={() => onStart(quiz.id)}>
+            <div className="qz-card-glow" aria-hidden="true" />
             <div className="qz-card-top">
-                <span className={`qz-card-diff qz-card-diff--${(quiz.difficulty_level || 'beginner').toLowerCase()}`}>
-                    {quiz.difficulty_level}
+                <span className="qz-card-diff">
+                    {DIFF_EMOJI[diffKey] || '📘'} {quiz.difficulty_level}
                 </span>
                 {passed && (
                     <span className="qz-card-passed" title="O'tilgan">
-                        <CheckCircle2 size={16} /> {myResult.score}%
+                        <CheckCircle2 size={15} /> {myResult.score}%
                     </span>
                 )}
             </div>
             <h3 className="qz-card-title">{quiz.title}</h3>
             {quiz.description && <p className="qz-card-desc">{quiz.description}</p>}
+            {quiz.course_title && (
+                <span className="qz-card-course"><BookOpen size={12} /> {quiz.course_title}</span>
+            )}
             <div className="qz-card-meta">
                 {quiz.time_limit_minutes && (
                     <span><Clock size={13} /> {quiz.time_limit_minutes} daq</span>
                 )}
                 {quiz.points_reward > 0 && (
-                    <span className="qz-card-pts">+{quiz.points_reward} ball</span>
+                    <span className="qz-card-pts"><Sparkles size={13} /> +{quiz.points_reward}</span>
                 )}
             </div>
+            <span className="qz-card-cta">{passed ? 'Qayta urinish' : 'Boshlash'} →</span>
         </button>
     );
 }
@@ -118,9 +126,11 @@ export default function Quiz() {
         return (
             <div className="qz-root qz-result-wrap">
                 <div className={`qz-result ${result.passed ? 'qz-result--pass' : 'qz-result--fail'}`}>
-                    {result.passed
-                        ? <CheckCircle2 size={56} className="qz-result-icon" />
-                        : <XCircle size={56} className="qz-result-icon" />}
+                    <div className="qz-result-icon-wrap">
+                        {result.passed
+                            ? <CheckCircle2 size={44} className="qz-result-icon" />
+                            : <XCircle size={44} className="qz-result-icon" />}
+                    </div>
                     <h2>{result.passed ? "O'tdingiz!" : 'Keyingi safar!'}</h2>
                     <p className="qz-result-score">{result.score}%</p>
                     <p className="qz-result-sub">
