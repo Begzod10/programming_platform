@@ -15,11 +15,13 @@ import CourseDetailPage from '../CourseModal/CourseModal';
 import LessonPage from '../LessonPage/LessonPage';
 import AssignStudentsModal from '../AssignStudentsModal/AssignStudentsModal';
 import { API_URL, useHttp, headers, getCurrentUser } from '../../../../api/search/base';
+import { useAuth } from '../../../../context/AuthContext';
 import { sameId, apiToLesson, lessonToApi, exerciseToApi } from './helpers';
 import { ConfirmModal } from './ConfirmModal';
 import { CategoriesModal } from './CategoriesModal';
 import { SortableCourseCard } from './SortableCourseCard';
 import { CategoryPicker } from './CategoryPicker';
+import { Loader } from './Loader';
 
 // Category state is loaded from the backend (categories table). The previous
 // hardcoded `INITIAL_CHAPTERS` list was removed in favor of real categories
@@ -30,6 +32,7 @@ import { CategoryPicker } from './CategoryPicker';
 ═══════════════════════════════════════════ */
 const TeacherCourses = () => {
     const { request }            = useHttp();
+    const { user }               = useAuth();
     const navigate               = useNavigate();
     const location               = useLocation();
     const { courseId, lessonId } = useParams();
@@ -128,14 +131,14 @@ const TeacherCourses = () => {
         const oldIds = oldExercises.map(e => e.id).filter(Boolean);
         const newIds = newExercises.map(e => e.id).filter(Boolean);
         for (const id of oldIds.filter(id => !newIds.includes(id))) {
-            await fetch(`${API_URL}v1/courses/${cId}/lessons/${lId}/exercises/${id}`, { method: 'DELETE', mode: 'cors', headers: headers() }).catch(() => {});
+            await request(`${API_URL}v1/courses/${cId}/lessons/${lId}/exercises/${id}`, 'DELETE', null, headers()).catch(() => {});
         }
         for (const ex of newExercises) {
             const body = JSON.stringify(exerciseToApi(ex));
             if (ex.id && oldIds.includes(ex.id)) {
-                await fetch(`${API_URL}v1/courses/${cId}/lessons/${lId}/exercises/${ex.id}`, { method: 'PUT', mode: 'cors', headers: headers(), body }).catch(() => {});
+                await request(`${API_URL}v1/courses/${cId}/lessons/${lId}/exercises/${ex.id}`, 'PUT', body, headers()).catch(() => {});
             } else {
-                await fetch(`${API_URL}v1/courses/${cId}/lessons/${lId}/exercises`, { method: 'POST', mode: 'cors', headers: headers(), body }).catch(() => {});
+                await request(`${API_URL}v1/courses/${cId}/lessons/${lId}/exercises`, 'POST', body, headers()).catch(() => {});
             }
         }
     };
@@ -213,7 +216,13 @@ const TeacherCourses = () => {
             setCourseSaveError('Заполните название и описание');
             return;
         }
-        const user = getCurrentUser();
+        if (!user?.id) {
+            // AuthContext state can momentarily lag storage right after a
+            // login/logout transition — abort rather than silently sending
+            // instructor_id: undefined.
+            setCourseSaveError('Не удалось определить пользователя. Войдите заново.');
+            return;
+        }
         const body = {
             title: newCourse.title,
             description: newCourse.description,
@@ -259,7 +268,7 @@ const TeacherCourses = () => {
             .catch(() => setCourses(cs => cs.map(c => sameId(c.id, course.id) ? { ...c, is_published: !newVal } : c)));
     };
     const doDeleteCourse = (id) => {
-        fetch(`${API_URL}v1/courses/${id}`, { method: 'DELETE', mode: 'cors', headers: headers() })
+        request(`${API_URL}v1/courses/${id}`, 'DELETE', null, headers())
             .then(() => {
                 setCourses(cs => cs.filter(c => !sameId(c.id, id)));
                 setConfirmCourse(null);
@@ -311,8 +320,6 @@ const TeacherCourses = () => {
         );
     };
     /* ═══════════ VIEWS ═══════════ */
-
-    const Loader = () => <div style={{ textAlign: 'center', padding: '60px', color: 'rgba(26,26,46,0.4)' }}>Загрузка...</div>;
 
     if (loading && courseId) return <Loader />;
 
