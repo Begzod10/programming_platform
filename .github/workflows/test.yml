@@ -33,6 +33,21 @@ jobs:
           SECRET_KEY: test-secret-key-for-ci-only-not-used-in-prod
         run: python -m pytest tests/ -v --tb=short
 
+      # Reports known-CVE dependencies on every push — does not fail the
+      # build yet. As of 2026-09-11 requirements.txt has 73 known
+      # vulnerabilities across 13 packages (all with fix versions
+      # available); bumping those is a separate, deliberately-scoped task
+      # since several are major-version jumps (starlette, cryptography)
+      # that need their own regression pass, not something to gate CI on
+      # sight-unseen. Flip this to `pip-audit -r requirements.txt` (no
+      # `|| true`) once that cleanup lands, so new vulnerabilities fail
+      # the build going forward.
+      - name: Audit dependencies for known vulnerabilities
+        working-directory: backend
+        run: |
+          pip install -q pip-audit
+          pip-audit -r requirements.txt || true
+
   frontend:
     name: Frontend (Jest)
     runs-on: ubuntu-latest

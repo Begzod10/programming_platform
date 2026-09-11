@@ -167,18 +167,19 @@ Status legend: ✅ fixed in commit `1766039`, 🟡 partial / mitigation only, �
 - **What:** Two independent session factories; risk of one drifting from the other.
 - **Fix (2026-09-11):** kept `app/db/session.py` as canonical (not `app/dependencies.py` — tracing the import chain showed the other direction creates a cycle: `core/security.py` imports `get_db` from `db.session`, and `dependencies.py` imports from `core.security`, so `db.session` importing from `dependencies` would cycle back on itself; `db.session` itself only depends on `db.database`, so `dependencies.py` importing from `db.session` is cycle-free). `app/dependencies.py` now re-exports it instead of re-implementing. All ~30 consumers of `from app.dependencies import get_db` get the same function object transparently; the handful of files already importing from `app.db.session` needed no change.
 
-### ⬜ `requirements.txt` has only 3 unpinned packages
+### ✅ `requirements.txt` has only 3 unpinned packages
 - **Where:** `backend/requirements.txt`
-- **Not fixed:** `pip freeze > requirements.txt` and add `pip-audit` to CI.
+- **Status as of 2026-09-11 (Phase 5 hygiene pass):** doc claim was stale — every one of the 68 entries in `requirements.txt` is already `==`-pinned, no unpinned packages found. The other half of this item, `pip-audit` in CI, genuinely was missing — added as a non-blocking step in `.github/workflows/test.yml` (`|| true`, reports but doesn't fail the build).
+- **🟡 Real finding from actually running it:** `pip-audit -r requirements.txt` reports **73 known vulnerabilities across 13 pinned packages** (aiohttp, click, cryptography, ecdsa, idna, mako, pillow, pyasn1, pydantic-settings, pypdf2, python-multipart, setuptools, starlette), all with fix versions available. Deliberately **not bulk-upgraded** as part of this hygiene pass — several are major-version jumps (`starlette` 1.0.0→1.3.1, `cryptography` 46→49/50) that touch FastAPI's core request handling and JWT signing respectively, and need their own dedicated upgrade-and-regression-test pass rather than 13 simultaneous version bumps under a "hygiene" label. Flagged as follow-up work; CI now at least surfaces this on every push instead of it being invisible.
 
 ---
 
 ## LOW / housekeeping
 
 - ✅ `backend/.gitignore` added (second-line defense for `.env`, `debug_output.txt`, `debug_sync.txt`).
-- ⬜ `backend/debug_output.txt` and `debug_sync.txt` are git-tracked — `git rm --cached` them and rely on the new ignore.
-- ⬜ Stale `.py~` editor backups in `app/api/v1/endpoints/` (`achievements.py~`, `lessons.py~`). Delete or ignore.
-- ⬜ Token revocation / blacklist — JWT logout is currently client-only. Pair with the access-token-TTL cut once a revocation store (Redis) exists.
+- ✅ `backend/debug_output.txt` and `debug_sync.txt` — verified 2026-09-11: not git-tracked, already cleaned up (doc was stale).
+- ✅ Stale `.py~` editor backups in `app/api/v1/endpoints/` — verified 2026-09-11: none found (doc was stale).
+- ⬜ Token revocation / blacklist — JWT logout is currently client-only. Pair with the access-token-TTL cut once a revocation store (Redis) exists. Out of scope for a hygiene pass — this is a feature requiring new infrastructure (Redis), not a cleanup.
 
 ---
 
