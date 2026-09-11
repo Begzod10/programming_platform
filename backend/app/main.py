@@ -27,43 +27,17 @@ async def lifespan(app: FastAPI):
     await init_db()
     start_scheduler()
 
-    # Load translation cache into memory and translate course titles/descriptions.
+    # Warm the in-memory translation-read cache (local DB only, fast — the
+    # app genuinely needs this before serving translated content). The
+    # course title/description AI-translation BACKFILL that used to run
+    # right here, synchronously, before the server accepted any requests,
+    # now runs via the scheduler instead (see translation_backfill.py) —
+    # startup must succeed even with OPENAI_API_KEY empty or OpenAI down.
     try:
         from app.services import translation_store as ts
-        from app.services.grok_service import translate_text_with_ai
-        from sqlalchemy import text as sa_text
 
         async with AsyncSessionLocal() as db:
             await ts.load(db)
-
-            # Translate course titles/descriptions not yet in cache.
-            rows = (await db.execute(sa_text(
-                "SELECT id, title, description FROM courses WHERE is_active=true"
-            ))).all()
-            upsert_sql = sa_text("""
-                INSERT INTO translation_cache
-                  (entity_type, entity_id, lang, field_name, source_text_hash,
-                   translated_text, provider, created_at, updated_at)
-                VALUES (:et, :eid, 'ru', :fn, :h, :tr, 'openai', NOW(), NOW())
-                ON CONFLICT (entity_type, entity_id, lang, field_name) DO UPDATE
-                  SET translated_text=EXCLUDED.translated_text, updated_at=NOW()
-            """)
-            import hashlib
-            for course_id, title, description in rows:
-                for field_name, src in (("title", title), ("description", description)):
-                    if not src or not src.strip():
-                        continue
-                    if ts.get("course", course_id, "ru", field_name):
-                        continue  # already in store
-                    try:
-                        tr = await translate_text_with_ai(src, source_lang="uz", target_lang="ru")
-                        if tr and tr.strip():
-                            h = hashlib.sha256(src.strip().encode()).hexdigest()
-                            await db.execute(upsert_sql, {"et": "course", "eid": course_id, "fn": field_name, "h": h, "tr": tr})
-                            ts.put("course", course_id, "ru", field_name, tr)
-                    except Exception:
-                        pass
-            await db.commit()
     except Exception as e:
         print(f"Translation store load failed (non-fatal): {e}")
 
@@ -120,11 +94,14 @@ def create_application() -> FastAPI:
         swagger_ui_parameters={"docExpansion": "none"},
     )
 
-    # Explicit origins required when allow_credentials=True; the CORS spec
-    # forbids "*" + credentials and browsers will reject it anyway.
+    # allow_credentials stays False (auth is a Bearer header, not cookies) —
+    # a wildcard origin would be tolerable under that alone, but explicit
+    # origins from settings.cors_origins_list are still required so an
+    # unrelated site can't silently ride along on every API response's
+    # CORS headers; see docs/PROJECT_KNOWLEDGE.md §12 for the env var.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.cors_origins_list,
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],

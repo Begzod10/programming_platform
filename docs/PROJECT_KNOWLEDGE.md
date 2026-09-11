@@ -824,7 +824,7 @@ only below — **never put actual values from `.env` into this file or any commi
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | default 30 (short-lived; refresh flow handles long sessions) |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | default 7 |
 | `UPLOAD_DIR`, `MAX_FILE_SIZE`, `ALLOWED_EXTENSIONS` | file upload limits |
-| `BACKEND_CORS_ORIGINS` | comma-separated (also tolerates legacy JSON-list `.env` syntax) — **wildcard forbidden**, see §10 |
+| `BACKEND_CORS_ORIGINS` | comma-separated (also tolerates legacy JSON-list `.env` syntax) — **wildcard forbidden**, see §10. **Must include the production frontend's exact origin** (e.g. `https://tech.gennis.uz`) or the frontend breaks after deploy with no server-side error — the request just fails CORS in the browser, which is easy to miss if you're only watching backend logs. `app/main.py`'s `CORSMiddleware` reads this via `settings.cors_origins_list` (comma-split/JSON-parsed by `config.py`); `backend/.env.example` documents every var here with the same narrative. |
 | `MGMT_INTEGRATION_URL` | points at management-v2's compatibility shim, not old admin.gennis.uz or gennis-v2's own copy (§10.4, §10.6) |
 | `AI_PROVIDER_CHAIN` | comma-separated `groq,gemini,openai` — **currently forced to `openai` only** in practice (§7.1); re-adding a fallback without a configured key reintroduces a past outage |
 | `OPENAI_BASE_URL`, `OPENAI_API_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` | `OPENAI_BASE_URL` optionally points at a relay/proxy to bypass geo-blocks |

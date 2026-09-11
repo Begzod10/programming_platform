@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 logger = logging.getLogger(__name__)
 
 from app.config import settings
+from app.core.rate_limit import rate_limit
 from app.services.course_service import CourseService
 from app.dependencies import get_db, get_current_student, get_current_teacher
 from app.models.lesson import Lesson, LessonCompletion
@@ -275,7 +276,8 @@ async def upload_course_image(
         course_id: int,
         file: UploadFile = File(...),
         current_teacher: Student = Depends(get_current_teacher),
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        _rl: None = Depends(rate_limit(max_calls=30, window_seconds=60)),
 ):
     """Kurs rasmini yuklash"""
     result = await db.execute(select(Course).where(Course.id == course_id))

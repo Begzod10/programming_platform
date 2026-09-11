@@ -68,6 +68,7 @@ jobs:
                git -C \"$BACKEND_DIR\" rev-parse --abbrev-ref HEAD
                git -C \"$BACKEND_DIR\" log -1 --format='HEAD=%H %s'
                grep -n '^AI_PROVIDER_CHAIN' \"$BACKEND_DIR/.env\" || echo 'AI_PROVIDER_CHAIN not set in .env (uses code default)'
+               grep -n '^BACKEND_CORS_ORIGINS' \"$BACKEND_DIR/.env\" || echo 'BACKEND_CORS_ORIGINS not set in .env (uses localhost-only code default — production frontend origin missing means every request breaks silently in the browser, see docs/PROJECT_KNOWLEDGE.md §12)'
                echo '--- diag: systemd unit ---'
                systemctl show \"$SERVICE_NAME\" -p ExecStart -p WorkingDirectory -p FragmentPath
                cd \"$BACKEND_DIR\"

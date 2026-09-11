@@ -3,6 +3,21 @@
 Uses a sliding-window counter keyed by (client_ip, endpoint). Works for a
 single-process deployment (one uvicorn worker). If you scale to multiple
 workers, replace the in-memory dict with a Redis backend (e.g. fastapi-limiter).
+
+Two things to know before relying on this in production:
+- **Per-process state.** With multiple uvicorn workers each worker has its
+  own `_counters` dict, so the effective limit is `max_calls * worker_count`,
+  not `max_calls` — fine for today's single-worker deploy (see
+  docs/PROJECT_KNOWLEDGE.md §13), but re-check this the moment worker count
+  changes.
+- **Resets on restart.** `_counters` is a plain in-memory dict; a service
+  restart (deploy, crash, `systemctl restart`) silently zeroes every
+  counter, so a client mid-window gets a fresh allowance. Acceptable for
+  abuse-throttling; do not rely on this for anything that needs a durable
+  audit trail of request counts.
+
+Migrating to Redis fixes both at once (shared state across processes,
+survives restarts) — left as a follow-up, not done here.
 """
 import time
 from collections import defaultdict

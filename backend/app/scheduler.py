@@ -16,8 +16,11 @@ main.py ga qo'shish:
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
+from datetime import datetime, timedelta, timezone
 from app.db.session import AsyncSessionLocal
 from app.services.ranking_service import RankingService
+from app.services.translation_backfill import backfill_course_translations
 import logging
 
 logger = logging.getLogger(__name__)
@@ -99,8 +102,28 @@ def start_scheduler():
         replace_existing=True
     )
 
+    # Course title/description RU-translation backfill — moved out of
+    # main.py's lifespan() so a slow/unavailable OpenAI never delays server
+    # startup (see translation_backfill.py). Runs once ~30s after startup
+    # (DateTrigger — gives init_db()/the scheduler itself time to settle
+    # first) and then daily at 03:00, well clear of the midnight reset jobs
+    # above.
+    scheduler.add_job(
+        backfill_course_translations,
+        trigger=DateTrigger(run_date=datetime.now(timezone.utc) + timedelta(seconds=30)),
+        id="translation_backfill_startup",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        backfill_course_translations,
+        trigger=CronTrigger(hour=3, minute=0),
+        id="translation_backfill_daily",
+        replace_existing=True,
+    )
+
     scheduler.start()
     logger.info("📅 Scheduler ishga tushdi!")
     logger.info("   - Kunlik reset: har kecha 00:00")
     logger.info("   - Haftalik reset: har dushanba 00:00")
     logger.info("   - Oylik reset: har oy 1-si 00:00")
+    logger.info("   - Kurs RU tarjima backfill: ishga tushgandan 30s keyin, keyin har kuni 03:00")

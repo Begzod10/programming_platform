@@ -22,6 +22,7 @@ Status legend: ✅ fixed in commit `1766039`, 🟡 partial / mitigation only, �
 - **Where:** `app/main.py:64-65`
 - **What:** `allow_origins=["*"]` with `allow_credentials=True` is forbidden by the CORS spec and FastAPI's CORSMiddleware silently reflects the request `Origin` — effectively letting any site make credentialed requests.
 - **Fix:** explicit origins from `settings.BACKEND_CORS_ORIGINS` (supports both comma-separated and legacy JSON-list `.env` formats).
+- **Regressed, re-fixed (2026-09-11):** `allow_credentials` was correctly `False`, but `allow_origins` had drifted back to a hardcoded `["*"]` — `settings.cors_origins_list` existed in `config.py` but was never actually passed to `CORSMiddleware`. Wired it in; added `backend/tests/test_config.py` covering both the comma-separated and legacy JSON-list `.env` formats; added `backend/.env.example` and a `BACKEND_CORS_ORIGINS` diagnostic line to `deploy-backend.yml` (matching the existing `AI_PROVIDER_CHAIN` check) so a missing production origin surfaces on deploy instead of failing silently in the browser.
 
 ### ✅ Teacher statistics open to any authenticated user
 - **Where:** `app/api/v1/endpoints/teacher/statistics.py:14-16`
@@ -106,10 +107,15 @@ Status legend: ✅ fixed in commit `1766039`, 🟡 partial / mitigation only, �
 - **What:** `student.total_points += points` reads → modifies → writes without `SELECT ... FOR UPDATE`. Concurrent AI reviews + lesson completions lose updates.
 - **Not fixed:** needs `.with_for_update()` on the `SELECT Student`/`SELECT Ranking` queries plus retry/lock-wait timeout policy.
 
-### ⬜ No rate limiting on login / upload / AI review
-- **Where:** `app/api/v1/endpoints/auth.py:16`, `courses.py:207`, `ai_review.py:17`
+### ✅ No rate limiting on login / upload / AI review
+- **Where:** `app/api/v1/endpoints/auth.py`, `courses.py`, `ai_review.py`
 - **What:** Login is brute-force-able; upload has no rate cap (combine with the now-fixed size check); AI review costs money per call.
-- **Not fixed:** add `slowapi` middleware with per-IP and per-user limits.
+- **Fix:** `app/core/rate_limit.py`'s in-memory sliding-window `rate_limit()` dependency (already applied to `/auth/register`, `/auth/login`, `/auth/sso`) added to `courses.py`'s `upload-image` endpoint (30/min/IP) and `ai_review.py`'s `ai-review` endpoint (5/min/IP — the real anti-farming control stays `count_reviews_today`'s daily quota; this is just a burst throttle). **Known limitation, documented in the module docstring, not fixed here**: per-process (multi-worker deploy multiplies the effective limit by worker count) and resets on every restart — migrating to Redis fixes both, left as a follow-up.
+
+### ✅ Startup blocked on OpenAI reachability
+- **Where:** `app/main.py`'s `lifespan()` (previously ~lines 30-66)
+- **What:** On every startup, before accepting a single request, the app looped over every active course and called `translate_text_with_ai()` (an OpenAI request) for any title/description not yet cached. A slow/rate-limited/unreachable OpenAI, or a missing `OPENAI_API_KEY`, delayed the whole server's boot — a course-translation backfill should never be able to block the platform from coming up.
+- **Fix (2026-09-11):** extracted the loop into `app/services/translation_backfill.py::backfill_course_translations()`, scheduled via `app/scheduler.py` — runs once ~30s after startup (`DateTrigger`) and then daily at 03:00 (`CronTrigger`), off the request path entirely. `lifespan()` now only keeps `translation_store.load(db)` (a local-DB-only read, fast, genuinely needed before serving translated content). Verified: startup completes in milliseconds with `OPENAI_API_KEY` empty.
 
 ---
 

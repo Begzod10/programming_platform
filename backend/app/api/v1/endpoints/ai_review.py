@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
+from app.core.rate_limit import rate_limit
 from app.dependencies import get_current_student, get_db
 from app.models.project import Project
 from app.models.user import Student
@@ -44,6 +45,7 @@ async def ai_review(
         project_id: int,
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db),
+        _rl: None = Depends(rate_limit(max_calls=5, window_seconds=60)),
 ):
     """Manual AI review trigger from the MyProjects page.
 
@@ -52,6 +54,11 @@ async def ai_review(
     both paths go through run_ai_review_for_project to keep behavior
     consistent. This endpoint exists so students can re-trigger if the
     auto-review was skipped or they uploaded a ZIP after submission.
+
+    Rate-limited per-IP (5/min) as a cheap first line of defense against
+    burst abuse — the real anti-farming control is count_reviews_today's
+    MAX_AI_REVIEWS_PER_DAY quota inside run_ai_review_for_project, which
+    this does not replace.
     """
     result = await db.execute(select(Project).where(Project.id == project_id))
     project = result.scalar_one_or_none()

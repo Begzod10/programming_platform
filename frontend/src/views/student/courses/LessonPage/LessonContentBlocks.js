@@ -5,6 +5,7 @@ import StudentProjectFiles from '../StudentProjectPreview/StudentProjectPreview'
 import SampleProject from './SampleProject';
 import { ExerciseSection } from './LessonExercise';
 import { useTranslation } from '../../../../i18n/useTranslation';
+import { sanitizeHtml } from '../../../../utils/sanitize';
 
 const sectionMeta = (t) => ({
     text:     {icon: '📝', label: t('lcb.section.text'),     color: '#6c5ce7'},
@@ -101,7 +102,7 @@ export const LessonContentBlocks = ({
                         <div className="slp-block-body">
                             {section.type === 'text' && (
                                 <div className="slp-text-content"
-                                     dangerouslySetInnerHTML={{__html: section.html || `<p style="opacity:0.3">${t('lcb.textEmpty')}</p>`}}/>
+                                     dangerouslySetInnerHTML={{__html: sanitizeHtml(section.html) || `<p style="opacity:0.3">${t('lcb.textEmpty')}</p>`}}/>
                             )}
 
                             {section.type === 'code' && (
