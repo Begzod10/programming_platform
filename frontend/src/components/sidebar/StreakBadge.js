@@ -24,7 +24,7 @@ export default function StreakBadge({ collapsed = false }) {
         request(`${API_URL}v1/rankings/my-streak`, 'GET', null, headers())
             .then(setStreak)
             .catch(() => {});
-    }, []);  // eslint-disable-line
+    }, [request]);
 
     if (!streak) return null;
     const days = streak.current_streak || 0;

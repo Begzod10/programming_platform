@@ -201,7 +201,7 @@ function TeacherReview() {
                 setLoadError('Не удалось загрузить проекты');
             })
             .finally(() => setLoading(false));
-    }, [page, filter, debouncedSearch]); // eslint-disable-line
+    }, [page, filter, debouncedSearch, request]);
 
     useEffect(() => {
         fetchProjects();

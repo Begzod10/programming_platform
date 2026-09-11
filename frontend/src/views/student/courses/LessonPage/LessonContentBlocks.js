@@ -54,7 +54,6 @@ export const LessonContentBlocks = ({
         pending: projectPending,
         failed: projectFailed,
         score: projectScore,
-        section: projectSection,
         loading: projectStatusLoading,
         submission: projectSubmission,
         passThreshold,

@@ -48,17 +48,9 @@ export const headers = () => {
     };
 };
 
-export const header = () => {
-    return {'Content-Type': 'application/json'};
-};
-
 export const headersImg = () => {
     const token = getToken();
     return {'Authorization': 'Bearer ' + token};
-};
-
-export const headerImg = () => {
-    return {'Authorization': ''};
 };
 
 // ── Branch helpers ──

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import './StudentCourses.css';
 import StudentCoursePage from '../CoursePage/StudentCoursePage';
 import StudentLessonPage from '../LessonPage/StudentLessonPage';
@@ -269,7 +269,6 @@ const StudentCourses = () => {
     const { request }              = useHttp();
     const { lang }                 = useTranslation();
     const navigate                 = useNavigate();
-    const location                 = useLocation();
     const { courseId, lessonId }   = useParams(); // всегда строки или undefined
 
     // Определяем вид по URL, не по state
@@ -316,9 +315,9 @@ const StudentCourses = () => {
             })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, []); // eslint-disable-line
+    }, [request]);
 
-    useEffect(() => { fetchCourses(); }, []); // eslint-disable-line
+    useEffect(() => { fetchCourses(); }, [fetchCourses]);
 
     /* ── fetch categories so the chip row matches the teacher page ── */
     useEffect(() => {
@@ -400,7 +399,7 @@ const StudentCourses = () => {
             loadedRef.current.delete(String(courseId));
             loadLessons(courseId);
         }
-    }, [courseId, lang]); // eslint-disable-line
+    }, [courseId, lang, loadLessons]);
 
     /* ── mark complete ── */
     const markComplete = useCallback((lId) => {
@@ -465,7 +464,6 @@ const StudentCourses = () => {
         ...cat,
         live_count: courses.filter((c) => c.category_id === cat.id).length,
     })).filter((cat) => cat.live_count > 0);
-    const uncategorizedCount = courses.filter((c) => !c.category_id).length;
 
     /* ══ LESSON VIEW ══ */
     if (view === 'lesson') {

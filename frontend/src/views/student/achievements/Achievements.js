@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { API_URL, headers, useHttp } from '../../../api/search/base';
+import { API_URL, headers } from '../../../api/search/base';
 import './Achievements.css';
 import { Trophy } from 'lucide-react';
 
@@ -30,7 +30,6 @@ function SkeletonCard() {
 
 function AchievementCard({ item }) {
     const icon = item.icon || null;
-    const category = normaliseCategory(item.category);
     const progress = Math.min(100, Math.max(0, item.progress ?? 0));
 
     return (
@@ -82,7 +81,6 @@ function EmptyState({ activeTab }) {
 }
 
 export default function Achievements() {
-    const { request } = useHttp();
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);

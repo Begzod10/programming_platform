@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL, useHttp, headers, resolveImageUrl } from '../../../api/search/base';
 import './TeacherAchievements.css';
-import { Trophy } from 'lucide-react';
 
 const CATEGORIES = [
     { value: '',           label: 'Barcha' },

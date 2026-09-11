@@ -1,5 +1,3 @@
-import { API_URL } from '../../../../api/search/base';
-
 // ФИКС: сравниваем id через String() — бэкенд может вернуть number, useParams всегда string
 export const sameId = (a, b) => String(a) === String(b);
 

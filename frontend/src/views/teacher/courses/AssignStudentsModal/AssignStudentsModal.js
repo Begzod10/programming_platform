@@ -72,10 +72,6 @@ const AssignStudentsModal = ({ course, onClose, onChanged }) => {
         () => students.filter(s => !s.is_enrolled).map(s => s.id),
         [students],
     );
-    const visibleEnrolled = useMemo(
-        () => students.filter(s => s.is_enrolled).map(s => s.id),
-        [students],
-    );
 
     const toggleOne = (id) => {
         setSelected(prev => {
