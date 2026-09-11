@@ -55,6 +55,7 @@ class LedgerReason(str, enum.Enum):
     """
     earn_activity = "earn_activity"     # generic earn (exercise, lesson, project…)
     earn_grant = "earn_grant"           # teacher hand-grants coins
+    earn_team_project = "earn_team_project"  # per-piece / team / lead bonus, see team_project_service.award_points
     spend_purchase = "spend_purchase"
     refund = "refund"                   # positive delta reversing a spend
 

@@ -34,6 +34,14 @@ from app.models.store import (
 )
 from app.models.early_learning import EarlyModule, EarlyActivity, EarlyActivityCompletion
 from app.models.error_log import AppErrorLog
+from app.models.team_project import (
+    TeamProject,
+    TeamProjectTeam,
+    TeamProjectMember,
+    TeamProjectTask,
+    TeamProjectPeerRating,
+    TeamProjectEvent,
+)
 
 __all__ = [
     "Base",
@@ -77,4 +85,10 @@ __all__ = [
     "EarlyActivity",
     "EarlyActivityCompletion",
     "AppErrorLog",
+    "TeamProject",
+    "TeamProjectTeam",
+    "TeamProjectMember",
+    "TeamProjectTask",
+    "TeamProjectPeerRating",
+    "TeamProjectEvent",
 ]
