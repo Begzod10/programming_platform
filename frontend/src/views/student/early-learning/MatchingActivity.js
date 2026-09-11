@@ -163,20 +163,21 @@ export default function MatchingActivity({ activity, onBack, onComplete, lang, t
             </div>
 
             <div className="ma-item-grid">
-                {pool.map((item) => {
+                {pool.map((item, i) => {
                     const isFound = found.has(item.id);
                     const isFlashing = flash?.id === item.id;
                     return (
                         <button
                             key={item.id}
                             className={`ma-item-card ${isFound ? 'ma-item-found' : ''} ${isFlashing ? 'ma-item-wrong' : ''}`}
+                            style={{ '--i': i, animationDelay: `${i * 0.06}s` }}
                             onClick={() => handleTap(item)}
                             disabled={isFound}
                         >
                             <span className="ma-item-icon">
                                 {isFlashing
                                     ? <span className="ma-item-sad" aria-hidden="true">😕</span>
-                                    : <ItemIcon emoji={item.emoji} icon={item.icon} size={40} />}
+                                    : <ItemIcon emoji={item.emoji} icon={item.icon} size={56} />}
                             </span>
                             <span className="ma-item-label">{item.label}</span>
                             {isFound && <span className="ma-item-check" aria-hidden="true">✓</span>}

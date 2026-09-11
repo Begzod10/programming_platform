@@ -153,13 +153,14 @@ export default function CountActivity({ activity, onBack, onComplete, lang, togg
             </div>
 
             <div className="ca-options">
-                {options.map((num) => {
+                {options.map((num, i) => {
                     const isFlashWrong = flash?.num === num;
                     const isCorrectPulse = correctNum === num;
                     return (
                         <button
                             key={num}
                             className={`ca-option-btn ${isFlashWrong ? 'ca-option-btn-wrong' : ''} ${isCorrectPulse ? 'ca-option-btn-correct' : ''}`}
+                            style={{ '--i': i, animationDelay: `${i * 0.07}s` }}
                             onClick={() => handleTap(num)}
                             disabled={submitting || locked}
                         >

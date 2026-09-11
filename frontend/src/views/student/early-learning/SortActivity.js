@@ -164,10 +164,11 @@ export default function SortActivity({ activity, onBack, onComplete, lang, toggl
             </div>
 
             <div className="so-tray">
-                {tray.map((item) => (
+                {tray.map((item, i) => (
                     <button
                         key={item.id}
                         className={`so-item ${selectedId === item.id ? 'so-item-selected' : ''}`}
+                        style={{ '--i': i, animationDelay: `${i * 0.06}s` }}
                         onClick={() => handleSelectItem(item)}
                         disabled={submitting}
                     >

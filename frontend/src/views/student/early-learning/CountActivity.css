@@ -108,21 +108,46 @@
        — these are the primary, only-thing-to-tap control on this screen. */
     min-width: var(--touch-min);
     min-height: var(--touch-min);
-    width: 56px;
-    height: 56px;
-    border-radius: 18px;
+    width: 68px;
+    height: 68px;
+    border-radius: 20px;
     border: none;
     background: #ffffff;
     color: #1f2937;
-    font-size: 1.4rem;
+    font-size: 1.7rem;
     font-weight: 800;
     cursor: pointer;
     box-shadow: 0 6px 16px rgba(30, 64, 110, 0.14);
-    transition: transform 0.15s, box-shadow 0.15s, background 0.15s, color 0.15s, opacity 0.15s;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s, background 0.15s, color 0.15s, opacity 0.15s;
+    animation: ca-btn-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-.ca-option-btn:hover:not(:disabled) { transform: translateY(-2px); }
-.ca-option-btn:disabled { opacity: 0.6; cursor: default; }
+@keyframes ca-btn-in {
+    from { opacity: 0; transform: scale(0.4) translateY(10px); }
+    to   { opacity: 1; transform: scale(1)   translateY(0); }
+}
+
+.ca-option-btn:not(:disabled) {
+    animation: ca-btn-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+               ca-btn-idle 2.4s ease-in-out calc(0.45s + var(--i, 0) * 0.15s) infinite;
+}
+
+@keyframes ca-btn-idle {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.06); }
+}
+
+.ca-option-btn:hover:not(:disabled) {
+    transform: translateY(-3px) scale(1.1);
+    animation: ca-btn-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.ca-option-btn:active:not(:disabled) {
+    transform: scale(0.88);
+    transition-duration: 0.08s;
+}
+
+.ca-option-btn:disabled { opacity: 0.6; cursor: default; animation: none; }
 
 .ca-option-btn-wrong {
     background: #fef2f2;
@@ -155,10 +180,18 @@
     color: #9ca3af;
 }
 
+@media (prefers-reduced-motion: reduce) {
+    .ca-option-btn,
+    .ca-option-btn:not(:disabled),
+    .ca-option-btn:hover:not(:disabled) {
+        animation: none;
+    }
+}
+
 @media (max-width: 480px) {
     .ca-page { padding: 20px 16px 28px; border-radius: 24px; }
     .ca-scene { padding: 14px; gap: 10px; }
-    .ca-option-btn { width: 50px; height: 50px; font-size: 1.25rem; }
+    .ca-option-btn { width: 58px; height: 58px; font-size: 1.4rem; }
 }
 
 /* Short viewports (landscape phones/tablets) — the scene is the single
@@ -171,5 +204,5 @@
     .ca-instruction { margin-bottom: 8px; }
     .ca-scene { min-height: 80px; padding: 10px; gap: 8px; margin-bottom: 12px; }
     .ca-item { font-size: clamp(1.3rem, 6vw, 1.8rem); }
-    .ca-option-btn { width: 46px; height: 46px; font-size: 1.1rem; }
+    .ca-option-btn { width: 54px; height: 54px; font-size: 1.25rem; }
 }

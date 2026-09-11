@@ -68,34 +68,62 @@
    (single correct pick vs. select-then-tap-a-bin). */
 .ce-options {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 16px;
     width: 100%;
-    max-width: 560px;
+    max-width: 620px;
     margin-bottom: 14px;
 }
+
+/* Same "scattered sticker" tilt + pop-in + idle breathe + tap-squish
+   treatment as MatchingActivity.css's .ma-item-card / SortActivity.css's
+   .so-item — see .ma-item-card's comment for the full rationale. */
+.ce-option-card { --tilt: calc((var(--i, 0) % 5 - 2) * 1.1deg); }
 
 .ce-option-card {
     background: #fff;
     border: 2px solid #eef0f4;
-    border-radius: 18px;
-    padding: 14px 10px;
+    border-radius: 22px;
+    padding: 20px 12px 16px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     cursor: pointer;
     color: #374151;
-    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, background 0.15s;
+    transform: rotate(var(--tilt));
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s, border-color 0.15s, background 0.15s;
+    animation: ce-card-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes ce-card-in {
+    from { opacity: 0; transform: rotate(var(--tilt)) scale(0.4) translateY(14px); }
+    to   { opacity: 1; transform: rotate(var(--tilt)) scale(1)   translateY(0); }
+}
+
+.ce-option-card:not(:disabled) {
+    animation: ce-card-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+               ce-card-idle 2.6s ease-in-out calc(0.5s + var(--i, 0) * 0.15s) infinite;
+}
+
+@keyframes ce-card-idle {
+    0%, 100% { transform: rotate(var(--tilt)) scale(1); }
+    50%      { transform: rotate(var(--tilt)) scale(1.035); }
 }
 
 .ce-option-card:hover:not(:disabled) {
-    transform: translateY(-3px);
+    transform: rotate(0deg) translateY(-6px) scale(1.08);
     border-color: #f4a9bb;
-    box-shadow: 0 10px 22px rgba(239, 71, 111, 0.14);
+    box-shadow: 0 14px 28px rgba(239, 71, 111, 0.18);
+    animation: ce-card-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-.ce-option-card:disabled { cursor: default; opacity: 0.7; }
+.ce-option-card:active:not(:disabled) {
+    transform: rotate(0deg) scale(0.92);
+    transition-duration: 0.08s;
+}
+
+.ce-option-card:disabled { cursor: default; opacity: 0.7; animation: none; }
 
 .ce-option-card-wrong {
     background: #fef2f2;
@@ -104,27 +132,28 @@
 }
 
 @keyframes ce-shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-4px); }
-    75% { transform: translateX(4px); }
+    0%, 100% { transform: rotate(var(--tilt)) translateX(0); }
+    25% { transform: rotate(var(--tilt)) translateX(-6px); }
+    75% { transform: rotate(var(--tilt)) translateX(6px); }
 }
 
 .ce-option-card-correct {
     background: #10b981;
     border-color: #10b981;
     color: #ffffff;
+    transform: rotate(0deg) scale(1);
     box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
     animation: ce-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 @keyframes ce-pop {
-    0%   { transform: scale(0.94); }
-    70%  { transform: scale(1.06); }
-    100% { transform: scale(1); }
+    0%   { transform: rotate(0deg) scale(0.94); }
+    70%  { transform: rotate(0deg) scale(1.1); }
+    100% { transform: rotate(0deg) scale(1); }
 }
 
-.ce-option-emoji { font-size: 1.8rem; line-height: 1; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.12)); }
-.ce-option-label { font-size: 0.82rem; font-weight: 600; text-align: center; }
+.ce-option-emoji { font-size: 2.4rem; line-height: 1; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.12)); }
+.ce-option-label { font-size: 0.9rem; font-weight: 700; text-align: center; }
 
 .ce-progress {
     font-size: 0.85rem;
@@ -132,10 +161,18 @@
     color: #9ca3af;
 }
 
+@media (prefers-reduced-motion: reduce) {
+    .ce-option-card,
+    .ce-option-card:not(:disabled),
+    .ce-option-card:hover:not(:disabled) {
+        animation: none;
+    }
+}
+
 @media (max-width: 480px) {
     .ce-page { padding: 20px 16px 28px; border-radius: 24px; }
     .ce-cause { padding: 14px; }
-    .ce-options { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; }
+    .ce-options { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
 }
 
 @media (max-height: 500px) {

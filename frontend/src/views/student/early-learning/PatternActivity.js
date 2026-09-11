@@ -133,6 +133,7 @@ export default function PatternActivity({ activity, onBack, onComplete, lang, to
                         <button
                             key={`${emoji}-${i}`}
                             className={`pt-option-btn ${isFlashWrong ? 'pt-option-btn-wrong' : ''} ${isCorrectPulse ? 'pt-option-btn-correct' : ''}`}
+                            style={{ '--i': i, animationDelay: `${i * 0.07}s` }}
                             onClick={() => handleTap(emoji)}
                             disabled={submitting || locked}
                         >

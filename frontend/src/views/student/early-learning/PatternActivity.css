@@ -102,19 +102,44 @@
        — these are the primary, only-thing-to-tap control on this screen. */
     min-width: var(--touch-min);
     min-height: var(--touch-min);
-    width: 60px;
-    height: 60px;
-    border-radius: 18px;
+    width: 72px;
+    height: 72px;
+    border-radius: 20px;
     border: none;
     background: #ffffff;
-    font-size: 1.7rem;
+    font-size: 2rem;
     cursor: pointer;
     box-shadow: 0 6px 16px rgba(30, 64, 110, 0.14);
-    transition: transform 0.15s, box-shadow 0.15s, background 0.15s, opacity 0.15s;
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s, background 0.15s, opacity 0.15s;
+    animation: pt-btn-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-.pt-option-btn:hover:not(:disabled) { transform: translateY(-2px); }
-.pt-option-btn:disabled { opacity: 0.6; cursor: default; }
+@keyframes pt-btn-in {
+    from { opacity: 0; transform: scale(0.4) translateY(10px); }
+    to   { opacity: 1; transform: scale(1)   translateY(0); }
+}
+
+.pt-option-btn:not(:disabled) {
+    animation: pt-btn-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+               pt-btn-idle 2.4s ease-in-out calc(0.45s + var(--i, 0) * 0.15s) infinite;
+}
+
+@keyframes pt-btn-idle {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.06); }
+}
+
+.pt-option-btn:hover:not(:disabled) {
+    transform: translateY(-3px) scale(1.1);
+    animation: pt-btn-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.pt-option-btn:active:not(:disabled) {
+    transform: scale(0.88);
+    transition-duration: 0.08s;
+}
+
+.pt-option-btn:disabled { opacity: 0.6; cursor: default; animation: none; }
 
 .pt-option-btn-wrong {
     background: #fef2f2;
@@ -145,10 +170,18 @@
     color: #9ca3af;
 }
 
+@media (prefers-reduced-motion: reduce) {
+    .pt-option-btn,
+    .pt-option-btn:not(:disabled),
+    .pt-option-btn:hover:not(:disabled) {
+        animation: none;
+    }
+}
+
 @media (max-width: 480px) {
     .pt-page { padding: 20px 16px 28px; border-radius: 24px; }
     .pt-scene { padding: 14px; gap: 8px; }
-    .pt-option-btn { width: 52px; height: 52px; font-size: 1.4rem; }
+    .pt-option-btn { width: 60px; height: 60px; font-size: 1.6rem; }
 }
 
 /* Short viewports (landscape phones/tablets) — the scene is the single
@@ -161,5 +194,5 @@
     .pt-instruction { margin-bottom: 8px; }
     .pt-scene { padding: 10px; gap: 6px; margin-bottom: 12px; }
     .pt-cell { font-size: clamp(1.2rem, 5vw, 1.6rem); }
-    .pt-option-btn { width: 46px; height: 46px; font-size: 1.2rem; }
+    .pt-option-btn { width: 54px; height: 54px; font-size: 1.35rem; }
 }

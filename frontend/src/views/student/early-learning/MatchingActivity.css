@@ -99,40 +99,85 @@
 
 .ma-item-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 18px;
 }
+
+/* Each card gets a fixed, deterministic "scattered sticker" tilt from its
+   own index (--i, set inline in MatchingActivity.js) — cycling through 5
+   small angles so neighbors never share one, without any JS randomness to
+   keep server/client render identical. Hover/press/found all override this
+   via their own transform, so it only shows at rest. */
+.ma-item-card { --tilt: calc((var(--i, 0) % 5 - 2) * 1.1deg); }
 
 .ma-item-card {
     position: relative;
     background: #fff;
     border: 2px solid #eef0f4;
-    border-radius: 20px;
-    padding: 20px 10px 14px;
+    border-radius: 24px;
+    padding: 26px 14px 18px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     cursor: pointer;
     font-family: inherit;
     color: #374151;
-    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, background 0.2s;
+    transform: rotate(var(--tilt));
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s, border-color 0.15s, background 0.2s;
+    animation: ma-card-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes ma-card-in {
+    from { opacity: 0; transform: rotate(var(--tilt)) scale(0.4) translateY(14px); }
+    to   { opacity: 1; transform: rotate(var(--tilt)) scale(1)   translateY(0); }
+}
+
+/* Idle "breathing" invitation-to-play — small enough to read as alive, not
+   distracting, and each card's own --i offsets its phase so the grid never
+   pulses in unison. Only runs once the entrance pop has settled, and only
+   on cards still waiting to be tapped (hover/press/found all take the
+   transform over via higher-specificity states below). */
+.ma-item-card:not(:disabled) {
+    animation: ma-card-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+               ma-card-idle 2.6s ease-in-out calc(0.5s + var(--i, 0) * 0.15s) infinite;
+}
+
+@keyframes ma-card-idle {
+    0%, 100% { transform: rotate(var(--tilt)) scale(1); }
+    50%      { transform: rotate(var(--tilt)) scale(1.035); }
 }
 
 .ma-item-card:hover:not(:disabled) {
-    transform: translateY(-4px) scale(1.05) rotate(-1deg);
+    transform: rotate(0deg) translateY(-6px) scale(1.08);
     border-color: #c7d2fe;
-    box-shadow: 0 12px 26px rgba(99, 102, 241, 0.16);
+    box-shadow: 0 14px 30px rgba(99, 102, 241, 0.2);
+    animation: ma-card-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Tactile "squish" the instant a young thumb presses down — the bounce-back
+   comes from the card's own transition easing once the press releases. */
+.ma-item-card:active:not(:disabled) {
+    transform: rotate(0deg) scale(0.92);
+    transition-duration: 0.08s;
 }
 
 .ma-item-icon { color: #4b5563; display: flex; align-items: center; justify-content: center; line-height: 1; }
 .ma-item-emoji { line-height: 1; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.12)); }
-.ma-item-label { font-size: 0.85rem; font-weight: 600; text-align: center; }
+.ma-item-label { font-size: 0.95rem; font-weight: 700; text-align: center; }
 
 .ma-item-found {
     background: #ecfdf5;
     border-color: #6ee7b7;
     cursor: default;
+    transform: rotate(0deg) scale(1);
+    animation: ma-found-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes ma-found-pop {
+    0%   { transform: rotate(0deg) scale(1); }
+    40%  { transform: rotate(0deg) scale(1.12); }
+    100% { transform: rotate(0deg) scale(1); }
 }
 
 .ma-item-found .ma-item-icon { color: #059669; }
@@ -143,6 +188,13 @@
     right: 10px;
     color: #059669;
     font-weight: 900;
+    font-size: 1.2rem;
+    animation: ma-check-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes ma-check-in {
+    from { opacity: 0; transform: scale(0.3) rotate(-20deg); }
+    to   { opacity: 1; transform: scale(1)   rotate(0deg); }
 }
 
 .ma-item-wrong {
@@ -152,12 +204,22 @@
 }
 
 @keyframes ma-shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-4px); }
-    75% { transform: translateX(4px); }
+    0%, 100% { transform: rotate(var(--tilt)) translateX(0); }
+    25% { transform: rotate(var(--tilt)) translateX(-6px); }
+    75% { transform: rotate(var(--tilt)) translateX(6px); }
 }
 
-.ma-item-sad { font-size: 2.5rem; line-height: 1; }
+.ma-item-sad { font-size: 3rem; line-height: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+    .ma-item-card,
+    .ma-item-card:not(:disabled),
+    .ma-item-card:hover:not(:disabled),
+    .ma-item-found,
+    .ma-item-wrong {
+        animation: none;
+    }
+}
 
 /* .ma-page's own 28px/24px padding stacks on top of .el-shell's — at 320px
    this still fits (320 - 20 shell - 48 page = 252px content; the item grid's

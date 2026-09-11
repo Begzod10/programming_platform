@@ -122,13 +122,14 @@ export default function CauseEffectActivity({ activity, onBack, onComplete, lang
             </div>
 
             <div className="ce-options">
-                {options.map((option) => {
+                {options.map((option, i) => {
                     const isFlashWrong = flash?.id === option.id;
                     const isCorrectPulse = correctId === option.id;
                     return (
                         <button
                             key={option.id}
                             className={`ce-option-card ${isFlashWrong ? 'ce-option-card-wrong' : ''} ${isCorrectPulse ? 'ce-option-card-correct' : ''}`}
+                            style={{ '--i': i, animationDelay: `${i * 0.07}s` }}
                             onClick={() => handleTap(option)}
                             disabled={submitting || locked}
                         >
