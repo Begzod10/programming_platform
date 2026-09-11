@@ -455,13 +455,20 @@ class GennisService:
         Falls back to the synthetic form in exactly two cases: management-v2
         has no username for this account yet (a gennis student not yet
         linked to a management account — its `usernames.get(...)` there is
-        None), or the real username is already taken by a DIFFERENT
-        student_platform account. The second case should be rare —
-        management-v2 usernames are unique in its own system — but a
-        coincidental collision with an unrelated local/legacy account is
-        never worth corrupting that account's data over, so this checks
-        first rather than letting a unique-constraint violation surface
-        mid-sync.
+        None), or the real username (or the email _sync_container_student
+        derives from it, `{real}@{system}.uz`) is already taken by a
+        DIFFERENT student_platform account. The second case should be
+        rare — management-v2 usernames are unique in its own system — but
+        a coincidental collision with an unrelated local/legacy account
+        (confirmed live 2026-09-11: two separate gennis_id rows for the
+        same person — a re-registration under a new gennis_id, the exact
+        scenario _find_renumbered_student exists for — where one row's
+        email had already been set to the "real" pattern independently
+        while its username stayed synthetic, so only checking username
+        here missed the email collision and crashed the whole login with
+        an uncaught IntegrityError) is never worth corrupting that
+        account's data over, so both are checked first rather than
+        letting a unique-constraint violation surface mid-sync.
         """
         s_id = s_data.get("id")
         fallback = f"{system}_{s_id}"
@@ -469,15 +476,19 @@ class GennisService:
         if not real:
             return fallback
 
-        q = select(Student.id).where(Student.username == real)
+        candidate_email = f"{real}@{system}.uz"
+        q = select(Student.id).where(
+            (Student.username == real) | (Student.email == candidate_email)
+        )
         if exclude_student_id is not None:
             q = q.where(Student.id != exclude_student_id)
         taken_by = (await db.execute(q)).scalar_one_or_none()
         if taken_by is not None:
             logger.warning(
-                "management-v2 username '%s' (%s id=%s) allaqachon boshqa "
-                "student_platform hisobiga (id=%s) tegishli — o'rniga '%s' saqlanadi.",
-                real, system, s_id, taken_by, fallback,
+                "management-v2 username '%s' (%s id=%s) yoki undan hosil "
+                "qilingan email '%s' allaqachon boshqa student_platform "
+                "hisobiga (id=%s) tegishli — o'rniga '%s' saqlanadi.",
+                real, system, s_id, candidate_email, taken_by, fallback,
             )
             return fallback
         return real

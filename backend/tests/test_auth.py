@@ -309,6 +309,65 @@ async def test_synced_student_username_upgrades_from_synthetic_on_relogin(
     assert student.id == pre_existing.id  # same account, not a duplicate
 
 
+async def test_new_synced_student_email_collision_falls_back_gracefully(
+    async_client: AsyncClient, db_session, monkeypatch
+):
+    """Reproduces a live production crash (2026-09-11): a brand-new synced
+    Student gets its email from `user_data.get("email") or
+    f"{username}@{source}.uz"` — a SEPARATE collision risk from the
+    username, which the preceding `stmt` lookup doesn't rule out (it only
+    checks `Student.email == username`, not against the actual derived
+    email). An unrelated existing row already holding that exact email
+    (e.g. a duplicate account for the same person under a different
+    gennis/turon id) took the whole login down with an uncaught
+    IntegrityError. Must fall back to a guaranteed-unique email instead."""
+    from unittest.mock import AsyncMock
+    from sqlalchemy import select
+    from app.core.security import get_password_hash
+    from app.services.gennis_service import GennisService
+
+    uid = _unique()
+    ext_id = int(uuid.uuid4().int % 1_000_000_000)
+    unrelated_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+    typed_username = f"brand_new_login_{uid}"
+    colliding_email = f"{typed_username}@turon.uz"
+
+    unrelated = Student(
+        username=f"turon_{unrelated_turon_id}",  # different account, different person/id
+        email=colliding_email,
+        full_name="Unrelated Existing Account",
+        hashed_password=get_password_hash("irrelevant"),
+        role=UserRole.student,
+        turon_id=unrelated_turon_id,
+    )
+    db_session.add(unrelated)
+    await db_session.commit()
+    unrelated_id = unrelated.id  # captured before expire_all() below
+
+    monkeypatch.setattr(
+        GennisService, "login",
+        AsyncMock(return_value=_mgmt_login_payload(ext_id, "Brand", "New")),
+    )
+
+    resp = await async_client.post(
+        "/api/v1/auth/login",
+        json={"username": typed_username, "password": "whatever"},
+    )
+    assert resp.status_code == 200  # must not 500
+
+    db_session.expire_all()
+    new_student = (
+        await db_session.execute(select(Student).where(Student.turon_id == ext_id))
+    ).scalar_one()
+    assert new_student.username == typed_username  # username itself was free
+    assert new_student.email != colliding_email  # but the derived email wasn't
+
+    untouched = (
+        await db_session.execute(select(Student).where(Student.id == unrelated_id))
+    ).scalar_one()
+    assert untouched.email == colliding_email
+
+
 # ── /me ───────────────────────────────────────────────────────────────────────
 
 async def test_get_me_with_valid_token_returns_user_data(

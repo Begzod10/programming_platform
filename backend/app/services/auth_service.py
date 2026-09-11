@@ -1,3 +1,5 @@
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from fastapi import HTTPException, status, Depends
@@ -7,6 +9,8 @@ from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import get_password_hash, verify_password, create_access_token, decode_access_token
 from app.db.session import get_db
 from app.services.gennis_service import GennisService
+
+logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -133,9 +137,32 @@ async def login(db: AsyncSession, username: str, password: str):
                 # `user` wouldn't be None). Safe to use directly for either
                 # role; teachers already did this, students used to get a
                 # synthetic `{source}_{ext_id}` instead — no longer.
+                #
+                # The email is a SEPARATE collision risk `stmt` doesn't rule
+                # out — it only checked `Student.email == username`, not
+                # against `user_data.get("email")` or the `{username}@...`
+                # fallback below. Confirmed live 2026-09-01: a duplicate
+                # gennis_id pair for the same re-registered person, where the
+                # other row already independently held this exact derived
+                # email under a different (still-synthetic) username, crashed
+                # the whole login with an uncaught IntegrityError. Same
+                # collision class GennisService._resolve_sync_username
+                # guards against for the roster-sync path — checked here too.
+                candidate_email = user_data.get("email") or f"{username}@{source}.uz"
+                email_taken = (
+                    await db.execute(select(Student.id).where(Student.email == candidate_email))
+                ).scalar_one_or_none()
+                if email_taken is not None:
+                    candidate_email = f"{source}_{ext_id}@{source}.uz"
+                    logger.warning(
+                        "email '%s' allaqachon boshqa hisobga (id=%s) tegishli — "
+                        "'%s' uchun '%s' ishlatiladi.",
+                        user_data.get("email") or f"{username}@{source}.uz",
+                        email_taken, username, candidate_email,
+                    )
                 user = Student(
                     username=username,
-                    email=user_data.get("email") or f"{username}@{source}.uz",
+                    email=candidate_email,
                     full_name=f"{user_data.get('name', '')} {user_data.get('surname', '')}".strip(),
                     hashed_password=_ghp(_os.urandom(32).hex()),
                     role=role,

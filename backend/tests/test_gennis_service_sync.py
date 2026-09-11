@@ -315,6 +315,64 @@ async def test_roster_sync_falls_back_to_synthetic_on_username_collision(db_sess
 
 
 @pytest.mark.asyncio
+async def test_roster_sync_falls_back_to_synthetic_on_email_only_collision(db_session, turon_teacher, monkeypatch):
+    """Reproduces a live production crash (2026-09-11): the real username's
+    USERNAME was free, but the EMAIL derived from it (`{real}@{system}.uz`)
+    already belonged to a DIFFERENT existing row (a duplicate account for
+    the same re-registered person, under a different gennis_id, whose email
+    had independently already been set to the real pattern while its own
+    username stayed synthetic) — an uncaught IntegrityError on the email
+    unique constraint took down the whole login. Must fall back to the
+    synthetic username (and its derived, always-unique email) instead of
+    crashing, exactly like a username-only collision already does."""
+    from app.core.security import get_password_hash
+
+    unrelated_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+    real_username = f"real_name_{uuid.uuid4().hex[:8]}"
+    unrelated = Student(
+        username=f"turon_{unrelated_turon_id}",  # still synthetic — only its email is "real"
+        email=f"{real_username}@turon.uz",
+        full_name="Same Person, Old Record",
+        hashed_password=get_password_hash("irrelevant"),
+        role=UserRole.student,
+        turon_id=unrelated_turon_id,
+    )
+    db_session.add(unrelated)
+    await db_session.commit()
+
+    group_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+    student_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+
+    async def _one_student(*args, **kwargs):
+        return [{
+            "id": student_turon_id, "name": "Ali", "surname": "Valiyev",
+            "username": real_username,  # free as a USERNAME...
+        }]
+
+    monkeypatch.setattr(GennisService, "fetch_group_students", classmethod(_one_student))
+
+    # Must not raise.
+    await GennisService.sync_teacher_data(
+        db_session,
+        turon_teacher,
+        _login_data(groups=[{"id": group_turon_id, "name": f"1-blue-test-{group_turon_id}", "price": 0}]),
+        system="turon",
+    )
+
+    new_student = (
+        await db_session.execute(select(Student).where(Student.turon_id == student_turon_id))
+    ).scalar_one()
+    assert new_student.username == f"turon_{student_turon_id}"
+    assert new_student.email == f"turon_{student_turon_id}@turon.uz"
+    assert new_student.id != unrelated.id
+
+    untouched = (
+        await db_session.execute(select(Student).where(Student.id == unrelated.id))
+    ).scalar_one()
+    assert untouched.email == f"{real_username}@turon.uz"
+
+
+@pytest.mark.asyncio
 async def test_roster_sync_upgrades_existing_synthetic_username_to_real(db_session, turon_teacher, monkeypatch):
     """A student synced before this fix (or before management-v2 could
     resolve a username for them) still carries the old synthetic username —
