@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from sqlalchemy.orm import selectinload
 from app.models.ranking import Ranking
 from app.models.user import Student, UserRole
@@ -185,8 +185,18 @@ class RankingService:
         The leaderboard reads `Ranking.total_points`, which we keep in sync
         with the student's `lifetime_points` — so spending in the store
         never drops a student down the leaderboard or demotes their level.
+
+        Locks the `Student` and `Ranking` rows (`SELECT ... FOR UPDATE`) for
+        the duration of this read-modify-write so concurrent awards (e.g. an
+        AI review completing at the same moment as a lesson completion) can
+        never lose an update. SQLite (used in tests) silently ignores
+        `FOR UPDATE` — a documented no-op there, not an error — so this is
+        safe on both dialects; it's just inert on SQLite because SQLite has
+        no concurrent writers to protect against in the first place.
         """
-        res = await self.db.execute(select(Student).where(Student.id == student_id))
+        res = await self.db.execute(
+            select(Student).where(Student.id == student_id).with_for_update()
+        )
         student = res.scalar_one_or_none()
         if not student:
             return None
@@ -194,7 +204,9 @@ class RankingService:
         student.total_points += points
         student.lifetime_points += points
 
-        result = await self.db.execute(select(Ranking).where(Ranking.student_id == student_id))
+        result = await self.db.execute(
+            select(Ranking).where(Ranking.student_id == student_id).with_for_update()
+        )
         ranking = result.scalar_one_or_none()
 
         if ranking:
@@ -228,8 +240,13 @@ class RankingService:
         purchase never lowers the student's level or global rank. Callers who
         want to *revoke earned points* (e.g. reversing a bad submission) must
         use `revoke_earned_points` instead — do not repurpose this method.
+
+        Locks the `Student` row (`SELECT ... FOR UPDATE`) for the duration
+        of this read-modify-write — see `add_points_to_student` for why.
         """
-        res = await self.db.execute(select(Student).where(Student.id == student_id))
+        res = await self.db.execute(
+            select(Student).where(Student.id == student_id).with_for_update()
+        )
         student = res.scalar_one_or_none()
         if not student:
             return None
@@ -252,8 +269,13 @@ class RankingService:
         `Ranking.total_points` permanently inflated the way a bare
         `subtract_points_from_student` call would (that method intentionally
         only touches the spendable wallet, for store purchases).
+
+        Locks the `Student` row (`SELECT ... FOR UPDATE`) for the duration
+        of this read-modify-write — see `add_points_to_student` for why.
         """
-        res = await self.db.execute(select(Student).where(Student.id == student_id))
+        res = await self.db.execute(
+            select(Student).where(Student.id == student_id).with_for_update()
+        )
         student = res.scalar_one_or_none()
         if not student:
             return None
@@ -343,45 +365,96 @@ class RankingService:
     # ========== RECALCULATE ==========
 
     async def calculate_and_update_rankings(self):
-        """✅ Har period uchun alohida rank hisoblanadi"""
-        ranking_res = await self.db.execute(
-            select(Ranking).options(selectinload(Ranking.student))
+        """Recompute daily/weekly/monthly/global ranks for all active students.
+
+        Rewritten from a "load every Ranking row into Python and sort" loop
+        (O(n) round trip + Python-side sort, doing one UPDATE per row) into
+        SQL `ROW_NUMBER() OVER (...)` windows — the same technique already
+        used for reads in `get_leaderboard` above — with exactly one
+        `UPDATE` statement per period covering every row at once.
+
+        Portability: each `UPDATE` sets its rank column to a *correlated
+        scalar subquery* over the window, rather than a dialect-specific
+        multi-table `UPDATE ... FROM`. A correlated scalar subquery is
+        standard SQL supported identically by Postgres (prod) and SQLite
+        (tests — see `backend/tests/conftest.py`), so no
+        `db.bind.dialect.name` branch is needed here.
+        """
+        # Only rank active students — inactive/teacher rows keep whatever
+        # rank they last had, matching the previous Python-side filter.
+        active_rankings_subq = (
+            select(Ranking.id)
+            .join(Student, Student.id == Ranking.student_id)
+            .where(Student.is_active == True, Student.role == UserRole.student)
         )
-        all_rankings = ranking_res.scalars().all()
 
-        # Faqat aktiv studentlar
-        all_rankings = [
-            r for r in all_rankings
-            if r.student and r.student.is_active and r.student.role == UserRole.student
-        ]
+        # Reassert Ranking.total_points == Student.lifetime_points (the
+        # invariant add_points_to_student/revoke_earned_points/
+        # sync_all_student_points already maintain) before ranking off it —
+        # a safety net for any row that drifted out of band.
+        await self.db.execute(
+            update(Ranking)
+            .where(Ranking.id.in_(active_rankings_subq))
+            .values(
+                total_points=(
+                    select(Student.lifetime_points)
+                    .where(Student.id == Ranking.student_id)
+                    .scalar_subquery()
+                )
+            )
+        )
 
-        # ✅ Har period uchun alohida sort → rank berish
+        now = datetime.utcnow()
         period_config = [
-            ("total_points", "global_rank"),
-            ("daily_points", "daily_rank"),
-            ("weekly_points", "weekly_rank"),
-            ("monthly_points", "monthly_rank"),
+            (Ranking.total_points, "global_rank"),
+            (Ranking.daily_points, "daily_rank"),
+            (Ranking.weekly_points + Ranking.daily_points, "weekly_rank"),
+            (Ranking.monthly_points + Ranking.daily_points, "monthly_rank"),
         ]
 
-        for points_attr, rank_attr in period_config:
-            # Sortlashda real-time summani hisobga olamiz
-            if points_attr == "weekly_points":
-                key_func = lambda r: r.weekly_points + r.daily_points
-            elif points_attr == "monthly_points":
-                key_func = lambda r: r.monthly_points + r.daily_points
-            else:
-                key_func = lambda r: getattr(r, points_attr)
+        for order_col, rank_attr in period_config:
+            windowed = (
+                select(
+                    Ranking.id.label("rid"),
+                    func.row_number()
+                    .over(order_by=(order_col.desc(), Ranking.student_id.asc()))
+                    .label("rnk"),
+                )
+                .select_from(Ranking)
+                .join(Student, Student.id == Ranking.student_id)
+                .where(Student.is_active == True, Student.role == UserRole.student)
+                .subquery()
+            )
 
-            sorted_r = sorted(all_rankings, key=key_func, reverse=True)
-            for rank, ranking in enumerate(sorted_r, start=1):
-                setattr(ranking, rank_attr, rank)
-                if rank_attr == "global_rank":
-                    # Mirror lifetime_points (career earned total) — NOT
-                    # total_points (spendable). Otherwise buying a theme
-                    # would drop the student down the leaderboard.
-                    ranking.total_points = ranking.student.lifetime_points
-                    ranking.student.global_rank = rank
-                ranking.last_calculated_at = datetime.utcnow()
+            rank_scalar = (
+                select(windowed.c.rnk)
+                .where(windowed.c.rid == Ranking.id)
+                .scalar_subquery()
+            )
+
+            await self.db.execute(
+                update(Ranking)
+                .where(Ranking.id.in_(active_rankings_subq))
+                .values(**{rank_attr: rank_scalar, "last_calculated_at": now})
+            )
+
+        # Mirror the freshly computed global_rank onto Student.global_rank
+        # (the denormalized copy read elsewhere on the Student row itself).
+        await self.db.execute(
+            update(Student)
+            .where(
+                Student.is_active == True,
+                Student.role == UserRole.student,
+                Student.id.in_(select(Ranking.student_id)),
+            )
+            .values(
+                global_rank=(
+                    select(Ranking.global_rank)
+                    .where(Ranking.student_id == Student.id)
+                    .scalar_subquery()
+                )
+            )
+        )
 
         await self.db.commit()
 

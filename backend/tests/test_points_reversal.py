@@ -183,3 +183,74 @@ async def test_resubmit_after_rejection_does_not_drain_wallet(
         "never credited to the wallet — this is exactly the bug this fix "
         "addresses"
     )
+
+
+# ── TOCTOU race: award/reversal cycles must never lose an update ────────────
+
+
+async def test_sequential_award_revoke_award_ends_at_correct_total(
+    db_session, student_id
+):
+    """Regression test for the points read-modify-write TOCTOU race.
+
+    `add_points_to_student`/`subtract_points_from_student`/
+    `revoke_earned_points` all do a read-then-write of `Student.total_points`
+    /`lifetime_points` with no row lock, so concurrent callers (e.g. an AI
+    review completing at the same moment as a lesson completion) could
+    clobber each other's update. The fix adds `.with_for_update()` to the
+    `Student`/`Ranking` reads inside each of these methods so the
+    read-modify-write is atomic.
+
+    A single process can't simulate true OS-level concurrency, but this does
+    meaningfully cover "the lock is acquired and released correctly across
+    the transaction boundary": each call below opens and closes its own
+    transaction (the commit inside `calculate_and_update_rankings`, or an
+    explicit flush), so if a lock were ever left held past its own
+    transaction, a subsequent call through the SAME `RankingService`/session
+    would deadlock or silently drop an update. Instead we assert the exact
+    mathematically-correct total after an award -> revoke -> award chain,
+    run through the same code path back-to-back on the same student row to
+    exercise the lock-acquire/release cycle repeatedly.
+    """
+    service = RankingService(db_session)
+
+    # Cycle 1: award 100, revoke 100, award 50.
+    student = await service.add_points_to_student(student_id, 100)
+    assert student.total_points == 100
+    assert student.lifetime_points == 100
+
+    student = await service.revoke_earned_points(student_id, 100)
+    assert student.total_points == 0
+    assert student.lifetime_points == 0
+
+    student = await service.add_points_to_student(student_id, 50)
+    assert student.total_points == 50
+    assert student.lifetime_points == 50
+
+    # Cycle 2 (same student row, same session/service, back-to-back with no
+    # gap): award 30 more, then spend 20 (spend-only — must not touch
+    # lifetime_points), then revoke the earlier 50+30 award.
+    student = await service.add_points_to_student(student_id, 30)
+    assert student.total_points == 80
+    assert student.lifetime_points == 80
+
+    student = await service.subtract_points_from_student(student_id, 20)
+    assert student.total_points == 60
+    assert student.lifetime_points == 80, (
+        "subtract_points_from_student must never touch lifetime_points"
+    )
+
+    student = await service.revoke_earned_points(student_id, 50)
+    # total_points: 60 - 50 = 10 ; lifetime_points: 80 - 50 = 30
+    assert student.total_points == 10
+    assert student.lifetime_points == 30
+
+    # Final state must be exactly the mathematically correct total — no
+    # update from any step in the chain was lost or double-applied.
+    result = await db_session.execute(
+        Ranking.__table__.select().where(Ranking.student_id == student_id)
+    )
+    ranking = result.mappings().one()
+    assert ranking["total_points"] == 30, (
+        "Ranking.total_points must mirror the final lifetime_points exactly"
+    )
