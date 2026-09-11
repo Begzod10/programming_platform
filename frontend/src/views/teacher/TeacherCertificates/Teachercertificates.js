@@ -1,13 +1,20 @@
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState, useEffect, useCallback, useRef} from 'react';
 import ReactDOM from 'react-dom';
 import './Teachercertificates.css';
 import {API_URL, useHttp, headers, resolveImageUrl} from '../../../api/search/base';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { Trophy, Star } from 'lucide-react';
 
 const CRITERIA_TYPES = [
     {value: 'project_count',    label: '📁 Количество проектов'},
     {value: 'points_threshold', label: '⭐ Набранные очки'},
 ];
+
+// No existing i18n key fits a non-"rating" load-failure message (checked
+// src/i18n/translations.js) — using a minimal neutral fallback here rather
+// than guessing a UZ/RU translation. `rating.retry` is reused below for the
+// retry button since that string is domain-neutral and already translated.
+const CERT_LOAD_ERROR_FALLBACK = 'Failed to load certificates. Please try again.';
 
 /* ── CertModal ── */
 const CertModal = ({item, onSave, onClose, saving}) => {
@@ -465,27 +472,45 @@ const AwardModal = ({cert, onClose, onAwardSuccess, showToast}) => {
 /* ── Main: TeacherCertificates ── */
 const TeacherCertificates = () => {
     const {request} = useHttp();
-    const [certs,     setCerts]     = useState([]);
-    const [loading,   setLoading]   = useState(true);
-    const [modal,     setModal]     = useState(null);
-    const [awardModal,setAwardModal]= useState(null);
-    const [confirmId, setConfirmId] = useState(null);
-    const [saving,    setSaving]    = useState(false);
-    const [toast,     setToast]     = useState('');
-    const [certStats, setCertStats] = useState({});
+    const {t} = useTranslation();
+    const [certs,        setCerts]        = useState([]);
+    const [loading,      setLoading]      = useState(true);
+    const [certLoadError,setCertLoadError]= useState(false);
+    const [modal,        setModal]        = useState(null);
+    const [awardModal,   setAwardModal]   = useState(null);
+    const [confirmId,    setConfirmId]    = useState(null);
+    const [saving,       setSaving]       = useState(false);
+    const [toast,        setToast]        = useState('');
+    const [certStats,    setCertStats]    = useState({});
+    const toastTimerRef = useRef(null);
 
     const showToast = useCallback((msg) => {
         setToast(msg);
-        setTimeout(() => setToast(''), 2800);
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = setTimeout(() => setToast(''), 2800);
     }, []);
 
+    // Clear any pending toast timer on unmount so it can't call setState
+    // after this component has gone away.
     useEffect(() => {
+        return () => {
+            if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        };
+    }, []);
+
+    const fetchCerts = useCallback(() => {
+        setLoading(true);
+        setCertLoadError(false);
         // Используем новый эндпоинт /all
         request(`${API_URL}v1/achievements/all`, 'GET', null, headers())
             .then(c => setCerts(Array.isArray(c) ? c : []))
-            .catch(() => {})
+            .catch(() => setCertLoadError(true))
             .finally(() => setLoading(false));
-    }, []);
+    }, [request]);
+
+    useEffect(() => {
+        fetchCerts();
+    }, [fetchCerts]);
 
     const handleSave = (form) => {
         setSaving(true);
@@ -511,7 +536,7 @@ const TeacherCertificates = () => {
     };
 
     const handleDelete = (id) => {
-        fetch(`${API_URL}v1/achievements/${id}`, {method: 'DELETE', headers: headers(), mode: 'cors'})
+        request(`${API_URL}v1/achievements/${id}`, 'DELETE', null, headers())
             .then(() => {
                 setCerts(c => c.filter(x => x.id !== id));
                 setConfirmId(null);
@@ -550,6 +575,12 @@ const TeacherCertificates = () => {
                 <div className="tc-loading">
                     <div className="tc-spinner"/>
                     <p>Загрузка...</p>
+                </div>
+            ) : certLoadError ? (
+                <div className="tc-empty">
+                    <span>⚠️</span>
+                    <p>{CERT_LOAD_ERROR_FALLBACK}</p>
+                    <button className="tc-add-btn" onClick={fetchCerts}>{t('rating.retry')}</button>
                 </div>
             ) : certs.length === 0 ? (
                 <div className="tc-empty">

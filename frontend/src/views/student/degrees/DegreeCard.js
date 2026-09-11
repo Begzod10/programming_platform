@@ -1,29 +1,44 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './DegreeCard.css';
 import { API_URL, useHttp, headers, resolveImageUrl } from '../../../api/search/base';
+import axiosInstance from '../../../api/axiosInstance';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { Trophy, Lock } from 'lucide-react';
+
+// No existing i18n key fits a non-"rating" load-failure message (checked
+// src/i18n/translations.js) — using a minimal neutral fallback here rather
+// than guessing a UZ/RU translation. `rating.retry` is reused below for the
+// retry button since that string is domain-neutral and already translated.
+const DEGREES_LOAD_ERROR_FALLBACK = 'Failed to load certificates. Please try again.';
 
 const Degrees = () => {
     const { request } = useHttp();
+    const { t } = useTranslation();
     const [progress,    setProgress]    = useState([]);
     const [earned,      setEarned]      = useState([]);
     const [loading,     setLoading]     = useState(true);
+    const [loadError,   setLoadError]   = useState(false);
     const [downloading, setDownloading] = useState(null);
     const [error,       setError]       = useState(null);
 
-    useEffect(() => {
+    const fetchDegrees = useCallback(() => {
+        setLoading(true);
+        setLoadError(false);
         Promise.all([
             request(`${API_URL}v1/achievements/my-progress`, 'GET', null, headers()),
             request(`${API_URL}v1/achievements/my`, 'GET', null, headers()),
         ])
         .then(([progressData, myData]) => {
-            // [REFACTOR] console.log('=== my[0] FULL ===', JSON.stringify(myData[0]));
             setProgress(Array.isArray(progressData) ? progressData : []);
             setEarned(Array.isArray(myData) ? myData : []);
         })
-        .catch(() => {})
+        .catch(() => setLoadError(true))
         .finally(() => setLoading(false));
-    }, []);
+    }, [request]);
+
+    useEffect(() => {
+        fetchDegrees();
+    }, [fetchDegrees]);
 
     // earnedMap по achievement_name → объект с course_id
     const earnedMap = new Map(earned.map(e => [e.achievement_name, e]));
@@ -53,24 +68,26 @@ const Degrees = () => {
         try {
             if (courseId) {
                 // check-and-earn na vsyakii sluchai (idempotent)
-                await fetch(
+                await request(
                     `${API_URL}v1/achievements/check-and-earn-certificate?course_id=${courseId}`,
-                    { method: 'POST', headers: headers() }
+                    'POST', null, headers()
                 ).catch(() => {});
             }
 
-            const res = await fetch(
-                downloadUrl,
-                {
-                    method: 'GET',
-                    headers: { ...headers(), Accept: 'application/pdf' },
-                }
-            );
+            // useHttp()'s request() always resolves response.data as JSON and
+            // has no way to ask axios for a Blob, so a PDF download goes
+            // through axiosInstance directly with responseType: 'blob' —
+            // same pattern SessionSummary's CSV export uses in
+            // TeacherTeamGame.js. This still passes through the shared
+            // axios instance's auth/refresh interceptor, unlike the raw
+            // fetch() this replaces. Axios rejects on a non-2xx status, so
+            // no manual res.ok check is needed.
+            const res = await axiosInstance.get(downloadUrl, {
+                responseType: 'blob',
+                headers: { Accept: 'application/pdf' },
+            });
 
-            // [REFACTOR] console.log('=== download status ===', res.status);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-            const blob = await res.blob();
+            const blob = res.data;
             const url  = URL.createObjectURL(blob);
             const a    = document.createElement('a');
             a.href     = url;
@@ -95,6 +112,16 @@ const Degrees = () => {
         <div className="deg-loading">
             <div className="deg-spinner" />
             <p>Загрузка сертификатов...</p>
+        </div>
+    );
+
+    if (loadError) return (
+        <div className="deg-container">
+            <div className="deg-empty">
+                <span>⚠️</span>
+                <p>{DEGREES_LOAD_ERROR_FALLBACK}</p>
+                <button className="deg-download-btn" onClick={fetchDegrees}>{t('rating.retry')}</button>
+            </div>
         </div>
     );
 
