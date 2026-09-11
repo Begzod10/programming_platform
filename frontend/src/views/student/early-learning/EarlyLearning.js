@@ -14,6 +14,7 @@ import SequenceActivity from './SequenceActivity';
 import PatternActivity from './PatternActivity';
 import CauseEffectActivity from './CauseEffectActivity';
 import ArithmeticActivity from './ArithmeticActivity';
+import TypingActivity from './TypingActivity';
 import LangToggle from './LangToggle';
 import { applyGuestModuleStars, applyGuestActivityStars } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
@@ -216,9 +217,13 @@ export default function EarlyLearning({ guest = false }) {
             // (CauseEffectActivity.js), "arithmetic" solves a randomly
             // generated single-digit +/− equation (ArithmeticActivity.js —
             // rounds are generated client-side each play, not authored in
-            // content_json), anything else (the shipped "select" mode, or
-            // an activity with no mode yet) taps items out of a pool
-            // (MatchingActivity.js, the original/default game).
+            // content_json), "typing" types out a shown word letter-by-
+            // letter, MonkeyType-style live feedback (TypingActivity.js —
+            // words ARE authored in content_json, unlike arithmetic's
+            // procedural rounds, since real vocabulary can't be generated),
+            // anything else (the shipped "select" mode, or an activity with
+            // no mode yet) taps items out of a pool (MatchingActivity.js,
+            // the original/default game).
             const mode = activity.content?.mode;
             const ActivityScreen =
                 mode === 'trace' ? TraceActivity :
@@ -231,6 +236,7 @@ export default function EarlyLearning({ guest = false }) {
                 mode === 'pattern' ? PatternActivity :
                 mode === 'cause_effect' ? CauseEffectActivity :
                 mode === 'arithmetic' ? ArithmeticActivity :
+                mode === 'typing' ? TypingActivity :
                 MatchingActivity;
             return (
                 <div className="el-shell">

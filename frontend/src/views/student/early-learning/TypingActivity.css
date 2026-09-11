@@ -1,0 +1,137 @@
+.ty-page {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 28px 24px 40px;
+    background: rgba(255, 253, 248, 0.86);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 24px 60px rgba(124, 92, 255, 0.16);
+    animation: ty-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+@keyframes ty-island-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+
+.ty-page .el-page-topbar { width: 100%; }
+
+.ty-character-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.ty-character-emoji { font-size: 3.2rem; line-height: 1; }
+.ty-character-header h2 { font-family: var(--el-font-display); margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--el-ink); }
+
+.ty-instruction {
+    margin: 0 0 18px;
+    color: var(--el-ink-soft);
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+/* The target word, MonkeyType-style: each letter colors in as it's typed
+   correctly, turns red the instant a typo lands, with a soft caret marking
+   where the next keystroke will land. */
+.ty-word {
+    display: flex;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+    max-width: 420px;
+    min-height: 90px;
+    margin: 0 auto 20px;
+    padding: 18px;
+    background: color-mix(in srgb, var(--el-teal) 8%, var(--el-surface));
+    border-radius: 24px;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    box-shadow: inset 0 2px 12px rgba(38, 198, 218, 0.1);
+    font-family: 'Courier New', monospace;
+    font-size: clamp(1.8rem, 8vw, 2.6rem);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    flex-wrap: wrap;
+    align-content: center;
+}
+.ty-word-has-mistake { animation: ty-shake 0.35s ease; }
+@keyframes ty-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    75% { transform: translateX(3px); }
+}
+
+.ty-char-pending { color: var(--el-ink-faint); }
+.ty-char-correct { color: var(--el-success); }
+.ty-char-wrong {
+    color: #fff;
+    background: var(--el-danger);
+    border-radius: 6px;
+}
+.ty-char-caret {
+    color: var(--el-ink-faint);
+    border-bottom: 3px solid var(--el-violet, #7c5cff);
+    animation: ty-caret-blink 1s step-end infinite;
+}
+@keyframes ty-caret-blink {
+    0%, 50% { border-color: var(--el-violet, #7c5cff); }
+    51%, 100% { border-color: transparent; }
+}
+
+.ty-input {
+    width: 100%;
+    max-width: 320px;
+    text-align: center;
+    padding: 14px 18px;
+    border-radius: 18px;
+    border: 2px solid rgba(124, 92, 255, 0.25);
+    background: var(--el-surface);
+    color: var(--el-ink);
+    font-family: 'Courier New', monospace;
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    margin-bottom: 14px;
+}
+.ty-input:focus {
+    border-color: var(--el-violet, #7c5cff);
+    box-shadow: 0 0 0 4px rgba(124, 92, 255, 0.14);
+}
+.ty-input:disabled { opacity: 0.7; }
+
+.ty-progress {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--el-ink-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ty-word-has-mistake, .ty-char-caret { animation: none; }
+}
+
+@media (max-width: 480px) {
+    .ty-page { padding: 20px 16px 28px; border-radius: 24px; }
+    .ty-word { padding: 14px; }
+    .ty-input { font-size: 1.15rem; }
+}
+
+@media (max-height: 500px) {
+    .ty-page { padding: 16px 20px 20px; }
+    .ty-character-header { margin-bottom: 2px; }
+    .ty-character-emoji { font-size: 2.2rem; }
+    .ty-instruction { margin-bottom: 8px; }
+    .ty-word { min-height: 60px; padding: 10px; margin-bottom: 12px; font-size: clamp(1.4rem, 6vw, 2rem); }
+}
