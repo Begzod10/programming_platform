@@ -25,6 +25,7 @@ class EarlyModuleListItem(BaseModel):
     activities_count: int
     earned_stars: int
     max_stars: int
+    earned_stars_today: int = 0
 
 
 class EarlyActivityOut(BaseModel):
@@ -39,6 +40,7 @@ class EarlyActivityOut(BaseModel):
     max_stars: int
     best_stars: int
     attempts: int
+    today_stars: int = 0
 
 
 class EarlyModuleDetail(EarlyModuleListItem):

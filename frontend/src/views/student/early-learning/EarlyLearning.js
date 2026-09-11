@@ -15,7 +15,7 @@ import PatternActivity from './PatternActivity';
 import CauseEffectActivity from './CauseEffectActivity';
 import LangToggle from './LangToggle';
 import { applyGuestModuleStars, applyGuestActivityStars } from './earlyLearningUtils';
-import { ArrowLeft, Star, Trophy } from 'lucide-react';
+import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
 
@@ -27,6 +27,21 @@ function StarBadge({ earned, max }) {
         <span className="el-star-badge">
             <Star size={14} fill="currentColor" />
             {earned} / {max}
+        </span>
+    );
+}
+
+/** "Today" star count — the resettable counterpart to StarBadge's permanent
+ * all-time total. No `max` here on purpose: there's no fixed daily target,
+ * just "how many did you earn today", which naturally goes back to 0 on a
+ * new day server-side (see EarlyActivityDailyStars) without this component
+ * needing to know or care about that. Distinct color from StarBadge so a
+ * kid (or a parent glancing over) doesn't read it as the same number. */
+function TodayStarBadge({ earned, t }) {
+    return (
+        <span className="el-star-badge el-star-badge-today">
+            <Sparkles size={14} />
+            {t('el.today')}: {earned}
         </span>
     );
 }
@@ -255,7 +270,10 @@ export default function EarlyLearning({ guest = false }) {
                             <h1>{moduleDetail.title}</h1>
                             {moduleDetail.description && <p>{moduleDetail.description}</p>}
                         </div>
-                        <StarBadge earned={moduleDetail.earned_stars} max={moduleDetail.max_stars} />
+                        <div className="el-badge-stack">
+                            <StarBadge earned={moduleDetail.earned_stars} max={moduleDetail.max_stars} />
+                            <TodayStarBadge earned={moduleDetail.earned_stars_today} t={t} />
+                        </div>
                     </div>
                     <div className="el-activity-grid">
                         {moduleDetail.activities.map((activity, i) => {
@@ -291,6 +309,7 @@ export default function EarlyLearning({ guest = false }) {
 
     const totalEarned = modules.reduce((sum, m) => sum + m.earned_stars, 0);
     const totalMax = modules.reduce((sum, m) => sum + m.max_stars, 0);
+    const totalEarnedToday = modules.reduce((sum, m) => sum + (m.earned_stars_today || 0), 0);
 
     return (
         <div className="el-shell">
@@ -305,7 +324,12 @@ export default function EarlyLearning({ guest = false }) {
                 <div className="el-hero">
                     <h1>{t('early_learning')}</h1>
                     <p>{t('el.subtitle')}</p>
-                    {totalMax > 0 && <StarBadge earned={totalEarned} max={totalMax} />}
+                    {totalMax > 0 && (
+                        <div className="el-badge-stack">
+                            <StarBadge earned={totalEarned} max={totalMax} />
+                            <TodayStarBadge earned={totalEarnedToday} t={t} />
+                        </div>
+                    )}
                 </div>
                 <div className="el-module-grid">
                     {modules.map((module, i) => (

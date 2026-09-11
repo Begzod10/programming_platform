@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional, TYPE_CHECKING
 import enum
 
 from sqlalchemy import (
-    Integer, String, Text, Boolean, DateTime, ForeignKey, Enum, func,
+    Integer, String, Text, Boolean, Date, DateTime, ForeignKey, Enum, func,
     UniqueConstraint, CheckConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -173,4 +173,50 @@ class EarlyActivityCompletion(Base):
 
     __table_args__ = (
         UniqueConstraint("student_id", "activity_id", name="uq_student_early_activity"),
+    )
+
+
+class EarlyActivityDailyStars(Base):
+    """Best-attempt record per (student, activity, day) — the resettable
+    counterpart to EarlyActivityCompletion's permanent best-ever record.
+
+    Deliberately a *separate* table rather than a flag/reset on
+    EarlyActivityCompletion: a kid's all-time mastery stars (used for the
+    module picker's "N / M" badges and each activity's filled-star row)
+    must never disappear, but a fresh "today" leaderboard needs a number
+    that starts at 0 every day. Scoping by activity_date gets both for
+    free — a new day is simply a row that doesn't exist yet, so "resets to
+    0" needs no reset job, no cron, nothing to forget to run, and every
+    past day's row stays queryable afterwards for streaks/trends later.
+
+    Day boundary is UTC, matching streak_service._today() — see that
+    module's docstring for the same UTC-vs-local-TZ tradeoff; kept
+    consistent here rather than introducing a second convention.
+    """
+    __tablename__ = "early_activity_daily_stars"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    activity_id: Mapped[int] = mapped_column(
+        ForeignKey("early_activities.id", ondelete="CASCADE"), nullable=False
+    )
+    activity_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+
+    stars_earned: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    student: Mapped["Student"] = relationship("Student")
+    activity: Mapped["EarlyActivity"] = relationship("EarlyActivity")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "student_id", "activity_id", "activity_date",
+            name="uq_student_early_activity_day",
+        ),
     )

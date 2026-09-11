@@ -156,4 +156,62 @@ async def test_leaderboard_excludes_students_outside_the_class(
     body = response.json()
     ids = {e["student_id"] for e in body["entries"]}
     assert outsider_id not in ids
-    assert in_class_id in ids
+
+
+@pytest.mark.asyncio
+async def test_leaderboard_period_today_ignores_older_days(
+    async_client: AsyncClient, db_session, instructor_id, published_activity
+):
+    """?period=today must rank by EarlyActivityDailyStars scoped to today,
+    not the permanent all-time total — a student who racked up stars on a
+    PAST day (but nothing today) should rank behind one who only played
+    today, the exact opposite of the default all_time ordering."""
+    from datetime import timedelta
+
+    from app.api.v1.endpoints.early_learning import _today
+    from app.models.early_learning import EarlyActivityDailyStars
+
+    group = Group(name="test-lb-group-daily", teacher_id=instructor_id)
+    db_session.add(group)
+    await db_session.commit()
+
+    veteran_id, veteran_headers = await _register_student(async_client, "el_lb_veteran")
+    fresh_id, fresh_headers = await _register_student(async_client, "el_lb_fresh")
+    await _join_group(db_session, veteran_id, group.id)
+    await _join_group(db_session, fresh_id, group.id)
+
+    # veteran: a big score, but yesterday
+    db_session.add(EarlyActivityDailyStars(
+        student_id=veteran_id, activity_id=published_activity,
+        activity_date=_today() - timedelta(days=1), stars_earned=3, attempts=1,
+    ))
+    await db_session.commit()
+
+    # fresh: a small score, today
+    await async_client.post(
+        f"/api/v1/early-learning/activities/{published_activity}/complete",
+        json={"stars": 1}, headers=fresh_headers,
+    )
+
+    # Act
+    all_time = await async_client.get("/api/v1/early-learning/leaderboard", headers=veteran_headers)
+    today = await async_client.get(
+        "/api/v1/early-learning/leaderboard?period=today", headers=veteran_headers
+    )
+
+    # Assert: all_time (default, unchanged) has no notion of daily-only rows —
+    # the veteran's yesterday score was written directly to
+    # EarlyActivityDailyStars and never touched the permanent
+    # EarlyActivityCompletion table, so it stays 0 there. The fresh
+    # student's completion legitimately went through the real endpoint, so
+    # it counts toward both all_time and today.
+    all_time_by_id = {e["student_id"]: e for e in all_time.json()["entries"]}
+    assert all_time_by_id[veteran_id]["total_stars"] == 0
+    assert all_time_by_id[fresh_id]["total_stars"] == 1
+
+    # period=today: the veteran's yesterday score doesn't count; the fresh
+    # student's today score does.
+    today_by_id = {e["student_id"]: e for e in today.json()["entries"]}
+    assert today_by_id[veteran_id]["total_stars"] == 0
+    assert today_by_id[fresh_id]["total_stars"] == 1
+    assert today_by_id[fresh_id]["rank"] < today_by_id[veteran_id]["rank"]

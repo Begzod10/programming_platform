@@ -243,6 +243,7 @@ const translations = {
 
     // Early learning (kids' matching games)
     "el.subtitle":        "O'yin orqali o'rgan — kasblarni, fasllarni va yana ko'p narsalarni tanib ol!",
+    "el.today":             "Bugun",
     "el.back":             "Qaytish",
     "el.empty":             "Hozircha bu yerda o'yin yo'q.",
     "el.leaderboardTitle":  "Sinfdoshlar reytingi",
@@ -503,6 +504,7 @@ const translations = {
 
     // Early learning (kids' matching games)
     "el.subtitle":        "Учись играя — узнавай профессии, времена года и многое другое!",
+    "el.today":             "Сегодня",
     "el.back":             "Назад",
     "el.empty":             "Здесь пока нет игр.",
     "el.leaderboardTitle":  "Рейтинг одноклассников",

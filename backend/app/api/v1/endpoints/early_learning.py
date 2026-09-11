@@ -5,8 +5,8 @@ from the points/achievements system) and
 backend/scripts/_seed_early_learning.py for how content gets in.
 """
 import json
-from datetime import date
-from typing import Dict, List
+from datetime import date, datetime, timezone
+from typing import Dict, List, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_db, get_current_student
-from app.models.early_learning import EarlyActivity, EarlyActivityCompletion, EarlyModule
+from app.models.early_learning import (
+    EarlyActivity, EarlyActivityCompletion, EarlyActivityDailyStars, EarlyModule,
+)
 from app.models.user import Student, UserRole
 from app.schemas.early_learning import (
     EarlyActivityCompleteIn,
@@ -150,6 +152,30 @@ async def _completions_by_activity(
     return {row.activity_id: row for row in rows}
 
 
+def _today() -> date:
+    """Day boundary for the resettable daily-stars counter — UTC, matching
+    streak_service._today() (see that module's docstring for the tradeoff).
+    """
+    return datetime.now(timezone.utc).date()
+
+
+async def _daily_stars_by_activity(
+    db: AsyncSession, student_id: int, activity_ids: List[int], day: date
+) -> Dict[int, EarlyActivityDailyStars]:
+    if not activity_ids:
+        return {}
+    rows = (
+        await db.execute(
+            select(EarlyActivityDailyStars).where(
+                EarlyActivityDailyStars.student_id == student_id,
+                EarlyActivityDailyStars.activity_id.in_(activity_ids),
+                EarlyActivityDailyStars.activity_date == day,
+            )
+        )
+    ).scalars().all()
+    return {row.activity_id: row for row in rows}
+
+
 def _visible_activities(module: EarlyModule) -> List[EarlyActivity]:
     return [a for a in module.activities if a.is_active and a.is_published]
 
@@ -189,10 +215,15 @@ def _is_age_eligible(student: Student, module: EarlyModule) -> bool:
 
 
 def _list_item(
-    module: EarlyModule, completions: Dict[int, EarlyActivityCompletion], lang: str = "uz"
+    module: EarlyModule,
+    completions: Dict[int, EarlyActivityCompletion],
+    lang: str = "uz",
+    daily: Dict[int, EarlyActivityDailyStars] | None = None,
 ) -> EarlyModuleListItem:
     activities = _visible_activities(module)
     earned = sum(completions[a.id].stars_earned for a in activities if a.id in completions)
+    daily = daily or {}
+    earned_today = sum(daily[a.id].stars_earned for a in activities if a.id in daily)
     return EarlyModuleListItem(
         id=module.id,
         title=_localized(module.title, module.title_ru, lang),
@@ -204,11 +235,15 @@ def _list_item(
         activities_count=len(activities),
         earned_stars=earned,
         max_stars=sum(a.max_stars for a in activities),
+        earned_stars_today=earned_today,
     )
 
 
 def _activity_out(
-    activity: EarlyActivity, completion: EarlyActivityCompletion | None, lang: str = "uz"
+    activity: EarlyActivity,
+    completion: EarlyActivityCompletion | None,
+    lang: str = "uz",
+    daily: EarlyActivityDailyStars | None = None,
 ) -> EarlyActivityOut:
     try:
         content = json.loads(activity.content_json)
@@ -224,6 +259,7 @@ def _activity_out(
         max_stars=activity.max_stars,
         best_stars=completion.stars_earned if completion else 0,
         attempts=completion.attempts if completion else 0,
+        today_stars=daily.stars_earned if daily else 0,
     )
 
 
@@ -247,7 +283,8 @@ async def list_early_modules(
 
     activity_ids = [a.id for m in modules for a in _visible_activities(m)]
     completions = await _completions_by_activity(db, current_student.id, activity_ids)
-    return [_list_item(m, completions, lang) for m in modules]
+    daily = await _daily_stars_by_activity(db, current_student.id, activity_ids, _today())
+    return [_list_item(m, completions, lang, daily) for m in modules]
 
 
 @router.get("/modules/{module_id}", response_model=EarlyModuleDetail)
@@ -275,12 +312,14 @@ async def get_early_module(
         raise HTTPException(status_code=404, detail="Modul topilmadi")
 
     activities = sorted(_visible_activities(module), key=lambda a: a.order)
-    completions = await _completions_by_activity(db, current_student.id, [a.id for a in activities])
+    activity_ids = [a.id for a in activities]
+    completions = await _completions_by_activity(db, current_student.id, activity_ids)
+    daily = await _daily_stars_by_activity(db, current_student.id, activity_ids, _today())
 
-    base = _list_item(module, completions, lang)
+    base = _list_item(module, completions, lang, daily)
     return EarlyModuleDetail(
         **base.model_dump(),
-        activities=[_activity_out(a, completions.get(a.id), lang) for a in activities],
+        activities=[_activity_out(a, completions.get(a.id), lang, daily.get(a.id)) for a in activities],
     )
 
 
@@ -394,6 +433,33 @@ async def complete_early_activity(
         existing.attempts += 1
         existing.stars_earned = max(existing.stars_earned, payload.stars)
 
+    # Same upsert, scoped to today — this is the resettable counterpart
+    # (see EarlyActivityDailyStars docstring). Kept as its own row/query
+    # rather than derived from `existing` so a kid's first play of the day
+    # on an activity they already mastered weeks ago still logs today's
+    # attempt instead of being silently absorbed into the all-time row.
+    today = _today()
+    today_row = (
+        await db.execute(
+            select(EarlyActivityDailyStars).where(
+                EarlyActivityDailyStars.student_id == current_student.id,
+                EarlyActivityDailyStars.activity_id == activity_id,
+                EarlyActivityDailyStars.activity_date == today,
+            )
+        )
+    ).scalar_one_or_none()
+    if today_row is None:
+        db.add(EarlyActivityDailyStars(
+            student_id=current_student.id,
+            activity_id=activity_id,
+            activity_date=today,
+            stars_earned=payload.stars,
+            attempts=1,
+        ))
+    else:
+        today_row.attempts += 1
+        today_row.stars_earned = max(today_row.stars_earned, payload.stars)
+
     await db.commit()
     await db.refresh(existing)
     return EarlyActivityCompleteOut.model_validate(existing)
@@ -402,17 +468,24 @@ async def complete_early_activity(
 @router.get("/leaderboard", response_model=EarlyLeaderboardOut)
 async def get_early_learning_leaderboard(
     limit: int = 20,
+    period: Literal["all_time", "today"] = "all_time",
     current_student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ) -> EarlyLeaderboardOut:
     """Rank the current student against their own classmates (anyone who
     shares a teacher-owned Group or Flow with them — see
-    classmate_ids_subquery) by total stars earned across every published
+    classmate_ids_subquery) by stars earned across every published
     early-learning activity. Deliberately not platform-wide: a 6-year-old
     doesn't know or care about a stranger three schools over, and turning
     this into a global ranking would just be discouraging noise for most
     kids. A student with no Group/Flow membership at all gets
     has_class=False instead of a lonely one-row leaderboard.
+
+    `period="all_time"` (default, unchanged from before) ranks by the
+    permanent best-ever stars in EarlyActivityCompletion. `period="today"`
+    ranks by EarlyActivityDailyStars scoped to today (UTC) instead — a
+    same-day comparison where every kid starts even each morning, rather
+    than one a late joiner can never catch up on.
     """
     limit = max(1, min(limit, 100))
     classmate_ids = (
@@ -422,21 +495,39 @@ async def get_early_learning_leaderboard(
     if not has_class:
         classmate_ids = [current_student.id]
 
-    stars_rows = (
-        await db.execute(
-            select(
-                EarlyActivityCompletion.student_id,
-                func.sum(EarlyActivityCompletion.stars_earned).label("total_stars"),
+    if period == "today":
+        stars_rows = (
+            await db.execute(
+                select(
+                    EarlyActivityDailyStars.student_id,
+                    func.sum(EarlyActivityDailyStars.stars_earned).label("total_stars"),
+                )
+                .join(EarlyActivity, EarlyActivity.id == EarlyActivityDailyStars.activity_id)
+                .where(
+                    EarlyActivityDailyStars.student_id.in_(classmate_ids),
+                    EarlyActivityDailyStars.activity_date == _today(),
+                    EarlyActivity.is_published.is_(True),
+                    EarlyActivity.is_active.is_(True),
+                )
+                .group_by(EarlyActivityDailyStars.student_id)
             )
-            .join(EarlyActivity, EarlyActivity.id == EarlyActivityCompletion.activity_id)
-            .where(
-                EarlyActivityCompletion.student_id.in_(classmate_ids),
-                EarlyActivity.is_published.is_(True),
-                EarlyActivity.is_active.is_(True),
+        ).all()
+    else:
+        stars_rows = (
+            await db.execute(
+                select(
+                    EarlyActivityCompletion.student_id,
+                    func.sum(EarlyActivityCompletion.stars_earned).label("total_stars"),
+                )
+                .join(EarlyActivity, EarlyActivity.id == EarlyActivityCompletion.activity_id)
+                .where(
+                    EarlyActivityCompletion.student_id.in_(classmate_ids),
+                    EarlyActivity.is_published.is_(True),
+                    EarlyActivity.is_active.is_(True),
+                )
+                .group_by(EarlyActivityCompletion.student_id)
             )
-            .group_by(EarlyActivityCompletion.student_id)
-        )
-    ).all()
+        ).all()
     stars_by_student = {row.student_id: row.total_stars for row in stars_rows}
 
     classmates = (

@@ -247,6 +247,83 @@ async def test_complete_activity_upserts_without_regressing_stars(
 
 
 @pytest.mark.asyncio
+async def test_complete_activity_records_todays_stars(
+    async_client: AsyncClient, auth_headers: dict, published_module
+):
+    """The resettable counterpart to the permanent best-ever stars — see
+    EarlyActivityDailyStars. earned_stars_today on the module list must
+    reflect it immediately after a completion."""
+    module, activity = published_module
+
+    await async_client.post(
+        f"/api/v1/early-learning/activities/{activity.id}/complete",
+        json={"stars": 2},
+        headers=auth_headers,
+    )
+
+    response = await async_client.get("/api/v1/early-learning/modules", headers=auth_headers)
+
+    listed = next(m for m in response.json() if m["id"] == module.id)
+    assert listed["earned_stars_today"] == 2
+    assert listed["earned_stars"] == 2  # also counts toward the permanent total
+
+
+@pytest.mark.asyncio
+async def test_todays_stars_upsert_without_regressing(
+    async_client: AsyncClient, auth_headers: dict, published_module
+):
+    # Arrange: today's best is 3
+    _, activity = published_module
+    await async_client.post(
+        f"/api/v1/early-learning/activities/{activity.id}/complete",
+        json={"stars": 3},
+        headers=auth_headers,
+    )
+
+    # Act: a worse replay later the same day
+    await async_client.post(
+        f"/api/v1/early-learning/activities/{activity.id}/complete",
+        json={"stars": 1},
+        headers=auth_headers,
+    )
+    response = await async_client.get(
+        f"/api/v1/early-learning/modules/{activity.module_id}",
+        headers=auth_headers,
+    )
+
+    activity_out = next(a for a in response.json()["activities"] if a["id"] == activity.id)
+    assert activity_out["today_stars"] == 3
+
+
+@pytest.mark.asyncio
+async def test_yesterdays_stars_do_not_count_toward_today(
+    async_client: AsyncClient, auth_headers: dict, db_session, published_module
+):
+    """A row from a previous day must not leak into earned_stars_today —
+    that's the entire point of scoping by activity_date rather than
+    reusing/flagging the permanent completion row."""
+    from datetime import timedelta
+
+    from app.models.early_learning import EarlyActivityDailyStars
+    from app.api.v1.endpoints.early_learning import _today
+
+    module, activity = published_module
+    me = (await async_client.get("/api/v1/auth/me", headers=auth_headers)).json()
+
+    db_session.add(EarlyActivityDailyStars(
+        student_id=me["id"], activity_id=activity.id,
+        activity_date=_today() - timedelta(days=1),
+        stars_earned=3, attempts=1,
+    ))
+    await db_session.commit()
+
+    response = await async_client.get("/api/v1/early-learning/modules", headers=auth_headers)
+
+    listed = next(m for m in response.json() if m["id"] == module.id)
+    assert listed["earned_stars_today"] == 0
+
+
+@pytest.mark.asyncio
 async def test_complete_activity_404s_when_unpublished(
     async_client: AsyncClient, auth_headers: dict, unpublished_module
 ):
