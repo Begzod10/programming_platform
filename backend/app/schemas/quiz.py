@@ -1,5 +1,5 @@
-from pydantic import BaseModel, ConfigDict
-from typing import Optional, List
+from pydantic import BaseModel, ConfigDict, model_validator
+from typing import Optional, List, Any
 from datetime import datetime
 
 
@@ -41,6 +41,9 @@ class QuizCreate(BaseModel):
     time_limit_minutes: Optional[int] = None
     passing_score: int = 60
     points_reward: int = 0
+    grade_min: Optional[int] = None
+    grade_max: Optional[int] = None
+    course_id: Optional[int] = None
 
 
 class QuizUpdate(BaseModel):
@@ -51,6 +54,9 @@ class QuizUpdate(BaseModel):
     passing_score: Optional[int] = None
     points_reward: Optional[int] = None
     is_active: Optional[bool] = None
+    grade_min: Optional[int] = None
+    grade_max: Optional[int] = None
+    course_id: Optional[int] = None
 
 
 class QuizRead(BaseModel):
@@ -62,8 +68,22 @@ class QuizRead(BaseModel):
     passing_score: int
     points_reward: int
     is_active: bool
+    grade_min: Optional[int] = None
+    grade_max: Optional[int] = None
+    course_id: Optional[int] = None
+    course_title: Optional[str] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _derive_course_title(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return data
+        course = getattr(data, "course", None)
+        base = {k: getattr(data, k, None) for k in cls.model_fields.keys() if k != "course_title"}
+        base["course_title"] = course.title if course else None
+        return base
 
 
 class QuizReadWithQuestions(QuizRead):

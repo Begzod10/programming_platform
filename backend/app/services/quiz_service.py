@@ -1,3 +1,5 @@
+import re
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -5,14 +7,78 @@ from fastapi import HTTPException
 from typing import List, Optional
 
 from app.models.quiz import Quiz, Question, StudentQuizResult
+from app.models.user import Student
 from app.schemas.quiz import QuizCreate, QuizUpdate, QuestionCreate, QuizSubmit
+from app.services.ranking_service import RankingService
+from app.services.course_service import CourseService
+
+_GRADE_PREFIX_RE = re.compile(r"^\s*(\d{1,2})")
 
 
-async def get_all_quizzes(db: AsyncSession, skip: int = 0, limit: int = 10) -> List[Quiz]:
+def student_grades(student: Student) -> set[int]:
+    """Sinf raqamini guruh nomidan chiqarib olish (masalan "5-green" -> 5).
+
+    Bazada alohida "sinf" maydoni yo'q — turon/gennis guruh nomlari doim
+    "<raqam>-<rang>" shaklida keladi, shu naqshni ishlatamiz. Bir student bir
+    nechta guruhda bo'lishi mumkin (masalan yil almashinuvida), shuning
+    uchun to'plam qaytaramiz — har qandayi mos kelsa yetarli.
+    """
+    grades: set[int] = set()
+    for g in getattr(student, "groups", None) or []:
+        m = _GRADE_PREFIX_RE.match(g.name or "")
+        if m:
+            grades.add(int(m.group(1)))
+    return grades
+
+
+def _quiz_visible_to_grades(quiz: Quiz, grades: set[int]) -> bool:
+    """grade_min/grade_max ikkalasi ham NULL bo'lsa cheklovsiz (hamma ko'radi).
+    Aks holda talabaning aniqlangan sinflaridan kamida bittasi oraliqqa
+    tushishi kerak. Talabaning sinfi umuman aniqlanmasa (grades bo'sh —
+    gennis yoki guruhsiz), cheklangan testlar undan yashiriladi, cheklovsiz
+    testlar esa ko'rinaveradi."""
+    if quiz.grade_min is None and quiz.grade_max is None:
+        return True
+    if not grades:
+        return False
+    lo = quiz.grade_min if quiz.grade_min is not None else 0
+    hi = quiz.grade_max if quiz.grade_max is not None else 999
+    return any(lo <= g <= hi for g in grades)
+
+
+async def get_all_quizzes(
+        db: AsyncSession,
+        skip: int = 0,
+        limit: int = 10,
+        student: Optional[Student] = None,
+) -> List[Quiz]:
     result = await db.execute(
-        select(Quiz).where(Quiz.is_active == True).offset(skip).limit(limit)
+        select(Quiz).where(Quiz.is_active == True).order_by(Quiz.id)
     )
-    return result.scalars().all()
+    quizzes = result.scalars().all()
+
+    if student is not None:
+        grades = student_grades(student)
+        quizzes = [q for q in quizzes if _quiz_visible_to_grades(q, grades)]
+
+        # course_id bog'langan testlar — faqat shu kursni 100% tugatgan
+        # talabaga ko'rinadi. Bir xil course_id'li testlar orasida progress
+        # bir marta hisoblanadi (cache), N ta test uchun N marta emas.
+        progress_cache: dict[int, int] = {}
+        visible = []
+        for q in quizzes:
+            if q.course_id is None:
+                visible.append(q)
+                continue
+            if q.course_id not in progress_cache:
+                progress_cache[q.course_id] = await CourseService.calc_progress(
+                    db, q.course_id, student.id
+                )
+            if progress_cache[q.course_id] >= 100:
+                visible.append(q)
+        quizzes = visible
+
+    return quizzes[skip: skip + limit]
 
 
 async def get_quiz_by_id(db: AsyncSession, quiz_id: int) -> Optional[Quiz]:
@@ -101,6 +167,20 @@ async def submit_quiz(db: AsyncSession, quiz_id: int, student_id: int, data: Qui
         time_spent_seconds=data.time_spent_seconds
     )
     db.add(result_obj)
+
+    # Ball faqat BIRINCHI marta o'tganda beriladi — aks holda talaba bir xil
+    # testni qayta-qayta topshirib ball "fermalashi" mumkin edi.
+    if passed and quiz.points_reward:
+        prior = await db.execute(
+            select(StudentQuizResult.id).where(
+                StudentQuizResult.student_id == student_id,
+                StudentQuizResult.quiz_id == quiz_id,
+                StudentQuizResult.passed == True,
+            ).limit(1)
+        )
+        if prior.scalars().first() is None:
+            await RankingService(db).add_points_to_student(student_id, quiz.points_reward)
+
     await db.commit()
     await db.refresh(result_obj)
     return result_obj

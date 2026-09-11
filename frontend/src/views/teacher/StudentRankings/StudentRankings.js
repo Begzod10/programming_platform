@@ -205,19 +205,6 @@ export default function TeacherStudentsRankings() {
                             <button className="tsr-search-clear" onClick={() => { setSearch(''); fetchData(0, '', period, groupId); setPage(0); }}>✕</button>
                         )}
                     </div>
-                    {isTuron && groups.length > 0 && (
-                        <select
-                            className="tsr-search"
-                            value={groupId}
-                            onChange={handleGroup}
-                            aria-label="Sinf bo'yicha filtrlash"
-                        >
-                            <option value="">Barcha sinflar</option>
-                            {groups.map(g => (
-                                <option key={g.id} value={g.id}>{g.name}</option>
-                            ))}
-                        </select>
-                    )}
                 </div>
                 <div className="tsr-period-row" role="tablist" aria-label="Период">
                     {PERIOD_OPTIONS.map(opt => (
@@ -232,6 +219,19 @@ export default function TeacherStudentsRankings() {
                             {opt.label}
                         </button>
                     ))}
+                    {isTuron && groups.length > 0 && (
+                        <select
+                            className="tsr-group-select"
+                            value={groupId}
+                            onChange={handleGroup}
+                            aria-label="Sinf bo'yicha filtrlash"
+                        >
+                            <option value="">Barcha sinflar</option>
+                            {groups.map(g => (
+                                <option key={g.id} value={g.id}>{g.name}</option>
+                            ))}
+                        </select>
+                    )}
                 </div>
             </div>
 
