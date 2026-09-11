@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import './MyProjects.css';
 import ProjectCard from './ProjectCard';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { ConfirmModal } from '../../teacher/courses/TeacherCourses/ConfirmModal';
 import { Trophy } from 'lucide-react';
 
 const DIFFICULTIES = ['Easy', 'Medium', 'Hard'];
@@ -365,6 +366,10 @@ function MyProjects() {
     const [aiLoading, setAiLoading] = useState(false);
     const [aiResult, setAiResult] = useState(null);
 
+    // Delete confirmation (replaces window.confirm — blocked/no-op in some
+    // embedded webviews, and visually inconsistent with the rest of the app).
+    const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
     // Load projects
     useEffect(() => {
         request(`${API_URL}v1/project/my`, 'GET', null, headers())
@@ -448,13 +453,7 @@ function MyProjects() {
     const uploadZipForProject = async (projectId, file) => {
         const formData = new FormData();
         formData.append('file', file);
-        const h = headers();
-        delete h['Content-Type'];
-
-        const r = await fetch(`${API_URL}v1/project/${projectId}/upload-zip`, {
-            method: 'POST', headers: h, body: formData,
-        });
-        if (!r.ok) throw new Error('Upload failed');
+        await request(`${API_URL}v1/project/${projectId}/upload-zip`, 'POST', formData, headers());
     };
 
     /* ── Other handlers ── */
@@ -473,7 +472,11 @@ function MyProjects() {
     };
 
     const handleDelete = (projectId) => {
-        if (!window.confirm('Удалить проект?')) return;
+        setConfirmDeleteId(projectId);
+    };
+
+    const doDeleteProject = (projectId) => {
+        setConfirmDeleteId(null);
         request(`${API_URL}v1/project/${projectId}`, 'DELETE', null, headers())
             .then(() => {
                 setProjects(p => p.filter(pr => pr.id !== projectId));
@@ -498,14 +501,8 @@ function MyProjects() {
         setUploading(true);
         setUploadMsg('');
 
-        const h = headers();
-        delete h['Content-Type'];
-
-        fetch(`${API_URL}v1/project/${projectId}/upload-zip`, {
-            method: 'POST', headers: h, body: formData,
-        })
-            .then(async r => {
-                if (!r.ok) throw new Error();
+        request(`${API_URL}v1/project/${projectId}/upload-zip`, 'POST', formData, headers())
+            .then(() => {
                 setUploadMsg('✅ ZIP загружен успешно');
                 setSelectedFile(null);
                 return request(`${API_URL}v1/project/${projectId}`, 'GET', null, headers());
@@ -817,6 +814,14 @@ function MyProjects() {
                         </div>
                     </div>
                 </Modal>
+            )}
+
+            {confirmDeleteId && (
+                <ConfirmModal
+                    title="Удалить проект?"
+                    onConfirm={() => doDeleteProject(confirmDeleteId)}
+                    onClose={() => setConfirmDeleteId(null)}
+                />
             )}
         </div>
     );

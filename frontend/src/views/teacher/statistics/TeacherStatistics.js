@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import './TeacherStatistics.css';
-import { API_URL, headers } from '../../../api/search/base';
+import { API_URL, useHttp, headers } from '../../../api/search/base';
 
 const DAYS_ORDER = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 const DAY_FULL = {
@@ -175,6 +175,7 @@ function GradeDistribution({ grades }) {
 }
 
 function TeacherStatistics() {
+    const { request } = useHttp();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -186,15 +187,11 @@ function TeacherStatistics() {
             setLoading(false);
             return;
         }
-        fetch(`${API_URL}v1/teacher/statistics`, { headers: headers() })
-            .then((res) => {
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return res.json();
-            })
+        request(`${API_URL}v1/teacher/statistics`, 'GET', null, headers())
             .then(setData)
             .catch(() => setError('Не удалось загрузить статистику'))
             .finally(() => setLoading(false));
-    }, []);
+    }, [request]);
 
     if (loading) return <div className="stats-loading">Загрузка статистики...</div>;
     if (error) return (

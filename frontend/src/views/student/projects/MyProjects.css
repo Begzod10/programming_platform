@@ -1243,3 +1243,65 @@
     .mp-overlay   { align-items: stretch; padding: 6px; }
     .mp-modal     { max-height: 96vh; border-radius: var(--radius-xl); }
 }
+
+/* ═══════════════════════════════════════════════
+   CONFIRM MODAL (shared component — reused from
+   teacher/courses/TeacherCourses/ConfirmModal.js,
+   so the class names match that component's tc-*
+   markup 1:1; styles mirrored from TeacherCourses.css
+   to keep the confirm dialog consistent app-wide).
+═══════════════════════════════════════════════ */
+.tc-modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(10,10,30,0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 99999;
+    animation: tcFadeIn 0.2s ease;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+@keyframes tcFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tcSlideUp {
+    from { transform: translateY(20px) scale(0.97); opacity: 0; }
+    to   { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.tc-confirm {
+    background: white; border-radius: 24px;
+    padding: 40px 36px 32px; text-align: center;
+    width: 100%; max-width: 360px;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.3);
+    animation: tcSlideUp 0.28s cubic-bezier(0.16,1,0.3,1);
+}
+.tc-confirm-icon { font-size: 52px; display: block; margin-bottom: 14px; }
+.tc-confirm h4 { margin: 0 0 8px; font-size: 22px; font-weight: 800; color: #1a1a2e; }
+.tc-confirm p { margin: 0 0 28px; font-size: 13px; color: rgba(26,26,46,0.5); line-height: 1.5; }
+.tc-confirm-actions { display: flex; gap: 12px; justify-content: center; }
+.tc-cancel-btn {
+    flex: 1; padding: 12px; border-radius: 12px;
+    font-size: 15px; font-weight: 700;
+    cursor: pointer; transition: 0.25s; border: none;
+    font-family: var(--font-ui);
+    background: rgba(26,26,46,0.07); color: #1a1a2e;
+}
+.tc-cancel-btn:hover { background: rgba(26,26,46,0.12); }
+.tc-delete-btn {
+    padding: 11px 28px; border-radius: 12px; border: none;
+    background: linear-gradient(135deg, #ff5252, #c0392b); color: white;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    font-family: var(--font-ui);
+    box-shadow: 0 4px 16px rgba(255,82,82,0.35); transition: all 0.18s;
+}
+.tc-delete-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(255,82,82,0.45); }
+
+@media (max-width: 480px) {
+    .tc-confirm           { padding: 28px 20px 22px; border-radius: 20px; max-width: calc(100vw - 32px); }
+    .tc-confirm h4        { font-size: 18px; }
+    .tc-confirm-actions   { flex-direction: column-reverse; gap: 8px; }
+    .tc-confirm-actions .tc-cancel-btn,
+    .tc-confirm-actions .tc-delete-btn { width: 100%; flex: none; min-height: 44px; }
+}
