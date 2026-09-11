@@ -286,6 +286,83 @@ async def _calc_lesson_progress(
     return int(min(done, total) / total * 100)
 
 
+def _calc_lesson_progress_from_batch(
+        lesson: Lesson,
+        sections: list,
+        watched_section_ids: list[str],
+        submitted_exercise_ids: set,
+        project_rows: list,
+        completed_lesson_ids: set,
+) -> int:
+    """Pure-Python port of `_calc_lesson_progress`'s math, fed from data
+    that was already batch-fetched for the WHOLE course by
+    `_calc_course_progress` instead of issuing its own per-lesson queries.
+
+    This must stay byte-for-byte identical to `_calc_lesson_progress` for
+    the same underlying rows — it is the same branching logic, just reading
+    from pre-fetched dicts/sets:
+      - `watched_section_ids`: section_ids this student has a VideoWatch
+        row for, in THIS lesson only (mirrors the per-lesson VideoWatch
+        query, minus the `section_id.in_(video_section_ids)` filter, which
+        is applied here in Python instead).
+      - `submitted_exercise_ids`: exercise_ids this student has at least
+        one ExerciseSubmission for, across the WHOLE course (a superset of
+        any one lesson's exercise ids — membership-checked per lesson
+        below, same result as the original per-lesson
+        `exercise_id.in_(ex_ids)` query).
+      - `project_rows`: (status, points_earned) pairs from Submission+
+        Project for THIS lesson only (mirrors the per-lesson join query).
+      - `completed_lesson_ids`: LessonCompletion lesson_ids for this
+        student across the course (only consulted for the total==0
+        fallback branch, same as the original).
+    """
+    total_videos = sum(1 for s in sections if s.get("type") == "video" and s.get("videoUrl"))
+    total_exercises = sum(1 for s in sections if s.get("type") == "exercise")
+    total_projects = sum(1 for s in sections if s.get("type") == "project")
+    total = total_videos + total_exercises + total_projects
+
+    if total == 0:
+        return 100 if lesson.id in completed_lesson_ids else 0
+
+    done = 0
+
+    if total_videos > 0:
+        video_section_ids = [
+            s["id"] for s in sections
+            if s.get("type") == "video" and s.get("videoUrl")
+        ]
+        done += sum(1 for sid in watched_section_ids if sid in video_section_ids)
+
+    if total_exercises > 0:
+        for sec in sections:
+            if sec.get("type") != "exercise":
+                continue
+            ex_list = sec.get("exercises", [])
+            if not ex_list:
+                done += 1
+                continue
+            ex_ids = [e["id"] for e in ex_list if e.get("id")]
+            if not ex_ids:
+                done += 1
+                continue
+            submitted = sum(1 for eid in ex_ids if eid in submitted_exercise_ids)
+            if submitted >= len(ex_ids):
+                done += 1
+
+    if total_projects > 0:
+        # Same rule as _calc_lesson_progress: a project only counts as
+        # "done" once it has passed review (Approved + points_earned >=
+        # PROJECT_PASS_THRESHOLD) — see that function's comment for why.
+        has_passing = any(
+            (p_st or "") == "Approved" and (pts or 0) >= PROJECT_PASS_THRESHOLD
+            for (p_st, pts) in project_rows
+        )
+        if has_passing:
+            done += total_projects
+
+    return int(min(done, total) / total * 100)
+
+
 async def _calc_course_progress(
         db: AsyncSession,
         course_id: int,
@@ -293,7 +370,21 @@ async def _calc_course_progress(
 ) -> dict:
     """
     Kurs foizi = barcha lesson foizlarining o'rtachasi
+
+    Batches the VideoWatch / ExerciseSubmission / Submission+Project
+    lookups that `_calc_lesson_progress` would otherwise issue separately
+    for EVERY lesson in the course (up to 3 queries per lesson — ~60
+    round-trips for a 20-lesson course) into a small, constant number of
+    course-wide queries, then computes each lesson's progress in Python via
+    `_calc_lesson_progress_from_batch`. The per-lesson math itself is
+    unchanged — only how many queries it takes to gather the inputs.
+    `_calc_lesson_progress` itself is left untouched since it's still used
+    standalone (single-lesson reads in lessons.py) where there's no course
+    of siblings to batch against.
     """
+    from app.models.video_watch import VideoWatch
+    from app.models.exercise import ExerciseSubmission
+
     lessons_res = await db.execute(
         select(Lesson).where(
             Lesson.course_id == course_id,
@@ -312,10 +403,90 @@ async def _calc_course_progress(
             "percentage": 0,
         }
 
-    lesson_progresses = []
+    lesson_ids = [l.id for l in lessons]
+
+    # Parse each lesson's sections_json once (same parsing _calc_lesson_progress
+    # does per-call) and collect every exercise id referenced anywhere in the
+    # course so ExerciseSubmission can be fetched in a single query below.
+    sections_by_lesson: dict[int, list] = {}
+    all_exercise_ids: set = set()
     for lesson in lessons:
-        pct = await _calc_lesson_progress(db, lesson, student_id)
-        lesson_progresses.append(pct)
+        sections = []
+        if lesson.sections_json:
+            try:
+                sections = json.loads(lesson.sections_json)
+            except Exception:
+                pass
+        sections_by_lesson[lesson.id] = sections
+        for sec in sections:
+            if sec.get("type") != "exercise":
+                continue
+            for ex in sec.get("exercises", []) or []:
+                if ex.get("id"):
+                    all_exercise_ids.add(ex["id"])
+
+    # 1) Video watches for every lesson in the course, this student only.
+    video_rows = (await db.execute(
+        select(VideoWatch.lesson_id, VideoWatch.section_id).where(
+            VideoWatch.student_id == student_id,
+            VideoWatch.lesson_id.in_(lesson_ids),
+        )
+    )).all()
+    watched_by_lesson: dict[int, list] = {}
+    for lid, section_id in video_rows:
+        watched_by_lesson.setdefault(lid, []).append(section_id)
+
+    # 2) Exercise submissions for every exercise referenced anywhere in the
+    # course, this student only. ExerciseSubmission has no lesson_id column
+    # (only exercise_id), so this is scoped by exercise id instead of
+    # lesson id — a superset per lesson, narrowed back down in Python by
+    # _calc_lesson_progress_from_batch exactly like the original per-lesson
+    # `exercise_id.in_(ex_ids)` query did.
+    submitted_exercise_ids: set = set()
+    if all_exercise_ids:
+        ex_rows = (await db.execute(
+            select(ExerciseSubmission.exercise_id).where(
+                ExerciseSubmission.student_id == student_id,
+                ExerciseSubmission.exercise_id.in_(all_exercise_ids),
+            ).distinct()
+        )).all()
+        submitted_exercise_ids = {row[0] for row in ex_rows}
+
+    # 3) Project submissions (via Submission -> Project) for every lesson
+    # in the course, this student only.
+    sub_rows = (await db.execute(
+        select(Submission.lesson_id, Project.status, Project.points_earned)
+        .join(Project, Submission.project_id == Project.id)
+        .where(
+            Submission.lesson_id.in_(lesson_ids),
+            Submission.student_id == student_id,
+        )
+    )).all()
+    project_rows_by_lesson: dict[int, list] = {}
+    for lid, p_status, pts in sub_rows:
+        project_rows_by_lesson.setdefault(lid, []).append((p_status, pts))
+
+    # 4) LessonCompletion, needed only for lessons with zero video/exercise/
+    # project sections (the total == 0 fallback branch).
+    completed_res = await db.execute(
+        select(LessonCompletion.lesson_id).where(
+            LessonCompletion.student_id == student_id,
+            LessonCompletion.lesson_id.in_(lesson_ids),
+        )
+    )
+    completed_lesson_ids = {row[0] for row in completed_res.all()}
+
+    lesson_progresses = [
+        _calc_lesson_progress_from_batch(
+            lesson,
+            sections_by_lesson[lesson.id],
+            watched_by_lesson.get(lesson.id, []),
+            submitted_exercise_ids,
+            project_rows_by_lesson.get(lesson.id, []),
+            completed_lesson_ids,
+        )
+        for lesson in lessons
+    ]
 
     completed = sum(1 for p in lesson_progresses if p == 100)
     avg_pct = int(sum(lesson_progresses) / total)
