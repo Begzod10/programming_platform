@@ -1,23 +1,13 @@
-from typing import AsyncGenerator, Optional, List
+from typing import Optional, List
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.db.session import AsyncSessionLocal
+from app.db.session import get_db
 from app.config import settings
 from app.models.user import Student, UserRole
-
-
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Database session dependency"""
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
-
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
