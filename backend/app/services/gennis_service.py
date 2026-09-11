@@ -441,6 +441,48 @@ class GennisService:
         )
 
     @classmethod
+    async def _resolve_sync_username(
+        cls, db: AsyncSession, s_data: Dict[str, Any], system: str,
+        exclude_student_id: Optional[int] = None,
+    ) -> str:
+        """Prefer the REAL username management-v2 already resolved for this
+        account — its own `User.username` for turon, or the linked
+        management account's username bridged via gennis_user_link for
+        gennis (see management-v2's `/group/{id}/students` and
+        `/flow/{id}/students`, both of which now return a `username` field
+        per student) — over a synthetic `{system}_{id}` placeholder.
+
+        Falls back to the synthetic form in exactly two cases: management-v2
+        has no username for this account yet (a gennis student not yet
+        linked to a management account — its `usernames.get(...)` there is
+        None), or the real username is already taken by a DIFFERENT
+        student_platform account. The second case should be rare —
+        management-v2 usernames are unique in its own system — but a
+        coincidental collision with an unrelated local/legacy account is
+        never worth corrupting that account's data over, so this checks
+        first rather than letting a unique-constraint violation surface
+        mid-sync.
+        """
+        s_id = s_data.get("id")
+        fallback = f"{system}_{s_id}"
+        real = (s_data.get("username") or "").strip()[:50] or None
+        if not real:
+            return fallback
+
+        q = select(Student.id).where(Student.username == real)
+        if exclude_student_id is not None:
+            q = q.where(Student.id != exclude_student_id)
+        taken_by = (await db.execute(q)).scalar_one_or_none()
+        if taken_by is not None:
+            logger.warning(
+                "management-v2 username '%s' (%s id=%s) allaqachon boshqa "
+                "student_platform hisobiga (id=%s) tegishli — o'rniga '%s' saqlanadi.",
+                real, system, s_id, taken_by, fallback,
+            )
+            return fallback
+        return real
+
+    @classmethod
     async def _sync_container_student(
         cls, db: AsyncSession, s_data: Dict[str, Any], container_id: int, system: str,
         *, member_table, member_id_col: str, insert_table: str, insert_col: str,
@@ -448,22 +490,39 @@ class GennisService:
     ) -> Student:
         id_col = f"{system}_id"
         s_id = s_data.get("id")
-        s_username = f"{system}_{s_id}"
 
         # Ismlarni tayyorlash
         first_name = s_data.get("name", "")
         last_name = s_data.get("surname", "")
         full_name = f"{first_name} {last_name}".strip()
-        if not full_name:
-            full_name = s_username # Agar ism kelmasa username qo'yiladi
         parsed_birth_date = cls._parse_birth_date(s_data.get("birth_date"))
 
-        result = await db.execute(select(Student).where(Student.username == s_username))
+        # Asosiy identifikatsiya — (system, s_id) orqali, username orqali
+        # EMAS. Ilgari username har doim `{system}_{id}` dan deterministik
+        # hosil qilingani uchun o'zi identifikatsiya kaliti bo'la olardi;
+        # endi u management-v2'dan kelgan HAQIQIY username bo'lishi mumkin
+        # (o'zgarishi mumkin, va nazariy jihatdan boshqa hisobning oldindan
+        # tanlagan username'i bilan mos kelib qolishi mumkin), shuning uchun
+        # doimiy va ishonchli kalit sifatida ishlatib bo'lmaydi.
+        result = await db.execute(select(Student).where(getattr(Student, id_col) == s_id))
         student = result.scalar_one_or_none()
 
+        s_username = await cls._resolve_sync_username(
+            db, s_data, system, exclude_student_id=student.id if student else None,
+        )
+        if not full_name:
+            full_name = s_username  # Agar ism kelmasa username qo'yiladi
+
         if not student:
-            # No row under the current id — check whether the source system
-            # renumbered someone we already have before assuming this is a new person.
+            # Eski qator — id_col hali o'rnatilmagan (masalan shu funksiya
+            # bu fix'dan oldin yaratgan qator) — zaxira sifatida username
+            # bo'yicha ham qidiramiz.
+            result = await db.execute(select(Student).where(Student.username == s_username))
+            student = result.scalar_one_or_none()
+
+        if not student:
+            # Hech qanday mos qator topilmadi — manba tizim shu odamni qayta
+            # raqamlamaganmi, yangi odam deb hisoblashdan oldin tekshiramiz.
             student = await cls._find_renumbered_student(
                 db, s_data, container_id, system=system,
                 member_table=member_table, member_id_col=member_id_col,
@@ -474,7 +533,14 @@ class GennisService:
                     "Mavjud hisob qayta bog'landi (yangi hisob yaratilmadi).",
                     student.username, system, getattr(student, id_col), s_id,
                 )
-                # `s_username` is free — the lookup above found nothing.
+                # Qayta hisoblaymiz: topilgan qatorning O'ZI shu username'ga
+                # ega bo'lishi mumkin (ism o'zgarmagan, faqat tashqi id
+                # o'zgargan) — uni chetlab o'tmasak, "band" deb noto'g'ri
+                # xulosa chiqarib, sabab yo'q joyda sintetik nomga qaytib
+                # ketamiz.
+                s_username = await cls._resolve_sync_username(
+                    db, s_data, system, exclude_student_id=student.id,
+                )
                 student.username = s_username
                 student.email = f"{s_username}@{system}.uz"
 
@@ -495,6 +561,12 @@ class GennisService:
             db.add(student)
             await db.flush()
         else:
+            # Ilgari sintetik nom bilan sinxronlangan (yoki o'sha safar
+            # management-v2'da username hali yo'q edi) qator bo'lsa — endi
+            # aniqlangan haqiqiy nomga o'tkazamiz.
+            if student.username != s_username:
+                student.username = s_username
+                student.email = f"{s_username}@{system}.uz"
             student.full_name = full_name
             student.surname = last_name
             student.phone = str(s_data.get("phone"))[:50]

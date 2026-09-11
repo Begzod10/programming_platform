@@ -126,8 +126,15 @@ async def login(db: AsyncSession, username: str, password: str):
                 import os as _os
                 from app.core.security import get_password_hash as _ghp
                 role = UserRole.teacher if role_str == 'teacher' else UserRole.student
+                # `username` is exactly what this person authenticated with
+                # against management-v2 — a real credential, not a synthetic
+                # placeholder — and the `stmt` lookup above already confirmed
+                # no existing row owns it (it would have matched there and
+                # `user` wouldn't be None). Safe to use directly for either
+                # role; teachers already did this, students used to get a
+                # synthetic `{source}_{ext_id}` instead — no longer.
                 user = Student(
-                    username=username if role == UserRole.teacher else f"{source}_{ext_id}",
+                    username=username,
                     email=user_data.get("email") or f"{username}@{source}.uz",
                     full_name=f"{user_data.get('name', '')} {user_data.get('surname', '')}".strip(),
                     hashed_password=_ghp(_os.urandom(32).hex()),
@@ -151,7 +158,14 @@ async def login(db: AsyncSession, username: str, password: str):
                     setattr(user, id_col, ext_id)
                     changed = True
 
-                if correct_role == UserRole.teacher and user.username != username:
+                # Applies to students too now, not just teachers — an
+                # account synced before this fix (or synced back when
+                # management-v2 had no username for it yet) still carries
+                # its old synthetic `{source}_{ext_id}` username; converge
+                # it onto the real one the next time this person logs in,
+                # same collision guard as always (never steal a username an
+                # unrelated existing row already owns).
+                if user.username != username:
                     conflict = await db.execute(
                         select(Student).where(
                             Student.username == username,

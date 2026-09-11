@@ -13,7 +13,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import update
 
-from app.models.user import Student
+from app.models.user import Student, UserRole
 
 
 def _unique() -> str:
@@ -204,6 +204,109 @@ async def test_login_by_email_returns_200(async_client: AsyncClient):
     )
     assert resp.status_code == 200
     assert "access_token" in resp.json()
+
+
+# ── Synced (gennis/turon) student login — real username, not synthetic ────────
+# See gennis_service.py's GennisService docstring / reference_student_platform_
+# synced_usernames.md: this used to always mint a `{source}_{ext_id}`
+# placeholder for a synced STUDENT (teachers already got their real typed
+# username). Fixed to match teachers: use the credential the person actually
+# authenticated with, since the `stmt` lookup in auth_service.login already
+# guarantees no existing row owns it by the time a new Student is created.
+
+def _mgmt_login_payload(ext_id: int, name: str, surname: str, source: str = "turon") -> dict:
+    """Shape of a successful management-v2 shim /login response for a
+    student with no groups/flows (keeps sync_student_data a no-op so these
+    tests only exercise username resolution, not roster sync)."""
+    return {
+        "access_token": "tok",
+        "source": source,
+        "user": {
+            "id": ext_id,
+            "name": name,
+            "surname": surname,
+            "role": "student",
+            "phone": [],
+            "student": {"group": [], "flow": [], "combined_debt": 0},
+        },
+    }
+
+
+async def test_synced_student_gets_real_typed_username_not_synthetic(
+    async_client: AsyncClient, db_session, monkeypatch
+):
+    from unittest.mock import AsyncMock
+    from sqlalchemy import select
+    from app.services.gennis_service import GennisService
+
+    ext_id = 900001
+    typed_username = "real_turon_login_name"
+    monkeypatch.setattr(
+        GennisService, "login",
+        AsyncMock(return_value=_mgmt_login_payload(ext_id, "Sync", "Student")),
+    )
+
+    resp = await async_client.post(
+        "/api/v1/auth/login",
+        json={"username": typed_username, "password": "whatever"},
+    )
+    assert resp.status_code == 200
+
+    db_session.expire_all()  # request committed through its own session
+    student = (
+        await db_session.execute(select(Student).where(Student.turon_id == ext_id))
+    ).scalar_one()
+    assert student.username == typed_username
+    assert student.username != f"turon_{ext_id}"
+
+
+async def test_synced_student_username_upgrades_from_synthetic_on_relogin(
+    async_client: AsyncClient, db_session, monkeypatch
+):
+    """An account synced before this fix (or before management-v2 could
+    resolve a username for it) still carries its old `turon_<id>` username —
+    the next successful login converges it onto the real one, same as a
+    teacher's already did."""
+    from unittest.mock import AsyncMock
+    from sqlalchemy import select
+    from app.core.security import get_password_hash
+    from app.services.gennis_service import GennisService
+
+    ext_id = 900002
+    legacy_username = f"turon_{ext_id}"
+    pre_existing = Student(
+        username=legacy_username,
+        email=f"{legacy_username}@turon.uz",
+        full_name="Old Synthetic",
+        hashed_password=get_password_hash("irrelevant"),
+        role=UserRole.student,
+        turon_id=ext_id,
+    )
+    db_session.add(pre_existing)
+    await db_session.commit()
+
+    real_username = "upgraded_real_name"
+    monkeypatch.setattr(
+        GennisService, "login",
+        AsyncMock(return_value=_mgmt_login_payload(ext_id, "Sync", "Student")),
+    )
+
+    resp = await async_client.post(
+        "/api/v1/auth/login",
+        json={"username": real_username, "password": "whatever"},
+    )
+    assert resp.status_code == 200
+
+    # The login endpoint commits through its OWN dependency-injected session
+    # (app.dependencies.get_db), not db_session — expire_all() before
+    # re-querying so this doesn't just hand back db_session's stale
+    # identity-mapped copy of pre_existing from before the request.
+    db_session.expire_all()
+    student = (
+        await db_session.execute(select(Student).where(Student.turon_id == ext_id))
+    ).scalar_one()
+    assert student.username == real_username
+    assert student.id == pre_existing.id  # same account, not a duplicate
 
 
 # ── /me ───────────────────────────────────────────────────────────────────────

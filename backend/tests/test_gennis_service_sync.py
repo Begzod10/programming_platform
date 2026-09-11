@@ -202,6 +202,156 @@ async def test_roster_sync_maps_birth_date_onto_new_student(db_session, turon_te
     assert student.birth_date == date(2017, 9, 1)
 
 
+# ── Real username from management-v2, not a synthetic `{system}_{id}` ────────
+# See reference_student_platform_synced_usernames.md / _resolve_sync_username's
+# docstring: management-v2's /group and /flow students endpoints now return a
+# `username` field per student (bridged via gennis_user_link for gennis,
+# direct User.username for turon) — the roster sync must prefer it.
+
+@pytest.mark.asyncio
+async def test_roster_sync_uses_real_username_when_provided(db_session, turon_teacher, monkeypatch):
+    group_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+    student_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+
+    async def _one_student(*args, **kwargs):
+        return [{
+            "id": student_turon_id, "name": "Ali", "surname": "Valiyev",
+            "username": "real_turon_roster_name",
+        }]
+
+    monkeypatch.setattr(GennisService, "fetch_group_students", classmethod(_one_student))
+
+    await GennisService.sync_teacher_data(
+        db_session,
+        turon_teacher,
+        _login_data(groups=[{"id": group_turon_id, "name": f"1-blue-test-{group_turon_id}", "price": 0}]),
+        system="turon",
+    )
+
+    student = (
+        await db_session.execute(select(Student).where(Student.turon_id == student_turon_id))
+    ).scalar_one()
+    assert student.username == "real_turon_roster_name"
+
+
+@pytest.mark.asyncio
+async def test_roster_sync_falls_back_to_synthetic_without_username(db_session, turon_teacher, monkeypatch):
+    """A gennis student not yet linked to a management account has no
+    resolvable username — management-v2 sends `"username": None` for those
+    (see gennis_username_map). Must still fall back cleanly, exactly as
+    before this fix, rather than crash or store `None`/the literal string
+    "None" as a username."""
+    group_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+    student_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+
+    async def _one_student(*args, **kwargs):
+        return [{
+            "id": student_turon_id, "name": "Ali", "surname": "Valiyev",
+            "username": None,
+        }]
+
+    monkeypatch.setattr(GennisService, "fetch_group_students", classmethod(_one_student))
+
+    await GennisService.sync_teacher_data(
+        db_session,
+        turon_teacher,
+        _login_data(groups=[{"id": group_turon_id, "name": f"1-blue-test-{group_turon_id}", "price": 0}]),
+        system="turon",
+    )
+
+    student = (
+        await db_session.execute(select(Student).where(Student.turon_id == student_turon_id))
+    ).scalar_one()
+    assert student.username == f"turon_{student_turon_id}"
+
+
+@pytest.mark.asyncio
+async def test_roster_sync_falls_back_to_synthetic_on_username_collision(db_session, turon_teacher, monkeypatch):
+    """The real username management-v2 provides happens to already belong
+    to an unrelated existing student_platform account — must never steal it
+    (which would corrupt that account's data on every field this sync
+    writes), falling back to the synthetic placeholder instead."""
+    from app.core.security import get_password_hash
+
+    unrelated = Student(
+        username="shared_name_collision",
+        email="shared_name_collision@example.com",
+        full_name="Someone Else Entirely",
+        hashed_password=get_password_hash("irrelevant"),
+        role=UserRole.student,
+    )
+    db_session.add(unrelated)
+    await db_session.commit()
+
+    group_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+    student_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+
+    async def _one_student(*args, **kwargs):
+        return [{
+            "id": student_turon_id, "name": "Ali", "surname": "Valiyev",
+            "username": "shared_name_collision",
+        }]
+
+    monkeypatch.setattr(GennisService, "fetch_group_students", classmethod(_one_student))
+
+    await GennisService.sync_teacher_data(
+        db_session,
+        turon_teacher,
+        _login_data(groups=[{"id": group_turon_id, "name": f"1-blue-test-{group_turon_id}", "price": 0}]),
+        system="turon",
+    )
+
+    new_student = (
+        await db_session.execute(select(Student).where(Student.turon_id == student_turon_id))
+    ).scalar_one()
+    assert new_student.username == f"turon_{student_turon_id}"
+    assert new_student.id != unrelated.id
+
+    untouched = (
+        await db_session.execute(select(Student).where(Student.id == unrelated.id))
+    ).scalar_one()
+    assert untouched.full_name == "Someone Else Entirely"
+    assert untouched.turon_id is None
+
+
+@pytest.mark.asyncio
+async def test_roster_sync_upgrades_existing_synthetic_username_to_real(db_session, turon_teacher, monkeypatch):
+    """A student synced before this fix (or before management-v2 could
+    resolve a username for them) still carries the old synthetic username —
+    a later sync that now provides a real one must upgrade it in place,
+    same account (matched via turon_id), not a duplicate."""
+    group_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+    student_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+
+    async def _without_username(*args, **kwargs):
+        return [{"id": student_turon_id, "name": "Ali", "surname": "Valiyev"}]
+
+    monkeypatch.setattr(GennisService, "fetch_group_students", classmethod(_without_username))
+    login_data = _login_data(groups=[{"id": group_turon_id, "name": f"1-blue-test-{group_turon_id}", "price": 0}])
+    await GennisService.sync_teacher_data(db_session, turon_teacher, login_data, system="turon")
+
+    first_sync = (
+        await db_session.execute(select(Student).where(Student.turon_id == student_turon_id))
+    ).scalar_one()
+    assert first_sync.username == f"turon_{student_turon_id}"
+    original_id = first_sync.id
+
+    async def _with_username(*args, **kwargs):
+        return [{
+            "id": student_turon_id, "name": "Ali", "surname": "Valiyev",
+            "username": "now_resolved_real_name",
+        }]
+
+    monkeypatch.setattr(GennisService, "fetch_group_students", classmethod(_with_username))
+    await GennisService.sync_teacher_data(db_session, turon_teacher, login_data, system="turon")
+
+    upgraded = (
+        await db_session.execute(select(Student).where(Student.turon_id == student_turon_id))
+    ).scalar_one()
+    assert upgraded.id == original_id
+    assert upgraded.username == "now_resolved_real_name"
+
+
 @pytest.mark.asyncio
 async def test_roster_sync_does_not_clobber_birth_date_with_missing_value(db_session, turon_teacher, monkeypatch):
     """A later sync where the roster entry omits birth_date (e.g. a
