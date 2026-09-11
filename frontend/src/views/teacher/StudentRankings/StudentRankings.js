@@ -207,7 +207,7 @@ export default function TeacherStudentsRankings() {
                     </div>
                     {isTuron && groups.length > 0 && (
                         <select
-                            className="tsr-search"
+                            className="tsr-group-select"
                             value={groupId}
                             onChange={handleGroup}
                             aria-label="Sinf bo'yicha filtrlash"
