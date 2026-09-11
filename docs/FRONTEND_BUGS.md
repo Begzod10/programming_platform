@@ -99,10 +99,14 @@ Status legend: ✅ fixed (originally commits `1766039`/`6f4c762`; HIGH/MEDIUM it
   - `TeacherReview.js:90` — `setDetail`
 - **Fixed (2026-09-11):** each timer id is now stored in a `useRef` and cleared in an unmount cleanup `useEffect` (or before starting a replacement timer, for the ones that can restart). `Profile.js` had 4 separate `setTimeout(() => setSuccess(''), 3000)` sites, not 1 as originally recorded — all fixed via one shared ref.
 
-### ⬜ `useEffect` dep arrays disabled with `eslint-disable-line`
-- **Where:** `StudentCourses.js:185,187,245`, `TeacherCourses.js:204`, `StudentLayout.js:38`, `Profile.js:36`, `TeacherProfile.js:42`, `TeacherStatistics.js:95`, `LeaderBoard.js:38`, `DegreeCard.js:25`, `Teachercertificates.js:156,487`, `MyProjects.js:95`, `LessonEditor.js:65`, `TeacherReview.js:49`
+### 🟡 `useEffect` dep arrays disabled with `eslint-disable-line`
+- **Where (original):** `StudentCourses.js:185,187,245`, `TeacherCourses.js:204`, `StudentLayout.js:38`, `Profile.js:36`, `TeacherProfile.js:42`, `TeacherStatistics.js:95`, `LeaderBoard.js:38`, `DegreeCard.js:25`, `Teachercertificates.js:156,487`, `MyProjects.js:95`, `LessonEditor.js:65`, `TeacherReview.js:49`
 - **What:** `request` from `useHttp()` is stable (memoized with empty deps), so silencing the warning is *currently safe*. Removing the suppressions exposes the real intent and prevents a future refactor from quietly introducing stale-closure bugs.
-- **Deliberately not touched in the Phase 4 correctness pass:** no live bug here per the doc's own note — this is a hygiene/clarity item, left for a hygiene pass rather than a correctness one.
+- **Partially addressed (2026-09-11, Phase 5 hygiene), heavy doc drift found:**
+  - **Fixed** (suppressed dep really was the stable `request`, safe to add): `StudentCourses.js` (`fetchCourses` useCallback, its mount effect, the courseId/lang lesson-load effect), `TeacherReview.js` (`fetchProjects`), plus `StreakBadge.js` — found via a full-repo sweep, not in the original doc list at all.
+  - **Left alone, genuinely not hygiene-safe:** `TeacherCourses.js`, `LeaderBoard.js`, `Practice.js`, `ProjectLeaderboard.js`, `LessonQuizBankEditor.js`, `StoreContext.js`, `TeacherFeedback.js`, and 10 early-learning game files — in each, the suppressed dependency is a plain function or reactive value redefined every render (not a stable `request`), so adding it would change fetch/render cadence — a behavior change, out of bounds for a hygiene pass. `SSOHandler.js` already carries its own written justification for a deliberate run-once effect.
+  - **Stale doc entries** (file rewritten since, suppression already gone): `StudentLayout.js` (rewritten, no `useHttp` at all now), `TeacherStatistics.js` (no suppression, no warning), `MyProjects.js` (already correctly fixed), `LessonEditor.js` (refactored, its one effect already has correct deps).
+  - **Surfaced but not fixed:** `Profile.js`, `TeacherProfile.js`, `DegreeCard.js`, `Teachercertificates.js` no longer have the `eslint-disable` comment (removed by an earlier change), but the underlying missing-`request` dependency warning is consequently now live and unsuppressed in `npm run build`'s output. Left for a follow-up pass — fixing it means touching the same files' actual effect logic, which is correctness-adjacent territory this hygiene pass deliberately didn't expand into.
 
 ### ✅ `key={index}` on reorderable lists
 - **Where (original):** `StudentLessonPage.js:218` (drag-drop chips), `StudentCoursePage.js:301` (chapters).
@@ -128,9 +132,9 @@ Status legend: ✅ fixed (originally commits `1766039`/`6f4c762`; HIGH/MEDIUM it
 
 ## LOW
 
-- ⬜ `NO_STATS_PATHS` constant declared but never used (`StudentLayout.js:9`).
-- ⬜ Several `'is assigned a value but never used'` lint warnings (see `npm run build` output).
-- ⬜ `useHttp` header helpers (`headers`, `headersImg`, etc.) are mostly redundant now that axiosInstance auto-attaches the bearer. Keep for now for the raw-fetch callers; consolidate when those are migrated.
+- ✅ `NO_STATS_PATHS` constant declared but never used (`StudentLayout.js:9`) — stale, 2026-09-11: `StudentLayout.js` has since been rewritten (32 lines) and no longer references this constant anywhere; confirmed via a full-repo grep. Nothing to delete.
+- ✅ Several `'is assigned a value but never used'` lint warnings — fixed 2026-09-11, all 8 real ones from `npm run build`'s output removed (`Achievements.js`, `StudentCourses.js`, `LessonContentBlocks.js`, `TeacherAchievements.js`, `AssignStudentsModal.js`, `helpers.js`). Build warning count: 30 → 22 (remainder are the unrelated pre-existing `postcss-calc` CSS warnings plus the now-unsuppressed `exhaustive-deps` ones noted above).
+- 🟡 `useHttp` header helpers (`headers`, `headersImg`, etc.) — partially consolidated 2026-09-11: `header()`/`headerImg()` had zero callers anywhere after Phase 4's `fetch()`→`request()` migration, removed. `headers()` (153 call sites) and `headersImg()` (`Profile.js` avatar upload/download, `DegreeCard.js`'s certificate PDF download) are still genuinely used by the remaining raw-`fetch()` sites that need a `Blob` response (see the Phase 4 raw-`fetch()` entry above) — kept, since `useHttp()`'s wrapper still has no `responseType` option for those.
 
 ---
 
