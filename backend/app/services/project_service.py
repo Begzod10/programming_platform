@@ -1,7 +1,9 @@
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta, timezone
 from typing import Optional
+
+from app.utils.datetime_utils import utcnow
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -46,13 +48,15 @@ def is_orphaned_submission(project: Optional[Project]) -> bool:
     reference = project.created_at or project.updated_at
     if reference is None:
         return False
-    # created_at/updated_at come from the DB as tz-aware (server_default
-    # func.now()), but the rest of this module treats datetime.utcnow()'s
-    # naive value as implicitly UTC (e.g. submitted_at is set that way a
-    # few lines below) — normalize to naive-UTC to compare like with like.
-    if reference.tzinfo is not None:
-        reference = reference.replace(tzinfo=None)
-    return (datetime.utcnow() - reference) > timedelta(minutes=ORPHANED_SUBMIT_GRACE_MINUTES)
+    # created_at/updated_at/submitted_at are all DateTime(timezone=True) —
+    # compare aware-to-aware directly. Defensive fallback for a pre-existing
+    # row that's somehow still naive (e.g. written before this module's
+    # other utcnow() calls were made tz-aware): treat it as UTC, this
+    # module's own long-standing convention, rather than crashing on a
+    # naive/aware subtraction.
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone.utc)
+    return (utcnow() - reference) > timedelta(minutes=ORPHANED_SUBMIT_GRACE_MINUTES)
 
 
 class ProjectService:
@@ -142,9 +146,9 @@ class ProjectService:
                 github_url=new_project.github_url,
                 live_demo_url=new_project.live_demo_url,
                 description=new_project.description,
-                submitted_at=datetime.utcnow(),
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                submitted_at=utcnow(),
+                created_at=utcnow(),
+                updated_at=utcnow(),
             ))
 
         await self.db.commit()
@@ -186,7 +190,7 @@ class ProjectService:
             update_data["technologies_used"] = ",".join(update_data["technologies_used"])
         for key, value in update_data.items():
             setattr(project, key, value)
-        project.updated_at = datetime.utcnow()
+        project.updated_at = utcnow()
         await self.db.commit()
         await self.db.refresh(project)
         return project
@@ -252,7 +256,7 @@ class ProjectService:
         if project.reviewed_at is not None and project.status in ("Approved", "Rejected"):
             return project
         project.status = "Submitted"
-        project.submitted_at = datetime.utcnow()
+        project.submitted_at = utcnow()
 
         # Keep submission.status in sync so the teacher review and student
         # MyProjects views agree on the status.
@@ -338,7 +342,7 @@ class ProjectService:
         project.grade = grade
         project.points_earned = points
         project.status = "Approved"
-        project.reviewed_at = datetime.utcnow()
+        project.reviewed_at = utcnow()
 
         student_result = await self.db.execute(
             select(Student).where(Student.id == project.student_id)

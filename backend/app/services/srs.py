@@ -18,6 +18,8 @@ import random
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
+from app.utils.datetime_utils import utcnow
+
 from sqlalchemy import case, func, or_, select
 
 
@@ -60,7 +62,10 @@ def schedule_after_review(
 
     grade: 0 = wrong/forgot, 1 = hard (close), 2 = good (exact/correct).
     """
-    now = now or datetime.utcnow()
+    # UserDictionary's next_review_at/last_reviewed_at are naive DateTime
+    # columns (no timezone=True) — strip tzinfo so a caller-omitted `now`
+    # matches what those columns actually store.
+    now = now or utcnow().replace(tzinfo=None)
     ef = ease_factor or DEFAULT_EASE
 
     if grade == 0:
@@ -132,7 +137,8 @@ def apply_result(
     legacy `was_correct`. Returns the scheduler dict so the response can
     surface `is_leech` for client-side flagging.
     """
-    now = now or datetime.utcnow()
+    # Same naive-column reasoning as compute_next_state above.
+    now = now or utcnow().replace(tzinfo=None)
     if grade is None:
         grade = 2 if was_correct else 0
 

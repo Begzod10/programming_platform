@@ -1,7 +1,6 @@
 """Practice session CRUD and AI judge for typed answers."""
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.utils.datetime_utils import utcnow
 from app.db.session import get_db
 from app.dependencies import get_current_student
 from app.models.dictionary import PracticeSession
@@ -75,7 +75,8 @@ async def complete_session(
 
     s.total_words = payload.total_words
     s.correct = payload.correct
-    s.completed_at = datetime.utcnow()
+    # PracticeSession.completed_at is a naive DateTime column.
+    s.completed_at = utcnow().replace(tzinfo=None)
     s.progress = None
     await db.commit()
     return _session_dict(s)

@@ -1,13 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum as PyEnum
 from typing import Optional, List
 from sqlalchemy import String, Integer, Text, DateTime, ForeignKey, Enum, UniqueConstraint, JSON, Boolean, VARCHAR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
-
-
-def utcnow():
-    return datetime.now(timezone.utc)
+from app.utils.datetime_utils import utcnow
 
 
 class GameType(str, PyEnum):

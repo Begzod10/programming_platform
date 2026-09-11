@@ -12,17 +12,14 @@ translations on the next read (without us having to write an explicit
 delete path everywhere).
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from sqlalchemy import (
     String, Integer, Text, DateTime, UniqueConstraint, Index,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base_class import Base
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+from app.utils.datetime_utils import utcnow as _utcnow
 
 
 class TranslationCache(Base):

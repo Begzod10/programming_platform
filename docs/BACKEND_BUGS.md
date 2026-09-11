@@ -61,11 +61,10 @@ Status legend: ✅ fixed in commit `1766039`, 🟡 partial / mitigation only, �
 - **What:** Any authenticated student could overwrite any other student's project comment or file URL by sending the project id.
 - **Fix:** service methods now require `student_id` and raise 403 if `project.student_id != student_id`. Endpoints pass `current_student.id`.
 
-### 🟡 Project like spam / dedup
-- **Where:** `app/services/project_service.py:177`
-- **What:** `likes_count += 1` had no per-user dedup.
-- **Mitigation:** self-likes blocked.
-- **⬜ Still pending:** real dedup needs a `project_likes(student_id, project_id)` join table with unique constraint + migration.
+### ✅ Project like spam / dedup
+- **Where:** `app/services/project_service.py`
+- **What:** `likes_count += 1` had no per-user dedup — the same other student could like a project unlimited times (only self-likes were blocked).
+- **Fix (2026-09-11):** new `ProjectLike` model (`project_likes` table, unique on `(student_id, project_id)` — the real dedup mechanism), migration `cc44dd55ee66`. `like_project` now does an existence pre-check + insert with an `IntegrityError` fallback for a genuine concurrent race (never a 500 on a double-click); added `unlike_project` + `DELETE /project/{id}/like`. `likes_count` is recomputed from `project_likes` on every like/unlike rather than incremented in place, so it can never drift. Tests: `backend/tests/test_project_likes.py`.
 
 ### ✅ AI re-review point farming + prompt injection
 - **Where:** `app/api/v1/endpoints/ai_review.py:17-60`
@@ -92,19 +91,20 @@ Status legend: ✅ fixed in commit `1766039`, 🟡 partial / mitigation only, �
 - **What:** `print(f" Database connection failed: {e}")` — SQLAlchemy exceptions often embed the full DSN including password.
 - **Fix:** `_safe_db_url()` strips the password before logging; the exception itself goes to the proper logger via `logger.exception` and stdout gets only a sanitized one-liner.
 
-### ⬜ N+1 in lesson progress
-- **Where:** `app/api/v1/endpoints/lessons.py:113-153`
-- **What:** `_calc_course_progress` runs up to 3 DB queries per lesson — 60 round-trips for a 20-lesson course on every lesson list/detail/submit.
-- **Not fixed:** invasive rewrite. Batch-fetch `VideoWatch`/`ExerciseSubmission`/`Submission` per course in 3 queries and compute in Python.
+### ✅ N+1 in lesson progress
+- **Where:** `app/api/v1/endpoints/lesson_helpers.py` (the function actually lives here, not `lessons.py` which only imports it — corrected from the original audit's file reference)
+- **What:** `_calc_course_progress` called `_calc_lesson_progress` per lesson, and that function issued up to 3 of its own DB queries (`VideoWatch`, `ExerciseSubmission`, `Submission`+`Project`) — ~60 round-trips for a 20-lesson course on every lesson list/detail/submit.
+- **Fix (2026-09-11):** `_calc_course_progress` now batch-fetches `VideoWatch`/`ExerciseSubmission`/`Submission`+`Project`/`LessonCompletion` for the WHOLE course in 4 queries (5 total with the lessons query), computing each lesson's progress in Python via new `_calc_lesson_progress_from_batch` — a pure port of the exact same per-lesson math. `_calc_lesson_progress` itself is untouched (still used by single-lesson reads). Measured: 21 queries → 5 for a 20-lesson course. Tests: `backend/tests/test_lesson_progress_batching.py` (correctness against hand-derived values + a query-count assertion).
 
-### ⬜ Ranking full-table sort
-- **Where:** `app/services/ranking_service.py:283`
-- **What:** `calculate_and_update_rankings()` loads every row into Python and sorts. Called on every point change.
-- **Not fixed:** rewrite to a SQL `ROW_NUMBER() OVER (...)` window function (already used in `get_leaderboard`).
+### ✅ Ranking full-table sort
+- **Where:** `app/services/ranking_service.py::calculate_and_update_rankings`
+- **What:** Loaded every `Ranking` row into Python and sorted, one `UPDATE` per row. Called on every point change.
+- **Fix (2026-09-11):** rewritten to SQL `ROW_NUMBER() OVER (...)` windows (same technique `get_leaderboard` already used for reads), one `UPDATE` per period via a correlated scalar subquery — standard SQL, runs unmodified on Postgres and SQLite, no dialect branch needed. Tests: `backend/tests/test_rankings.py::test_calculate_and_update_rankings_ranks_are_dense_and_ordered`.
 
-### ⬜ Points TOCTOU race
-- **Where:** `app/services/ranking_service.py:150`
-- **What:** `student.total_points += points` reads → modifies → writes without `SELECT ... FOR UPDATE`. Concurrent AI reviews + lesson completions lose updates.
+### ✅ Points TOCTOU race
+- **Where:** `app/services/ranking_service.py` — `add_points_to_student`, `subtract_points_from_student`, `revoke_earned_points`
+- **What:** `student.total_points += points` reads → modifies → writes without `SELECT ... FOR UPDATE`. Concurrent AI reviews + lesson completions could lose updates.
+- **Fix (2026-09-11):** `.with_for_update()` added to the `SELECT Student`/`SELECT Ranking` queries in all three methods. No-ops on SQLite (documented SQLAlchemy behavior, harmless — SQLite has no concurrent writers to protect against anyway); actually locks on Postgres. The `total_points`/`lifetime_points` invariant (§ below) is unchanged — only the read-then-write is now atomic. Tests: `backend/tests/test_points_reversal.py::test_sequential_award_revoke_award_ends_at_correct_total`. **Not independently verified against real concurrent Postgres connections in this environment** — the fix follows the standard SQLAlchemy pattern and the sequential test proves transactional soundness, but true lock contention under concurrent load wasn't directly observed; worth a sanity check against real Postgres if it matters for a given deploy.
 - **Not fixed:** needs `.with_for_update()` on the `SELECT Student`/`SELECT Ranking` queries plus retry/lock-wait timeout policy.
 
 ### ✅ No rate limiting on login / upload / AI review
@@ -155,15 +155,16 @@ Status legend: ✅ fixed in commit `1766039`, 🟡 partial / mitigation only, �
 - **Where:** `app/schemas/user.py:42`
 - **Fix:** raised to 8.
 
-### ⬜ `datetime.utcnow()` deprecation throughout
-- **Where:** `ranking_service.py`, `project_service.py`, `projects.py` (in many places).
-- **What:** Returns naive datetime; clashes with `timestamptz` columns and is deprecated in Python 3.12+.
-- **Partial fix:** updated in `ai_review.py` and `teacher/statistics.py`. **Pending elsewhere.**
+### ✅ `datetime.utcnow()` deprecation throughout
+- **Where:** was in 12 files, 39 call sites (`ranking_service.py` ×15, `project_service.py` ×8, plus `lessons.py`, `practice_session.py`, `practice_stats.py`, `practice_words.py`, `projects.py`, `core/security.py`, `achievement_service.py`, `degree_service.py`, `gennis_service.py`, `srs.py`).
+- **What:** Returns a naive datetime; deprecated in Python 3.12+, and silently wrong when compared against/assigned to a `DateTime(timezone=True)` column (most of this codebase's timestamp columns).
+- **Fix (2026-09-11):** new `app/utils/datetime_utils.py::utcnow()` — the single source of truth, always aware UTC — used everywhere `datetime.utcnow()` was. 5 model files (`project.py`, `team_game.py`, `lesson_file.py`, `lesson_question.py`, `translation_cache.py`) each had their own identical local `utcnow()`/`_utcnow()` helper predating this; consolidated to import from the shared one instead. Checked every call site's target column before choosing aware vs naive: most columns are `DateTime(timezone=True)` and got plain `utcnow()`; a few genuinely naive columns (`UserDictionary`/`PracticeSession`/`QuizSession` in `dictionary.py`, `StudentDegree.earned_at`) got `utcnow().replace(tzinfo=None)` with a comment explaining why. `project_service.py::is_orphaned_submission` had its own naive/aware-mismatch workaround (stripping tzinfo off an aware DB value to compare against a naive `datetime.utcnow()`) — simplified to compare aware-to-aware directly, with a defensive fallback for any still-naive legacy row. Also fixes a latent, previously-masked bug in `core/security.py::create_access_token`: passing a naive `datetime.utcnow()`-derived value as a JWT `exp` claim is only correct if the server's system timezone happens to be UTC; an aware value is correct regardless.
+- Full backend test suite (238 tests) passes; verified zero remaining `datetime.utcnow()` call sites via `grep -rn` across `app/`.
 
-### ⬜ Duplicate `get_db` definitions
+### ✅ Duplicate `get_db` definitions
 - **Where:** `app/db/session.py:6` vs `app/dependencies.py:13`
 - **What:** Two independent session factories; risk of one drifting from the other.
-- **Not fixed:** consolidate to `app/dependencies.py` and update imports.
+- **Fix (2026-09-11):** kept `app/db/session.py` as canonical (not `app/dependencies.py` — tracing the import chain showed the other direction creates a cycle: `core/security.py` imports `get_db` from `db.session`, and `dependencies.py` imports from `core.security`, so `db.session` importing from `dependencies` would cycle back on itself; `db.session` itself only depends on `db.database`, so `dependencies.py` importing from `db.session` is cycle-free). `app/dependencies.py` now re-exports it instead of re-implementing. All ~30 consumers of `from app.dependencies import get_db` get the same function object transparently; the handful of files already importing from `app.db.session` needed no change.
 
 ### ⬜ `requirements.txt` has only 3 unpinned packages
 - **Where:** `backend/requirements.txt`

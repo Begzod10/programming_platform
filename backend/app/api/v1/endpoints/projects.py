@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from pydantic import BaseModel, Field
-from datetime import datetime
+from app.utils.datetime_utils import utcnow
 from app.models.project import Project
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.submission import Submission
@@ -333,7 +333,7 @@ async def review_project(
     project.instructor_feedback = data.feedback
     project.grade = data.grade
     project.points_earned = data.points
-    project.reviewed_at = datetime.utcnow()
+    project.reviewed_at = utcnow()
 
     await db.commit()
 
@@ -647,7 +647,7 @@ async def upload_project_zip_by_id(
                 db_project.student_id, db_project.points_earned)
         db_project.reviewed_at = None
         db_project.status = "Submitted"
-        db_project.submitted_at = datetime.utcnow()
+        db_project.submitted_at = utcnow()
         await db.commit()
         await db.refresh(db_project)
 

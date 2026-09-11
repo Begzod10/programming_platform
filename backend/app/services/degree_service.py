@@ -8,6 +8,7 @@ from app.models.user import Student
 from app.models.project import Project
 from typing import Optional, List
 from datetime import datetime
+from app.utils.datetime_utils import utcnow
 
 
 async def get_all_degrees(db: AsyncSession) -> List[Degree]:
@@ -123,7 +124,10 @@ async def award_degree(db: AsyncSession, student_id: int, degree_id: int) -> Opt
         student_id=student_id,
         degree_id=degree_id,
         verification_code=verification_code,
-        earned_at=datetime.utcnow(),
+        # StudentDegree.earned_at is a naive DateTime column (no
+        # timezone=True) — strip tzinfo so this matches what the column
+        # actually stores, rather than a leftover from datetime.utcnow().
+        earned_at=utcnow().replace(tzinfo=None),
     )
     db.add(new_student_degree)
     await db.commit()

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func, cast, Date, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.utils.datetime_utils import utcnow
 from app.db.session import get_db
 from app.dependencies import get_current_student
 from app.models.course import Course
@@ -133,7 +134,7 @@ async def get_stats(
     db: AsyncSession = Depends(get_db),
     current_user: Student = Depends(get_current_student),
 ):
-    now = datetime.utcnow()
+    now = utcnow()
     today = now.date()
     seven_ago_dt = datetime(today.year, today.month, today.day) - timedelta(days=6)
 
@@ -251,7 +252,7 @@ async def get_sessions_overview(
     db: AsyncSession = Depends(get_db),
     current_user: Student = Depends(get_current_student),
 ):
-    now = datetime.utcnow()
+    now = utcnow()
     today = now.date()
     day_window_start = datetime(today.year, today.month, today.day) - timedelta(days=days - 1)
 

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_, select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.utils.datetime_utils import utcnow
 from app.db.session import get_db
 from app.dependencies import get_current_student
 from app.models.course import Course
@@ -132,7 +133,9 @@ async def get_practice_words(
             pool += extra
         return [_serialize(w, pool) for w in ordered]
 
-    now = datetime.utcnow()
+    # Word.next_review_at is a naive DateTime column (no timezone=True) —
+    # strip tzinfo so this comparison compares like-for-like.
+    now = utcnow().replace(tzinfo=None)
     base = select(Word).where(Word.student_id == current_user.id)
     base = _apply_scope(base, category_id=category_id, course_id=course_id, lesson_id=lesson_id)
 
@@ -216,7 +219,8 @@ async def get_due_counts(
     db: AsyncSession = Depends(get_db),
     current_user: Student = Depends(get_current_student),
 ):
-    now = datetime.utcnow()
+    # UserDictionary.next_review_at is naive too — same reasoning as above.
+    now = utcnow().replace(tzinfo=None)
 
     def _scoped(stmt):
         return _apply_scope(

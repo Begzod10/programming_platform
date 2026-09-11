@@ -3,7 +3,7 @@ from sqlalchemy import select, func, update
 from sqlalchemy.orm import selectinload
 from app.models.ranking import Ranking
 from app.models.user import Student, UserRole
-from datetime import datetime
+from app.utils.datetime_utils import utcnow
 from typing import List, Literal, Optional
 from sqlalchemy import over
 
@@ -31,9 +31,9 @@ class RankingService:
             total_points=student.lifetime_points,
             global_rank=0, daily_rank=0, weekly_rank=0, monthly_rank=0,
             level_rank=0, projects_completed=0, average_grade=0.0,
-            last_daily_reset=datetime.utcnow(),
-            last_weekly_reset=datetime.utcnow(),
-            last_monthly_reset=datetime.utcnow()
+            last_daily_reset=utcnow(),
+            last_weekly_reset=utcnow(),
+            last_monthly_reset=utcnow()
         )
         self.db.add(new_ranking)
         await self.db.commit()
@@ -212,7 +212,7 @@ class RankingService:
         if ranking:
             ranking.daily_points += points
             ranking.total_points = student.lifetime_points
-            ranking.last_calculated_at = datetime.utcnow()
+            ranking.last_calculated_at = utcnow()
         else:
             ranking = Ranking(
                 student_id=student_id,
@@ -220,10 +220,10 @@ class RankingService:
                 weekly_points=0,
                 monthly_points=0,
                 total_points=student.lifetime_points,
-                last_calculated_at=datetime.utcnow(),
-                last_daily_reset=datetime.utcnow(),
-                last_weekly_reset=datetime.utcnow(),
-                last_monthly_reset=datetime.utcnow()
+                last_calculated_at=utcnow(),
+                last_daily_reset=utcnow(),
+                last_weekly_reset=utcnow(),
+                last_monthly_reset=utcnow()
             )
             self.db.add(ranking)
 
@@ -302,7 +302,7 @@ class RankingService:
             r.weekly_points += r.daily_points
             r.monthly_points += r.daily_points
             r.daily_points = 0
-            r.last_daily_reset = datetime.utcnow()
+            r.last_daily_reset = utcnow()
         await self.db.commit()
         await self.calculate_and_update_rankings()
 
@@ -312,7 +312,7 @@ class RankingService:
         rankings = result.scalars().all()
         for r in rankings:
             r.weekly_points = 0
-            r.last_weekly_reset = datetime.utcnow()
+            r.last_weekly_reset = utcnow()
         await self.db.commit()
         await self.calculate_and_update_rankings()
 
@@ -322,7 +322,7 @@ class RankingService:
         rankings = result.scalars().all()
         for r in rankings:
             r.monthly_points = 0
-            r.last_monthly_reset = datetime.utcnow()
+            r.last_monthly_reset = utcnow()
         await self.db.commit()
         await self.calculate_and_update_rankings()
 
@@ -352,9 +352,9 @@ class RankingService:
                     weekly_points=0,
                     monthly_points=0,
                     total_points=student.lifetime_points,
-                    last_daily_reset=datetime.utcnow(),
-                    last_weekly_reset=datetime.utcnow(),
-                    last_monthly_reset=datetime.utcnow()
+                    last_daily_reset=utcnow(),
+                    last_weekly_reset=utcnow(),
+                    last_monthly_reset=utcnow()
                 )
                 self.db.add(new_ranking)
         
@@ -404,7 +404,7 @@ class RankingService:
             )
         )
 
-        now = datetime.utcnow()
+        now = utcnow()
         period_config = [
             (Ranking.total_points, "global_rank"),
             (Ranking.daily_points, "daily_rank"),

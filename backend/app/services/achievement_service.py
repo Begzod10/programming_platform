@@ -6,7 +6,7 @@ from app.models.student_achievement import StudentAchievement
 from app.models.user import Student
 from app.models.project import Project
 from typing import Optional, List
-from datetime import datetime
+from app.utils.datetime_utils import utcnow
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.submission import Submission
 from app.models.student_achievement import CourseCertificate
@@ -515,7 +515,7 @@ async def award_achievement(
         student_id=student_id,
         achievement_id=achievement_id,
         course_id=achievement.course_id,  # Muhim: frontend uchun
-        earned_at=datetime.utcnow()
+        earned_at=utcnow()
     )
     db.add(new_sa)
 

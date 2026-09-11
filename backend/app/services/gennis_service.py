@@ -1,6 +1,6 @@
 import httpx
 import logging
-from datetime import date, datetime
+from datetime import date
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text, delete
@@ -11,6 +11,7 @@ from app.config import settings
 from app.models.user import Student, UserRole
 from app.models.group import Group, student_groups
 from app.models.flow import Flow, student_flows
+from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 # Reject rather than guess-correct; None is always a safe fallback since
 # birth_date is advisory everywhere it's read.
 _MIN_BIRTH_YEAR = 1990
-_MAX_BIRTH_YEAR = datetime.utcnow().year - 2
+_MAX_BIRTH_YEAR = utcnow().year - 2
 
 class GennisService:
     """Talks to management-v2's student_platform integration endpoint.
