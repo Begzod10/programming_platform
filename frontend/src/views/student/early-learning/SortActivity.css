@@ -5,12 +5,12 @@
     max-width: 900px;
     margin: 0 auto;
     padding: 28px 24px 40px;
-    background: rgba(255, 255, 255, 0.82);
+    background: rgba(255, 253, 248, 0.86);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-radius: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 24px 60px rgba(124, 92, 255, 0.16);
     animation: so-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -28,11 +28,11 @@
 }
 
 .so-character-emoji { font-size: 3.2rem; line-height: 1; }
-.so-character-header h2 { margin: 0; font-size: 1.3rem; font-weight: 800; color: #1f2937; text-align: center; }
+.so-character-header h2 { font-family: var(--el-font-display); margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--el-ink); text-align: center; }
 
 .so-instruction {
     margin: 0 0 18px;
-    color: #6b7280;
+    color: var(--el-ink-soft);
     font-size: 0.9rem;
     text-align: center;
 }
@@ -45,8 +45,8 @@
     align-items: center;
     justify-content: center;
     margin: 0 auto 16px;
-    background: linear-gradient(90deg, #fef3c7, #fed7aa);
-    color: #9a3412;
+    background: linear-gradient(90deg, #fef3c7, var(--el-sunset));
+    color: var(--el-amber-deep);
     border-radius: 999px;
     padding: 8px 20px;
     font-weight: 800;
@@ -83,7 +83,7 @@
     min-width: 140px;
     min-height: 110px;
     padding: 14px 18px;
-    border: 2px dashed rgba(108, 92, 231, 0.35);
+    border: 2px dashed rgba(124, 92, 255, 0.35);
     border-radius: 20px;
     background: rgba(255, 255, 255, 0.6);
     cursor: pointer;
@@ -94,8 +94,8 @@
 
 .so-bin-receiving {
     border-style: solid;
-    border-color: #6c5ce7;
-    background: rgba(108, 92, 231, 0.08);
+    border-color: var(--el-violet);
+    background: rgba(124, 92, 255, 0.1);
     animation: so-bin-pulse 1s ease-in-out infinite;
 }
 
@@ -106,8 +106,8 @@
 
 .so-bin-wrong {
     border-style: solid;
-    border-color: #ef4444;
-    background: #fef2f2;
+    border-color: var(--el-danger);
+    background: var(--el-danger-bg);
     animation: so-bin-shake 0.4s ease;
 }
 
@@ -118,7 +118,7 @@
 }
 
 .so-bin-emoji { font-size: 2rem; line-height: 1; }
-.so-bin-label { font-weight: 800; color: #1f2937; font-size: 0.95rem; }
+.so-bin-label { font-family: var(--el-font-display); font-weight: 700; color: var(--el-ink); font-size: 0.92rem; }
 
 .so-bin-placed {
     display: flex;
@@ -148,8 +148,8 @@
 .so-item { --tilt: calc((var(--i, 0) % 5 - 2) * 1.1deg); }
 
 .so-item {
-    background: #fff;
-    border: 2px solid #eef0f4;
+    background: var(--el-surface);
+    border: 2px solid var(--el-border);
     border-radius: 20px;
     padding: 18px 10px 14px;
     display: flex;
@@ -157,7 +157,7 @@
     align-items: center;
     gap: 8px;
     cursor: pointer;
-    color: #374151;
+    color: var(--el-ink-soft);
     transform: rotate(var(--tilt));
     transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s, border-color 0.15s;
     animation: so-item-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
@@ -180,8 +180,8 @@
 
 .so-item:hover:not(:disabled) {
     transform: rotate(0deg) translateY(-6px) scale(1.08);
-    border-color: #99e6de;
-    box-shadow: 0 14px 28px rgba(15, 118, 110, 0.18);
+    border-color: var(--el-teal);
+    box-shadow: 0 14px 28px rgba(38, 198, 218, 0.22);
     animation: so-item-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
@@ -193,8 +193,8 @@
 .so-item:disabled { cursor: default; opacity: 0.7; animation: none; }
 
 .so-item-selected {
-    border-color: #6c5ce7;
-    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.25);
+    border-color: var(--el-violet);
+    box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.25);
     transform: rotate(0deg) translateY(-6px) scale(1.08);
     animation: so-item-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }

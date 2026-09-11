@@ -1,4 +1,53 @@
 /* ══════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS — the whole feature's visual identity in one place.
+   Defined here (not a global stylesheet) because .el-shell wraps every
+   screen in this feature, including each activity's own top-level page
+   (see EarlyLearning.js — MatchingActivity/SortActivity/etc. all render
+   inside <div className="el-shell">), so custom properties set here
+   cascade to every sibling *Activity.css file via plain var(--...) — one
+   palette/type pairing, consumed everywhere, edited in one place.
+
+   The three "brand" hues (coral/violet/teal) already existed — they're
+   exactly .el-hero h1's title gradient below. Everything else in this
+   feature had drifted to a generic indigo-and-slate-gray "web app" look
+   instead of actually using them (the actual complaint this token block
+   fixes) — so this pulls every activity screen's cards/borders/accents
+   back onto the same three colors the hero already commits to, plus a
+   warm cream/plum pairing instead of clinical white/gray, instead of
+   inventing a fourth, unrelated palette.
+
+   Type: Comfortaa (rounded, geometric, a little bubbly) for anything that
+   reads as a "title" a kid sees once per screen — character names,
+   activity/module titles, the H1. Nunito (rounded but far more legible at
+   small sizes, and holds up across 20+ words of an instruction sentence)
+   for everything else. Both actually ship Cyrillic (checked against
+   Google Fonts' own subset list) — this app runs uz/ru, and a display
+   font that silently falls back to the system font for Russian text only
+   would be a worse, *inconsistent* result, not a safe one. */
+.el-shell {
+    --el-ink: #362f5c;
+    --el-ink-soft: #6f6795;
+    --el-ink-faint: #a79fc9;
+    --el-surface: #fffdf8;
+    --el-surface-alt: #fff6e8;
+    --el-border: #efe6ff;
+    --el-border-strong: #d9c8ff;
+    --el-coral: #ff6b8a;
+    --el-violet: #7c5cff;
+    --el-violet-deep: #5b3fe0;
+    --el-teal: #26c6da;
+    --el-amber: #f59e0b;
+    --el-amber-deep: #b45309;
+    --el-sunset: #ff8a5c;
+    --el-success: #0da975;
+    --el-success-bg: #e7faf1;
+    --el-danger: #ef4d6e;
+    --el-danger-bg: #fff0f3;
+    --el-font-display: 'Comfortaa', 'Nunito', system-ui, sans-serif;
+    --el-font-body: 'Nunito', system-ui, sans-serif;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
    THE SKY — full-bleed backdrop for the whole feature (no sidebar chrome
    here, see StudentLayout.js / TeacherLayout.js's "isImmersive" branch).
    ══════════════════════════════════════════════════════════════════════ */
@@ -12,6 +61,7 @@
     justify-content: center;
     padding: 32px 20px 56px;
     background: linear-gradient(180deg, #5fb3e8 0%, #8ed4f2 28%, #cdeefb 58%, #fff6e0 100%);
+    font-family: var(--el-font-body);
 }
 
 .el-sky {
@@ -93,12 +143,12 @@
     max-width: 1100px;
     margin: 0 auto;
     padding: 28px 28px 40px;
-    background: rgba(255, 255, 255, 0.82);
+    background: rgba(255, 253, 248, 0.86);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-radius: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 24px 60px rgba(124, 92, 255, 0.16);
     animation: el-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -196,8 +246,8 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: #fff7e6;
-    color: #b45309;
+    background: var(--el-surface-alt);
+    color: var(--el-amber-deep);
     border-radius: 999px;
     padding: 6px 14px;
     font-weight: 700;
@@ -206,13 +256,13 @@
 }
 
 .el-star-row { display: inline-flex; gap: 2px; }
-.el-star-filled { color: #f59e0b; }
-.el-star-empty { color: #d1d5db; }
+.el-star-filled { color: var(--el-amber); }
+.el-star-empty { color: #e6dcff; }
 
 /* Today's (resettable) star count, next to the permanent StarBadge — a
-   distinct blue/violet so it doesn't read as the same all-time number. */
+   distinct violet so it doesn't read as the same all-time number. */
 .el-badge-stack { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; }
-.el-star-badge-today { background: #eef2ff; color: #4338ca; }
+.el-star-badge-today { background: var(--el-border); color: var(--el-violet-deep); }
 
 /* ── Hero / picker header ── */
 .el-hero {
@@ -225,10 +275,11 @@
 }
 
 .el-hero h1 {
+    font-family: var(--el-font-display);
     font-size: 2.6rem;
-    font-weight: 900;
-    letter-spacing: -0.02em;
-    background: linear-gradient(135deg, #ff6b8a, #7c5cff 55%, #26c6da);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    background: linear-gradient(135deg, var(--el-coral), var(--el-violet) 55%, var(--el-teal));
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -237,7 +288,7 @@
 }
 
 .el-hero p {
-    color: #52607a;
+    color: var(--el-ink-soft);
     margin: 0;
     font-size: 1.1rem;
     font-weight: 600;
@@ -251,9 +302,9 @@
 }
 
 .el-module-card {
-    --el-accent: #6c5ce7;
-    background: linear-gradient(160deg, color-mix(in srgb, var(--el-accent) 18%, #fff), #fff 65%);
-    border: 2px solid color-mix(in srgb, var(--el-accent) 35%, #fff);
+    --el-accent: #7c5cff;
+    background: linear-gradient(160deg, color-mix(in srgb, var(--el-accent) 16%, var(--el-surface)), var(--el-surface) 65%);
+    border: 2px solid color-mix(in srgb, var(--el-accent) 32%, var(--el-surface));
     border-radius: 24px;
     padding: 26px 20px;
     display: flex;
@@ -278,31 +329,31 @@
 }
 
 .el-module-card-emoji { font-size: 3rem; line-height: 1; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.12)); }
-.el-module-card-title { font-size: 1.2rem; font-weight: 800; color: #1f2937; }
-.el-module-card-desc { font-size: 0.85rem; color: #6b7280; }
+.el-module-card-title { font-family: var(--el-font-display); font-size: 1.15rem; font-weight: 700; color: var(--el-ink); }
+.el-module-card-desc { font-size: 0.85rem; color: var(--el-ink-soft); }
 
 .el-empty {
     grid-column: 1 / -1;
     text-align: center;
-    color: #9ca3af;
+    color: var(--el-ink-faint);
     padding: 40px 0;
 }
 
 /* ── Module detail header ── */
 .el-module-header {
-    --el-accent: #6c5ce7;
+    --el-accent: #7c5cff;
     display: flex;
     align-items: center;
     gap: 16px;
-    background: linear-gradient(120deg, color-mix(in srgb, var(--el-accent) 16%, #fff), #fff 70%);
+    background: linear-gradient(120deg, color-mix(in srgb, var(--el-accent) 16%, var(--el-surface)), var(--el-surface) 70%);
     border-radius: 22px;
     padding: 20px 24px;
     margin-bottom: 24px;
 }
 
 .el-module-emoji { font-size: 3rem; line-height: 1; }
-.el-module-header h1 { margin: 0 0 4px; font-size: 1.6rem; font-weight: 800; color: #1f2937; }
-.el-module-header p { margin: 0; color: #6b7280; }
+.el-module-header h1 { font-family: var(--el-font-display); margin: 0 0 4px; font-size: 1.5rem; font-weight: 700; color: var(--el-ink); }
+.el-module-header p { margin: 0; color: var(--el-ink-soft); }
 .el-module-header .el-badge-stack { margin-left: auto; flex-direction: column; align-items: flex-end; }
 
 /* ── Activity grid (per-profession/season tiles) ── */
@@ -313,8 +364,8 @@
 }
 
 .el-activity-card {
-    background: #fff;
-    border: 2px solid #eef0f4;
+    background: var(--el-surface);
+    border: 2px solid var(--el-border);
     border-radius: 20px;
     padding: 18px 12px;
     display: flex;
@@ -329,27 +380,28 @@
 
 .el-activity-card:hover {
     transform: translateY(-4px) scale(1.05) rotate(1deg);
-    border-color: #c7d2fe;
-    box-shadow: 0 12px 26px rgba(99, 102, 241, 0.18);
+    border-color: var(--el-border-strong);
+    box-shadow: 0 12px 26px rgba(124, 92, 255, 0.2);
 }
 
 .el-activity-emoji { font-size: 2.4rem; line-height: 1; filter: drop-shadow(0 3px 5px rgba(0,0,0,0.1)); }
-.el-activity-title { font-weight: 700; color: #1f2937; font-size: 0.95rem; }
+.el-activity-title { font-family: var(--el-font-display); font-weight: 700; color: var(--el-ink); font-size: 0.92rem; }
 
 /* ── Classmates leaderboard ── */
 .el-leaderboard {
     margin-top: 32px;
     padding-top: 24px;
-    border-top: 2px dashed #e5e7eb;
+    border-top: 2px dashed var(--el-border-strong);
 }
 
 .el-leaderboard h2 {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 1.2rem;
-    font-weight: 800;
-    color: #92400e;
+    font-family: var(--el-font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--el-amber-deep);
     margin: 0 0 14px;
 }
 
@@ -363,26 +415,26 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    background: #fff;
-    border: 2px solid #f3f4f6;
+    background: var(--el-surface);
+    border: 2px solid var(--el-border);
     border-radius: 14px;
     padding: 10px 16px;
 }
 
 .el-leaderboard-rank { font-size: 1.3rem; width: 32px; text-align: center; flex-shrink: 0; }
-.el-leaderboard-name { flex: 1; font-weight: 700; color: #1f2937; }
+.el-leaderboard-name { flex: 1; font-weight: 700; color: var(--el-ink); }
 .el-leaderboard-stars {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     font-weight: 800;
-    color: #b45309;
+    color: var(--el-amber-deep);
     flex-shrink: 0;
 }
 
 .el-leaderboard-me {
-    background: #fff7e6;
-    border-color: #f59e0b;
+    background: var(--el-surface-alt);
+    border-color: var(--el-amber);
 }
 
 .el-leaderboard-empty {
@@ -391,9 +443,9 @@
     align-items: center;
     gap: 10px;
     text-align: center;
-    color: #92400e;
+    color: var(--el-amber-deep);
     padding: 20px;
-    background: #fff7e6;
+    background: var(--el-surface-alt);
     border-radius: 18px;
 }
 

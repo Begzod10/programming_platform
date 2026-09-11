@@ -5,12 +5,12 @@
     max-width: 900px;
     margin: 0 auto;
     padding: 28px 24px 40px;
-    background: rgba(255, 255, 255, 0.82);
+    background: rgba(255, 253, 248, 0.86);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-radius: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 24px 60px rgba(124, 92, 255, 0.16);
     animation: pt-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
     display: flex;
     flex-direction: column;
@@ -33,11 +33,11 @@
 }
 
 .pt-character-emoji { font-size: 3.2rem; line-height: 1; }
-.pt-character-header h2 { margin: 0; font-size: 1.3rem; font-weight: 800; color: #1f2937; text-align: center; }
+.pt-character-header h2 { font-family: var(--el-font-display); margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--el-ink); text-align: center; }
 
 .pt-instruction {
     margin: 0 0 18px;
-    color: #6b7280;
+    color: var(--el-ink-soft);
     font-size: 0.9rem;
     text-align: center;
 }
@@ -62,10 +62,10 @@
     max-width: 480px;
     margin: 0 auto 22px;
     padding: 18px;
-    background: #f0fdf4;
+    background: color-mix(in srgb, var(--el-teal) 8%, var(--el-surface));
     border-radius: 24px;
     border: 2px solid rgba(255, 255, 255, 0.7);
-    box-shadow: inset 0 2px 12px rgba(30, 110, 64, 0.08);
+    box-shadow: inset 0 2px 12px rgba(38, 198, 218, 0.1);
 }
 
 .pt-cell {
@@ -82,10 +82,10 @@
     width: 1.6em;
     height: 1.6em;
     border-radius: 14px;
-    border: 2px dashed rgba(91, 141, 239, 0.5);
+    border: 2px dashed var(--el-violet);
     background: rgba(255, 255, 255, 0.6);
     filter: none;
-    color: #5b8def;
+    color: var(--el-violet-deep);
     font-weight: 800;
 }
 
@@ -106,10 +106,10 @@
     height: 72px;
     border-radius: 20px;
     border: none;
-    background: #ffffff;
+    background: var(--el-surface);
     font-size: 2rem;
     cursor: pointer;
-    box-shadow: 0 6px 16px rgba(30, 64, 110, 0.14);
+    box-shadow: 0 6px 16px rgba(124, 92, 255, 0.14);
     transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s, background 0.15s, opacity 0.15s;
     animation: pt-btn-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
@@ -142,7 +142,7 @@
 .pt-option-btn:disabled { opacity: 0.6; cursor: default; animation: none; }
 
 .pt-option-btn-wrong {
-    background: #fef2f2;
+    background: var(--el-danger-bg);
     animation: pt-shake 0.4s ease;
 }
 
@@ -153,8 +153,8 @@
 }
 
 .pt-option-btn-correct {
-    background: #10b981;
-    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
+    background: var(--el-success);
+    box-shadow: 0 8px 20px rgba(13, 169, 117, 0.35);
     animation: pt-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
@@ -167,7 +167,7 @@
 .pt-progress {
     font-size: 0.85rem;
     font-weight: 700;
-    color: #9ca3af;
+    color: var(--el-ink-faint);
 }
 
 @media (prefers-reduced-motion: reduce) {

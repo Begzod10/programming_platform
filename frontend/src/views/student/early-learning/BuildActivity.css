@@ -5,12 +5,12 @@
     max-width: 900px;
     margin: 0 auto;
     padding: 28px 24px 40px;
-    background: rgba(255, 255, 255, 0.82);
+    background: rgba(255, 253, 248, 0.86);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-radius: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 24px 60px rgba(124, 92, 255, 0.16);
     animation: ba-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -28,11 +28,11 @@
 }
 
 .ba-character-emoji { font-size: 3.5rem; line-height: 1; }
-.ba-character h2 { margin: 0; font-size: 1.4rem; font-weight: 800; color: #1f2937; }
+.ba-character h2 { font-family: var(--el-font-display); margin: 0; font-size: 1.35rem; font-weight: 700; color: var(--el-ink); }
 
 .ba-progress-badge {
-    background: #e0f7f5;
-    color: #0f766e;
+    background: var(--el-border);
+    color: var(--el-violet-deep);
     font-weight: 700;
     border-radius: 999px;
     padding: 4px 14px;
@@ -40,9 +40,9 @@
 }
 
 .ba-error-banner {
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    color: #b91c1c;
+    background: var(--el-danger-bg);
+    border: 1px solid #f4c2cd;
+    color: var(--el-danger);
     border-radius: 14px;
     padding: 10px 16px;
     font-weight: 600;
@@ -157,8 +157,8 @@
 
 .ba-piece {
     position: relative;
-    background: #fff;
-    border: 2px solid #eef0f4;
+    background: var(--el-surface);
+    border: 2px solid var(--el-border);
     border-radius: 18px;
     padding: 14px 8px 10px;
     display: flex;
@@ -166,13 +166,13 @@
     align-items: center;
     gap: 6px;
     cursor: grab;
-    color: #374151;
+    color: var(--el-ink-soft);
     touch-action: none;
     user-select: none;
     transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, opacity 0.15s;
 }
 
-.ba-piece:hover { transform: translateY(-3px); border-color: #99e6de; box-shadow: 0 10px 22px rgba(15, 118, 110, 0.14); }
+.ba-piece:hover { transform: translateY(-3px); border-color: var(--el-teal); box-shadow: 0 10px 22px rgba(38, 198, 218, 0.18); }
 
 .ba-piece-emoji { font-size: 1.8rem; line-height: 1; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.12)); }
 .ba-piece-label { font-size: 0.78rem; font-weight: 600; text-align: center; }
@@ -180,8 +180,8 @@
 .ba-piece-dragging { opacity: 0; }
 
 .ba-piece-wrong {
-    background: #fef2f2;
-    border-color: #fca5a5;
+    background: var(--el-danger-bg);
+    border-color: #f4a5b5;
     animation: ba-shake 0.4s ease;
 }
 

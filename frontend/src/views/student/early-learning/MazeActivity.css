@@ -5,12 +5,12 @@
     max-width: 900px;
     margin: 0 auto;
     padding: 28px 24px 40px;
-    background: rgba(255, 255, 255, 0.82);
+    background: rgba(255, 253, 248, 0.86);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-radius: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 24px 60px rgba(124, 92, 255, 0.16);
     animation: mz-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
     display: flex;
     flex-direction: column;
@@ -33,19 +33,19 @@
 }
 
 .mz-character-emoji { font-size: 3.2rem; line-height: 1; }
-.mz-character-header h2 { margin: 0; font-size: 1.3rem; font-weight: 800; color: #1f2937; }
+.mz-character-header h2 { font-family: var(--el-font-display); margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--el-ink); }
 
 .mz-instruction {
     margin: 0 0 12px;
-    color: #6b7280;
+    color: var(--el-ink-soft);
     font-size: 0.9rem;
     text-align: center;
 }
 
 .mz-error-banner {
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    color: #b91c1c;
+    background: var(--el-danger-bg);
+    border: 1px solid #f4c2cd;
+    color: var(--el-danger);
     border-radius: 14px;
     padding: 10px 16px;
     font-weight: 600;
@@ -133,13 +133,13 @@
     height: 52px;
     border-radius: 16px;
     border: none;
-    background: linear-gradient(135deg, #ffd166, #f4a637);
-    color: #7c4a03;
+    background: linear-gradient(135deg, #ffd166, var(--el-amber));
+    color: var(--el-amber-deep);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 8px 18px rgba(244, 166, 55, 0.35);
+    box-shadow: 0 8px 18px rgba(245, 158, 11, 0.35);
     transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
 }
 

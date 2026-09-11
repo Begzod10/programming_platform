@@ -5,12 +5,12 @@
     max-width: 900px;
     margin: 0 auto;
     padding: 28px 24px 40px;
-    background: rgba(255, 255, 255, 0.82);
+    background: rgba(255, 253, 248, 0.86);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-radius: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 24px 60px rgba(124, 92, 255, 0.16);
     animation: sq-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -28,11 +28,11 @@
 }
 
 .sq-character-emoji { font-size: 3.2rem; line-height: 1; }
-.sq-character-header h2 { margin: 0; font-size: 1.3rem; font-weight: 800; color: #1f2937; text-align: center; }
+.sq-character-header h2 { font-family: var(--el-font-display); margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--el-ink); text-align: center; }
 
 .sq-instruction {
     margin: 0 0 20px;
-    color: #6b7280;
+    color: var(--el-ink-soft);
     font-size: 0.9rem;
     text-align: center;
 }
@@ -52,7 +52,7 @@
     position: relative;
     width: 68px;
     height: 68px;
-    border: 2px dashed rgba(91, 141, 239, 0.4);
+    border: 2px dashed var(--el-violet);
     border-radius: 18px;
     background: rgba(255, 255, 255, 0.5);
     display: flex;
@@ -68,7 +68,7 @@
     width: 20px;
     height: 20px;
     border-radius: 50%;
-    background: #5b8def;
+    background: var(--el-violet);
     color: #fff;
     font-size: 0.7rem;
     font-weight: 800;
@@ -81,8 +81,8 @@
 
 .sq-slot-filled {
     border-style: solid;
-    border-color: #10b981;
-    background: #ecfdf5;
+    border-color: var(--el-success);
+    background: var(--el-success-bg);
     animation: sq-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
@@ -103,8 +103,8 @@
 }
 
 .sq-item {
-    background: #fff;
-    border: 2px solid #eef0f4;
+    background: var(--el-surface);
+    border: 2px solid var(--el-border);
     border-radius: 18px;
     padding: 12px 8px;
     display: flex;
@@ -112,21 +112,21 @@
     align-items: center;
     gap: 6px;
     cursor: pointer;
-    color: #374151;
+    color: var(--el-ink-soft);
     transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
 
 .sq-item:hover:not(:disabled) {
     transform: translateY(-3px);
-    border-color: #99e6de;
-    box-shadow: 0 10px 22px rgba(15, 118, 110, 0.14);
+    border-color: var(--el-teal);
+    box-shadow: 0 10px 22px rgba(38, 198, 218, 0.18);
 }
 
 .sq-item:disabled { cursor: default; opacity: 0.7; }
 
 .sq-item-wrong {
-    background: #fef2f2;
-    border-color: #fca5a5;
+    background: var(--el-danger-bg);
+    border-color: #f4a5b5;
     animation: sq-shake 0.4s ease;
 }
 

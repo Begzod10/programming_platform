@@ -5,12 +5,12 @@
     max-width: 900px;
     margin: 0 auto;
     padding: 28px 24px 40px;
-    background: rgba(255, 255, 255, 0.82);
+    background: rgba(255, 253, 248, 0.86);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-radius: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 24px 60px rgba(124, 92, 255, 0.16);
     animation: ce-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
     display: flex;
     flex-direction: column;
@@ -33,11 +33,11 @@
 }
 
 .ce-character-emoji { font-size: 3.2rem; line-height: 1; }
-.ce-character-header h2 { margin: 0; font-size: 1.3rem; font-weight: 800; color: #1f2937; text-align: center; }
+.ce-character-header h2 { font-family: var(--el-font-display); margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--el-ink); text-align: center; }
 
 .ce-instruction {
     margin: 0 0 18px;
-    color: #6b7280;
+    color: var(--el-ink-soft);
     font-size: 0.9rem;
     text-align: center;
 }
@@ -54,14 +54,14 @@
     max-width: 420px;
     margin: 0 auto 22px;
     padding: 20px;
-    background: #fdf2f4;
+    background: color-mix(in srgb, var(--el-coral) 10%, var(--el-surface));
     border-radius: 24px;
     border: 2px solid rgba(255, 255, 255, 0.7);
-    box-shadow: inset 0 2px 12px rgba(239, 71, 111, 0.08);
+    box-shadow: inset 0 2px 12px rgba(255, 107, 138, 0.1);
 }
 
 .ce-cause-emoji { font-size: 3rem; line-height: 1; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.12)); }
-.ce-cause-label { font-size: 1rem; font-weight: 700; color: #1f2937; text-align: center; }
+.ce-cause-label { font-family: var(--el-font-display); font-size: 1rem; font-weight: 700; color: var(--el-ink); text-align: center; }
 
 /* Option cards — same "grid of tappable cards" shape as SortActivity's
    .so-item, reused here (own prefix) since the tap outcome differs
@@ -81,8 +81,8 @@
 .ce-option-card { --tilt: calc((var(--i, 0) % 5 - 2) * 1.1deg); }
 
 .ce-option-card {
-    background: #fff;
-    border: 2px solid #eef0f4;
+    background: var(--el-surface);
+    border: 2px solid var(--el-border);
     border-radius: 22px;
     padding: 20px 12px 16px;
     display: flex;
@@ -90,7 +90,7 @@
     align-items: center;
     gap: 10px;
     cursor: pointer;
-    color: #374151;
+    color: var(--el-ink-soft);
     transform: rotate(var(--tilt));
     transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s, border-color 0.15s, background 0.15s;
     animation: ce-card-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
@@ -113,8 +113,8 @@
 
 .ce-option-card:hover:not(:disabled) {
     transform: rotate(0deg) translateY(-6px) scale(1.08);
-    border-color: #f4a9bb;
-    box-shadow: 0 14px 28px rgba(239, 71, 111, 0.18);
+    border-color: var(--el-coral);
+    box-shadow: 0 14px 28px rgba(255, 107, 138, 0.22);
     animation: ce-card-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
@@ -126,8 +126,8 @@
 .ce-option-card:disabled { cursor: default; opacity: 0.7; animation: none; }
 
 .ce-option-card-wrong {
-    background: #fef2f2;
-    border-color: #fca5a5;
+    background: var(--el-danger-bg);
+    border-color: #f4a5b5;
     animation: ce-shake 0.4s ease;
 }
 
@@ -138,11 +138,11 @@
 }
 
 .ce-option-card-correct {
-    background: #10b981;
-    border-color: #10b981;
+    background: var(--el-success);
+    border-color: var(--el-success);
     color: #ffffff;
     transform: rotate(0deg) scale(1);
-    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.35);
+    box-shadow: 0 8px 20px rgba(13, 169, 117, 0.35);
     animation: ce-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
@@ -158,7 +158,7 @@
 .ce-progress {
     font-size: 0.85rem;
     font-weight: 700;
-    color: #9ca3af;
+    color: var(--el-ink-faint);
 }
 
 @media (prefers-reduced-motion: reduce) {

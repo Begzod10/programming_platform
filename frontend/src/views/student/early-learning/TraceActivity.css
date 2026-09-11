@@ -5,12 +5,12 @@
     max-width: 900px;
     margin: 0 auto;
     padding: 28px 24px 40px;
-    background: rgba(255, 255, 255, 0.82);
+    background: rgba(255, 253, 248, 0.86);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-radius: 32px;
-    border: 1px solid rgba(255, 255, 255, 0.6);
-    box-shadow: 0 24px 60px rgba(30, 64, 110, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 24px 60px rgba(124, 92, 255, 0.16);
     animation: ta-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
     display: flex;
     flex-direction: column;
@@ -33,11 +33,11 @@
 }
 
 .ta-character-emoji { font-size: 3.2rem; line-height: 1; }
-.ta-character h2 { margin: 0; font-size: 1.3rem; font-weight: 800; color: #1f2937; }
+.ta-character h2 { font-family: var(--el-font-display); margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--el-ink); }
 
 .ta-progress-badge {
-    background: #e0f2fe;
-    color: #0369a1;
+    background: color-mix(in srgb, var(--el-teal) 16%, var(--el-surface));
+    color: #0f7f91;
     font-weight: 700;
     border-radius: 999px;
     padding: 4px 14px;
@@ -46,7 +46,7 @@
 
 .ta-instruction {
     margin: 0 0 4px;
-    color: #6b7280;
+    color: var(--el-ink-soft);
     font-size: 0.9rem;
     text-align: center;
 }
@@ -54,7 +54,7 @@
 .ta-target-label {
     font-weight: 700;
     font-size: 1.05rem;
-    color: #0ea5e9;
+    color: #0f95a8;
     margin-bottom: 12px;
 }
 
@@ -75,10 +75,10 @@
     max-width: min(400px, 90vw);
     aspect-ratio: 1 / 1;
     margin: 0 auto 16px;
-    background: #f0f9ff;
+    background: color-mix(in srgb, var(--el-teal) 6%, var(--el-surface));
     border-radius: 24px;
     border: 2px solid rgba(255, 255, 255, 0.7);
-    box-shadow: inset 0 2px 12px rgba(30, 64, 110, 0.08);
+    box-shadow: inset 0 2px 12px rgba(38, 198, 218, 0.1);
     overflow: hidden;
 }
 
@@ -106,14 +106,14 @@
 .ta-coverage-bar {
     flex: 1;
     height: 10px;
-    background: #f1f2f6;
+    background: var(--el-border);
     border-radius: 999px;
     overflow: hidden;
 }
 
 .ta-coverage-fill {
     height: 100%;
-    background: linear-gradient(90deg, #38bdf8, #0ea5e9);
+    background: linear-gradient(90deg, #5fd8e6, var(--el-teal));
     border-radius: 999px;
     transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -121,7 +121,7 @@
 .ta-coverage-pct {
     font-weight: 700;
     font-size: 0.85rem;
-    color: #0369a1;
+    color: #0f7f91;
     min-width: 3ch;
     text-align: right;
 }
@@ -154,15 +154,15 @@
 .ta-btn:hover:not(:disabled) { transform: translateY(-2px); }
 
 .ta-btn-clear {
-    background: #fff;
-    color: #6b7280;
-    border: 2px solid #e5e7eb;
+    background: var(--el-surface);
+    color: var(--el-ink-soft);
+    border: 2px solid var(--el-border);
 }
 
 .ta-btn-done {
-    background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+    background: linear-gradient(135deg, #5fd8e6, var(--el-teal));
     color: #fff;
-    box-shadow: 0 10px 22px rgba(14, 165, 233, 0.3);
+    box-shadow: 0 10px 22px rgba(38, 198, 218, 0.32);
 }
 
 /* .ta-page's own 28px/24px padding stacks on top of .el-shell's — trims to

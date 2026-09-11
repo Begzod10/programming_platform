@@ -264,7 +264,7 @@ export default function EarlyLearning({ guest = false }) {
                         </button>
                         <LangToggle lang={lang} toggleLang={toggleLang} />
                     </div>
-                    <div className="el-module-header" style={{ '--el-accent': moduleDetail.color_accent || '#6c5ce7' }}>
+                    <div className="el-module-header" style={{ '--el-accent': moduleDetail.color_accent || '#7c5cff' }}>
                         <span className="el-module-emoji">{moduleDetail.icon_emoji}</span>
                         <div>
                             <h1>{moduleDetail.title}</h1>
@@ -336,7 +336,7 @@ export default function EarlyLearning({ guest = false }) {
                         <button
                             key={module.id}
                             className="el-module-card"
-                            style={{ '--el-accent': module.color_accent || '#6c5ce7', animationDelay: `${i * 0.08}s` }}
+                            style={{ '--el-accent': module.color_accent || '#7c5cff', animationDelay: `${i * 0.08}s` }}
                             onClick={() => navigate(`${routeBase}/${module.id}`)}
                         >
                             <span className="el-module-card-emoji">{module.icon_emoji}</span>
