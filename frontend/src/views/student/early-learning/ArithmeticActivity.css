@@ -1,0 +1,204 @@
+.aa-page {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 28px 24px 40px;
+    background: rgba(255, 253, 248, 0.86);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-radius: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 24px 60px rgba(124, 92, 255, 0.16);
+    animation: aa-island-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+@keyframes aa-island-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+
+.aa-page .el-page-topbar { width: 100%; }
+
+.aa-character-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.aa-character-emoji { font-size: 3.2rem; line-height: 1; }
+.aa-character-header h2 { font-family: var(--el-font-display); margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--el-ink); }
+
+.aa-instruction {
+    margin: 0 0 18px;
+    color: var(--el-ink-soft);
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.aa-streak-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 14px;
+    background: linear-gradient(90deg, #fef3c7, var(--el-sunset));
+    color: var(--el-amber-deep);
+    border-radius: 999px;
+    padding: 8px 20px;
+    font-weight: 800;
+    font-size: 1rem;
+    width: fit-content;
+    animation: aa-streak-pop 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes aa-streak-pop {
+    0%   { opacity: 0; transform: scale(0.7) translateY(-6px); }
+    20%  { opacity: 1; transform: scale(1.1)  translateY(0); }
+    35%  { transform: scale(1); }
+    80%  { opacity: 1; }
+    100% { opacity: 0; transform: scale(1) translateY(-4px); }
+}
+
+/* The equation itself — big, calm, centered, reads like a giant flash
+   card rather than a dense math worksheet line. */
+.aa-equation {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 14px;
+    width: 100%;
+    max-width: 420px;
+    min-height: 120px;
+    margin: 0 auto 22px;
+    padding: 18px;
+    background: color-mix(in srgb, var(--el-teal) 8%, var(--el-surface));
+    border-radius: 24px;
+    border: 2px solid rgba(255, 255, 255, 0.7);
+    box-shadow: inset 0 2px 12px rgba(38, 198, 218, 0.1);
+    font-family: var(--el-font-display);
+    font-size: clamp(2.2rem, 9vw, 3rem);
+    font-weight: 800;
+    color: var(--el-ink);
+}
+.aa-equals { color: var(--el-ink-soft); }
+.aa-question-mark {
+    color: var(--el-violet, #7c5cff);
+    animation: aa-question-bob 1.6s ease-in-out infinite;
+}
+@keyframes aa-question-bob {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-5px); }
+}
+
+.aa-options {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.aa-option-btn {
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
+    width: 68px;
+    height: 68px;
+    border-radius: 20px;
+    border: none;
+    background: var(--el-surface);
+    color: var(--el-ink);
+    font-size: 1.7rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 6px 16px rgba(124, 92, 255, 0.14);
+    transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s, background 0.15s, color 0.15s, opacity 0.15s;
+    animation: aa-btn-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes aa-btn-in {
+    from { opacity: 0; transform: scale(0.4) translateY(10px); }
+    to   { opacity: 1; transform: scale(1)   translateY(0); }
+}
+
+.aa-option-btn:not(:disabled) {
+    animation: aa-btn-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+               aa-btn-idle 2.4s ease-in-out calc(0.45s + var(--i, 0) * 0.15s) infinite;
+}
+
+@keyframes aa-btn-idle {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.06); }
+}
+
+.aa-option-btn:hover:not(:disabled) {
+    transform: translateY(-3px) scale(1.1);
+    animation: aa-btn-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.aa-option-btn:active:not(:disabled) {
+    transform: scale(0.88);
+    transition-duration: 0.08s;
+}
+
+.aa-option-btn:disabled { opacity: 0.6; cursor: default; animation: none; }
+
+.aa-option-btn-wrong {
+    background: var(--el-danger-bg);
+    color: var(--el-danger);
+    animation: aa-shake 0.4s ease;
+}
+
+@keyframes aa-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+}
+
+.aa-option-btn-correct {
+    background: var(--el-success);
+    color: #ffffff;
+    box-shadow: 0 8px 20px rgba(13, 169, 117, 0.35);
+    animation: aa-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes aa-pop {
+    0%   { transform: scale(0.9); }
+    70%  { transform: scale(1.12); }
+    100% { transform: scale(1); }
+}
+
+.aa-progress {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--el-ink-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .aa-option-btn,
+    .aa-option-btn:not(:disabled),
+    .aa-option-btn:hover:not(:disabled) {
+        animation: none;
+    }
+    .aa-question-mark { animation: none; }
+}
+
+@media (max-width: 480px) {
+    .aa-page { padding: 20px 16px 28px; border-radius: 24px; }
+    .aa-equation { padding: 14px; gap: 10px; }
+    .aa-option-btn { width: 58px; height: 58px; font-size: 1.4rem; }
+}
+
+@media (max-height: 500px) {
+    .aa-page { padding: 16px 20px 20px; }
+    .aa-character-header { margin-bottom: 2px; }
+    .aa-character-emoji { font-size: 2.2rem; }
+    .aa-instruction { margin-bottom: 8px; }
+    .aa-equation { min-height: 80px; padding: 10px; gap: 8px; margin-bottom: 12px; font-size: clamp(1.6rem, 7vw, 2.2rem); }
+    .aa-option-btn { width: 54px; height: 54px; font-size: 1.25rem; }
+}

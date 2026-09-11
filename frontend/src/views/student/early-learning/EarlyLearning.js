@@ -13,6 +13,7 @@ import SortActivity from './SortActivity';
 import SequenceActivity from './SequenceActivity';
 import PatternActivity from './PatternActivity';
 import CauseEffectActivity from './CauseEffectActivity';
+import ArithmeticActivity from './ArithmeticActivity';
 import LangToggle from './LangToggle';
 import { applyGuestModuleStars, applyGuestActivityStars } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
@@ -212,9 +213,12 @@ export default function EarlyLearning({ guest = false }) {
             // (SequenceActivity.js), "pattern" taps the emoji that
             // continues a repeating pattern (PatternActivity.js),
             // "cause_effect" taps the effect that follows a given cause
-            // (CauseEffectActivity.js), anything else (the shipped "select"
-            // mode, or an activity with no mode yet) taps items out of a
-            // pool (MatchingActivity.js, the original/default game).
+            // (CauseEffectActivity.js), "arithmetic" solves a randomly
+            // generated single-digit +/− equation (ArithmeticActivity.js —
+            // rounds are generated client-side each play, not authored in
+            // content_json), anything else (the shipped "select" mode, or
+            // an activity with no mode yet) taps items out of a pool
+            // (MatchingActivity.js, the original/default game).
             const mode = activity.content?.mode;
             const ActivityScreen =
                 mode === 'trace' ? TraceActivity :
@@ -226,6 +230,7 @@ export default function EarlyLearning({ guest = false }) {
                 mode === 'sequence' ? SequenceActivity :
                 mode === 'pattern' ? PatternActivity :
                 mode === 'cause_effect' ? CauseEffectActivity :
+                mode === 'arithmetic' ? ArithmeticActivity :
                 MatchingActivity;
             return (
                 <div className="el-shell">
