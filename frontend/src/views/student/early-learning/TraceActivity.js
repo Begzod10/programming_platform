@@ -134,6 +134,14 @@ const STAR_VERTICES = [
     { x: 150, y: 50 }, { x: 176, y: 114 }, { x: 245, y: 119 }, { x: 193, y: 164 }, { x: 209, y: 231 },
     { x: 150, y: 195 }, { x: 91, y: 231 }, { x: 107, y: 164 }, { x: 55, y: 119 }, { x: 124, y: 114 },
 ];
+// Square rotated 45° — same footprint/center as SQUARE_VERTICES, distinct
+// silhouette for a kid to recognize as a different shape.
+const DIAMOND_VERTICES = [{ x: 150, y: 50 }, { x: 250, y: 150 }, { x: 150, y: 250 }, { x: 50, y: 150 }];
+// Regular pentagon, radius 100 around (150,150), same "start at top, step
+// evenly" construction as STAR_VERTICES (here: every 72°).
+const PENTAGON_VERTICES = [
+    { x: 150, y: 50 }, { x: 245, y: 119 }, { x: 209, y: 231 }, { x: 91, y: 231 }, { x: 55, y: 119 },
+];
 
 /** `shape` → {draw, checkpoints}. content only ever names a shape id
  * ("circle"/"square"/"triangle") — no hand-authored path data — the
@@ -173,6 +181,28 @@ const SHAPES = {
     rectangle: {
         draw: (ctx) => { ctx.beginPath(); ctx.rect(55, 100, 190, 100); ctx.stroke(); },
         checkpoints: () => pointsOnPolygon(RECTANGLE_VERTICES, CHECKPOINT_COUNT),
+    },
+    diamond: {
+        draw: (ctx) => {
+            ctx.beginPath();
+            DIAMOND_VERTICES.forEach((v, i) => {
+                if (i === 0) ctx.moveTo(v.x, v.y); else ctx.lineTo(v.x, v.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+        },
+        checkpoints: () => pointsOnPolygon(DIAMOND_VERTICES, CHECKPOINT_COUNT),
+    },
+    pentagon: {
+        draw: (ctx) => {
+            ctx.beginPath();
+            PENTAGON_VERTICES.forEach((v, i) => {
+                if (i === 0) ctx.moveTo(v.x, v.y); else ctx.lineTo(v.x, v.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+        },
+        checkpoints: () => pointsOnPolygon(PENTAGON_VERTICES, CHECKPOINT_COUNT),
     },
 };
 
