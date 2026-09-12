@@ -10,11 +10,11 @@ from app.models.group import Group
 from app.models.user import Student
 from app.models.team_project import (
     TeamProject, TeamProjectTeam, TeamProjectMember, TeamProjectTask,
-    TeamProjectEvent, TaskStatus, TeamStatus, TeamProjectStatus,
+    TeamProjectEvent, TeamProjectPeerRating, TaskStatus, TeamStatus, TeamProjectStatus,
 )
 from app.schemas.team_project import (
     TeamProjectCreate, TeamProjectRead, TeamRead, TaskRead, MemberRead,
-    MyTeamProjectRead, TaskSubmitBody, ReassignBody, FinalizeBody,
+    MyTeamProjectRead, TaskSubmitBody, ReassignBody, FinalizeBody, PeerRatingItem,
 )
 from app.services.team_project_service import create_team_project
 from app.services.team_project_planner import generate_plan_for_team, MAX_GENERATION_ATTEMPTS
@@ -420,10 +420,93 @@ async def finalize_team(
     ))
     await db.commit()
 
+    # submit_project() runs the AI review SYNCHRONOUSLY — project.reviewed_at
+    # is already set here if it succeeded (same session, same identity-mapped
+    # object). Award points + mark the team reviewed now rather than via a
+    # separate callback; if the AI was unavailable, the team just stays
+    # "submitted" until someone re-triggers review through the normal
+    # project flow — award_points only ever runs once reviewed_at is real.
+    await db.refresh(project)
+    if project.reviewed_at is not None:
+        from app.services.team_project_points_service import award_points
+        await award_points(db, team)
+        team.status = TeamStatus.reviewed
+        db.add(TeamProjectEvent(
+            team_project_id=team.team_project_id, team_id=team.id,
+            event_type="points_awarded",
+            payload_json=json.dumps({"grade": project.grade}),
+        ))
+        await db.commit()
+
     tp = await _fetch_team_project(db, team.team_project_id)
-    if all(t.status == TeamStatus.submitted for t in tp.teams):
-        tp.status = TeamProjectStatus.submitted
+    # A team can now reach "reviewed" directly (synchronous AI review,
+    # above), not just "submitted" — the original check only matched the
+    # latter, so a team project where every team finished instantly would
+    # never have advanced tp.status past "active" at all.
+    if all(t.status in (TeamStatus.submitted, TeamStatus.reviewed) for t in tp.teams):
+        tp.status = (
+            TeamProjectStatus.reviewed
+            if all(t.status == TeamStatus.reviewed for t in tp.teams)
+            else TeamProjectStatus.submitted
+        )
         await db.commit()
 
     team_out = next(t for t in tp.teams if t.id == team_id)
     return _team_read(team_out)
+
+
+# ── Student: peer ratings (after the team has submitted) ───────────────────
+@router.post("/teams/{team_id}/peer-ratings", status_code=status.HTTP_204_NO_CONTENT)
+async def submit_peer_ratings(
+        team_id: int, body: list[PeerRatingItem],
+        db: AsyncSession = Depends(get_db),
+        student: Student = Depends(get_current_student),
+):
+    team = (await db.execute(
+        select(TeamProjectTeam).where(TeamProjectTeam.id == team_id)
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+    if team.status not in (TeamStatus.submitted, TeamStatus.reviewed):
+        raise HTTPException(
+            status_code=400, detail="Baholash faqat jamoa yakunlangandan keyin mumkin",
+        )
+
+    members = (await db.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team_id)
+    )).scalars().all()
+    member_ids = {m.student_id for m in members}
+    if student.id not in member_ids:
+        raise HTTPException(status_code=403, detail="Siz bu jamoa a'zosi emassiz")
+
+    for item in body:
+        if item.rated_student_id == student.id:
+            raise HTTPException(status_code=400, detail="O'zingizni baholay olmaysiz")
+        if item.rated_student_id not in member_ids:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Student {item.rated_student_id} bu jamoa a'zosi emas",
+            )
+
+    for item in body:
+        existing = (await db.execute(
+            select(TeamProjectPeerRating).where(
+                TeamProjectPeerRating.team_id == team_id,
+                TeamProjectPeerRating.rater_student_id == student.id,
+                TeamProjectPeerRating.rated_student_id == item.rated_student_id,
+            )
+        )).scalar_one_or_none()
+        if existing is not None:
+            # Allow updating a rating submitted before a deadline, rather
+            # than erroring on resubmission — the spec doesn't say either
+            # way, and failing a student who just wants to fix a typo in
+            # their comment seems worse than a quiet overwrite.
+            existing.score = item.score
+            existing.comment = item.comment
+        else:
+            db.add(TeamProjectPeerRating(
+                team_id=team_id, rater_student_id=student.id,
+                rated_student_id=item.rated_student_id,
+                score=item.score, comment=item.comment,
+            ))
+    await db.commit()

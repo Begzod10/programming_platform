@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import List, Optional, Dict
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.user import StudentLevel
 
@@ -135,3 +135,9 @@ class FinalizeBody(BaseModel):
     github_url: Optional[str] = None
     live_demo_url: Optional[str] = None
     description: Optional[str] = None
+
+
+class PeerRatingItem(BaseModel):
+    rated_student_id: int
+    score: int = Field(ge=1, le=5)
+    comment: Optional[str] = None
