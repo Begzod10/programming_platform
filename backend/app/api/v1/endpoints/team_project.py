@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -15,9 +16,10 @@ from app.models.team_project import (
 from app.schemas.team_project import (
     TeamProjectCreate, TeamProjectRead, TeamRead, TaskRead, MemberRead,
     MyTeamProjectRead, TaskSubmitBody, ReassignBody, FinalizeBody, PeerRatingItem,
+    ManualPlanBody,
 )
 from app.services.team_project_service import create_team_project
-from app.services.team_project_planner import generate_plan_for_team, MAX_GENERATION_ATTEMPTS
+from app.services.team_project_planner import generate_plan_for_team, validate_plan, MAX_GENERATION_ATTEMPTS
 from app.services.team_project_task_review import review_task_submission
 from app.services.team_project_constants import THEMES_BY_KEY, TECH_STACKS_BY_KEY
 from app.services.project_service import ProjectService
@@ -271,6 +273,103 @@ async def regenerate_team_plan(
     await db.flush()
 
     await generate_plan_for_team(db, team_id)
+
+    tp = await _fetch_team_project(db, team.team_project_id)
+    team_out = next(t for t in tp.teams if t.id == team_id)
+    return _team_read(team_out)
+
+
+# ── Teacher: author a plan by hand (AI-disabled / attempts-exhausted fallback) ─
+@router.post("/teams/{team_id}/manual-plan", response_model=TeamRead)
+async def create_manual_plan(
+        team_id: int,
+        body: ManualPlanBody,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    """Teacher-authored fallback for when AI planning isn't usable — no
+    provider configured, or /regenerate already hit MAX_GENERATION_ATTEMPTS
+    with nothing usable. Before this endpoint, a team stuck in either
+    situation had no way forward at all: /regenerate just re-runs the same
+    AI call, which is useless when AI is genuinely disabled, and there was
+    no other path to `working`. Held to the exact same correctness bar as
+    an AI plan via validate_plan (acyclic depends_on, matching
+    consumes/produces, level-appropriate assignment) — a human plan that
+    breaks the same contract the frontend/teacher tooling relies on is
+    just as broken as an AI one.
+    """
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(
+            selectinload(TeamProjectTeam.team_project),
+            selectinload(TeamProjectTeam.members),
+        )
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+    if team.team_project.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    if team.status != TeamStatus.forming:
+        raise HTTPException(
+            status_code=400,
+            detail="Qo'lda reja faqat hali rejasi yo'q jamoa uchun mumkin",
+        )
+
+    members = team.members
+    member_index_by_student_id = {m.student_id: i for i, m in enumerate(members)}
+    for task in body.tasks:
+        if task.assigned_student_id not in member_index_by_student_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Student {task.assigned_student_id} bu jamoa a'zosi emas",
+            )
+
+    # validate_plan addresses tasks by position in `members`, the same way
+    # the AI path's members_summary does (see team_project_planner.py) —
+    # map each task's assigned_student_id to that position before reusing it.
+    members_summary = [{"student_id": m.student_id, "level": m.level_at_assignment} for m in members]
+    plan_tasks = [
+        {
+            **task.model_dump(exclude={"assigned_student_id"}),
+            "assign_to_member_index": member_index_by_student_id[task.assigned_student_id],
+        }
+        for task in body.tasks
+    ]
+    plan_errors = validate_plan(
+        {"tasks": plan_tasks}, members_summary,
+    )
+    if plan_errors:
+        raise HTTPException(status_code=400, detail="; ".join(plan_errors))
+
+    team.project_title = body.project_title
+    team.project_description = body.project_description
+    team.ai_plan_json = None  # no AI plan exists for a manually-authored one
+    team.plan_generated_at = utcnow()
+    team.status = TeamStatus.working
+
+    deadline_at = utcnow() + timedelta(days=team.team_project.deadline_days)
+    for order, task in enumerate(body.tasks):
+        db.add(TeamProjectTask(
+            team_id=team.id,
+            assigned_student_id=task.assigned_student_id,
+            order=order,
+            title=task.title, title_ru=task.title_ru,
+            description=task.description, description_ru=task.description_ru,
+            required_level=task.required_level,
+            interface_contract_json=json.dumps(task.interface_contract),
+            acceptance_criteria_json=json.dumps(task.acceptance_criteria),
+            depends_on_json=json.dumps(task.depends_on),
+            estimated_hours=task.estimated_hours,
+            deadline_at=deadline_at,
+        ))
+
+    db.add(TeamProjectEvent(
+        team_project_id=team.team_project_id, team_id=team.id,
+        event_type="plan_created_manually",
+        payload_json=json.dumps({"teacher_id": teacher.id, "task_count": len(body.tasks)}),
+    ))
+    await db.commit()
 
     tp = await _fetch_team_project(db, team.team_project_id)
     team_out = next(t for t in tp.teams if t.id == team_id)

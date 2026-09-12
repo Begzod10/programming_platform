@@ -19,11 +19,12 @@ from app.models.team_project import (
 )
 from app.schemas.team_project import SkillProfile
 from app.services import skill_profile_service
-from app.services.team_project_constants import THEMES, TECH_STACKS
+from app.services.team_project_constants import THEMES, TECH_STACKS, LEVEL_RANK as _LEVEL_RANK
 
-# Order used to rank current_level for auto-picking the strongest member as
+# _LEVEL_RANK ranks current_level for auto-picking the strongest member as
 # lead — matches the level progression in app/models/user.py::StudentLevel.
-_LEVEL_RANK = {"Beginner": 0, "Intermediate": 1, "Advanced": 2}
+# Shared with team_project_planner.py's plan validation; see
+# team_project_constants.py.
 
 # A group only frees up for a new assignment once its current one is fully
 # wrapped up — reviewed (graded) or cancelled by a teacher. Anything else
