@@ -32,7 +32,11 @@ const CreateModal = ({ onClose, onCreated }) => {
             onCreated();
             onClose();
         } catch (e) {
-            setError(e?.message || "Topshiriq yaratib bo'lmadi");
+            // Prefer the clean backend message over useHttp's verbose
+            // "Could not fetch <url>, status: N: ..." wrapper — a teacher
+            // shouldn't see a URL and status code in a form error banner.
+            const backendMessage = e?.response?.data?.error?.message || e?.response?.data?.detail;
+            setError(backendMessage || "Topshiriq yaratib bo'lmadi");
         } finally {
             setBusy(false);
         }
@@ -50,7 +54,11 @@ const CreateModal = ({ onClose, onCreated }) => {
                         <span>Guruh</span>
                         <select value={groupId} onChange={e => setGroupId(e.target.value)}>
                             <option value="">— tanlang —</option>
-                            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                            {groups.map(g => (
+                                <option key={g.id} value={g.id}>
+                                    {g.name} ({g.students?.length ?? 0} ta o'quvchi)
+                                </option>
+                            ))}
                         </select>
                     </label>
                     <label className="ttp-field">

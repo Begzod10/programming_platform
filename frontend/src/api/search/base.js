@@ -100,7 +100,16 @@ export const useHttp = () => {
         } catch (e) {
             // Preserve old error shape for callers that .catch on it.
             const status = e.response?.status;
-            const message = e.response?.data?.detail || e.message || 'Request failed';
+            // Two error shapes exist on the backend: FastAPI's default
+            // {"detail": "..."} and this app's custom exception handler
+            // (app/core/exceptions.py), which wraps everything as
+            // {"success": false, "error": {"code", "message"}} instead —
+            // check both or every 400/403/etc from the custom handler falls
+            // back to axios's generic "Request failed with status code N".
+            const message = e.response?.data?.error?.message
+                || e.response?.data?.detail
+                || e.message
+                || 'Request failed';
             const err = new Error(`Could not fetch ${url}, status: ${status}: ${message}`);
             err.status = status;
             err.response = e.response;
