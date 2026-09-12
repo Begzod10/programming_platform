@@ -15,6 +15,7 @@ from app.api.v1.endpoints.team_game_common import spawn_background_task
 from app.models.group import Group
 from app.models.team_project import (
     TeamProject, TeamProjectTeam, TeamProjectMember, TeamProjectEvent, TeamRole,
+    TeamProjectStatus,
 )
 from app.schemas.team_project import SkillProfile
 from app.services import skill_profile_service
@@ -23,6 +24,16 @@ from app.services.team_project_constants import THEMES, TECH_STACKS
 # Order used to rank current_level for auto-picking the strongest member as
 # lead — matches the level progression in app/models/user.py::StudentLevel.
 _LEVEL_RANK = {"Beginner": 0, "Intermediate": 1, "Advanced": 2}
+
+# A group only frees up for a new assignment once its current one is fully
+# wrapped up — reviewed (graded) or cancelled by a teacher. Anything else
+# (planning/pending_approval/active/integrating/submitted) still counts as
+# "this group already has a team project" — teams are mid-work, submitted-
+# but-not-yet-graded, etc.
+_OPEN_STATUSES = [
+    s for s in TeamProjectStatus
+    if s not in (TeamProjectStatus.reviewed, TeamProjectStatus.cancelled)
+]
 
 
 def _cycle_sample(pool: list, count: int, avoid_key: Optional[str] = None) -> list:
@@ -64,6 +75,18 @@ async def create_team_project(
         raise HTTPException(
             status_code=400,
             detail="Jamoa tuzish uchun guruhda kamida 2 ta o'quvchi bo'lishi kerak",
+        )
+
+    existing = (await db.execute(
+        select(TeamProject.id)
+        .where(TeamProject.group_id == group_id, TeamProject.status.in_(_OPEN_STATUSES))
+        .limit(1)
+    )).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Bu guruh uchun allaqachon faol jamoaviy loyiha bor — "
+                    "yangisini yaratishdan oldin avvalgisi yakunlanishi yoki bekor qilinishi kerak",
         )
 
     profiles_by_id = {
