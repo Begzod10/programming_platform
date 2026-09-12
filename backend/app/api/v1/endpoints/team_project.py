@@ -92,11 +92,56 @@ def _team_read(team: TeamProjectTeam) -> TeamRead:
     )
 
 
+def _redact_team_read_for_other_student(team: TeamProjectTeam) -> TeamRead:
+    """Same as _team_read but for a team the viewer is NOT a member of —
+    drops skill levels and task detail (score, feedback, submission URL).
+    Per the spec's own guardrail: "Students never see other members' skill
+    summaries, points, or level snapshots" — /my used to call _team_read
+    unconditionally for every team in the project, leaking exactly this
+    (plus every other team's task submissions/AI scores) to any student in
+    the same team_project. Found while reviewing this endpoint, not
+    reported; fixed here rather than just flagged given the severity."""
+    theme = THEMES_BY_KEY.get(team.theme)
+    stack = TECH_STACKS_BY_KEY.get(team.tech_stack)
+    return TeamRead(
+        id=team.id, name=team.name, status=team.status.value,
+        theme=team.theme, theme_label=theme["label"] if theme else team.theme,
+        tech_stack=team.tech_stack, tech_stack_label=stack["label"] if stack else team.tech_stack,
+        project_title=team.project_title, project_description=team.project_description,
+        lead_student_id=team.lead_student_id, final_project_id=team.final_project_id,
+        generation_attempts=team.generation_attempts,
+        members=[
+            MemberRead(
+                student_id=m.student_id,
+                full_name=(m.student.full_name or m.student.username) if m.student else str(m.student_id),
+                role=m.role.value, level_at_assignment="",
+            )
+            for m in team.members
+        ],
+        tasks=[],
+    )
+
+
 def _team_project_read(tp: TeamProject) -> TeamProjectRead:
+    """Full, unredacted detail — teacher-only (create_assignment,
+    list_assignments, get_assignment all require get_current_teacher)."""
     return TeamProjectRead(
         id=tp.id, group_id=tp.group_id, course_id=tp.course_id, status=tp.status.value,
         team_size=tp.team_size, deadline_days=tp.deadline_days, created_at=tp.created_at,
         teams=[_team_read(t) for t in tp.teams],
+    )
+
+
+def _team_project_read_for_student(tp: TeamProject, my_team_id: int) -> TeamProjectRead:
+    """Same shape as _team_project_read, but every team other than the
+    caller's own is redacted — see _redact_team_read_for_other_student."""
+    return TeamProjectRead(
+        id=tp.id, group_id=tp.group_id, course_id=tp.course_id, status=tp.status.value,
+        team_size=tp.team_size, deadline_days=tp.deadline_days, created_at=tp.created_at,
+        teams=[
+            _team_read(t) if t.id == my_team_id else _redact_team_read_for_other_student(t)
+            for t in tp.teams
+        ],
     )
 
 
@@ -152,8 +197,23 @@ async def my_team_projects(
         db: AsyncSession = Depends(get_db),
         student: Student = Depends(get_current_student),
 ):
+    # Scoped to team projects this student actually belongs to (previously
+    # fetched the WHOLE team_projects table and filtered in Python — a
+    # platform-wide performance issue on top of the leak this also caused,
+    # see _team_project_read_for_student above).
+    team_project_ids = (await db.execute(
+        select(TeamProjectTeam.team_project_id)
+        .join(TeamProjectMember, TeamProjectMember.team_id == TeamProjectTeam.id)
+        .where(TeamProjectMember.student_id == student.id)
+        .distinct()
+    )).scalars().all()
+    if not team_project_ids:
+        return []
+
     rows = (await db.execute(
-        select(TeamProject).options(*_team_load_options())
+        select(TeamProject)
+        .where(TeamProject.id.in_(team_project_ids))
+        .options(*_team_load_options())
     )).unique().scalars().all()
 
     out = []
@@ -162,25 +222,23 @@ async def my_team_projects(
         if team is None:
             continue
         out.append(MyTeamProjectRead(
-            team_project=_team_project_read(tp),
+            team_project=_team_project_read_for_student(tp, team.id),
             my_team=_team_read(team),
             my_role=membership.role.value,
         ))
     return out
 
 
-# ── Detail ───────────────────────────────────────────────────────────────────
+# ── Detail (teacher-only — students use /my, which redacts other teams) ────
 @router.get("/{team_project_id}", response_model=TeamProjectRead)
 async def get_assignment(
         team_project_id: int,
         db: AsyncSession = Depends(get_db),
-        student: Student = Depends(get_current_student),
+        teacher: Student = Depends(get_current_teacher),
 ):
     tp = await _fetch_team_project(db, team_project_id)
-    if tp.teacher_id != student.id:
-        team, _m = _find_team_and_membership(tp, student.id)
-        if team is None:
-            raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    if tp.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
     return _team_project_read(tp)
 
 
@@ -245,7 +303,10 @@ async def submit_task(
     await db.commit()
 
     await review_task_submission(db, task_id)
-    await db.refresh(task)
+    # Same MissingGreenlet crash as reassign_task below, on the same
+    # uncached task.assigned_student access inside _task_read — this is
+    # the student-facing submit flow, so it's hit far more often.
+    await db.refresh(task, attribute_names=["assigned_student"])
     return _task_read(task)
 
 
@@ -256,6 +317,20 @@ async def reassign_task(
         db: AsyncSession = Depends(get_db),
         teacher: Student = Depends(get_current_teacher),
 ):
+    # No ownership check existed at all here — any teacher account could
+    # reassign any task on any team platform-wide. Found while reviewing
+    # this endpoint, not reported; fixed given the severity, matching the
+    # same check regenerate_team_plan already does correctly above.
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(selectinload(TeamProjectTeam.team_project))
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+    if team.team_project.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+
     task = (await db.execute(
         select(TeamProjectTask).where(
             TeamProjectTask.id == task_id, TeamProjectTask.team_id == team_id,
@@ -287,7 +362,13 @@ async def reassign_task(
     task.ai_score = None
     task.ai_feedback_json = None
     await db.commit()
-    await db.refresh(task)
+    # db.refresh(task) only reloads scalar columns, not relationships —
+    # _task_read accesses task.assigned_student, which crashes with
+    # MissingGreenlet on the first un-cached access outside an explicit
+    # async-aware load. Confirmed this is a real, reproducible 500 on
+    # every actual call to this endpoint (not just a test artifact) while
+    # writing the regression test for it.
+    await db.refresh(task, attribute_names=["assigned_student"])
     return _task_read(task)
 
 
@@ -302,11 +383,17 @@ async def finalize_team(
         select(TeamProjectTeam)
         .where(TeamProjectTeam.id == team_id)
         .options(selectinload(TeamProjectTeam.tasks), selectinload(TeamProjectTeam.team_project))
+        .with_for_update()
     )).scalar_one_or_none()
     if team is None:
         raise HTTPException(status_code=404, detail="Jamoa topilmadi")
     if team.lead_student_id != student.id:
         raise HTTPException(status_code=403, detail="Faqat jamoa integratori yakunlashi mumkin")
+    # Without this, calling finalize twice (double-click, retry after a slow
+    # response) creates a second Project row and silently overwrites
+    # final_project_id — found while reviewing this endpoint, not reported.
+    if team.status in (TeamStatus.submitted, TeamStatus.reviewed):
+        raise HTTPException(status_code=409, detail="Jamoa allaqachon yakunlangan")
     if not team.tasks or any(t.status != TaskStatus.approved for t in team.tasks):
         raise HTTPException(status_code=400, detail="Barcha vazifalar tasdiqlanmagan")
 
