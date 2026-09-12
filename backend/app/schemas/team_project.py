@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import List, Optional, Dict
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.user import StudentLevel
 
@@ -135,3 +135,34 @@ class FinalizeBody(BaseModel):
     github_url: Optional[str] = None
     live_demo_url: Optional[str] = None
     description: Optional[str] = None
+
+
+class PeerRatingItem(BaseModel):
+    rated_student_id: int
+    score: int = Field(ge=1, le=5)
+    comment: Optional[str] = None
+
+
+class ManualTaskItem(BaseModel):
+    """One task in a teacher-authored plan — see POST
+    /teams/{team_id}/manual-plan. Same shape as what the AI planner
+    materializes into TeamProjectTask, just entered by a human instead of
+    parsed from an LLM response."""
+    assigned_student_id: int
+    title: str
+    title_ru: str
+    description: str
+    description_ru: str
+    required_level: str
+    interface_contract: dict = {}
+    acceptance_criteria: List[str] = []
+    # 0-based indices into THIS tasks list — same contract as the AI
+    # planner's depends_on (see TeamProjectTask.depends_on_json).
+    depends_on: List[int] = []
+    estimated_hours: int = Field(default=4, gt=0)
+
+
+class ManualPlanBody(BaseModel):
+    project_title: str
+    project_description: str = ""
+    tasks: List[ManualTaskItem]

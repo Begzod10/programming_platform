@@ -22,7 +22,7 @@ from app.models.team_project import (
     TeamProjectTeam, TeamProjectMember, TeamProjectTask, TeamProjectEvent, TeamStatus,
 )
 from app.services.grok_ai_client import call_chain, parse_ai_json
-from app.services.team_project_constants import THEMES_BY_KEY, TECH_STACKS_BY_KEY
+from app.services.team_project_constants import THEMES_BY_KEY, TECH_STACKS_BY_KEY, LEVEL_RANK
 from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
@@ -55,8 +55,10 @@ JAMOA A'ZOLARI (indeks — ism (daraja) — mahorat xulosasi):
 TALABLAR:
 - Loyiha kichik va 1-2 haftada tugatsa bo'ladigan darajada bo'lsin.
 - Har bir vazifa aniq bir fayl/sahifa/komponentga tegishli bo'lsin (masalan "login sahifasi", "navbar", "profil kartasi"), shunda a'zolar bir-birining ishiga deyarli tegmasdan parallel ishlay oladi.
-- Vazifalar sonini jamoa a'zolari soniga TENG qil — har bir a'zoga (jumladan eng kuchli a'zoga ham) bittadan vazifa.
-- Har bir vazifani index'i mahoratiga eng mos keladigan a'zoga bERIB.
+- Vazifalar sonini jamoa a'zolari soniga TENG qil — har bir a'zoga (jumladan eng kuchli a'zoga ham) bittadan vazifa. `assign_to_member_index` qiymatlari 0 dan {len(members_summary) - 1} gacha bo'lgan har bir indeksni ANIQ BIR MARTA ishlatishi SHART (takrorlanmasligi va hech biri tashlab ketilmasligi kerak).
+- `required_level` har doim shu vazifaga tayinlangan a'zoning darajasidan OSHMASLIGI kerak (masalan Beginner a'zoga Advanced vazifa berilmaydi).
+- `depends_on` — bu vazifa ro'yxatidagi BOSHQA vazifalarning 0-dan boshlanuvchi INDEKSLARI (ro'yxatdagi o'rni), boshqa hech narsa emas. O'z-o'ziga bog'liqlik va aylanma bog'liqlik (A→B→A) bo'lmasin.
+- `interface_contract.consumes` dagi har bir yozuv boshqa BIRON BIR vazifaning `interface_contract.produces` yozuvi bilan SO'ZMA-SO'Z (aynan) bir xil bo'lishi SHART — shu matnni aynan ko'chirib yoz, qayta ifodalab yozma.
 
 JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma:
 {{
@@ -128,6 +130,9 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
     try:
         _, parsed, provider, attempts = await call_chain(prompt, max_tokens=2000, validator=parse_ai_json)
         plan = _normalize_plan(parsed, len(members_summary))
+        plan_errors = validate_plan(plan, members_summary)
+        if plan_errors:
+            raise ValueError("; ".join(plan_errors))
     except Exception as e:
         logger.warning("[team-planner] team=%d generation failed: %s", team_id, e)
         db.add(TeamProjectEvent(
@@ -171,6 +176,142 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
     await db.commit()
 
 
+def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:
+    """Returns a list of human-readable problems; empty list = valid.
+
+    This is the guardrail the original spec asked for and the first AI
+    plan this feature shipped with never had: the AI's JSON was parsed
+    (_normalize_plan) and materialized as-is, with only a generic "is
+    there a non-empty tasks list" check. In practice that let through
+    dangling/self/cyclic `depends_on` references, tasks assigned above
+    their member's level, and `consumes` entries that named a produces
+    string no other task actually declared — each silently breaking the
+    per-piece dependency/interface-contract UX this feature exists to
+    provide. A plan failing here is treated exactly like a generation
+    exception by the caller (logged as `plan_generation_failed`, doesn't
+    consume a *retry* beyond the attempt already spent) — the teacher can
+    hit /teams/{id}/regenerate same as for a raw AI failure.
+
+    Every check below runs (doesn't short-circuit on the first failure)
+    so one retry prompt's errors can be inspected in full in the event
+    log rather than one-at-a-time.
+    """
+    errors: list[str] = []
+    member_count = len(members_summary)
+
+    tasks = plan.get("tasks")
+    if not isinstance(tasks, list) or not tasks:
+        return ["Plan has no 'tasks' list."]
+
+    if len(tasks) != member_count:
+        errors.append(f"Expected {member_count} tasks (one per member), got {len(tasks)}.")
+
+    # assign_to_member_index: every index 0..member_count-1 used exactly
+    # once — the actual guarantee behind "every member gets one piece".
+    indices = [t.get("assign_to_member_index") for t in tasks if isinstance(t, dict)]
+    if sorted(i for i in indices if isinstance(i, int)) != list(range(member_count)) \
+            or len(indices) != len(set(indices)):
+        errors.append(
+            f"assign_to_member_index must use each of 0..{member_count - 1} exactly "
+            f"once; got {indices}."
+        )
+
+    produces_by_index: dict[int, list[str]] = {}
+    depends_on_by_index: dict[int, list[int]] = {}
+
+    for idx, task in enumerate(tasks):
+        if not isinstance(task, dict):
+            errors.append(f"Task {idx} is not a JSON object: {task!r}")
+            continue
+
+        required_level = task.get("required_level")
+        if required_level not in LEVEL_RANK:
+            errors.append(f"Task {idx}: invalid required_level {required_level!r}.")
+        else:
+            member_idx = task.get("assign_to_member_index")
+            if isinstance(member_idx, int) and 0 <= member_idx < member_count:
+                assigned_level = members_summary[member_idx]["level"]
+                if LEVEL_RANK[required_level] > LEVEL_RANK.get(assigned_level, 0):
+                    errors.append(
+                        f"Task {idx}: required_level {required_level} exceeds "
+                        f"member {member_idx}'s level {assigned_level}."
+                    )
+
+        est_hours = task.get("estimated_hours")
+        if not (isinstance(est_hours, (int, float)) and est_hours > 0):
+            errors.append(f"Task {idx}: estimated_hours must be a positive number.")
+
+        contract = task.get("interface_contract") or {}
+        produces_by_index[idx] = list(contract.get("produces") or [])
+
+        depends_on = task.get("depends_on")
+        if not isinstance(depends_on, list):
+            errors.append(f"Task {idx}: depends_on must be a list.")
+            depends_on = []
+        depends_on_by_index[idx] = depends_on
+
+    # consumes must exact-match SOME OTHER task's produces — the prompt
+    # explicitly instructs the AI to copy the string verbatim for this.
+    for idx, task in enumerate(tasks):
+        if not isinstance(task, dict):
+            continue
+        contract = task.get("interface_contract") or {}
+        others_produce = {
+            item for i, items in produces_by_index.items() if i != idx for item in items
+        }
+        for consumed in (contract.get("consumes") or []):
+            if consumed not in others_produce:
+                errors.append(f"Task {idx}: consumes {consumed!r} which no other task produces.")
+
+    # depends_on must reference real, other tasks' indices and be acyclic.
+    valid_indices = set(range(len(tasks)))
+    for idx, deps in depends_on_by_index.items():
+        for d in deps:
+            if d == idx:
+                errors.append(f"Task {idx}: depends_on references itself.")
+            elif d not in valid_indices:
+                errors.append(f"Task {idx}: depends_on references unknown index {d!r}.")
+    graph = {
+        idx: [d for d in deps if d in valid_indices and d != idx]
+        for idx, deps in depends_on_by_index.items()
+    }
+    cycle = _find_cycle(graph)
+    if cycle:
+        errors.append(f"depends_on has a cycle: {cycle}.")
+
+    return errors
+
+
+def _find_cycle(graph: dict[int, list[int]]) -> Optional[list[int]]:
+    """DFS cycle detection over depends_on edges. Returns the cycle (as a
+    list of task indices) if one exists, else None."""
+    WHITE, GRAY, BLACK = 0, 1, 2
+    color = {node: WHITE for node in graph}
+    path: list[int] = []
+
+    def visit(node: int) -> Optional[list[int]]:
+        color[node] = GRAY
+        path.append(node)
+        for neighbor in graph.get(node, []):
+            if color.get(neighbor, WHITE) == GRAY:
+                cycle_start = path.index(neighbor)
+                return path[cycle_start:] + [neighbor]
+            if color.get(neighbor, WHITE) == WHITE:
+                result = visit(neighbor)
+                if result:
+                    return result
+        path.pop()
+        color[node] = BLACK
+        return None
+
+    for node in graph:
+        if color[node] == WHITE:
+            result = visit(node)
+            if result:
+                return result
+    return None
+
+
 def _member_label(member: TeamProjectMember) -> str:
     student = getattr(member, "student", None)
     if student is not None:
@@ -192,5 +333,14 @@ def _normalize_plan(parsed: Optional[dict], member_count: int) -> dict:
     return {
         "project_title": str(parsed.get("project_title") or "Jamoaviy loyiha")[:300],
         "project_description": str(parsed.get("project_description") or ""),
-        "tasks": tasks[:max(member_count, 1) * 2],
+        # Sanity cap only (a degenerate 200-task response shouldn't be
+        # validated item-by-item) — NOT truncated to member_count here
+        # anymore. It used to be (to max(member_count, 1) * 2), but
+        # validate_plan below now requires len(tasks) == member_count and
+        # an exact assign_to_member_index permutation; silently dropping
+        # tasks to fit a count could easily strand whichever member's only
+        # task got cut, so an over/under-sized response is now a genuine
+        # validation failure (triggers a regenerate) instead of being
+        # papered over.
+        "tasks": tasks[:max(member_count, 1) * 3],
     }

@@ -10,6 +10,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.team_project import TeamProjectTask, TeamProjectTeam, TeamProjectEvent, TaskStatus
+from app.services.github_repo_service import (
+    fetch_github_snapshot, fetch_zip_snapshot, parse_github_url,
+)
 from app.services.grok_ai_client import call_chain, parse_ai_json
 from app.utils.datetime_utils import utcnow
 
@@ -22,11 +25,12 @@ _INJECTION_GUARD = (
 )
 
 
-def _build_task_review_prompt(task: TeamProjectTask, submission_text: str) -> str:
+def _build_task_review_prompt(task: TeamProjectTask, code_block: str) -> str:
     criteria = json.loads(task.acceptance_criteria_json or "[]")
     contract = json.loads(task.interface_contract_json or "{}")
     criteria_block = "\n".join(f"- {c}" for c in criteria) or "- (ko'rsatilmagan)"
     return f"""Sen dasturlash o'qituvchisisiz. Jamoaviy loyihaning bitta bo'lagini tekshiryapsiz.
+PASTDAGI ASL KOD asosida baholang — faqat tavsif yoki interfeys metadatasi bo'yicha emas.
 
 {_INJECTION_GUARD}
 
@@ -35,9 +39,7 @@ TAVSIF: {task.description}
 KUTILGAN INTERFEYS: {json.dumps(contract, ensure_ascii=False)}
 QABUL MEZONLARI:
 {criteria_block}
-
-O'QUVCHI TOPSHIRGAN MANBA:
-<student_input>{submission_text}</student_input>
+{code_block}
 
 JAVOB FORMATI — faqat quyidagi JSON:
 {{
@@ -58,8 +60,31 @@ async def review_task_submission(db: AsyncSession, task_id: int) -> dict:
     if task is None:
         return {"success": False, "reason": "Task not found"}
 
-    submission_text = task.submission_url or task.submission_files or ""
-    prompt = _build_task_review_prompt(task, submission_text)
+    # Fetch the actual submitted code, same as ai_review_service.py's main
+    # pipeline — grading against a bare URL/file-path string (the previous
+    # version of this function) means the AI never sees real code at all.
+    if task.submission_url:
+        if parse_github_url(task.submission_url) is None:
+            return {"success": False, "reason": "Invalid GitHub URL"}
+        snapshot = await fetch_github_snapshot(task.submission_url)
+        source_label = "GitHub repo"
+    elif task.submission_files:
+        snapshot = fetch_zip_snapshot(task.submission_files)
+        source_label = "ZIP fayl"
+    else:
+        return {"success": False, "reason": "No submission_url or submission_files set"}
+
+    if not snapshot["exists"] or not snapshot["content_text"]:
+        error_detail = snapshot.get("error") or "bo'sh yoki mavjud emas"
+        code_block = (
+            f"\nMANBA: DIQQAT — {source_label} o'qib bo'lmadi ({error_detail}). "
+            "Sen kodni ko'rmagansan — yuqori ball BERMA (max 30), feedback'da "
+            "\"kod yuklanmagan\" deb yoz.\n"
+        )
+    else:
+        code_block = f"\nMANBA ({source_label}):\n{snapshot['content_text']}\n"
+
+    prompt = _build_task_review_prompt(task, code_block)
 
     try:
         _, parsed, provider, _attempts = await call_chain(prompt, max_tokens=800, validator=parse_ai_json)

@@ -84,6 +84,24 @@ class UserUpdate(BaseModel):
     def strip_strings(cls, v: Optional[str]) -> Optional[str]:
         return v.strip() if v else v
 
+    @field_validator("avatar_url")
+    @classmethod
+    def validate_avatar_url_length(cls, v: Optional[str]) -> Optional[str]:
+        # students.avatar_url is VARCHAR(512). The dedicated POST
+        # /student/avatar endpoint always writes a short "/uploads/avatars/
+        # {filename}" path, but this generic PUT accepts whatever string a
+        # client sends — and a client that sends an inline base64 data URI
+        # (e.g. a raw <input type="file"> read as a data: URL instead of a
+        # real upload) silently crashed with an uncaught
+        # StringDataRightTruncationError 500 once it hit the DB. Reject it
+        # here with a clear 422 instead of letting the DB do it.
+        if v and len(v) > 512:
+            raise ValueError(
+                "avatar_url juda uzun (maksimal 512 belgi). Rasmni "
+                "to'g'ridan-to'g'ri emas, /student/avatar endpoint orqali yuklang."
+            )
+        return v
+
 
 class UserRead(BaseModel):
     id: int

@@ -124,6 +124,13 @@ class Settings(BaseSettings):
     # disable AI review entirely.
     MAX_AI_REVIEWS_PER_DAY: int = 20
 
+    # ─── Team Projects points formula ───────────────────────────────────
+    # See app/services/team_project_points_service.py::award_points. Keyed
+    # by TeamProjectTask.required_level (Beginner/Intermediate/Advanced).
+    TEAM_PROJECT_PIECE_POINTS: dict = {"Beginner": 30, "Intermediate": 50, "Advanced": 80}
+    TEAM_PROJECT_TEAM_BONUS: int = 40
+    TEAM_PROJECT_LEAD_BONUS: int = 30
+
     # ─── Parent Telegram bot integration ────────────────────────────────
     # Fire-and-forget notification to gennis_parent_bot when a game session
     # is completed. The bot fetches the full summary back via the

@@ -23,3 +23,8 @@ TECH_STACKS = [
 
 THEMES_BY_KEY = {t["key"]: t for t in THEMES}
 TECH_STACKS_BY_KEY = {s["key"]: s for s in TECH_STACKS}
+
+# Shared between team_project_service.py (lead picking) and
+# team_project_planner.py (plan validation) — both need to compare
+# StudentLevel values by seniority, not by string equality.
+LEVEL_RANK = {"Beginner": 0, "Intermediate": 1, "Advanced": 2}
