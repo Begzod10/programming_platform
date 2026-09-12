@@ -37,6 +37,7 @@ import TeacherCertificates      from './views/teacher/TeacherCertificates/Teache
 import TeacherStudentsRankings  from './views/teacher/StudentRankings/StudentRankings';
 import TeacherTeamGame          from './views/teacher/teamgame/TeacherTeamGame';
 import TeacherTeamProjects      from './views/teacher/teamprojects/TeacherTeamProjects';
+import TeacherTeamProjectDetail from './views/teacher/teamprojects/TeacherTeamProjectDetail';
 import TeacherTeamGameSession   from './views/teacher/teamgame/TeacherTeamGameSession';
 import TeacherAchievements      from './views/teacher/TeacherAchievements/TeacherAchievements';
 import ProjectLeaderboard       from './views/shared/ProjectLeaderboard/ProjectLeaderboard';
@@ -157,6 +158,7 @@ function AppRouter() {
                 <Route path="team-game"                                   element={<TeacherTeamGame />} />
                 <Route path="team-game/:sessionId"                        element={<TeacherTeamGameSession />} />
                 <Route path="team-projects"                               element={<TeacherTeamProjects />} />
+                <Route path="team-projects/:id"                           element={<TeacherTeamProjectDetail />} />
                 <Route path="activity-analytics"                          element={<ActivityAnalytics />} />
                 <Route path="error-log"                                   element={<ErrorLogPage />} />
                 <Route path="store"                                       element={<Store />} />

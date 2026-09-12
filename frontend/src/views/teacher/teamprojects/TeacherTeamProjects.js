@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import './TeacherTeamProjects.css';
 
@@ -81,8 +82,8 @@ const STATUS_LABELS = {
     submitted: 'Topshirilgan', reviewed: 'Baholangan', active: 'Faol',
 };
 
-const TeamCard = ({ team, onRegenerate }) => (
-    <div className="ttp-team-card">
+const TeamCard = ({ team, onRegenerate, onOpen }) => (
+    <div className="ttp-team-card" onClick={() => onOpen()}>
         <div className="ttp-team-head">
             <strong>{team.name}</strong>
             <span className={`ttp-status ttp-status--${team.status}`}>
@@ -112,7 +113,10 @@ const TeamCard = ({ team, onRegenerate }) => (
             </ul>
         )}
         {team.generation_attempts < 3 && (
-            <button className="ttp-btn ttp-btn--ghost ttp-btn--sm" onClick={() => onRegenerate(team.id)}>
+            <button
+                className="ttp-btn ttp-btn--ghost ttp-btn--sm"
+                onClick={e => { e.stopPropagation(); onRegenerate(team.id); }}
+            >
                 Rejani qayta yaratish ({team.generation_attempts}/3)
             </button>
         )}
@@ -120,6 +124,7 @@ const TeamCard = ({ team, onRegenerate }) => (
 );
 
 const TeacherTeamProjects = () => {
+    const navigate = useNavigate();
     const { request } = useHttp();
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -169,7 +174,10 @@ const TeacherTeamProjects = () => {
                         </div>
                         <div className="ttp-team-grid">
                             {tp.teams.map(team => (
-                                <TeamCard key={team.id} team={team} onRegenerate={regenerate} />
+                                <TeamCard
+                                    key={team.id} team={team} onRegenerate={regenerate}
+                                    onOpen={() => navigate(`/teacher/team-projects/${tp.id}`)}
+                                />
                             ))}
                         </div>
                     </div>
