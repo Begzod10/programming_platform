@@ -28,9 +28,15 @@ async def get_groups(
     db: AsyncSession = Depends(get_db),
     current_user: Student = Depends(get_current_teacher)
 ):
-    """Faqat o'qituvchiga tegishli guruhlar"""
+    """Turon (maktab) o'qituvchisi uchun maktabdagi barcha sinflar; gennis
+    o'qituvchisi uchun faqat o'ziga tegishli guruhlar. Turon o'qituvchilari
+    butun maktab bo'yicha ishlaydi (bitta maktabda ko'plab sinflar bor,
+    ko'pincha bitta admin hisobi orqali boshqariladi), gennis o'qituvchilari
+    esa faqat o'z guruhlarini ko'rishi kerak — shu sababli ikkisi uchun
+    ko'lam boshqacha."""
     service = GroupService(db)
-    return await service.get_all_groups(teacher_id=current_user.id)
+    is_turon = current_user.turon_id is not None
+    return await service.get_all_groups(teacher_id=None if is_turon else current_user.id)
 
 
 @router.get("/{group_id}", response_model=GroupRead)
