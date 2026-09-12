@@ -28,15 +28,19 @@ async def get_groups(
     db: AsyncSession = Depends(get_db),
     current_user: Student = Depends(get_current_teacher)
 ):
-    """Turon (maktab) o'qituvchisi uchun maktabdagi barcha sinflar; gennis
-    o'qituvchisi uchun faqat o'ziga tegishli guruhlar. Turon o'qituvchilari
-    butun maktab bo'yicha ishlaydi (bitta maktabda ko'plab sinflar bor,
-    ko'pincha bitta admin hisobi orqali boshqariladi), gennis o'qituvchilari
-    esa faqat o'z guruhlarini ko'rishi kerak — shu sababli ikkisi uchun
-    ko'lam boshqacha."""
+    """Faqat o'qituvchiga tegishli guruhlar.
+
+    Turon o'qituvchilari "butun maktab admin" emas — har biri real hayotda
+    o'zi dars beradigan (odatda bitta filialdagi) sinflarni boshqaradi.
+    Bir muddat bu yerda turon uchun teacher_id filtri butunlay olib
+    tashlangan edi ("maktab bo'yicha admin" degan noto'g'ri taxminga
+    asosan) — natijada bir filialning o'qituvchisi boshqa filialning
+    (masalan Chorvoq o'qituvchisi Chirchiqning) sinflarini ham ko'rar edi.
+    turon_id/gennis_id har doim Group.teacher_id orqali to'g'ri, tor
+    ko'lamda ajratilgan (tekshirilgan: har bir o'qituvchi faqat o'z real
+    guruhlariga ega), shuning uchun bu yerda cheklov shart-siz qaytarildi."""
     service = GroupService(db)
-    is_turon = current_user.turon_id is not None
-    return await service.get_all_groups(teacher_id=None if is_turon else current_user.id)
+    return await service.get_all_groups(teacher_id=current_user.id)
 
 
 @router.get("/{group_id}", response_model=GroupRead)
