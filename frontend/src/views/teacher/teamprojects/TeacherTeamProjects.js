@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import './TeacherTeamProjects.css';
 
@@ -31,7 +32,11 @@ const CreateModal = ({ onClose, onCreated }) => {
             onCreated();
             onClose();
         } catch (e) {
-            setError(e?.message || "Topshiriq yaratib bo'lmadi");
+            // Prefer the clean backend message over useHttp's verbose
+            // "Could not fetch <url>, status: N: ..." wrapper — a teacher
+            // shouldn't see a URL and status code in a form error banner.
+            const backendMessage = e?.response?.data?.error?.message || e?.response?.data?.detail;
+            setError(backendMessage || "Topshiriq yaratib bo'lmadi");
         } finally {
             setBusy(false);
         }
@@ -49,7 +54,11 @@ const CreateModal = ({ onClose, onCreated }) => {
                         <span>Guruh</span>
                         <select value={groupId} onChange={e => setGroupId(e.target.value)}>
                             <option value="">— tanlang —</option>
-                            {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                            {groups.map(g => (
+                                <option key={g.id} value={g.id}>
+                                    {g.name} ({g.students?.length ?? 0} ta o'quvchi)
+                                </option>
+                            ))}
                         </select>
                     </label>
                     <label className="ttp-field">
@@ -81,8 +90,8 @@ const STATUS_LABELS = {
     submitted: 'Topshirilgan', reviewed: 'Baholangan', active: 'Faol',
 };
 
-const TeamCard = ({ team, onRegenerate }) => (
-    <div className="ttp-team-card">
+const TeamCard = ({ team, onRegenerate, onOpen }) => (
+    <div className="ttp-team-card" onClick={() => onOpen()}>
         <div className="ttp-team-head">
             <strong>{team.name}</strong>
             <span className={`ttp-status ttp-status--${team.status}`}>
@@ -112,7 +121,10 @@ const TeamCard = ({ team, onRegenerate }) => (
             </ul>
         )}
         {team.generation_attempts < 3 && (
-            <button className="ttp-btn ttp-btn--ghost ttp-btn--sm" onClick={() => onRegenerate(team.id)}>
+            <button
+                className="ttp-btn ttp-btn--ghost ttp-btn--sm"
+                onClick={e => { e.stopPropagation(); onRegenerate(team.id); }}
+            >
                 Rejani qayta yaratish ({team.generation_attempts}/3)
             </button>
         )}
@@ -120,6 +132,7 @@ const TeamCard = ({ team, onRegenerate }) => (
 );
 
 const TeacherTeamProjects = () => {
+    const navigate = useNavigate();
     const { request } = useHttp();
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -160,19 +173,24 @@ const TeacherTeamProjects = () => {
                 <p className="ttp-muted">Hali topshiriq yaratilmagan.</p>
             )}
 
-            {assignments.map(tp => (
-                <div key={tp.id} className="ttp-assignment">
-                    <div className="ttp-assignment-head">
-                        <span>#{tp.id} · {STATUS_LABELS[tp.status] || tp.status}</span>
-                        <span className="ttp-muted">{tp.teams.length} ta jamoa</span>
+            <div className="ttp-assignments-row">
+                {assignments.map(tp => (
+                    <div key={tp.id} className="ttp-assignment">
+                        <div className="ttp-assignment-head">
+                            <span>#{tp.id} · {STATUS_LABELS[tp.status] || tp.status}</span>
+                            <span className="ttp-muted">{tp.teams.length} ta jamoa</span>
+                        </div>
+                        <div className="ttp-team-grid">
+                            {tp.teams.map(team => (
+                                <TeamCard
+                                    key={team.id} team={team} onRegenerate={regenerate}
+                                    onOpen={() => navigate(`/teacher/team-projects/${tp.id}`)}
+                                />
+                            ))}
+                        </div>
                     </div>
-                    <div className="ttp-team-grid">
-                        {tp.teams.map(team => (
-                            <TeamCard key={team.id} team={team} onRegenerate={regenerate} />
-                        ))}
-                    </div>
-                </div>
-            ))}
+                ))}
+            </div>
 
             {showCreate && (
                 <CreateModal onClose={() => setShowCreate(false)} onCreated={reload} />
