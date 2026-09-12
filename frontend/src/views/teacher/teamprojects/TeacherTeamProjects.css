@@ -12,7 +12,11 @@
 .ttp-btn--ghost { background: #f1f5f9; color: #0f172a; }
 .ttp-btn--sm { padding: 6px 10px; font-size: 12px; margin-top: 8px; }
 
-.ttp-assignment { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px; margin-bottom: 18px; }
+.ttp-assignments-row { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.ttp-assignment {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px;
+    flex: 1 1 380px; min-width: 320px;
+}
 .ttp-assignment-head { display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 12px; color: #0f172a; }
 
 .ttp-team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }

@@ -160,19 +160,21 @@ const TeacherTeamProjects = () => {
                 <p className="ttp-muted">Hali topshiriq yaratilmagan.</p>
             )}
 
-            {assignments.map(tp => (
-                <div key={tp.id} className="ttp-assignment">
-                    <div className="ttp-assignment-head">
-                        <span>#{tp.id} · {STATUS_LABELS[tp.status] || tp.status}</span>
-                        <span className="ttp-muted">{tp.teams.length} ta jamoa</span>
+            <div className="ttp-assignments-row">
+                {assignments.map(tp => (
+                    <div key={tp.id} className="ttp-assignment">
+                        <div className="ttp-assignment-head">
+                            <span>#{tp.id} · {STATUS_LABELS[tp.status] || tp.status}</span>
+                            <span className="ttp-muted">{tp.teams.length} ta jamoa</span>
+                        </div>
+                        <div className="ttp-team-grid">
+                            {tp.teams.map(team => (
+                                <TeamCard key={team.id} team={team} onRegenerate={regenerate} />
+                            ))}
+                        </div>
                     </div>
-                    <div className="ttp-team-grid">
-                        {tp.teams.map(team => (
-                            <TeamCard key={team.id} team={team} onRegenerate={regenerate} />
-                        ))}
-                    </div>
-                </div>
-            ))}
+                ))}
+            </div>
 
             {showCreate && (
                 <CreateModal onClose={() => setShowCreate(false)} onCreated={reload} />

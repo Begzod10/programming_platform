@@ -8,7 +8,7 @@ import random
 from typing import List, Optional
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.endpoints.team_game_common import spawn_background_task
@@ -25,16 +25,25 @@ from app.services.team_project_constants import THEMES, TECH_STACKS
 _LEVEL_RANK = {"Beginner": 0, "Intermediate": 1, "Advanced": 2}
 
 
-def _cycle_sample(pool: list, count: int) -> list:
+def _cycle_sample(pool: list, count: int, avoid_key: Optional[str] = None) -> list:
     """count independent draws from pool, reshuffling each time the pool is
     exhausted — keeps consecutive teams from getting the same value back to
     back (when count <= len(pool)) while never blocking on a fixed pool
-    size, and stays truly random rather than a plain round-robin."""
+    size, and stays truly random rather than a plain round-robin.
+
+    avoid_key: excluded from the very first reshuffle only (e.g. the theme
+    the previous assignment happened to land on) — with a 6-entry pool, two
+    separate one-team assignments in a row have a 1-in-6 chance of drawing
+    the same theme purely by chance, which reads as "always the same" to a
+    teacher testing back to back. Only the first draw is constrained; later
+    reshuffles (once count exceeds the pool size) use the full pool again.
+    """
+    first_pool = [p for p in pool if p["key"] != avoid_key] if avoid_key else pool
     picks: list = []
     remaining: list = []
     while len(picks) < count:
         if not remaining:
-            remaining = pool[:]
+            remaining = (first_pool if not picks else pool)[:]
             random.shuffle(remaining)
         picks.append(remaining.pop())
     return picks
@@ -81,8 +90,9 @@ async def create_team_project(
         else:
             chunks.append(chunk)
 
-    themes = _cycle_sample(THEMES, len(chunks))
-    stacks = _cycle_sample(TECH_STACKS, len(chunks))
+    last_theme, last_stack = await _last_used_theme_and_stack(db, teacher_id)
+    themes = _cycle_sample(THEMES, len(chunks), avoid_key=last_theme)
+    stacks = _cycle_sample(TECH_STACKS, len(chunks), avoid_key=last_stack)
 
     teams: List[TeamProjectTeam] = []
     for idx, members in enumerate(chunks):
@@ -125,6 +135,19 @@ async def create_team_project(
         spawn_background_task(generate_plan_for_team_standalone(team.id))
 
     return team_project
+
+
+async def _last_used_theme_and_stack(db: AsyncSession, teacher_id: int):
+    """Most recent team this teacher formed, if any — used to bias the next
+    assignment's first draw away from an immediate repeat (see _cycle_sample)."""
+    row = (await db.execute(
+        select(TeamProjectTeam.theme, TeamProjectTeam.tech_stack)
+        .join(TeamProject, TeamProject.id == TeamProjectTeam.team_project_id)
+        .where(TeamProject.teacher_id == teacher_id)
+        .order_by(desc(TeamProjectTeam.created_at))
+        .limit(1)
+    )).first()
+    return (row[0], row[1]) if row else (None, None)
 
 
 def _pick_lead(members: list, profiles_by_id: dict[int, SkillProfile]) -> int:
