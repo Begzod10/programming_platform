@@ -48,10 +48,23 @@ async def _run_ai_review_and_persist_failure(db: AsyncSession, project: Project)
     An unhandled exception is also caught here so it can't 500 the
     request after the project row has already been committed.
     """
+    # Captured before the call, not read off `project` in the except block
+    # below: a DB-level failure inside run_ai_review_for_project (a
+    # deadlock, a constraint violation, anything that fails a flush/commit)
+    # leaves this session needing an explicit rollback before it can be
+    # touched again. `project.id` looked safe but wasn't — if the attribute
+    # was expired, SQLAlchemy's implicit reload-on-access tried to run a
+    # new query on the still-dirty session and raised PendingRollbackError,
+    # which this `except` didn't catch, turning an already-handled AI
+    # failure into an uncaught 500 for the whole upload-zip request. This
+    # is what the live "Проект создан, но ZIP не загрузился" report traced
+    # back to.
+    project_id = project.id
     try:
         ai_result = await run_ai_review_for_project(db, project, raise_on_error=False)
     except Exception as e:
-        logger.warning("[ai-zip] project=%d unhandled error: %s", project.id, e)
+        await db.rollback()
+        logger.warning("[ai-zip] project=%d unhandled error: %s", project_id, e)
         ai_result = {"success": False, "reason": "AI baholash vaqtincha ishlamayapti. "
                                                    "O'qituvchi loyihangizni tez orada baholaydi.",
                      "http_status": 0}

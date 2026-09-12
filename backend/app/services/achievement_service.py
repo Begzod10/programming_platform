@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from app.models.achievement import Achievement
 from app.models.student_achievement import StudentAchievement
@@ -504,20 +505,41 @@ async def award_achievement(
     if not student or not achievement:
         return None
 
-    # 3. Balllarni yangilash (Ranking bilan birga)
-    points_to_add = bonus_points if bonus_points is not None else achievement.points_reward
-    from app.services.ranking_service import RankingService
-    ranking_service = RankingService(db)
-    await ranking_service.add_points_to_student(student_id, points_to_add)
-
-    # 4. Bazaga yozish (course_id bilan birga)
+    # 3. (student_id, achievement_id) juftligini SAVEPOINT orqali "band
+    # qilish" — oldingi `existing` tekshiruvi faqat tezkor yo'l, haqiqiy
+    # himoya emas: ikki bir vaqtdagi chaqiruv (masalan, bitta student ikki
+    # tab ochsa, yoki /achievements/my va /my-progress bir vaqtda
+    # check_and_award_achievements'ni chaqirsa) ikkisi ham shu tekshiruvdan
+    # "yo'q" deb o'tib, ikkisi ham INSERT urinishi mumkin. Buning oldini
+    # olmasa: (a) uq_student_achievement konstraynti IntegrityError
+    # tashlaydi va bu ushlanmagani uchun butun so'rov 500 bilan qulaydi —
+    # production'da haqiqatan sodir bo'lgan (docs/BACKEND_BUGS.md), (b) bu
+    # yozuv urinishidan OLDIN ball qo'shilsa, bitta yutuq uchun ball ikki
+    # marta beriladi. Shu uchun avval yozuvni band qilamiz, ball faqat
+    # band qilish muvaffaqiyatli bo'lsagina qo'shiladi. SAVEPOINT
+    # muvaffaqiyatsiz urinishni izolyatsiya qiladi — chaqiruvchi
+    # (check_and_award_achievements) bir so'rov ichida bir nechta
+    # yutuqni ketma-ket sinaydi, va bittasining to'qnashuvi avvalgilarini
+    # bekor qilmasligi kerak.
     new_sa = StudentAchievement(
         student_id=student_id,
         achievement_id=achievement_id,
         course_id=achievement.course_id,  # Muhim: frontend uchun
         earned_at=utcnow()
     )
-    db.add(new_sa)
+    try:
+        async with db.begin_nested():
+            db.add(new_sa)
+            await db.flush()
+    except IntegrityError:
+        return None
+
+    # 4. Balllarni yangilash (Ranking bilan birga) — faqat band qilish
+    # muvaffaqiyatli bo'lgandan keyin
+    points_to_add = bonus_points if bonus_points is not None else achievement.points_reward
+    from app.services.ranking_service import RankingService
+    ranking_service = RankingService(db)
+    await ranking_service.add_points_to_student(student_id, points_to_add)
 
     # 5. Saqlash
     await db.commit()
