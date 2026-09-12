@@ -161,6 +161,18 @@ class TeamProjectTeam(Base):
     integration_unlocked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Randomly assigned per-team at formation time (team_project_service.
+    # create_team_project) — each team gets its own independent theme/stack
+    # even within the same TeamProject, so two teams in one assignment can
+    # build different ideas on different stacks. Keys into
+    # team_project_constants.THEMES / TECH_STACKS.
+    theme: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    tech_stack: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    # AI-generated concrete idea (e.g. "Kichik do'kon uchun CRM"), denormalized
+    # out of ai_plan_json below so list views can show it without parsing JSON.
+    project_title: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
+    project_description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Per-team plan tracking — see the note on TeamProject above for why
     # these live here rather than on the parent project.
     ai_plan_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

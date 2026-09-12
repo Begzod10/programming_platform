@@ -24,6 +24,7 @@ from app.api.v1.endpoints.teacher import error_log as teacher_error_log
 from app.api.v1.endpoints import dictionary
 from app.api.v1.endpoints import practice as dict_practice
 from app.api.v1.endpoints import team_game_session, team_game_session_reports, team_game_questions
+from app.api.v1.endpoints import team_project
 from app.api.v1.endpoints import lesson_questions
 from app.api.v1.endpoints import parent
 from app.api.v1.endpoints import bot_stats
@@ -61,3 +62,4 @@ api_router.include_router(bot_stats.router, prefix="/bot", tags=["Bot Stats"])
 api_router.include_router(store.router, prefix="/store", tags=["Store"])
 api_router.include_router(early_learning.router, prefix="/early-learning", tags=["Early Learning"])
 api_router.include_router(teacher_error_log.router, prefix="/teacher/error-log", tags=["Teacher - Error Log"])
+api_router.include_router(team_project.router, prefix="/team-projects", tags=["Team Projects"])

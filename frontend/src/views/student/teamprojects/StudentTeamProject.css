@@ -1,0 +1,39 @@
+.stp-page { padding: 24px; max-width: 900px; margin: 0 auto; }
+.stp-muted { color: rgba(15,23,42,0.55); font-size: 14px; }
+
+.stp-header { margin-bottom: 16px; }
+.stp-header h2 { margin: 0 0 8px; font-size: 22px; font-weight: 800; color: #0f172a; }
+.stp-badges { display: flex; gap: 6px; margin-bottom: 8px; }
+.stp-badge { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #ede9fe; color: #6d28d9; }
+.stp-badge--tech { background: #fef3c7; color: #b45309; }
+.stp-project-title { font-weight: 700; font-size: 16px; margin: 4px 0; color: #0f172a; }
+.stp-project-desc { color: #475569; font-size: 14px; }
+
+.stp-members { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+.stp-member { font-size: 13px; background: #f1f5f9; border-radius: 999px; padding: 5px 12px; }
+.stp-member--lead { background: #fef3c7; font-weight: 700; }
+
+.stp-tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.stp-task { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px; }
+.stp-task--mine { border-color: #0d9488; box-shadow: 0 0 0 2px rgba(13,148,136,0.15); }
+.stp-task-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.stp-task-desc { font-size: 13px; color: #334155; margin: 0 0 8px; }
+
+.stp-chip { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: #e2e8f0; color: #334155; }
+.stp-chip--submitted { background: #dbeafe; color: #1d4ed8; }
+.stp-chip--approved { background: #dcfce7; color: #15803d; }
+.stp-chip--changes_requested { background: #fee2e2; color: #b91c1c; }
+
+.stp-criteria { font-size: 12px; color: #475569; margin: 0 0 8px; padding-left: 18px; }
+
+.stp-submit-row { display: flex; gap: 8px; margin-top: 8px; }
+.stp-submit-row input { flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
+
+.stp-btn { border: none; border-radius: 10px; padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer; }
+.stp-btn--primary { background: #0d9488; color: #fff; }
+.stp-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.stp-feedback { margin-top: 10px; background: #f8fafc; border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.stp-feedback--ok { background: #f0fdf4; }
+
+.stp-finalize { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; }

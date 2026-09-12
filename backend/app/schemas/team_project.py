@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import List, Optional, Dict
 
 from pydantic import BaseModel, ConfigDict
@@ -47,3 +47,91 @@ class SkillProfile(BaseModel):
     summary: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ── Team Projects API shapes ───────────────────────────────────────────────
+
+class TeamProjectCreate(BaseModel):
+    group_id: int
+    course_id: Optional[int] = None
+    team_size: int = 4
+    deadline_days: int = 14
+
+
+class TaskRead(BaseModel):
+    id: int
+    order: int
+    title: str
+    title_ru: str
+    description: str
+    description_ru: str
+    required_level: str
+    interface_contract: dict
+    acceptance_criteria: List[str]
+    depends_on: List[int]
+    estimated_hours: int
+    status: str
+    assigned_student_id: Optional[int] = None
+    assigned_student_name: Optional[str] = None
+    submission_url: Optional[str] = None
+    ai_score: Optional[int] = None
+    ai_feedback: Optional[dict] = None
+    deadline_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class MemberRead(BaseModel):
+    student_id: int
+    full_name: str
+    role: str
+    level_at_assignment: str
+
+
+class TeamRead(BaseModel):
+    id: int
+    name: str
+    status: str
+    theme: Optional[str] = None
+    theme_label: Optional[str] = None
+    tech_stack: Optional[str] = None
+    tech_stack_label: Optional[str] = None
+    project_title: Optional[str] = None
+    project_description: Optional[str] = None
+    lead_student_id: Optional[int] = None
+    final_project_id: Optional[int] = None
+    generation_attempts: int = 0
+    members: List[MemberRead] = []
+    tasks: List[TaskRead] = []
+
+
+class TeamProjectRead(BaseModel):
+    id: int
+    group_id: int
+    course_id: Optional[int] = None
+    status: str
+    team_size: int
+    deadline_days: int
+    created_at: datetime
+    teams: List[TeamRead] = []
+
+
+class MyTeamProjectRead(BaseModel):
+    team_project: TeamProjectRead
+    my_team: TeamRead
+    my_role: str
+
+
+class TaskSubmitBody(BaseModel):
+    submission_url: Optional[str] = None
+    submission_files: Optional[str] = None
+
+
+class ReassignBody(BaseModel):
+    student_id: int
+
+
+class FinalizeBody(BaseModel):
+    github_url: Optional[str] = None
+    live_demo_url: Optional[str] = None
+    description: Optional[str] = None

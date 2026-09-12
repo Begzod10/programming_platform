@@ -18,6 +18,7 @@ import Degrees           from './views/student/degrees/DegreeCard';
 import Achievements      from './views/student/achievements/Achievements';
 import Dictionary        from './views/student/dictionary/Dictionary';
 import StudentTeamGame   from './views/student/teamgame/StudentTeamGame';
+import StudentTeamProject from './views/student/teamprojects/StudentTeamProject';
 import StudentCourseStats from './views/student/stats/StudentCourseStats';
 import Store              from './views/student/store/Store';
 import EarlyLearning      from './views/student/early-learning/EarlyLearning';
@@ -35,6 +36,7 @@ import TeacherFeedback          from './views/teacher/feedback/TeacherFeedback';
 import TeacherCertificates      from './views/teacher/TeacherCertificates/Teachercertificates';
 import TeacherStudentsRankings  from './views/teacher/StudentRankings/StudentRankings';
 import TeacherTeamGame          from './views/teacher/teamgame/TeacherTeamGame';
+import TeacherTeamProjects      from './views/teacher/teamprojects/TeacherTeamProjects';
 import TeacherTeamGameSession   from './views/teacher/teamgame/TeacherTeamGameSession';
 import TeacherAchievements      from './views/teacher/TeacherAchievements/TeacherAchievements';
 import ProjectLeaderboard       from './views/shared/ProjectLeaderboard/ProjectLeaderboard';
@@ -117,6 +119,7 @@ function AppRouter() {
                 <Route path="achievements"                               element={<Achievements />} />
                 <Route path="dictionary"                                  element={<Dictionary />} />
                 <Route path="team-game"                                   element={<StudentTeamGame />} />
+                <Route path="team-projects"                               element={<StudentTeamProject />} />
                 <Route path="quiz"                                        element={<Quiz />} />
                 <Route path="quiz/:quizId"                                element={<Quiz />} />
                 <Route path="early-learning"                              element={<EarlyLearning />} />
@@ -153,6 +156,7 @@ function AppRouter() {
                 <Route path="project-rating"                              element={<ProjectLeaderboard role="teacher" />} />
                 <Route path="team-game"                                   element={<TeacherTeamGame />} />
                 <Route path="team-game/:sessionId"                        element={<TeacherTeamGameSession />} />
+                <Route path="team-projects"                               element={<TeacherTeamProjects />} />
                 <Route path="activity-analytics"                          element={<ActivityAnalytics />} />
                 <Route path="error-log"                                   element={<ErrorLogPage />} />
                 <Route path="store"                                       element={<Store />} />
