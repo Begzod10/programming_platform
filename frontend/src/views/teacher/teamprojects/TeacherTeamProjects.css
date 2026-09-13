@@ -58,7 +58,10 @@
 .ttp-close { border: none; background: none; font-size: 16px; cursor: pointer; }
 .ttp-modal-body { padding: 18px 22px; display: flex; flex-direction: column; gap: 14px; }
 .ttp-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: #334155; }
-.ttp-field select, .ttp-field input { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; }
+.ttp-field select, .ttp-field input, .ttp-field textarea {
+    padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-family: inherit;
+}
+.ttp-field textarea { min-height: 56px; resize: vertical; }
 .ttp-error { color: #dc2626; font-size: 13px; }
 .ttp-modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px; border-top: 1px solid #e2e8f0; }
 
@@ -82,3 +85,20 @@
 
 .ttd-reassign { display: flex; gap: 8px; margin-top: 10px; }
 .ttd-reassign select { flex: 1; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 12px; }
+
+.ttd-plan-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.ttd-manual-plan {
+    margin-top: 14px; padding: 16px; background: #f8fafc; border: 1px dashed #cbd5e1;
+    border-radius: 12px; display: flex; flex-direction: column; gap: 12px;
+}
+.ttd-manual-plan h4 { margin: 0; font-size: 15px; }
+.ttd-manual-task {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px;
+    display: flex; flex-direction: column; gap: 8px;
+}
+.ttd-manual-task h5 { margin: 0; font-size: 13px; font-weight: 700; color: #0f172a; }
+.ttd-depends-on { font-size: 12px; display: flex; flex-direction: column; gap: 6px; }
+.ttd-depends-chips { display: flex; gap: 10px; flex-wrap: wrap; }
+.ttd-depends-chip { display: flex; align-items: center; gap: 5px; font-weight: 500; color: #334155; }
+.ttd-manual-actions { display: flex; justify-content: flex-end; gap: 10px; }

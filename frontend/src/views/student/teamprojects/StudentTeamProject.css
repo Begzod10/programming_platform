@@ -37,3 +37,21 @@
 .stp-feedback--ok { background: #f0fdf4; }
 
 .stp-finalize { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+
+.stp-peer-ratings { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+.stp-peer-ratings h3 { margin: 0 0 4px; font-size: 16px; font-weight: 800; color: #0f172a; }
+.stp-peer-row {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 0; border-bottom: 1px solid #f1f5f9;
+}
+.stp-peer-name { font-weight: 700; font-size: 13px; color: #0f172a; min-width: 110px; }
+.stp-peer-stars { display: flex; gap: 2px; }
+.stp-star {
+    background: none; border: none; cursor: pointer; font-size: 20px; line-height: 1;
+    color: #cbd5e1; padding: 0 1px;
+}
+.stp-star--on { color: #f59e0b; }
+.stp-peer-comment {
+    flex: 1; min-width: 160px; padding: 7px 10px; border: 1px solid #cbd5e1;
+    border-radius: 8px; font-size: 13px;
+}

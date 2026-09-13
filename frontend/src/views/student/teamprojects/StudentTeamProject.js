@@ -55,6 +55,75 @@ const TaskCard = ({ task, isMine, onSubmit, submitting }) => {
     );
 };
 
+const PeerRatings = ({ team, meId, onSubmit, submitting, submitted }) => {
+    const teammates = team.members.filter(m => m.student_id !== meId);
+    const [ratings, setRatings] = useState(
+        () => Object.fromEntries(teammates.map(m => [m.student_id, { score: 0, comment: '' }]))
+    );
+
+    if (teammates.length === 0) return null;
+
+    const allScored = teammates.every(m => ratings[m.student_id]?.score > 0);
+    const setScore = (studentId, score) =>
+        setRatings(prev => ({ ...prev, [studentId]: { ...prev[studentId], score } }));
+    const setComment = (studentId, comment) =>
+        setRatings(prev => ({ ...prev, [studentId]: { ...prev[studentId], comment } }));
+
+    if (submitted) {
+        return (
+            <div className="stp-peer-ratings">
+                <h3>Jamoadoshlarni baholash</h3>
+                <p className="stp-muted">Rahmat! Baholaringiz qabul qilindi.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="stp-peer-ratings">
+            <h3>Jamoadoshlarni baholash</h3>
+            <p className="stp-muted">
+                Jamoadoshlaringiz loyihaga qanchalik hissa qo'shganini 1–5 baho bilan belgilang.
+            </p>
+            {teammates.map(m => (
+                <div key={m.student_id} className="stp-peer-row">
+                    <span className="stp-peer-name">{m.full_name}</span>
+                    <div className="stp-peer-stars">
+                        {[1, 2, 3, 4, 5].map(n => (
+                            <button
+                                key={n}
+                                type="button"
+                                className={`stp-star${(ratings[m.student_id]?.score || 0) >= n ? ' stp-star--on' : ''}`}
+                                onClick={() => setScore(m.student_id, n)}
+                                aria-label={`${n} ball`}
+                            >★</button>
+                        ))}
+                    </div>
+                    <input
+                        className="stp-peer-comment"
+                        placeholder="Izoh (ixtiyoriy)"
+                        value={ratings[m.student_id]?.comment || ''}
+                        onChange={e => setComment(m.student_id, e.target.value)}
+                    />
+                </div>
+            ))}
+            <button
+                className="stp-btn stp-btn--primary"
+                disabled={!allScored || submitting}
+                onClick={() => onSubmit(
+                    teammates.map(m => ({
+                        rated_student_id: m.student_id,
+                        score: ratings[m.student_id].score,
+                        comment: ratings[m.student_id].comment || null,
+                    }))
+                )}
+            >
+                {submitting ? 'Yuborilmoqda…' : 'Baholarni yuborish'}
+            </button>
+            {!allScored && <p className="stp-muted">Yuborishdan oldin har bir a'zoga baho qo'ying.</p>}
+        </div>
+    );
+};
+
 const StudentTeamProject = () => {
     const { request } = useHttp();
     const [entries, setEntries] = useState([]);
@@ -62,6 +131,8 @@ const StudentTeamProject = () => {
     const [submittingId, setSubmittingId] = useState(null);
     const [finalizing, setFinalizing] = useState(false);
     const [meId, setMeId] = useState(null);
+    const [ratingSubmitting, setRatingSubmitting] = useState(false);
+    const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
     const reload = useCallback(async () => {
         setLoading(true);
@@ -109,6 +180,19 @@ const StudentTeamProject = () => {
             await reload();
         } catch {} finally {
             setFinalizing(false);
+        }
+    };
+
+    const submitRatings = async (team, items) => {
+        setRatingSubmitting(true);
+        try {
+            await request(
+                `${API_URL}v1/team-projects/teams/${team.id}/peer-ratings`,
+                'POST', JSON.stringify(items), headers(),
+            );
+            setRatingSubmitted(true);
+        } catch {} finally {
+            setRatingSubmitting(false);
         }
     };
 
@@ -171,6 +255,16 @@ const StudentTeamProject = () => {
                     </button>
                     {!allApproved && <p className="stp-muted">Barcha vazifalar tasdiqlangach yakunlashingiz mumkin.</p>}
                 </div>
+            )}
+
+            {(team.status === 'submitted' || team.status === 'reviewed') && (
+                <PeerRatings
+                    team={team}
+                    meId={meId}
+                    submitting={ratingSubmitting}
+                    submitted={ratingSubmitted}
+                    onSubmit={items => submitRatings(team, items)}
+                />
             )}
         </div>
     );
