@@ -90,10 +90,14 @@ const STATUS_LABELS = {
     submitted: 'Topshirilgan', reviewed: 'Baholangan', active: 'Faol',
 };
 
-const TeamCard = ({ team, onRegenerate, onOpen }) => (
+const TeamCard = ({ team, onRegenerate, onOpen, showName = true }) => (
     <div className="ttp-team-card" onClick={() => onOpen()}>
         <div className="ttp-team-head">
-            <strong>{team.name}</strong>
+            {/* A project with only one team has nothing to distinguish it
+                from — "Team 1" repeated on every single-team card's the
+                only label read as noise, not information. Multi-team
+                projects still need the number. */}
+            {showName && <strong>{team.name}</strong>}
             <span className={`ttp-status ttp-status--${team.status}`}>
                 {STATUS_LABELS[team.status] || team.status}
             </span>
@@ -185,6 +189,7 @@ const TeacherTeamProjects = () => {
                                 <TeamCard
                                     key={team.id} team={team} onRegenerate={regenerate}
                                     onOpen={() => navigate(`/teacher/team-projects/${tp.id}`)}
+                                    showName={tp.teams.length > 1}
                                 />
                             ))}
                         </div>
