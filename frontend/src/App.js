@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import { StoreProvider } from './context/StoreContext';
 import AppRouter from './AppRouter';
 import SSOHandler from './components/SSOHandler';
+import UpdateBanner from './components/UpdateBanner/UpdateBanner';
 import './App.css';
 
 function App() {
@@ -17,6 +18,7 @@ function App() {
                             <AppRouter />
                         </SSOHandler>
                     </BrowserRouter>
+                    <UpdateBanner />
                 </StoreProvider>
             </AuthProvider>
         </Provider>
