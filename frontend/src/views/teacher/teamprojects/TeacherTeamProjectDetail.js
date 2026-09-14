@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import './TeacherTeamProjects.css';
 
 const STATUS_LABELS = {
@@ -232,6 +233,20 @@ const TeacherTeamProjectDetail = () => {
     }, [request, id]);
 
     useEffect(() => { reload(); }, [reload]);
+
+    // Realtime: a task moving to "submitted" (needs review) or a team's
+    // status advancing used to only show up after a manual reload. Merges
+    // the pushed project into state rather than re-fetching — safe to do
+    // unconditionally, since ManualPlanForm's own in-progress input is
+    // local useState in that child component, untouched by a prop update
+    // on its parent (only a remount would lose it, and this doesn't cause
+    // one — manualPlanTeamId, which controls whether the form is mounted
+    // at all, lives here and isn't touched by this handler).
+    const handleProjectWsMessage = useCallback((msg) => {
+        if (msg.type !== 'project_update') return;
+        setTp(msg.data);
+    }, []);
+    useSessionSocket(id, null, null, handleProjectWsMessage, 'team-projects');
 
     const regenerate = async (teamId) => {
         try {
