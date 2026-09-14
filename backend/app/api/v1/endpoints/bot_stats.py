@@ -1,6 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+import hmac
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, Integer, case, or_
+from app.config import settings
 from app.dependencies import get_db
 from app.models.user import Student
 from app.models.lesson import LessonCompletion, Lesson
@@ -12,8 +16,26 @@ from app.models.ranking import Ranking
 router = APIRouter()
 
 
+# request #47 §5 (2026-09-14): these two endpoints had NO auth at all —
+# anyone who could reach the host could read any student's name or full
+# stats. Same shared-secret pattern as team_game_session_reports.py's
+# _require_internal_secret / this module's own PARENT_BOT_SECRET (the
+# actual consumer of these two — the Telegram parent bot's search flow).
+def _require_bot_secret(x_internal_secret: Optional[str]) -> None:
+    expected = settings.PARENT_BOT_SECRET
+    if not expected:
+        raise HTTPException(status_code=503, detail="Bot integration not configured")
+    if not x_internal_secret or not hmac.compare_digest(x_internal_secret, expected):
+        raise HTTPException(status_code=401, detail="Invalid internal secret")
+
+
 @router.get("/search-student")
-async def search_student(q: str, db: AsyncSession = Depends(get_db)):
+async def search_student(
+        q: str,
+        db: AsyncSession = Depends(get_db),
+        x_internal_secret: Optional[str] = Header(default=None, alias="X-Internal-Secret"),
+):
+    _require_bot_secret(x_internal_secret)
     from sqlalchemy import and_
     q = q.strip()
     if len(q) < 2:
@@ -53,7 +75,12 @@ async def search_student(q: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/student-stats/{student_id}")
-async def get_student_stats(student_id: int, db: AsyncSession = Depends(get_db)):
+async def get_student_stats(
+        student_id: int,
+        db: AsyncSession = Depends(get_db),
+        x_internal_secret: Optional[str] = Header(default=None, alias="X-Internal-Secret"),
+):
+    _require_bot_secret(x_internal_secret)
     student = await db.get(Student, student_id)
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")

@@ -141,6 +141,14 @@ class Settings(BaseSettings):
     PARENT_BOT_URL: str = ""  # e.g. http://127.0.0.1:8064
     PARENT_BOT_SECRET: str = ""
 
+    # ─── classroom_v2 progress-pull integration (request #47, 2026-09-14) ──
+    # classroom reads GET /integrations/progress?source=&ext_id= server-to-
+    # server (X-Classroom-Key header) — same shared-secret pattern as
+    # PARENT_BOT_SECRET above, deliberately its own value rather than reused
+    # (classroom's own request explicitly asked for it kept separate from
+    # SSO_SHARED_SECRET too). Empty disables the endpoint with a 503.
+    CLASSROOM_INTEGRATION_SECRET: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
