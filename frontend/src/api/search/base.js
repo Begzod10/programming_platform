@@ -87,9 +87,24 @@ export const useHttp = () => {
             method,
             data,
         };
-        if (customHeaders && !isFormData) {
-            // Don't override Content-Type for FormData (axios sets the
-            // multipart boundary automatically).
+        if (isFormData) {
+            // axiosInstance is created with a default `Content-Type:
+            // application/json` header (see axiosInstance.js). Axios's own
+            // default transformRequest checks that default BEFORE deciding
+            // how to send a FormData body: if Content-Type already reads
+            // application/json, it silently JSON.stringifies the FormData
+            // (via its formDataToJSON helper) instead of sending it as
+            // multipart — dropping the actual file bytes entirely and
+            // sending `{}`-ish JSON instead. The backend then sees no
+            // multipart "file" part at all and 422s with "file: Field
+            // required" — this is exactly what broke ZIP project uploads
+            // once uploadZip() was moved onto this shared request() (see
+            // git history on StudentLessonPage.js's uploadZip). Explicitly
+            // clearing Content-Type here is axios's own documented fix: it
+            // lets the browser set the correct multipart/form-data;
+            // boundary=... header itself.
+            config.headers = {'Content-Type': undefined};
+        } else if (customHeaders) {
             const {Authorization: _drop, ...rest} = customHeaders;
             config.headers = rest;
         }
