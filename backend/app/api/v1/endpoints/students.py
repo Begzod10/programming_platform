@@ -14,6 +14,7 @@ from app.schemas.public_profile import (
     PublicProfile,
     PublicAchievement,
     PublicCertificate,
+    PublicTeamProject,
 )
 from app.services.project_service import ProjectService
 from app.services.student_service import StudentService
@@ -98,6 +99,34 @@ async def get_public_profile(
         if sa.achievement is not None
     ]
 
+    from app.models.team_project import TeamProjectTeam, TeamProjectMember, TeamStatus
+    from app.models.project import Project as ProjectModel
+
+    tp_res = await db.execute(
+        select(
+            TeamProjectTeam.project_title,
+            TeamProjectMember.role,
+            ProjectModel.grade,
+            TeamProjectTeam.submitted_at,
+        )
+        .join(TeamProjectMember, TeamProjectMember.team_id == TeamProjectTeam.id)
+        .outerjoin(ProjectModel, ProjectModel.id == TeamProjectTeam.final_project_id)
+        .where(
+            TeamProjectMember.student_id == student.id,
+            TeamProjectTeam.status == TeamStatus.reviewed,
+        )
+        .order_by(TeamProjectTeam.submitted_at.desc())
+    )
+    team_projects = [
+        PublicTeamProject(
+            project_title=title,
+            was_lead=(role.value if hasattr(role, "value") else role) == "lead",
+            team_bonus_earned=grade in ("A", "B"),
+            reviewed_at=submitted_at,
+        )
+        for title, role, grade, submitted_at in tp_res.all()
+    ]
+
     return PublicProfile(
         username=student.username,
         full_name=student.full_name,
@@ -110,6 +139,7 @@ async def get_public_profile(
         projects_approved=projects_approved,
         certificates=certificates,
         achievements=achievements,
+        team_projects=team_projects,
     )
 
 

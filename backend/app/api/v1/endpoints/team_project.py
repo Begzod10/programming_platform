@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import timedelta
 from typing import Optional
 
@@ -7,7 +8,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.core.security import decode_access_token
+from app.api.v1.endpoints.team_game_common import spawn_background_task
 from app.dependencies import get_db, get_current_teacher, get_current_student
 from app.models.group import Group
 from app.models.user import Student, UserRole
@@ -156,6 +159,35 @@ def _find_team_and_membership(tp: TeamProject, student_id: int):
             if m.student_id == student_id:
                 return team, m
     return None, None
+
+
+# ── Parent-bot notification ─────────────────────────────────────────────────
+# Same fire-and-forget pattern as team_game_session_reports.py's
+# _notify_parent_bot for a completed game session: a localhost POST to
+# gennis_parent_bot, silently no-op'd if PARENT_BOT_URL/SECRET aren't
+# configured, any failure swallowed and logged — a team being reviewed must
+# never depend on the bot being alive.
+_parent_bot_logger = logging.getLogger("parent_bot_notify")
+
+
+async def _notify_parent_bot_team_project(student_id: int, team_id: int) -> None:
+    url = (settings.PARENT_BOT_URL or "").rstrip("/")
+    secret = settings.PARENT_BOT_SECRET
+    if not url or not secret:
+        return
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                f"{url}/internal/team-project-complete",
+                json={"student_id": student_id, "team_id": team_id},
+                headers={"X-Internal-Secret": secret},
+            )
+    except Exception as exc:
+        _parent_bot_logger.warning(
+            "parent-bot team-project notify failed student=%d team=%d: %s",
+            student_id, team_id, exc,
+        )
 
 
 # ── Realtime: broadcast helpers ─────────────────────────────────────────────
@@ -700,6 +732,26 @@ async def finalize_team(
             payload_json=json.dumps({"grade": project.grade}),
         ))
         await db.commit()
+
+        # Phase 7 wiring: team-project achievements (see
+        # achievement_service.py's team_project_count/team_lead_count/
+        # team_bonus_count criteria) are only ever evaluated from student-
+        # facing GET endpoints (/achievements/my, /my-progress) — nothing
+        # else in this codebase calls check_and_award_achievements. Without
+        # this, a student who never happens to load the achievements page
+        # again would simply never receive a team-project achievement, no
+        # matter how long they wait. `team.members` isn't eager-loaded on
+        # this endpoint's query (only .tasks/.team_project are), so this
+        # queries student ids directly rather than touching the lazy
+        # relationship (would raise MissingGreenlet under async SQLAlchemy
+        # — the exact bug class fixed elsewhere in this feature already).
+        from app.services.achievement_service import check_and_award_achievements
+        member_ids = (await db.execute(
+            select(TeamProjectMember.student_id).where(TeamProjectMember.team_id == team.id)
+        )).scalars().all()
+        for member_id in member_ids:
+            await check_and_award_achievements(db, member_id)
+            spawn_background_task(_notify_parent_bot_team_project(member_id, team.id))
 
     tp = await _fetch_team_project(db, team.team_project_id)
     # A team can now reach "reviewed" directly (synchronous AI review,

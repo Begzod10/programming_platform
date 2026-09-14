@@ -33,6 +33,24 @@ class PublicCertificate(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PublicTeamProject(BaseModel):
+    """One completed (reviewed) team project this student took part in.
+
+    Deliberately shows only THIS student's own role/outcome — never
+    teammates' names, individual task scores, or feedback. Same guardrail
+    the rest of the Team Projects feature enforces elsewhere
+    (_redact_team_read_for_other_student in team_project.py): a public
+    profile is an even wider audience than another team member, so the
+    bar here is at least as strict.
+    """
+    project_title: Optional[str] = None
+    was_lead: bool = False
+    team_bonus_earned: bool = False
+    reviewed_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class PublicProfile(BaseModel):
     """Sanitized shape rendered at /u/<username>.
 
@@ -51,5 +69,6 @@ class PublicProfile(BaseModel):
     projects_approved: int = 0
     certificates: List[PublicCertificate] = []
     achievements: List[PublicAchievement] = []
+    team_projects: List[PublicTeamProject] = []
 
     model_config = ConfigDict(from_attributes=True)

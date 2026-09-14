@@ -214,6 +214,24 @@ export default function PublicProfile() {
                 )}
             </section>
 
+            {data.team_projects && data.team_projects.length > 0 && (
+                <section className="pp-section">
+                    <h2 className="pp-section__title">Командные проекты</h2>
+                    <div className="pp-team-grid">
+                        {data.team_projects.map((t, i) => (
+                            <div key={i} className="pp-team">
+                                <div className="pp-team__title">{t.project_title || 'Командный проект'}</div>
+                                <div className="pp-team__meta">
+                                    {t.was_lead && <span className="pp-team__tag pp-team__tag--lead">👑 Лидер</span>}
+                                    {t.team_bonus_earned && <span className="pp-team__tag pp-team__tag--bonus">⭐ Высокая оценка</span>}
+                                    {t.reviewed_at && <span className="pp-team__date">{timeAgo(t.reviewed_at)}</span>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+
             <footer className="pp-footer">
                 <span>Gennis IT Platform — учись программированию с нуля.</span>
                 <a className="pp-footer__cta" href="/register">Начать свой путь →</a>
