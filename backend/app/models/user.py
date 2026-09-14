@@ -106,12 +106,20 @@ class Student(Base):
     # being present, only on it being absent-vs-a-real-value when it is.
     birth_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     gennis_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    gennis_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    # unique=True documents the real constraint — enforced in prod via the
+    # partial index in database.py::_reconcile_indexes (ix_students_
+    # gennis_id predates it as a plain non-unique index; create_all never
+    # touches this already-existing column on the deployed DB, so this
+    # flag only takes effect for a fresh table). See the 2026-09-14
+    # reconcile entry for why: a duplicate gennis_id/turon_id row silently
+    # corrupted a teacher's roster sync and crashed login for everyone in
+    # it before this was caught.
+    gennis_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True, unique=True)
     # Turon and gennis mint ids independently, so the same integer can refer to
     # two different real people — this MUST stay a separate column from
     # gennis_id, never a shared "external_id". See auth_service.login's
     # `source` branch.
-    turon_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
+    turon_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True, unique=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

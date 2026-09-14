@@ -590,7 +590,43 @@ class GennisService:
                 **{id_col: s_id},
             )
             db.add(student)
-            await db.flush()
+            try:
+                async with db.begin_nested():
+                    await db.flush()
+            except IntegrityError:
+                # Ikki bir vaqtdagi login shu (system, s_id) uchun ikkalasi
+                # ham "qator yo'q" deb topib, ikkalasi ham yangi qator
+                # yaratishga urinishi mumkin — avval bu holat jim duplikat
+                # yaratardi (2026-09-14 da tuzatilgan production insident),
+                # endi esa ux_students_turon_id/ux_students_gennis_id
+                # (_reconcile_indexes) buni DB darajasida bloklaydi va
+                # IntegrityError beradi. Yangi qatorni tashlab, g'olib
+                # bo'lgan qatorni o'qib olamiz — xato bermaymiz.
+                #
+                # Alohida db.expunge() shart emas: begin_nested() SAVEPOINT
+                # muvaffaqiyatsiz flush'dan keyin avtomatik rollback qiladi,
+                # va bu jarayonda hali persist bo'lmagan `student` obyekti
+                # sessiyadan o'zi ajratiladi (detach) — qayta expunge
+                # chaqirish "Instance ... is not present in this Session"
+                # xatosini beradi.
+                #
+                # await db.rollback() ZARUR (faqat SAVEPOINT'ning o'zi
+                # yetarli emas — aiosqlite/asyncpg'da SAVEPOINT'dan keyin ham
+                # sessiya "pending rollback" holatida qolib, keyingi har
+                # qanday so'rov PendingRollbackError beradi, sinov orqali
+                # tasdiqlangan). Bu shu so'rov ichida oldinroq (masalan shu
+                # o'qituvchining boshqa guruh/talabalari uchun) hali commit
+                # qilinmagan har qanday ishni ham bekor qiladi — lekin bu
+                # katta muammo emas: sync_teacher_data har login'da qaytadan
+                # ishlaydi, shuning uchun tasodifiy poyga holatida keyingi
+                # login hammasini qaytadan to'g'ri sinxronlaydi. Muqobili —
+                # butun so'rovni uncaught IntegrityError bilan qulatish —
+                # aniq yomonroq.
+                await db.rollback()
+                rows = (await db.execute(
+                    select(Student).where(getattr(Student, id_col) == s_id).order_by(Student.id)
+                )).scalars().all()
+                student = rows[0]
         else:
             # Ilgari sintetik nom bilan sinxronlangan (yoki o'sha safar
             # management-v2'da username hali yo'q edi) qator bo'lsa — endi
