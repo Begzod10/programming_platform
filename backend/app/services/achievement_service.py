@@ -11,6 +11,7 @@ from app.utils.datetime_utils import utcnow
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.submission import Submission
 from app.models.student_achievement import CourseCertificate
+from app.models.course import Course
 from app.models.dictionary import UserDictionary
 from app.models.team_project import TeamProjectTeam, TeamProjectMember, TeamStatus, TeamRole
 from sqlalchemy import and_
@@ -667,7 +668,7 @@ async def get_course_certificate(
 ) -> Optional[CourseCertificate]:
     result = await db.execute(
         select(CourseCertificate)
-        .options(selectinload(CourseCertificate.course))
+        .options(selectinload(CourseCertificate.course).selectinload(Course.category))
         .where(
             and_(
                 CourseCertificate.student_id == student_id,

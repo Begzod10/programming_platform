@@ -2,9 +2,75 @@ import io
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.lib.utils import ImageReader
 from pathlib import Path
 
 _COURSE_TEMPLATE_BYTES = None
+
+# ── Category ribbon theming ──────────────────────────────────────────────
+# Colors mirror frontend/src/views/student/courses/Courses/StudentCourses.js's
+# TECH_META exactly (kept here for reference/parity — per explicit request
+# the ribbon's own background stays the template's default for every
+# category, so "color" isn't drawn). Icons are each category's real brand
+# logo rather than a generic glyph, sourced from devicon/simple-icons.
+CATEGORY_THEME = {
+    "html-css": {"color": "#e34c26"},
+    "javascript": {"color": "#f0db4f"},
+    "python": {"color": "#3776ab"},
+    "react": {"color": "#61dafb"},
+    "sql": {"color": "#336791"},
+    "git": {"color": "#f05032"},
+    "telegram-bot": {"color": "#2ca5e0"},
+    "ai-integration": {"color": "#6c5ce7"},
+}
+_DEFAULT_CATEGORY_THEME = {"color": "#6c5ce7"}
+
+# Where the icon sits in the template's default ribbon (the empty gap
+# between the baked-in "COURSE CERTIFICATE" title and the GENNIS stamp),
+# measured in the same "logical landscape" point space (LW=3475, LH=2450)
+# the translate+rotate(90) block below draws in.
+_RIBBON_ICON_CENTER_XY = (2555.1, 1859.6)
+_RIBBON_ICON_SIZE = 200
+
+# Pre-rasterized brand-logo PNGs (512×512, from each project's official SVG —
+# devicon for html-css/javascript/python/react/sql/git, simple-icons for
+# telegram-bot/ai-integration). One file per category slug, named to match;
+# unrecognized slugs fall back to the ai-integration icon.
+_ICON_DIR = Path("app/static/icons")
+_icon_image_cache = {}
+
+
+def _get_category_icon_image(category_slug: str):
+    """Load a category's pre-rendered logo PNG as a cached ImageReader.
+    Returns None if the asset is missing (caller degrades gracefully)."""
+    key = category_slug if category_slug in CATEGORY_THEME else "ai-integration"
+    if key in _icon_image_cache:
+        return _icon_image_cache[key]
+
+    try:
+        path = (_ICON_DIR / f"{key}.png").resolve()
+        if not path.exists():
+            return None
+        reader = ImageReader(str(path))
+        _icon_image_cache[key] = reader
+        return reader
+    except Exception as e:
+        print(f"❌ Icon yuklanmadi ({category_slug}): {e}")
+        return None
+
+
+def _draw_category_ribbon(can, category_slug: str):
+    """Draws only the category icon on top of the template's ribbon — the
+    ribbon's own background, "COURSE CERTIFICATE" title, and GENNIS stamp
+    are left exactly as the template already renders them."""
+    icon_img = _get_category_icon_image(category_slug)
+    if icon_img is not None:
+        cx, cy = _RIBBON_ICON_CENTER_XY
+        half = _RIBBON_ICON_SIZE / 2
+        can.drawImage(
+            icon_img, cx - half, cy - half, width=_RIBBON_ICON_SIZE,
+            height=_RIBBON_ICON_SIZE, mask="auto",
+        )
 
 
 def _load_template_bytes(template_path: str):
@@ -32,6 +98,7 @@ def generate_certificate(
         cert_number: int,
         teacher_name: str = "Begzod Jumaniyozov",
         template_path: str = "app/static/web_certificate.pdf",
+        category_slug: str = None,
 ) -> io.BytesIO:
     W_orig, H_orig = 2450, 3475
     LW, LH = H_orig, W_orig  # 3475 x 2450
@@ -43,6 +110,9 @@ def generate_certificate(
     can.saveState()
     can.translate(W_orig, 0)
     can.rotate(90)
+
+    if category_slug:
+        _draw_category_ribbon(can, category_slug)
 
     # Talaba ismi
     can.setFillColorRGB(0, 0, 0)

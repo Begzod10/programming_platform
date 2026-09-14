@@ -210,8 +210,9 @@ async def download_course_certificate(
     student_name = current_student.full_name or current_student.username
     course_name = cert.course.title
     cert_number = cert.id
+    category_slug = cert.course.category.slug if cert.course.category else None
 
-    pdf_output = generate_certificate(student_name, course_name, cert_number)
+    pdf_output = generate_certificate(student_name, course_name, cert_number, category_slug=category_slug)
 
     if isinstance(pdf_output, bytes):
         pdf_output = io.BytesIO(pdf_output)
