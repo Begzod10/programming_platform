@@ -437,3 +437,59 @@ async def test_roster_sync_does_not_clobber_birth_date_with_missing_value(db_ses
         await db_session.execute(select(Student).where(Student.turon_id == student_turon_id))
     ).scalar_one()
     assert student.birth_date == date(2017, 9, 1)
+
+
+@pytest.mark.asyncio
+async def test_roster_sync_survives_duplicate_turon_id_rows(db_session, turon_teacher, monkeypatch):
+    """Two Student rows sharing the same turon_id — no DB constraint
+    prevents this, and it happened live 2026-09-14 (turon_id 19042 on both
+    id 368 'turon_19042' and id 564 'Feruz1') — used to crash the whole
+    login with an uncaught MultipleResultsFound the moment roster sync
+    reached that student's id lookup. Must degrade to the older row
+    instead of raising."""
+    student_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+    group_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+
+    older = Student(
+        username=f"turon_{student_turon_id}",
+        email=f"turon_{student_turon_id}@turon.uz",
+        hashed_password=get_password_hash("irrelevant"),
+        role=UserRole.student,
+        is_active=True,
+        turon_id=student_turon_id,
+    )
+    db_session.add(older)
+    await db_session.commit()
+    await db_session.refresh(older)
+
+    newer = Student(
+        username=f"dup_{student_turon_id}",
+        email=f"dup_{student_turon_id}@turon.uz",
+        hashed_password=get_password_hash("irrelevant"),
+        role=UserRole.student,
+        is_active=True,
+        turon_id=student_turon_id,
+    )
+    db_session.add(newer)
+    await db_session.commit()
+
+    async def _one_student(*args, **kwargs):
+        return [{"id": student_turon_id, "name": "Dup", "surname": "Licate"}]
+
+    monkeypatch.setattr(GennisService, "fetch_group_students", classmethod(_one_student))
+
+    # Must not raise MultipleResultsFound.
+    await GennisService.sync_teacher_data(
+        db_session,
+        turon_teacher,
+        _login_data(groups=[{"id": group_turon_id, "name": f"1-blue-test-{group_turon_id}", "price": 0}]),
+        system="turon",
+    )
+
+    rows = (
+        await db_session.execute(
+            select(Student).where(Student.turon_id == student_turon_id).order_by(Student.id)
+        )
+    ).scalars().all()
+    assert len(rows) == 2, "the fix picks a row deterministically, it doesn't delete/merge the duplicate"
+    assert rows[0].id == older.id
