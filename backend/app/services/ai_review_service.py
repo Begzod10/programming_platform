@@ -103,6 +103,20 @@ async def run_ai_review_for_project(
             authorship, old_points, new_points, reviews_remaining_today}
         On skipped (only when raise_on_error=False):
             {success: False, reason: str, http_status: int}
+
+    IMPORTANT — this function runs SYNCHRONOUSLY (awaited inline, not
+    backgrounded) everywhere it's called today. team_project.py's
+    finalize_team relies on exactly that: it calls
+    project_service.submit_project(...) (which calls this) and then
+    immediately checks project.reviewed_at/grade to decide whether to
+    award team-project points, with no polling or callback — nothing
+    else tells it the review finished. That dependency is implicit, not
+    enforced by any type or interface here. If this function (or
+    submit_project's call to it) is ever made async/backgrounded/queued,
+    finalize_team's points-awarding will go quiet with no error: it will
+    just stop awarding points, since reviewed_at will still be None right
+    after submit_project returns. Grep for this function's name in
+    team_project.py before changing its call timing.
     """
     if settings.MAX_AI_REVIEWS_PER_DAY <= 0:
         return _fail(raise_on_error, status.HTTP_503_SERVICE_UNAVAILABLE,
