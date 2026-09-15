@@ -2,11 +2,20 @@
 + the /achievements/category/{id}/download and
 /achievements/check-and-earn-certificate-category endpoints).
 
-A category certificate is awarded once a student holds a CourseCertificate
-for every published+active course (with >=1 active lesson) in that
-category — mirrors the platform-wide "Full Stack Developer" logic
+A category certificate is awarded once a student has actually finished
+(100% of active lessons) every published+active course in that category —
+mirrors the platform-wide "Full Stack Developer" logic
 (_all_published_courses_complete in achievement_service.py), just scoped to
 one category instead of every course.
+
+Completion is checked via real lesson completion, NOT via CourseCertificate
+existence — see check_category_completion's docstring. That distinction is
+exactly what the "false_when_partially_certified"-style tests below guard,
+and it's the fix for a real production bug: a student can 100% every
+lesson in every course of a category without a CourseCertificate row ever
+being minted for one of them (it's a lazy side effect of the achievement
+flow, not automatic), which made an actually-finished student see "siz
+hali ... tugatmagansiz" when the completion check keyed off certificates.
 """
 import uuid
 
@@ -15,7 +24,6 @@ import pytest_asyncio
 from app.models.category import Category
 from app.models.course import Course
 from app.models.lesson import Lesson, LessonCompletion
-from app.models.student_achievement import CourseCertificate
 from app.services import achievement_service
 
 
@@ -51,6 +59,15 @@ async def _make_published_course(db_session, category_id: int, instructor_id: in
     return course, lesson
 
 
+async def _complete_lesson_only(db_session, student_id: int, lesson: Lesson) -> None:
+    """Marks the lesson done WITHOUT going through award_certificate() —
+    so no CourseCertificate row exists and the category-cert auto-award
+    hook never fires. Use this to test completion/award logic against
+    real lesson-completion state in isolation from that hook."""
+    db_session.add(LessonCompletion(student_id=student_id, lesson_id=lesson.id))
+    await db_session.commit()
+
+
 async def _complete_and_certify(db_session, student_id: int, course: Course, lesson: Lesson) -> None:
     """Completes the lesson and goes through the real award_certificate()
     service call — this is what fires the category-certificate auto-award
@@ -61,15 +78,6 @@ async def _complete_and_certify(db_session, student_id: int, course: Course, les
     await db_session.commit()
     cert = await achievement_service.award_certificate(db_session, student_id, course.id)
     assert cert is not None, "award_certificate should have issued a CourseCertificate"
-
-
-async def _certify_course_directly(db_session, student_id: int, course_id: int) -> None:
-    """Inserts a CourseCertificate row without going through
-    award_certificate() — so the category-certificate auto-award hook never
-    fires. Use this when a test wants to control category-cert timing
-    itself (e.g. testing award_category_certificate's own idempotency)."""
-    db_session.add(CourseCertificate(student_id=student_id, course_id=course_id))
-    await db_session.commit()
 
 
 @pytest_asyncio.fixture
@@ -113,15 +121,57 @@ async def test_check_category_completion_true_when_fully_certified(async_client,
     assert await achievement_service.check_category_completion(db_session, student_id, category.id) is True
 
 
+async def test_check_category_completion_true_from_lessons_alone_no_certificates_exist(async_client, db_session, category):
+    """Regression test for the production bug: every lesson done, but zero
+    CourseCertificate rows exist for either course (award_certificate was
+    never called for them — e.g. the student never hit a page that runs
+    check_and_award_achievements). Completion must still read True."""
+    teacher_id, _ = await _register_and_login(async_client, "teacher")
+    student_id, _ = await _register_and_login(async_client, "student")
+
+    course_a, lesson_a = await _make_published_course(db_session, category.id, teacher_id, "Course A")
+    course_b, lesson_b = await _make_published_course(db_session, category.id, teacher_id, "Course B")
+    await db_session.commit()
+
+    await _complete_lesson_only(db_session, student_id, lesson_a)
+    await _complete_lesson_only(db_session, student_id, lesson_b)
+
+    assert await achievement_service.check_category_completion(db_session, student_id, category.id) is True
+
+
+async def test_award_category_certificate_backfills_missing_course_certificates(async_client, db_session, category):
+    """award_category_certificate must also mint the CourseCertificate rows
+    that were missing despite genuine completion, so each course's own
+    certificate becomes downloadable too — not just the category one."""
+    teacher_id, _ = await _register_and_login(async_client, "teacher")
+    student_id, _ = await _register_and_login(async_client, "student")
+
+    course_a, lesson_a = await _make_published_course(db_session, category.id, teacher_id, "Course A")
+    course_b, lesson_b = await _make_published_course(db_session, category.id, teacher_id, "Course B")
+    await db_session.commit()
+
+    await _complete_lesson_only(db_session, student_id, lesson_a)
+    await _complete_lesson_only(db_session, student_id, lesson_b)
+
+    assert await achievement_service.get_course_certificate(db_session, student_id, course_a.id) is None
+    assert await achievement_service.get_course_certificate(db_session, student_id, course_b.id) is None
+
+    cert = await achievement_service.award_category_certificate(db_session, student_id, category.id)
+    assert cert is not None
+
+    assert await achievement_service.get_course_certificate(db_session, student_id, course_a.id) is not None
+    assert await achievement_service.get_course_certificate(db_session, student_id, course_b.id) is not None
+
+
 async def test_award_category_certificate_is_idempotent(async_client, db_session, category):
     teacher_id, _ = await _register_and_login(async_client, "teacher")
     student_id, _ = await _register_and_login(async_client, "student")
 
-    course, _lesson = await _make_published_course(db_session, category.id, teacher_id, "Only Course")
+    course, lesson = await _make_published_course(db_session, category.id, teacher_id, "Only Course")
     await db_session.commit()
-    # Direct insert (not _complete_and_certify) so the auto-award hook in
-    # award_certificate() doesn't pre-empt the explicit calls below.
-    await _certify_course_directly(db_session, student_id, course.id)
+    # Lesson-only completion (not _complete_and_certify) so the auto-award
+    # hook in award_certificate() doesn't pre-empt the explicit calls below.
+    await _complete_lesson_only(db_session, student_id, lesson)
 
     first = await achievement_service.award_category_certificate(db_session, student_id, category.id)
     assert first is not None
@@ -163,11 +213,12 @@ async def test_check_and_earn_then_download_category_certificate(async_client, d
     teacher_id, _ = await _register_and_login(async_client, "teacher")
     student_id, student_headers = await _register_and_login(async_client, "student")
 
-    course, _lesson = await _make_published_course(db_session, category.id, teacher_id, "Only Course")
+    course, lesson = await _make_published_course(db_session, category.id, teacher_id, "Only Course")
     await db_session.commit()
-    # Direct insert so the endpoint call below is the one that actually
-    # issues the category certificate (not the award_certificate() hook).
-    await _certify_course_directly(db_session, student_id, course.id)
+    # Lesson-only completion so the endpoint call below is the one that
+    # actually issues the category certificate (not the award_certificate()
+    # hook, and not a pre-existing CourseCertificate row).
+    await _complete_lesson_only(db_session, student_id, lesson)
 
     check_resp = await async_client.post(
         f"/api/v1/achievements/check-and-earn-certificate-category?category_id={category.id}",
