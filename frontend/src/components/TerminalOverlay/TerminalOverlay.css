@@ -53,30 +53,50 @@
 }
 .term-line { white-space: pre-wrap; word-break: break-word; }
 
+/* /help's "thinking" beat before the command list reveals. */
+.term-loading { display: flex; gap: 5px; padding: 4px 0; }
+.term-loading span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #00ff88; opacity: .35;
+    animation: term-loading-pulse 1s ease-in-out infinite;
+}
+.term-loading span:nth-child(2) { animation-delay: .15s; }
+.term-loading span:nth-child(3) { animation-delay: .3s; }
+@keyframes term-loading-pulse {
+    0%, 100% { opacity: .25; transform: scale(.85); }
+    50%      { opacity: 1;   transform: scale(1); }
+}
+
 .term-input-wrap {
     flex-shrink: 0; border-top: 1px solid rgba(0,255,136,0.25);
     max-width: 900px; width: 100%; margin: 0 auto;
 }
-
-.term-suggestions {
-    display: flex; flex-wrap: wrap; gap: 6px;
-    padding: 8px 24px 0;
-}
-.term-suggestion {
-    background: rgba(0, 255, 136, 0.08); border: 1px solid rgba(0, 255, 136, 0.35);
-    color: #00ff88; font-family: inherit; font-size: 12px;
-    padding: 4px 10px; border-radius: 999px; cursor: pointer;
-    transition: background .12s, border-color .12s;
-}
-.term-suggestion:hover { background: rgba(0, 255, 136, 0.18); border-color: #00ff88; }
 
 .term-input-row {
     display: flex; align-items: center; gap: 10px;
     padding: 14px 24px;
 }
 .term-prompt { color: #00ff88; font-weight: 700; font-size: 15px; }
+
+/* Inline ghost-text autocomplete: .term-ghost sits exactly behind
+   .term-input (same font/size/no differing padding so characters line up
+   1:1). The typed portion is rendered transparent purely to push the
+   suggestion's remainder to the right spot; the input's own (opaque,
+   green) text drawn on top is what's actually visible for what's typed
+   so far. Tab / → (at end of input) accepts it — see handleKeyDown. */
+.term-input-stack { position: relative; flex: 1; }
+.term-ghost {
+    position: absolute; inset: 0;
+    display: flex; align-items: center;
+    font-family: inherit; font-size: 15px; white-space: pre;
+    pointer-events: none;
+}
+.term-ghost-typed { color: transparent; }
+.term-ghost-rest { color: rgba(0, 255, 136, 0.38); }
+
 .term-input {
-    flex: 1; background: transparent; border: none; outline: none;
+    position: relative; z-index: 1;
+    width: 100%; background: transparent; border: none; outline: none;
     color: #00ff88; font-family: inherit; font-size: 15px;
     caret-color: #00ff88;
 }
@@ -84,5 +104,5 @@
 
 @media (max-width: 480px) {
     .term-toggle { right: 10px; bottom: 10px; }
-    .term-log, .term-suggestions, .term-input-row { padding-left: 14px; padding-right: 14px; }
+    .term-log, .term-input-row { padding-left: 14px; padding-right: 14px; }
 }

@@ -83,18 +83,23 @@ export default function TerminalOverlay() {
         if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
     }, [log]);
 
-    // Live suggestions — commands whose name starts with whatever's typed
-    // so far (leading slash stripped). Hidden once the input is empty or
-    // already an exact match, so it doesn't linger after a useful typo fix.
-    const suggestions = useMemo(() => {
-        const typed = input.trim().replace(/^\//, '').toLowerCase();
-        if (!typed) return [];
-        const matches = ALL_COMMANDS.filter(c => c.startsWith(typed));
-        return matches.includes(typed) ? [] : matches.slice(0, 6);
-    }, [input]);
+    // Inline ghost-text autocomplete (shell/fish-style): the top command
+    // matching whatever's typed so far renders right after the caret, in
+    // the input itself, rather than a separate list elsewhere on screen.
+    // topMatch stays raw (undashed slash handling done once here); ghostRest
+    // is just the part of it not yet typed, so appending it to the real
+    // input reproduces the full command exactly.
+    const typedCmd = input.trim().replace(/^\//, '').toLowerCase();
+    const topMatch = useMemo(() => {
+        if (!typedCmd) return null;
+        const m = ALL_COMMANDS.find(c => c.startsWith(typedCmd));
+        return m && m !== typedCmd ? m : null;
+    }, [typedCmd]);
+    const ghostRest = topMatch ? topMatch.slice(typedCmd.length) : '';
 
-    const applySuggestion = (cmd) => {
-        setInput(`/${cmd}`);
+    const acceptGhost = () => {
+        if (!topMatch) return;
+        setInput(`/${topMatch}`);
         inputRef.current?.focus();
     };
 
@@ -108,7 +113,17 @@ export default function TerminalOverlay() {
             return;
         }
         if (cmd === 'help') {
-            setLog(prev => [...prev, ...HELP_LINES]);
+            const loadingToken = `__loading_${Date.now()}__`;
+            setLog(prev => [...prev, loadingToken]);
+            // Brief "thinking" beat, then the loading line is swapped for
+            // the real lines revealed one at a time — reads more like a
+            // real terminal listing than an instant text dump.
+            setTimeout(() => {
+                setLog(prev => prev.filter(l => l !== loadingToken));
+                HELP_LINES.forEach((line, i) => {
+                    setTimeout(() => setLog(prev => [...prev, line]), i * 45);
+                });
+            }, 350);
             return;
         }
         if (cmd === 'menu') {
@@ -135,10 +150,13 @@ export default function TerminalOverlay() {
     }, [navigate, toggleTerminalMenu, terminalMenuHidden, logout]);
 
     const handleKeyDown = (e) => {
-        // Tab completes to the top suggestion instead of moving focus away.
-        if (e.key === 'Tab' && suggestions.length > 0) {
+        // Tab or → (when the caret's already at the end, so it's not just
+        // moving the cursor through existing text) accepts the ghost
+        // suggestion instead of its usual behavior.
+        const atEnd = e.currentTarget.selectionStart === input.length;
+        if (topMatch && (e.key === 'Tab' || (e.key === 'ArrowRight' && atEnd))) {
             e.preventDefault();
-            applySuggestion(suggestions[0]);
+            acceptGhost();
         }
     };
 
@@ -166,40 +184,36 @@ export default function TerminalOverlay() {
                         <button className="term-close" onClick={() => setOpen(false)}>✕</button>
                     </div>
                     <div className="term-log" ref={logRef}>
-                        {log.map((line, i) => <div key={i} className="term-line">{line}</div>)}
+                        {log.map((line, i) => (
+                            line.startsWith('__loading_')
+                                ? <div key={i} className="term-line term-loading"><span /><span /><span /></div>
+                                : <div key={i} className="term-line">{line}</div>
+                        ))}
                     </div>
                     <div className="term-input-wrap">
-                        {suggestions.length > 0 && (
-                            <div className="term-suggestions">
-                                {suggestions.map(c => (
-                                    <button
-                                        key={c}
-                                        type="button"
-                                        className="term-suggestion"
-                                        onClick={() => applySuggestion(c)}
-                                    >
-                                        /{c}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
                         <form
                             className="term-input-row"
                             onSubmit={e => { e.preventDefault(); run(input); setInput(''); }}
                         >
                             <span className="term-prompt">$</span>
-                            <input
-                                ref={inputRef}
-                                className="term-input"
-                                value={input}
-                                onChange={e => setInput(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                placeholder="/course"
-                                autoComplete="off"
-                                autoCorrect="off"
-                                autoCapitalize="off"
-                                spellCheck={false}
-                            />
+                            <div className="term-input-stack">
+                                <div className="term-ghost" aria-hidden="true">
+                                    <span className="term-ghost-typed">{input}</span>
+                                    <span className="term-ghost-rest">{ghostRest}</span>
+                                </div>
+                                <input
+                                    ref={inputRef}
+                                    className="term-input"
+                                    value={input}
+                                    onChange={e => setInput(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder="/course"
+                                    autoComplete="off"
+                                    autoCorrect="off"
+                                    autoCapitalize="off"
+                                    spellCheck={false}
+                                />
+                            </div>
                         </form>
                     </div>
                 </div>
