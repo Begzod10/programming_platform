@@ -26,12 +26,13 @@ const ROUTES = {
 const HELP_LINES = [
     'Mavjud buyruqlar:',
     ...Object.keys(ROUTES).map(c => `  /${c}`),
+    '  /menu — yon menyuni ko\'rsatish/yashirish',
     '  /clear — ekranni tozalash',
     '  /help — shu ro\'yxat',
 ];
 
 export default function TerminalOverlay() {
-    const { equipped } = useStore();
+    const { equipped, terminalMenuHidden, toggleTerminalMenu } = useStore();
     const navigate = useNavigate();
     const [open, setOpen] = useState(false);
     const [input, setInput] = useState('');
@@ -79,6 +80,11 @@ export default function TerminalOverlay() {
             setLog(prev => [...prev, ...HELP_LINES]);
             return;
         }
+        if (cmd === 'menu') {
+            toggleTerminalMenu();
+            setLog(prev => [...prev, terminalMenuHidden ? 'Menyu ko\'rsatildi.' : 'Menyu yashirildi.']);
+            return;
+        }
         const path = ROUTES[cmd];
         if (!path) {
             setLog(prev => [...prev, `Noma'lum buyruq: /${cmd} — "/help" yozing.`]);
@@ -88,7 +94,7 @@ export default function TerminalOverlay() {
         navigate(`/${role}/${path}`);
         setLog(prev => [...prev, `→ /${role}/${path}`]);
         setOpen(false);
-    }, [navigate]);
+    }, [navigate, toggleTerminalMenu, terminalMenuHidden]);
 
     if (!active) return null;
 

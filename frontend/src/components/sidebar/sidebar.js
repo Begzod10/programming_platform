@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
 import { useTranslation } from '../../i18n/useTranslation';
+import { useStore } from '../../context/StoreContext';
 import StreakBadge from './StreakBadge';
 import {
     LayoutDashboard, User, BookOpen, Map, Monitor, BookMarked,
@@ -37,6 +38,7 @@ function Sidebar({ activeTab, onLogout, role, earlyLearningEligible = true }) {
     const navigate = useNavigate();
     const { request } = useHttp();
     const { t, lang, toggleLang } = useTranslation();
+    const { equipped, terminalMenuHidden } = useStore();
     const [isOpen, setIsOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(() => {
         try { return localStorage.getItem(COLLAPSED_KEY) === '1'; }
@@ -122,6 +124,11 @@ function Sidebar({ activeTab, onLogout, role, earlyLearningEligible = true }) {
         isOpen ? 'open' : '',
         isCollapsed ? 'collapsed' : '',
     ].filter(Boolean).join(' ');
+
+    // "Hacker Terminal Pro" replaces sidebar-click navigation with typed
+    // /commands (TerminalOverlay.js) — hidden by default the moment that
+    // theme is equipped; type /menu in the terminal to bring it back.
+    if (equipped.theme?.terminal && terminalMenuHidden) return null;
 
     return (
         <>

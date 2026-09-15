@@ -90,6 +90,17 @@ export function StoreProvider({ children }) {
     // the default theme on hard-refresh.
     const [equipped, setEquipped] = useState(() => readCachedEquipped());
 
+    // The "Hacker Terminal Pro" theme (asset_ref.terminal: true) replaces
+    // sidebar-click navigation with typed commands (see TerminalOverlay.js)
+    // — the whole point is not needing the sidebar, so it starts hidden
+    // the moment that theme is equipped. Lives here (not on the terminal
+    // component itself) because both sidebar.js and TeacherSidebar.js need
+    // to read it, and StoreContext is already the shared source of truth
+    // for "what's equipped". Meaningless — read as always-visible — for
+    // anyone without that theme equipped.
+    const [terminalMenuHidden, setTerminalMenuHidden] = useState(true);
+    const toggleTerminalMenu = useCallback(() => setTerminalMenuHidden(h => !h), []);
+
     const isAuthed = () => {
         try {
             return !!(localStorage.getItem('token') || sessionStorage.getItem('token'));
@@ -182,8 +193,11 @@ export function StoreProvider({ children }) {
         refreshWallet,
         refreshInventory,
         refreshAll,
+        terminalMenuHidden,
+        toggleTerminalMenu,
     }), [balance, lifetimePoints, recent, inventory, equipped, loading,
-         refreshWallet, refreshInventory, refreshAll]);
+         refreshWallet, refreshInventory, refreshAll,
+         terminalMenuHidden, toggleTerminalMenu]);
 
     return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
@@ -204,6 +218,8 @@ export function useStore() {
             refreshWallet: async () => null,
             refreshInventory: async () => null,
             refreshAll: async () => null,
+            terminalMenuHidden: false,
+            toggleTerminalMenu: () => {},
         };
     }
     return ctx;

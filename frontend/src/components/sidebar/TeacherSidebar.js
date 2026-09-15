@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
+import { useStore } from '../../context/StoreContext';
 import CoinChip from './CoinChip';
 import {
     User, Download, Users, BookOpen, Gamepad2,
@@ -41,6 +42,7 @@ function ChevronIcon({ direction = 'left' }) {
 function TeacherSidebar({ activeTab, onLogout, username }) {
     const navigate = useNavigate();
     const { request } = useHttp();
+    const { equipped, terminalMenuHidden } = useStore();
     const [isOpen, setIsOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(() => {
         try { return localStorage.getItem(COLLAPSED_KEY) === '1'; }
@@ -110,6 +112,10 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
         isOpen ? 'open' : '',
         isCollapsed ? 'collapsed' : '',
     ].filter(Boolean).join(' ');
+
+    // "Hacker Terminal Pro" replaces sidebar-click navigation with typed
+    // /commands (TerminalOverlay.js) — see sidebar.js's identical check.
+    if (equipped.theme?.terminal && terminalMenuHidden) return null;
 
     return (
         <>
