@@ -8,6 +8,7 @@ import SSOHandler from './components/SSOHandler';
 import UpdateBanner from './components/UpdateBanner/UpdateBanner';
 import TerminalOverlay from './components/TerminalOverlay/TerminalOverlay';
 import FocusTimer from './components/FocusTimer/FocusTimer';
+import MatrixRain from './components/MatrixRain/MatrixRain';
 import './App.css';
 
 function App() {
@@ -30,6 +31,10 @@ function App() {
                         doesn't have to live inside BrowserRouter like
                         TerminalOverlay does. */}
                     <FocusTimer />
+                    {/* Same self-gated shape as FocusTimer/TerminalOverlay —
+                        equipped.theme?.matrixRain. Pure decoration (canvas,
+                        pointer-events: none), doesn't need BrowserRouter. */}
+                    <MatrixRain />
                     <UpdateBanner />
                 </StoreProvider>
             </AuthProvider>

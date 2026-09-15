@@ -176,6 +176,38 @@ CATALOGUE: list[dict] = [
         },
     },
     {
+        # Purely decorative sibling of theme.hacker_pro — unlocks
+        # MatrixRain.js (a canvas falling-character overlay, asset_ref.
+        # matrixRain: true) instead of the functional command terminal.
+        # Same green-on-black palette as Hacker Terminal Pro/Green
+        # Terminal, no `terminal` flag here so it does NOT also enable the
+        # command overlay or hide the sidebar.
+        "slug": "theme.matrix_rain",
+        "kind": StoreItemKind.theme,
+        "title": "Matrix Rain",
+        "title_ru": "Матричный дождь",
+        "description": "Tushayotgan yashil belgilar animatsiyasi — butun ekran foni.",
+        "description_ru": "Анимация падающих зелёных символов — по всему экрану.",
+        "price_coins": 1200,
+        "sort_order": 36,
+        "asset_ref": {
+            "mode": "dark",
+            "matrixRain": True,
+            "tokens": {
+                "--color-primary": "#00ff88",
+                "--color-primary-mid": "#33ff9c",
+                "--color-primary-light": "#66ffb0",
+                "--color-primary-pale": "rgba(0, 255, 136, 0.10)",
+                "--color-ink": "#d1ffe0",
+                "--color-dark": "#020604",
+                "--bg-page": "#050d08",
+                "--text-strong": "rgba(209, 255, 224, 0.95)",
+                "--text-muted": "rgba(209, 255, 224, 0.60)",
+                "--shadow-brand": "0 4px 24px rgba(0, 255, 136, 0.25)",
+            },
+        },
+    },
+    {
         "slug": "theme.sunset",
         "kind": StoreItemKind.theme,
         "title": "Sunset Coral",

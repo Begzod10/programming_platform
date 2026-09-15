@@ -1,0 +1,16 @@
+.matrix-rain-canvas {
+    position: fixed;
+    inset: 0;
+    z-index: 9990;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    /* The draw loop's own translucent fillRect (see MatrixRain.js) is what
+       makes the falling-trail look INSIDE the canvas's own pixel buffer —
+       left running, that accumulates toward fully opaque black within a
+       couple of seconds. This CSS opacity caps how strongly the whole
+       canvas (black wash included) can ever blend over the app behind it,
+       so it always stays a translucent ambient tint, never a full
+       blackout, no matter how "black" the internal buffer gets. */
+    opacity: 0.32;
+}
