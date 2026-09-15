@@ -306,6 +306,55 @@
     border-radius: var(--r-card);
 }
 
+/* ─── equipped dark theme: full-page reskin ───────────────────────────────
+   Every dark theme's asset_ref.tokens already ships a matching --text-strong/
+   --text-muted (near-white, tuned for THAT theme's own accent) and --bg-page/
+   --color-dark (a near-black tint of the accent) — see
+   backend/scripts/seed_store_catalogue.py. StoreContext.js's applyTheme()
+   writes all of that onto :root AND toggles html.store-theme-dark, so this
+   page can safely follow it: swap the local light-mode ink pin for the
+   theme's own text tokens, and give cards/tabs/pills a dark surface pulled
+   from --color-dark — never the raw near-black --bg-page itself, which
+   would make every card blend into the page with no visible edge.
+   Light themes need no override: their tokens already describe a light
+   surface + dark text, which is what this page defaults to anyway. */
+html.store-theme-dark .store-page {
+    --store-ink-strong: var(--text-strong);
+    --store-ink-muted: var(--text-muted);
+}
+html.store-theme-dark .store-card {
+    background: color-mix(in srgb, var(--color-dark) 85%, var(--color-primary) 8%);
+    border-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+html.store-theme-dark .store-card:hover:not(.store-card--skeleton) {
+    box-shadow: 0 6px 22px color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+html.store-theme-dark .store-card__icon {
+    background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+html.store-theme-dark .store-tabs {
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+html.store-theme-dark .store-tab.is-active {
+    box-shadow: 0 2px 10px color-mix(in srgb, var(--color-primary) 40%, transparent);
+    color: var(--color-dark);
+}
+html.store-theme-dark .store-wallet__pill {
+    background: color-mix(in srgb, var(--color-dark) 80%, var(--color-primary) 10%);
+    border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+    color: var(--text-strong);
+}
+html.store-theme-dark .store-wallet__unit { color: var(--text-muted); }
+html.store-theme-dark .store-cta--locked {
+    background: color-mix(in srgb, var(--color-dark) 70%, transparent);
+}
+html.store-theme-dark .store-empty {
+    border-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
+}
+html.store-theme-dark .store-card--skeleton {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--color-dark) 90%, transparent), transparent);
+}
+
 /* Responsive tweaks — canonical 480px mobile breakpoint (was 600px). */
 @media (max-width: 480px) {
     .store-page { padding: 18px 16px 40px; }
