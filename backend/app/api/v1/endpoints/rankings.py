@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from sqlalchemy import text, select
 from app.dependencies import get_db, get_current_student, get_current_instructor, get_current_student_optional
 from app.services.ranking_service import RankingService
 from app.schemas.ranking import LeaderboardItem, MyRankingRead, RankingUpdate
@@ -216,6 +216,10 @@ async def get_leaderboard(
         limit: int = Query(10, ge=1, le=100),
         offset: int = Query(0, ge=0),
         level: str = Query(None),
+        group_id: Optional[int] = Query(
+            None,
+            description="Restrict to one of the student's own classes (sinf filter, mirrors the teacher rankings page)",
+        ),
         current_user: Optional[Student] = Depends(get_current_student_optional),
         db: AsyncSession = Depends(get_db),
 ):
@@ -235,6 +239,7 @@ async def get_leaderboard(
         limit=limit,
         offset=offset,
         level=level,
+        group_id=group_id,
         peer_student_id=peer_id,
     )
 
@@ -259,6 +264,27 @@ async def get_leaderboard(
             )
         )
     return result
+
+
+@router.get("/my-groups")
+async def get_my_groups(
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db),
+):
+    """The current student's own classes, for the leaderboard's class
+    filter dropdown — the student-facing equivalent of GET /groups/,
+    which is teacher-only. A student can belong to more than one group
+    (different subjects/teachers), so this returns every one of them
+    rather than assuming a single class."""
+    from app.models.group import Group, student_groups
+
+    result = await db.execute(
+        select(Group.id, Group.name)
+        .join(student_groups, student_groups.c.group_id == Group.id)
+        .where(student_groups.c.student_id == current_student.id)
+        .order_by(Group.name)
+    )
+    return [{"id": row.id, "name": row.name} for row in result.all()]
 
 
 @router.get("/me", response_model=MyRankingRead)
