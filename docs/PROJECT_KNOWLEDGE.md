@@ -897,6 +897,33 @@ merged/pushed to `server`. After a frontend deploy, a hard refresh (Ctrl+Shift+R
 required client-side or the old cached bundle hash stays active (documented in
 `FRONTEND_BUGS.md`).
 
+**nginx config lives OUTSIDE this repo and outside the deploy pipeline entirely** —
+`/etc/nginx/sites-enabled/tech_gennis` on the prod host, hand-edited, not
+version-controlled, not touched by either GitHub Actions workflow above. Backups
+land in `/etc/nginx/backups/` on the server (also not in git) when someone remembers
+to make one before editing.
+
+**Any new WebSocket endpoint needs its own `location` block with upgrade headers —
+the generic `location /api/ { ... }` block does NOT proxy WebSocket upgrades.**
+Discovered live on 2026-09-14: Team Projects' realtime feature (`/api/v1/team-projects/*/ws`)
+shipped, deployed, and was reported "verified live" — but every real browser
+connection through the actual `wss://tech.gennis.uz` domain failed immediately
+(`error` → `close(1006)`, never `open`), because it fell through to the generic
+`/api/` block, which has no `proxy_http_version 1.1` / `Upgrade` / `Connection`
+headers. The backend itself was fine (a direct `ws://127.0.0.1:8062/...` connection
+from the server worked immediately) — this was purely a proxy-layer gap, invisible
+to unit tests, backend-only smoke tests, or anything that doesn't go through the
+real public domain. The existing `location /api/v1/game-sessions { ... }` block
+(team-game's realtime feature) already had the correct config; Team Projects' new
+`/ws` routes needed the identical treatment in their own
+`location /api/v1/team-projects { ... }` block (added same day). **If you add
+another WebSocket route under a new path prefix, it needs the same treatment** —
+copy the working block's five directives (`proxy_http_version 1.1;
+proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection
+$connection_upgrade;` plus the usual `Host`/`X-Real-IP`/`X-Forwarded-*`/
+`proxy_read_timeout 86400;`) rather than assuming the generic `/api/` block covers
+it. `$connection_upgrade` is defined once, globally, in `/etc/nginx/nginx.conf`.
+
 ---
 
 ## 14. Known bug patterns / lessons learned

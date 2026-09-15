@@ -1,0 +1,51 @@
+.ub-banner {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: #0f172a;
+    color: #fff;
+    padding: 12px 14px 12px 18px;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.28);
+    font-size: 13.5px;
+    max-width: calc(100vw - 32px);
+}
+
+.ub-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.ub-refresh {
+    background: #0d9488;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.ub-dismiss {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.65);
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+}
+.ub-dismiss:hover { color: #fff; }
+
+@media (max-width: 480px) {
+    .ub-banner { flex-direction: column; align-items: stretch; text-align: center; bottom: 12px; }
+    .ub-actions { justify-content: center; }
+}

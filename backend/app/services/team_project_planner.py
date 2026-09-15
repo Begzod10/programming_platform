@@ -141,6 +141,17 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
             payload_json=json.dumps({"error": str(e)}),
         ))
         await db.commit()
+        # Local import: avoids a module-load cycle (team_project.py already
+        # imports generate_plan_for_team from this module at top level).
+        # This is the ONE place a failed/successful generation has no
+        # request/response cycle to piggyback a response on at all — this
+        # function only ever runs from generate_plan_for_team_standalone's
+        # own background task, so without this broadcast a student watching
+        # a still-`forming` team never finds out generation failed short of
+        # reloading the page repeatedly.
+        from app.api.v1.endpoints.team_project import broadcast_team, broadcast_project
+        await broadcast_team(db, team_id)
+        await broadcast_project(db, team.team_project_id)
         return
 
     team.project_title = plan["project_title"]
@@ -174,6 +185,9 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
         payload_json=json.dumps({"provider": provider, "task_count": len(plan["tasks"])}),
     ))
     await db.commit()
+    from app.api.v1.endpoints.team_project import broadcast_team, broadcast_project
+    await broadcast_team(db, team_id)
+    await broadcast_project(db, team.team_project_id)
 
 
 def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:

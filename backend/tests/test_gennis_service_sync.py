@@ -18,6 +18,8 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import select
 
+from sqlalchemy import delete
+
 from app.core.security import get_password_hash
 from app.models.flow import Flow
 from app.models.group import Group
@@ -27,6 +29,18 @@ from app.services.gennis_service import GennisService
 
 @pytest_asyncio.fixture
 async def turon_teacher(db_session) -> Student:
+    # turon_id=19146 is the real incident's account (see module docstring)
+    # kept literal for that narrative and because _login_data() below
+    # hardcodes user.id=19146 to match it. ux_students_turon_id (added
+    # 2026-09-14) now enforces uniqueness for real, and this fixture is
+    # invoked fresh by every test function in this file with no per-test
+    # DB rollback (db_session commits straight to the shared test.db) — so
+    # without this cleanup, only the first test to run would succeed and
+    # every other one would hit a real IntegrityError from the previous
+    # test's still-committed row.
+    await db_session.execute(delete(Student).where(Student.turon_id == 19146))
+    await db_session.commit()
+
     uid = uuid.uuid4().hex[:8]
     teacher = Student(
         username=f"teach_{uid}",
@@ -437,3 +451,93 @@ async def test_roster_sync_does_not_clobber_birth_date_with_missing_value(db_ses
         await db_session.execute(select(Student).where(Student.turon_id == student_turon_id))
     ).scalar_one()
     assert student.birth_date == date(2017, 9, 1)
+
+
+@pytest.mark.asyncio
+async def test_roster_sync_survives_duplicate_turon_id_rows(db_session, turon_teacher, monkeypatch):
+    """Two Student rows sharing the same turon_id — this happened live
+    2026-09-14 (turon_id 19042 on both id 368 'turon_19042' and id 564
+    'Feruz1') — used to crash the whole login with an uncaught
+    MultipleResultsFound the moment roster sync reached that student's id
+    lookup. Must degrade to the older row instead of raising.
+
+    A unique index on turon_id (added the same day, after this incident)
+    now makes a NEW duplicate impossible going forward — this defensive
+    degrade-to-oldest-row code path only still matters for a row that
+    somehow predates the constraint (a restored backup, a direct DB
+    write bypassing the app). To even construct that scenario here, the
+    unique index has to be dropped for the duration of this one test and
+    put back immediately after — every other test still runs with the
+    constraint enforced.
+
+    Named ix_students_turon_id, not the production ux_students_turon_id:
+    this test DB is built via Base.metadata.create_all() against the
+    model's own `unique=True, index=True` (see app/models/user.py), not
+    via database.py::_reconcile_indexes (which only runs against real
+    Postgres deploys and is never invoked by the test suite) — same
+    constraint, SQLAlchemy's default naming for the two declaration paths
+    just differs.
+    """
+    from sqlalchemy import text
+
+    await db_session.execute(text("DROP INDEX IF EXISTS ix_students_turon_id"))
+    await db_session.commit()
+
+    student_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+    group_turon_id = int(uuid.uuid4().int % 1_000_000_000)
+    try:
+        older = Student(
+            username=f"turon_{student_turon_id}",
+            email=f"turon_{student_turon_id}@turon.uz",
+            hashed_password=get_password_hash("irrelevant"),
+            role=UserRole.student,
+            is_active=True,
+            turon_id=student_turon_id,
+        )
+        db_session.add(older)
+        await db_session.commit()
+        await db_session.refresh(older)
+
+        newer = Student(
+            username=f"dup_{student_turon_id}",
+            email=f"dup_{student_turon_id}@turon.uz",
+            hashed_password=get_password_hash("irrelevant"),
+            role=UserRole.student,
+            is_active=True,
+            turon_id=student_turon_id,
+        )
+        db_session.add(newer)
+        await db_session.commit()
+
+        async def _one_student(*args, **kwargs):
+            return [{"id": student_turon_id, "name": "Dup", "surname": "Licate"}]
+
+        monkeypatch.setattr(GennisService, "fetch_group_students", classmethod(_one_student))
+
+        # Must not raise MultipleResultsFound.
+        await GennisService.sync_teacher_data(
+            db_session,
+            turon_teacher,
+            _login_data(groups=[{"id": group_turon_id, "name": f"1-blue-test-{group_turon_id}", "price": 0}]),
+            system="turon",
+        )
+
+        rows = (
+            await db_session.execute(
+                select(Student).where(Student.turon_id == student_turon_id).order_by(Student.id)
+            )
+        ).scalars().all()
+        assert len(rows) == 2, "the fix picks a row deterministically, it doesn't delete/merge the duplicate"
+        assert rows[0].id == older.id
+    finally:
+        # The duplicate pair this test creates on purpose has to be gone
+        # before the index can come back — CREATE UNIQUE INDEX over data
+        # that still violates uniqueness fails immediately, which would
+        # otherwise leave the index missing for every test that runs
+        # after this one.
+        await db_session.execute(delete(Student).where(Student.turon_id == student_turon_id))
+        await db_session.commit()
+        await db_session.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_students_turon_id ON students (turon_id)"
+        ))
+        await db_session.commit()

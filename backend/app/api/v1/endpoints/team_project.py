@@ -1,14 +1,19 @@
 import json
+import logging
 from datetime import timedelta
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
+from app.core.security import decode_access_token
+from app.api.v1.endpoints.team_game_common import spawn_background_task
 from app.dependencies import get_db, get_current_teacher, get_current_student
 from app.models.group import Group
-from app.models.user import Student
+from app.models.user import Student, UserRole
 from app.models.team_project import (
     TeamProject, TeamProjectTeam, TeamProjectMember, TeamProjectTask,
     TeamProjectEvent, TeamProjectPeerRating, TaskStatus, TeamStatus, TeamProjectStatus,
@@ -25,6 +30,7 @@ from app.services.team_project_constants import THEMES_BY_KEY, TECH_STACKS_BY_KE
 from app.services.project_service import ProjectService
 from app.schemas.project import ProjectCreate
 from app.utils.datetime_utils import utcnow
+from app.ws.manager import team_ws_manager, team_project_ws_manager
 
 router = APIRouter(redirect_slashes=False)
 
@@ -153,6 +159,186 @@ def _find_team_and_membership(tp: TeamProject, student_id: int):
             if m.student_id == student_id:
                 return team, m
     return None, None
+
+
+# ── Parent-bot notification ─────────────────────────────────────────────────
+# Same fire-and-forget pattern as team_game_session_reports.py's
+# _notify_parent_bot for a completed game session: a localhost POST to
+# gennis_parent_bot, silently no-op'd if PARENT_BOT_URL/SECRET aren't
+# configured, any failure swallowed and logged — a team being reviewed must
+# never depend on the bot being alive.
+_parent_bot_logger = logging.getLogger("parent_bot_notify")
+
+
+async def _notify_parent_bot_team_project(student_id: int, team_id: int) -> None:
+    url = (settings.PARENT_BOT_URL or "").rstrip("/")
+    secret = settings.PARENT_BOT_SECRET
+    if not url or not secret:
+        return
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                f"{url}/internal/team-project-complete",
+                json={"student_id": student_id, "team_id": team_id},
+                headers={"X-Internal-Secret": secret},
+            )
+    except Exception as exc:
+        _parent_bot_logger.warning(
+            "parent-bot team-project notify failed student=%d team=%d: %s",
+            student_id, team_id, exc,
+        )
+
+
+# ── Realtime: broadcast helpers ─────────────────────────────────────────────
+# Called after every mutation that changes what a connected socket should
+# see — REST endpoints below, and team_project_planner.py's
+# generate_plan_for_team (imports these locally at call time to avoid a
+# module-load cycle, same pattern this file already uses for
+# team_project_points_service.award_points in finalize_team below).
+
+async def broadcast_team(db: AsyncSession, team_id: int) -> None:
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(
+            selectinload(TeamProjectTeam.members).selectinload(TeamProjectMember.student),
+            selectinload(TeamProjectTeam.tasks).selectinload(TeamProjectTask.assigned_student),
+        )
+    )).scalar_one_or_none()
+    if team is None:
+        return
+    await team_ws_manager.broadcast(
+        team_id, {"type": "team_update", "data": _team_read(team).model_dump(mode="json")}
+    )
+
+
+async def broadcast_project(db: AsyncSession, team_project_id: int) -> None:
+    tp = (await db.execute(
+        select(TeamProject).where(TeamProject.id == team_project_id).options(*_team_load_options())
+    )).unique().scalar_one_or_none()
+    if tp is None:
+        return
+    await team_project_ws_manager.broadcast(
+        team_project_id, {"type": "project_update", "data": _team_project_read(tp).model_dump(mode="json")}
+    )
+
+
+# ── Realtime: WebSocket endpoints ───────────────────────────────────────────
+# Two channels, matching the two read shapes above — a team-scoped one for
+# students (their own team only, same data _team_read already allows them)
+# and a project-scoped one for the owning teacher (every team, same as
+# GET /{team_project_id}). Same auth-via-query-token pattern as the
+# team-game feature's WS endpoint (team_game_session.py) — a WebSocket
+# handshake can't carry an Authorization header.
+
+@router.websocket("/teams/{team_id}/ws")
+async def team_ws(
+        team_id: int,
+        websocket: WebSocket,
+        token: Optional[str] = Query(default=None),
+        db: AsyncSession = Depends(get_db),
+):
+    user_id = decode_access_token(token) if token else None
+    if user_id is None:
+        await websocket.close(code=4001)
+        return
+    user = (await db.execute(select(Student).where(Student.id == user_id))).scalar_one_or_none()
+    if not user or not user.is_active:
+        await websocket.close(code=4001)
+        return
+
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(selectinload(TeamProjectTeam.team_project))
+    )).scalar_one_or_none()
+    if team is None:
+        await websocket.close(code=4004)
+        return
+
+    if user.role == UserRole.teacher:
+        if team.team_project.teacher_id != user.id:
+            await websocket.close(code=4003)
+            return
+    else:
+        member = (await db.execute(
+            select(TeamProjectMember).where(
+                TeamProjectMember.team_id == team_id, TeamProjectMember.student_id == user.id,
+            )
+        )).scalar_one_or_none()
+        if member is None:
+            await websocket.close(code=4003)
+            return
+
+    await team_ws_manager.connect(team_id, websocket)
+    try:
+        tp = await _fetch_team_project(db, team.team_project_id)
+        team_out = next((t for t in tp.teams if t.id == team_id), None)
+        if team_out is not None:
+            await websocket.send_json(
+                {"type": "team_update", "data": _team_read(team_out).model_dump(mode="json")}
+            )
+    except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).warning("ws init error team=%d: %s", team_id, exc)
+        await websocket.close(code=1011)
+        team_ws_manager.disconnect(team_id, websocket)
+        return
+
+    try:
+        while True:
+            msg = await websocket.receive_text()
+            if msg == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        team_ws_manager.disconnect(team_id, websocket)
+
+
+@router.websocket("/{team_project_id}/ws")
+async def team_project_ws(
+        team_project_id: int,
+        websocket: WebSocket,
+        token: Optional[str] = Query(default=None),
+        db: AsyncSession = Depends(get_db),
+):
+    user_id = decode_access_token(token) if token else None
+    if user_id is None:
+        await websocket.close(code=4001)
+        return
+    teacher = (await db.execute(select(Student).where(Student.id == user_id))).scalar_one_or_none()
+    if not teacher or not teacher.is_active:
+        await websocket.close(code=4001)
+        return
+
+    tp = (await db.execute(select(TeamProject).where(TeamProject.id == team_project_id))).scalar_one_or_none()
+    if tp is None:
+        await websocket.close(code=4004)
+        return
+    if tp.teacher_id != teacher.id:
+        await websocket.close(code=4003)
+        return
+
+    await team_project_ws_manager.connect(team_project_id, websocket)
+    try:
+        full_tp = await _fetch_team_project(db, team_project_id)
+        await websocket.send_json(
+            {"type": "project_update", "data": _team_project_read(full_tp).model_dump(mode="json")}
+        )
+    except Exception as exc:
+        import logging as _logging
+        _logging.getLogger(__name__).warning("ws init error project=%d: %s", team_project_id, exc)
+        await websocket.close(code=1011)
+        team_project_ws_manager.disconnect(team_project_id, websocket)
+        return
+
+    try:
+        while True:
+            msg = await websocket.receive_text()
+            if msg == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        team_project_ws_manager.disconnect(team_project_id, websocket)
 
 
 # ── Teacher: create assignment ──────────────────────────────────────────────
@@ -373,6 +559,8 @@ async def create_manual_plan(
 
     tp = await _fetch_team_project(db, team.team_project_id)
     team_out = next(t for t in tp.teams if t.id == team_id)
+    await broadcast_team(db, team_id)
+    await broadcast_project(db, team.team_project_id)
     return _team_read(team_out)
 
 
@@ -406,6 +594,12 @@ async def submit_task(
     # uncached task.assigned_student access inside _task_read — this is
     # the student-facing submit flow, so it's hit far more often.
     await db.refresh(task, attribute_names=["assigned_student"])
+
+    team_project_id = (await db.execute(
+        select(TeamProjectTeam.team_project_id).where(TeamProjectTeam.id == team_id)
+    )).scalar_one()
+    await broadcast_team(db, team_id)
+    await broadcast_project(db, team_project_id)
     return _task_read(task)
 
 
@@ -468,6 +662,8 @@ async def reassign_task(
     # every actual call to this endpoint (not just a test artifact) while
     # writing the regression test for it.
     await db.refresh(task, attribute_names=["assigned_student"])
+    await broadcast_team(db, team_id)
+    await broadcast_project(db, team.team_project_id)
     return _task_read(task)
 
 
@@ -537,6 +733,26 @@ async def finalize_team(
         ))
         await db.commit()
 
+        # Phase 7 wiring: team-project achievements (see
+        # achievement_service.py's team_project_count/team_lead_count/
+        # team_bonus_count criteria) are only ever evaluated from student-
+        # facing GET endpoints (/achievements/my, /my-progress) — nothing
+        # else in this codebase calls check_and_award_achievements. Without
+        # this, a student who never happens to load the achievements page
+        # again would simply never receive a team-project achievement, no
+        # matter how long they wait. `team.members` isn't eager-loaded on
+        # this endpoint's query (only .tasks/.team_project are), so this
+        # queries student ids directly rather than touching the lazy
+        # relationship (would raise MissingGreenlet under async SQLAlchemy
+        # — the exact bug class fixed elsewhere in this feature already).
+        from app.services.achievement_service import check_and_award_achievements
+        member_ids = (await db.execute(
+            select(TeamProjectMember.student_id).where(TeamProjectMember.team_id == team.id)
+        )).scalars().all()
+        for member_id in member_ids:
+            await check_and_award_achievements(db, member_id)
+            spawn_background_task(_notify_parent_bot_team_project(member_id, team.id))
+
     tp = await _fetch_team_project(db, team.team_project_id)
     # A team can now reach "reviewed" directly (synchronous AI review,
     # above), not just "submitted" — the original check only matched the
@@ -551,6 +767,8 @@ async def finalize_team(
         await db.commit()
 
     team_out = next(t for t in tp.teams if t.id == team_id)
+    await broadcast_team(db, team_id)
+    await broadcast_project(db, team.team_project_id)
     return _team_read(team_out)
 
 

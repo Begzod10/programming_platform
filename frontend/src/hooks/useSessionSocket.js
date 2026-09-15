@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { API_URL_DOC, getToken } from '../api/search/base';
 
-function wsUrl(sessionId) {
+function wsUrl(basePath, entityId) {
     const base = API_URL_DOC.replace(/^http/, 'ws').replace(/\/$/, '');
     const token = encodeURIComponent(getToken() || '');
-    return `${base}/api/v1/game-sessions/${sessionId}/ws?token=${token}`;
+    return `${base}/api/v1/${basePath}/${entityId}/ws?token=${token}`;
 }
 
-// Keeps a WS alive for the given sessionId — reconnects on close, pings every
-// 25s to hold it open. Shared by the student and teacher team-game pages,
-// which used to each carry their own byte-for-byte copy of this (and had
-// already drifted: one dropped onDeleted/onMessage from its reconnect
-// callback's dependency array, a stale-closure bug once those callbacks stop
-// being referentially stable).
-export function useSessionSocket(sessionId, onUpdate, onDeleted, onMessage) {
+// Keeps a WS alive for the given entityId under basePath (default
+// 'game-sessions', so both existing call sites keep working unchanged) —
+// reconnects on close, pings every 25s to hold it open. Originally shared by
+// just the student/teacher team-game pages (which used to each carry their
+// own byte-for-byte copy of this, and had already drifted: one dropped
+// onDeleted/onMessage from its reconnect callback's dependency array, a
+// stale-closure bug once those callbacks stop being referentially stable);
+// generalized with a basePath param so the team-projects realtime feature
+// could reuse the exact same connect/reconnect/ping mechanics instead of a
+// second hand-copy.
+export function useSessionSocket(sessionId, onUpdate, onDeleted, onMessage, basePath = 'game-sessions') {
     const wsRef = useRef(null);
     const pingRef = useRef(null);
     const mountedRef = useRef(true);
@@ -21,7 +25,7 @@ export function useSessionSocket(sessionId, onUpdate, onDeleted, onMessage) {
 
     const connect = useCallback(() => {
         if (!sessionId || !mountedRef.current) return;
-        const ws = new WebSocket(wsUrl(sessionId));
+        const ws = new WebSocket(wsUrl(basePath, sessionId));
         wsRef.current = ws;
 
         ws.onmessage = (e) => {
@@ -48,7 +52,7 @@ export function useSessionSocket(sessionId, onUpdate, onDeleted, onMessage) {
         };
 
         ws.onerror = () => ws.close();
-    }, [sessionId, onUpdate, onDeleted, onMessage]);
+    }, [sessionId, onUpdate, onDeleted, onMessage, basePath]);
 
     useEffect(() => {
         mountedRef.current = true;

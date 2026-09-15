@@ -56,6 +56,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const [projectForm, setProjectForm] = useState({github_url: '', live_demo_url: '', description: ''});
     const [projectSubmission, setProjectSubmission] = useState(null);
     const [projectStatusLoading, setProjectStatusLoading] = useState(false);
+    // Which lesson.id the current projectSubmission actually belongs to.
+    // A ref (not state) on purpose: it must be readable — and wrong-on-purpose
+    // stale — during the very first render after lesson.id changes, before
+    // any effect for that render has run. See the fetch effect below for why.
+    const projectSubmissionLessonId = useRef(null);
     // Daily AI-review budget { used_today, limit, remaining, can_submit }.
     // Drives the disabled state of the project-submit button so a student
     // can't submit once the cap is hit (the auto-review would be skipped
@@ -171,11 +176,28 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const nextLesson = currentIndex < allLessons.length - 1 ? allLessons[currentIndex + 1] : null;
     const projectSection = lesson.sections?.find(s => s.type === 'project');
 
+    // projectDataFresh gates every value derived from projectSubmission on
+    // it actually belonging to the CURRENTLY DISPLAYED lesson. Without this,
+    // navigating from a lesson with an approved 80+ project straight into
+    // the next lesson hit a real, live bug: for the first render after
+    // lesson.id changes, projectSubmission state is still the PREVIOUS
+    // lesson's (React hasn't run this lesson's fetch yet), so projectDone/
+    // projectScore momentarily read as the old lesson's passed:true/high
+    // score while lesson.id already points at the new lesson — the
+    // celebration effect below (keyed by lesson.id) reads that combination
+    // as "a fresh pass on THIS lesson" and fires. The modal then re-renders
+    // with the new lesson's real score (usually 0, no submission yet) once
+    // the fetch resolves — which is exactly why it was seen showing
+    // "0/100" on lessons the student never submitted anything for, on
+    // every single lesson entry. A ref is required (not state): it must
+    // already disagree with the new lesson.id on that very first render,
+    // before any effect for this render has had a chance to run.
+    const projectDataFresh = projectSubmissionLessonId.current === lesson?.id;
     const passThreshold = projectSubmission?.pass_threshold ?? 90;
-    const projectDone = !!projectSubmission?.passed;
-    const projectPending = !!projectSubmission?.submitted && !projectSubmission?.reviewed;
-    const projectFailed = !!projectSubmission?.reviewed && !projectSubmission?.passed;
-    const projectScore = projectSubmission?.points_earned ?? 0;
+    const projectDone = projectDataFresh && !!projectSubmission?.passed;
+    const projectPending = projectDataFresh && !!projectSubmission?.submitted && !projectSubmission?.reviewed;
+    const projectFailed = projectDataFresh && !!projectSubmission?.reviewed && !projectSubmission?.passed;
+    const projectScore = projectDataFresh ? (projectSubmission?.points_earned ?? 0) : 0;
     const nextBlocked = !!projectSection && !projectDone;
     const isDone = lesson.completed || justCompleted;
 
@@ -189,11 +211,26 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     }, [projectDone, projectScore, lesson?.id]);
 
     useEffect(() => {
+        // Mark any previous lesson's data as stale immediately — see
+        // projectDataFresh above for why this must happen via the ref, not
+        // just via setProjectSubmission(null) (state updates aren't visible
+        // until the next render, which is too late for the effect above).
+        projectSubmissionLessonId.current = null;
+        setProjectSubmission(null);
+        // A celebration triggered by the PREVIOUS lesson may still be
+        // showing (its own 3.8s auto-dismiss timer hasn't fired yet, e.g.
+        // the student navigated onward quickly) — left alone, it keeps
+        // rendering across the lesson change, now fed the new lesson's
+        // projectScore (0, gated fresh above) instead of the score it
+        // actually celebrated. Close it; it already did its job (the
+        // localStorage guard is already set) and doesn't belong on a
+        // different lesson's screen.
+        setShowCelebration(false);
         if (!projectSection || !course?.id || !lesson?.id) {
-            setProjectSubmission(null);
             return;
         }
         let cancelled = false;
+        const forLessonId = lesson.id;
         setProjectStatusLoading(true);
         request(
             `${API_URL}v1/courses/${course.id}/lessons/${lesson.id}/submission${langParam}`,
@@ -203,6 +240,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
         )
             .then(res => {
                 if (cancelled || !res) return;
+                projectSubmissionLessonId.current = forLessonId;
                 setProjectSubmission(res);
                 if (res.submitted) {
                     setProjectForm(f => ({
@@ -214,7 +252,10 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 }
             })
             .catch(() => {
-                if (!cancelled) setProjectSubmission({submitted: false, pass_threshold: 90});
+                if (!cancelled) {
+                    projectSubmissionLessonId.current = forLessonId;
+                    setProjectSubmission({submitted: false, pass_threshold: 90});
+                }
             })
             .finally(() => { if (!cancelled) setProjectStatusLoading(false); });
         return () => { cancelled = true; };

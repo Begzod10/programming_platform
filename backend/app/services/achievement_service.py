@@ -11,7 +11,9 @@ from app.utils.datetime_utils import utcnow
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.submission import Submission
 from app.models.student_achievement import CourseCertificate
+from app.models.course import Course
 from app.models.dictionary import UserDictionary
+from app.models.team_project import TeamProjectTeam, TeamProjectMember, TeamStatus, TeamRole
 from sqlalchemy import and_
 
 import io
@@ -245,6 +247,48 @@ async def revoke_achievement(db: AsyncSession, student_id: int, achievement_id: 
     return True
 
 
+# Phase 7 wiring (Team Projects spec): three team-project-specific
+# achievements, seeded lazily the same way _get_or_create_fullstack_achievement
+# seeds its own row — see _get_or_create_team_project_achievements below.
+_TEAM_ACHIEVEMENTS = [
+    {
+        "name": "Jamoaviy loyihachi",
+        "description": "Birinchi jamoaviy loyihangizni muvaffaqiyatli yakunladingiz.",
+        "criteria_type": "team_project_count", "criteria_value": 1,
+        "points_reward": 50, "icon": "🤝", "category": "team_project",
+        "badge_image_url": "/static/badges/team_project.svg",
+    },
+    {
+        "name": "Jamoa yetakchisi",
+        "description": "Jamoaviy loyihada yetakchi (integrator) sifatida loyihani yakunladingiz.",
+        "criteria_type": "team_lead_count", "criteria_value": 1,
+        "points_reward": 75, "icon": "👑", "category": "team_project",
+        "badge_image_url": "/static/badges/team_lead.svg",
+    },
+    {
+        "name": "A'lo jamoa",
+        "description": "Jamoaviy loyihangiz yuqori baho (A yoki B) bilan baholandi.",
+        "criteria_type": "team_bonus_count", "criteria_value": 1,
+        "points_reward": 60, "icon": "⭐", "category": "team_project",
+        "badge_image_url": "/static/badges/team_excellence.svg",
+    },
+]
+
+
+async def _get_or_create_team_project_achievements(db: AsyncSession) -> None:
+    res = await db.execute(
+        select(Achievement.criteria_type).where(
+            Achievement.criteria_type.in_([a["criteria_type"] for a in _TEAM_ACHIEVEMENTS])
+        )
+    )
+    existing = {row[0] for row in res.all()}
+    missing = [spec for spec in _TEAM_ACHIEVEMENTS if spec["criteria_type"] not in existing]
+    for spec in missing:
+        db.add(Achievement(**spec))
+    if missing:
+        await db.flush()
+
+
 async def check_and_award_achievements(db: AsyncSession, student_id: int) -> List[StudentAchievement]:
     """Avtomatik achievement tekshiruvi"""
     student_result = await db.execute(select(Student).where(Student.id == student_id))
@@ -267,6 +311,7 @@ async def check_and_award_achievements(db: AsyncSession, student_id: int) -> Lis
     # row that still points at a placeholder. Idempotent and cheap (one
     # SELECT + an UPDATE only when a row actually changes).
     await _backfill_course_badge_urls(db)
+    await _get_or_create_team_project_achievements(db)
 
     achievements = await get_all_achievements(db)
 
@@ -311,6 +356,50 @@ async def check_and_award_achievements(db: AsyncSession, student_id: int) -> Lis
             )
             certs_count = cc_res.scalar() or 0
             if certs_count >= ach.criteria_value:
+                should_award = True
+        elif ach.criteria_type == "team_project_count":
+            tpc_res = await db.execute(
+                select(func.count(TeamProjectMember.id))
+                .join(TeamProjectTeam, TeamProjectTeam.id == TeamProjectMember.team_id)
+                .where(
+                    TeamProjectMember.student_id == student_id,
+                    TeamProjectTeam.status == TeamStatus.reviewed,
+                )
+            )
+            completed_team_projects = tpc_res.scalar() or 0
+            if completed_team_projects >= ach.criteria_value:
+                should_award = True
+        elif ach.criteria_type == "team_lead_count":
+            tlc_res = await db.execute(
+                select(func.count(TeamProjectMember.id))
+                .join(TeamProjectTeam, TeamProjectTeam.id == TeamProjectMember.team_id)
+                .where(
+                    TeamProjectMember.student_id == student_id,
+                    TeamProjectMember.role == TeamRole.lead,
+                    TeamProjectTeam.status == TeamStatus.reviewed,
+                )
+            )
+            led_team_projects = tlc_res.scalar() or 0
+            if led_team_projects >= ach.criteria_value:
+                should_award = True
+        elif ach.criteria_type == "team_bonus_count":
+            # Recomputes the same "team bonus earned" predicate
+            # team_project_points_service.py::award_points uses
+            # (final_project.grade A/B) rather than reading a persisted
+            # flag — there isn't one; the ledger only records amounts, not
+            # which award category they came from.
+            tbc_res = await db.execute(
+                select(func.count(TeamProjectMember.id))
+                .join(TeamProjectTeam, TeamProjectTeam.id == TeamProjectMember.team_id)
+                .join(Project, Project.id == TeamProjectTeam.final_project_id)
+                .where(
+                    TeamProjectMember.student_id == student_id,
+                    TeamProjectTeam.status == TeamStatus.reviewed,
+                    Project.grade.in_(("A", "B")),
+                )
+            )
+            team_bonus_wins = tbc_res.scalar() or 0
+            if team_bonus_wins >= ach.criteria_value:
                 should_award = True
 
         if should_award:
@@ -579,7 +668,7 @@ async def get_course_certificate(
 ) -> Optional[CourseCertificate]:
     result = await db.execute(
         select(CourseCertificate)
-        .options(selectinload(CourseCertificate.course))
+        .options(selectinload(CourseCertificate.course).selectinload(Course.category))
         .where(
             and_(
                 CourseCertificate.student_id == student_id,

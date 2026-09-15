@@ -126,8 +126,12 @@ Faqat xatoning SABABINI tushuntir (2-3 jumla). TO'G'RI JAVOBNI AYTMA.
 Nima uchun xato bo'lishi mumkinligini va qanday o'ylash kerakligini ayt.
 {lang_instr}"""
     try:
+        # json_mode=False: this wants a plain-prose explanation back, not a
+        # JSON object — validator=None already signaled that, but nothing
+        # enforced it, so OpenAI's json_object mode stayed on unconditionally
+        # and 400'd (the prompt above never says "json") every single call.
         text, _parsed, provider, attempts = await call_chain(
-            prompt, max_tokens=300, validator=None,
+            prompt, max_tokens=300, validator=None, json_mode=False,
         )
         if attempts:
             logger.info("[exercise-ai] explanation via %s after %d fallthrough(s): %s",

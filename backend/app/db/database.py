@@ -143,6 +143,25 @@ async def _reconcile_indexes(conn) -> None:
         text("ALTER TABLE early_modules ADD COLUMN IF NOT EXISTS description_ru TEXT"),
         text("ALTER TABLE early_activities ADD COLUMN IF NOT EXISTS title_ru VARCHAR(150)"),
         text("ALTER TABLE early_activities ADD COLUMN IF NOT EXISTS instruction_text_ru TEXT"),
+        # 2026-09-14: close the gennis/turon sync duplicate-row class of bug
+        # (confirmed live: two Student rows both with turon_id=19042, one
+        # synthetic-username, one real — corrupted a teacher's whole roster
+        # sync and crashed login for every teacher with that student).
+        # Partial (WHERE ... IS NOT NULL) because most students have NULL
+        # for one or both of these — uniqueness only matters once a value
+        # is actually set. gennis_service.py's _sync_container_student
+        # already handles both the pre-existing-duplicate case (oldest row
+        # wins) and the race this constraint newly makes possible (a
+        # concurrent insert now raises IntegrityError instead of silently
+        # duplicating — caught there and resolved to the winning row).
+        text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_students_turon_id "
+            "ON students (turon_id) WHERE turon_id IS NOT NULL"
+        ),
+        text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_students_gennis_id "
+            "ON students (gennis_id) WHERE gennis_id IS NOT NULL"
+        ),
     ]
     for stmt in statements:
         await conn.execute(stmt)

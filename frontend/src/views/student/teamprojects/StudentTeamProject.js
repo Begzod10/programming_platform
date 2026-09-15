@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import './StudentTeamProject.css';
 
 const STATUS_LABELS = {
@@ -147,6 +148,23 @@ const StudentTeamProject = () => {
     }, [request]);
 
     useEffect(() => { reload(); }, [reload]);
+
+    // Realtime: a teammate submitting/getting reassigned, or the team's own
+    // status advancing, used to only show up after a manual reload. Merges
+    // the pushed team into state rather than re-running reload() (a REST
+    // round-trip) — safe to do unconditionally since child components
+    // (TaskCard's typed-but-unsubmitted URL, PeerRatings' picked stars)
+    // keep their own local useState across a prop update; only a
+    // remount would lose it, and nothing here causes one.
+    const myTeamId = entries[0]?.my_team?.id;
+    const handleTeamWsMessage = useCallback((msg) => {
+        if (msg.type !== 'team_update') return;
+        setEntries(prev => {
+            if (!prev[0]) return prev;
+            return [{ ...prev[0], my_team: msg.data }, ...prev.slice(1)];
+        });
+    }, []);
+    useSessionSocket(myTeamId, null, null, handleTeamWsMessage, 'team-projects/teams');
 
     useEffect(() => {
         try {

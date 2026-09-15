@@ -28,9 +28,37 @@ class ProviderError(Exception):
 # Per-provider HTTP calls (call_chain versions)
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def _call_groq(prompt: str, max_tokens: int) -> str:
+def _ensure_json_keyword(prompt: str) -> str:
+    """OpenAI (and Groq's OpenAI-compatible API) reject `response_format:
+    json_object` with a 400 unless the literal word "json" appears
+    somewhere in `messages` — confirmed via the actual production error:
+    "'messages' must contain the word 'json' in some form, to use
+    'response_format' of type 'json_object'." Most of this codebase's
+    prompts already say "JSON formatda" and satisfy this on their own, but
+    nothing enforced it, so a prompt that forgot to (or a future one) fails
+    every OpenAI call outright — this was live in production for hours
+    before being caught. Centralized here instead of hunting down every
+    prompt string across grok_review.py/exercise_service.py/
+    team_project_*.py individually, and appended rather than required from
+    callers so it can't be forgotten again."""
+    if "json" in prompt.lower():
+        return prompt
+    return prompt + "\n\nJavobni albatta JSON formatida qaytar."
+
+
+async def _call_groq(prompt: str, max_tokens: int, json_mode: bool = True) -> str:
     if not settings.GROK_API_KEY:
         raise ProviderError("Groq API key not set")
+    if json_mode:
+        prompt = _ensure_json_keyword(prompt)
+    payload = {
+        "model": settings.GROK_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.3,
+        "max_tokens": max_tokens,
+    }
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
     async with httpx.AsyncClient(timeout=60.0, proxy=settings.HTTP_PROXY or None) as client:
         resp = await client.post(
             settings.GROK_API_URL,
@@ -38,13 +66,7 @@ async def _call_groq(prompt: str, max_tokens: int) -> str:
                 "Authorization": f"Bearer {settings.GROK_API_KEY}",
                 "Content-Type": "application/json",
             },
-            json={
-                "model": settings.GROK_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3,
-                "max_tokens": max_tokens,
-                "response_format": {"type": "json_object"},
-            },
+            json=payload,
         )
         if resp.status_code >= 400:
             raise ProviderError(f"Groq HTTP {resp.status_code}")
@@ -55,23 +77,31 @@ async def _call_groq(prompt: str, max_tokens: int) -> str:
             raise ProviderError(f"Groq response shape: {e}")
 
 
-async def _call_gemini(prompt: str, max_tokens: int) -> str:
+async def _call_gemini(prompt: str, max_tokens: int, json_mode: bool = True) -> str:
     if not settings.GEMINI_API_KEY:
         raise ProviderError("Gemini API key not set")
     url = (f"{settings.GEMINI_API_URL.rstrip('/')}/"
            f"{settings.GEMINI_MODEL}:generateContent"
            f"?key={settings.GEMINI_API_KEY}")
+    generation_config = {
+        "temperature": 0.3,
+        "maxOutputTokens": max_tokens,
+    }
+    # Gemini doesn't reject a missing "json" mention the way OpenAI does,
+    # but forcing JSON mime type on a plain-text prompt (e.g.
+    # get_ai_explanation, which wants prose back) would wrap that prose in
+    # JSON syntax instead of erroring — same underlying bug, different
+    # failure shape. Keep this conditional in step with _call_openai/
+    # _call_groq's response_format for consistency.
+    if json_mode:
+        generation_config["responseMimeType"] = "application/json"
     async with httpx.AsyncClient(timeout=60.0, proxy=settings.HTTP_PROXY or None) as client:
         resp = await client.post(
             url,
             headers={"Content-Type": "application/json"},
             json={
                 "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "temperature": 0.3,
-                    "maxOutputTokens": max_tokens,
-                    "responseMimeType": "application/json",
-                },
+                "generationConfig": generation_config,
             },
         )
         if resp.status_code >= 400:
@@ -84,11 +114,21 @@ async def _call_gemini(prompt: str, max_tokens: int) -> str:
             raise ProviderError(f"Gemini response shape: {e}")
 
 
-async def _call_openai(prompt: str, max_tokens: int) -> str:
+async def _call_openai(prompt: str, max_tokens: int, json_mode: bool = True) -> str:
     if not settings.OPENAI_API_KEY:
         raise ProviderError("OpenAI API key not set")
+    if json_mode:
+        prompt = _ensure_json_keyword(prompt)
     url = settings.openai_chat_url
     logger.info("[ai-openai] posting to %s model=%s", url, settings.OPENAI_MODEL)
+    payload = {
+        "model": settings.OPENAI_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.3,
+        "max_tokens": max_tokens,
+    }
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
     async with httpx.AsyncClient(timeout=60.0, proxy=settings.HTTP_PROXY or None) as client:
         resp = await client.post(
             url,
@@ -96,13 +136,7 @@ async def _call_openai(prompt: str, max_tokens: int) -> str:
                 "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
                 "Content-Type": "application/json",
             },
-            json={
-                "model": settings.OPENAI_MODEL,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3,
-                "max_tokens": max_tokens,
-                "response_format": {"type": "json_object"},
-            },
+            json=payload,
         )
         if resp.status_code >= 400:
             body = resp.text[:400]
@@ -114,7 +148,7 @@ async def _call_openai(prompt: str, max_tokens: int) -> str:
             raise ProviderError(f"OpenAI response shape: {e}")
 
 
-_PROVIDER_CALLERS: dict[str, Callable[[str, int], Awaitable[str]]] = {
+_PROVIDER_CALLERS: dict[str, Callable[..., Awaitable[str]]] = {
     "groq": _call_groq,
     "gemini": _call_gemini,
     "openai": _call_openai,
@@ -125,7 +159,15 @@ async def call_chain(
         prompt: str,
         max_tokens: int,
         validator: Optional[Callable[[str], Any]] = None,
+        json_mode: bool = True,
 ) -> tuple[str, Any, str, list[str]]:
+    """json_mode=True (default) asks each provider for a JSON-object
+    response — every existing caller in this codebase wants that except
+    exercise_service.py's get_ai_explanation, which wants plain prose back
+    and must pass json_mode=False. See _ensure_json_keyword's docstring
+    for why this matters: OpenAI hard-rejects json_object mode with a 400
+    unless "json" appears in the prompt, which cost hours of silently
+    broken AI grading platform-wide before this was caught."""
     attempts: list[str] = []
     for provider in settings.ai_provider_chain_list:
         caller = _PROVIDER_CALLERS.get(provider)
@@ -136,7 +178,7 @@ async def call_chain(
 
         started = time.perf_counter()
         try:
-            text = await caller(prompt, max_tokens)
+            text = await caller(prompt, max_tokens, json_mode=json_mode)
             if not text or not text.strip():
                 raise ProviderError("empty response body")
 
@@ -247,7 +289,7 @@ async def _call_openai_simple(prompt: str) -> Optional[str]:
                 },
                 json={
                     "model": settings.OPENAI_MODEL,
-                    "messages": [{"role": "user", "content": prompt}],
+                    "messages": [{"role": "user", "content": _ensure_json_keyword(prompt)}],
                     "temperature": 0.3,
                     "max_tokens": 1000,
                     "response_format": {"type": "json_object"}

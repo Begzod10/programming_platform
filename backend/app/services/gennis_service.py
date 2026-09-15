@@ -516,8 +516,27 @@ class GennisService:
         # (o'zgarishi mumkin, va nazariy jihatdan boshqa hisobning oldindan
         # tanlagan username'i bilan mos kelib qolishi mumkin), shuning uchun
         # doimiy va ishonchli kalit sifatida ishlatib bo'lmaydi.
-        result = await db.execute(select(Student).where(getattr(Student, id_col) == s_id))
-        student = result.scalar_one_or_none()
+        # .scalars().all() + explicit pick, NOT scalar_one_or_none() — a
+        # duplicate (system, s_id) pair (confirmed live 2026-09-14: two
+        # rows both with turon_id=19042, one synthetic-username
+        # "turon_19042" and one real "Feruz1") makes scalar_one_or_none()
+        # raise MultipleResultsFound, which crashed the login 500 for
+        # EVERY teacher whose roster includes that student — one corrupt
+        # row took down sync entirely. id_col has no DB-level uniqueness
+        # constraint, so this can't be assumed impossible. Deterministic
+        # oldest-row-wins keeps behavior stable across repeated logins;
+        # the warning is what actually surfaces the duplicate for cleanup,
+        # since picking a row silently would hide it again.
+        rows = (await db.execute(
+            select(Student).where(getattr(Student, id_col) == s_id).order_by(Student.id)
+        )).scalars().all()
+        if len(rows) > 1:
+            logger.warning(
+                "Bir nechta student qatori bir xil %s=%s bilan topildi (ids=%s) — "
+                "eng eski qator (id=%s) ishlatiladi, qolganlari qo'lda birlashtirilishi kerak.",
+                id_col, s_id, [r.id for r in rows], rows[0].id,
+            )
+        student = rows[0] if rows else None
 
         s_username = await cls._resolve_sync_username(
             db, s_data, system, exclude_student_id=student.id if student else None,
@@ -571,7 +590,43 @@ class GennisService:
                 **{id_col: s_id},
             )
             db.add(student)
-            await db.flush()
+            try:
+                async with db.begin_nested():
+                    await db.flush()
+            except IntegrityError:
+                # Ikki bir vaqtdagi login shu (system, s_id) uchun ikkalasi
+                # ham "qator yo'q" deb topib, ikkalasi ham yangi qator
+                # yaratishga urinishi mumkin — avval bu holat jim duplikat
+                # yaratardi (2026-09-14 da tuzatilgan production insident),
+                # endi esa ux_students_turon_id/ux_students_gennis_id
+                # (_reconcile_indexes) buni DB darajasida bloklaydi va
+                # IntegrityError beradi. Yangi qatorni tashlab, g'olib
+                # bo'lgan qatorni o'qib olamiz — xato bermaymiz.
+                #
+                # Alohida db.expunge() shart emas: begin_nested() SAVEPOINT
+                # muvaffaqiyatsiz flush'dan keyin avtomatik rollback qiladi,
+                # va bu jarayonda hali persist bo'lmagan `student` obyekti
+                # sessiyadan o'zi ajratiladi (detach) — qayta expunge
+                # chaqirish "Instance ... is not present in this Session"
+                # xatosini beradi.
+                #
+                # await db.rollback() ZARUR (faqat SAVEPOINT'ning o'zi
+                # yetarli emas — aiosqlite/asyncpg'da SAVEPOINT'dan keyin ham
+                # sessiya "pending rollback" holatida qolib, keyingi har
+                # qanday so'rov PendingRollbackError beradi, sinov orqali
+                # tasdiqlangan). Bu shu so'rov ichida oldinroq (masalan shu
+                # o'qituvchining boshqa guruh/talabalari uchun) hali commit
+                # qilinmagan har qanday ishni ham bekor qiladi — lekin bu
+                # katta muammo emas: sync_teacher_data har login'da qaytadan
+                # ishlaydi, shuning uchun tasodifiy poyga holatida keyingi
+                # login hammasini qaytadan to'g'ri sinxronlaydi. Muqobili —
+                # butun so'rovni uncaught IntegrityError bilan qulatish —
+                # aniq yomonroq.
+                await db.rollback()
+                rows = (await db.execute(
+                    select(Student).where(getattr(Student, id_col) == s_id).order_by(Student.id)
+                )).scalars().all()
+                student = rows[0]
         else:
             # Ilgari sintetik nom bilan sinxronlangan (yoki o'sha safar
             # management-v2'da username hali yo'q edi) qator bo'lsa — endi
