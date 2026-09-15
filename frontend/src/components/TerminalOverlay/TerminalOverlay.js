@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../../context/StoreContext';
 import { useAuth } from '../../context/AuthContext';
-import { getCurrentUser } from '../../api/search/base';
+import { API_URL, useHttp, headers, getCurrentUser } from '../../api/search/base';
 import './TerminalOverlay.css';
 
 // Command -> path suffix (mounted under /student or /teacher depending on
@@ -32,6 +32,7 @@ const ALL_COMMANDS = [...Object.keys(ROUTES), ...EXTRA_COMMANDS];
 const HELP_LINES = [
     'Mavjud buyruqlar:',
     ...Object.keys(ROUTES).map(c => `  /${c}`),
+    '  /course <nom> — kurslarni nomi bo\'yicha qidirish (masalan /course html)',
     '  /menu — yon menyuni ko\'rsatish/yashirish',
     '  /clear — ekranni tozalash',
     '  /logout — tizimdan chiqish',
@@ -41,6 +42,7 @@ const HELP_LINES = [
 export default function TerminalOverlay() {
     const { equipped, terminalMenuHidden, toggleTerminalMenu } = useStore();
     const { logout } = useAuth();
+    const { request } = useHttp();
     const navigate = useNavigate();
     const [open, setOpen] = useState(false);
     const [input, setInput] = useState('');
@@ -104,9 +106,44 @@ export default function TerminalOverlay() {
     };
 
     const run = useCallback((raw) => {
-        const cmd = raw.trim().replace(/^\//, '').toLowerCase();
-        if (!cmd) return;
-        setLog(prev => [...prev, `> /${cmd}`]);
+        const stripped = raw.trim().replace(/^\//, '');
+        if (!stripped) return;
+        // "/course html" -> cmd="course", arg="html". Every other command
+        // ignores arg entirely, so this doesn't change their behavior.
+        const [cmdWord, ...argWords] = stripped.split(/\s+/);
+        const cmd = cmdWord.toLowerCase();
+        const arg = argWords.join(' ');
+        setLog(prev => [...prev, `> /${stripped}`]);
+
+        if ((cmd === 'course' || cmd === 'courses') && arg) {
+            const loadingToken = `__loading_${Date.now()}__`;
+            setLog(prev => [...prev, loadingToken]);
+            const role = getCurrentUser()?.role === 'teacher' ? 'teacher' : 'student';
+            const url = role === 'teacher'
+                ? `${API_URL}v1/courses/my`
+                : `${API_URL}v1/courses/?limit=100`;
+            request(url, 'GET', null, headers())
+                .then(rows => {
+                    const list = Array.isArray(rows) ? rows : (rows?.items || []);
+                    const needle = arg.toLowerCase();
+                    const matches = list.filter(c => (c.title || '').toLowerCase().includes(needle));
+                    setLog(prev => {
+                        const withoutLoading = prev.filter(l => l !== loadingToken);
+                        if (matches.length === 0) {
+                            return [...withoutLoading, `"${arg}" bo'yicha kurs topilmadi.`];
+                        }
+                        return [
+                            ...withoutLoading,
+                            `${matches.length} ta kurs topildi:`,
+                            ...matches.slice(0, 10).map(c => `__course__${c.id}__${c.title}`),
+                        ];
+                    });
+                })
+                .catch(() => {
+                    setLog(prev => [...prev.filter(l => l !== loadingToken), 'Kurslarni yuklab bo\'lmadi.']);
+                });
+            return;
+        }
 
         if (cmd === 'clear') {
             setLog([]);
@@ -147,7 +184,7 @@ export default function TerminalOverlay() {
         navigate(`/${role}/${path}`);
         setLog(prev => [...prev, `→ /${role}/${path}`]);
         setOpen(false);
-    }, [navigate, toggleTerminalMenu, terminalMenuHidden, logout]);
+    }, [navigate, toggleTerminalMenu, terminalMenuHidden, logout, request]);
 
     const handleKeyDown = (e) => {
         // Tab or → (when the caret's already at the end, so it's not just
@@ -184,11 +221,30 @@ export default function TerminalOverlay() {
                         <button className="term-close" onClick={() => setOpen(false)}>✕</button>
                     </div>
                     <div className="term-log" ref={logRef}>
-                        {log.map((line, i) => (
-                            line.startsWith('__loading_')
-                                ? <div key={i} className="term-line term-loading"><span /><span /><span /></div>
-                                : <div key={i} className="term-line">{line}</div>
-                        ))}
+                        {log.map((line, i) => {
+                            if (line.startsWith('__loading_')) {
+                                return <div key={i} className="term-line term-loading"><span /><span /><span /></div>;
+                            }
+                            const courseMatch = line.match(/^__course__(\d+)__([\s\S]*)$/);
+                            if (courseMatch) {
+                                const [, courseId, title] = courseMatch;
+                                return (
+                                    <button
+                                        key={i}
+                                        type="button"
+                                        className="term-line term-result"
+                                        onClick={() => {
+                                            const role = getCurrentUser()?.role === 'teacher' ? 'teacher' : 'student';
+                                            navigate(`/${role}/courses/${courseId}`);
+                                            setOpen(false);
+                                        }}
+                                    >
+                                        → {title}
+                                    </button>
+                                );
+                            }
+                            return <div key={i} className="term-line">{line}</div>;
+                        })}
                     </div>
                     <div className="term-input-wrap">
                         <form

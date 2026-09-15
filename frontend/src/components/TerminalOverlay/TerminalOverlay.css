@@ -53,6 +53,15 @@
 }
 .term-line { white-space: pre-wrap; word-break: break-word; }
 
+/* /course <query> result rows — clickable, unlike a plain .term-line. */
+.term-result {
+    display: block; width: 100%; text-align: left;
+    background: none; border: none; font: inherit; color: #33ff9c;
+    padding: 2px 0; cursor: pointer; border-radius: 4px;
+    transition: background .12s, padding-left .12s;
+}
+.term-result:hover { background: rgba(0, 255, 136, 0.08); padding-left: 6px; }
+
 /* /help's "thinking" beat before the command list reveals. */
 .term-loading { display: flex; gap: 5px; padding: 4px 0; }
 .term-loading span {
