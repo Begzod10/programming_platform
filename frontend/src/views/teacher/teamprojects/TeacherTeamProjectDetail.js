@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import ReactDOM from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
@@ -14,8 +15,130 @@ const TASK_STATUS_LABELS = {
     blocked: "Muddati o'tgan", reassigned: 'Qayta tayinlandi',
 };
 
-const TaskRow = ({ task, members, onReassign }) => {
+const fmtDate = (iso) => {
+    if (!iso) return null;
+    try {
+        return new Date(iso).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch {
+        return iso;
+    }
+};
+
+// Full-detail view for one task — everything TaskRow's compact card
+// leaves out: the interface contract (which files to produce, what they
+// consume/produce — the "qayerda bo'lishi kerak, qanday qilinishi kerak"
+// spec a teacher/student actually needs), resolved dependency titles
+// (depends_on is a list of other tasks' `order`, not names, on the wire),
+// deadline, hours estimate, and the AI review's full breakdown (not just
+// the one-line feedback TaskRow shows inline).
+const TaskDetailModal = ({ task, allTasks, onClose }) => {
+    const contract = task.interface_contract || {};
+    const dependsOnTasks = (task.depends_on || [])
+        .map(order => allTasks.find(t => t.order === order))
+        .filter(Boolean);
+    const feedback = task.ai_feedback;
+
+    return ReactDOM.createPortal(
+        <div className="ttp-overlay" onClick={onClose}>
+            <div className="ttp-modal ttp-modal--wide" onClick={e => e.stopPropagation()}>
+                <div className="ttp-modal-head">
+                    <h3>{task.title}</h3>
+                    <button className="ttp-close" onClick={onClose}>✕</button>
+                </div>
+                <div className="ttp-modal-body">
+                    <div className="ttd-detail-row">
+                        <span className={`ttp-status ttp-status--${task.status}`}>
+                            {TASK_STATUS_LABELS[task.status] || task.status}
+                        </span>
+                        <span className="ttp-muted">Bajaruvchi: {task.assigned_student_name || '—'}</span>
+                        <span className="ttp-muted">{task.estimated_hours} soat</span>
+                        {task.deadline_at && <span className="ttp-muted">Muddat: {fmtDate(task.deadline_at)}</span>}
+                    </div>
+
+                    <p className="ttd-task-desc">{task.description}</p>
+
+                    {task.acceptance_criteria?.length > 0 && (
+                        <div className="ttd-detail-section">
+                            <h5>Qabul mezonlari</h5>
+                            <ul className="ttd-criteria">
+                                {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
+                            </ul>
+                        </div>
+                    )}
+
+                    {(contract.files?.length > 0 || contract.produces?.length > 0 || contract.consumes?.length > 0) && (
+                        <div className="ttd-detail-section">
+                            <h5>Interfeys shartnomasi</h5>
+                            {contract.files?.length > 0 && (
+                                <p><strong>Fayllar:</strong> {contract.files.join(', ')}</p>
+                            )}
+                            {contract.produces?.length > 0 && (
+                                <p><strong>Bu vazifa yaratadi:</strong> {contract.produces.join(', ')}</p>
+                            )}
+                            {contract.consumes?.length > 0 && (
+                                <p><strong>Bu vazifa foydalanadi:</strong> {contract.consumes.join(', ')}</p>
+                            )}
+                        </div>
+                    )}
+
+                    {dependsOnTasks.length > 0 && (
+                        <div className="ttd-detail-section">
+                            <h5>Bog'liq vazifalar (avval tugashi kerak)</h5>
+                            <ul className="ttd-criteria">
+                                {dependsOnTasks.map(t => (
+                                    <li key={t.id}>{t.title} — <em>{t.assigned_student_name || '—'}</em></li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {(task.submission_url || task.submitted_at) && (
+                        <div className="ttd-detail-section">
+                            <h5>Topshirilgan ish</h5>
+                            {task.submission_url && (
+                                <a href={task.submission_url} target="_blank" rel="noreferrer" className="ttd-link">
+                                    {task.submission_url}
+                                </a>
+                            )}
+                            {task.submitted_at && <p className="ttp-muted">Topshirilgan: {fmtDate(task.submitted_at)}</p>}
+                        </div>
+                    )}
+
+                    {feedback && (
+                        <div className="ttd-detail-section">
+                            <h5>AI baholashi {task.ai_score != null ? `— ${task.ai_score}/100` : ''}</h5>
+                            <div className={`ttd-feedback${task.status === 'approved' ? ' ttd-feedback--ok' : ''}`}>
+                                <p>{feedback.feedback}</p>
+                            </div>
+                            {feedback.criteria_results?.length > 0 && (
+                                <ul className="ttd-criteria">
+                                    {feedback.criteria_results.map((c, i) => (
+                                        <li key={i}>
+                                            {c.met ? '✅' : '❌'} {c.criterion || c.text || JSON.stringify(c)}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            {feedback.contract_violations?.length > 0 && (
+                                <div className="ttd-feedback">
+                                    <strong>Shartnoma buzilishlari:</strong>
+                                    <ul className="ttd-criteria">
+                                        {feedback.contract_violations.map((v, i) => <li key={i}>{v}</li>)}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>,
+        document.body,
+    );
+};
+
+const TaskRow = ({ task, members, allTasks, onReassign }) => {
     const [reassignTo, setReassignTo] = useState('');
+    const [showDetail, setShowDetail] = useState(false);
     const feedback = task.ai_feedback;
 
     return (
@@ -46,6 +169,12 @@ const TaskRow = ({ task, members, onReassign }) => {
                     <p>{feedback.feedback}</p>
                 </div>
             )}
+            <button
+                className="ttp-btn ttp-btn--ghost ttp-btn--sm"
+                onClick={() => setShowDetail(true)}
+            >
+                Batafsil
+            </button>
             <div className="ttd-reassign">
                 <select value={reassignTo} onChange={e => setReassignTo(e.target.value)}>
                     <option value="">Boshqa a'zoga topshirish…</option>
@@ -61,6 +190,9 @@ const TaskRow = ({ task, members, onReassign }) => {
                     Qayta tayinlash
                 </button>
             </div>
+            {showDetail && (
+                <TaskDetailModal task={task} allTasks={allTasks} onClose={() => setShowDetail(false)} />
+            )}
         </div>
     );
 };
@@ -351,7 +483,7 @@ const TeacherTeamProjectDetail = () => {
                     <div className="ttd-tasks-grid">
                         {team.tasks.map(task => (
                             <TaskRow
-                                key={task.id} task={task} members={team.members}
+                                key={task.id} task={task} members={team.members} allTasks={team.tasks}
                                 onReassign={(taskId, studentId) => reassign(team.id, taskId, studentId)}
                             />
                         ))}
