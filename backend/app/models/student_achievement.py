@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from app.models.user import Student
     from app.models.achievement import Achievement
     from app.models.course import Course
+    from app.models.category import Category
 
 
 class StudentAchievement(Base):
@@ -88,3 +89,37 @@ class CourseCertificate(Base):
 
     def __repr__(self) -> str:
         return f"<Certificate(student={self.student_id}, course={self.course_id})>"
+
+
+class CategoryCertificate(Base):
+    """Yo'nalishdagi barcha kurslarni tugatganlik uchun rasmiy sertifikat —
+    CourseCertificate bilan bir xil naqsh, faqat course_id o'rniga
+    category_id."""
+    __tablename__ = "category_certificates"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    category_id: Mapped[int] = mapped_column(
+        ForeignKey("categories.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    issued_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    # Relationships
+    student: Mapped["Student"] = relationship("Student")
+    category: Mapped["Category"] = relationship("Category")
+
+    __table_args__ = (
+        UniqueConstraint("student_id", "category_id", name="uq_student_category_cert"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<CategoryCertificate(student={self.student_id}, category={self.category_id})>"

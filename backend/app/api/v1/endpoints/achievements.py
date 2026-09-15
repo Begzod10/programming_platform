@@ -22,6 +22,13 @@ from app.schemas.achievement import (
 router = APIRouter()
 
 
+def _student_origin(student) -> str:
+    """Which platform this student's account originated from — used to pick
+    the certificate's top-left logo. turon_id set -> Turon; otherwise the
+    template's default GENNIS logo is already correct."""
+    return "turon" if student.turon_id else "gennis"
+
+
 @router.get("/my", response_model=List[StudentAchievementRead])
 async def my_achievements(
         current_student=Depends(get_current_student),
@@ -78,6 +85,22 @@ async def check_and_earn_certificate(
         is_complete = await achievement_service.check_course_completion(db, current_student.id, course_id)
         if not is_complete:
             return {"message": "Siz hali kursni tugatmagansiz", "issued": False}
+        return {"message": "Sertifikat allaqachon mavjud", "issued": False}
+    return {"message": "Tabriklaymiz! Sertifikat berildi!", "certificate_id": cert.id, "issued": True}
+
+
+@router.post("/check-and-earn-certificate-category")
+async def check_and_earn_certificate_category(
+        category_id: int = Query(...),
+        current_student=Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """Yo'nalishning barcha kurslari tugagan bo'lsa sertifikat berish"""
+    cert = await achievement_service.award_category_certificate(db, current_student.id, category_id)
+    if not cert:
+        is_complete = await achievement_service.check_category_completion(db, current_student.id, category_id)
+        if not is_complete:
+            return {"message": "Siz hali yo'nalishdagi barcha kurslarni tugatmagansiz", "issued": False}
         return {"message": "Sertifikat allaqachon mavjud", "issued": False}
     return {"message": "Tabriklaymiz! Sertifikat berildi!", "certificate_id": cert.id, "issued": True}
 
@@ -212,12 +235,49 @@ async def download_course_certificate(
     cert_number = cert.id
     category_slug = cert.course.category.slug if cert.course.category else None
 
-    pdf_output = generate_certificate(student_name, course_name, cert_number, category_slug=category_slug)
+    pdf_output = generate_certificate(
+        student_name, course_name, cert_number,
+        category_slug=category_slug, origin=_student_origin(current_student),
+    )
 
     if isinstance(pdf_output, bytes):
         pdf_output = io.BytesIO(pdf_output)
 
     filename = f"Certificate_{course_id}.pdf"
+    return StreamingResponse(
+        pdf_output,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
+
+
+@router.get("/category/{category_id}/download")
+async def download_category_certificate(
+        category_id: int,
+        current_student=Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    cert = await achievement_service.get_category_certificate(db, current_student.id, category_id)
+    if not cert:
+        is_complete = await achievement_service.check_category_completion(db, current_student.id, category_id)
+        if not is_complete:
+            raise HTTPException(status_code=400, detail="Siz hali yo'nalishdagi barcha kurslarni tugatmagansiz")
+        raise HTTPException(status_code=404, detail="Sertifikat topilmadi")
+
+    student_name = current_student.full_name or current_student.username
+    category_name = cert.category.name
+    cert_number = cert.id
+    category_slug = cert.category.slug
+
+    pdf_output = generate_certificate(
+        student_name, category_name, cert_number,
+        category_slug=category_slug, origin=_student_origin(current_student),
+    )
+
+    if isinstance(pdf_output, bytes):
+        pdf_output = io.BytesIO(pdf_output)
+
+    filename = f"Certificate_category_{category_id}.pdf"
     return StreamingResponse(
         pdf_output,
         media_type="application/pdf",
