@@ -73,6 +73,63 @@ def _draw_category_ribbon(can, category_slug: str):
         )
 
 
+# ── Origin logo (top-left corner) ────────────────────────────────────────
+# The template's top-left corner has the GENNIS logo baked in, which is
+# correct by default — students who registered through Gennis directly
+# need nothing drawn. A student who came in through Turon should see the
+# Turon International School logo there instead, so for that one case the
+# GENNIS logo is patched over (filled with the template's own background
+# tone, sampled off the template itself) and the Turon logo drawn on top.
+# Measured the same way as the ribbon geometry: connected-component /
+# pixel measurement on a rendered+rotated version of the template, in the
+# same "logical landscape" point space (LW=3475, LH=2450).
+_ORIGIN_LOGO_BG_COLOR = "#DEE5E3"
+_ORIGIN_LOGO_PATCH_RECT = (273, 1765, 505, 513)  # x, y, width, height
+_ORIGIN_LOGO_DRAW_RECT = (305.5, 1832.4, 440, 378.5)  # x, y, width, height — Turon logo's own 321:276 aspect
+_ORIGIN_LOGO_PATHS = {
+    "turon": Path("app/static/logos/turon.png"),
+}
+_origin_logo_image_cache = {}
+
+
+def _hex_to_rgb01(hex_color: str):
+    h = hex_color.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+
+
+def _get_origin_logo_image(origin: str):
+    path = _ORIGIN_LOGO_PATHS.get(origin)
+    if path is None:
+        return None
+    if origin in _origin_logo_image_cache:
+        return _origin_logo_image_cache[origin]
+    try:
+        abs_path = path.resolve()
+        if not abs_path.exists():
+            return None
+        reader = ImageReader(str(abs_path))
+        _origin_logo_image_cache[origin] = reader
+        return reader
+    except Exception as e:
+        print(f"❌ Origin logo yuklanmadi ({origin}): {e}")
+        return None
+
+
+def _draw_origin_logo(can, origin: str):
+    """No-op for "gennis" (or anything else unrecognized) — the template's
+    default GENNIS logo is already correct. Only "turon" patches it."""
+    if origin != "turon":
+        return
+    logo_img = _get_origin_logo_image(origin)
+    if logo_img is None:
+        return
+
+    r, g, b = _hex_to_rgb01(_ORIGIN_LOGO_BG_COLOR)
+    can.setFillColorRGB(r, g, b)
+    can.rect(*_ORIGIN_LOGO_PATCH_RECT, fill=1, stroke=0)
+    can.drawImage(logo_img, *_ORIGIN_LOGO_DRAW_RECT, mask="auto")
+
+
 def _load_template_bytes(template_path: str):
     try:
         abs_path = Path(template_path).resolve()
@@ -99,6 +156,7 @@ def generate_certificate(
         teacher_name: str = "Begzod Jumaniyozov",
         template_path: str = "app/static/web_certificate.pdf",
         category_slug: str = None,
+        origin: str = "gennis",
 ) -> io.BytesIO:
     W_orig, H_orig = 2450, 3475
     LW, LH = H_orig, W_orig  # 3475 x 2450
@@ -113,6 +171,7 @@ def generate_certificate(
 
     if category_slug:
         _draw_category_ribbon(can, category_slug)
+    _draw_origin_logo(can, origin)
 
     # Talaba ismi
     can.setFillColorRGB(0, 0, 0)

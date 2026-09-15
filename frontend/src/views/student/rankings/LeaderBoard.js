@@ -126,12 +126,18 @@ export default function Leaderboard() {
     const [loading,   setLoading]   = useState(true);
     const [error,     setError]     = useState('');
     const [myRankError, setMyRankError] = useState('');
+    // Class ("sinf") filter — mirrors the teacher rankings page's group
+    // dropdown (frontend/src/views/teacher/StudentRankings/StudentRankings.js).
+    // Only shown once we know the student actually has a class to filter by.
+    const [groups,  setGroups]  = useState([]);
+    const [groupId, setGroupId] = useState('');
     const listRef = useRef(null);
 
-    const fetchRanking = (period) => {
+    const fetchRanking = (period, groupIdVal) => {
         setLoading(true);
         setError('');
-        request(`${API_URL}v1/rankings/leaderboard?period=${period}&limit=50`, 'GET', null, headers())
+        const g = groupIdVal ? `&group_id=${encodeURIComponent(groupIdVal)}` : '';
+        request(`${API_URL}v1/rankings/leaderboard?period=${period}&limit=50${g}`, 'GET', null, headers())
             .then(res => setData(Array.isArray(res) ? res : []))
             .catch(() => setError(t('rating.loadError')))
             .finally(() => setLoading(false));
@@ -145,10 +151,23 @@ export default function Leaderboard() {
     };
 
     useEffect(() => {
-        fetchRanking(activeTab);
+        request(`${API_URL}v1/rankings/my-groups`, 'GET', null, headers())
+            .then(res => setGroups(Array.isArray(res) ? res : []))
+            .catch(() => setGroups([]));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        fetchRanking(activeTab, groupId);
         fetchMyRank(activeTab);
         listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }, [activeTab]); // eslint-disable-line
+
+    const handleGroupChange = (e) => {
+        const next = e.target.value;
+        setGroupId(next);
+        fetchRanking(activeTab, next);
+    };
 
     const getPoints = (student) => {
         switch (activeTab) {
@@ -230,6 +249,20 @@ export default function Leaderboard() {
                             );
                         })}
                     </div>
+
+                    {groups.length > 0 && (
+                        <select
+                            className="lb-group-select"
+                            value={groupId}
+                            onChange={handleGroupChange}
+                            aria-label="Sinf bo'yicha filtrlash"
+                        >
+                            <option value="">Barcha sinflar</option>
+                            {groups.map(g => (
+                                <option key={g.id} value={g.id}>{g.name}</option>
+                            ))}
+                        </select>
+                    )}
                 </div>
 
                 {/* My rank band — always anchors the current user, even on the podium */}

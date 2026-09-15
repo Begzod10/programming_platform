@@ -539,6 +539,20 @@ async def award_certificate(
         # Failing the bonus award must never roll back the course certificate.
         print(f"⚠️  Fullstack check failed for student={student_id}: {e}")
 
+    # 6. Did this just complete this course's whole category? If so, mint
+    # the category certificate immediately — same "check right away instead
+    # of waiting for a sweep" reasoning as step 5, isolated the same way so
+    # a failure here never rolls back the course certificate.
+    try:
+        from app.models.course import Course as _Course
+        from app.services.category_certificate_service import award_category_certificate
+        cat_res = await db.execute(select(_Course.category_id).where(_Course.id == course_id))
+        category_id = cat_res.scalar_one_or_none()
+        if category_id:
+            await award_category_certificate(db, student_id, category_id)
+    except Exception as e:
+        print(f"⚠️  Category-certificate check failed for student={student_id}: {e}")
+
     return cert
 
 
@@ -735,4 +749,11 @@ from app.services.achievement_monitoring_service import (
     update_achievement,
     delete_achievement,
     force_sync_all_levels,
+)
+
+# Category-level completion certificates — see category_certificate_service.py.
+from app.services.category_certificate_service import (
+    check_category_completion,
+    award_category_certificate,
+    get_category_certificate,
 )

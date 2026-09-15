@@ -4,8 +4,9 @@ import './StudentCourses.css';
 import StudentCoursePage from '../CoursePage/StudentCoursePage';
 import StudentLessonPage from '../LessonPage/StudentLessonPage';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
+import axiosInstance from '../../../../api/axiosInstance';
 import { useTranslation } from '../../../../i18n/useTranslation';
-import { Lock } from 'lucide-react';
+import { Lock, Award } from 'lucide-react';
 
 /* ── tech category visual config ── */
 const TECH_META = {
@@ -19,6 +20,18 @@ const TECH_META = {
 };
 
 const getTechMeta = (slug) => TECH_META[slug] || { label: slug, color: '#6c5ce7', bg: '#f5f3ff', icon: '📦' };
+
+/* Black or white, whichever reads better on a given category color — the
+   cert badge's white Award icon was near-invisible on light colors like
+   React's #61dafb / JavaScript's #f0db4f without this. */
+const readableTextColor = (hexColor) => {
+    const h = hexColor.replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16) / 255;
+    const g = parseInt(h.slice(2, 4), 16) / 255;
+    const b = parseInt(h.slice(4, 6), 16) / 255;
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+    return luminance > 0.55 ? '#0f0d1e' : '#fff';
+};
 
 /* ─── helpers ─── */
 // ФИКС: сравниваем id через String() потому что бэкенд может вернуть number, а useParams всегда string
@@ -283,8 +296,46 @@ const StudentCourses = () => {
     const [filter,     setFilter]     = useState('all');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [search,     setSearch]     = useState('');
+    const [downloadingCategoryId, setDownloadingCategoryId] = useState(null);
+    const [certDownloadError, setCertDownloadError] = useState('');
 
     const loadedRef = useRef(new Set());
+
+    /* ── category certificate download ──
+       Mirrors DegreeCard.js's handleDownload: an idempotent check-and-earn
+       call first (in case the auto-award hook hasn't run yet), then the
+       actual PDF as a blob via axiosInstance (useHttp's request() always
+       parses JSON, no way to ask it for a Blob). */
+    const handleDownloadCategoryCertificate = useCallback(async (cat) => {
+        setDownloadingCategoryId(cat.id);
+        setCertDownloadError('');
+        try {
+            await request(
+                `${API_URL}v1/achievements/check-and-earn-certificate-category?category_id=${cat.id}`,
+                'POST', null, headers()
+            ).catch(() => {});
+
+            const res = await axiosInstance.get(
+                `${API_URL}v1/achievements/category/${cat.id}/download`,
+                { responseType: 'blob', headers: { Accept: 'application/pdf' } }
+            );
+
+            const blob = res.data;
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = `${cat.name || 'certificate'}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error(e);
+            setCertDownloadError('Sertifikatni yuklab bo\'lmadi. Birozdan keyin qayta urinib ko\'ring.');
+        } finally {
+            setDownloadingCategoryId(null);
+        }
+    }, [request]);
 
     /* ── fetch all courses ── */
     const fetchCourses = useCallback(() => {
@@ -459,11 +510,19 @@ const StudentCourses = () => {
         .filter((c) => !search || c.title?.toLowerCase().includes(search.toLowerCase()));
 
     /* Live category course counts — only count published courses the student
-       can actually see, so a chip never claims more than the list shows. */
-    const categoryCounts = categories.map((cat) => ({
-        ...cat,
-        live_count: courses.filter((c) => c.category_id === cat.id).length,
-    })).filter((cat) => cat.live_count > 0);
+       can actually see, so a chip never claims more than the list shows.
+       done_count/is_complete drive the certificate badge below: the same
+       100%-progress rule the stats bar already uses for "завершено". */
+    const categoryCounts = categories.map((cat) => {
+        const catCourses = courses.filter((c) => c.category_id === cat.id);
+        const done_count = catCourses.filter((c) => (c.progress_percentage || 0) === 100).length;
+        return {
+            ...cat,
+            live_count: catCourses.length,
+            done_count,
+            is_complete: catCourses.length > 0 && done_count === catCourses.length,
+        };
+    }).filter((cat) => cat.live_count > 0);
 
     /* ══ LESSON VIEW ══ */
     if (view === 'lesson') {
@@ -552,20 +611,59 @@ const StudentCourses = () => {
                         {categoryCounts.map((cat) => {
                             const meta = getTechMeta(cat.slug);
                             const active = categoryFilter === cat.id;
+                            const catPercent = cat.live_count > 0 ? Math.round((cat.done_count / cat.live_count) * 100) : 0;
+                            const catCircumference = 2 * Math.PI * 12;
+                            const catDash = (catPercent / 100) * catCircumference;
+                            const isDownloading = downloadingCategoryId === cat.id;
                             return (
-                                <button
+                                // A <div role="button"> (not a nested <button>) because the
+                                // certificate badge below is itself a real <button> — buttons
+                                // can't nest in valid HTML.
+                                <div
                                     key={cat.id}
+                                    role="button"
+                                    tabIndex={0}
                                     className={`sc-lang-card ${active ? 'active' : ''}`}
                                     style={{ '--lang-color': meta.color, '--lang-bg': meta.bg }}
                                     onClick={() => setCategoryFilter(active ? 'all' : cat.id)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCategoryFilter(active ? 'all' : cat.id); } }}
                                 >
+                                    {cat.is_complete && (
+                                        <button
+                                            className="sc-lang-cert-badge"
+                                            disabled={isDownloading}
+                                            title="Sertifikatni yuklab olish"
+                                            aria-label={`${cat.name} sertifikatini yuklab olish`}
+                                            style={{ color: readableTextColor(meta.color) }}
+                                            onClick={(e) => { e.stopPropagation(); handleDownloadCategoryCertificate(cat); }}
+                                        >
+                                            {isDownloading ? (
+                                                <span className="sc-lang-cert-spinner" />
+                                            ) : (
+                                                <Award size={13} strokeWidth={2.5} />
+                                            )}
+                                        </button>
+                                    )}
+                                    {!cat.is_complete && cat.live_count > 0 && (
+                                        <span className="sc-lang-ring" title={`${cat.done_count}/${cat.live_count} kurs tugallandi`}>
+                                            <svg viewBox="0 0 28 28" className="sc-lang-ring-svg">
+                                                <circle cx="14" cy="14" r="12" fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="3" />
+                                                <circle cx="14" cy="14" r="12" fill="none"
+                                                    stroke={meta.color} strokeWidth="3" strokeLinecap="round"
+                                                    strokeDasharray={`${catDash} ${catCircumference}`} transform="rotate(-90 14 14)" />
+                                            </svg>
+                                        </span>
+                                    )}
                                     <span className="sc-lang-icon">{meta.icon}</span>
                                     <span className="sc-lang-name">{cat.name}</span>
                                     <span className="sc-lang-count">{cat.live_count} kurs</span>
-                                </button>
+                                </div>
                             );
                         })}
                     </div>
+                    {certDownloadError && (
+                        <p className="sc-lang-cert-error">{certDownloadError}</p>
+                    )}
                 </div>
             )}
 

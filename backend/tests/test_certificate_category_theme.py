@@ -47,3 +47,22 @@ def test_generate_certificate_with_unknown_category_slug_falls_back():
 def test_generate_certificate_with_none_category_slug_explicit():
     reader = _make_pdf(category_slug=None)
     assert len(reader.pages) == 1
+
+
+def test_generate_certificate_default_origin_is_gennis_and_unchanged():
+    """Omitting origin (the default) must behave exactly like the old
+    signature — no logo patch drawn, template's own GENNIS logo stands."""
+    reader = _make_pdf()
+    assert len(reader.pages) == 1
+
+
+def test_generate_certificate_with_turon_origin():
+    reader = _make_pdf(origin="turon")
+    assert len(reader.pages) == 1
+
+
+def test_generate_certificate_with_unrecognized_origin_falls_back():
+    """An unrecognized origin string must not raise — same no-op as the
+    default "gennis" path."""
+    reader = _make_pdf(origin="some-other-platform")
+    assert len(reader.pages) == 1
