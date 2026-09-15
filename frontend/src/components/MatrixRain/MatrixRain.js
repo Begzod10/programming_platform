@@ -38,7 +38,7 @@ export default function MatrixRain() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
             ctx.fillRect(0, 0, width, height);
             ctx.font = `${FONT_SIZE}px monospace`;
-            ctx.fillStyle = 'rgba(0, 255, 136, 0.55)';
+            ctx.fillStyle = 'rgba(0, 255, 136, 0.4)';
             for (let i = 0; i < drops.length; i++) {
                 const char = CHARS[Math.floor(Math.random() * CHARS.length)];
                 ctx.fillText(char, i * FONT_SIZE, drops[i] * FONT_SIZE);
