@@ -26,13 +26,14 @@ const ROUTES = {
 
 // Commands that aren't a route — handled specially in run(), but still
 // need to appear in /help and the live autocomplete list below.
-const EXTRA_COMMANDS = ['menu', 'clear', 'help', 'logout'];
+const EXTRA_COMMANDS = ['menu', 'clear', 'help', 'logout', 'cd'];
 const ALL_COMMANDS = [...Object.keys(ROUTES), ...EXTRA_COMMANDS];
 
 const HELP_LINES = [
     'Mavjud buyruqlar:',
     ...Object.keys(ROUTES).map(c => `  /${c}`),
     '  /course <nom> — kurslarni nomi bo\'yicha qidirish (masalan /course html)',
+    '  /cd course [nom] — kurslar ro\'yxati, nom bersa to\'g\'ridan-to\'g\'ri kirish',
     '  /menu — yon menyuni ko\'rsatish/yashirish',
     '  /clear — ekranni tozalash',
     '  /logout — tizimdan chiqish',
@@ -105,6 +106,53 @@ export default function TerminalOverlay() {
         inputRef.current?.focus();
     };
 
+    // Shared by "/course <name>" and "cd course [name]". No query -> lists
+    // everything (up to 15). A query with exactly one title match navigates
+    // straight there (the "cd" behavior the latter's named after); more
+    // than one, or the plain "/course" form, lists clickable results
+    // instead of guessing which the user meant.
+    const searchCourses = useCallback((query, { autoNavigate } = {}) => {
+        const loadingToken = `__loading_${Date.now()}__`;
+        setLog(prev => [...prev, loadingToken]);
+        const role = getCurrentUser()?.role === 'teacher' ? 'teacher' : 'student';
+        const url = role === 'teacher'
+            ? `${API_URL}v1/courses/my`
+            : `${API_URL}v1/courses/?limit=100`;
+        request(url, 'GET', null, headers())
+            .then(rows => {
+                const list = Array.isArray(rows) ? rows : (rows?.items || []);
+                const needle = query.toLowerCase();
+                const matches = query
+                    ? list.filter(c => (c.title || '').toLowerCase().includes(needle))
+                    : list;
+
+                if (autoNavigate && query && matches.length === 1) {
+                    setLog(prev => [
+                        ...prev.filter(l => l !== loadingToken),
+                        `→ ${matches[0].title}`,
+                    ]);
+                    navigate(`/${role}/courses/${matches[0].id}`);
+                    setOpen(false);
+                    return;
+                }
+
+                setLog(prev => {
+                    const withoutLoading = prev.filter(l => l !== loadingToken);
+                    if (matches.length === 0) {
+                        return [...withoutLoading, query ? `"${query}" bo'yicha kurs topilmadi.` : 'Kurslar topilmadi.'];
+                    }
+                    return [
+                        ...withoutLoading,
+                        `${matches.length} ta kurs topildi:`,
+                        ...matches.slice(0, 15).map(c => `__course__${c.id}__${c.title}`),
+                    ];
+                });
+            })
+            .catch(() => {
+                setLog(prev => [...prev.filter(l => l !== loadingToken), 'Kurslarni yuklab bo\'lmadi.']);
+            });
+    }, [request, navigate]);
+
     const run = useCallback((raw) => {
         const stripped = raw.trim().replace(/^\//, '');
         if (!stripped) return;
@@ -116,32 +164,27 @@ export default function TerminalOverlay() {
         setLog(prev => [...prev, `> /${stripped}`]);
 
         if ((cmd === 'course' || cmd === 'courses') && arg) {
-            const loadingToken = `__loading_${Date.now()}__`;
-            setLog(prev => [...prev, loadingToken]);
-            const role = getCurrentUser()?.role === 'teacher' ? 'teacher' : 'student';
-            const url = role === 'teacher'
-                ? `${API_URL}v1/courses/my`
-                : `${API_URL}v1/courses/?limit=100`;
-            request(url, 'GET', null, headers())
-                .then(rows => {
-                    const list = Array.isArray(rows) ? rows : (rows?.items || []);
-                    const needle = arg.toLowerCase();
-                    const matches = list.filter(c => (c.title || '').toLowerCase().includes(needle));
-                    setLog(prev => {
-                        const withoutLoading = prev.filter(l => l !== loadingToken);
-                        if (matches.length === 0) {
-                            return [...withoutLoading, `"${arg}" bo'yicha kurs topilmadi.`];
-                        }
-                        return [
-                            ...withoutLoading,
-                            `${matches.length} ta kurs topildi:`,
-                            ...matches.slice(0, 10).map(c => `__course__${c.id}__${c.title}`),
-                        ];
-                    });
-                })
-                .catch(() => {
-                    setLog(prev => [...prev.filter(l => l !== loadingToken), 'Kurslarni yuklab bo\'lmadi.']);
-                });
+            searchCourses(arg);
+            return;
+        }
+
+        // "cd course" lists every course; "cd course html" navigates
+        // straight there if that's an unambiguous match, same idea as a
+        // shell's `cd` — a directory listing vs. entering one directly.
+        if (cmd === 'cd') {
+            const [target, ...nameWords] = argWords;
+            const targetWord = (target || '').toLowerCase();
+            if (targetWord === 'course' || targetWord === 'courses') {
+                searchCourses(nameWords.join(' '), { autoNavigate: true });
+                return;
+            }
+            if (!target) {
+                setLog(prev => [...prev, 'Foydalanish: /cd course [nom]']);
+                return;
+            }
+            // Anything else behaves like typing the bare command — "cd
+            // rankings" reaches the same place "/rankings" does.
+            run(`/${target} ${nameWords.join(' ')}`.trim());
             return;
         }
 
@@ -184,7 +227,7 @@ export default function TerminalOverlay() {
         navigate(`/${role}/${path}`);
         setLog(prev => [...prev, `→ /${role}/${path}`]);
         setOpen(false);
-    }, [navigate, toggleTerminalMenu, terminalMenuHidden, logout, request]);
+    }, [navigate, toggleTerminalMenu, terminalMenuHidden, logout, request, searchCourses]);
 
     const handleKeyDown = (e) => {
         // Tab or → (when the caret's already at the end, so it's not just
