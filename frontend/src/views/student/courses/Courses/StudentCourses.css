@@ -833,8 +833,12 @@
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.4);
-  border-top-color: #fff;
+  /* border-top uses currentColor so the spin matches the badge's
+     readableTextColor(), same as the Award icon it replaces while
+     downloading; the track itself stays a neutral mid-tone that reads on
+     both light and dark badge backgrounds. */
+  border: 2px solid rgba(128, 128, 128, 0.35);
+  border-top-color: currentColor;
   animation: sc-lang-cert-spin 0.7s linear infinite;
 }
 

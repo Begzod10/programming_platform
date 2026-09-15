@@ -21,6 +21,18 @@ const TECH_META = {
 
 const getTechMeta = (slug) => TECH_META[slug] || { label: slug, color: '#6c5ce7', bg: '#f5f3ff', icon: '📦' };
 
+/* Black or white, whichever reads better on a given category color — the
+   cert badge's white Award icon was near-invisible on light colors like
+   React's #61dafb / JavaScript's #f0db4f without this. */
+const readableTextColor = (hexColor) => {
+    const h = hexColor.replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16) / 255;
+    const g = parseInt(h.slice(2, 4), 16) / 255;
+    const b = parseInt(h.slice(4, 6), 16) / 255;
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+    return luminance > 0.55 ? '#0f0d1e' : '#fff';
+};
+
 /* ─── helpers ─── */
 // ФИКС: сравниваем id через String() потому что бэкенд может вернуть number, а useParams всегда string
 const sameId = (a, b) => String(a) === String(b);
@@ -622,12 +634,13 @@ const StudentCourses = () => {
                                             disabled={isDownloading}
                                             title="Sertifikatni yuklab olish"
                                             aria-label={`${cat.name} sertifikatini yuklab olish`}
+                                            style={{ color: readableTextColor(meta.color) }}
                                             onClick={(e) => { e.stopPropagation(); handleDownloadCategoryCertificate(cat); }}
                                         >
                                             {isDownloading ? (
                                                 <span className="sc-lang-cert-spinner" />
                                             ) : (
-                                                <Award size={13} />
+                                                <Award size={13} strokeWidth={2.5} />
                                             )}
                                         </button>
                                     )}
