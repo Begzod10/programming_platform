@@ -1,4 +1,4 @@
-.ttp-page { padding: 24px 24px 48px; max-width: 1100px; margin: 0 auto; }
+.ttp-page { padding: 24px 24px 80px; max-width: 1100px; margin: 0 auto; }
 .ttp-page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
 .ttp-page-head h2 {
     margin: 0; font-size: 23px; font-weight: 800; color: #0f172a;
@@ -110,12 +110,12 @@
 /* ── Detail page ── */
 .ttd-head-left { display: flex; align-items: center; gap: 14px; }
 .ttd-head-left h2 { margin: 0; }
-.ttd-team-section { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 22px 22px 26px; margin-bottom: 24px; }
+.ttd-team-section { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px 24px 34px; margin-bottom: 28px; }
 .ttd-team-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .ttd-team-header h3 { margin: 0; font-size: 18px; }
 .ttd-project-desc { color: #475569; font-size: 14px; margin: 6px 0 12px; }
 
-.ttd-tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin-top: 18px; }
+.ttd-tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin: 18px 0 4px; }
 .ttd-task { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 16px 18px; }
 .ttd-task-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .ttd-task-desc { font-size: 13px; color: #334155; margin: 0 0 8px; }
