@@ -26,7 +26,7 @@ const ROUTES = {
 
 // Commands that aren't a route — handled specially in run(), but still
 // need to appear in /help and the live autocomplete list below.
-const EXTRA_COMMANDS = ['menu', 'clear', 'help', 'logout', 'cd', 'history', 'whoami', 'student', 'theme', 'search'];
+const EXTRA_COMMANDS = ['menu', 'clear', 'help', 'logout', 'cd', 'history', 'whoami', 'student', 'theme', 'search', 'close', 'exit'];
 const ALL_COMMANDS = [...Object.keys(ROUTES), ...EXTRA_COMMANDS];
 
 const HELP_LINES = [
@@ -40,6 +40,7 @@ const HELP_LINES = [
     '  /student <ism> — talaba qidirish (faqat o\'qituvchi)',
     '  /theme [nom] — sotib olingan mavzularingiz, nom bersa yoqadi',
     '  /search <so\'z> — kurslar (va o\'qituvchi bo\'lsa talabalar) bo\'yicha umumiy qidiruv',
+    '  /close (yoki /exit) — terminalni yopish',
     '  /menu — yon menyuni ko\'rsatish/yashirish',
     '  /clear — ekranni tozalash',
     '  /logout — tizimdan chiqish',
@@ -354,6 +355,10 @@ export default function TerminalOverlay() {
             return;
         }
 
+        if (cmd === 'close' || cmd === 'exit') {
+            setOpen(false);
+            return;
+        }
         if (cmd === 'clear') {
             setLog([]);
             return;
