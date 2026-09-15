@@ -7,6 +7,7 @@ import AppRouter from './AppRouter';
 import SSOHandler from './components/SSOHandler';
 import UpdateBanner from './components/UpdateBanner/UpdateBanner';
 import TerminalOverlay from './components/TerminalOverlay/TerminalOverlay';
+import FocusTimer from './components/FocusTimer/FocusTimer';
 import './App.css';
 
 function App() {
@@ -24,6 +25,11 @@ function App() {
                             flag, so it renders nothing for anyone else. */}
                         <TerminalOverlay />
                     </BrowserRouter>
+                    {/* Self-gates on the equipped "Focus Mode" theme's
+                        asset_ref.focus flag — no routing needed, so it
+                        doesn't have to live inside BrowserRouter like
+                        TerminalOverlay does. */}
+                    <FocusTimer />
                     <UpdateBanner />
                 </StoreProvider>
             </AuthProvider>

@@ -1,0 +1,73 @@
+/* Uses the app's normal design tokens (unlike TerminalOverlay.css, which
+   deliberately hardcodes its own look) — Focus Mode's whole point is the
+   equipped theme's own calm palette, this widget should read as part of
+   that, not a separate skin on top of it. */
+
+.ft-toggle {
+    position: fixed; left: 20px; bottom: 20px; z-index: 9998;
+    padding: 10px 16px; border-radius: 999px;
+    background: var(--color-primary, #6c5ce7); color: #fff; border: none;
+    font-family: var(--font-ui); font-weight: 700; font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+    transition: transform .15s;
+}
+.ft-toggle:hover { transform: scale(1.05); }
+
+.ft-widget {
+    position: fixed; left: 20px; bottom: 20px; z-index: 9998;
+    width: 200px; padding: 16px;
+    background: var(--bg-page, #fff); border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 18px; box-shadow: 0 10px 32px rgba(0,0,0,0.14);
+    font-family: var(--font-ui);
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    animation: ft-in .18s cubic-bezier(.16,1,.3,1);
+}
+@keyframes ft-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.ft-head { width: 100%; display: flex; align-items: center; justify-content: space-between; }
+.ft-mode {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+    color: var(--color-primary, #6c5ce7);
+}
+.ft-mode--short_break, .ft-mode--long_break { color: var(--color-success, #2ec4a9); }
+.ft-collapse {
+    background: none; border: none; cursor: pointer; font-size: 16px; line-height: 1;
+    color: rgba(0,0,0,0.4); padding: 2px 6px;
+}
+.ft-collapse:hover { color: rgba(0,0,0,0.7); }
+
+.ft-ring-wrap { position: relative; width: 108px; height: 108px; }
+.ft-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ft-ring-track { fill: none; stroke: rgba(0,0,0,0.06); stroke-width: 8; }
+.ft-ring-fill {
+    fill: none; stroke: var(--color-primary, #6c5ce7); stroke-width: 8;
+    stroke-linecap: round; transition: stroke-dashoffset .9s linear;
+}
+.ft-time {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums;
+    color: var(--text-strong, #1a1833);
+}
+
+.ft-dots { display: flex; gap: 6px; }
+.ft-dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(0,0,0,0.12); }
+.ft-dot.is-done { background: var(--color-primary, #6c5ce7); }
+
+.ft-actions { display: flex; gap: 8px; width: 100%; }
+.ft-btn {
+    flex: 1; padding: 8px 0; border-radius: 10px; border: 1px solid rgba(0,0,0,0.1);
+    background: transparent; color: var(--text-strong, #1a1833);
+    font-family: inherit; font-weight: 700; font-size: 12.5px; cursor: pointer;
+    transition: background .12s;
+}
+.ft-btn:hover { background: rgba(0,0,0,0.04); }
+.ft-btn--primary {
+    background: var(--color-primary, #6c5ce7); color: #fff; border-color: transparent;
+}
+.ft-btn--primary:hover { opacity: .9; background: var(--color-primary, #6c5ce7); }
+
+@media (max-width: 480px) {
+    .ft-widget, .ft-toggle { left: 10px; bottom: 10px; }
+    .ft-widget { width: 180px; padding: 14px; }
+}

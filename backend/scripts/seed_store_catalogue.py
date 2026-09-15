@@ -145,6 +145,37 @@ CATALOGUE: list[dict] = [
         },
     },
     {
+        # Unlocks FocusTimer.js (a Pomodoro widget) — see asset_ref.focus,
+        # checked there the same way theme.hacker_pro's asset_ref.terminal
+        # gates TerminalOverlay.js. The calm/muted palette itself is the
+        # rest of "Focus Mode": no other code reads these tokens specially,
+        # they're applied the normal way (StoreContext.applyTheme).
+        "slug": "theme.focus_mode",
+        "kind": StoreItemKind.theme,
+        "title": "Focus Mode",
+        "title_ru": "Режим фокусировки",
+        "description": "Tinch, xotirjam ranglar + Pomodoro taymer — chalg'imasdan ishlash uchun.",
+        "description_ru": "Спокойные тона + таймер Помодоро — чтобы работать без отвлечений.",
+        "price_coins": 1500,
+        "sort_order": 32,
+        "asset_ref": {
+            "mode": "light",
+            "focus": True,
+            "tokens": {
+                "--color-primary": "#5b8a72",
+                "--color-primary-mid": "#6f9c85",
+                "--color-primary-light": "#a8c4b4",
+                "--color-primary-pale": "rgba(91, 138, 114, 0.10)",
+                "--color-ink": "#2a332e",
+                "--color-dark": "#1c231f",
+                "--bg-page": "#f4f7f5",
+                "--text-strong": "rgba(42, 51, 46, 0.90)",
+                "--text-muted": "rgba(42, 51, 46, 0.58)",
+                "--shadow-brand": "0 4px 24px rgba(91, 138, 114, 0.18)",
+            },
+        },
+    },
+    {
         "slug": "theme.sunset",
         "kind": StoreItemKind.theme,
         "title": "Sunset Coral",
