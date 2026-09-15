@@ -26,7 +26,7 @@ const ROUTES = {
 
 // Commands that aren't a route — handled specially in run(), but still
 // need to appear in /help and the live autocomplete list below.
-const EXTRA_COMMANDS = ['menu', 'clear', 'help', 'logout', 'cd', 'history'];
+const EXTRA_COMMANDS = ['menu', 'clear', 'help', 'logout', 'cd', 'history', 'whoami', 'student', 'theme', 'search'];
 const ALL_COMMANDS = [...Object.keys(ROUTES), ...EXTRA_COMMANDS];
 
 const HELP_LINES = [
@@ -36,6 +36,10 @@ const HELP_LINES = [
     '  /cd course [nom] — kurslar ro\'yxati, nom bersa to\'g\'ridan-to\'g\'ri kirish',
     '  /cd .. — course/ ichidan chiqib, asosiy promptga qaytish',
     '  /history — yozilgan buyruqlar tarixi (↑/↓ bilan ham ko\'rish mumkin)',
+    '  /whoami — profilingiz (ism, rol, tanga, ball)',
+    '  /student <ism> — talaba qidirish (faqat o\'qituvchi)',
+    '  /theme [nom] — sotib olingan mavzularingiz, nom bersa yoqadi',
+    '  /search <so\'z> — kurslar (va o\'qituvchi bo\'lsa talabalar) bo\'yicha umumiy qidiruv',
     '  /menu — yon menyuni ko\'rsatish/yashirish',
     '  /clear — ekranni tozalash',
     '  /logout — tizimdan chiqish',
@@ -43,7 +47,7 @@ const HELP_LINES = [
 ];
 
 export default function TerminalOverlay() {
-    const { equipped, terminalMenuHidden, toggleTerminalMenu } = useStore();
+    const { equipped, terminalMenuHidden, toggleTerminalMenu, inventory, balance, lifetimePoints, refreshAll } = useStore();
     const { logout } = useAuth();
     const { request } = useHttp();
     const navigate = useNavigate();
@@ -168,6 +172,45 @@ export default function TerminalOverlay() {
             });
     }, [request, navigate]);
 
+    // "/student <name>" — teacher-only, same result-list shape as
+    // searchCourses but against the teacher's own roster
+    // (GET /v1/teacher/students/?search=...), and always lists (no
+    // auto-navigate) since two students can share a name where two
+    // courses rarely do.
+    const searchStudents = useCallback((query) => {
+        const loadingToken = `__loading_${Date.now()}__`;
+        setLog(prev => [...prev, loadingToken]);
+        request(`${API_URL}v1/teacher/students/?search=${encodeURIComponent(query)}&limit=20`, 'GET', null, headers())
+            .then(rows => {
+                const list = Array.isArray(rows) ? rows : [];
+                setLog(prev => {
+                    const withoutLoading = prev.filter(l => l !== loadingToken);
+                    if (list.length === 0) return [...withoutLoading, `"${query}" bo'yicha talaba topilmadi.`];
+                    return [
+                        ...withoutLoading,
+                        `${list.length} ta talaba topildi:`,
+                        ...list.slice(0, 15).map(s => `__student__${s.student_id}__${s.full_name || s.username}`),
+                    ];
+                });
+            })
+            .catch(() => {
+                setLog(prev => [...prev.filter(l => l !== loadingToken), 'Talabalarni yuklab bo\'lmadi.']);
+            });
+    }, [request]);
+
+    // Equips an already-owned theme (POST /v1/store/inventory/{id}/equip,
+    // same endpoint Store.js's own "Yoqish" button calls) then refreshes
+    // StoreContext so equipped.theme / the sidebar-hiding logic update
+    // immediately, same as buying from the Do'kon page itself would.
+    const equipTheme = useCallback((inventoryId, title) => {
+        request(`${API_URL}v1/store/inventory/${inventoryId}/equip`, 'POST', JSON.stringify({}), headers())
+            .then(() => {
+                refreshAll();
+                setLog(prev => [...prev, `✓ "${title}" yoqildi.`]);
+            })
+            .catch(() => setLog(prev => [...prev, 'Mavzuni yoqib bo\'lmadi.']));
+    }, [request, refreshAll]);
+
     const run = useCallback((raw) => {
         const stripped = raw.trim().replace(/^\//, '');
         if (!stripped) return;
@@ -236,6 +279,81 @@ export default function TerminalOverlay() {
             return;
         }
 
+        if (cmd === 'whoami') {
+            const me = getCurrentUser();
+            setLog(prev => [
+                ...prev,
+                me?.full_name || me?.username || '—',
+                `Rol: ${me?.role === 'teacher' ? "O'qituvchi" : 'Talaba'}`,
+                `Tanga: ${balance ?? '—'}`,
+                `Jami yiqqan ball: ${lifetimePoints ?? '—'}`,
+            ]);
+            return;
+        }
+
+        if (cmd === 'student' && arg) {
+            if (getCurrentUser()?.role !== 'teacher') {
+                setLog(prev => [...prev, 'Bu buyruq faqat o\'qituvchilar uchun.']);
+                return;
+            }
+            searchStudents(arg);
+            return;
+        }
+
+        if (cmd === 'theme') {
+            const themes = (inventory || []).filter(r => r.kind === 'theme');
+            const needle = arg.toLowerCase();
+            const matches = needle ? themes.filter(t => t.title.toLowerCase().includes(needle)) : themes;
+            if (themes.length === 0) {
+                setLog(prev => [...prev, 'Sizda hali mavzular yo\'q — Do\'kondan sotib oling (/store).']);
+            } else if (arg && matches.length === 1) {
+                equipTheme(matches[0].inventory_id, matches[0].title);
+            } else if (arg && matches.length === 0) {
+                setLog(prev => [...prev, `"${arg}" nomli mavzu topilmadi.`]);
+            } else {
+                setLog(prev => [
+                    ...prev,
+                    arg ? `${matches.length} ta mos mavzu:` : 'Sizdagi mavzular:',
+                    ...matches.map(t => `__theme__${t.inventory_id}__${t.is_equipped ? '✓ ' : ''}${t.title}`),
+                ]);
+            }
+            return;
+        }
+
+        if (cmd === 'search' && arg) {
+            const role = getCurrentUser()?.role === 'teacher' ? 'teacher' : 'student';
+            const loadingToken = `__loading_${Date.now()}__`;
+            setLog(prev => [...prev, loadingToken]);
+            const coursesUrl = role === 'teacher' ? `${API_URL}v1/courses/my` : `${API_URL}v1/courses/?limit=100`;
+            const requests = [request(coursesUrl, 'GET', null, headers()).catch(() => [])];
+            if (role === 'teacher') {
+                requests.push(
+                    request(`${API_URL}v1/teacher/students/?search=${encodeURIComponent(arg)}&limit=10`, 'GET', null, headers()).catch(() => [])
+                );
+            }
+            Promise.all(requests).then(([courseRows, studentRows]) => {
+                const needle2 = arg.toLowerCase();
+                const courseList = Array.isArray(courseRows) ? courseRows : (courseRows?.items || []);
+                const courseMatches = courseList.filter(c => (c.title || '').toLowerCase().includes(needle2));
+                const studentMatches = Array.isArray(studentRows) ? studentRows : [];
+                setLog(prev => {
+                    const withoutLoading = prev.filter(l => l !== loadingToken);
+                    const lines = [];
+                    if (courseMatches.length) {
+                        lines.push(`Kurslar (${courseMatches.length}):`);
+                        lines.push(...courseMatches.slice(0, 8).map(c => `__course__${c.id}__${c.title}`));
+                    }
+                    if (studentMatches.length) {
+                        lines.push(`Talabalar (${studentMatches.length}):`);
+                        lines.push(...studentMatches.slice(0, 8).map(s => `__student__${s.student_id}__${s.full_name || s.username}`));
+                    }
+                    if (lines.length === 0) lines.push(`"${arg}" bo'yicha hech narsa topilmadi.`);
+                    return [...withoutLoading, ...lines];
+                });
+            });
+            return;
+        }
+
         if (cmd === 'clear') {
             setLog([]);
             return;
@@ -275,7 +393,8 @@ export default function TerminalOverlay() {
         navigate(`/${role}/${path}`);
         setLog(prev => [...prev, `→ /${role}/${path}`]);
         setOpen(false);
-    }, [navigate, toggleTerminalMenu, terminalMenuHidden, logout, request, searchCourses, cwd]);
+    }, [navigate, toggleTerminalMenu, terminalMenuHidden, logout, request, searchCourses, cwd,
+        searchStudents, equipTheme, inventory, balance, lifetimePoints]);
 
     const handleKeyDown = (e) => {
         // Tab or → (when the caret's already at the end, so it's not just
@@ -353,6 +472,37 @@ export default function TerminalOverlay() {
                                             navigate(`/${role}/courses/${courseId}`);
                                             setOpen(false);
                                         }}
+                                    >
+                                        → {title}
+                                    </button>
+                                );
+                            }
+                            const studentMatch = line.match(/^__student__(\d+)__([\s\S]*)$/);
+                            if (studentMatch) {
+                                const [, studentId, name] = studentMatch;
+                                return (
+                                    <button
+                                        key={i}
+                                        type="button"
+                                        className="term-line term-result"
+                                        onClick={() => {
+                                            navigate(`/teacher/students/${studentId}`);
+                                            setOpen(false);
+                                        }}
+                                    >
+                                        → {name}
+                                    </button>
+                                );
+                            }
+                            const themeMatch = line.match(/^__theme__(\d+)__([\s\S]*)$/);
+                            if (themeMatch) {
+                                const [, inventoryId, title] = themeMatch;
+                                return (
+                                    <button
+                                        key={i}
+                                        type="button"
+                                        className="term-line term-result"
+                                        onClick={() => equipTheme(inventoryId, title.replace(/^✓\s*/, ''))}
                                     >
                                         → {title}
                                     </button>
