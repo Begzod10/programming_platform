@@ -169,26 +169,25 @@ const TaskRow = ({ task, members, allTasks, onReassign }) => {
                     <p>{feedback.feedback}</p>
                 </div>
             )}
-            <button
-                className="ttp-btn ttp-btn--ghost ttp-btn--sm"
-                onClick={() => setShowDetail(true)}
-            >
-                Batafsil
-            </button>
-            <div className="ttd-reassign">
-                <select value={reassignTo} onChange={e => setReassignTo(e.target.value)}>
-                    <option value="">Boshqa a'zoga topshirish…</option>
-                    {members
-                        .filter(m => m.student_id !== task.assigned_student_id)
-                        .map(m => <option key={m.student_id} value={m.student_id}>{m.full_name}</option>)}
-                </select>
-                <button
-                    className="ttp-btn ttp-btn--ghost ttp-btn--sm"
-                    disabled={!reassignTo}
-                    onClick={() => { onReassign(task.id, Number(reassignTo)); setReassignTo(''); }}
-                >
-                    Qayta tayinlash
+            <div className="ttd-task-actions">
+                <button className="ttd-detail-btn" onClick={() => setShowDetail(true)}>
+                    <span aria-hidden="true">ℹ️</span> Batafsil
                 </button>
+                <div className="ttd-reassign">
+                    <select value={reassignTo} onChange={e => setReassignTo(e.target.value)}>
+                        <option value="">Boshqa a'zoga topshirish…</option>
+                        {members
+                            .filter(m => m.student_id !== task.assigned_student_id)
+                            .map(m => <option key={m.student_id} value={m.student_id}>{m.full_name}</option>)}
+                    </select>
+                    <button
+                        className="ttp-btn ttp-btn--ghost ttp-btn--sm"
+                        disabled={!reassignTo}
+                        onClick={() => { onReassign(task.id, Number(reassignTo)); setReassignTo(''); }}
+                    >
+                        Qayta tayinlash
+                    </button>
+                </div>
             </div>
             {showDetail && (
                 <TaskDetailModal task={task} allTasks={allTasks} onClose={() => setShowDetail(false)} />
