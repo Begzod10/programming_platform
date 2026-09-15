@@ -26,7 +26,7 @@ const ROUTES = {
 
 // Commands that aren't a route — handled specially in run(), but still
 // need to appear in /help and the live autocomplete list below.
-const EXTRA_COMMANDS = ['menu', 'clear', 'help', 'logout', 'cd'];
+const EXTRA_COMMANDS = ['menu', 'clear', 'help', 'logout', 'cd', 'history'];
 const ALL_COMMANDS = [...Object.keys(ROUTES), ...EXTRA_COMMANDS];
 
 const HELP_LINES = [
@@ -35,6 +35,7 @@ const HELP_LINES = [
     '  /course <nom> — kurslarni nomi bo\'yicha qidirish (masalan /course html)',
     '  /cd course [nom] — kurslar ro\'yxati, nom bersa to\'g\'ridan-to\'g\'ri kirish',
     '  /cd .. — course/ ichidan chiqib, asosiy promptga qaytish',
+    '  /history — yozilgan buyruqlar tarixi (↑/↓ bilan ham ko\'rish mumkin)',
     '  /menu — yon menyuni ko\'rsatish/yashirish',
     '  /clear — ekranni tozalash',
     '  /logout — tizimdan chiqish',
@@ -57,6 +58,13 @@ export default function TerminalOverlay() {
     const [cwd, setCwd] = useState(null);
     const inputRef = useRef(null);
     const logRef = useRef(null);
+    // Every submitted command, oldest first — a ref (not state) since
+    // nothing needs to re-render when it changes; /history reads it at
+    // print time and ArrowUp/ArrowDown read it at keypress time.
+    const historyRef = useRef([]);
+    // -1 = not currently browsing history (a fresh line). Set by
+    // ArrowUp/ArrowDown, reset to -1 whenever a command actually runs.
+    const historyIndexRef = useRef(-1);
 
     const active = !!equipped.theme?.terminal;
 
@@ -169,6 +177,20 @@ export default function TerminalOverlay() {
         const cmd = cmdWord.toLowerCase();
         const arg = argWords.join(' ');
         setLog(prev => [...prev, `> ${cwd ? `${cwd}/` : ''}${stripped}`]);
+        historyRef.current = [...historyRef.current, stripped];
+        historyIndexRef.current = -1;
+
+        if (cmd === 'history') {
+            if (historyRef.current.length === 0) {
+                setLog(prev => [...prev, 'Tarix hali bo\'sh.']);
+            } else {
+                setLog(prev => [
+                    ...prev,
+                    ...historyRef.current.map((h, i) => `  ${i + 1}  ${h}`),
+                ]);
+            }
+            return;
+        }
 
         // Backing out of a directory: "cd .." or "cd /" from inside one.
         if (cwd && cmd === 'cd' && (arg === '..' || arg === '/' || !arg)) {
@@ -263,6 +285,30 @@ export default function TerminalOverlay() {
         if (topMatch && (e.key === 'Tab' || (e.key === 'ArrowRight' && atEnd))) {
             e.preventDefault();
             acceptGhost();
+            return;
+        }
+        // ↑/↓ walk backward/forward through history, same as a real shell.
+        // historyIndexRef, not state, since nothing else needs to
+        // re-render off it — only this handler reads/writes it.
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            const hist = historyRef.current;
+            if (hist.length === 0) return;
+            e.preventDefault();
+            if (e.key === 'ArrowUp') {
+                const next = historyIndexRef.current === -1 ? hist.length - 1 : Math.max(0, historyIndexRef.current - 1);
+                historyIndexRef.current = next;
+                setInput(hist[next]);
+            } else {
+                if (historyIndexRef.current === -1) return;
+                const next = historyIndexRef.current + 1;
+                if (next >= hist.length) {
+                    historyIndexRef.current = -1;
+                    setInput('');
+                } else {
+                    historyIndexRef.current = next;
+                    setInput(hist[next]);
+                }
+            }
         }
     };
 
