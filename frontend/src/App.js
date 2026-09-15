@@ -6,6 +6,7 @@ import { StoreProvider } from './context/StoreContext';
 import AppRouter from './AppRouter';
 import SSOHandler from './components/SSOHandler';
 import UpdateBanner from './components/UpdateBanner/UpdateBanner';
+import TerminalOverlay from './components/TerminalOverlay/TerminalOverlay';
 import './App.css';
 
 function App() {
@@ -17,6 +18,11 @@ function App() {
                         <SSOHandler>
                             <AppRouter />
                         </SSOHandler>
+                        {/* Needs useNavigate(), so it must live inside
+                            BrowserRouter — self-gates on the equipped
+                            "hacker terminal" theme's asset_ref.terminal
+                            flag, so it renders nothing for anyone else. */}
+                        <TerminalOverlay />
                     </BrowserRouter>
                     <UpdateBanner />
                 </StoreProvider>

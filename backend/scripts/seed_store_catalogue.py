@@ -114,6 +114,37 @@ CATALOGUE: list[dict] = [
         },
     },
     {
+        # Same palette as "Green Terminal" but unlocks TerminalOverlay.js
+        # (a functional `/course`-style command navigator, not just a
+        # color swap — see asset_ref.terminal, checked in that component)
+        # — the price gap from theme.hacker's 400 reflects that it's a
+        # feature purchase, not a cosmetic one.
+        "slug": "theme.hacker_pro",
+        "kind": StoreItemKind.theme,
+        "title": "Hacker Terminal Pro",
+        "title_ru": "Хакерский терминал Pro",
+        "description": "Haqiqiy buyruqlar bilan boshqariladigan terminal — /course, /rankings va h.k. yozib sahifalar orasida o'ting.",
+        "description_ru": "Терминал с настоящими командами — переключайтесь между страницами, печатая /course, /rankings и т.д.",
+        "price_coins": 2000,
+        "sort_order": 35,
+        "asset_ref": {
+            "mode": "dark",
+            "terminal": True,
+            "tokens": {
+                "--color-primary": "#00ff88",
+                "--color-primary-mid": "#33ff9c",
+                "--color-primary-light": "#66ffb0",
+                "--color-primary-pale": "rgba(0, 255, 136, 0.10)",
+                "--color-ink": "#d1ffe0",
+                "--color-dark": "#020604",
+                "--bg-page": "#050d08",
+                "--text-strong": "rgba(209, 255, 224, 0.95)",
+                "--text-muted": "rgba(209, 255, 224, 0.60)",
+                "--shadow-brand": "0 4px 24px rgba(0, 255, 136, 0.25)",
+            },
+        },
+    },
+    {
         "slug": "theme.sunset",
         "kind": StoreItemKind.theme,
         "title": "Sunset Coral",
