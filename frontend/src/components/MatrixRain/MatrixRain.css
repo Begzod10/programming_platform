@@ -12,5 +12,5 @@
        canvas (black wash included) can ever blend over the app behind it,
        so it always stays a translucent ambient tint, never a full
        blackout, no matter how "black" the internal buffer gets. */
-    opacity: 0.1;
+    opacity: 0.2;
 }
