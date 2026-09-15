@@ -317,8 +317,22 @@
    from --color-dark — never the raw near-black --bg-page itself, which
    would make every card blend into the page with no visible edge.
    Light themes need no override: their tokens already describe a light
-   surface + dark text, which is what this page defaults to anyway. */
-html.store-theme-dark .store-page {
+   surface + dark text, which is what this page defaults to anyway.
+
+   The ink-pin override is scoped to each element that ALSO gets a dark
+   background below (.store-card, .store-tabs, .store-wallet__pill) —
+   NOT the whole .store-page — because .store-page's own background is
+   the app-wide light gradient (--bg-app-gradient, untouched by
+   applyTheme(), which only ever writes the tokens a theme actually
+   ships) and never goes dark. Pinning near-white ink at the page root
+   made the "Do'kon" header/description nearly invisible against that
+   still-light background — this was a real bug, caught live. CSS custom
+   properties cascade to descendants, so scoping the redefinition to only
+   the dark-background containers keeps their own text legible while the
+   header (never touched) stays on its normal dark-on-light colors. */
+html.store-theme-dark .store-card,
+html.store-theme-dark .store-tabs,
+html.store-theme-dark .store-wallet__pill {
     --store-ink-strong: var(--text-strong);
     --store-ink-muted: var(--text-muted);
 }
