@@ -34,6 +34,7 @@ const HELP_LINES = [
     ...Object.keys(ROUTES).map(c => `  /${c}`),
     '  /course <nom> — kurslarni nomi bo\'yicha qidirish (masalan /course html)',
     '  /cd course [nom] — kurslar ro\'yxati, nom bersa to\'g\'ridan-to\'g\'ri kirish',
+    '  /cd .. — course/ ichidan chiqib, asosiy promptga qaytish',
     '  /menu — yon menyuni ko\'rsatish/yashirish',
     '  /clear — ekranni tozalash',
     '  /logout — tizimdan chiqish',
@@ -48,6 +49,12 @@ export default function TerminalOverlay() {
     const [open, setOpen] = useState(false);
     const [input, setInput] = useState('');
     const [log, setLog] = useState([`Xush kelibsiz. Buyruq yozing (masalan /course). "/help" — yordam.`]);
+    // Current "directory" — null means the root prompt. Set by `cd course`
+    // so the shell stays "inside" it (like a real cd): after that, typing
+    // a bare name with no leading /course or slash still searches courses,
+    // exactly like being inside a folder and just typing filenames. "cd .."
+    // (or "cd /") backs out to the root prompt.
+    const [cwd, setCwd] = useState(null);
     const inputRef = useRef(null);
     const logRef = useRef(null);
 
@@ -161,21 +168,40 @@ export default function TerminalOverlay() {
         const [cmdWord, ...argWords] = stripped.split(/\s+/);
         const cmd = cmdWord.toLowerCase();
         const arg = argWords.join(' ');
-        setLog(prev => [...prev, `> /${stripped}`]);
+        setLog(prev => [...prev, `> ${cwd ? `${cwd}/` : ''}${stripped}`]);
+
+        // Backing out of a directory: "cd .." or "cd /" from inside one.
+        if (cwd && cmd === 'cd' && (arg === '..' || arg === '/' || !arg)) {
+            setCwd(null);
+            return;
+        }
+
+        // Already "inside" course/ (see cwd's declaration) — anything that
+        // isn't itself a recognized top-level command is a bare filename,
+        // i.e. a course-name query, exactly like typing inside a real
+        // directory needs no path prefix for what's already local to it.
+        if (cwd === 'course' && cmd !== 'cd' && !ALL_COMMANDS.includes(cmd)) {
+            searchCourses(stripped, { autoNavigate: true });
+            return;
+        }
 
         if ((cmd === 'course' || cmd === 'courses') && arg) {
             searchCourses(arg);
             return;
         }
 
-        // "cd course" lists every course; "cd course html" navigates
-        // straight there if that's an unambiguous match, same idea as a
-        // shell's `cd` — a directory listing vs. entering one directly.
+        // "cd course" lists every course AND stays inside it (cwd) so the
+        // next thing typed can just be a name — "cd course html" (from the
+        // root prompt) navigates straight there if that's an unambiguous
+        // match instead, same idea as a shell's `cd` taking a path in one
+        // go vs. listing a directory and moving into it first.
         if (cmd === 'cd') {
             const [target, ...nameWords] = argWords;
             const targetWord = (target || '').toLowerCase();
             if (targetWord === 'course' || targetWord === 'courses') {
-                searchCourses(nameWords.join(' '), { autoNavigate: true });
+                const name = nameWords.join(' ');
+                if (!name) setCwd('course');
+                searchCourses(name, { autoNavigate: true });
                 return;
             }
             if (!target) {
@@ -227,7 +253,7 @@ export default function TerminalOverlay() {
         navigate(`/${role}/${path}`);
         setLog(prev => [...prev, `→ /${role}/${path}`]);
         setOpen(false);
-    }, [navigate, toggleTerminalMenu, terminalMenuHidden, logout, request, searchCourses]);
+    }, [navigate, toggleTerminalMenu, terminalMenuHidden, logout, request, searchCourses, cwd]);
 
     const handleKeyDown = (e) => {
         // Tab or → (when the caret's already at the end, so it's not just
@@ -260,7 +286,7 @@ export default function TerminalOverlay() {
                         <span className="term-dot term-dot--r" />
                         <span className="term-dot term-dot--y" />
                         <span className="term-dot term-dot--g" />
-                        <span className="term-title">guest@student-platform:~$</span>
+                        <span className="term-title">guest@student-platform:~{cwd ? `/${cwd}` : ''}$</span>
                         <button className="term-close" onClick={() => setOpen(false)}>✕</button>
                     </div>
                     <div className="term-log" ref={logRef}>
@@ -294,7 +320,7 @@ export default function TerminalOverlay() {
                             className="term-input-row"
                             onSubmit={e => { e.preventDefault(); run(input); setInput(''); }}
                         >
-                            <span className="term-prompt">$</span>
+                            <span className="term-prompt">{cwd ? `${cwd}$` : '$'}</span>
                             <div className="term-input-stack">
                                 <div className="term-ghost" aria-hidden="true">
                                     <span className="term-ghost-typed">{input}</span>
@@ -306,7 +332,7 @@ export default function TerminalOverlay() {
                                     value={input}
                                     onChange={e => setInput(e.target.value)}
                                     onKeyDown={handleKeyDown}
-                                    placeholder="/course"
+                                    placeholder={cwd === 'course' ? 'html (yoki /cd ..)' : '/course'}
                                     autoComplete="off"
                                     autoCorrect="off"
                                     autoCapitalize="off"
