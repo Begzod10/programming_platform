@@ -67,7 +67,7 @@ function Sidebar({ activeTab, onLogout, role, earlyLearningEligible = true }) {
         { id: 'team-projects',  label: t('team_projects') || 'Jamoaviy loyihalar', Icon: Users2, section: 'main' },
         { id: 'quiz',           label: t('quiz'),                       Icon: HelpCircle,      section: 'main' },
         // Backend-computed (see schemas/user.py's early_learning_eligible,
-        // a coarse age<11 cutoff distinct from early_learning.py's own
+        // a coarse age<12 cutoff distinct from early_learning.py's own
         // per-module eligibility) — an older student doesn't need a "for
         // little kids" link cluttering their nav. Defaults permissive
         // (StudentLayout.js's `!== false`) so an account whose birth_date

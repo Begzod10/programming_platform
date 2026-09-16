@@ -389,7 +389,7 @@ async def test_get_me_without_token_returns_401(async_client: AsyncClient):
 
 # ── early_learning_eligible ─────────────────────────────────────────────────
 # Drives whether the "Kichkinalar uchun" sidebar link shows at all — see
-# schemas/user.py's _early_learning_eligible. A blanket age<11 cutoff,
+# schemas/user.py's _early_learning_eligible. A blanket age<12 cutoff,
 # distinct from early_learning.py's own per-module _is_age_eligible.
 
 async def test_early_learning_eligible_defaults_true_with_no_birth_date(
@@ -397,19 +397,19 @@ async def test_early_learning_eligible_defaults_true_with_no_birth_date(
 ):
     # Most accounts have no synced birth_date at all — unknown must stay
     # permissive, or the link would vanish for the majority of students who
-    # simply haven't had this field synced yet, not because they're 11+.
+    # simply haven't had this field synced yet, not because they're 12+.
     resp = await async_client.get("/api/v1/auth/me", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["early_learning_eligible"] is True
 
 
-async def test_early_learning_eligible_true_under_11(
+async def test_early_learning_eligible_true_under_12(
     async_client: AsyncClient, db_session, auth_headers: dict
 ):
     me = await async_client.get("/api/v1/auth/me", headers=auth_headers)
     user_id = me.json()["id"]
     await db_session.execute(
-        update(Student).where(Student.id == user_id).values(birth_date=_birth_date_for_age(8))
+        update(Student).where(Student.id == user_id).values(birth_date=_birth_date_for_age(11))
     )
     await db_session.commit()
 
@@ -418,13 +418,13 @@ async def test_early_learning_eligible_true_under_11(
     assert resp.json()["early_learning_eligible"] is True
 
 
-async def test_early_learning_eligible_false_at_11_and_over(
+async def test_early_learning_eligible_false_at_12_and_over(
     async_client: AsyncClient, db_session, auth_headers: dict
 ):
     me = await async_client.get("/api/v1/auth/me", headers=auth_headers)
     user_id = me.json()["id"]
     await db_session.execute(
-        update(Student).where(Student.id == user_id).values(birth_date=_birth_date_for_age(11))
+        update(Student).where(Student.id == user_id).values(birth_date=_birth_date_for_age(12))
     )
     await db_session.commit()
 
