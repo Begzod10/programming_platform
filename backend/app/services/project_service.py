@@ -278,6 +278,18 @@ class ProjectService:
         # Project row, so the refreshed project below carries the grade.
         # Local import avoids circular dependency (ai_review_service imports
         # RankingService which lives elsewhere; cleaner to defer).
+        #
+        # IMPORTANT — Team Projects depends on this call staying
+        # synchronous (an `await` that returns only once review is done,
+        # in this same request/session). team_project.py::finalize_team
+        # calls this same submit_project() and then immediately checks
+        # `project.reviewed_at is not None` to decide whether to award
+        # points and mark the team "reviewed" — nothing enforces that
+        # dependency here, so if this call is ever made async/backgrounded
+        # (a task queue, a webhook callback, etc.), finalize_team's check
+        # will just always read False and point-awarding goes silently
+        # quiet, with no error anywhere. Grep for "runs the AI review
+        # SYNCHRONOUSLY" in team_project.py before changing this.
         from app.services.ai_review_service import run_ai_review_for_project
         try:
             ai_result = await run_ai_review_for_project(

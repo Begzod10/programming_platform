@@ -721,6 +721,9 @@ async def finalize_team(
     # separate callback; if the AI was unavailable, the team just stays
     # "submitted" until someone re-triggers review through the normal
     # project flow — award_points only ever runs once reviewed_at is real.
+    # This assumption is flagged from the other side too, in
+    # project_service.py::submit_project — check there before touching how
+    # that call is invoked.
     await db.refresh(project)
     if project.reviewed_at is not None:
         from app.services.team_project_points_service import award_points
