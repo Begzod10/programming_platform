@@ -17,7 +17,9 @@ main.py ga qo'shish:
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime, timedelta, timezone
+from sqlalchemy import select
 from app.db.session import AsyncSessionLocal
 from app.services.ranking_service import RankingService
 from app.services.translation_backfill import backfill_course_translations
@@ -63,6 +65,65 @@ async def job_reset_monthly():
         service = RankingService(db)
         await service.reset_monthly_points()
         logger.info("✅ Oylik ballar reset qilindi")
+
+
+async def job_retry_stuck_project_reviews():
+    """Safety net for a real incident found live: a student's ZIP upload
+    (project id 4926, 2026-09-11) got permanently stuck at status
+    "Submitted" with reviewed_at=None and NO instructor_feedback at all —
+    6 days with zero trace of why. Root cause traced to an ~11-minute
+    complete backend stall (same worker PID, zero requests served
+    platform-wide) that overlapped the AI review call for that exact
+    submission — most likely the in-flight request got cancelled
+    (asyncio.CancelledError, a BaseException, not an Exception) once the
+    client gave up waiting, which _run_ai_review_and_persist_failure's
+    `except Exception` can't catch, so its own failure-persist step never
+    ran. Rather than chase every possible way a request can die mid-flight
+    without leaving a trace, this sweeps for the *symptom* instead — a
+    project stuck with genuinely NO record of an attempt at all — every 15
+    minutes and retries it.
+
+    Deliberately narrow to avoid retry-looping a project that's legitimately
+    still under normal review, or one that already failed for a real reason:
+      - reviewed_at IS NULL AND instructor_feedback empty — the "no trace of
+        an attempt" signature; a project that failed normally already has
+        instructor_feedback set (via _run_ai_review_and_persist_failure /
+        submit_project's own failure path) and is left alone here, same as
+        one still genuinely mid-review.
+      - submitted_at older than 20 minutes — comfortably past how long a
+        real synchronous AI review ever takes, so this never fires on one
+        that's simply still in flight.
+    """
+    from app.models.project import Project
+    from app.api.v1.endpoints.projects import _run_ai_review_and_persist_failure
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=20)
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Project).where(
+                Project.status == "Submitted",
+                Project.reviewed_at.is_(None),
+                (Project.instructor_feedback.is_(None)) | (Project.instructor_feedback == ""),
+                Project.submitted_at < cutoff,
+            )
+        )
+        stuck = result.scalars().all()
+        if not stuck:
+            return
+
+        logger.warning(
+            "⚠️  %d loyiha AI tekshiruvsiz qolib ketgan (qayta urinilmoqda): %s",
+            len(stuck), [p.id for p in stuck],
+        )
+        for project in stuck:
+            try:
+                await _run_ai_review_and_persist_failure(db, project)
+            except Exception as e:
+                # One project's retry must never take the rest of the sweep
+                # down with it — exactly the isolation
+                # _run_ai_review_and_persist_failure itself already applies
+                # to a single request; this is the same guarantee one level up.
+                logger.warning("[sweep-stuck-review] project=%d retry failed: %s", project.id, e)
 
 
 # ============================================================
@@ -121,9 +182,19 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Stuck-AI-review sweep — see job_retry_stuck_project_reviews's docstring
+    # for the live incident this guards against.
+    scheduler.add_job(
+        job_retry_stuck_project_reviews,
+        trigger=IntervalTrigger(minutes=15),
+        id="retry_stuck_project_reviews",
+        replace_existing=True,
+    )
+
     scheduler.start()
     logger.info("📅 Scheduler ishga tushdi!")
     logger.info("   - Kunlik reset: har kecha 00:00")
     logger.info("   - Haftalik reset: har dushanba 00:00")
     logger.info("   - Oylik reset: har oy 1-si 00:00")
     logger.info("   - Kurs RU tarjima backfill: ishga tushgandan 30s keyin, keyin har kuni 03:00")
+    logger.info("   - Tekshirilmagan loyihalarni qayta urinish: har 15 daqiqada")
