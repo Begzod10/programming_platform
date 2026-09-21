@@ -1,5 +1,7 @@
+import asyncio
 import json
 import logging
+from collections import defaultdict
 from datetime import timedelta
 from typing import Optional
 
@@ -33,6 +35,15 @@ from app.utils.datetime_utils import utcnow
 from app.ws.manager import team_ws_manager, team_project_ws_manager
 
 router = APIRouter(redirect_slashes=False)
+
+# Per-team lock for /teams/{id}/regenerate — see the comment at its call
+# site. Small, bounded key space (one entry per team a regenerate was ever
+# attempted on), not worth expiring for this endpoint's traffic.
+_regenerate_locks: dict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+
+def _team_regenerate_lock(team_id: int) -> asyncio.Lock:
+    return _regenerate_locks[team_id]
 
 
 def _team_load_options():
@@ -437,32 +448,48 @@ async def regenerate_team_plan(
         db: AsyncSession = Depends(get_db),
         teacher: Student = Depends(get_current_teacher),
 ):
-    team = (await db.execute(
-        select(TeamProjectTeam)
-        .where(TeamProjectTeam.id == team_id)
-        .options(selectinload(TeamProjectTeam.team_project))
-    )).scalar_one_or_none()
-    if team is None:
-        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
-    if team.team_project.teacher_id != teacher.id:
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
-    if team.generation_attempts >= MAX_GENERATION_ATTEMPTS:
-        raise HTTPException(status_code=400, detail="Urinishlar soni tugadi (3/3)")
+    # Without this lock, two overlapping regenerate calls for the same team
+    # (a teacher double-clicking while the AI call is slow — confirmed
+    # live on team 1 of assignment 1, "Onlayn do'kon": two requests 15s
+    # apart each read the same pre-race task set, each deleted it and
+    # generated its own independent plan, leaving 4 tasks instead of 2 and
+    # burning 2 of the team's 3 generation_attempts on what the teacher
+    # experienced as one click) both pass the attempts check and the
+    # "delete old tasks" step against the same stale snapshot, so neither
+    # one's delete removes the other's freshly inserted tasks.
+    #
+    # An in-process asyncio.Lock (not a DB row lock) on purpose: the
+    # backend runs as a single uvicorn worker (see deployment notes), so
+    # this fully serializes same-team regenerates without holding a DB
+    # transaction open across the slow AI call the way with_for_update
+    # would.
+    async with _team_regenerate_lock(team_id):
+        team = (await db.execute(
+            select(TeamProjectTeam)
+            .where(TeamProjectTeam.id == team_id)
+            .options(selectinload(TeamProjectTeam.team_project))
+        )).scalar_one_or_none()
+        if team is None:
+            raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+        if team.team_project.teacher_id != teacher.id:
+            raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+        if team.generation_attempts >= MAX_GENERATION_ATTEMPTS:
+            raise HTTPException(status_code=400, detail="Urinishlar soni tugadi (3/3)")
 
-    # Clear previously-generated tasks before regenerating, so the old plan
-    # doesn't sit alongside a new one.
-    old_tasks = (await db.execute(
-        select(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
-    )).scalars().all()
-    for t in old_tasks:
-        await db.delete(t)
-    await db.flush()
+        # Clear previously-generated tasks before regenerating, so the old
+        # plan doesn't sit alongside a new one.
+        old_tasks = (await db.execute(
+            select(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
+        )).scalars().all()
+        for t in old_tasks:
+            await db.delete(t)
+        await db.flush()
 
-    await generate_plan_for_team(db, team_id)
+        await generate_plan_for_team(db, team_id)
 
-    tp = await _fetch_team_project(db, team.team_project_id)
-    team_out = next(t for t in tp.teams if t.id == team_id)
-    return _team_read(team_out)
+        tp = await _fetch_team_project(db, team.team_project_id)
+        team_out = next(t for t in tp.teams if t.id == team_id)
+        return _team_read(team_out)
 
 
 # ── Teacher: author a plan by hand (AI-disabled / attempts-exhausted fallback) ─
