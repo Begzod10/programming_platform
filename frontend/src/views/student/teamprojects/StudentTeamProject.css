@@ -1,6 +1,11 @@
 .stp-page { padding: 24px; max-width: 900px; margin: 0 auto; }
 .stp-muted { color: rgba(15,23,42,0.55); font-size: 14px; }
 
+.stp-sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
 .stp-header { margin-bottom: 16px; }
 .stp-header h2 { margin: 0 0 8px; font-size: 22px; font-weight: 800; color: #0f172a; }
 .stp-badges { display: flex; gap: 6px; margin-bottom: 8px; }
@@ -9,13 +14,37 @@
 .stp-project-title { font-weight: 700; font-size: 16px; margin: 4px 0; color: #0f172a; }
 .stp-project-desc { color: #475569; font-size: 14px; }
 
+.stp-error-banner {
+    background: #fee2e2; color: #b91c1c; font-size: 13px; font-weight: 600;
+    padding: 10px 14px; border-radius: 12px; margin-bottom: 16px;
+}
+
 .stp-members { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
 .stp-member { font-size: 13px; background: #f1f5f9; border-radius: 999px; padding: 5px 12px; }
 .stp-member--lead { background: #fef3c7; font-weight: 700; }
 
+.stp-progress { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.stp-progress-bar {
+    flex: 1; height: 8px; border-radius: 999px; background: #f1f5f9; overflow: hidden;
+}
+.stp-progress-fill {
+    height: 100%; border-radius: 999px; background: #0d9488; transition: width .3s ease;
+}
+.stp-progress-label {
+    color: rgba(15,23,42,0.55); font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+
 .stp-tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.stp-task { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px; }
-.stp-task--mine { border-color: #0d9488; box-shadow: 0 0 0 2px rgba(13,148,136,0.15); }
+.stp-task {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+    transition: box-shadow .15s ease, transform .15s ease;
+}
+.stp-task:hover { box-shadow: 0 4px 12px rgba(15,23,42,0.08); transform: translateY(-1px); }
+.stp-task--mine {
+    border-color: #0d9488;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 0 0 2px rgba(13,148,136,0.15);
+}
 .stp-task-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .stp-task-desc { font-size: 13px; color: #334155; margin: 0 0 8px; }
 
@@ -26,7 +55,16 @@
 
 .stp-criteria { font-size: 12px; color: #475569; margin: 0 0 8px; padding-left: 18px; }
 
-.stp-submit-row { display: flex; gap: 8px; margin-top: 8px; }
+.stp-deadline {
+    display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 700;
+    padding: 3px 8px; border-radius: 999px; background: #f1f5f9; color: #475569;
+}
+.stp-deadline--warning { background: #fef3c7; color: #b45309; }
+
+.stp-field-label {
+    display: block; flex-basis: 100%; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 4px;
+}
+.stp-submit-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .stp-submit-row input { flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
 
 .stp-btn { border: none; border-radius: 10px; padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer; }
@@ -54,4 +92,11 @@
 .stp-peer-comment {
     flex: 1; min-width: 160px; padding: 7px 10px; border: 1px solid #cbd5e1;
     border-radius: 8px; font-size: 13px;
+}
+
+@media (max-width: 640px) {
+    .stp-page { padding: 16px; }
+    .stp-header h2 { font-size: 19px; }
+    .stp-submit-row { flex-direction: column; align-items: stretch; }
+    .stp-tasks-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
 }
