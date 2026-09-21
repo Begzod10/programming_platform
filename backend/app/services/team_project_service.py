@@ -1,6 +1,6 @@
-"""Team formation for the team-projects feature — random teams, each with
-its own independently-random theme + tech stack (see
-app/services/team_project_constants.py for the pools and
+"""Team formation for the team-projects feature — skill-balanced teams
+(see _form_balanced_teams), each with its own independently-random theme +
+tech stack (see app/services/team_project_constants.py for the pools and
 app/services/team_project_planner.py for what happens next, per-team).
 """
 import json
@@ -102,17 +102,7 @@ async def create_team_project(
     db.add(team_project)
     await db.flush()
 
-    shuffled = students[:]
-    random.shuffle(shuffled)
-    chunks: List[list] = []
-    for i in range(0, len(shuffled), team_size):
-        chunk = shuffled[i:i + team_size]
-        # Fold a too-small trailing chunk into the previous team rather than
-        # leaving a lone-member "team".
-        if len(chunk) < 2 and chunks:
-            chunks[-1].extend(chunk)
-        else:
-            chunks.append(chunk)
+    chunks = _form_balanced_teams(students, team_size, profiles_by_id)
 
     last_theme, last_stack = await _last_used_theme_and_stack(db, teacher_id)
     themes = _cycle_sample(THEMES, len(chunks), avoid_key=last_theme)
@@ -174,11 +164,54 @@ async def _last_used_theme_and_stack(db: AsyncSession, teacher_id: int):
     return (row[0], row[1]) if row else (None, None)
 
 
-def _pick_lead(members: list, profiles_by_id: dict[int, SkillProfile]) -> int:
-    def rank(student):
-        profile = profiles_by_id.get(student.id)
-        level = profile.current_level.value if profile else student.current_level.value
-        points = profile.lifetime_points if profile else (student.lifetime_points or 0)
-        return (_LEVEL_RANK.get(level, 0), points)
+def _skill_rank(student, profiles_by_id: dict[int, SkillProfile]) -> tuple[int, int]:
+    profile = profiles_by_id.get(student.id)
+    level = profile.current_level.value if profile else student.current_level.value
+    points = profile.lifetime_points if profile else (student.lifetime_points or 0)
+    return (_LEVEL_RANK.get(level, 0), points)
 
-    return max(members, key=rank).id
+
+def _pick_lead(members: list, profiles_by_id: dict[int, SkillProfile]) -> int:
+    return max(members, key=lambda s: _skill_rank(s, profiles_by_id)).id
+
+
+def _team_count(total_students: int, team_size: int) -> int:
+    """Same team-count semantics the old contiguous-chunking code produced
+    (a lone trailing member folds into the previous team instead of
+    standing alone), factored out so _form_balanced_teams can pre-size its
+    buckets before distributing anyone into them."""
+    full_teams, remainder = divmod(total_students, team_size)
+    if remainder == 0:
+        return max(full_teams, 1)
+    if remainder == 1 and full_teams >= 1:
+        return full_teams
+    return full_teams + 1
+
+
+def _form_balanced_teams(
+        students: list, team_size: int, profiles_by_id: dict[int, SkillProfile],
+) -> List[list]:
+    """Skill-balanced team formation via a snake draft, replacing a plain
+    random shuffle: sort students strongest-to-weakest by _skill_rank, then
+    hand them out to `_team_count(...)` teams in serpentine order (0, 1,
+    ..., K-1, K-1, ..., 1, 0, 0, 1, ...) the way a sports league drafts
+    players — round 1 gives each team one strong pick, round 2 reverses
+    direction so no team is stuck always picking last, and so on. This
+    keeps each team's overall skill mix close to even instead of letting a
+    random shuffle occasionally cluster every strong (or every struggling)
+    student from a group onto one team.
+    """
+    ordered = sorted(students, key=lambda s: _skill_rank(s, profiles_by_id), reverse=True)
+    num_teams = _team_count(len(students), team_size)
+    teams: List[list] = [[] for _ in range(num_teams)]
+
+    idx, direction = 0, 1
+    for student in ordered:
+        teams[idx].append(student)
+        next_idx = idx + direction
+        if next_idx < 0 or next_idx >= num_teams:
+            direction *= -1
+        else:
+            idx = next_idx
+
+    return teams
