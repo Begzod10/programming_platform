@@ -160,6 +160,23 @@ class PeerRatingRead(BaseModel):
     created_at: datetime
 
 
+class TeamEventRead(BaseModel):
+    """Teacher-only view of TeamProjectEvent rows — see GET
+    /teams/{team_id}/events. TeamProjectEvent is an append-only audit log
+    that every state change in this feature already writes to (team
+    formation, AI plan generation/failure, reassignment, finalization,
+    points, AI task review), but until this endpoint nothing ever read it
+    back — a real audit trail nobody could audit. `payload` is the
+    event's free-form JSON, parsed; shape depends on `event_type` (see
+    each write site for what it carries)."""
+    id: int
+    event_type: str
+    actor_student_id: Optional[int] = None
+    actor_name: Optional[str] = None
+    payload: dict = {}
+    created_at: datetime
+
+
 class ManualTaskItem(BaseModel):
     """One task in a teacher-authored plan — see POST
     /teams/{team_id}/manual-plan. Same shape as what the AI planner

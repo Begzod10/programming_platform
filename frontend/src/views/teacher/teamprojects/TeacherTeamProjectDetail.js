@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
+import { formatTeamEvent } from './formatTeamEvent';
 import './TeacherTeamProjects.css';
 
 const STATUS_LABELS = {
@@ -245,6 +246,69 @@ const PeerRatingsSection = ({ ratings }) => {
                     </div>
                 );
             })}
+        </div>
+    );
+};
+
+// Closes the last gap from a full feature audit: TeamProjectEvent is an
+// append-only audit log every state change in this feature already writes
+// to, but until now nothing ever read it back. Fetched lazily on first
+// expand rather than eagerly for every team on load — this is supplementary
+// debugging detail, not primary info a teacher needs at a glance.
+const TeamEventsSection = ({ teamId, request }) => {
+    const [expanded, setExpanded] = useState(false);
+    const [events, setEvents] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    const toggle = async () => {
+        const next = !expanded;
+        setExpanded(next);
+        if (next && events === null) {
+            setLoading(true);
+            try {
+                const data = await request(
+                    `${API_URL}v1/team-projects/teams/${teamId}/events`, 'GET', null, headers(),
+                );
+                setEvents(Array.isArray(data) ? data : []);
+            } catch {
+                setEvents([]);
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
+    return (
+        <div className="ttd-events">
+            <button
+                className="ttp-btn ttp-btn--ghost ttp-btn--sm"
+                onClick={e => { e.stopPropagation(); toggle(); }}
+            >
+                {expanded ? 'Faoliyat tarixini yashirish' : 'Faoliyat tarixi'}
+            </button>
+            {expanded && (
+                loading ? (
+                    <p className="ttp-muted">Yuklanmoqda…</p>
+                ) : events && events.length === 0 ? (
+                    <p className="ttp-muted">Hali voqealar yo'q.</p>
+                ) : (
+                    <ul className="ttd-events-list">
+                        {(events || []).map(ev => {
+                            const { label, detail } = formatTeamEvent(ev);
+                            return (
+                                <li key={ev.id} className="ttd-event-item">
+                                    <div className="ttd-event-head">
+                                        <strong>{label}</strong>
+                                        <span className="ttp-muted">{fmtDate(ev.created_at)}</span>
+                                    </div>
+                                    {detail && <p className="ttd-event-detail">{detail}</p>}
+                                    {ev.actor_name && <p className="ttp-muted">{ev.actor_name}</p>}
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )
+            )}
         </div>
     );
 };
@@ -580,6 +644,8 @@ const TeacherTeamProjectDetail = () => {
                     {(team.status === 'submitted' || team.status === 'reviewed') && (
                         <PeerRatingsSection ratings={peerRatingsByTeam[team.id]} />
                     )}
+
+                    <TeamEventsSection teamId={team.id} request={request} />
                 </div>
             ))}
         </div>

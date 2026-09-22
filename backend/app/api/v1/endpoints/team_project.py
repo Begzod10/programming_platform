@@ -23,7 +23,7 @@ from app.models.team_project import (
 from app.schemas.team_project import (
     TeamProjectCreate, TeamProjectRead, TeamRead, TaskRead, MemberRead,
     MyTeamProjectRead, TaskSubmitBody, ReassignBody, FinalizeBody, PeerRatingItem,
-    PeerRatingRead, ManualPlanBody,
+    PeerRatingRead, TeamEventRead, ManualPlanBody,
 )
 from app.services.team_project_service import create_team_project
 from app.services.team_project_planner import generate_plan_for_team, validate_plan, MAX_GENERATION_ATTEMPTS
@@ -900,4 +900,48 @@ async def get_peer_ratings(
             score=r.score, comment=r.comment, created_at=r.created_at,
         )
         for r in ratings
+    ]
+
+
+# ── Teacher: view a team's activity history ─────────────────────────────────
+@router.get("/teams/{team_id}/events", response_model=list[TeamEventRead])
+async def get_team_events(
+        team_id: int,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    """TeamProjectEvent is an append-only audit log every state change in
+    this feature already writes to (see the model's own docstring), but
+    until now nothing ever read it back — a write-only audit trail nobody
+    could audit. Teacher-only, most recent first."""
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(selectinload(TeamProjectTeam.team_project))
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+    if team.team_project.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+
+    events = (await db.execute(
+        select(TeamProjectEvent)
+        .where(TeamProjectEvent.team_id == team_id)
+        .options(selectinload(TeamProjectEvent.actor))
+        # id as a tiebreak: two events can land in the same DB-timestamp
+        # tick (coarse clock resolution), and created_at alone would then
+        # give an undefined order between them — id is monotonically
+        # increasing and matches insertion order, so it's a stable tiebreak.
+        .order_by(TeamProjectEvent.created_at.desc(), TeamProjectEvent.id.desc())
+    )).scalars().all()
+
+    return [
+        TeamEventRead(
+            id=e.id, event_type=e.event_type,
+            actor_student_id=e.actor_student_id,
+            actor_name=(e.actor.full_name or e.actor.username) if e.actor else None,
+            payload=json.loads(e.payload_json) if e.payload_json else {},
+            created_at=e.created_at,
+        )
+        for e in events
     ]
