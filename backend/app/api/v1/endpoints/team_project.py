@@ -23,7 +23,7 @@ from app.models.team_project import (
 from app.schemas.team_project import (
     TeamProjectCreate, TeamProjectRead, TeamRead, TaskRead, MemberRead,
     MyTeamProjectRead, TaskSubmitBody, ReassignBody, FinalizeBody, PeerRatingItem,
-    ManualPlanBody,
+    PeerRatingRead, ManualPlanBody,
 )
 from app.services.team_project_service import create_team_project
 from app.services.team_project_planner import generate_plan_for_team, validate_plan, MAX_GENERATION_ATTEMPTS
@@ -857,3 +857,47 @@ async def submit_peer_ratings(
                 score=item.score, comment=item.comment,
             ))
     await db.commit()
+
+
+# ── Teacher: view submitted peer ratings for a team ─────────────────────────
+@router.get("/teams/{team_id}/peer-ratings", response_model=list[PeerRatingRead])
+async def get_peer_ratings(
+        team_id: int,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    """The ratings students submit above already feed
+    team_project_points_service's peer-modifier bonus, but until now
+    nothing let the teacher actually SEE them — a member's bonus could get
+    halved with no way to find out why. Teacher-only and deliberately not
+    folded into TeamRead — see PeerRatingRead's docstring for why."""
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(selectinload(TeamProjectTeam.team_project))
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+    if team.team_project.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+
+    ratings = (await db.execute(
+        select(TeamProjectPeerRating)
+        .where(TeamProjectPeerRating.team_id == team_id)
+        .options(
+            selectinload(TeamProjectPeerRating.rater),
+            selectinload(TeamProjectPeerRating.rated),
+        )
+        .order_by(TeamProjectPeerRating.rated_student_id, TeamProjectPeerRating.created_at)
+    )).scalars().all()
+
+    return [
+        PeerRatingRead(
+            rater_student_id=r.rater_student_id,
+            rater_name=(r.rater.full_name or r.rater.username) if r.rater else str(r.rater_student_id),
+            rated_student_id=r.rated_student_id,
+            rated_name=(r.rated.full_name or r.rated.username) if r.rated else str(r.rated_student_id),
+            score=r.score, comment=r.comment, created_at=r.created_at,
+        )
+        for r in ratings
+    ]

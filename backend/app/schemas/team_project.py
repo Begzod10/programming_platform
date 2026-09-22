@@ -143,6 +143,23 @@ class PeerRatingItem(BaseModel):
     comment: Optional[str] = None
 
 
+class PeerRatingRead(BaseModel):
+    """Teacher-only view of a submitted peer rating — see GET
+    /teams/{team_id}/peer-ratings. Deliberately NOT part of TeamRead: that
+    schema is shared with the student-facing /my endpoint and the
+    team_ws_manager realtime channel a student's own team is pushed over,
+    so embedding raw rater identity/comments there would leak exactly the
+    "who rated me what" visibility peer feedback is supposed to keep from
+    the person being rated."""
+    rater_student_id: int
+    rater_name: str
+    rated_student_id: int
+    rated_name: str
+    score: int
+    comment: Optional[str] = None
+    created_at: datetime
+
+
 class ManualTaskItem(BaseModel):
     """One task in a teacher-authored plan — see POST
     /teams/{team_id}/manual-plan. Same shape as what the AI planner
