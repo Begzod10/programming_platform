@@ -90,19 +90,32 @@ def _piece_points(required_level: str, ai_score: Optional[int]) -> int:
     return max(_MIN_PIECE_POINTS, round(base * score / 100))
 
 
-async def _peer_modifier(db: AsyncSession, team_id: int, student_id: int) -> float:
+async def _peer_modifier(db: AsyncSession, team_id: int, student_id: int, team_size: int) -> float:
     """1.0 normally; 0.5 if this member's average peer rating is below the
     threshold with enough ratings to be meaningful; never goes below 0
     (the multiplier itself is never negative — "never below 0" in the spec
     means the resulting bonus amount, which max(0, ...) downstream via the
-    multiplier floor of 0.5 here already guarantees for a positive base)."""
+    multiplier floor of 0.5 here already guarantees for a positive base).
+
+    The "enough ratings" floor is min(_MIN_PEER_RATINGS_FOR_MODIFIER,
+    team_size - 1), not a flat _MIN_PEER_RATINGS_FOR_MODIFIER: a 2-person
+    team's member can only ever be rated by exactly 1 teammate — there's
+    no one else to corroborate — so a flat floor of 2 made this modifier
+    permanently a no-op for every 2-person team, the smallest legal team
+    size this feature actually forms (see team_project_service.py's
+    snake-draft formation). Requiring "every possible rater has rated"
+    instead of a fixed count keeps the original anti-single-grudge-rating
+    intent for teams of 3+ (still needs >=2 corroborating ratings there)
+    while letting the modifier function at all on a 2-person team.
+    """
     rows = (await db.execute(
         select(TeamProjectPeerRating.score).where(
             TeamProjectPeerRating.team_id == team_id,
             TeamProjectPeerRating.rated_student_id == student_id,
         )
     )).scalars().all()
-    if len(rows) < _MIN_PEER_RATINGS_FOR_MODIFIER:
+    required = min(_MIN_PEER_RATINGS_FOR_MODIFIER, max(1, team_size - 1))
+    if len(rows) < required:
         return 1.0
     avg = sum(rows) / len(rows)
     return 0.5 if avg < _PEER_RATING_THRESHOLD else 1.0
@@ -149,7 +162,7 @@ async def award_points(db: AsyncSession, team: TeamProjectTeam) -> dict:
             select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
         )).scalars().all()
         for member in members:
-            modifier = await _peer_modifier(db, team.id, member.student_id)
+            modifier = await _peer_modifier(db, team.id, member.student_id, len(members))
             bonus = round(settings.TEAM_PROJECT_TEAM_BONUS * modifier)
             applied = await _award_once(
                 db, student_id=member.student_id, amount=bonus,
