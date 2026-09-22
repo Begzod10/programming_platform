@@ -126,6 +126,55 @@ async def job_retry_stuck_project_reviews():
                 logger.warning("[sweep-stuck-review] project=%d retry failed: %s", project.id, e)
 
 
+async def job_retry_stuck_team_task_reviews():
+    """Same safety net as job_retry_stuck_project_reviews above, for
+    team-project task submissions instead of regular projects — see that
+    function's docstring for the full incident writeup this pattern guards
+    against (an unbounded AI call cancelled mid-flight via
+    asyncio.CancelledError, a BaseException, skips `except Exception` and
+    leaves nothing stuck-but-invisible behind).
+
+    team_project_task_review.py's review_task_submission now has its own
+    asyncio.wait_for timeout guard (the root-cause fix), so a hang can only
+    ever end in an ordinary asyncio.TimeoutError there. This sweep is the
+    same second layer of defense as the project one: unlike a project,
+    TeamProjectTask has no separate "we tried and here's why it failed"
+    field to distinguish a legitimately-failed review from one still
+    in-flight or one that never got attempted at all, so this sweeps purely
+    on "submitted a while ago, still no reviewed_at" — retrying a task that
+    already failed for a mundane reason (e.g. an unreadable repo) is
+    harmless; it just fails the same way again.
+    """
+    from app.models.team_project import TeamProjectTask, TaskStatus
+    from app.services.team_project_task_review import review_task_submission
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=20)
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(TeamProjectTask).where(
+                TeamProjectTask.status == TaskStatus.submitted,
+                TeamProjectTask.reviewed_at.is_(None),
+                TeamProjectTask.submitted_at < cutoff,
+            )
+        )
+        stuck = result.scalars().all()
+        if not stuck:
+            return
+
+        logger.warning(
+            "⚠️  %d jamoaviy loyiha vazifasi AI tekshiruvsiz qolib ketgan (qayta urinilmoqda): %s",
+            len(stuck), [t.id for t in stuck],
+        )
+        for task in stuck:
+            try:
+                await review_task_submission(db, task.id)
+            except Exception as e:
+                # One task's retry must never take the rest of the sweep
+                # down with it — same isolation guarantee as the project
+                # sweep above.
+                logger.warning("[sweep-stuck-task-review] task=%d retry failed: %s", task.id, e)
+
+
 # ============================================================
 # SCHEDULER ISHGA TUSHIRISH
 # ============================================================
@@ -188,6 +237,15 @@ def start_scheduler():
         job_retry_stuck_project_reviews,
         trigger=IntervalTrigger(minutes=15),
         id="retry_stuck_project_reviews",
+        replace_existing=True,
+    )
+
+    # Same sweep, for team-project task submissions — see
+    # job_retry_stuck_team_task_reviews's docstring.
+    scheduler.add_job(
+        job_retry_stuck_team_task_reviews,
+        trigger=IntervalTrigger(minutes=15),
+        id="retry_stuck_team_task_reviews",
         replace_existing=True,
     )
 
