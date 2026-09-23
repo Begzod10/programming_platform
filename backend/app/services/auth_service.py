@@ -117,14 +117,43 @@ async def login(db: AsyncSession, username: str, password: str):
             else:
                 role_str = gennis_data.get("type_user")
 
-            # Biznying bazadan foydalanuvchini topamiz (username yoki email orqali)
-            stmt = select(Student).where(
-                (Student.username == username) |
-                (Student.email == username) |
-                (Student.username == f"{source}_{ext_id}")
-            )
+            # Look up by the AUTHORITATIVE key first — (source, ext_id), the
+            # identity management-v2 just verified this password against —
+            # not by username/email. gennis_service.py's
+            # _sync_container_student already documents and applies this
+            # exact principle ("primary identification via (system, s_id),
+            # NOT via username"), but this login path never did.
+            #
+            # Confirmed live (2026-09-17 through 2026-09-22, recurring on
+            # every roster sync): two unrelated students — turon_id=16809
+            # and turon_id=19043, both genuinely named Samandar — both had
+            # management-v2's own username set to the literal string
+            # "Samandar". The old query below,
+            #   (username == typed) | (email == typed) | (username == f"{source}_{ext_id}")
+            # matches BOTH of their local rows whenever "Samandar" is typed
+            # (one via the first clause, the other via the synthetic-form
+            # clause), and .scalars().first() picked whichever the DB
+            # happened to return first — so the student who authenticated as
+            # turon_id=19043 was logged into turon_id=16809's account
+            # instead: the wrong student's whole dashboard, wrong grades,
+            # wrong everything. Keying off ext_id directly can't have this
+            # ambiguity — a given (source, ext_id) pair only ever names one
+            # real person.
+            stmt = select(Student).where(getattr(Student, id_col) == ext_id)
             result = await db.execute(stmt)
             user = result.scalars().first()
+
+            if not user:
+                # No row has this id_col set yet — likely a row created
+                # before this identity link existed. Fall back to the
+                # username/email guess only in that case.
+                stmt = select(Student).where(
+                    (Student.username == username) |
+                    (Student.email == username) |
+                    (Student.username == f"{source}_{ext_id}")
+                )
+                result = await db.execute(stmt)
+                user = result.scalars().first()
 
             if not user:
                 import os as _os
