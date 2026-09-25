@@ -1,15 +1,16 @@
 .duel-page { display: flex; justify-content: center; padding: 24px 16px 40px; }
 .duel-card {
     width: 100%; max-width: 520px; text-align: center;
-    background: var(--surface-2, #fff);
-    border: 1.5px solid var(--border, rgba(0,0,0,0.08));
+    background: #fff;
+    color: #1a1833;
+    border: 1.5px solid rgba(0, 0, 0, 0.08);
     border-radius: 24px; padding: 28px 24px;
     box-shadow: 0 16px 40px rgba(108, 92, 231, 0.12);
     display: flex; flex-direction: column; align-items: center; gap: 14px;
 }
 .duel-emoji { font-size: 3rem; line-height: 1; }
 .duel-card h2 { margin: 0; font-size: 1.5rem; font-weight: 800; }
-.duel-sub { margin: 0; color: var(--text-secondary, #8a8fa3); font-size: 0.95rem; }
+.duel-sub { margin: 0; color: #6b7280; font-size: 0.95rem; }
 .duel-error {
     width: 100%; padding: 10px 14px; border-radius: 12px;
     background: rgba(231, 76, 60, 0.12); color: #e74c3c; font-weight: 700; font-size: 0.9rem;
@@ -27,8 +28,8 @@
     background: linear-gradient(135deg, #6C5CE7, #a29bfe); color: #fff;
     box-shadow: 0 8px 18px rgba(108, 92, 231, 0.3); width: 100%;
 }
-.duel-btn--ghost { background: transparent; color: var(--text-secondary, #8a8fa3); }
-.duel-or { color: var(--text-secondary, #8a8fa3); font-size: 0.85rem; }
+.duel-btn--ghost { background: transparent; color: #6b7280; }
+.duel-or { color: #6b7280; font-size: 0.85rem; }
 
 .duel-join { display: flex; gap: 10px; width: 100%; }
 .duel-code-input {
@@ -43,7 +44,7 @@
     color: #6C5CE7;
 }
 .duel-players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-weight: 700; }
-.duel-waiting { color: var(--text-secondary, #8a8fa3); font-weight: 600; }
+.duel-waiting { color: #6b7280; font-weight: 600; }
 
 .duel-scores { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; }
 .duel-score {
@@ -52,10 +53,10 @@
 }
 .duel-score--me { background: rgba(108, 92, 231, 0.12); }
 .duel-score.is-offline { opacity: 0.55; }
-.duel-score-name { font-size: 0.8rem; font-weight: 700; color: var(--text-secondary, #8a8fa3); }
+.duel-score-name { font-size: 0.8rem; font-weight: 700; color: #6b7280; }
 .duel-score-num { font-size: 2rem; font-weight: 900; }
 .duel-offline { font-size: 0.7rem; color: #e74c3c; font-weight: 700; }
-.duel-vs { font-weight: 900; color: var(--text-secondary, #8a8fa3); }
+.duel-vs { font-weight: 900; color: #6b7280; }
 
 .duel-progress { font-size: 0.85rem; font-weight: 800; color: #6C5CE7; }
 .duel-countdown { font-size: 2.4rem; font-weight: 900; padding: 30px 0; animation: duel-pulse 0.8s ease-in-out infinite; }
@@ -72,7 +73,7 @@
 .duel-option:disabled { cursor: default; opacity: 0.7; }
 .duel-option.is-correct { background: #00b894; border-color: #00b894; color: #fff; opacity: 1; }
 
-.duel-banner { min-height: 1.5em; font-weight: 800; color: var(--text-secondary, #8a8fa3); }
+.duel-banner { min-height: 1.5em; font-weight: 800; color: #6b7280; }
 .duel-banner.is-good { color: #00b894; }
 .duel-result { font-size: 2rem; font-weight: 900; padding: 14px 0; }
 .duel-result.is-win { color: #e6a400; }
@@ -83,7 +84,10 @@
     .duel-code { font-size: 2.6rem; }
 }
 
-/* /play/duel has no app layout around it - give it the same soft sky the
+/* The card is deliberately theme-independent (always white with dark text):
+   it reads the app's --surface-2 nowhere, because on a dark theme / the
+   layout-less guest page that variable is dark while the text stayed black.
+   /play/duel has no app layout around it - give it the same soft sky the
    rest of the kids' area sits on. */
 .duel-guest-shell {
     min-height: 100vh;
