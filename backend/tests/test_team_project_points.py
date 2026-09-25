@@ -45,15 +45,18 @@ async def _login_headers(async_client, username: str) -> dict:
     return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
-@pytest_asyncio.fixture
-async def points_fixture(async_client, db_session):
-    """A team of 3 students (one lead) with 3 approved tasks and a final
-    Project already graded B — everything award_points needs, built
-    directly rather than through the real AI-planning/review pipeline."""
+async def _build_points_fixture(async_client, db_session, student_count: int) -> dict:
+    """Shared builder behind points_fixture (3 students) and
+    two_person_points_fixture (2 students, the smallest legal team size —
+    see team_project_service.py's snake-draft formation) — a team with
+    `student_count` members (one lead) and that many approved tasks, plus
+    a final Project already graded B. Everything award_points needs,
+    built directly rather than through the real AI-planning/review
+    pipeline."""
     uid = uuid.uuid4().hex[:8]
 
     student_ids, usernames = [], []
-    for i in range(3):
+    for i in range(student_count):
         sid, uname = await _register(async_client, f"ptpts_{uid}_{i}")
         student_ids.append(sid)
         usernames.append(uname)
@@ -114,6 +117,16 @@ async def points_fixture(async_client, db_session):
         "student_ids": student_ids, "usernames": usernames,
         "lead_id": student_ids[0], "teacher_id": teacher_id,
     }
+
+
+@pytest_asyncio.fixture
+async def points_fixture(async_client, db_session):
+    return await _build_points_fixture(async_client, db_session, student_count=3)
+
+
+@pytest_asyncio.fixture
+async def two_person_points_fixture(async_client, db_session):
+    return await _build_points_fixture(async_client, db_session, student_count=2)
 
 
 async def _total_points(db_session, student_id: int) -> int:
@@ -280,6 +293,51 @@ async def test_peer_modifier_not_applied_with_only_one_rating(db_session, points
 
     piece_points = next(t for t in fx["tasks"] if t.assigned_student_id == low_rated).points_awarded
     # Only 1 rating (< the 2-rating minimum) -> full bonus, not halved.
+    assert after - before == piece_points + settings.TEAM_PROJECT_TEAM_BONUS
+
+
+async def test_peer_modifier_applies_on_a_2_person_team_with_only_1_possible_rating(
+    db_session, two_person_points_fixture,
+):
+    """Regression test for a real gap: a 2-person team's member can only
+    ever be rated by exactly 1 teammate (there's no one else to rate
+    them), so the flat 2-rating minimum silently made this modifier a
+    permanent no-op for every 2-person team — the smallest legal team
+    size. The fix scales the floor down to team_size - 1, so a single
+    rating on a 2-person team IS enough to apply the penalty."""
+    fx = two_person_points_fixture
+    low_rated = fx["student_ids"][1]
+    rater = fx["student_ids"][0]
+    db_session.add(TeamProjectPeerRating(
+        team_id=fx["team"].id, rater_student_id=rater,
+        rated_student_id=low_rated, score=1,
+    ))
+    await db_session.commit()
+
+    from app.config import settings
+    before = await _total_points(db_session, low_rated)
+    await award_points(db_session, fx["team"])
+    after = await _total_points(db_session, low_rated)
+
+    piece_points = next(t for t in fx["tasks"] if t.assigned_student_id == low_rated).points_awarded
+    halved_bonus = round(settings.TEAM_PROJECT_TEAM_BONUS * 0.5)
+    assert after - before == piece_points + halved_bonus
+
+
+async def test_peer_modifier_not_applied_on_a_2_person_team_with_zero_ratings(
+    db_session, two_person_points_fixture,
+):
+    """The floor still requires at least 1 real rating — an unrated member
+    on a 2-person team gets the full bonus, not an assumed penalty."""
+    fx = two_person_points_fixture
+    low_rated = fx["student_ids"][1]
+
+    from app.config import settings
+    before = await _total_points(db_session, low_rated)
+    await award_points(db_session, fx["team"])
+    after = await _total_points(db_session, low_rated)
+
+    piece_points = next(t for t in fx["tasks"] if t.assigned_student_id == low_rated).points_awarded
     assert after - before == piece_points + settings.TEAM_PROJECT_TEAM_BONUS
 
 

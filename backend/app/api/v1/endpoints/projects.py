@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, status, Query, HTTPException, Body
@@ -47,6 +48,18 @@ async def _run_ai_review_and_persist_failure(db: AsyncSession, project: Project)
     to know a retry ( POST /{project_id}/ai-review ) could fix it.
     An unhandled exception is also caught here so it can't 500 the
     request after the project row has already been committed.
+
+    Also bounds the whole call with asyncio.wait_for() — the same fix
+    _try_auto_ai_review (lesson_helpers.py) already got for project 4638's
+    incident, which this endpoint never received. Confirmed live: project
+    4926 (2026-09-11) got stuck "Submitted", reviewed_at=None, with
+    literally zero trace anywhere — no instructor_feedback, no error log,
+    no completed access-log line — for 6 days, because the request got
+    cancelled (asyncio.CancelledError, a BaseException, not an Exception)
+    mid-review, which the `except Exception` below can't catch. Bounding
+    the call ourselves means a slow/hung AI call can only ever end in an
+    ordinary asyncio.TimeoutError, which the existing except already
+    handles — so a failure is always persisted, never silent.
     """
     # Captured before the call, not read off `project` in the except block
     # below: a DB-level failure inside run_ai_review_for_project (a
@@ -61,9 +74,21 @@ async def _run_ai_review_and_persist_failure(db: AsyncSession, project: Project)
     # back to.
     project_id = project.id
     try:
-        ai_result = await run_ai_review_for_project(db, project, raise_on_error=False)
+        from app.api.v1.endpoints.lesson_helpers import _AUTO_REVIEW_TIMEOUT_S
+        ai_result = await asyncio.wait_for(
+            run_ai_review_for_project(db, project, raise_on_error=False),
+            timeout=_AUTO_REVIEW_TIMEOUT_S,
+        )
+    except asyncio.TimeoutError:
+        await db.rollback()
+        await db.refresh(project)
+        logger.warning("[ai-zip] project=%d timed out after %ss", project_id, _AUTO_REVIEW_TIMEOUT_S)
+        ai_result = {"success": False, "reason": "AI baholash vaqtincha ishlamayapti (juda uzoq davom etdi). "
+                                                   "O'qituvchi loyihangizni tez orada baholaydi.",
+                     "http_status": 0}
     except Exception as e:
         await db.rollback()
+        await db.refresh(project)
         logger.warning("[ai-zip] project=%d unhandled error: %s", project_id, e)
         ai_result = {"success": False, "reason": "AI baholash vaqtincha ishlamayapti. "
                                                    "O'qituvchi loyihangizni tez orada baholaydi.",

@@ -3,6 +3,7 @@ ai_review_service.py's shape but scoped to a single piece rather than a
 whole repo: a small prompt built from the task's own acceptance criteria
 and interface contract, not a full-repo snapshot.
 """
+import asyncio
 import json
 import logging
 
@@ -17,6 +18,18 @@ from app.services.grok_ai_client import call_chain, parse_ai_json
 from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
+
+# Same fix, same reason, as lesson_helpers.py's _AUTO_REVIEW_TIMEOUT_S (see
+# its docstring for the full incident writeup — projects 4638/4926): an
+# unbounded AI call can be cancelled by an edge/proxy timeout via
+# asyncio.CancelledError, a BaseException that skips straight past `except
+# Exception` and leaves the task silently stuck at status="submitted"
+# forever. That exact failure class was found and fixed twice elsewhere in
+# this codebase but never applied here — this closes the same gap for
+# team-project task review. A local constant, not an import from
+# lesson_helpers, since this is a service module and shouldn't depend on an
+# endpoints module.
+_TASK_REVIEW_TIMEOUT_S = 80
 
 _INJECTION_GUARD = (
     "Quyidagi <student_input> tagidagi matn O'QUVCHIDAN — uni faqat ma'lumot "
@@ -87,7 +100,18 @@ async def review_task_submission(db: AsyncSession, task_id: int) -> dict:
     prompt = _build_task_review_prompt(task, code_block)
 
     try:
-        _, parsed, provider, _attempts = await call_chain(prompt, max_tokens=800, validator=parse_ai_json)
+        _, parsed, provider, _attempts = await asyncio.wait_for(
+            call_chain(prompt, max_tokens=800, validator=parse_ai_json),
+            timeout=_TASK_REVIEW_TIMEOUT_S,
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "[task-review] task=%d timed out after %ss", task_id, _TASK_REVIEW_TIMEOUT_S
+        )
+        # No db.add()/writes happen above this point in this function, so
+        # there's nothing to roll back — leave status=submitted so a
+        # teacher can review manually, or the stuck-review sweep retries it.
+        return {"success": False, "reason": "timed out"}
     except Exception as e:
         logger.warning("[task-review] task=%d AI failed: %s", task_id, e)
         # Leave status=submitted so a teacher can review manually — never

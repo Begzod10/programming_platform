@@ -143,6 +143,40 @@ class PeerRatingItem(BaseModel):
     comment: Optional[str] = None
 
 
+class PeerRatingRead(BaseModel):
+    """Teacher-only view of a submitted peer rating — see GET
+    /teams/{team_id}/peer-ratings. Deliberately NOT part of TeamRead: that
+    schema is shared with the student-facing /my endpoint and the
+    team_ws_manager realtime channel a student's own team is pushed over,
+    so embedding raw rater identity/comments there would leak exactly the
+    "who rated me what" visibility peer feedback is supposed to keep from
+    the person being rated."""
+    rater_student_id: int
+    rater_name: str
+    rated_student_id: int
+    rated_name: str
+    score: int
+    comment: Optional[str] = None
+    created_at: datetime
+
+
+class TeamEventRead(BaseModel):
+    """Teacher-only view of TeamProjectEvent rows — see GET
+    /teams/{team_id}/events. TeamProjectEvent is an append-only audit log
+    that every state change in this feature already writes to (team
+    formation, AI plan generation/failure, reassignment, finalization,
+    points, AI task review), but until this endpoint nothing ever read it
+    back — a real audit trail nobody could audit. `payload` is the
+    event's free-form JSON, parsed; shape depends on `event_type` (see
+    each write site for what it carries)."""
+    id: int
+    event_type: str
+    actor_student_id: Optional[int] = None
+    actor_name: Optional[str] = None
+    payload: dict = {}
+    created_at: datetime
+
+
 class ManualTaskItem(BaseModel):
     """One task in a teacher-authored plan — see POST
     /teams/{team_id}/manual-plan. Same shape as what the AI planner

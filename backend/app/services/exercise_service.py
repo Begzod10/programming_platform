@@ -174,6 +174,18 @@ def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "u
             for a in answers
         ]
 
+        # Mirror image of the "." leniency above, but the correct answer is
+        # the one that requires the character this time: a pseudo-class-
+        # style expected answer (":root", ":hover", ...) is easy to type
+        # without its leading colon — an equally common, harmless slip.
+        # Only adds the colon back when doing so exactly matches an
+        # expected answer the student's literal text doesn't already match,
+        # so an answer that's genuinely correct without a colon is untouched.
+        answers = [
+            f":{a}" if f":{a}" in correct_set and a not in correct_set else a
+            for a in answers
+        ]
+
         is_correct = sorted(correct) == sorted(answers)
         return {
             "is_correct": is_correct,

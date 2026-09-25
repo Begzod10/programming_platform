@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
+import { formatTeamEvent } from './formatTeamEvent';
 import './TeacherTeamProjects.css';
 
 const STATUS_LABELS = {
@@ -196,6 +197,122 @@ const TaskRow = ({ task, members, allTasks, onReassign }) => {
     );
 };
 
+// Closes a real gap: peer ratings were collected and already feed
+// team_project_points_service's bonus modifier, but nothing let a teacher
+// actually see them — a member's bonus could get halved with no way to
+// find out why. Grouped by rated student so "who said what about whom"
+// reads at a glance instead of as a flat list.
+const PeerRatingsSection = ({ ratings }) => {
+    if (!ratings) return null;
+    if (ratings.length === 0) {
+        return (
+            <div className="ttd-peer-ratings">
+                <h4>Jamoadoshlar bahosi</h4>
+                <p className="ttp-muted">Hali hech kim baholamagan.</p>
+            </div>
+        );
+    }
+
+    const byRated = [];
+    const groupIndex = {};
+    for (const r of ratings) {
+        if (!(r.rated_student_id in groupIndex)) {
+            groupIndex[r.rated_student_id] = byRated.length;
+            byRated.push({ studentId: r.rated_student_id, name: r.rated_name, items: [] });
+        }
+        byRated[groupIndex[r.rated_student_id]].items.push(r);
+    }
+
+    return (
+        <div className="ttd-peer-ratings">
+            <h4>Jamoadoshlar bahosi</h4>
+            {byRated.map(group => {
+                const avg = group.items.reduce((s, r) => s + r.score, 0) / group.items.length;
+                return (
+                    <div key={group.studentId} className="ttd-peer-group">
+                        <div className="ttd-peer-group-head">
+                            <strong>{group.name}</strong>
+                            <span className="ttd-peer-avg">{avg.toFixed(1)} / 5</span>
+                        </div>
+                        {group.items.map((r, i) => (
+                            <div key={i} className="ttd-peer-item">
+                                <span className="ttp-muted">
+                                    {r.rater_name}: <span aria-hidden="true">{'★'.repeat(r.score)}{'☆'.repeat(5 - r.score)}</span>
+                                    <span className="ttp-sr-only">{r.score}/5</span>
+                                </span>
+                                {r.comment && <p className="ttd-peer-comment">{r.comment}</p>}
+                            </div>
+                        ))}
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+// Closes the last gap from a full feature audit: TeamProjectEvent is an
+// append-only audit log every state change in this feature already writes
+// to, but until now nothing ever read it back. Fetched lazily on first
+// expand rather than eagerly for every team on load — this is supplementary
+// debugging detail, not primary info a teacher needs at a glance.
+const TeamEventsSection = ({ teamId, request }) => {
+    const [expanded, setExpanded] = useState(false);
+    const [events, setEvents] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    const toggle = async () => {
+        const next = !expanded;
+        setExpanded(next);
+        if (next && events === null) {
+            setLoading(true);
+            try {
+                const data = await request(
+                    `${API_URL}v1/team-projects/teams/${teamId}/events`, 'GET', null, headers(),
+                );
+                setEvents(Array.isArray(data) ? data : []);
+            } catch {
+                setEvents([]);
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
+
+    return (
+        <div className="ttd-events">
+            <button
+                className="ttp-btn ttp-btn--ghost ttp-btn--sm"
+                onClick={e => { e.stopPropagation(); toggle(); }}
+            >
+                {expanded ? 'Faoliyat tarixini yashirish' : 'Faoliyat tarixi'}
+            </button>
+            {expanded && (
+                loading ? (
+                    <p className="ttp-muted">Yuklanmoqda…</p>
+                ) : events && events.length === 0 ? (
+                    <p className="ttp-muted">Hali voqealar yo'q.</p>
+                ) : (
+                    <ul className="ttd-events-list">
+                        {(events || []).map(ev => {
+                            const { label, detail } = formatTeamEvent(ev);
+                            return (
+                                <li key={ev.id} className="ttd-event-item">
+                                    <div className="ttd-event-head">
+                                        <strong>{label}</strong>
+                                        <span className="ttp-muted">{fmtDate(ev.created_at)}</span>
+                                    </div>
+                                    {detail && <p className="ttd-event-detail">{detail}</p>}
+                                    {ev.actor_name && <p className="ttp-muted">{ev.actor_name}</p>}
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )
+            )}
+        </div>
+    );
+};
+
 const LEVELS = ['Beginner', 'Intermediate', 'Advanced'];
 const LEVEL_RANK = { Beginner: 0, Intermediate: 1, Advanced: 2 };
 
@@ -350,6 +467,7 @@ const TeacherTeamProjectDetail = () => {
     const [manualPlanTeamId, setManualPlanTeamId] = useState(null);
     const [manualPlanSubmitting, setManualPlanSubmitting] = useState(false);
     const [manualPlanError, setManualPlanError] = useState('');
+    const [peerRatingsByTeam, setPeerRatingsByTeam] = useState({});
 
     const reload = useCallback(async () => {
         setLoading(true);
@@ -364,6 +482,41 @@ const TeacherTeamProjectDetail = () => {
     }, [request, id]);
 
     useEffect(() => { reload(); }, [reload]);
+
+    // Peer ratings only exist once a team has submitted (submit_peer_ratings
+    // itself is gated the same way) — fetched separately from `tp` rather
+    // than folded into it, since TeamRead is shared with the student-facing
+    // /my endpoint and its realtime channel (see PeerRatingRead's
+    // docstring). Re-runs on every `tp` change (reload, or any realtime
+    // team_update/project_update push) rather than being keyed to a
+    // narrower signature: submit_peer_ratings allows a student to
+    // overwrite their rating in place any time the team is still
+    // submitted/reviewed, and it doesn't itself push a realtime event, so
+    // a signature that only tracked team ids/statuses would leave an
+    // edited rating stale until something else happened to change `tp`.
+    // Re-fetching per `tp` change is cheap (bounded by team count) and at
+    // least picks the edit up on the next reload/unrelated push instead of
+    // never.
+    useEffect(() => {
+        if (!tp) return;
+        const teamIds = tp.teams
+            .filter(t => t.status === 'submitted' || t.status === 'reviewed')
+            .map(t => t.id);
+        if (teamIds.length === 0) return;
+        (async () => {
+            const entries = await Promise.all(teamIds.map(async teamId => {
+                try {
+                    const data = await request(
+                        `${API_URL}v1/team-projects/teams/${teamId}/peer-ratings`, 'GET', null, headers(),
+                    );
+                    return [teamId, Array.isArray(data) ? data : []];
+                } catch {
+                    return [teamId, []];
+                }
+            }));
+            setPeerRatingsByTeam(Object.fromEntries(entries));
+        })();
+    }, [tp, request]);
 
     // Realtime: a task moving to "submitted" (needs review) or a team's
     // status advancing used to only show up after a manual reload. Merges
@@ -487,6 +640,12 @@ const TeacherTeamProjectDetail = () => {
                             />
                         ))}
                     </div>
+
+                    {(team.status === 'submitted' || team.status === 'reviewed') && (
+                        <PeerRatingsSection ratings={peerRatingsByTeam[team.id]} />
+                    )}
+
+                    <TeamEventsSection teamId={team.id} request={request} />
                 </div>
             ))}
         </div>

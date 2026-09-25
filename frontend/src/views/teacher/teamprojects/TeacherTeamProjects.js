@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { isStuckWithNoManualPlan } from './isStuckWithNoManualPlan';
 import './TeacherTeamProjects.css';
 
 const CreateModal = ({ onClose, onCreated }) => {
@@ -102,6 +103,11 @@ const TeamCard = ({ team, onRegenerate, onOpen, showName = true }) => (
                 {STATUS_LABELS[team.status] || team.status}
             </span>
         </div>
+        {isStuckWithNoManualPlan(team) && (
+            <div className="ttp-stuck-banner">
+                <span aria-hidden="true">⚠️</span> Reja yaratilmadi — qo'lda reja tuzish kerak
+            </div>
+        )}
         <div className="ttp-team-badges">
             {team.theme_label && <span className="ttp-badge">{team.theme_label}</span>}
             {team.tech_stack_label && <span className="ttp-badge ttp-badge--tech">{team.tech_stack_label}</span>}

@@ -47,3 +47,33 @@ def test_css_rule_answer_with_leading_dot_selector_still_requires_it():
     ex = _exercise(".plan-feature--yes::before { content: '✓' }")
     full = ".plan-feature--yes::before { content: '✓' }"
     assert check_answer_locally(ex, full)["is_correct"] is True
+
+
+# ── missing leading ":" on a pseudo-class-style answer ──────────────────────
+# Mirror image of the "." leniency above, found the same way (exercise 2948,
+# ":root, var" — students typing "root,var" without the leading colon were
+# marked wrong even though ":root" is genuinely the CSS syntax being asked
+# for). Here the *correct* answer is the one that requires the character.
+
+def test_missing_leading_colon_on_pseudo_class_answer_is_tolerated():
+    ex = _exercise(":root,var")
+    result = check_answer_locally(ex, "root,var")
+    assert result["is_correct"] is True
+
+
+def test_exact_match_with_colon_still_correct():
+    ex = _exercise(":root,var")
+    result = check_answer_locally(ex, ":root,var")
+    assert result["is_correct"] is True
+
+
+def test_genuinely_wrong_answer_without_colon_still_marked_wrong():
+    ex = _exercise(":root,var")
+    result = check_answer_locally(ex, "toor,rav")
+    assert result["is_correct"] is False
+
+
+def test_answer_not_requiring_colon_is_unaffected_by_the_leniency():
+    ex = _exercise("var")
+    assert check_answer_locally(ex, "var")["is_correct"] is True
+    assert check_answer_locally(ex, ":var")["is_correct"] is False

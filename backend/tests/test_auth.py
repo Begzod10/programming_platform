@@ -368,6 +368,112 @@ async def test_new_synced_student_email_collision_falls_back_gracefully(
     assert untouched.email == colliding_email
 
 
+async def test_login_resolves_to_the_authenticated_identity_not_a_colliding_local_username(
+    async_client: AsyncClient, db_session, monkeypatch
+):
+    """Regression test for a real production bug (confirmed live via server
+    logs, 2026-09-17 through 2026-09-22, recurring on every roster sync):
+    two unrelated real students (turon_id=16809 and turon_id=19043) both
+    had management-v2's own username set to the literal string "Samandar".
+    The old lookup --
+        (username == typed) | (email == typed) | (username == f"{source}_{ext_id}")
+    -- matched BOTH local rows whenever "Samandar" was typed (one via the
+    first clause, the other via the synthetic-form clause), and
+    .scalars().first() picked whichever the DB returned first. The student
+    who authenticated as turon_id=19043 (a real, distinct password check
+    against management-v2) was logged into turon_id=16809's account
+    instead -- a completely different student's dashboard, grades,
+    everything.
+
+    Fixed by looking up by (source_id_col == ext_id) -- the identity
+    management-v2 just verified this password against -- before ever
+    falling back to the ambiguous username/email guess.
+    """
+    from unittest.mock import AsyncMock
+    from sqlalchemy import select
+    from app.core.security import get_password_hash
+    from app.services.gennis_service import GennisService
+
+    # Randomized, not the real incident's literal values (turon_id 16809/
+    # 19043, username "Samandar") -- tests/conftest.py points DATABASE_URL
+    # at a PERSISTENT file (./test.db), never truncated between local runs,
+    # so hardcoded ids collide with leftover rows from a prior run and
+    # flake with an unrelated-looking UNIQUE constraint IntegrityError.
+    # Every sibling collision test in this file (and `_unique()` itself)
+    # exists specifically to survive that; this one follows the same
+    # convention rather than repeating the incident's own numbers verbatim.
+    uid = _unique()
+    typed_username = f"Samandar_{uid}"
+    unrelated_ext_id = int(uuid.uuid4().int % 1_000_000_000)
+    real_ext_id = int(uuid.uuid4().int % 1_000_000_000)
+
+    # The pre-existing, UNRELATED account that happens to share the exact
+    # username string -- what the old code would wrongly log the second
+    # student into.
+    unrelated = Student(
+        username=typed_username,
+        email=f"{typed_username}@turon.uz",
+        full_name="Samandar Toxirov",
+        hashed_password=get_password_hash("irrelevant"),
+        role=UserRole.student,
+        turon_id=unrelated_ext_id,
+    )
+    db_session.add(unrelated)
+
+    # The REAL target -- already synced once before under the synthetic
+    # fallback name, exactly what _resolve_sync_username assigns when it
+    # detects a "Samandar" collision at sync time.
+    real_target = Student(
+        username=f"turon_{real_ext_id}",
+        email=f"turon_{real_ext_id}@turon.uz",
+        full_name="Samandar Sabirjanov",
+        hashed_password=get_password_hash("irrelevant"),
+        role=UserRole.student,
+        turon_id=real_ext_id,
+    )
+    db_session.add(real_target)
+    await db_session.commit()
+    unrelated_id, real_target_id = unrelated.id, real_target.id
+
+    # management-v2 authenticates "Samandar"/<password> as the SECOND
+    # student (ext_id=919043) -- a real, distinct account with its own
+    # valid credentials, genuinely unrelated to the first.
+    monkeypatch.setattr(
+        GennisService, "login",
+        AsyncMock(return_value=_mgmt_login_payload(real_ext_id, "Samandar", "Sabirjanov")),
+    )
+
+    resp = await async_client.post(
+        "/api/v1/auth/login",
+        json={"username": typed_username, "password": "whatever"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+
+    # Must resolve to the account management-v2 actually authenticated
+    # (turon_id=919043), never the unrelated one that merely shares the
+    # username string.
+    assert body["user"]["id"] == real_target_id
+    assert body["user"]["id"] != unrelated_id
+    assert body["user"]["full_name"] == "Samandar Sabirjanov"
+
+    db_session.expire_all()
+    unrelated_after = (
+        await db_session.execute(select(Student).where(Student.id == unrelated_id))
+    ).scalar_one()
+    # The unrelated account must be left completely untouched -- not
+    # renamed, not logged into, not merged. turon_id specifically: the old
+    # code's convergence step ("if id_col doesn't match ext_id, overwrite
+    # it") ran against this exact wrong row -- reproduced live, it tried
+    # `UPDATE students SET turon_id=<real_ext_id> WHERE id=<unrelated.id>`,
+    # only stopped from committing by the DB's unique constraint on
+    # turon_id. Asserting this directly, not just username/full_name, so a
+    # future regression can't hide behind "the display fields looked fine".
+    assert unrelated_after.username == typed_username
+    assert unrelated_after.full_name == "Samandar Toxirov"
+    assert unrelated_after.turon_id == unrelated_ext_id
+
+
 # ── /me ───────────────────────────────────────────────────────────────────────
 
 async def test_get_me_with_valid_token_returns_user_data(
@@ -389,7 +495,7 @@ async def test_get_me_without_token_returns_401(async_client: AsyncClient):
 
 # ── early_learning_eligible ─────────────────────────────────────────────────
 # Drives whether the "Kichkinalar uchun" sidebar link shows at all — see
-# schemas/user.py's _early_learning_eligible. A blanket age<11 cutoff,
+# schemas/user.py's _early_learning_eligible. A blanket age<12 cutoff,
 # distinct from early_learning.py's own per-module _is_age_eligible.
 
 async def test_early_learning_eligible_defaults_true_with_no_birth_date(
@@ -397,19 +503,19 @@ async def test_early_learning_eligible_defaults_true_with_no_birth_date(
 ):
     # Most accounts have no synced birth_date at all — unknown must stay
     # permissive, or the link would vanish for the majority of students who
-    # simply haven't had this field synced yet, not because they're 11+.
+    # simply haven't had this field synced yet, not because they're 12+.
     resp = await async_client.get("/api/v1/auth/me", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["early_learning_eligible"] is True
 
 
-async def test_early_learning_eligible_true_under_11(
+async def test_early_learning_eligible_true_under_12(
     async_client: AsyncClient, db_session, auth_headers: dict
 ):
     me = await async_client.get("/api/v1/auth/me", headers=auth_headers)
     user_id = me.json()["id"]
     await db_session.execute(
-        update(Student).where(Student.id == user_id).values(birth_date=_birth_date_for_age(8))
+        update(Student).where(Student.id == user_id).values(birth_date=_birth_date_for_age(11))
     )
     await db_session.commit()
 
@@ -418,13 +524,13 @@ async def test_early_learning_eligible_true_under_11(
     assert resp.json()["early_learning_eligible"] is True
 
 
-async def test_early_learning_eligible_false_at_11_and_over(
+async def test_early_learning_eligible_false_at_12_and_over(
     async_client: AsyncClient, db_session, auth_headers: dict
 ):
     me = await async_client.get("/api/v1/auth/me", headers=auth_headers)
     user_id = me.json()["id"]
     await db_session.execute(
-        update(Student).where(Student.id == user_id).values(birth_date=_birth_date_for_age(11))
+        update(Student).where(Student.id == user_id).values(birth_date=_birth_date_for_age(12))
     )
     await db_session.commit()
 

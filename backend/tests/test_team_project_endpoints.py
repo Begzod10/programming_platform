@@ -19,7 +19,13 @@ session notes). Each test below maps to one fix:
    submission_files STRING, never the actual code — fixed to fetch real
    content via github_repo_service, same as ai_review_service.py's main
    pipeline.
+5. POST .../regenerate had no guard against two overlapping requests for
+   the same team (confirmed live on a real assignment: a teacher
+   double-clicking while the AI call was slow left 4 tasks instead of 2,
+   and burned 2 of 3 generation_attempts on what felt like one click).
+   Fixed the same way as finalize (#2): a row lock via with_for_update.
 """
+import asyncio
 import json
 import uuid
 from unittest.mock import AsyncMock, patch
@@ -306,6 +312,78 @@ async def test_reassign_task_allows_owning_teacher(async_client, db_session, two
     assert resp.status_code == 200
     assert resp.json()["assigned_student_id"] == members_a[1].student_id
     assert resp.json()["status"] == "assigned"
+
+
+# ── 3b. regenerate concurrency guard ────────────────────────────────────────
+
+async def test_concurrent_regenerate_does_not_duplicate_tasks(
+    async_client, db_session, two_teams_project,
+):
+    """Regression test for a real production incident (team 1 of
+    assignment #1, "Onlayn do'kon", 2026-09-12): two /regenerate requests
+    for the same team, 15s apart — a teacher double-clicking while the AI
+    call was still in flight — each read the same pre-race task set,
+    deleted it, and generated an independent plan, leaving 4 tasks instead
+    of 2 and burning 2 of the team's 3 generation_attempts on what the
+    teacher experienced as one click.
+
+    Fired here via asyncio.gather (each request gets its own DB session —
+    see app/db/session.py's get_db, not shared with the db_session
+    fixture), with an artificial delay patched into the AI call so both
+    requests' coroutines genuinely interleave on the event loop the way
+    two real overlapping HTTP requests would.
+    """
+    fx = two_teams_project
+    team = fx["teams"][0]
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().all()
+    assert len(members) == 2, "fixture assumes team_size=2"
+
+    def _plan_for(label: str) -> dict:
+        return {
+            "project_title": f"Loyiha {label}",
+            "project_description": "desc",
+            "tasks": [
+                {
+                    "title": f"Task {label} {i}", "title_ru": f"Задача {label} {i}",
+                    "description": "d", "description_ru": "о",
+                    "required_level": "Beginner", "assign_to_member_index": i,
+                    "interface_contract": {"produces": [], "consumes": []},
+                    "depends_on": [], "estimated_hours": 4,
+                }
+                for i in range(2)
+            ],
+        }
+
+    call_count = 0
+
+    async def _fake_call_chain(prompt, max_tokens=2000, validator=None):
+        nonlocal call_count
+        call_count += 1
+        label = f"L{call_count}"
+        # Yields control so both concurrent requests' coroutines actually
+        # interleave, the way two overlapping real HTTP requests would
+        # while an AI provider call is in flight.
+        await asyncio.sleep(0.05)
+        return "raw", _plan_for(label), "mock-provider", 1
+
+    with patch("app.services.team_project_planner.call_chain", new=_fake_call_chain):
+        results = await asyncio.gather(
+            async_client.post(f"{BASE}/teams/{team.id}/regenerate", headers=fx["teacher_headers"]),
+            async_client.post(f"{BASE}/teams/{team.id}/regenerate", headers=fx["teacher_headers"]),
+        )
+
+    for r in results:
+        assert r.status_code == 200, r.text
+
+    tasks = (await db_session.execute(
+        select(TeamProjectTask).where(TeamProjectTask.team_id == team.id)
+    )).scalars().all()
+    assert len(tasks) == len(members), (
+        f"expected exactly {len(members)} tasks after 2 concurrent regenerates, "
+        f"got {len(tasks)} -- a duplicate-plan race"
+    )
 
 
 # ── 4. finalize idempotency ─────────────────────────────────────────────────

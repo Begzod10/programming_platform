@@ -60,6 +60,11 @@
 .ttp-status--working, .ttp-status--active { background: #dbeafe; color: #1d4ed8; }
 .ttp-status--submitted, .ttp-status--reviewed { background: #dcfce7; color: #15803d; }
 
+.ttp-stuck-banner {
+    font-size: 12px; font-weight: 700; color: #b91c1c; background: #fee2e2;
+    padding: 6px 10px; border-radius: 10px; margin-bottom: 9px;
+}
+
 .ttp-team-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 9px; }
 .ttp-badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: #ede9fe; color: #6d28d9; }
 .ttp-badge--tech { background: #fef3c7; color: #b45309; }
@@ -158,6 +163,30 @@
 .ttd-depends-chips { display: flex; gap: 10px; flex-wrap: wrap; }
 .ttd-depends-chip { display: flex; align-items: center; gap: 5px; font-weight: 500; color: #334155; }
 .ttd-manual-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+.ttp-sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* ── Peer ratings ── */
+.ttd-peer-ratings { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+.ttd-peer-ratings h4 { margin: 0 0 10px; font-size: 14px; font-weight: 800; color: #0f172a; }
+.ttd-peer-group { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.ttd-peer-group-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.ttd-peer-group-head strong { font-size: 13.5px; color: #0f172a; }
+.ttd-peer-avg { font-size: 12px; font-weight: 700; color: #b45309; background: #fef3c7; padding: 2px 8px; border-radius: 999px; }
+.ttd-peer-item { padding: 4px 0; font-size: 12.5px; }
+.ttd-peer-comment { margin: 2px 0 0; font-size: 12.5px; color: #334155; }
+
+/* ── Activity history ── */
+.ttd-events { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+.ttd-events-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ttd-event-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; }
+.ttd-event-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.ttd-event-head strong { font-size: 13px; color: #0f172a; }
+.ttd-event-head .ttp-muted { font-size: 11px; white-space: nowrap; }
+.ttd-event-detail { margin: 4px 0 0; font-size: 12.5px; color: #334155; }
 
 /* ── Task detail modal ── */
 .ttd-detail-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }

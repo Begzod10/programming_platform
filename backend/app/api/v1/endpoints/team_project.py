@@ -1,5 +1,7 @@
+import asyncio
 import json
 import logging
+from collections import defaultdict
 from datetime import timedelta
 from typing import Optional
 
@@ -21,7 +23,7 @@ from app.models.team_project import (
 from app.schemas.team_project import (
     TeamProjectCreate, TeamProjectRead, TeamRead, TaskRead, MemberRead,
     MyTeamProjectRead, TaskSubmitBody, ReassignBody, FinalizeBody, PeerRatingItem,
-    ManualPlanBody,
+    PeerRatingRead, TeamEventRead, ManualPlanBody,
 )
 from app.services.team_project_service import create_team_project
 from app.services.team_project_planner import generate_plan_for_team, validate_plan, MAX_GENERATION_ATTEMPTS
@@ -33,6 +35,15 @@ from app.utils.datetime_utils import utcnow
 from app.ws.manager import team_ws_manager, team_project_ws_manager
 
 router = APIRouter(redirect_slashes=False)
+
+# Per-team lock for /teams/{id}/regenerate — see the comment at its call
+# site. Small, bounded key space (one entry per team a regenerate was ever
+# attempted on), not worth expiring for this endpoint's traffic.
+_regenerate_locks: dict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+
+def _team_regenerate_lock(team_id: int) -> asyncio.Lock:
+    return _regenerate_locks[team_id]
 
 
 def _team_load_options():
@@ -437,32 +448,48 @@ async def regenerate_team_plan(
         db: AsyncSession = Depends(get_db),
         teacher: Student = Depends(get_current_teacher),
 ):
-    team = (await db.execute(
-        select(TeamProjectTeam)
-        .where(TeamProjectTeam.id == team_id)
-        .options(selectinload(TeamProjectTeam.team_project))
-    )).scalar_one_or_none()
-    if team is None:
-        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
-    if team.team_project.teacher_id != teacher.id:
-        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
-    if team.generation_attempts >= MAX_GENERATION_ATTEMPTS:
-        raise HTTPException(status_code=400, detail="Urinishlar soni tugadi (3/3)")
+    # Without this lock, two overlapping regenerate calls for the same team
+    # (a teacher double-clicking while the AI call is slow — confirmed
+    # live on team 1 of assignment 1, "Onlayn do'kon": two requests 15s
+    # apart each read the same pre-race task set, each deleted it and
+    # generated its own independent plan, leaving 4 tasks instead of 2 and
+    # burning 2 of the team's 3 generation_attempts on what the teacher
+    # experienced as one click) both pass the attempts check and the
+    # "delete old tasks" step against the same stale snapshot, so neither
+    # one's delete removes the other's freshly inserted tasks.
+    #
+    # An in-process asyncio.Lock (not a DB row lock) on purpose: the
+    # backend runs as a single uvicorn worker (see deployment notes), so
+    # this fully serializes same-team regenerates without holding a DB
+    # transaction open across the slow AI call the way with_for_update
+    # would.
+    async with _team_regenerate_lock(team_id):
+        team = (await db.execute(
+            select(TeamProjectTeam)
+            .where(TeamProjectTeam.id == team_id)
+            .options(selectinload(TeamProjectTeam.team_project))
+        )).scalar_one_or_none()
+        if team is None:
+            raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+        if team.team_project.teacher_id != teacher.id:
+            raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+        if team.generation_attempts >= MAX_GENERATION_ATTEMPTS:
+            raise HTTPException(status_code=400, detail="Urinishlar soni tugadi (3/3)")
 
-    # Clear previously-generated tasks before regenerating, so the old plan
-    # doesn't sit alongside a new one.
-    old_tasks = (await db.execute(
-        select(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
-    )).scalars().all()
-    for t in old_tasks:
-        await db.delete(t)
-    await db.flush()
+        # Clear previously-generated tasks before regenerating, so the old
+        # plan doesn't sit alongside a new one.
+        old_tasks = (await db.execute(
+            select(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
+        )).scalars().all()
+        for t in old_tasks:
+            await db.delete(t)
+        await db.flush()
 
-    await generate_plan_for_team(db, team_id)
+        await generate_plan_for_team(db, team_id)
 
-    tp = await _fetch_team_project(db, team.team_project_id)
-    team_out = next(t for t in tp.teams if t.id == team_id)
-    return _team_read(team_out)
+        tp = await _fetch_team_project(db, team.team_project_id)
+        team_out = next(t for t in tp.teams if t.id == team_id)
+        return _team_read(team_out)
 
 
 # ── Teacher: author a plan by hand (AI-disabled / attempts-exhausted fallback) ─
@@ -721,6 +748,9 @@ async def finalize_team(
     # separate callback; if the AI was unavailable, the team just stays
     # "submitted" until someone re-triggers review through the normal
     # project flow — award_points only ever runs once reviewed_at is real.
+    # This assumption is flagged from the other side too, in
+    # project_service.py::submit_project — check there before touching how
+    # that call is invoked.
     await db.refresh(project)
     if project.reviewed_at is not None:
         from app.services.team_project_points_service import award_points
@@ -827,3 +857,91 @@ async def submit_peer_ratings(
                 score=item.score, comment=item.comment,
             ))
     await db.commit()
+
+
+# ── Teacher: view submitted peer ratings for a team ─────────────────────────
+@router.get("/teams/{team_id}/peer-ratings", response_model=list[PeerRatingRead])
+async def get_peer_ratings(
+        team_id: int,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    """The ratings students submit above already feed
+    team_project_points_service's peer-modifier bonus, but until now
+    nothing let the teacher actually SEE them — a member's bonus could get
+    halved with no way to find out why. Teacher-only and deliberately not
+    folded into TeamRead — see PeerRatingRead's docstring for why."""
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(selectinload(TeamProjectTeam.team_project))
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+    if team.team_project.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+
+    ratings = (await db.execute(
+        select(TeamProjectPeerRating)
+        .where(TeamProjectPeerRating.team_id == team_id)
+        .options(
+            selectinload(TeamProjectPeerRating.rater),
+            selectinload(TeamProjectPeerRating.rated),
+        )
+        .order_by(TeamProjectPeerRating.rated_student_id, TeamProjectPeerRating.created_at)
+    )).scalars().all()
+
+    return [
+        PeerRatingRead(
+            rater_student_id=r.rater_student_id,
+            rater_name=(r.rater.full_name or r.rater.username) if r.rater else str(r.rater_student_id),
+            rated_student_id=r.rated_student_id,
+            rated_name=(r.rated.full_name or r.rated.username) if r.rated else str(r.rated_student_id),
+            score=r.score, comment=r.comment, created_at=r.created_at,
+        )
+        for r in ratings
+    ]
+
+
+# ── Teacher: view a team's activity history ─────────────────────────────────
+@router.get("/teams/{team_id}/events", response_model=list[TeamEventRead])
+async def get_team_events(
+        team_id: int,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    """TeamProjectEvent is an append-only audit log every state change in
+    this feature already writes to (see the model's own docstring), but
+    until now nothing ever read it back — a write-only audit trail nobody
+    could audit. Teacher-only, most recent first."""
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(selectinload(TeamProjectTeam.team_project))
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+    if team.team_project.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+
+    events = (await db.execute(
+        select(TeamProjectEvent)
+        .where(TeamProjectEvent.team_id == team_id)
+        .options(selectinload(TeamProjectEvent.actor))
+        # id as a tiebreak: two events can land in the same DB-timestamp
+        # tick (coarse clock resolution), and created_at alone would then
+        # give an undefined order between them — id is monotonically
+        # increasing and matches insertion order, so it's a stable tiebreak.
+        .order_by(TeamProjectEvent.created_at.desc(), TeamProjectEvent.id.desc())
+    )).scalars().all()
+
+    return [
+        TeamEventRead(
+            id=e.id, event_type=e.event_type,
+            actor_student_id=e.actor_student_id,
+            actor_name=(e.actor.full_name or e.actor.username) if e.actor else None,
+            payload=json.loads(e.payload_json) if e.payload_json else {},
+            created_at=e.created_at,
+        )
+        for e in events
+    ]

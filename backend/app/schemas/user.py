@@ -7,7 +7,7 @@ from app.models.user import UserRole
 
 def _early_learning_eligible(birth_date: Optional[date]) -> bool:
     """Whether the "Kichkinalar uchun" nav link should show for this
-    student — a single coarse cutoff (age < 11), distinct from
+    student — a single coarse cutoff (age < 12), distinct from
     early_learning.py's per-MODULE _is_age_eligible (which checks each
     module's own age_min/age_max +/- a grace band). Duplicated rather than
     imported from that endpoints module to avoid a schemas-depends-on-
@@ -26,7 +26,7 @@ def _early_learning_eligible(birth_date: Optional[date]) -> bool:
     age = today.year - birth_date.year - (
         (today.month, today.day) < (birth_date.month, birth_date.day)
     )
-    return age < 11
+    return age < 12
 
 
 # --- ACHIEVEMENT SCHEMAS ---
