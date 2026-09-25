@@ -81,8 +81,6 @@
 .kb-key.is-wrong { background: var(--el-danger-bg); color: var(--el-danger); border-color: var(--el-danger); animation: kb-shake 0.4s ease; }
 @keyframes kb-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 
-.kb-hands { width: 100%; max-width: 360px; height: auto; margin-bottom: 10px; }
-
 .kb-progress { font-size: 0.85rem; font-weight: 700; color: var(--el-ink-faint); }
 
 @media (prefers-reduced-motion: reduce) {

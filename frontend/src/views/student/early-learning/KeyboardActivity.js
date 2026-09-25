@@ -54,40 +54,6 @@ function buildRounds(keys, count) {
     return out;
 }
 
-/** Two simple hands, one bar per finger; the finger the current key needs
- * lights up. Drawn pinky->index outward-in, mirrored for the right hand. */
-function Hands({ target }) {
-    const active = FINGER_OF[target];
-    const heights = [46, 58, 64, 56]; // pinky, ring, middle, index
-    const hand = (side) => (
-        <g transform={side === 'L' ? 'translate(10,0)' : 'translate(150,0)'}>
-            {(side === 'L' ? [0, 1, 2, 3] : [3, 2, 1, 0]).map((fingerIdx, pos) => {
-                const on = active && active[0] === side && active[1] === fingerIdx;
-                return (
-                    <rect
-                        key={fingerIdx}
-                        x={pos * 22}
-                        y={70 - heights[fingerIdx]}
-                        width="18"
-                        height={heights[fingerIdx]}
-                        rx="9"
-                        fill={on ? FINGER_COLORS[fingerIdx] : '#f3d9c0'}
-                        stroke={on ? '#333' : '#d9b99b'}
-                        strokeWidth={on ? 2 : 1}
-                    />
-                );
-            })}
-            <rect x="0" y="62" width="90" height="26" rx="12" fill="#f3d9c0" stroke="#d9b99b" />
-        </g>
-    );
-    return (
-        <svg className="kb-hands" viewBox="0 0 250 92" aria-hidden="true">
-            {hand('L')}
-            {hand('R')}
-        </svg>
-    );
-}
-
 /** Touch-typing trainer round. activity.content shape (mode: "keyboard"):
  * { character: {emoji,label}, keys: ["f","j","d","k"], rounds_count: 10 }.
  * The kid presses the highlighted key on a real keyboard (window keydown)
@@ -244,8 +210,6 @@ export default function KeyboardActivity({ activity, onBack, onComplete, lang, t
                     </div>
                 ))}
             </div>
-
-            <Hands target={target} />
 
             <div className="kb-progress">{roundIndex + 1} / {rounds.length}</div>
 
