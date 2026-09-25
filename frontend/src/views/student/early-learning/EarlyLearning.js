@@ -16,6 +16,8 @@ import CauseEffectActivity from './CauseEffectActivity';
 import ArithmeticActivity from './ArithmeticActivity';
 import TypingActivity from './TypingActivity';
 import KeyboardActivity from './KeyboardActivity';
+import CompareActivity from './CompareActivity';
+import SimonActivity from './SimonActivity';
 import LangToggle from './LangToggle';
 import { applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
@@ -298,7 +300,9 @@ export default function EarlyLearning({ guest = false }) {
             // words ARE authored in content_json, unlike arithmetic's
             // procedural rounds, since real vocabulary can't be generated),
             // "keyboard" is a touch-typing trainer (KeyboardActivity.js —
-            // press the highlighted key, finger shown), anything else (the shipped "select" mode, or an activity with
+            // press the highlighted key, finger shown), "compare" picks <, = or >
+            // (CompareActivity.js), "simon" repeats a growing colour/sound
+            // sequence (SimonActivity.js), anything else (the shipped "select" mode, or an activity with
             // no mode yet) taps items out of a pool (MatchingActivity.js,
             // the original/default game).
             const mode = activity.content?.mode;
@@ -315,6 +319,8 @@ export default function EarlyLearning({ guest = false }) {
                 mode === 'arithmetic' ? ArithmeticActivity :
                 mode === 'typing' ? TypingActivity :
                 mode === 'keyboard' ? KeyboardActivity :
+                mode === 'compare' ? CompareActivity :
+                mode === 'simon' ? SimonActivity :
                 MatchingActivity;
             return (
                 <div className="el-shell">
