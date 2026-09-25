@@ -34,6 +34,12 @@ const TEXT = {
         draw: '🤝 Durang!',
         left: 'Raqib chiqib ketdi',
         again: 'Yana o‘ynash',
+        pickGames: "O'yin turlarini tanlang",
+        hostPicks: 'Turlarni xona egasi tanlaydi',
+        kindNames: {
+            arith: '➕ Hisob', compare: '⚖️ Katta-kichik', count: '🍎 Sanash',
+            pattern: '🔴 Naqsh', sequence: '🔢 Ketma-ketlik', odd: '🧩 Ortiqchasi',
+        },
         hints: {
             arith: 'Hisobla',
             compare: 'Qaysi belgi kerak?',
@@ -79,6 +85,12 @@ const TEXT = {
         draw: '🤝 Ничья!',
         left: 'Соперник вышел',
         again: 'Играть ещё',
+        pickGames: 'Выбери виды игр',
+        hostPicks: 'Виды выбирает хозяин комнаты',
+        kindNames: {
+            arith: '➕ Счёт', compare: '⚖️ Больше-меньше', count: '🍎 Сколько',
+            pattern: '🔴 Узор', sequence: '🔢 Числа', odd: '🧩 Лишнее',
+        },
         hints: {
             arith: 'Посчитай',
             compare: 'Какой знак?',
@@ -279,6 +291,34 @@ function DuelInner({ guest }) {
         </div>
     );
 
+    const toggleKind = (k) => {
+        const cur = game.kinds || [];
+        const next = cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k];
+        if (next.length) send({ type: 'kinds', kinds: next });
+    };
+    const kindPicker = (
+        <div className="duel-kinds">
+            <div className="duel-sub">{L.pickGames}</div>
+            <div className="duel-kind-row">
+                {(game.all_kinds || []).map((k) => {
+                    const on = (game.kinds || []).includes(k);
+                    return (
+                        <button
+                            key={k}
+                            type="button"
+                            className={`duel-kind ${on ? 'is-on' : ''}`}
+                            disabled={!isHost}
+                            onClick={() => toggleKind(k)}
+                        >
+                            {L.kindNames[k]}
+                        </button>
+                    );
+                })}
+            </div>
+            {!isHost && <div className="duel-sub">{L.hostPicks}</div>}
+        </div>
+    );
+
     // ── waiting room ──
     if (game.status === 'waiting') {
         return (
@@ -292,6 +332,7 @@ function DuelInner({ guest }) {
                         ))}
                         {game.players.length < 2 && <li className="duel-waiting">⏳ {L.waitingFriend}</li>}
                     </ul>
+                    {kindPicker}
                     {isHost ? (
                         <button
                             className="duel-btn duel-btn--primary"
@@ -332,6 +373,7 @@ function DuelInner({ guest }) {
                         {draw ? L.draw : won ? L.win : L.lose}
                     </div>
                     {game.finish_reason === 'left' && <p className="duel-sub">{L.left}</p>}
+                    {isHost && kindPicker}
                     {isHost && game.players.length === 2 && opp?.online && (
                         <button className="duel-btn duel-btn--primary" onClick={() => send({ type: 'rematch' })}>
                             {L.again}

@@ -86,6 +86,7 @@ class Room:
         self.players: Dict[str, Player] = {}
         self.status = "waiting"  # waiting | countdown | playing | finished
         self.questions: List[dict] = []  # shared stream, extended lazily
+        self.kinds: List[str] = list(ALL_KINDS)  # question types the host enabled
         self.winner_id: Optional[str] = None
         self.finish_reason: Optional[str] = None
         self.lock = asyncio.Lock()
@@ -192,8 +193,14 @@ def _q_odd() -> dict:
 _GENERATORS = [(_q_arith, 25), (_q_compare, 15), (_q_count, 15), (_q_pattern, 15), (_q_sequence, 15), (_q_odd, 15)]
 
 
-def _make_question() -> dict:
-    gen = random.choices([g for g, _ in _GENERATORS], weights=[w for _, w in _GENERATORS])[0]
+ALL_KINDS = ["arith", "compare", "count", "pattern", "sequence", "odd"]
+_BY_KIND = {"arith": _q_arith, "compare": _q_compare, "count": _q_count,
+            "pattern": _q_pattern, "sequence": _q_sequence, "odd": _q_odd}
+
+
+def _make_question(kinds: Optional[List[str]] = None) -> dict:
+    pool = [(g, w) for g, w in _GENERATORS if not kinds or g in {_BY_KIND[k] for k in kinds}]
+    gen = random.choices([g for g, _ in pool], weights=[w for _, w in pool])[0]
     return gen()
 
 
@@ -217,6 +224,8 @@ def _state_for(room: Room, viewer_id: str) -> dict:
         ],
         "q_index": me.q_index if me else 0,
         "target": WIN_SCORE,
+        "kinds": room.kinds,
+        "all_kinds": ALL_KINDS,
         "question": question,
         # Only the viewer's OWN previous answer — what the opponent just
         # answered (and whether it was right) is none of their business.
@@ -228,7 +237,7 @@ def _state_for(room: Room, viewer_id: str) -> dict:
 
 def _ensure_question(room: Room, index: int) -> None:
     while len(room.questions) <= index:
-        room.questions.append(_make_question())
+        room.questions.append(_make_question(room.kinds))
 
 
 async def _send(player: Player, payload: dict) -> None:
@@ -256,7 +265,7 @@ def _schedule_cleanup(room: Room) -> None:
 # ── game flow ───────────────────────────────────────────────────────────────
 
 def _reset_round(room: Room) -> None:
-    room.questions = [_make_question() for _ in range(INITIAL_QUESTIONS)]
+    room.questions = [_make_question(room.kinds) for _ in range(INITIAL_QUESTIONS)]
     room.winner_id = None
     room.finish_reason = None
     for p in room.players.values():
@@ -435,6 +444,18 @@ async def duel_ws(
                         room.status = "countdown"
                         await _broadcast_state(room)
                         asyncio.create_task(_run_countdown(room))
+            elif kind == "kinds":
+                async with room.lock:
+                    chosen = msg.get("kinds")
+                    if (
+                        pid == room.host_id
+                        and room.status in ("waiting", "finished")
+                        and isinstance(chosen, list)
+                    ):
+                        valid = [k for k in ALL_KINDS if k in chosen]
+                        if valid:
+                            room.kinds = valid
+                            await _broadcast_state(room)
             elif kind == "answer":
                 await _handle_answer(room, player, msg)
             elif kind == "rematch":
