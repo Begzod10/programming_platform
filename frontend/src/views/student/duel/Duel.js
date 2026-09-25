@@ -46,6 +46,13 @@ const TEXT = {
         yourStats: (w, g) => `Sizning natijangiz: ${w} yutuq / ${g} o'yin`,
         winner: (n) => `🏆 ${n} yutdi!`,
         offlineTag: 'chiqib ketdi',
+        teamMode: '👥 2 ga 2 (jamoaviy)',
+        teamNeeds: '2 ga 2 uchun 4 kishi kerak (kompyuter ham bo\'ladi)',
+        teamName: ['🔵 A jamoa', '🔴 B jamoa'],
+        teamWin: (n) => `🏆 ${n} yutdi!`,
+        teamGoal: (n) => `Jamoangiz birgalikda ${n} ta to'g'ri javob bersin!`,
+        addBotOne: '🤖 + Kompyuter',
+        removeBotOne: '🤖 − Kompyuter',
         badges: [
             { emoji: '🥉', label: "Birinchi g'alaba", need: (w) => w >= 1 },
             { emoji: '🥈', label: "10 ta g'alaba", need: (w) => w >= 10 },
@@ -120,6 +127,13 @@ const TEXT = {
         yourStats: (w, g) => `Твой счёт: ${w} побед / ${g} игр`,
         winner: (n) => `🏆 Победил ${n}!`,
         offlineTag: 'вышел',
+        teamMode: '👥 2 на 2 (командная)',
+        teamNeeds: 'Для 2 на 2 нужно 4 игрока (можно с компьютером)',
+        teamName: ['🔵 Команда A', '🔴 Команда B'],
+        teamWin: (n) => `🏆 Победила ${n}!`,
+        teamGoal: (n) => `Командой ответьте верно ${n} раз!`,
+        addBotOne: '🤖 + Компьютер',
+        removeBotOne: '🤖 − Компьютер',
         badges: [
             { emoji: '🥉', label: 'Первая победа', need: (w) => w >= 1 },
             { emoji: '🥈', label: '10 побед', need: (w) => w >= 10 },
@@ -238,12 +252,14 @@ function DuelInner({ guest }) {
     useEffect(() => {
         if (!game) return;
         const key = game.status === 'finished'
-            ? `end-${game.winner_id}-${game.finish_reason}`
+            ? `end-${game.winner_id}-${game.winner_team}-${game.finish_reason}`
             : game.last ? `q-${game.last.q}-${game.last.correct}` : null;
         if (!key || lastSoundRef.current === key) return;
         lastSoundRef.current = key;
         if (game.status === 'finished') {
-            playSynth(game.winner_id === game.you ? 'fanfare' : 'chime');
+            const mine = game.players.find((p) => p.id === game.you);
+            const won = game.team_mode ? mine?.team === game.winner_team : game.winner_id === game.you;
+            playSynth(won ? 'fanfare' : 'chime');
         } else {
             playSynth(game.last.correct ? 'coin' : 'laser');
         }
@@ -360,20 +376,34 @@ function DuelInner({ guest }) {
     const hasBot = game.players.some((p) => p.bot);
     const ranked = [...game.players].sort((x, y) => y.score - x.score);
 
-    const scoreboard = (
-        <div className="duel-scores duel-scores--multi">
-            {game.players.map((p) => (
-                <div
-                    key={p.id}
-                    className={`duel-score ${p.id === game.you ? 'duel-score--me' : ''} ${!p.online || p.left ? 'is-offline' : ''}`}
-                >
-                    <span className="duel-score-name">{p.id === game.you ? L.you : p.name}</span>
-                    <span className="duel-score-num">{p.score}<small>/{game.target}</small></span>
-                    {p.left ? <span className="duel-offline">{L.offlineTag}</span>
-                        : !p.online && <span className="duel-offline">{L.offline}</span>}
+    const myTeam = game.players.find((p) => p.id === game.you)?.team;
+    const playerCell = (p) => (
+        <div
+            key={p.id}
+            className={`duel-score ${p.id === game.you ? 'duel-score--me' : ''} ${!p.online || p.left ? 'is-offline' : ''}`}
+        >
+            <span className="duel-score-name">{p.id === game.you ? L.you : p.name}</span>
+            <span className="duel-score-num">{p.score}{!game.team_mode && <small>/{game.target}</small>}</span>
+            {p.left ? <span className="duel-offline">{L.offlineTag}</span>
+                : !p.online && <span className="duel-offline">{L.offline}</span>}
+        </div>
+    );
+    const scoreboard = game.team_mode ? (
+        <div className="duel-teams">
+            {[0, 1].map((tm) => (
+                <div key={tm} className={`duel-team duel-team--${tm} ${myTeam === tm ? 'is-mine' : ''}`}>
+                    <div className="duel-team-head">
+                        <span>{L.teamName[tm]}</span>
+                        <b>{game.team_scores?.[tm] ?? 0}<small>/{game.team_target}</small></b>
+                    </div>
+                    <div className="duel-scores duel-scores--multi">
+                        {game.players.filter((p) => p.team === tm).map(playerCell)}
+                    </div>
                 </div>
             ))}
         </div>
+    ) : (
+        <div className="duel-scores duel-scores--multi">{game.players.map(playerCell)}</div>
     );
 
     const toggleKind = (k) => {
@@ -414,15 +444,27 @@ function DuelInner({ guest }) {
                     </button>
                 ))}
             </div>
-            {isHost && (hasBot || game.players.length < game.max_players) && (
-                <button
-                    type="button"
-                    className="duel-btn"
-                    onClick={() => send({ type: hasBot ? 'remove_bot' : 'add_bot' })}
-                >
-                    {hasBot ? L.removeBot : L.addBot}
-                </button>
+            {isHost && (
+                <>
+                    <button
+                        type="button"
+                        className={`duel-kind ${game.team_mode ? 'is-on' : ''}`}
+                        onClick={() => send({ type: 'team_mode', on: !game.team_mode })}
+                    >
+                        {L.teamMode}
+                    </button>
+                    {game.team_mode && game.players.length < game.max_players && <div className="duel-sub">{L.teamNeeds}</div>}
+                    <div className="duel-kind-row">
+                        {game.players.length < game.max_players && (
+                            <button type="button" className="duel-btn" onClick={() => send({ type: 'add_bot' })}>{L.addBotOne}</button>
+                        )}
+                        {hasBot && (
+                            <button type="button" className="duel-btn duel-btn--ghost" onClick={() => send({ type: 'remove_bot' })}>{L.removeBotOne}</button>
+                        )}
+                    </div>
+                </>
             )}
+            {!isHost && game.team_mode && <div className="duel-sub">{L.teamMode}</div>}
             {!isHost && <div className="duel-sub">{L.hostPicks}</div>}
         </div>
     );
@@ -436,7 +478,7 @@ function DuelInner({ guest }) {
                     <div className="duel-code">{game.code}</div>
                     <ul className="duel-players">
                         {game.players.map((p) => (
-                            <li key={p.id}>{p.bot ? '🤖' : '👤'} {p.name}{p.id === game.you ? ` (${L.you})` : ''}</li>
+                            <li key={p.id}>{p.bot ? '🤖' : '👤'} {p.name}{p.id === game.you ? ` (${L.you})` : ''}{game.team_mode ? ` — ${L.teamName[p.team]}` : ''}</li>
                         ))}
                         {game.players.length < 2 && <li className="duel-waiting">⏳ {L.waitingFriend}</li>}
                     </ul>
@@ -445,7 +487,7 @@ function DuelInner({ guest }) {
                     {isHost ? (
                         <button
                             className="duel-btn duel-btn--primary"
-                            disabled={game.players.length < 2}
+                            disabled={game.team_mode ? game.players.length !== game.max_players : game.players.length < 2}
                             onClick={() => send({ type: 'start' })}
                         >
                             {L.start}
@@ -472,17 +514,17 @@ function DuelInner({ guest }) {
 
     // ── finished ──
     if (game.status === 'finished') {
-        const won = game.winner_id === game.you;
-        const draw = game.winner_id == null;
+        const won = game.team_mode ? myTeam === game.winner_team : game.winner_id === game.you;
+        const draw = game.team_mode ? game.winner_team == null : game.winner_id == null;
         const winnerName = game.players.find((p) => p.id === game.winner_id)?.name;
         return (
             <div className="duel-page">
                 <div className="duel-card">
                     {scoreboard}
                     <div className={`duel-result ${won ? 'is-win' : ''}`}>
-                        {draw ? L.draw : won ? L.win : L.winner(winnerName)}
+                        {draw ? L.draw : won ? L.win : game.team_mode ? L.teamWin(L.teamName[game.winner_team]) : L.winner(winnerName)}
                     </div>
-                    {ranked.length > 2 && (
+                    {!game.team_mode && ranked.length > 2 && (
                         <ol className="duel-ranking">
                             {ranked.map((p, i) => (
                                 <li key={p.id}>{['🥇', '🥈', '🥉'][i] || `${i + 1}.`} {p.id === game.you ? L.you : p.name} — {p.score}</li>
@@ -491,7 +533,8 @@ function DuelInner({ guest }) {
                     )}
                     {game.finish_reason === 'left' && <p className="duel-sub">{L.left}</p>}
                     {isHost && kindPicker}
-                    {isHost && game.players.filter((p) => p.online && !p.left).length >= 2 && (
+                    {isHost && game.players.filter((p) => p.online && !p.left).length >= 2
+                        && (!game.team_mode || game.players.length === game.max_players) && (
                         <button className="duel-btn duel-btn--primary" onClick={() => send({ type: 'rematch' })}>
                             {L.again}
                         </button>
@@ -521,7 +564,7 @@ function DuelInner({ guest }) {
         <div className="duel-page">
             <div className="duel-card">
                 {scoreboard}
-                <div className="duel-progress">{L.goal(game.target)}</div>
+                <div className="duel-progress">{game.team_mode ? L.teamGoal(game.team_target) : L.goal(game.target)}</div>
                 {q && (
                     <>
                         {L.hints[q.kind] && <div className="duel-hint">{L.hints[q.kind]}</div>}

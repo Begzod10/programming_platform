@@ -46,6 +46,7 @@ router = APIRouter()
 
 WIN_SCORE = 8
 MAX_PLAYERS = 4
+TEAM_TARGET = WIN_SCORE * 2  # 2v2: a team wins when its members' scores add up to this
 INITIAL_QUESTIONS = 12
 COUNTDOWN_SECONDS = 3.2
 RECONNECT_GRACE_SECONDS = 15
@@ -96,6 +97,8 @@ class Room:
         self.questions: List[dict] = []  # shared stream, extended lazily
         self.kinds: List[str] = list(DEFAULT_KINDS)
         self.level = "medium"
+        self.team_mode = False  # 2v2: seats alternate A,B,A,B in join order
+        self.winner_team: Optional[int] = None
         self.round_id = 0  # bumps every round so a stale bot loop can tell it is over  # question types the host enabled
         self.winner_id: Optional[str] = None
         self.finish_reason: Optional[str] = None
@@ -114,6 +117,24 @@ def _make_question(room: 'Room') -> dict:
 
 # ── state broadcasting ──────────────────────────────────────────────────────
 
+def _team_of(room: Room, pid: str) -> Optional[int]:
+    if not room.team_mode:
+        return None
+    return list(room.players).index(pid) % 2
+
+
+def _team_scores(room: Room) -> List[int]:
+    scores = [0, 0]
+    for pid, p in room.players.items():
+        scores[_team_of(room, pid)] += p.score
+    return scores
+
+
+def _can_start(room: Room) -> bool:
+    n = len(room.players)
+    return n == MAX_PLAYERS if room.team_mode else n >= 2
+
+
 def _state_for(room: Room, viewer_id: str) -> dict:
     me = room.players.get(viewer_id)
     question = None
@@ -129,13 +150,17 @@ def _state_for(room: Room, viewer_id: str) -> dict:
         "players": [
             {
                 "id": p.pub, "name": p.name, "score": p.score, "bot": p.is_bot, "left": p.left,
-                "online": p.is_bot or p.ws is not None,
+                "online": p.is_bot or p.ws is not None, "team": _team_of(room, pid),
             }
-            for p in room.players.values()
+            for pid, p in room.players.items()
         ],
         "q_index": me.q_index if me else 0,
         "target": WIN_SCORE,
         "max_players": MAX_PLAYERS,
+        "team_mode": room.team_mode,
+        "team_scores": _team_scores(room) if room.team_mode else None,
+        "team_target": TEAM_TARGET,
+        "winner_team": room.winner_team,
         "kinds": room.kinds,
         "level": room.level,
         "all_kinds": ALL_KINDS,
@@ -181,6 +206,7 @@ def _reset_round(room: Room) -> None:
     room.questions = [_make_question(room) for _ in range(INITIAL_QUESTIONS)]
     room.winner_id = None
     room.finish_reason = None
+    room.winner_team = None
     room.round_id += 1
     for p in room.players.values():
         p.left = False
@@ -202,10 +228,10 @@ async def _run_countdown(room: Room) -> None:
                 asyncio.create_task(_bot_loop(room, p, room.round_id))
 
 
-async def _record_stats(winner: Optional[str], humans: List[str]) -> None:
+async def _record_stats(winners: List[str], humans: List[str]) -> None:
     """+1 game for every logged-in human (+1 win for the winner). Best effort."""
     try:
-        ids = {int(h[1:]): (h == winner) for h in humans if h.startswith("u")}
+        ids = {int(h[1:]): (h in winners) for h in humans if h.startswith("u")}
         if not ids:
             return
         async with AsyncSessionLocal() as db:
@@ -245,16 +271,21 @@ async def _bot_loop(room: Room, bot: Player, round_id: int) -> None:
         await _handle_answer(room, bot, msg)
 
 
-def _finish(room: Room, reason: str, forced_winner: Optional[str] = None) -> None:
+def _finish(room: Room, reason: str, forced_winner: Optional[str] = None, winner_team: Optional[int] = None) -> None:
     room.status = "finished"
     room.finish_reason = reason
     room.winner_id = forced_winner
+    room.winner_team = winner_team
     _schedule_cleanup(room)
     humans = [p.user_id for p in room.players.values() if not p.is_bot]
     # Only real head-to-head races count (not vs. a bot, not an abandoned
     # room), so the leaderboard can't be farmed by beating the computer.
     if reason == "done" and len(humans) >= 2:
-        asyncio.create_task(_record_stats(forced_winner, humans))
+        if room.team_mode:
+            winners = [pid for pid in humans if _team_of(room, pid) == winner_team]
+        else:
+            winners = [forced_winner] if forced_winner else []
+        asyncio.create_task(_record_stats(winners, humans))
 
 
 async def _handle_answer(room: Room, player: Player, msg: dict) -> None:
@@ -275,7 +306,11 @@ async def _handle_answer(room: Room, player: Player, msg: dict) -> None:
         if label:  # localized answers: let the client show it in the player's language
             player.last["answer_label"] = {"uz": label["uz"], "ru": label["ru"]}
         player.q_index += 1
-        if player.score >= WIN_SCORE:
+        if room.team_mode:
+            scores = _team_scores(room)
+            if max(scores) >= TEAM_TARGET:
+                _finish(room, reason="done", forced_winner=player.user_id, winner_team=scores.index(max(scores)))
+        elif player.score >= WIN_SCORE:
             _finish(room, reason="done", forced_winner=player.user_id)
         await _broadcast_state(room)
 
@@ -288,7 +323,11 @@ async def _forfeit_after_grace(room: Room, player: Player) -> None:
         player.left = True
         still_in = [p for p in room.players.values() if not p.left]
         humans_in = [p for p in still_in if not p.is_bot]
-        if len(still_in) <= 1 or not humans_in:
+        if room.team_mode:
+            alive_teams = {_team_of(room, p.user_id) for p in still_in}
+            if len(alive_teams) <= 1 or not humans_in:
+                _finish(room, reason="left", winner_team=next(iter(alive_teams)) if len(alive_teams) == 1 and humans_in else None)
+        elif len(still_in) <= 1 or not humans_in:
             # Nobody (or only one) is left to race: the last human standing
             # wins; if only a bot remains there is no winner.
             _finish(room, reason="left", forced_winner=humans_in[0].user_id if humans_in else None)
@@ -438,7 +477,7 @@ async def duel_ws(
             kind = msg.get("type")
             if kind == "start":
                 async with room.lock:
-                    if pid == room.host_id and room.status == "waiting" and len(room.players) >= 2:
+                    if pid == room.host_id and room.status == "waiting" and _can_start(room):
                         room.status = "countdown"
                         await _broadcast_state(room)
                         asyncio.create_task(_run_countdown(room))
@@ -457,11 +496,17 @@ async def duel_ws(
             elif kind in ("add_bot", "remove_bot"):
                 async with room.lock:
                     if pid == room.host_id and room.status in ("waiting", "finished"):
-                        bots = [p for p in room.players.values() if p.is_bot]
-                        if kind == "add_bot" and not bots and len(room.players) < MAX_PLAYERS:
-                            room.players["bot"] = Player("bot", "Robot 🤖", None, is_bot=True)
+                        bots = [k for k, p in room.players.items() if p.is_bot]
+                        if kind == "add_bot" and len(room.players) < MAX_PLAYERS:
+                            key = f"bot{len(bots) + 1}"
+                            room.players[key] = Player(key, f"Robot {len(bots) + 1} 🤖", None, is_bot=True)
                         elif kind == "remove_bot" and bots:
-                            room.players.pop("bot", None)
+                            room.players.pop(bots[-1], None)
+                        await _broadcast_state(room)
+            elif kind == "team_mode":
+                async with room.lock:
+                    if pid == room.host_id and room.status in ("waiting", "finished"):
+                        room.team_mode = bool(msg.get("on"))
                         await _broadcast_state(room)
             elif kind == "level":
                 async with room.lock:
@@ -475,12 +520,13 @@ async def duel_ws(
                     if room.status == "finished" and pid == room.host_id:
                         for p in [p for p in room.players.values() if p.left and p.ws is None]:
                             room.players.pop(p.user_id, None)  # dropped out last round
-                        if len(room.players) < 2:
+                        if not _can_start(room):
                             await _broadcast_state(room)
                             continue
                         room.status = "countdown"
                         room.finish_reason = None
                         room.winner_id = None
+                        room.winner_team = None
                         await _broadcast_state(room)
                         asyncio.create_task(_run_countdown(room))
     except WebSocketDisconnect:
