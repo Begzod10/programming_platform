@@ -20,6 +20,12 @@ import CompareActivity from './CompareActivity';
 import SimonActivity from './SimonActivity';
 import WordBuildActivity from './WordBuildActivity';
 import ChartActivity from './ChartActivity';
+import RoundsActivity from './RoundsActivity';
+import BubblesActivity from './BubblesActivity';
+import HangmanActivity from './HangmanActivity';
+import MergeActivity from './MergeActivity';
+import SudokuActivity from './SudokuActivity';
+import PicturePuzzleActivity from './PicturePuzzleActivity';
 import LangToggle from './LangToggle';
 import { applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
@@ -325,6 +331,12 @@ export default function EarlyLearning({ guest = false }) {
                 mode === 'simon' ? SimonActivity :
                 mode === 'wordbuild' ? WordBuildActivity :
                 mode === 'chart' ? ChartActivity :
+                mode === 'rounds' ? RoundsActivity :
+                mode === 'bubbles' ? BubblesActivity :
+                mode === 'hangman' ? HangmanActivity :
+                mode === 'merge' ? MergeActivity :
+                mode === 'sudoku' ? SudokuActivity :
+                mode === 'puzzle' ? PicturePuzzleActivity :
                 MatchingActivity;
             return (
                 <div className="el-shell">
