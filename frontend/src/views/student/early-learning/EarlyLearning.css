@@ -470,3 +470,13 @@
     .el-hero { padding: 6px 0 16px; gap: 6px; }
     .el-hero h1 { font-size: 1.6rem; }
 }
+
+/* Entry point to the 1-vs-1 duel (logged-in students only, see Duel.js). */
+.el-duel-btn {
+    display: block; margin: 0 auto 18px; padding: 12px 26px; border: none; border-radius: 999px;
+    background: linear-gradient(135deg, #ff6b6b, #ffa94d); color: #fff;
+    font-family: var(--el-font-display); font-weight: 800; font-size: 1rem; cursor: pointer;
+    box-shadow: 0 8px 20px rgba(255, 107, 107, 0.35);
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.el-duel-btn:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 12px 26px rgba(255, 107, 107, 0.45); }

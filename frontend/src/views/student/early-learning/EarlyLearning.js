@@ -437,6 +437,11 @@ export default function EarlyLearning({ guest = false }) {
                         </div>
                     )}
                 </div>
+                {!guest && basePath === '/student' && (
+                    <button className="el-duel-btn" onClick={() => navigate('/student/duel')}>
+                        ⚔️ {lang === 'ru' ? 'Дуэль 1 на 1' : '1 vs 1 poyga'}
+                    </button>
+                )}
                 <div className="el-module-grid">
                     {modules.map((module, i) => (
                         <button

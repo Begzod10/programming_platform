@@ -23,6 +23,7 @@ import StudentCourseStats from './views/student/stats/StudentCourseStats';
 import Store              from './views/student/store/Store';
 import EarlyLearning      from './views/student/early-learning/EarlyLearning';
 import Quiz               from './views/student/quiz/Quiz';
+import Duel               from './views/student/duel/Duel';
 
 // ── Teacher views ──
 import TeacherCourses           from './views/teacher/courses/TeacherCourses/TeacherCourses';
@@ -121,6 +122,7 @@ function AppRouter() {
                 <Route path="dictionary"                                  element={<Dictionary />} />
                 <Route path="team-game"                                   element={<StudentTeamGame />} />
                 <Route path="team-projects"                               element={<StudentTeamProject />} />
+                <Route path="duel"                                        element={<Duel />} />
                 <Route path="quiz"                                        element={<Quiz />} />
                 <Route path="quiz/:quizId"                                element={<Quiz />} />
                 <Route path="early-learning"                              element={<EarlyLearning />} />

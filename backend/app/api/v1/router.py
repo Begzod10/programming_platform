@@ -30,6 +30,7 @@ from app.api.v1.endpoints import parent
 from app.api.v1.endpoints import bot_stats
 from app.api.v1.endpoints import store
 from app.api.v1.endpoints import early_learning
+from app.api.v1.endpoints import duel
 from app.api.v1.endpoints import classroom_integration
 api_router = APIRouter()
 
@@ -62,6 +63,7 @@ api_router.include_router(activity_analytics.router, prefix="/teacher/activity",
 api_router.include_router(bot_stats.router, prefix="/bot", tags=["Bot Stats"])
 api_router.include_router(store.router, prefix="/store", tags=["Store"])
 api_router.include_router(early_learning.router, prefix="/early-learning", tags=["Early Learning"])
+api_router.include_router(duel.router, prefix="/duels", tags=["Duels"])
 api_router.include_router(teacher_error_log.router, prefix="/teacher/error-log", tags=["Teacher - Error Log"])
 api_router.include_router(team_project.router, prefix="/team-projects", tags=["Team Projects"])
 api_router.include_router(classroom_integration.router, prefix="/integrations", tags=["Classroom Integration"])
