@@ -110,6 +110,16 @@ function Sky() {
     );
 }
 
+// A request that hangs (dead DNS, captive wifi) should fall through to the
+// offline cache after a few seconds instead of leaving "Yuklanmoqda…" up
+// until the browser's own much longer network timeout.
+function withTimeout(promise, ms = 8000) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+    ]);
+}
+
 export default function EarlyLearning({ guest = false }) {
     const { moduleId } = useParams();
     const navigate = useNavigate();
@@ -137,7 +147,7 @@ export default function EarlyLearning({ guest = false }) {
     const [leaderboard, setLeaderboard] = useState(null);
 
     const [moduleDetail, setModuleDetail] = useState(null);
-    const [detailLoading, setDetailLoading] = useState(false);
+    const [detailLoading, setDetailLoading] = useState(!!moduleId);
 
     const [playingActivityId, setPlayingActivityId] = useState(null);
 
@@ -145,56 +155,60 @@ export default function EarlyLearning({ guest = false }) {
     // own route only, registered once on first mount.
     useEffect(() => { registerOfflineSw(routeBase); }, [routeBase]);
 
-    // Best-effort offline support: every successful fetch is mirrored into
-    // localStorage (see elCacheKey in earlyLearningUtils.js), and a failed
-    // (or known-offline) fetch falls back to the last cached copy instead
-    // of leaving the games screen empty.
+    // Offline support: every successful fetch is mirrored into localStorage
+    // (see elCacheKey in earlyLearningUtils.js) and shown FIRST on the next
+    // visit (stale-while-revalidate) — so a dead/flaky connection never
+    // leaves the games screen empty or stuck on "Yuklanmoqda…", and a slow
+    // network still feels instant. The network fetch then refreshes it.
     const userId = getCurrentUser()?.id;
     const prefetchedRef = useRef('');
 
+    // Warms the cache for every module's activities (once per language per
+    // page load), a few at a time — one after another was slow enough that
+    // turning wifi off soon after the list appeared left most modules
+    // uncached.
+    const prefetchAllModules = useCallback((list) => {
+        if (prefetchedRef.current === lang || !Array.isArray(list)) return;
+        prefetchedRef.current = lang;
+        const queue = [...list];
+        const worker = async () => {
+            while (queue.length) {
+                const m = queue.shift();
+                try {
+                    const detailUrl = guest
+                        ? `${API_URL}v1/early-learning/public/modules/${m.id}?lang=${lang}`
+                        : `${API_URL}v1/early-learning/modules/${m.id}?lang=${lang}`;
+                    const detail = await withTimeout(request(detailUrl, 'GET', null, headers()), 15000);
+                    elCacheSet(elCacheKey(guest, userId, 'module', lang, m.id), detail);
+                } catch {
+                    // One module failing (age-gated 404, timeout) shouldn't stop the rest.
+                }
+            }
+        };
+        Promise.all([worker(), worker(), worker(), worker(), worker()]);
+    }, [request, lang, guest, userId]);
+
     const fetchModules = useCallback(() => {
-        setModulesLoading(true);
         const listKey = elCacheKey(guest, userId, 'modules', lang);
         const url = guest
             ? `${API_URL}v1/early-learning/public/modules?lang=${lang}`
             : `${API_URL}v1/early-learning/modules?lang=${lang}`;
-        const useCached = () => {
-            const cached = elCacheGet(listKey);
-            if (cached) setModules(guest ? applyGuestModuleStars(cached) : cached);
-            return !!cached;
-        };
-        const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
-        if (offline && useCached()) {
+        const cached = elCacheGet(listKey);
+        if (cached) {
+            setModules(guest ? applyGuestModuleStars(cached) : cached);
             setModulesLoading(false);
         } else {
-            request(url, 'GET', null, headers())
+            setModulesLoading(true);
+        }
+        const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+        if (!(offline && cached)) {
+            withTimeout(request(url, 'GET', null, headers()))
                 .then((data) => {
                     elCacheSet(listKey, data);
                     setModules(guest ? applyGuestModuleStars(data) : data);
-                    // Warm the cache for every module's activities in the
-                    // background (once per language per page load) so games
-                    // the kid never opened this session still work offline.
-                    if (prefetchedRef.current !== lang && Array.isArray(data)) {
-                        prefetchedRef.current = lang;
-                        (async () => {
-                            for (const m of data) {
-                                try {
-                                    const detailUrl = guest
-                                        ? `${API_URL}v1/early-learning/public/modules/${m.id}?lang=${lang}`
-                                        : `${API_URL}v1/early-learning/modules/${m.id}?lang=${lang}`;
-                                    const detail = await request(detailUrl, 'GET', null, headers());
-                                    elCacheSet(elCacheKey(guest, userId, 'module', lang, m.id), detail);
-                                } catch {
-                                    // One module failing (e.g. age-gated 404) shouldn't stop the rest.
-                                }
-                            }
-                        })();
-                    }
+                    prefetchAllModules(data);
                 })
-                .catch((err) => {
-                    console.error(err);
-                    useCached();
-                })
+                .catch(console.error)
                 .finally(() => setModulesLoading(false));
         }
         // A guest has no classmates (no account at all) to rank against —
@@ -208,33 +222,30 @@ export default function EarlyLearning({ guest = false }) {
         request(`${API_URL}v1/early-learning/leaderboard`, 'GET', null, headers())
             .then(setLeaderboard)
             .catch(console.error);
-    }, [request, lang, guest, userId]);
+    }, [request, lang, guest, userId, prefetchAllModules]);
 
     const fetchModuleDetail = useCallback((id) => {
-        setDetailLoading(true);
         const detailKey = elCacheKey(guest, userId, 'module', lang, id);
         const url = guest
             ? `${API_URL}v1/early-learning/public/modules/${id}?lang=${lang}`
             : `${API_URL}v1/early-learning/modules/${id}?lang=${lang}`;
-        const useCached = () => {
-            const cached = elCacheGet(detailKey);
-            if (cached) setModuleDetail(guest ? applyGuestActivityStars(cached) : cached);
-            return !!cached;
-        };
-        const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
-        if (offline && useCached()) {
+        const cached = elCacheGet(detailKey);
+        if (cached) {
+            setModuleDetail(guest ? applyGuestActivityStars(cached) : cached);
             setDetailLoading(false);
-            return;
+        } else {
+            // Don't leave the previously opened module showing while this one loads.
+            setModuleDetail(null);
+            setDetailLoading(true);
         }
-        request(url, 'GET', null, headers())
+        const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+        if (offline && cached) return;
+        withTimeout(request(url, 'GET', null, headers()))
             .then((data) => {
                 elCacheSet(detailKey, data);
                 setModuleDetail(guest ? applyGuestActivityStars(data) : data);
             })
-            .catch((err) => {
-                console.error(err);
-                useCached();
-            })
+            .catch(console.error)
             .finally(() => setDetailLoading(false));
     }, [request, lang, guest, userId]);
 
@@ -324,11 +335,22 @@ export default function EarlyLearning({ guest = false }) {
 
     // ── One module's activity grid ──
     if (moduleId) {
-        if (detailLoading || !moduleDetail) {
+        if (!moduleDetail) {
             return (
                 <div className="el-shell">
                     <Sky />
-                    <div className="el-page el-loading">{t('loading') || 'Yuklanmoqda...'}</div>
+                    <div className="el-page el-loading">
+                        {detailLoading ? (t('loading') || 'Yuklanmoqda...') : (
+                            <>
+                                <p>{lang === 'ru'
+                                    ? 'Нет интернета, а эта игра ещё не сохранена на устройстве.'
+                                    : "Internet yo'q va bu o'yin qurilmada hali saqlanmagan."}</p>
+                                <button className="el-back-btn" onClick={() => navigate(routeBase)}>
+                                    <ArrowLeft size={18} /> {t('el.back')}
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </div>
             );
         }
