@@ -15,7 +15,7 @@
  * To remove it everywhere, deploy a version of this file that calls
  * self.registration.unregister() on activate.
  */
-const CACHE = 'el-offline-v1';
+const CACHE = 'el-offline-v2';
 const SHELL = '/index.html';
 const MAX_ENTRIES = 80;
 const NAV_TIMEOUT_MS = 5000;
@@ -67,7 +67,9 @@ async function networkFirstShell(request) {
     const cache = await caches.open(CACHE);
     try {
         const res = await Promise.race([
-            fetch(request),
+            // no-cache: revalidate with the server so the browser's own HTTP cache
+            // can't hand back an old index.html whose hashed JS/CSS no longer exist.
+            fetch(request, { cache: 'no-cache' }),
             new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), NAV_TIMEOUT_MS)),
         ]);
         const type = res.headers.get('content-type') || '';
