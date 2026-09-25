@@ -28,6 +28,7 @@ from app.services.github_repo_service import (
     parse_github_url,
 )
 from app.services.grok_service import analyze_project_with_grok
+from app.services.integrity_check import check_submission_integrity
 from app.services.lesson_context_resolver import load_lesson_context_for_project
 from app.services.ranking_service import RankingService
 from app.services.sample_copy_check import check_against_sample, load_lesson_sample_code
@@ -83,6 +84,7 @@ async def run_ai_review_for_project(
         project: Project,
         *,
         raise_on_error: bool = True,
+        skip_integrity_check: bool = False,
 ) -> dict:
     """Run the full pipeline for one project.
 
@@ -182,6 +184,26 @@ async def run_ai_review_for_project(
     if not snapshot["content_text"]:
         return _fail(raise_on_error, 400,
                      f"{source_label} bo'sh yoki o'qiladigan fayllar topilmadi")
+
+    # Submission-pattern check (see integrity_check.py): a burst of lesson
+    # projects, or code pasted into a plain .txt, is held for a teacher
+    # instead of auto-graded. Lesson projects only — standalone and team
+    # projects keep their existing flow. Teachers' own re-grades skip it.
+    # 409, not 400: callers treat 400 as "fix and resubmit" (→ Rejected);
+    # anything else keeps the project "Submitted" with this as feedback.
+    if lesson_context and not skip_integrity_check:
+        integrity = await check_submission_integrity(
+            db, project,
+            files_included=snapshot["files_included"],
+            content_text=snapshot["content_text"],
+        )
+        if integrity.held:
+            logger.info("[integrity] project=%d held for teacher: %s",
+                        project.id, [f["code"] for f in integrity.triggers])
+            project.instructor_feedback = integrity.feedback()
+            await db.commit()
+            return _fail(raise_on_error, status.HTTP_409_CONFLICT,
+                         integrity.feedback())
 
     # Deterministic copy check against the lesson's OWN sample project —
     # see sample_copy_check.py's module docstring for why this can't be
