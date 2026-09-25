@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import './EarlyLearning.css';
-import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { API_URL, useHttp, headers, getCurrentUser } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
 import MatchingActivity from './MatchingActivity';
 import BuildActivity from './BuildActivity';
@@ -17,7 +17,7 @@ import ArithmeticActivity from './ArithmeticActivity';
 import TypingActivity from './TypingActivity';
 import KeyboardActivity from './KeyboardActivity';
 import LangToggle from './LangToggle';
-import { applyGuestModuleStars, applyGuestActivityStars } from './earlyLearningUtils';
+import { applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -141,15 +141,58 @@ export default function EarlyLearning({ guest = false }) {
 
     const [playingActivityId, setPlayingActivityId] = useState(null);
 
+    // Best-effort offline support: every successful fetch is mirrored into
+    // localStorage (see elCacheKey in earlyLearningUtils.js), and a failed
+    // (or known-offline) fetch falls back to the last cached copy instead
+    // of leaving the games screen empty.
+    const userId = getCurrentUser()?.id;
+    const prefetchedRef = useRef('');
+
     const fetchModules = useCallback(() => {
         setModulesLoading(true);
+        const listKey = elCacheKey(guest, userId, 'modules', lang);
         const url = guest
             ? `${API_URL}v1/early-learning/public/modules?lang=${lang}`
             : `${API_URL}v1/early-learning/modules?lang=${lang}`;
-        request(url, 'GET', null, headers())
-            .then((data) => setModules(guest ? applyGuestModuleStars(data) : data))
-            .catch(console.error)
-            .finally(() => setModulesLoading(false));
+        const useCached = () => {
+            const cached = elCacheGet(listKey);
+            if (cached) setModules(guest ? applyGuestModuleStars(cached) : cached);
+            return !!cached;
+        };
+        const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+        if (offline && useCached()) {
+            setModulesLoading(false);
+        } else {
+            request(url, 'GET', null, headers())
+                .then((data) => {
+                    elCacheSet(listKey, data);
+                    setModules(guest ? applyGuestModuleStars(data) : data);
+                    // Warm the cache for every module's activities in the
+                    // background (once per language per page load) so games
+                    // the kid never opened this session still work offline.
+                    if (prefetchedRef.current !== lang && Array.isArray(data)) {
+                        prefetchedRef.current = lang;
+                        (async () => {
+                            for (const m of data) {
+                                try {
+                                    const detailUrl = guest
+                                        ? `${API_URL}v1/early-learning/public/modules/${m.id}?lang=${lang}`
+                                        : `${API_URL}v1/early-learning/modules/${m.id}?lang=${lang}`;
+                                    const detail = await request(detailUrl, 'GET', null, headers());
+                                    elCacheSet(elCacheKey(guest, userId, 'module', lang, m.id), detail);
+                                } catch {
+                                    // One module failing (e.g. age-gated 404) shouldn't stop the rest.
+                                }
+                            }
+                        })();
+                    }
+                })
+                .catch((err) => {
+                    console.error(err);
+                    useCached();
+                })
+                .finally(() => setModulesLoading(false));
+        }
         // A guest has no classmates (no account at all) to rank against —
         // skip the fetch entirely rather than hitting the authed endpoint
         // and eating an avoidable 401. leaderboard stays null, which the
@@ -161,18 +204,35 @@ export default function EarlyLearning({ guest = false }) {
         request(`${API_URL}v1/early-learning/leaderboard`, 'GET', null, headers())
             .then(setLeaderboard)
             .catch(console.error);
-    }, [request, lang, guest]);
+    }, [request, lang, guest, userId]);
 
     const fetchModuleDetail = useCallback((id) => {
         setDetailLoading(true);
+        const detailKey = elCacheKey(guest, userId, 'module', lang, id);
         const url = guest
             ? `${API_URL}v1/early-learning/public/modules/${id}?lang=${lang}`
             : `${API_URL}v1/early-learning/modules/${id}?lang=${lang}`;
+        const useCached = () => {
+            const cached = elCacheGet(detailKey);
+            if (cached) setModuleDetail(guest ? applyGuestActivityStars(cached) : cached);
+            return !!cached;
+        };
+        const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+        if (offline && useCached()) {
+            setDetailLoading(false);
+            return;
+        }
         request(url, 'GET', null, headers())
-            .then((data) => setModuleDetail(guest ? applyGuestActivityStars(data) : data))
-            .catch(console.error)
+            .then((data) => {
+                elCacheSet(detailKey, data);
+                setModuleDetail(guest ? applyGuestActivityStars(data) : data);
+            })
+            .catch((err) => {
+                console.error(err);
+                useCached();
+            })
             .finally(() => setDetailLoading(false));
-    }, [request, lang, guest]);
+    }, [request, lang, guest, userId]);
 
     useEffect(() => {
         if (!moduleId) {

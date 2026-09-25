@@ -122,3 +122,35 @@ export function applyGuestActivityStars(moduleDetail) {
         earned_stars: activities.reduce((sum, a) => sum + a.best_stars, 0),
     };
 }
+
+/* ── Offline cache ─────────────────────────────────────────────────────
+ * The module list and every module's activities (content included) are
+ * mirrored into localStorage after each successful fetch, so a dropped
+ * wifi connection doesn't empty the games screen — EarlyLearning.js falls
+ * back to whatever was last cached. Keys carry the language (content is
+ * localized server-side) and, for logged-in users, the user id (the
+ * payload includes that student's own star progress, which must never be
+ * shown to whoever logs in next on a shared device). Raw server data is
+ * cached — guest stars are re-applied from their own localStorage on read. */
+const EL_CACHE_PREFIX = 'el_cache_v1:';
+
+export function elCacheKey(guest, userId, kind, lang, id) {
+    return `${EL_CACHE_PREFIX}${guest ? 'guest' : `u${userId ?? 'x'}`}:${kind}:${lang}${id != null ? `:${id}` : ''}`;
+}
+
+export function elCacheSet(key, data) {
+    try {
+        localStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), data }));
+    } catch {
+        // Quota exceeded / storage disabled — caching is best-effort only.
+    }
+}
+
+export function elCacheGet(key) {
+    try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw).data : null;
+    } catch {
+        return null;
+    }
+}
