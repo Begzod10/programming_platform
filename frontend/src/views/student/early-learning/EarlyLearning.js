@@ -27,7 +27,7 @@ import MergeActivity from './MergeActivity';
 import SudokuActivity from './SudokuActivity';
 import PicturePuzzleActivity from './PicturePuzzleActivity';
 import LangToggle from './LangToggle';
-import { applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
+import { getDaily, queueCompletion, flushCompletionQueue, applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -267,7 +267,22 @@ export default function EarlyLearning({ guest = false }) {
         }
     }, [moduleId, fetchModules, fetchModuleDetail]);
 
+    // Stars earned while offline are parked in localStorage (see below) and
+    // sent as soon as the connection is back — on load and on the `online` event.
+    useEffect(() => {
+        if (guest) return undefined;
+        const send = (id, stars) =>
+            request(`${API_URL}v1/early-learning/activities/${id}/complete`, 'POST', { stars }, headers());
+        const flush = () => { flushCompletionQueue(send); };
+        flush();
+        window.addEventListener('online', flush);
+        return () => window.removeEventListener('online', flush);
+    }, [guest, request]);
+
     const handleActivityComplete = (activityId, result) => {
+        // A real server reply carries activity_id; the offline fallback in the
+        // play screens does not, so that's the "didn't save" signal.
+        if (!guest && result.activity_id === undefined) queueCompletion(activityId, result.stars_earned);
         setModuleDetail((prev) => {
             if (!prev) return prev;
             const activities = prev.activities.map((a) =>
@@ -454,9 +469,14 @@ export default function EarlyLearning({ guest = false }) {
                     )}
                 </div>
                 {(guest || basePath === '/student') && (
-                    <button className="el-duel-btn" onClick={() => navigate(guest ? '/play/duel' : '/student/duel')}>
-                        ⚔️ {lang === 'ru' ? 'Дуэль 1 на 1' : '1 vs 1 poyga'}
-                    </button>
+                    <div className="el-entry-row">
+                        <button className="el-duel-btn" onClick={() => navigate(guest ? '/play/duel' : '/student/duel')}>
+                            ⚔️ {lang === 'ru' ? 'Гонка' : 'Poyga'}
+                        </button>
+                        <button className="el-duel-btn el-daily-btn" onClick={() => navigate(guest ? '/play/daily' : '/student/daily')}>
+                            📅 {lang === 'ru' ? 'Задание дня' : 'Kunlik vazifa'} {getDaily().streak > 0 ? `🔥${getDaily().streak}` : ''}
+                        </button>
+                    </div>
                 )}
                 <div className="el-module-grid">
                     {modules.map((module, i) => (

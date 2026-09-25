@@ -46,6 +46,12 @@ const TEXT = {
         yourStats: (w, g) => `Sizning natijangiz: ${w} yutuq / ${g} o'yin`,
         winner: (n) => `🏆 ${n} yutdi!`,
         offlineTag: 'chiqib ketdi',
+        badges: [
+            { emoji: '🥉', label: "Birinchi g'alaba", need: (w) => w >= 1 },
+            { emoji: '🥈', label: "10 ta g'alaba", need: (w) => w >= 10 },
+            { emoji: '🥇', label: "50 ta g'alaba", need: (w) => w >= 50 },
+            { emoji: '🎮', label: "10 ta o'yin", need: (w, g) => g >= 10 },
+        ],
         hostPicks: 'Turlarni xona egasi tanlaydi',
         kindNames: {
             arith: '➕ Hisob', compare: '⚖️ Katta-kichik', count: '🍎 Sanash',
@@ -114,6 +120,12 @@ const TEXT = {
         yourStats: (w, g) => `Твой счёт: ${w} побед / ${g} игр`,
         winner: (n) => `🏆 Победил ${n}!`,
         offlineTag: 'вышел',
+        badges: [
+            { emoji: '🥉', label: 'Первая победа', need: (w) => w >= 1 },
+            { emoji: '🥈', label: '10 побед', need: (w) => w >= 10 },
+            { emoji: '🥇', label: '50 побед', need: (w) => w >= 50 },
+            { emoji: '🎮', label: '10 игр', need: (w, g) => g >= 10 },
+        ],
         hostPicks: 'Виды выбирает хозяин комнаты',
         kindNames: {
             arith: '➕ Счёт', compare: '⚖️ Больше-меньше', count: '🍎 Сколько',
@@ -317,6 +329,13 @@ function DuelInner({ guest }) {
                                 ))}
                             </ol>
                             <div className="duel-sub">{L.yourStats(board.me.wins, board.me.games)}</div>
+                            <div className="duel-badges">
+                                {L.badges.map((b) => (
+                                    <span key={b.label} className={`duel-badge ${b.need(board.me.wins, board.me.games) ? 'is-on' : ''}`} title={b.label}>
+                                        {b.emoji} {b.label}
+                                    </span>
+                                ))}
+                            </div>
                         </div>
                     )}
                     {guest && (

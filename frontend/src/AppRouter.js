@@ -24,6 +24,7 @@ import Store              from './views/student/store/Store';
 import EarlyLearning      from './views/student/early-learning/EarlyLearning';
 import Quiz               from './views/student/quiz/Quiz';
 import Duel               from './views/student/duel/Duel';
+import DailyChallenge     from './views/student/early-learning/DailyChallenge';
 
 // ── Teacher views ──
 import TeacherCourses           from './views/teacher/courses/TeacherCourses/TeacherCourses';
@@ -101,6 +102,7 @@ function AppRouter() {
                 endpoints in early_learning.py). Linked from the login page. */}
             <Route path="/play" element={<EarlyLearning guest />} />
             <Route path="/play/duel" element={<Duel guest />} />
+            <Route path="/play/daily" element={<DailyChallenge />} />
             <Route path="/play/:moduleId" element={<EarlyLearning guest />} />
 
             {/* ══════════ STUDENT ══════════ */}
@@ -124,6 +126,7 @@ function AppRouter() {
                 <Route path="team-game"                                   element={<StudentTeamGame />} />
                 <Route path="team-projects"                               element={<StudentTeamProject />} />
                 <Route path="duel"                                        element={<Duel />} />
+                <Route path="daily"                                       element={<DailyChallenge />} />
                 <Route path="quiz"                                        element={<Quiz />} />
                 <Route path="quiz/:quizId"                                element={<Quiz />} />
                 <Route path="early-learning"                              element={<EarlyLearning />} />

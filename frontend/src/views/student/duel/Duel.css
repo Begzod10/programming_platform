@@ -125,3 +125,7 @@
 .duel-board li b { color: #6C5CE7; white-space: nowrap; }
 
 .duel-ranking { list-style: none; padding: 0; margin: 8px 0; color: #2d2d3f; font-weight: 700; text-align: center; }
+
+.duel-badges { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 6px; }
+.duel-badge { font-size: 0.78rem; font-weight: 700; padding: 4px 9px; border-radius: 999px; background: #eceaf7; color: #9a98b0; filter: grayscale(1); opacity: 0.7; }
+.duel-badge.is-on { background: #fff3c4; color: #7a5a00; filter: none; opacity: 1; }
