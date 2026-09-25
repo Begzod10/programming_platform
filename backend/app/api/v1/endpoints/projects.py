@@ -23,6 +23,7 @@ from app.services.grok_service import analyze_project_with_grok
 from app.services.lesson_context_resolver import load_lesson_context_for_project
 from app.services.ai_review_service import run_ai_review_for_project
 from app.services.github_repo_service import zip_bytes_have_code_file
+from app.services.submission_cooldown import enforce_submission_cooldown
 
 import uuid
 from pathlib import Path
@@ -123,6 +124,7 @@ async def create_project(
         service: ProjectService = Depends(get_project_service),
 ):
     """Yangi proyekt yaratish"""
+    await enforce_submission_cooldown(service.db, current_student.id)
     return await service.create_project(student_id=current_student.id, data=payload)
 
 
@@ -154,6 +156,8 @@ async def upload_project_zip(
         service: ProjectService = Depends(get_project_service),
 ):
     import zipfile, io
+
+    await enforce_submission_cooldown(db, current_student.id)
 
     allowed_types = [
         "application/zip",
@@ -301,6 +305,8 @@ async def submit_project(
         service: ProjectService = Depends(get_project_service),
 ):
     """Proyektni taqdim qilish (faqat egasi)"""
+    await enforce_submission_cooldown(
+        service.db, current_student.id, exclude_project_id=project_id)
     return await service.submit_project(
         project_id=project_id,
         student_id=current_student.id
@@ -602,6 +608,10 @@ async def upload_project_zip_by_id(
         service: ProjectService = Depends(get_project_service),
 ):
     import zipfile, io
+
+    # Excludes this project so a retry of a failed ZIP upload isn't blocked.
+    await enforce_submission_cooldown(
+        db, current_student.id, exclude_project_id=project_id)
 
     allowed_types = [
         "application/zip",
