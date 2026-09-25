@@ -26,9 +26,9 @@ const TEXT = {
         online: 'ulangan',
         offline: 'uzilgan',
         correct: "To'g'ri! +1",
-        opponentFirst: 'Raqib tezroq topdi',
-        nobody: 'Hech kim topa olmadi',
-        wrongWait: 'Xato! Raqibni kuting…',
+        wrongNow: 'Xato',
+        rightWas: "To'g'ri javob",
+        goal: (n) => `Birinchi bo'lib ${n} ta to'g'ri javob bergan yutadi!`,
         win: '🏆 Siz yutdingiz!',
         lose: 'Bu safar raqib yutdi',
         draw: '🤝 Durang!',
@@ -63,9 +63,9 @@ const TEXT = {
         online: 'на связи',
         offline: 'нет связи',
         correct: 'Верно! +1',
-        opponentFirst: 'Соперник был быстрее',
-        nobody: 'Никто не ответил верно',
-        wrongWait: 'Ошибка! Ждём соперника…',
+        wrongNow: 'Ошибка',
+        rightWas: 'Верный ответ',
+        goal: (n) => `Побеждает тот, кто первым ответит верно ${n} раз!`,
         win: '🏆 Ты победил!',
         lose: 'В этот раз победил соперник',
         draw: '🤝 Ничья!',
@@ -121,6 +121,7 @@ function DuelInner({ guest }) {
     const [codeInput, setCodeInput] = useState('');
     const [busy, setBusy] = useState(false);
     const lastSoundRef = useRef(null);
+    const [pendingQ, setPendingQ] = useState(null);
 
     const onMessage = useCallback((msg) => {
         if (msg.type === 'state') {
@@ -142,20 +143,18 @@ function DuelInner({ guest }) {
         try { localStorage.setItem('duel_guest_name', guestName.trim()); } catch { /* ignore */ }
     };
 
-    // Sound cues, once per resolved question / finished game.
+    // Sound cues, once per own answer / finished game.
     useEffect(() => {
         if (!game) return;
         const key = game.status === 'finished'
             ? `end-${game.winner_id}-${game.finish_reason}`
-            : game.last_result ? `q-${game.last_result.q}-${game.last_result.winner_id}` : null;
+            : game.last ? `q-${game.last.q}-${game.last.correct}` : null;
         if (!key || lastSoundRef.current === key) return;
         lastSoundRef.current = key;
         if (game.status === 'finished') {
             playSynth(game.winner_id === game.you ? 'fanfare' : 'chime');
-        } else if (game.last_result.winner_id === game.you) {
-            playSynth('coin');
-        } else if (game.last_result.winner_id) {
-            playSynth('laser');
+        } else {
+            playSynth(game.last.correct ? 'coin' : 'laser');
         }
     }, [game]);
 
@@ -253,12 +252,12 @@ function DuelInner({ guest }) {
         <div className="duel-scores">
             <div className="duel-score duel-score--me">
                 <span className="duel-score-name">{L.you}</span>
-                <span className="duel-score-num">{me?.score ?? 0}</span>
+                <span className="duel-score-num">{me?.score ?? 0}<small>/{game.target}</small></span>
             </div>
             <div className="duel-vs">VS</div>
             <div className={`duel-score ${opp && !opp.online ? 'is-offline' : ''}`}>
                 <span className="duel-score-name">{opp?.name || '…'}</span>
-                <span className="duel-score-num">{opp?.score ?? 0}</span>
+                <span className="duel-score-num">{opp?.score ?? 0}<small>/{game.target}</small></span>
                 {opp && !opp.online && <span className="duel-offline">{L.offline}</span>}
             </div>
         </div>
@@ -329,31 +328,35 @@ function DuelInner({ guest }) {
     }
 
     // ── playing ──
+    // No waiting anywhere: an answer (right or wrong) moves THIS player on to
+    // their next question at once; the first to reach `target` wins.
     const q = game.question;
-    const result = game.last_result;
+    const last = game.last;
+    const answered = pendingQ === game.q_index;
+    const submit = (opt) => {
+        if (answered) return;
+        if (send({ type: 'answer', q: game.q_index, choice: opt })) setPendingQ(game.q_index);
+    };
     let banner = '';
-    if (result) {
-        banner = result.winner_id === game.you ? L.correct : result.winner_id ? L.opponentFirst : L.nobody;
-    } else if (me?.locked) {
-        banner = L.wrongWait;
+    if (last) {
+        banner = last.correct ? L.correct : `${L.wrongNow} — ${L.rightWas}: ${last.answer}`;
     }
-    const disabled = game.resolved || me?.locked;
 
     return (
         <div className="duel-page">
             <div className="duel-card">
                 {scoreboard}
-                <div className="duel-progress">{game.q_index + 1} / {game.total}</div>
+                <div className="duel-progress">{L.goal(game.target)}</div>
                 {q && (
                     <>
-                        <div className="duel-question">{q.text} {q.text.includes('?') ? '' : '= ?'}</div>
+                        <div className="duel-question" key={game.q_index}>{q.text} {q.text.includes('?') ? '' : '= ?'}</div>
                         <div className="duel-options">
                             {q.options.map((opt) => (
                                 <button
-                                    key={opt}
-                                    className={`duel-option ${result && result.answer === opt ? 'is-correct' : ''}`}
-                                    disabled={disabled}
-                                    onClick={() => send({ type: 'answer', q: game.q_index, choice: opt })}
+                                    key={`${game.q_index}-${opt}`}
+                                    className="duel-option"
+                                    disabled={answered}
+                                    onClick={() => submit(opt)}
                                 >
                                     {opt}
                                 </button>
@@ -361,7 +364,7 @@ function DuelInner({ guest }) {
                         </div>
                     </>
                 )}
-                <div className={`duel-banner ${result?.winner_id === game.you ? 'is-good' : ''}`}>{banner}&nbsp;</div>
+                <div className={`duel-banner ${last?.correct ? 'is-good' : ''}`}>{banner}&nbsp;</div>
             </div>
         </div>
     );

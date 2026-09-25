@@ -100,3 +100,7 @@
     font-size: 1rem; font-weight: 700; outline: none;
 }
 .duel-name-input:focus { border-color: #6C5CE7; }
+
+.duel-score-num small { font-size: 0.9rem; font-weight: 700; color: #6b7280; margin-left: 2px; }
+.duel-question { animation: duel-q-in 0.18s ease-out; }
+@keyframes duel-q-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

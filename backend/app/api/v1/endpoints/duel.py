@@ -10,12 +10,11 @@ question text + options, so a kid can't read the answer out of the network
 tab, and "who answered first" is decided by arrival order here, not by two
 untrusted clocks.
 
-Rules: both players see the same question at the same time. The first CORRECT
-answer scores the point and moves both on; a wrong answer locks that player
-out of the current question; if both are locked out nobody scores. After
-TOTAL questions the higher score wins (equal = draw). Leaving mid-race
-forfeits after a short reconnect grace period (flaky wifi shouldn't lose a
-game instantly).
+Rules: both players get the SAME endless stream of questions but each moves
+through it at their own pace — a wrong answer just moves you on to the next
+question (nobody ever waits for the other). The first player to reach
+WIN_SCORE correct answers wins immediately. Leaving mid-race forfeits after a
+short reconnect grace period (flaky wifi shouldn't lose a game instantly).
 """
 import asyncio
 import hashlib
@@ -39,9 +38,9 @@ from app.models.user import Student
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-TOTAL_QUESTIONS = 10
+WIN_SCORE = 8
+INITIAL_QUESTIONS = 12
 COUNTDOWN_SECONDS = 3.2
-NEXT_QUESTION_DELAY = 1.3
 RECONNECT_GRACE_SECONDS = 15
 EMPTY_ROOM_TTL_SECONDS = 300
 
@@ -75,7 +74,8 @@ class Player:
         self.name = name
         self.ws: Optional[WebSocket] = ws
         self.score = 0
-        self.locked = False  # wrong answer on the current question
+        self.q_index = 0  # this player's own position in the shared question stream
+        self.last: Optional[dict] = None  # their previous answer: {q, correct, answer}
 
 
 class Room:
@@ -84,10 +84,7 @@ class Room:
         self.host_id = host_id
         self.players: Dict[str, Player] = {}
         self.status = "waiting"  # waiting | countdown | playing | finished
-        self.questions: List[dict] = []
-        self.q_index = 0
-        self.resolved = False  # current question already decided
-        self.last_result: Optional[dict] = None
+        self.questions: List[dict] = []  # shared stream, extended lazily
         self.winner_id: Optional[str] = None
         self.finish_reason: Optional[str] = None
         self.lock = asyncio.Lock()
@@ -129,9 +126,11 @@ def _make_question() -> dict:
 # ── state broadcasting ──────────────────────────────────────────────────────
 
 def _state_for(room: Room, viewer_id: str) -> dict:
+    me = room.players.get(viewer_id)
     question = None
-    if room.status == "playing" and room.q_index < len(room.questions):
-        q = room.questions[room.q_index]
+    if room.status == "playing" and me is not None:
+        _ensure_question(room, me.q_index)
+        q = room.questions[me.q_index]
         question = {"text": q["text"], "options": q["options"]}
     return {
         "code": room.code,
@@ -139,18 +138,23 @@ def _state_for(room: Room, viewer_id: str) -> dict:
         "you": _public(viewer_id),
         "host_id": _public(room.host_id),
         "players": [
-            {"id": p.pub, "name": p.name, "score": p.score, "locked": p.locked,
-             "online": p.ws is not None}
+            {"id": p.pub, "name": p.name, "score": p.score, "online": p.ws is not None}
             for p in room.players.values()
         ],
-        "q_index": room.q_index,
-        "total": TOTAL_QUESTIONS,
+        "q_index": me.q_index if me else 0,
+        "target": WIN_SCORE,
         "question": question,
-        "resolved": room.resolved,
-        "last_result": room.last_result,
+        # Only the viewer's OWN previous answer — what the opponent just
+        # answered (and whether it was right) is none of their business.
+        "last": me.last if me else None,
         "winner_id": _public(room.winner_id),
         "finish_reason": room.finish_reason,
     }
+
+
+def _ensure_question(room: Room, index: int) -> None:
+    while len(room.questions) <= index:
+        room.questions.append(_make_question())
 
 
 async def _send(player: Player, payload: dict) -> None:
@@ -177,72 +181,51 @@ def _schedule_cleanup(room: Room) -> None:
 
 # ── game flow ───────────────────────────────────────────────────────────────
 
+def _reset_round(room: Room) -> None:
+    room.questions = [_make_question() for _ in range(INITIAL_QUESTIONS)]
+    room.winner_id = None
+    room.finish_reason = None
+    for p in room.players.values():
+        p.score = 0
+        p.q_index = 0
+        p.last = None
+
+
 async def _run_countdown(room: Room) -> None:
     await asyncio.sleep(COUNTDOWN_SECONDS)
     async with room.lock:
         if room.status != "countdown" or len(room.players) < 2:
             return
-        room.questions = [_make_question() for _ in range(TOTAL_QUESTIONS)]
-        room.q_index = 0
-        room.resolved = False
-        room.last_result = None
-        for p in room.players.values():
-            p.score = 0
-            p.locked = False
+        _reset_round(room)
         room.status = "playing"
-        await _broadcast_state(room)
-
-
-async def _advance_later(room: Room) -> None:
-    await asyncio.sleep(NEXT_QUESTION_DELAY)
-    async with room.lock:
-        if room.status != "playing":
-            return
-        room.q_index += 1
-        room.resolved = False
-        room.last_result = None
-        for p in room.players.values():
-            p.locked = False
-        if room.q_index >= TOTAL_QUESTIONS:
-            _finish(room, reason="done")
         await _broadcast_state(room)
 
 
 def _finish(room: Room, reason: str, forced_winner: Optional[str] = None) -> None:
     room.status = "finished"
     room.finish_reason = reason
-    if forced_winner is not None:
-        room.winner_id = forced_winner
-    else:
-        scores = sorted(room.players.values(), key=lambda p: p.score, reverse=True)
-        room.winner_id = (
-            scores[0].user_id if len(scores) == 2 and scores[0].score != scores[1].score else None
-        )
+    room.winner_id = forced_winner
     _schedule_cleanup(room)
 
 
 async def _handle_answer(room: Room, player: Player, msg: dict) -> None:
     async with room.lock:
-        if room.status != "playing" or room.resolved or player.locked:
+        if room.status != "playing":
             return
-        if msg.get("q") != room.q_index:
+        # Ignore anything not for this player's CURRENT question (a double
+        # tap, or a message that raced the state update).
+        if msg.get("q") != player.q_index:
             return
-        q = room.questions[room.q_index]
-        if str(msg.get("choice")) == q["answer"]:
+        _ensure_question(room, player.q_index)
+        q = room.questions[player.q_index]
+        correct = str(msg.get("choice")) == q["answer"]
+        if correct:
             player.score += 1
-            room.resolved = True
-            room.last_result = {"q": room.q_index, "winner_id": player.pub, "answer": q["answer"]}
-            await _broadcast_state(room)
-            asyncio.create_task(_advance_later(room))
-            return
-        player.locked = True
-        if all(p.locked for p in room.players.values()):
-            room.resolved = True
-            room.last_result = {"q": room.q_index, "winner_id": None, "answer": q["answer"]}
-            await _broadcast_state(room)
-            asyncio.create_task(_advance_later(room))
-        else:
-            await _broadcast_state(room)
+        player.last = {"q": player.q_index, "correct": correct, "answer": q["answer"]}
+        player.q_index += 1
+        if player.score >= WIN_SCORE:
+            _finish(room, reason="done", forced_winner=player.user_id)
+        await _broadcast_state(room)
 
 
 async def _forfeit_after_grace(room: Room, player: Player) -> None:
