@@ -517,7 +517,9 @@ async def regrade_project(
     await db.commit()
     await db.refresh(db_project)
 
-    ai_result = await run_ai_review_for_project(db, db_project, raise_on_error=False)
+    # A teacher asked for this grade, so don't hold it back for a teacher.
+    ai_result = await run_ai_review_for_project(
+        db, db_project, raise_on_error=False, skip_integrity_check=True)
 
     lesson_context_used = bool(await _load_lesson_context_for_project(db, project_id=project_id))
 
