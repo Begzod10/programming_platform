@@ -100,6 +100,7 @@ function AppRouter() {
                 backend (see EarlyLearning.js's guest mode + the /public
                 endpoints in early_learning.py). Linked from the login page. */}
             <Route path="/play" element={<EarlyLearning guest />} />
+            <Route path="/play/duel" element={<Duel guest />} />
             <Route path="/play/:moduleId" element={<EarlyLearning guest />} />
 
             {/* ══════════ STUDENT ══════════ */}

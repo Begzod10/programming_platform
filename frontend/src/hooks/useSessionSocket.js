@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { API_URL_DOC, getToken } from '../api/search/base';
 
-function wsUrl(basePath, entityId) {
+function wsUrl(basePath, entityId, extraQuery = '', useToken = true) {
     const base = API_URL_DOC.replace(/^http/, 'ws').replace(/\/$/, '');
-    const token = encodeURIComponent(getToken() || '');
-    return `${base}/api/v1/${basePath}/${entityId}/ws?token=${token}`;
+    const token = useToken ? encodeURIComponent(getToken() || '') : '';
+    return `${base}/api/v1/${basePath}/${entityId}/ws?token=${token}${extraQuery ? `&${extraQuery}` : ''}`;
 }
 
 // Keeps a WS alive for the given entityId under basePath (default
@@ -17,7 +17,10 @@ function wsUrl(basePath, entityId) {
 // generalized with a basePath param so the team-projects realtime feature
 // could reuse the exact same connect/reconnect/ping mechanics instead of a
 // second hand-copy.
-export function useSessionSocket(sessionId, onUpdate, onDeleted, onMessage, basePath = 'game-sessions') {
+// extraQuery / useToken: added for the duel game's account-less guests —
+// they connect with `guest=<id>&name=<nick>` and NO token (a stale token in
+// storage from an earlier login must not override the guest identity).
+export function useSessionSocket(sessionId, onUpdate, onDeleted, onMessage, basePath = 'game-sessions', extraQuery = '', useToken = true) {
     const wsRef = useRef(null);
     const pingRef = useRef(null);
     const mountedRef = useRef(true);
@@ -25,7 +28,7 @@ export function useSessionSocket(sessionId, onUpdate, onDeleted, onMessage, base
 
     const connect = useCallback(() => {
         if (!sessionId || !mountedRef.current) return;
-        const ws = new WebSocket(wsUrl(basePath, sessionId));
+        const ws = new WebSocket(wsUrl(basePath, sessionId, extraQuery, useToken));
         wsRef.current = ws;
 
         ws.onmessage = (e) => {
@@ -52,7 +55,7 @@ export function useSessionSocket(sessionId, onUpdate, onDeleted, onMessage, base
         };
 
         ws.onerror = () => ws.close();
-    }, [sessionId, onUpdate, onDeleted, onMessage, basePath]);
+    }, [sessionId, onUpdate, onDeleted, onMessage, basePath, extraQuery, useToken]);
 
     useEffect(() => {
         mountedRef.current = true;

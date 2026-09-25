@@ -82,3 +82,17 @@
     .duel-question { font-size: 2.4rem; }
     .duel-code { font-size: 2.6rem; }
 }
+
+/* /play/duel has no app layout around it - give it the same soft sky the
+   rest of the kids' area sits on. */
+.duel-guest-shell {
+    min-height: 100vh;
+    background: linear-gradient(180deg, #5fb3e8 0%, #8ed4f2 28%, #cdeefb 58%, #fff6e0 100%);
+    display: flex; align-items: flex-start; justify-content: center;
+}
+.duel-name-input {
+    width: 100%; padding: 12px 14px; border-radius: 14px; text-align: center;
+    border: 2px solid rgba(108, 92, 231, 0.2); background: transparent; color: inherit;
+    font-size: 1rem; font-weight: 700; outline: none;
+}
+.duel-name-input:focus { border-color: #6C5CE7; }

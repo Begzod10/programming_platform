@@ -18,13 +18,16 @@ forfeits after a short reconnect grace period (flaky wifi shouldn't lose a
 game instantly).
 """
 import asyncio
+import hashlib
 import json
 import logging
 import random
+import re
 import time
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,9 +46,32 @@ RECONNECT_GRACE_SECONDS = 15
 EMPTY_ROOM_TTL_SECONDS = 300
 
 
+# Player ids are strings: "u<student id>" for logged-in students, "g<random
+# guest id>" for kids playing from /play without an account. For a guest the
+# raw id is effectively their password (it's all that identifies them on
+# reconnect), so it is NEVER sent to the other player — everything outward
+# uses `_public(pid)` instead, a short hash. Without that, the opponent could
+# read the host's id from the state and connect with it to hijack their slot.
+_GUEST_RE = re.compile(r"^[A-Za-z0-9_-]{8,40}$")
+
+
+def _public(pid: Optional[str]) -> Optional[str]:
+    if pid is None:
+        return None
+    if pid.startswith("g"):
+        return "g" + hashlib.sha256(pid.encode()).hexdigest()[:8]
+    return pid
+
+
+def _clean_name(raw: Optional[str]) -> str:
+    name = " ".join((raw or "").split())[:20]
+    return name or "Mehmon"
+
+
 class Player:
-    def __init__(self, user_id: int, name: str, ws: WebSocket):
-        self.user_id = user_id
+    def __init__(self, user_id: str, name: str, ws: WebSocket):
+        self.user_id = user_id  # internal pid — see _public above
+        self.pub = _public(user_id)
         self.name = name
         self.ws: Optional[WebSocket] = ws
         self.score = 0
@@ -53,16 +79,16 @@ class Player:
 
 
 class Room:
-    def __init__(self, code: str, host_id: int):
+    def __init__(self, code: str, host_id: str):
         self.code = code
         self.host_id = host_id
-        self.players: Dict[int, Player] = {}
+        self.players: Dict[str, Player] = {}
         self.status = "waiting"  # waiting | countdown | playing | finished
         self.questions: List[dict] = []
         self.q_index = 0
         self.resolved = False  # current question already decided
         self.last_result: Optional[dict] = None
-        self.winner_id: Optional[int] = None
+        self.winner_id: Optional[str] = None
         self.finish_reason: Optional[str] = None
         self.lock = asyncio.Lock()
         self.created_at = time.time()
@@ -102,7 +128,7 @@ def _make_question() -> dict:
 
 # ── state broadcasting ──────────────────────────────────────────────────────
 
-def _state_for(room: Room, viewer_id: int) -> dict:
+def _state_for(room: Room, viewer_id: str) -> dict:
     question = None
     if room.status == "playing" and room.q_index < len(room.questions):
         q = room.questions[room.q_index]
@@ -110,10 +136,10 @@ def _state_for(room: Room, viewer_id: int) -> dict:
     return {
         "code": room.code,
         "status": room.status,
-        "you": viewer_id,
-        "host_id": room.host_id,
+        "you": _public(viewer_id),
+        "host_id": _public(room.host_id),
         "players": [
-            {"id": p.user_id, "name": p.name, "score": p.score, "locked": p.locked,
+            {"id": p.pub, "name": p.name, "score": p.score, "locked": p.locked,
              "online": p.ws is not None}
             for p in room.players.values()
         ],
@@ -122,7 +148,7 @@ def _state_for(room: Room, viewer_id: int) -> dict:
         "question": question,
         "resolved": room.resolved,
         "last_result": room.last_result,
-        "winner_id": room.winner_id,
+        "winner_id": _public(room.winner_id),
         "finish_reason": room.finish_reason,
     }
 
@@ -182,7 +208,7 @@ async def _advance_later(room: Room) -> None:
         await _broadcast_state(room)
 
 
-def _finish(room: Room, reason: str, forced_winner: Optional[int] = None) -> None:
+def _finish(room: Room, reason: str, forced_winner: Optional[str] = None) -> None:
     room.status = "finished"
     room.finish_reason = reason
     if forced_winner is not None:
@@ -205,7 +231,7 @@ async def _handle_answer(room: Room, player: Player, msg: dict) -> None:
         if str(msg.get("choice")) == q["answer"]:
             player.score += 1
             room.resolved = True
-            room.last_result = {"q": room.q_index, "winner_id": player.user_id, "answer": q["answer"]}
+            room.last_result = {"q": room.q_index, "winner_id": player.pub, "answer": q["answer"]}
             await _broadcast_state(room)
             asyncio.create_task(_advance_later(room))
             return
@@ -244,7 +270,33 @@ async def create_duel(
             break
     else:
         raise HTTPException(status_code=503, detail="Hozir bo'sh xona yo'q, qayta urinib ko'ring")
-    room = Room(code, current_student.id)
+    room = Room(code, f"u{current_student.id}")
+    ROOMS[code] = room
+    _schedule_cleanup(room)
+    return {"code": code}
+
+
+class GuestCreate(BaseModel):
+    guest_id: str
+
+
+@router.post("/guest")
+async def create_guest_duel(
+        body: GuestCreate,
+        _rl: None = Depends(rate_limit(max_calls=10, window_seconds=60)),
+):
+    """Same as POST / for a kid playing from /play with no account. The
+    client generates and keeps its own random guest id (localStorage); the
+    rate limit (per IP) is what stops someone from filling ROOMS."""
+    if not _GUEST_RE.match(body.guest_id):
+        raise HTTPException(status_code=422, detail="guest_id noto'g'ri")
+    for _ in range(50):
+        code = f"{random.randint(0, 9999):04d}"
+        if code not in ROOMS:
+            break
+    else:
+        raise HTTPException(status_code=503, detail="Hozir bo'sh xona yo'q, qayta urinib ko'ring")
+    room = Room(code, f"g{body.guest_id}")
     ROOMS[code] = room
     _schedule_cleanup(room)
     return {"code": code}
@@ -263,26 +315,36 @@ async def duel_ws(
         code: str,
         websocket: WebSocket,
         token: Optional[str] = Query(default=None),
+        guest: Optional[str] = Query(default=None),
+        guest_name: Optional[str] = Query(default=None, alias="name"),
         db: AsyncSession = Depends(get_db),
 ):
-    user_id = decode_access_token(token) if token else None
-    user = None
-    if user_id is not None:
-        user = (await db.execute(select(Student).where(Student.id == user_id))).scalar_one_or_none()
-    if user is None or not user.is_active:
-        await websocket.close(code=4001)
-        return
+    if token:
+        user_id = decode_access_token(token)
+        user = None
+        if user_id is not None:
+            user = (await db.execute(select(Student).where(Student.id == user_id))).scalar_one_or_none()
+        if user is None or not user.is_active:
+            await websocket.close(code=4001)
+            return
+        pid = f"u{user.id}"
+        name = user.full_name or user.username
+    else:
+        if not guest or not _GUEST_RE.match(guest):
+            await websocket.close(code=4001)
+            return
+        pid = f"g{guest}"
+        name = _clean_name(guest_name)
 
     room = ROOMS.get(code)
     if room is None:
         await _reject(websocket, "not_found")
         return
 
-    name = user.full_name or user.username
     await websocket.accept()
 
     async with room.lock:
-        existing = room.players.get(user.id)
+        existing = room.players.get(pid)
         if existing is not None:
             existing.ws = websocket  # reconnect (also cancels a pending forfeit)
             player = existing
@@ -295,8 +357,8 @@ async def duel_ws(
             await websocket.close(code=4000)
             return
         else:
-            player = Player(user.id, name, websocket)
-            room.players[user.id] = player
+            player = Player(pid, name, websocket)
+            room.players[pid] = player
         await _broadcast_state(room)
 
     try:
@@ -312,7 +374,7 @@ async def duel_ws(
             kind = msg.get("type")
             if kind == "start":
                 async with room.lock:
-                    if user.id == room.host_id and room.status == "waiting" and len(room.players) == 2:
+                    if pid == room.host_id and room.status == "waiting" and len(room.players) == 2:
                         room.status = "countdown"
                         await _broadcast_state(room)
                         asyncio.create_task(_run_countdown(room))
@@ -320,7 +382,7 @@ async def duel_ws(
                 await _handle_answer(room, player, msg)
             elif kind == "rematch":
                 async with room.lock:
-                    if room.status == "finished" and user.id == room.host_id and len(room.players) == 2:
+                    if room.status == "finished" and pid == room.host_id and len(room.players) == 2:
                         room.status = "countdown"
                         room.finish_reason = None
                         room.winner_id = None
@@ -333,8 +395,8 @@ async def duel_ws(
             if player.ws is websocket:
                 player.ws = None
                 if room.status == "waiting":
-                    room.players.pop(user.id, None)
-                    if user.id == room.host_id:
+                    room.players.pop(pid, None)
+                    if pid == room.host_id:
                         for p in list(room.players.values()):
                             await _send(p, {"type": "error", "reason": "host_left"})
                         ROOMS.pop(room.code, None)
