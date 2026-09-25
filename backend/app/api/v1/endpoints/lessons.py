@@ -12,6 +12,7 @@ from app.dependencies import get_db, get_current_student, get_current_teacher, g
     get_current_instructor
 from app.services import lesson_service, achievement_service
 from app.services.project_service import is_orphaned_submission
+from app.services.submission_cooldown import enforce_submission_cooldown
 from app.schemas.lesson import LessonCreate, LessonUpdate, LessonRead
 from app.models.user import Student
 from app.models.submission import Submission
@@ -461,6 +462,8 @@ async def submit_lesson_project(
                 )
             raise HTTPException(status_code=400, detail="Bu dars allaqachon topshirilgan")
 
+        await enforce_submission_cooldown(db, current_student.id)
+
         if prev_points > 0 and proj_status == "Approved":
             await _subtract_points(db, current_student.id, prev_points)
 
@@ -506,6 +509,8 @@ async def submit_lesson_project(
             "certificate_issued": False,
             "certificate_id": None,
         }
+
+    await enforce_submission_cooldown(db, current_student.id)
 
     new_project = Project(
         student_id=current_student.id,

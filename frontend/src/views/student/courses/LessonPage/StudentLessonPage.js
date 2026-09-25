@@ -529,8 +529,13 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                     }
                 }
             }
-        } catch {
-            setProjectError('Ошибка при отправке. Проверьте данные и попробуйте ещё раз.');
+        } catch (err) {
+            // 429 = the 10-minute cooldown between submissions; show the
+            // server's "wait N minutes" text instead of the generic error.
+            const data = err?.response?.data;
+            setProjectError(err?.status === 429
+                ? (data?.error?.message || data?.detail || 'Keyingi loyihani 10 daqiqadan keyin topshiring.')
+                : 'Ошибка при отправке. Проверьте данные и попробуйте ещё раз.');
         } finally {
             setProjectSaving(false);
         }
