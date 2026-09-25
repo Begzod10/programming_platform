@@ -96,12 +96,45 @@ function makeShape(lang) {
 
 /* ── listen & pick (speech synthesis) ── */
 const LETTERS = "ABDEFGHIJKLMNOPQRSTUVXYZ".split('');
+// Spoken forms. A bare "B" or "7" would be read in whatever language the
+// browser's default voice is (English on most PCs) — so say the Uzbek/Russian
+// NAME of the letter/number instead, phonetically spelled.
+const UZ_LETTER = {
+    A: 'a', B: 'be', D: 'de', E: 'e', F: 'ef', G: 'ge', H: 'ha', I: 'i', J: 'je', K: 'ka', L: 'el', M: 'em',
+    N: 'en', O: 'o', P: 'pe', Q: 'qe', R: 'er', S: 'es', T: 'te', U: 'u', V: 've', X: 'xe', Y: 'ye', Z: 'ze',
+};
+const UZ_NUM = ['nol', 'bir', 'ikki', 'uch', "to'rt", 'besh', 'olti', 'yetti', 'sakkiz', "to'qqiz"];
+const RU_NUM = ['ноль', 'один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять'];
+
+let voicesCache = [];
+function loadVoices() {
+    try { voicesCache = window.speechSynthesis.getVoices() || []; } catch { voicesCache = []; }
+    return voicesCache;
+}
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+/** Best available voice: real Uzbek if the device has one (Android/Google
+ * does), else Turkish (Latin script, near-identical letter/number sounds),
+ * else Russian. Returns null when the device has no matching voice at all. */
+function pickVoice(lang) {
+    const voices = voicesCache.length ? voicesCache : loadVoices();
+    const find = (prefix) => voices.find((v) => v.lang && v.lang.toLowerCase().startsWith(prefix));
+    if (lang === 'ru') return find('ru') || null;
+    return find('uz') || find('tr') || find('ru') || null;
+}
+
 function speak(text, lang) {
     try {
         if (!window.speechSynthesis) return false;
+        const isNum = /^\d$/.test(text);
+        const spoken = lang === 'ru' && isNum ? RU_NUM[+text] : isNum ? UZ_NUM[+text] : (UZ_LETTER[text] || text);
+        const voice = pickVoice(lang);
         window.speechSynthesis.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
+        const u = new SpeechSynthesisUtterance(spoken);
+        if (voice) { u.voice = voice; u.lang = voice.lang; } else { u.lang = lang === 'ru' ? 'ru-RU' : 'uz-UZ'; }
         u.rate = 0.8;
         window.speechSynthesis.speak(u);
         return true;
