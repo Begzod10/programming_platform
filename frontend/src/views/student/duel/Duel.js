@@ -8,8 +8,8 @@ import { playSynth } from '../../../utils/soundSynth';
 
 const TEXT = {
     uz: {
-        title: '1 vs 1 poyga',
-        sub: "Do'sting bilan bir xil savollarga kim tezroq javob beradi?",
+        title: 'Poyga',
+        sub: "Do'stlaring (2–4 kishi) yoki kompyuter bilan bir xil savollarga kim tezroq javob beradi?",
         create: 'Xona yaratish',
         or: 'yoki',
         codePlaceholder: '4 xonali kod',
@@ -32,13 +32,25 @@ const TEXT = {
         win: '🏆 Siz yutdingiz!',
         lose: 'Bu safar raqib yutdi',
         draw: '🤝 Durang!',
-        left: 'Raqib chiqib ketdi',
+        left: "Boshqa o'yinchilar chiqib ketdi",
         again: 'Yana o‘ynash',
         pickGames: "O'yin turlarini tanlang",
+        levelTitle: 'Qiyinlik',
+        levels: { easy: '🟢 Oson', medium: '🟡 O\'rta', hard: '🔴 Qiyin' },
+        addBot: '🤖 Kompyuter qo\'shish',
+        removeBot: '🤖 Kompyuterni olib tashlash',
+        players: (n, m) => `O'yinchilar: ${n}/${m}`,
+        leaderboard: '🏆 Eng ko\'p yutganlar',
+        wins: 'yutuq',
+        games: "o'yin",
+        yourStats: (w, g) => `Sizning natijangiz: ${w} yutuq / ${g} o'yin`,
+        winner: (n) => `🏆 ${n} yutdi!`,
+        offlineTag: 'chiqib ketdi',
         hostPicks: 'Turlarni xona egasi tanlaydi',
         kindNames: {
             arith: '➕ Hisob', compare: '⚖️ Katta-kichik', count: '🍎 Sanash',
             pattern: '🔴 Naqsh', sequence: '🔢 Ketma-ketlik', odd: '🧩 Ortiqchasi',
+            mult: '✖️ Ko\'paytirish', clock: '🕒 Soat', color: '🎨 Rang', word: '🔤 So\'z', quiz: '🌍 Bilim',
         },
         hints: {
             arith: 'Hisobla',
@@ -47,20 +59,25 @@ const TEXT = {
             pattern: 'Keyingisi qaysi?',
             sequence: 'Keyingi son qaysi?',
             odd: 'Ortiqchasini top!',
+            mult: 'Ko\'paytir',
+            clock: 'Soat nechchi?',
+            color: 'Matn RANGI qaysi? (so\'zni emas!)',
+            word: 'Yetishmayotgan harf qaysi?',
+            quiz: 'Savolga javob ber',
         },
         namePlaceholder: 'Ismingiz (ixtiyoriy)',
         backToGames: "O'yinlarga qaytish",
         errors: {
             not_found: 'Bunday xona topilmadi. Kodni tekshiring.',
-            full: 'Bu xonada allaqachon 2 kishi bor.',
+            full: 'Bu xona to\'lgan (4 kishi).',
             started: "O'yin allaqachon boshlangan.",
             host_left: 'Xona egasi chiqib ketdi.',
             create: 'Xona yaratib bo‘lmadi, qayta urining.',
         },
     },
     ru: {
-        title: 'Дуэль 1 на 1',
-        sub: 'Кто быстрее ответит на одинаковые вопросы?',
+        title: 'Гонка',
+        sub: 'Кто быстрее ответит на одинаковые вопросы — с друзьями (2–4) или с компьютером?',
         create: 'Создать комнату',
         or: 'или',
         codePlaceholder: 'Код из 4 цифр',
@@ -83,13 +100,25 @@ const TEXT = {
         win: '🏆 Ты победил!',
         lose: 'В этот раз победил соперник',
         draw: '🤝 Ничья!',
-        left: 'Соперник вышел',
+        left: 'Остальные игроки вышли',
         again: 'Играть ещё',
         pickGames: 'Выбери виды игр',
+        levelTitle: 'Сложность',
+        levels: { easy: '🟢 Лёгкий', medium: '🟡 Средний', hard: '🔴 Сложный' },
+        addBot: '🤖 Добавить компьютер',
+        removeBot: '🤖 Убрать компьютер',
+        players: (n, m) => `Игроки: ${n}/${m}`,
+        leaderboard: '🏆 Больше всех побед',
+        wins: 'побед',
+        games: 'игр',
+        yourStats: (w, g) => `Твой счёт: ${w} побед / ${g} игр`,
+        winner: (n) => `🏆 Победил ${n}!`,
+        offlineTag: 'вышел',
         hostPicks: 'Виды выбирает хозяин комнаты',
         kindNames: {
             arith: '➕ Счёт', compare: '⚖️ Больше-меньше', count: '🍎 Сколько',
             pattern: '🔴 Узор', sequence: '🔢 Числа', odd: '🧩 Лишнее',
+            mult: '✖️ Умножение', clock: '🕒 Часы', color: '🎨 Цвет', word: '🔤 Слово', quiz: '🌍 Знания',
         },
         hints: {
             arith: 'Посчитай',
@@ -98,12 +127,17 @@ const TEXT = {
             pattern: 'Что дальше?',
             sequence: 'Какое число дальше?',
             odd: 'Найди лишнее!',
+            mult: 'Умножь',
+            clock: 'Сколько времени?',
+            color: 'Какого ЦВЕТА буквы? (не слово!)',
+            word: 'Какой буквы не хватает?',
+            quiz: 'Ответь на вопрос',
         },
         namePlaceholder: 'Твоё имя (необязательно)',
         backToGames: 'Назад к играм',
         errors: {
             not_found: 'Такой комнаты нет. Проверь код.',
-            full: 'В этой комнате уже двое.',
+            full: 'Комната заполнена (4 игрока).',
             started: 'Игра уже началась.',
             host_left: 'Хозяин комнаты вышел.',
             create: 'Не удалось создать комнату, попробуй ещё раз.',
@@ -112,6 +146,12 @@ const TEXT = {
 };
 
 const noop = () => {};
+
+// Question text / option labels may be plain strings or {uz, ru} objects
+// (options as {v, uz, ru}: show the label, but always send `v`).
+const loc = (x, lang) => (x && typeof x === 'object' ? (x[lang] ?? x.uz ?? '') : x);
+const optValue = (o) => (o && typeof o === 'object' ? o.v : o);
+const EMOJI_KINDS = ['count', 'pattern', 'odd', 'clock', 'word'];
 
 // A guest (no account - the /play kids' area) is identified only by a random
 // id kept in this browser; the server never shows it to the other player.
@@ -150,6 +190,17 @@ function DuelInner({ guest }) {
     const [busy, setBusy] = useState(false);
     const lastSoundRef = useRef(null);
     const [pendingQ, setPendingQ] = useState(null);
+    const [board, setBoard] = useState(null);
+
+    useEffect(() => {
+        if (guest || code) return;
+        let alive = true;
+        request(`${API_URL}v1/duels/leaderboard`, 'GET', null, headers())
+            .then((r) => { if (alive) setBoard(r); })
+            .catch(() => {});
+        return () => { alive = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [guest, code]);
 
     const onMessage = useCallback((msg) => {
         if (msg.type === 'state') {
@@ -254,6 +305,20 @@ function DuelInner({ guest }) {
                             {L.join}
                         </button>
                     </form>
+                    {board && board.top.length > 0 && (
+                        <div className="duel-board">
+                            <div className="duel-sub">{L.leaderboard}</div>
+                            <ol>
+                                {board.top.slice(0, 10).map((r, i) => (
+                                    <li key={r.student_id} className={r.student_id === board.me_id ? 'is-me' : ''}>
+                                        <span>{['🥇', '🥈', '🥉'][i] || `${i + 1}.`} {r.name}</span>
+                                        <b>{r.wins} {L.wins}</b>
+                                    </li>
+                                ))}
+                            </ol>
+                            <div className="duel-sub">{L.yourStats(board.me.wins, board.me.games)}</div>
+                        </div>
+                    )}
                     {guest && (
                         <button className="duel-btn duel-btn--ghost" onClick={() => navigate('/play')}>
                             ← {L.backToGames}
@@ -272,22 +337,23 @@ function DuelInner({ guest }) {
         );
     }
 
-    const me = game.players.find((p) => p.id === game.you);
-    const opp = game.players.find((p) => p.id !== game.you);
     const isHost = game.host_id === game.you;
+    const hasBot = game.players.some((p) => p.bot);
+    const ranked = [...game.players].sort((x, y) => y.score - x.score);
 
     const scoreboard = (
-        <div className="duel-scores">
-            <div className="duel-score duel-score--me">
-                <span className="duel-score-name">{L.you}</span>
-                <span className="duel-score-num">{me?.score ?? 0}<small>/{game.target}</small></span>
-            </div>
-            <div className="duel-vs">VS</div>
-            <div className={`duel-score ${opp && !opp.online ? 'is-offline' : ''}`}>
-                <span className="duel-score-name">{opp?.name || '…'}</span>
-                <span className="duel-score-num">{opp?.score ?? 0}<small>/{game.target}</small></span>
-                {opp && !opp.online && <span className="duel-offline">{L.offline}</span>}
-            </div>
+        <div className="duel-scores duel-scores--multi">
+            {game.players.map((p) => (
+                <div
+                    key={p.id}
+                    className={`duel-score ${p.id === game.you ? 'duel-score--me' : ''} ${!p.online || p.left ? 'is-offline' : ''}`}
+                >
+                    <span className="duel-score-name">{p.id === game.you ? L.you : p.name}</span>
+                    <span className="duel-score-num">{p.score}<small>/{game.target}</small></span>
+                    {p.left ? <span className="duel-offline">{L.offlineTag}</span>
+                        : !p.online && <span className="duel-offline">{L.offline}</span>}
+                </div>
+            ))}
         </div>
     );
 
@@ -315,6 +381,29 @@ function DuelInner({ guest }) {
                     );
                 })}
             </div>
+            <div className="duel-sub">{L.levelTitle}</div>
+            <div className="duel-kind-row">
+                {['easy', 'medium', 'hard'].map((lv) => (
+                    <button
+                        key={lv}
+                        type="button"
+                        className={`duel-kind ${game.level === lv ? 'is-on' : ''}`}
+                        disabled={!isHost}
+                        onClick={() => send({ type: 'level', level: lv })}
+                    >
+                        {L.levels[lv]}
+                    </button>
+                ))}
+            </div>
+            {isHost && (hasBot || game.players.length < game.max_players) && (
+                <button
+                    type="button"
+                    className="duel-btn"
+                    onClick={() => send({ type: hasBot ? 'remove_bot' : 'add_bot' })}
+                >
+                    {hasBot ? L.removeBot : L.addBot}
+                </button>
+            )}
             {!isHost && <div className="duel-sub">{L.hostPicks}</div>}
         </div>
     );
@@ -328,10 +417,11 @@ function DuelInner({ guest }) {
                     <div className="duel-code">{game.code}</div>
                     <ul className="duel-players">
                         {game.players.map((p) => (
-                            <li key={p.id}>👤 {p.name}{p.id === game.you ? ` (${L.you})` : ''}</li>
+                            <li key={p.id}>{p.bot ? '🤖' : '👤'} {p.name}{p.id === game.you ? ` (${L.you})` : ''}</li>
                         ))}
                         {game.players.length < 2 && <li className="duel-waiting">⏳ {L.waitingFriend}</li>}
                     </ul>
+                    <p className="duel-sub">{L.players(game.players.length, game.max_players)}</p>
                     {kindPicker}
                     {isHost ? (
                         <button
@@ -365,16 +455,24 @@ function DuelInner({ guest }) {
     if (game.status === 'finished') {
         const won = game.winner_id === game.you;
         const draw = game.winner_id == null;
+        const winnerName = game.players.find((p) => p.id === game.winner_id)?.name;
         return (
             <div className="duel-page">
                 <div className="duel-card">
                     {scoreboard}
                     <div className={`duel-result ${won ? 'is-win' : ''}`}>
-                        {draw ? L.draw : won ? L.win : L.lose}
+                        {draw ? L.draw : won ? L.win : L.winner(winnerName)}
                     </div>
+                    {ranked.length > 2 && (
+                        <ol className="duel-ranking">
+                            {ranked.map((p, i) => (
+                                <li key={p.id}>{['🥇', '🥈', '🥉'][i] || `${i + 1}.`} {p.id === game.you ? L.you : p.name} — {p.score}</li>
+                            ))}
+                        </ol>
+                    )}
                     {game.finish_reason === 'left' && <p className="duel-sub">{L.left}</p>}
                     {isHost && kindPicker}
-                    {isHost && game.players.length === 2 && opp?.online && (
+                    {isHost && game.players.filter((p) => p.online && !p.left).length >= 2 && (
                         <button className="duel-btn duel-btn--primary" onClick={() => send({ type: 'rematch' })}>
                             {L.again}
                         </button>
@@ -397,7 +495,7 @@ function DuelInner({ guest }) {
     };
     let banner = '';
     if (last) {
-        banner = last.correct ? L.correct : `${L.wrongNow} — ${L.rightWas}: ${last.answer}`;
+        banner = last.correct ? L.correct : `${L.wrongNow} — ${L.rightWas}: ${last.answer_label?.[lang] ?? last.answer}`;
     }
 
     return (
@@ -408,18 +506,22 @@ function DuelInner({ guest }) {
                 {q && (
                     <>
                         {L.hints[q.kind] && <div className="duel-hint">{L.hints[q.kind]}</div>}
-                        <div className={`duel-question ${q.kind === 'count' || q.kind === 'pattern' || q.kind === 'odd' ? 'is-emoji' : ''}`} key={game.q_index}>
-                            {q.text}{q.kind === 'arith' ? ' = ?' : ''}
+                        <div
+                            className={`duel-question ${EMOJI_KINDS.includes(q.kind) ? 'is-emoji' : ''} ${q.kind === 'quiz' ? 'is-quiz' : ''}`}
+                            style={q.ink ? { color: q.ink, fontWeight: 900 } : undefined}
+                            key={game.q_index}
+                        >
+                            {loc(q.text, lang)}{q.kind === 'arith' || q.kind === 'mult' ? ' = ?' : ''}
                         </div>
                         <div className="duel-options">
                             {q.options.map((opt) => (
                                 <button
-                                    key={`${game.q_index}-${opt}`}
+                                    key={`${game.q_index}-${optValue(opt)}`}
                                     className="duel-option"
                                     disabled={answered}
-                                    onClick={() => submit(opt)}
+                                    onClick={() => submit(optValue(opt))}
                                 >
-                                    {opt}
+                                    {loc(opt, lang)}
                                 </button>
                             ))}
                         </div>

@@ -34,6 +34,7 @@ from app.models.store import (
 )
 from app.models.early_learning import EarlyModule, EarlyActivity, EarlyActivityCompletion
 from app.models.error_log import AppErrorLog
+from app.models.duel_stat import DuelStat
 from app.models.team_project import (
     TeamProject,
     TeamProjectTeam,
