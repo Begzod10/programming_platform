@@ -154,3 +154,14 @@ export function elCacheGet(key) {
         return null;
     }
 }
+
+/** Registers /play-sw.js (public/play-sw.js) scoped to just the given
+ * early-learning route, so its offline page/asset caching never applies to
+ * the rest of the app. Production only — a service worker under the dev
+ * server just fights hot reloading. Failure to register is silent: the
+ * games still work online, this only adds the offline page load. */
+export function registerOfflineSw(scope) {
+    if (process.env.NODE_ENV !== 'production') return;
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    navigator.serviceWorker.register('/play-sw.js', { scope }).catch(() => {});
+}

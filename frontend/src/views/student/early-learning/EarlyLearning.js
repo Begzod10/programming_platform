@@ -17,7 +17,7 @@ import ArithmeticActivity from './ArithmeticActivity';
 import TypingActivity from './TypingActivity';
 import KeyboardActivity from './KeyboardActivity';
 import LangToggle from './LangToggle';
-import { applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet } from './earlyLearningUtils';
+import { applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -140,6 +140,10 @@ export default function EarlyLearning({ guest = false }) {
     const [detailLoading, setDetailLoading] = useState(false);
 
     const [playingActivityId, setPlayingActivityId] = useState(null);
+
+    // Offline page load (see public/play-sw.js) — scoped to this feature's
+    // own route only, registered once on first mount.
+    useEffect(() => { registerOfflineSw(routeBase); }, [routeBase]);
 
     // Best-effort offline support: every successful fetch is mirrored into
     // localStorage (see elCacheKey in earlyLearningUtils.js), and a failed
