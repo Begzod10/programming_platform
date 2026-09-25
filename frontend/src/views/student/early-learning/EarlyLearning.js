@@ -15,6 +15,7 @@ import PatternActivity from './PatternActivity';
 import CauseEffectActivity from './CauseEffectActivity';
 import ArithmeticActivity from './ArithmeticActivity';
 import TypingActivity from './TypingActivity';
+import KeyboardActivity from './KeyboardActivity';
 import LangToggle from './LangToggle';
 import { applyGuestModuleStars, applyGuestActivityStars } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
@@ -221,7 +222,8 @@ export default function EarlyLearning({ guest = false }) {
             // letter, MonkeyType-style live feedback (TypingActivity.js —
             // words ARE authored in content_json, unlike arithmetic's
             // procedural rounds, since real vocabulary can't be generated),
-            // anything else (the shipped "select" mode, or an activity with
+            // "keyboard" is a touch-typing trainer (KeyboardActivity.js —
+            // press the highlighted key, finger shown), anything else (the shipped "select" mode, or an activity with
             // no mode yet) taps items out of a pool (MatchingActivity.js,
             // the original/default game).
             const mode = activity.content?.mode;
@@ -237,6 +239,7 @@ export default function EarlyLearning({ guest = false }) {
                 mode === 'cause_effect' ? CauseEffectActivity :
                 mode === 'arithmetic' ? ArithmeticActivity :
                 mode === 'typing' ? TypingActivity :
+                mode === 'keyboard' ? KeyboardActivity :
                 MatchingActivity;
             return (
                 <div className="el-shell">
