@@ -18,6 +18,8 @@ import TypingActivity from './TypingActivity';
 import KeyboardActivity from './KeyboardActivity';
 import CompareActivity from './CompareActivity';
 import SimonActivity from './SimonActivity';
+import WordBuildActivity from './WordBuildActivity';
+import ChartActivity from './ChartActivity';
 import LangToggle from './LangToggle';
 import { applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
@@ -321,6 +323,8 @@ export default function EarlyLearning({ guest = false }) {
                 mode === 'keyboard' ? KeyboardActivity :
                 mode === 'compare' ? CompareActivity :
                 mode === 'simon' ? SimonActivity :
+                mode === 'wordbuild' ? WordBuildActivity :
+                mode === 'chart' ? ChartActivity :
                 MatchingActivity;
             return (
                 <div className="el-shell">
