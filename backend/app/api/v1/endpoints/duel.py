@@ -1,4 +1,5 @@
-"""1-vs-1 math race for kids ("Poyga"), pairing by a 4-digit room code.
+"""1-vs-1 race for kids ("Poyga") — math AND emoji/logic questions — paired by a
+4-digit room code.
 
 Rooms live in this process's memory only — a race lasts a couple of minutes,
 nothing needs to survive a restart, and there's no table to migrate. That
@@ -96,31 +97,104 @@ ROOMS: Dict[str, Room] = {}
 
 # ── question generation ─────────────────────────────────────────────────────
 
-def _make_question() -> dict:
+def _near_numbers(answer: int, extra: List[int], lo: int = 0, hi: int = 30) -> List[str]:
+    """3 distinct wrong numbers close to `answer`, plus the answer, shuffled."""
+    wrongs: List[int] = []
+    for c in extra + [answer - 1, answer + 1, answer - 2, answer + 2, answer + 3]:
+        if lo <= c <= hi and c != answer and c not in wrongs:
+            wrongs.append(c)
+    random.shuffle(wrongs)
+    picked = wrongs[:3]
+    n = lo
+    while len(picked) < 3:
+        if n != answer and n not in picked:
+            picked.append(n)
+        n += 1
+    options = [str(answer)] + [str(w) for w in picked]
+    random.shuffle(options)
+    return options
+
+
+def _q_arith() -> dict:
+    a, b = random.randint(0, 9), random.randint(0, 9)
     if random.random() < 0.5:
-        a, b = random.randint(0, 9), random.randint(0, 9)
-        if random.random() < 0.5:
-            text, answer = f"{a} + {b}", a + b
-        else:
-            if a < b:
-                a, b = b, a
-            text, answer = f"{a} − {b}", a - b
-        wrongs = set()
-        for d in random.sample([1, -1, 2, -2, 3, -3], 6):
-            if len(wrongs) >= 3:
-                break
-            if answer + d >= 0:
-                wrongs.add(answer + d)
-        while len(wrongs) < 3:
-            wrongs.add(random.randint(0, 18))
-            wrongs.discard(answer)
-        options = [str(answer)] + [str(w) for w in wrongs]
-        random.shuffle(options)
-        return {"text": text, "options": options, "answer": str(answer)}
+        text, answer = f"{a} + {b}", a + b
+    else:
+        if a < b:
+            a, b = b, a
+        text, answer = f"{a} − {b}", a - b
+    return {"kind": "arith", "text": text, "options": _near_numbers(answer, [], hi=18), "answer": str(answer)}
+
+
+def _q_compare() -> dict:
     a = random.randint(0, 20)
     b = a if random.random() < 0.17 else random.randint(0, 20)
     sign = "<" if a < b else ">" if a > b else "="
-    return {"text": f"{a} ? {b}", "options": ["<", "=", ">"], "answer": sign}
+    return {"kind": "compare", "text": f"{a} ? {b}", "options": ["<", "=", ">"], "answer": sign}
+
+
+_COUNT_EMOJI = ["🍎", "⭐", "🐟", "🎈", "🍪", "🐥", "🌸", "⚽"]
+
+
+def _q_count() -> dict:
+    n = random.randint(1, 9)
+    emoji = random.choice(_COUNT_EMOJI)
+    return {"kind": "count", "text": f"{emoji * n} ?", "options": _near_numbers(n, [], lo=1, hi=10), "answer": str(n)}
+
+
+_PATTERN_COLORS = ["🔴", "🔵", "🟢", "🟡", "🟣", "🟠"]
+
+
+def _q_pattern() -> dict:
+    colors = random.sample(_PATTERN_COLORS, 3)
+    shape = random.choice(["AB", "AAB", "ABC"])
+    unit = ["ABC".index(ch) for ch in shape]
+    shown_len = len(unit) * 2 + random.randint(1, len(unit) - 1)
+    shown = [colors[unit[i % len(unit)]] for i in range(shown_len)]
+    answer = colors[unit[shown_len % len(unit)]]
+    others = [c for c in _PATTERN_COLORS if c != answer]
+    options = [answer] + random.sample(others, 3)
+    random.shuffle(options)
+    return {"kind": "pattern", "text": " ".join(shown) + " ?", "options": options, "answer": answer}
+
+
+def _q_sequence() -> dict:
+    start, step = random.randint(0, 10), random.randint(1, 5)
+    nums = [start + step * i for i in range(3)]
+    answer = start + step * 3
+    return {
+        "kind": "sequence",
+        "text": ", ".join(str(n) for n in nums) + ", ?",
+        "options": _near_numbers(answer, [answer - step, answer + step], hi=40),
+        "answer": str(answer),
+    }
+
+
+_ODD_CATEGORIES = {
+    "fruit": ["🍎", "🍌", "🍇", "🍓", "🍒", "🍊"],
+    "animal": ["🐶", "🐱", "🐰", "🐻", "🐼", "🦊"],
+    "vehicle": ["🚗", "🚌", "🚕", "🚓", "🚑", "🚒"],
+}
+
+
+def _q_odd() -> dict:
+    main, other = random.sample(list(_ODD_CATEGORIES), 2)
+    three = random.sample(_ODD_CATEGORIES[main], 3)
+    odd = random.choice(_ODD_CATEGORIES[other])
+    options = three + [odd]
+    random.shuffle(options)
+    return {"kind": "odd", "text": "❓", "options": options, "answer": odd}
+
+
+# Mixed on purpose: math AND non-math, so a race isn't just an arithmetic
+# drill. Prompts stay symbolic (numbers/emoji) — the client adds a short
+# localized hint per `kind`, since the server doesn't know the player's language.
+_GENERATORS = [(_q_arith, 25), (_q_compare, 15), (_q_count, 15), (_q_pattern, 15), (_q_sequence, 15), (_q_odd, 15)]
+
+
+def _make_question() -> dict:
+    gen = random.choices([g for g, _ in _GENERATORS], weights=[w for _, w in _GENERATORS])[0]
+    return gen()
 
 
 # ── state broadcasting ──────────────────────────────────────────────────────
@@ -131,7 +205,7 @@ def _state_for(room: Room, viewer_id: str) -> dict:
     if room.status == "playing" and me is not None:
         _ensure_question(room, me.q_index)
         q = room.questions[me.q_index]
-        question = {"text": q["text"], "options": q["options"]}
+        question = {"kind": q["kind"], "text": q["text"], "options": q["options"]}
     return {
         "code": room.code,
         "status": room.status,

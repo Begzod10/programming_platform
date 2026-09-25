@@ -34,6 +34,14 @@ const TEXT = {
         draw: '🤝 Durang!',
         left: 'Raqib chiqib ketdi',
         again: 'Yana o‘ynash',
+        hints: {
+            arith: 'Hisobla',
+            compare: 'Qaysi belgi kerak?',
+            count: 'Nechta?',
+            pattern: 'Keyingisi qaysi?',
+            sequence: 'Keyingi son qaysi?',
+            odd: 'Ortiqchasini top!',
+        },
         namePlaceholder: 'Ismingiz (ixtiyoriy)',
         backToGames: "O'yinlarga qaytish",
         errors: {
@@ -71,6 +79,14 @@ const TEXT = {
         draw: '🤝 Ничья!',
         left: 'Соперник вышел',
         again: 'Играть ещё',
+        hints: {
+            arith: 'Посчитай',
+            compare: 'Какой знак?',
+            count: 'Сколько?',
+            pattern: 'Что дальше?',
+            sequence: 'Какое число дальше?',
+            odd: 'Найди лишнее!',
+        },
         namePlaceholder: 'Твоё имя (необязательно)',
         backToGames: 'Назад к играм',
         errors: {
@@ -349,7 +365,10 @@ function DuelInner({ guest }) {
                 <div className="duel-progress">{L.goal(game.target)}</div>
                 {q && (
                     <>
-                        <div className="duel-question" key={game.q_index}>{q.text} {q.text.includes('?') ? '' : '= ?'}</div>
+                        {L.hints[q.kind] && <div className="duel-hint">{L.hints[q.kind]}</div>}
+                        <div className={`duel-question ${q.kind === 'count' || q.kind === 'pattern' || q.kind === 'odd' ? 'is-emoji' : ''}`} key={game.q_index}>
+                            {q.text}{q.kind === 'arith' ? ' = ?' : ''}
+                        </div>
                         <div className="duel-options">
                             {q.options.map((opt) => (
                                 <button

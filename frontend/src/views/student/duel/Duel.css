@@ -104,3 +104,6 @@
 .duel-score-num small { font-size: 0.9rem; font-weight: 700; color: #6b7280; margin-left: 2px; }
 .duel-question { animation: duel-q-in 0.18s ease-out; }
 @keyframes duel-q-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.duel-hint { text-align: center; font-weight: 800; color: #6C5CE7; font-size: 0.95rem; margin-bottom: 4px; }
+.duel-question.is-emoji { font-size: 2rem; line-height: 1.3; word-break: break-word; letter-spacing: 2px; }
