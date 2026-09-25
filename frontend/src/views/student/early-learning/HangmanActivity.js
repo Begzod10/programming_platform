@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import './WordChartActivity.css';
 import ActivityShell, { useActivityCompletion } from './ActivityShell';
 import { playSynth } from '../../../utils/soundSynth';
@@ -61,6 +61,17 @@ export default function HangmanActivity(props) {
             }
         }
     };
+
+    // Physical keyboard: typing a letter is the same as tapping its key.
+    useEffect(() => {
+        const onKey = (e) => {
+            if (e.ctrlKey || e.metaKey || e.altKey || e.key.length !== 1) return;
+            const ch = e.key.toUpperCase();
+            if (keys.includes(ch)) guess(ch);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    });
 
     if (!entry) return null;
 
