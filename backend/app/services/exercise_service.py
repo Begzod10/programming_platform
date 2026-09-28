@@ -103,7 +103,6 @@ def _feedback_lang_instruction(lang: str) -> str:
 
 async def get_ai_explanation(
         question: str,
-        correct_answer: str,
         student_answer: str,
         explanation: Optional[str] = None,
         course_title: str = "",
@@ -139,7 +138,7 @@ Nima uchun xato bo'lishi mumkinligini va qanday o'ylash kerakligini ayt.
         return text.strip()
     except ProviderError as e:
         logger.warning("[exercise-ai] get_ai_explanation failed: %s", e)
-        return f"Noto'g'ri. To'g'ri javob: {correct_answer}"
+        return "Noto'g'ri. Hozircha AI tushuntirishni ko'rsata olmadik, birozdan so'ng qayta urinib ko'ring."
 
 
 def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "uz") -> dict:
@@ -449,7 +448,6 @@ async def submit_exercise(
     elif not result.get("is_correct") and result.get("needs_ai_explanation"):
         ai_feedback = await get_ai_explanation(
             question=exercise.description,
-            correct_answer=result.get("correct_answer", ""),
             student_answer=data.student_answer,
             explanation=exercise.explanation,
             course_title=course_title,
