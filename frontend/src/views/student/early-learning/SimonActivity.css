@@ -1,0 +1,26 @@
+.sm-status {
+    min-height: 1.6em; margin-bottom: 12px;
+    font-family: var(--el-font-display); font-size: 1.15rem; font-weight: 700;
+    color: var(--el-ink-soft);
+}
+
+.sm-board {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+    width: min(320px, 100%); margin: 0 auto 18px;
+}
+
+/* Each pad rests dimmed and lights up (brighter + glow + slight pop) while
+   it's being shown or pressed. */
+.sm-pad {
+    aspect-ratio: 1 / 1; border: none; border-radius: 26px; cursor: pointer;
+    background: var(--pad); opacity: 0.45;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+    transition: opacity 0.1s, transform 0.1s, box-shadow 0.1s;
+}
+.sm-pad:active:not(:disabled) { transform: scale(0.96); }
+.sm-pad.is-lit {
+    opacity: 1; transform: scale(1.05);
+    box-shadow: 0 0 30px var(--pad), 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+.sm-pad.is-wrong { opacity: 1; animation: sm-shake 0.4s ease; outline: 4px solid var(--el-danger); }
+@keyframes sm-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }

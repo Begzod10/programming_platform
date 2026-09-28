@@ -8,7 +8,7 @@ import StreakBadge from './StreakBadge';
 import {
     LayoutDashboard, User, BookOpen, Map, Monitor, BookMarked,
     Gamepad2, BarChart2, Trophy, Construction, GraduationCap, Award, Puzzle,
-    HelpCircle, Users2,
+    HelpCircle, Users2, Zap,
 } from 'lucide-react';
 
 const COLLAPSED_KEY = 'sidebar:collapsed';
@@ -66,6 +66,7 @@ function Sidebar({ activeTab, onLogout, role, earlyLearningEligible = true }) {
         { id: 'team-game',      label: t('team_game'),                  Icon: Gamepad2,        section: 'main' },
         { id: 'team-projects',  label: t('team_projects') || 'Jamoaviy loyihalar', Icon: Users2, section: 'main' },
         { id: 'quiz',           label: t('quiz'),                       Icon: HelpCircle,      section: 'main' },
+        { id: 'duel',           label: t('duel'),                       Icon: Zap,             section: 'main' },
         // Backend-computed (see schemas/user.py's early_learning_eligible,
         // a coarse age<12 cutoff distinct from early_learning.py's own
         // per-module eligibility) — an older student doesn't need a "for

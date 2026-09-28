@@ -165,3 +165,62 @@ export function registerOfflineSw(scope) {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('/play-sw.js', { scope }).catch(() => {});
 }
+
+/* ── Daily challenge streak (localStorage, per browser) ─────────────────── */
+const DAILY_KEY = 'el_daily_v1';
+const dayStr = (d = new Date()) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+export function getDaily() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(DAILY_KEY) || 'null') || {};
+        const today = dayStr();
+        const yesterday = dayStr(new Date(Date.now() - 86400000));
+        const alive = raw.last === today || raw.last === yesterday; // a missed day breaks the streak
+        return { streak: alive ? raw.streak || 0 : 0, doneToday: raw.last === today, best: raw.best || 0 };
+    } catch {
+        return { streak: 0, doneToday: false, best: 0 };
+    }
+}
+
+/** Call once a daily challenge is finished; only the first one of a day counts. */
+export function recordDaily() {
+    const cur = getDaily();
+    if (cur.doneToday) return cur;
+    const streak = cur.streak + 1;
+    const best = Math.max(cur.best, streak);
+    try { localStorage.setItem(DAILY_KEY, JSON.stringify({ last: dayStr(), streak, best })); } catch { /* ignore */ }
+    return { streak, doneToday: true, best };
+}
+
+/** Same questions for everyone on a given day (seeded from the date). */
+export function dailySeed() {
+    let h = 2166136261;
+    for (const ch of dayStr()) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+}
+
+/* ── Offline star queue: completions that could not reach the server ────── */
+const QUEUE_KEY = 'el_star_queue_v1';
+
+export function queueCompletion(activityId, stars) {
+    try {
+        const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+        const i = q.findIndex((x) => x.activityId === activityId);
+        if (i >= 0) q[i].stars = Math.max(q[i].stars, stars); else q.push({ activityId, stars });
+        localStorage.setItem(QUEUE_KEY, JSON.stringify(q.slice(-100)));
+    } catch { /* ignore */ }
+}
+
+/** Try to send every queued completion; keeps the ones that still fail. */
+export async function flushCompletionQueue(send) {
+    let q;
+    try { q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]'); } catch { return 0; }
+    if (!q.length) return 0;
+    const left = [];
+    for (const item of q) {
+        try { await send(item.activityId, item.stars); } catch { left.push(item); }
+    }
+    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(left)); } catch { /* ignore */ }
+    return q.length - left.length;
+}

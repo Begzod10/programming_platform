@@ -16,8 +16,18 @@ import CauseEffectActivity from './CauseEffectActivity';
 import ArithmeticActivity from './ArithmeticActivity';
 import TypingActivity from './TypingActivity';
 import KeyboardActivity from './KeyboardActivity';
+import CompareActivity from './CompareActivity';
+import SimonActivity from './SimonActivity';
+import WordBuildActivity from './WordBuildActivity';
+import ChartActivity from './ChartActivity';
+import RoundsActivity from './RoundsActivity';
+import BubblesActivity from './BubblesActivity';
+import HangmanActivity from './HangmanActivity';
+import MergeActivity from './MergeActivity';
+import SudokuActivity from './SudokuActivity';
+import PicturePuzzleActivity from './PicturePuzzleActivity';
 import LangToggle from './LangToggle';
-import { applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
+import { getDaily, queueCompletion, flushCompletionQueue, applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -257,7 +267,22 @@ export default function EarlyLearning({ guest = false }) {
         }
     }, [moduleId, fetchModules, fetchModuleDetail]);
 
+    // Stars earned while offline are parked in localStorage (see below) and
+    // sent as soon as the connection is back — on load and on the `online` event.
+    useEffect(() => {
+        if (guest) return undefined;
+        const send = (id, stars) =>
+            request(`${API_URL}v1/early-learning/activities/${id}/complete`, 'POST', { stars }, headers());
+        const flush = () => { flushCompletionQueue(send); };
+        flush();
+        window.addEventListener('online', flush);
+        return () => window.removeEventListener('online', flush);
+    }, [guest, request]);
+
     const handleActivityComplete = (activityId, result) => {
+        // A real server reply carries activity_id; the offline fallback in the
+        // play screens does not, so that's the "didn't save" signal.
+        if (!guest && result.activity_id === undefined) queueCompletion(activityId, result.stars_earned);
         setModuleDetail((prev) => {
             if (!prev) return prev;
             const activities = prev.activities.map((a) =>
@@ -298,7 +323,9 @@ export default function EarlyLearning({ guest = false }) {
             // words ARE authored in content_json, unlike arithmetic's
             // procedural rounds, since real vocabulary can't be generated),
             // "keyboard" is a touch-typing trainer (KeyboardActivity.js —
-            // press the highlighted key, finger shown), anything else (the shipped "select" mode, or an activity with
+            // press the highlighted key, finger shown), "compare" picks <, = or >
+            // (CompareActivity.js), "simon" repeats a growing colour/sound
+            // sequence (SimonActivity.js), anything else (the shipped "select" mode, or an activity with
             // no mode yet) taps items out of a pool (MatchingActivity.js,
             // the original/default game).
             const mode = activity.content?.mode;
@@ -315,6 +342,16 @@ export default function EarlyLearning({ guest = false }) {
                 mode === 'arithmetic' ? ArithmeticActivity :
                 mode === 'typing' ? TypingActivity :
                 mode === 'keyboard' ? KeyboardActivity :
+                mode === 'compare' ? CompareActivity :
+                mode === 'simon' ? SimonActivity :
+                mode === 'wordbuild' ? WordBuildActivity :
+                mode === 'chart' ? ChartActivity :
+                mode === 'rounds' ? RoundsActivity :
+                mode === 'bubbles' ? BubblesActivity :
+                mode === 'hangman' ? HangmanActivity :
+                mode === 'merge' ? MergeActivity :
+                mode === 'sudoku' ? SudokuActivity :
+                mode === 'puzzle' ? PicturePuzzleActivity :
                 MatchingActivity;
             return (
                 <div className="el-shell">
@@ -431,6 +468,16 @@ export default function EarlyLearning({ guest = false }) {
                         </div>
                     )}
                 </div>
+                {(guest || basePath === '/student') && (
+                    <div className="el-entry-row">
+                        <button className="el-duel-btn" onClick={() => navigate(guest ? '/play/duel' : '/student/duel')}>
+                            ⚔️ {lang === 'ru' ? 'Гонка' : 'Poyga'}
+                        </button>
+                        <button className="el-duel-btn el-daily-btn" onClick={() => navigate(guest ? '/play/daily' : '/student/daily')}>
+                            📅 {lang === 'ru' ? 'Задание дня' : 'Kunlik vazifa'} {getDaily().streak > 0 ? `🔥${getDaily().streak}` : ''}
+                        </button>
+                    </div>
+                )}
                 <div className="el-module-grid">
                     {modules.map((module, i) => (
                         <button
