@@ -1,5 +1,6 @@
 .stp-page { padding: 24px; max-width: 900px; margin: 0 auto; }
 .stp-muted { color: rgba(15,23,42,0.55); font-size: 14px; }
+.stp-muted--error { color: #b91c1c; font-weight: 600; }
 
 .stp-sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;

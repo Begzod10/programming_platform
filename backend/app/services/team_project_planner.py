@@ -154,40 +154,62 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
         await broadcast_project(db, team.team_project_id)
         return
 
-    team.project_title = plan["project_title"]
-    team.project_description = plan["project_description"]
-    team.ai_plan_json = json.dumps(plan)
-    team.plan_generated_at = utcnow()
-    team.status = TeamStatus.working
+    team_project_id = team.team_project_id
+    try:
+        team.project_title = plan["project_title"]
+        team.project_description = plan["project_description"]
+        team.ai_plan_json = json.dumps(plan)
+        team.plan_generated_at = utcnow()
+        team.status = TeamStatus.working
 
-    deadline_at = utcnow() + timedelta(days=_deadline_days_for(team))
-    for order, task in enumerate(plan["tasks"]):
-        member_idx = task.get("assign_to_member_index", 0)
-        member_idx = member_idx if 0 <= member_idx < len(members) else order % len(members)
-        db.add(TeamProjectTask(
-            team_id=team.id,
-            assigned_student_id=members[member_idx].student_id,
-            order=order,
-            title=task["title"], title_ru=task.get("title_ru") or task["title"],
-            description=task["description"],
-            description_ru=task.get("description_ru") or task["description"],
-            required_level=task.get("required_level", "Beginner"),
-            interface_contract_json=json.dumps(task.get("interface_contract", {})),
-            acceptance_criteria_json=json.dumps(task.get("acceptance_criteria", [])),
-            depends_on_json=json.dumps(task.get("depends_on", [])),
-            estimated_hours=int(task.get("estimated_hours", 4)),
-            deadline_at=deadline_at,
+        deadline_at = utcnow() + timedelta(days=_deadline_days_for(team))
+        for order, task in enumerate(plan["tasks"]):
+            member_idx = task.get("assign_to_member_index", 0)
+            member_idx = member_idx if 0 <= member_idx < len(members) else order % len(members)
+            db.add(TeamProjectTask(
+                team_id=team.id,
+                assigned_student_id=members[member_idx].student_id,
+                order=order,
+                title=task["title"], title_ru=task.get("title_ru") or task["title"],
+                description=task["description"],
+                description_ru=task.get("description_ru") or task["description"],
+                required_level=task.get("required_level", "Beginner"),
+                interface_contract_json=json.dumps(task.get("interface_contract", {})),
+                acceptance_criteria_json=json.dumps(task.get("acceptance_criteria", [])),
+                depends_on_json=json.dumps(task.get("depends_on", [])),
+                estimated_hours=int(task.get("estimated_hours", 4)),
+                deadline_at=deadline_at,
+            ))
+
+        db.add(TeamProjectEvent(
+            team_project_id=team.team_project_id, team_id=team.id,
+            event_type="plan_generated",
+            payload_json=json.dumps({"provider": provider, "task_count": len(plan["tasks"])}),
         ))
+        await db.commit()
+    except Exception as e:
+        # Mirrors the AI-failure branch above: a plan that passed validation
+        # can still fail to materialize (DB constraint, bad cast, etc). Without
+        # this, the team is left silently stuck at `forming` with a consumed
+        # attempt and no visible sign anything happened (see incident notes
+        # in team_project.py's module docstring for what "silently stuck"
+        # costs in practice).
+        logger.error("[team-planner] team=%d materialization failed: %s", team_id, e)
+        await db.rollback()
+        db.add(TeamProjectEvent(
+            team_project_id=team_project_id, team_id=team_id,
+            event_type="plan_generation_failed",
+            payload_json=json.dumps({"error": str(e)}),
+        ))
+        await db.commit()
+        from app.api.v1.endpoints.team_project import broadcast_team, broadcast_project
+        await broadcast_team(db, team_id)
+        await broadcast_project(db, team_project_id)
+        return
 
-    db.add(TeamProjectEvent(
-        team_project_id=team.team_project_id, team_id=team.id,
-        event_type="plan_generated",
-        payload_json=json.dumps({"provider": provider, "task_count": len(plan["tasks"])}),
-    ))
-    await db.commit()
     from app.api.v1.endpoints.team_project import broadcast_team, broadcast_project
     await broadcast_team(db, team_id)
-    await broadcast_project(db, team.team_project_id)
+    await broadcast_project(db, team_project_id)
 
 
 def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:

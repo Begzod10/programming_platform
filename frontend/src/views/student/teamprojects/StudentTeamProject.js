@@ -332,7 +332,13 @@ const StudentTeamProject = () => {
             })()}
 
             {team.tasks.length === 0 && (
-                <p className="stp-muted">Loyiha rejasi tayyorlanmoqda, biroz kuting…</p>
+                team.status === 'forming' && team.generation_attempts >= 3 ? (
+                    <p className="stp-muted stp-muted--error">
+                        Loyiha rejasini avtomatik yaratib bo'lmadi. Iltimos, o'qituvchingizga xabar bering.
+                    </p>
+                ) : (
+                    <p className="stp-muted">Loyiha rejasi tayyorlanmoqda, biroz kuting…</p>
+                )
             )}
 
             <div className="stp-tasks-grid">
