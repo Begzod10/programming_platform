@@ -92,10 +92,12 @@ const TaskCard = ({ task, isMine, onSubmit, submitting }) => {
     );
 };
 
-const PeerRatings = ({ team, meId, onSubmit, submitting, submitted }) => {
+const PeerRatings = ({ team, meId, onSubmit, submitting, submitted, initialRatings }) => {
     const teammates = team.members.filter(m => m.student_id !== meId);
     const [ratings, setRatings] = useState(
-        () => Object.fromEntries(teammates.map(m => [m.student_id, { score: 0, comment: '' }]))
+        () => Object.fromEntries(teammates.map(m => [
+            m.student_id, initialRatings?.[m.student_id] || { score: 0, comment: '' },
+        ]))
     );
 
     if (teammates.length === 0) return null;
@@ -170,6 +172,8 @@ const StudentTeamProject = () => {
     const [meId, setMeId] = useState(null);
     const [ratingSubmitting, setRatingSubmitting] = useState(false);
     const [ratingSubmitted, setRatingSubmitted] = useState(false);
+    const [myRatings, setMyRatings] = useState({});
+    const [myRatingsLoaded, setMyRatingsLoaded] = useState(false);
     const [error, setError] = useState(null);
 
     const reload = useCallback(async () => {
@@ -204,6 +208,40 @@ const StudentTeamProject = () => {
         });
     }, []);
     useSessionSocket(myTeamId, null, null, handleTeamWsMessage, 'team-projects/teams');
+
+    // Hydrates the peer-rating form from what THIS student already
+    // submitted, so a reload after rating doesn't reset to blank stars
+    // with no signal ratings exist (see PeerRatings' initialRatings).
+    // ratingSubmitted flips true only once every teammate is covered,
+    // matching submitRatings' own all-or-nothing submit.
+    const myTeamStatus = entries[0]?.my_team?.status;
+    useEffect(() => {
+        if (!myTeamId || !(myTeamStatus === 'submitted' || myTeamStatus === 'reviewed')) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const data = await request(
+                    `${API_URL}v1/team-projects/teams/${myTeamId}/peer-ratings/mine`, 'GET', null, headers(),
+                );
+                if (cancelled) return;
+                const map = Object.fromEntries(
+                    (Array.isArray(data) ? data : []).map(r => [r.rated_student_id, { score: r.score, comment: r.comment || '' }])
+                );
+                setMyRatings(map);
+                setMyRatingsLoaded(true);
+                const team = entries[0]?.my_team;
+                const teammateIds = (team?.members || []).filter(m => m.student_id !== meId).map(m => m.student_id);
+                if (teammateIds.length > 0 && teammateIds.every(id => map[id])) {
+                    setRatingSubmitted(true);
+                }
+            } catch {
+                // Best-effort hydration only — on failure the form just stays
+                // blank/resubmittable, same as before this fix existed.
+                if (!cancelled) setMyRatingsLoaded(true);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [myTeamId, myTeamStatus, meId, request]);
 
     useEffect(() => {
         try {
@@ -353,7 +391,7 @@ const StudentTeamProject = () => {
                 ))}
             </div>
 
-            {role === 'lead' && (
+            {role === 'lead' && team.status !== 'submitted' && team.status !== 'reviewed' && (
                 <div className="stp-finalize">
                     <button
                         className="stp-btn stp-btn--primary"
@@ -366,12 +404,18 @@ const StudentTeamProject = () => {
                 </div>
             )}
 
+            {role === 'lead' && (team.status === 'submitted' || team.status === 'reviewed') && (
+                <p className="stp-muted">Loyiha allaqachon yakuniy topshirildi.</p>
+            )}
+
             {(team.status === 'submitted' || team.status === 'reviewed') && (
                 <PeerRatings
+                    key={myRatingsLoaded ? 'hydrated' : 'loading'}
                     team={team}
                     meId={meId}
                     submitting={ratingSubmitting}
                     submitted={ratingSubmitted}
+                    initialRatings={myRatings}
                     onSubmit={items => submitRatings(team, items)}
                 />
             )}

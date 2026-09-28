@@ -23,7 +23,7 @@ from app.models.team_project import (
 from app.schemas.team_project import (
     TeamProjectCreate, TeamProjectRead, TeamRead, TaskRead, MemberRead,
     MyTeamProjectRead, TaskSubmitBody, ReassignBody, FinalizeBody, PeerRatingItem,
-    PeerRatingRead, TeamEventRead, ManualPlanBody,
+    PeerRatingRead, MyPeerRatingRead, TeamEventRead, ManualPlanBody,
 )
 from app.services.team_project_service import create_team_project
 from app.services.team_project_planner import generate_plan_for_team, validate_plan, MAX_GENERATION_ATTEMPTS
@@ -857,6 +857,30 @@ async def submit_peer_ratings(
                 score=item.score, comment=item.comment,
             ))
     await db.commit()
+
+
+# ── Student: view MY OWN previously-submitted peer ratings for a team ──────
+@router.get("/teams/{team_id}/peer-ratings/mine", response_model=list[MyPeerRatingRead])
+async def get_my_peer_ratings(
+        team_id: int,
+        db: AsyncSession = Depends(get_db),
+        student: Student = Depends(get_current_student),
+):
+    """Lets the peer-rating form hydrate to an already-submitted state
+    after a reload, instead of resetting to blank stars with no signal
+    that ratings already exist — see MyPeerRatingRead's docstring. Safe
+    for the student themselves (unlike PeerRatingRead) since it only ever
+    returns ratings THEY gave, never ratings they received."""
+    ratings = (await db.execute(
+        select(TeamProjectPeerRating).where(
+            TeamProjectPeerRating.team_id == team_id,
+            TeamProjectPeerRating.rater_student_id == student.id,
+        )
+    )).scalars().all()
+    return [
+        MyPeerRatingRead(rated_student_id=r.rated_student_id, score=r.score, comment=r.comment)
+        for r in ratings
+    ]
 
 
 # ── Teacher: view submitted peer ratings for a team ─────────────────────────

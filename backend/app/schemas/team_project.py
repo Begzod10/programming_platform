@@ -160,6 +160,19 @@ class PeerRatingRead(BaseModel):
     created_at: datetime
 
 
+class MyPeerRatingRead(BaseModel):
+    """A student's own view of ratings THEY gave — see GET
+    /teams/{team_id}/peer-ratings/mine. Unlike PeerRatingRead this is safe
+    for the rating student themselves (no "who rated me what" leak, since
+    rater is always the caller) — it exists so the peer-rating form can
+    hydrate to an already-submitted state after a reload instead of
+    silently resetting to blank, inviting an accidental overwrite of a
+    rating the student already gave."""
+    rated_student_id: int
+    score: int
+    comment: Optional[str] = None
+
+
 class TeamEventRead(BaseModel):
     """Teacher-only view of TeamProjectEvent rows — see GET
     /teams/{team_id}/events. TeamProjectEvent is an append-only audit log
