@@ -22,16 +22,15 @@ const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w =
 const CreateModal = ({ onClose, onCreated }) => {
     const { request } = useHttp();
     const [groups, setGroups] = useState([]);
+    // groupId is a FILTER/quick-select convenience only — picking one just
+    // bulk-checks its students, it is NOT required to submit and does not
+    // have to match who ends up selected. The actual group_id sent to the
+    // backend (still a required FK there — see create_team_project) is
+    // derived from the selection itself at submit time (whichever group
+    // most of the picked students belong to), never from this dropdown.
     const [groupId, setGroupId] = useState('');
     const [teamSize, setTeamSize] = useState(4);
     const [deadlineDays, setDeadlineDays] = useState(14);
-    // Explicit per-student opt-in, keyed by student_id — NOT derived from
-    // groupId at submit time. A teacher picks a primary group (still
-    // required: group_id is the FK team_project rows hang off, and the
-    // "one active assignment per group" check uses it), then can uncheck
-    // anyone who won't be participating this round, or check students in
-    // from one of their OTHER groups too — see backend/create_team_project's
-    // docstring on why student_ids no longer has to equal group.students.
     const [selected, setSelected] = useState({});
     const [search, setSearch] = useState('');
     const [busy, setBusy] = useState(false);
@@ -43,9 +42,8 @@ const CreateModal = ({ onClose, onCreated }) => {
             .catch(() => {});
     }, [request]);
 
-    // Picking a primary group is a convenience default, not a constraint:
-    // check every one of its students, but leave any other group's
-    // checkboxes (from a previous pick) exactly as the teacher left them.
+    // Quick-select: bulk-check a group's students. Leaves any other
+    // group's checkboxes (from a previous pick) exactly as they were.
     const chooseGroup = (id) => {
         setGroupId(id);
         const group = groups.find(g => String(g.id) === String(id));
@@ -74,14 +72,37 @@ const CreateModal = ({ onClose, onCreated }) => {
     const query = search.trim().toLowerCase();
     const matches = (s) => !query || (s.full_name || s.username || '').toLowerCase().includes(query);
 
+    // The backend still needs ONE group_id (its FK, and the "one active
+    // assignment per group" collision check) — but the teacher is picking
+    // people, not a group, so derive it instead of asking for it: whichever
+    // of the teacher's groups has the most students in common with the
+    // current selection wins. Ties go to whichever group comes first in
+    // `groups` (stable, not random) — with real rosters a tie across two
+    // full groups is vanishingly rare, and this only decides bookkeeping,
+    // never who's on the team.
+    const inferGroupId = () => {
+        let bestId = null;
+        let bestCount = -1;
+        for (const g of groups) {
+            const count = (g.students || []).filter(s => selected[s.id]).length;
+            if (count > bestCount) { bestCount = count; bestId = g.id; }
+        }
+        return bestId;
+    };
+
     const submit = async () => {
-        if (!groupId) { setError("Guruhni tanlang"); return; }
         if (selectedCount < 2) { setError("Kamida 2 ta o'quvchi tanlang"); return; }
+        // Always derived fresh from the final selection — the dropdown is
+        // just a filter to bulk-check a group, so a teacher who quick-picked
+        // one group and then hand-edited the selection afterward should not
+        // have that first click silently win over what they actually chose.
+        const derivedGroupId = inferGroupId();
+        if (!derivedGroupId) { setError("Kamida bitta o'quvchi biror guruhga tegishli bo'lishi kerak"); return; }
         setBusy(true);
         setError(null);
         try {
             await request(`${API_URL}v1/team-projects`, 'POST', JSON.stringify({
-                group_id: Number(groupId),
+                group_id: Number(derivedGroupId),
                 team_size: Number(teamSize),
                 deadline_days: Number(deadlineDays),
                 student_ids: selectedIds,
@@ -105,16 +126,16 @@ const CreateModal = ({ onClose, onCreated }) => {
                 <header className="ttp-modal-head ttp-modal-head--accent">
                     <div>
                         <h3>Jamoaviy loyiha topshirig'i</h3>
-                        <p className="ttp-modal-subtitle">Guruh tanlang, keyin ishtirokchilarni o'zingiz belgilang</p>
+                        <p className="ttp-modal-subtitle">Pastda ishtirokchilarni o'zingiz belgilang</p>
                     </div>
                     <button className="ttp-close" onClick={onClose}>✕</button>
                 </header>
                 <div className="ttp-modal-body">
                     <div className="ttp-form-row">
                         <label className="ttp-field">
-                            <span>Asosiy guruh</span>
+                            <span>Guruh bo'yicha tezkor tanlash (ixtiyoriy)</span>
                             <select value={groupId} onChange={e => chooseGroup(e.target.value)}>
-                                <option value="">— tanlang —</option>
+                                <option value="">— guruh tanlab, hammasini belgilash —</option>
                                 {groups.map(g => (
                                     <option key={g.id} value={g.id}>
                                         {g.name} ({g.students?.length ?? 0} ta o'quvchi)
