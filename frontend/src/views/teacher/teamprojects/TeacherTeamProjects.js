@@ -5,6 +5,20 @@ import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { isStuckWithNoManualPlan } from './isStuckWithNoManualPlan';
 import './TeacherTeamProjects.css';
 
+// Deterministic pastel-on-dark avatar color, picked from the name so the
+// same student always gets the same color across renders/reloads rather
+// than a random one that would flicker on every re-render.
+const AVATAR_PALETTE = [
+    ['#ede9fe', '#6d28d9'], ['#fef3c7', '#b45309'], ['#dbeafe', '#1d4ed8'],
+    ['#dcfce7', '#15803d'], ['#fce7f3', '#be185d'], ['#e0f2fe', '#0369a1'],
+];
+const avatarColors = (name) => {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+    return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+};
+const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+
 const CreateModal = ({ onClose, onCreated }) => {
     const { request } = useHttp();
     const [groups, setGroups] = useState([]);
@@ -19,6 +33,7 @@ const CreateModal = ({ onClose, onCreated }) => {
     // from one of their OTHER groups too — see backend/create_team_project's
     // docstring on why student_ids no longer has to equal group.students.
     const [selected, setSelected] = useState({});
+    const [search, setSearch] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState(null);
 
@@ -46,8 +61,18 @@ const CreateModal = ({ onClose, onCreated }) => {
         setSelected(prev => ({ ...prev, [studentId]: !prev[studentId] }));
     };
 
+    const setGroupAll = (group, value) => {
+        setSelected(prev => {
+            const next = { ...prev };
+            for (const s of group.students || []) next[s.id] = value;
+            return next;
+        });
+    };
+
     const selectedIds = Object.keys(selected).filter(id => selected[id]).map(Number);
     const selectedCount = selectedIds.length;
+    const query = search.trim().toLowerCase();
+    const matches = (s) => !query || (s.full_name || s.username || '').toLowerCase().includes(query);
 
     const submit = async () => {
         if (!groupId) { setError("Guruhni tanlang"); return; }
@@ -76,60 +101,114 @@ const CreateModal = ({ onClose, onCreated }) => {
 
     return ReactDOM.createPortal(
         <div className="ttp-overlay" onClick={onClose}>
-            <div className="ttp-modal ttp-modal--wide" onClick={e => e.stopPropagation()}>
-                <header className="ttp-modal-head">
-                    <h3>Jamoaviy loyiha topshirig'i</h3>
+            <div className="ttp-modal ttp-modal--wide ttp-modal--create" onClick={e => e.stopPropagation()}>
+                <header className="ttp-modal-head ttp-modal-head--accent">
+                    <div>
+                        <h3>Jamoaviy loyiha topshirig'i</h3>
+                        <p className="ttp-modal-subtitle">Guruh tanlang, keyin ishtirokchilarni o'zingiz belgilang</p>
+                    </div>
                     <button className="ttp-close" onClick={onClose}>✕</button>
                 </header>
                 <div className="ttp-modal-body">
-                    <label className="ttp-field">
-                        <span>Asosiy guruh</span>
-                        <select value={groupId} onChange={e => chooseGroup(e.target.value)}>
-                            <option value="">— tanlang —</option>
-                            {groups.map(g => (
-                                <option key={g.id} value={g.id}>
-                                    {g.name} ({g.students?.length ?? 0} ta o'quvchi)
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                    <label className="ttp-field">
-                        <span>Jamoa hajmi</span>
-                        <input type="number" min={2} max={10} value={teamSize}
-                               onChange={e => setTeamSize(e.target.value)} />
-                    </label>
-                    <label className="ttp-field">
-                        <span>Muddat (kun)</span>
-                        <input type="number" min={1} max={90} value={deadlineDays}
-                               onChange={e => setDeadlineDays(e.target.value)} />
-                    </label>
+                    <div className="ttp-form-row">
+                        <label className="ttp-field">
+                            <span>Asosiy guruh</span>
+                            <select value={groupId} onChange={e => chooseGroup(e.target.value)}>
+                                <option value="">— tanlang —</option>
+                                {groups.map(g => (
+                                    <option key={g.id} value={g.id}>
+                                        {g.name} ({g.students?.length ?? 0} ta o'quvchi)
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="ttp-field ttp-field--sm">
+                            <span>Jamoa hajmi</span>
+                            <input type="number" min={2} max={10} value={teamSize}
+                                   onChange={e => setTeamSize(e.target.value)} />
+                        </label>
+                        <label className="ttp-field ttp-field--sm">
+                            <span>Muddat (kun)</span>
+                            <input type="number" min={1} max={90} value={deadlineDays}
+                                   onChange={e => setDeadlineDays(e.target.value)} />
+                        </label>
+                    </div>
 
                     {groups.length > 0 && (
                         <div className="ttp-field">
-                            <span>
-                                O'quvchilarni tanlang ({selectedCount} ta tanlandi) — ishtirok
-                                etmaydiganlarni belgidan chiqaring, kerak bo'lsa boshqa
-                                guruhdan ham qo'shing
-                            </span>
+                            <div className="ttp-picker-label-row">
+                                <span>O'quvchilarni tanlang</span>
+                                <span className={`ttp-selected-pill${selectedCount < 2 ? ' ttp-selected-pill--warn' : ''}`}>
+                                    {selectedCount} ta tanlandi
+                                </span>
+                            </div>
+                            <p className="ttp-picker-hint">
+                                Ishtirok etmaydiganlarni belgidan chiqaring, kerak bo'lsa boshqa guruhdan ham qo'shing.
+                            </p>
+                            <input
+                                className="ttp-search"
+                                placeholder="🔍 Ism bo'yicha qidirish…"
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                            />
                             <div className="ttp-student-picker">
-                                {groups.map(g => (
-                                    <div key={g.id} className="ttp-student-picker-group">
-                                        <div className="ttp-student-picker-group-name">{g.name}</div>
-                                        {(g.students || []).length === 0 && (
-                                            <p className="ttp-muted">O'quvchilar yo'q</p>
-                                        )}
-                                        {(g.students || []).map(s => (
-                                            <label key={s.id} className="ttp-student-checkbox">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={!!selected[s.id]}
-                                                    onChange={() => toggleStudent(s.id)}
-                                                />
-                                                {s.full_name || s.username}
-                                            </label>
-                                        ))}
-                                    </div>
-                                ))}
+                                {groups.map(g => {
+                                    const visible = (g.students || []).filter(matches);
+                                    if (query && visible.length === 0) return null;
+                                    const allChecked = (g.students || []).length > 0
+                                        && (g.students || []).every(s => selected[s.id]);
+                                    return (
+                                        <div key={g.id} className="ttp-student-picker-group">
+                                            <div className="ttp-student-picker-group-head">
+                                                <span className="ttp-student-picker-group-name">{g.name}</span>
+                                                {(g.students || []).length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        className="ttp-select-all-btn"
+                                                        onClick={() => setGroupAll(g, !allChecked)}
+                                                    >
+                                                        {allChecked ? 'Hammasini bekor qilish' : 'Hammasini tanlash'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {(g.students || []).length === 0 && (
+                                                <p className="ttp-muted">O'quvchilar yo'q</p>
+                                            )}
+                                            <div className="ttp-student-grid">
+                                                {visible.map(s => {
+                                                    const name = s.full_name || s.username;
+                                                    const [bg, fg] = avatarColors(name);
+                                                    const checked = !!selected[s.id];
+                                                    return (
+                                                        <label
+                                                            key={s.id}
+                                                            className={`ttp-student-chip${checked ? ' ttp-student-chip--on' : ''}`}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={checked}
+                                                                onChange={() => toggleStudent(s.id)}
+                                                            />
+                                                            <span
+                                                                className="ttp-student-avatar"
+                                                                style={{ background: bg, color: fg }}
+                                                            >
+                                                                {initials(name)}
+                                                            </span>
+                                                            <span className="ttp-student-chip-name">{name}</span>
+                                                            <span className="ttp-student-chip-check" aria-hidden="true">✓</span>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {query && groups.every(g => (g.students || []).filter(matches).length === 0) && (
+                                    <p className="ttp-muted ttp-no-results">
+                                        "{search}" bo'yicha hech kim topilmadi
+                                    </p>
+                                )}
                             </div>
                         </div>
                     )}
