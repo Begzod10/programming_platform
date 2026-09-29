@@ -202,6 +202,10 @@
 .ttd-team-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .ttd-team-header h3 { margin: 0; font-size: 18px; }
 .ttd-project-desc { color: #475569; font-size: 14px; margin: 6px 0 12px; }
+.ttd-progress { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; }
+.ttd-progress-bar { flex: 1; height: 8px; border-radius: 999px; background: #f1f5f9; overflow: hidden; }
+.ttd-progress-fill { height: 100%; border-radius: 999px; background: #0d9488; transition: width .3s ease; }
+.ttd-progress-label { color: rgba(15,23,42,0.55); font-size: 12px; font-weight: 700; white-space: nowrap; }
 
 .ttd-tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; margin: 18px 0 4px; }
 .ttd-task { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 16px 18px; }

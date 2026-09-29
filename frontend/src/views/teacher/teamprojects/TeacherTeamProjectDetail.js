@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import { formatTeamEvent } from './formatTeamEvent';
+import { isStuckWithNoManualPlan } from './isStuckWithNoManualPlan';
 import './TeacherTeamProjects.css';
 
 const STATUS_LABELS = {
@@ -589,6 +590,11 @@ const TeacherTeamProjectDetail = () => {
                             {STATUS_LABELS[team.status] || team.status}
                         </span>
                     </div>
+                    {isStuckWithNoManualPlan(team) && (
+                        <div className="ttp-stuck-banner">
+                            <span aria-hidden="true">⚠️</span> Reja yaratilmadi — qo'lda reja tuzish kerak
+                        </div>
+                    )}
                     <div className="ttp-team-badges">
                         {team.theme_label && <span className="ttp-badge">{team.theme_label}</span>}
                         {team.tech_stack_label && <span className="ttp-badge ttp-badge--tech">{team.tech_stack_label}</span>}
@@ -602,6 +608,27 @@ const TeacherTeamProjectDetail = () => {
                             </span>
                         ))}
                     </div>
+
+                    {team.tasks.length > 0 && (() => {
+                        const total = team.tasks.length;
+                        const approvedCount = team.tasks.filter(t => t.status === 'approved').length;
+                        const pct = Math.round((approvedCount / total) * 100);
+                        return (
+                            <div className="ttd-progress">
+                                <div
+                                    className="ttd-progress-bar"
+                                    role="progressbar"
+                                    aria-valuenow={approvedCount}
+                                    aria-valuemin={0}
+                                    aria-valuemax={total}
+                                    aria-label="Vazifalar bajarilishi"
+                                >
+                                    <div className="ttd-progress-fill" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="ttd-progress-label">{approvedCount}/{total} vazifa tasdiqlandi</span>
+                            </div>
+                        );
+                    })()}
 
                     <div className="ttd-plan-actions">
                         {team.generation_attempts < 3 && (
@@ -630,6 +657,12 @@ const TeacherTeamProjectDetail = () => {
                             onCancel={() => { setManualPlanTeamId(null); setManualPlanError(''); }}
                             onSubmit={body => submitManualPlan(team.id, body)}
                         />
+                    )}
+
+                    {team.tasks.length === 0 && !isStuckWithNoManualPlan(team) && manualPlanTeamId !== team.id && (
+                        <p className="ttp-muted">
+                            Bu jamoa uchun hali vazifalar yo'q — reja yaratilishi kutilmoqda.
+                        </p>
                     )}
 
                     <div className="ttd-tasks-grid">
