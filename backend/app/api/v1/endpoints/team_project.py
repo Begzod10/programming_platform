@@ -1,11 +1,15 @@
 import asyncio
 import json
 import logging
+import uuid
 from collections import defaultdict
 from datetime import timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter, Depends, File, HTTPException, Query, UploadFile,
+    WebSocket, WebSocketDisconnect, status,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -13,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.core.security import decode_access_token
 from app.api.v1.endpoints.team_game_common import spawn_background_task
+from app.api.v1.endpoints.projects import PROJECTS_UPLOAD_DIR
 from app.dependencies import get_db, get_current_teacher, get_current_student
 from app.models.group import Group
 from app.models.user import Student, UserRole
@@ -30,6 +35,7 @@ from app.services.team_project_planner import generate_plan_for_team, validate_p
 from app.services.team_project_task_review import review_task_submission
 from app.services.team_project_constants import THEMES_BY_KEY, TECH_STACKS_BY_KEY
 from app.services.project_service import ProjectService
+from app.services.github_repo_service import zip_bytes_have_code_file
 from app.schemas.project import ProjectCreate
 from app.utils.datetime_utils import utcnow
 from app.ws.manager import team_ws_manager, team_project_ws_manager
@@ -589,6 +595,72 @@ async def create_manual_plan(
     await broadcast_team(db, team_id)
     await broadcast_project(db, team.team_project_id)
     return _team_read(team_out)
+
+
+# ── Student: upload a ZIP for a task (alternative to a GitHub URL) ─────────
+# Two-step by design, mirroring app/api/v1/endpoints/projects.py's own
+# upload-zip: this endpoint only validates + saves the file and hands back
+# a submission_files reference, exactly the same string shape submit_task
+# already accepts (TaskSubmitBody.submission_files). It never touches the
+# task row itself — the frontend still calls POST .../submit with that
+# reference to actually submit, so review_task_submission/broadcast stay
+# defined in exactly one place instead of being duplicated here.
+@router.post("/teams/{team_id}/tasks/{task_id}/upload-zip")
+async def upload_task_zip(
+        team_id: int, task_id: int,
+        file: UploadFile = File(...),
+        db: AsyncSession = Depends(get_db),
+        student: Student = Depends(get_current_student),
+):
+    import zipfile
+    import io
+
+    task = (await db.execute(
+        select(TeamProjectTask).where(
+            TeamProjectTask.id == task_id, TeamProjectTask.team_id == team_id,
+        )
+    )).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=404, detail="Vazifa topilmadi")
+    if task.assigned_student_id != student.id:
+        raise HTTPException(status_code=403, detail="Bu vazifa sizga tegishli emas")
+
+    allowed_types = ["application/zip", "application/x-zip-compressed", "application/octet-stream"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Faqat ZIP fayl!")
+
+    contents = await file.read()
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="ZIP fayl bo'sh!")
+    if len(contents) > 15 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="ZIP fayl 15MB dan katta!")
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(contents)) as zf:
+            real_files = [n for n in zf.namelist() if not n.endswith("/")]
+            if not real_files:
+                raise HTTPException(status_code=400, detail="ZIP ichida fayl yo'q!")
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="Noto'g'ri ZIP fayl!")
+
+    # Same gate projects.py's upload-zip uses: reject anything that would
+    # only ever fail AI review later (a ZIP that's just images/binaries),
+    # rather than letting the task sit "submitted" forever with no code to
+    # actually review.
+    if not zip_bytes_have_code_file(contents):
+        raise HTTPException(
+            status_code=400,
+            detail="ZIP'da o'qiladigan kod fayli yo'q (faqat rasm/binar yoki "
+                   "arxiv fayllar bor). Haqiqiy loyiha fayllaringizni "
+                   "(.html, .css, .js va h.k.) to'g'ridan-to'g'ri ZIP qiling.",
+        )
+
+    filename = f"{uuid.uuid4()}.zip"
+    filepath = PROJECTS_UPLOAD_DIR / filename
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    return {"submission_files": f"/uploads/projects/{filename}"}
 
 
 # ── Student: submit a task ──────────────────────────────────────────────────

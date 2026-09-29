@@ -37,10 +37,29 @@ function deadlineLabel(task) {
     return { text: `${daysLeft} kun qoldi`, warning: daysLeft <= 2 };
 }
 
-const TaskCard = ({ task, isMine, onSubmit, submitting }) => {
+const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting }) => {
     const [url, setUrl] = useState('');
+    const [file, setFile] = useState(null);
+    const [fileError, setFileError] = useState('');
     const feedback = task.ai_feedback;
     const deadline = deadlineLabel(task);
+
+    const handleFileChange = (e) => {
+        const picked = e.target.files?.[0] || null;
+        setFileError('');
+        if (picked && picked.size > 15 * 1024 * 1024) {
+            setFile(null);
+            setFileError("Fayl 15MB dan katta bo'lmasligi kerak");
+            e.target.value = '';
+            return;
+        }
+        setFile(picked);
+    };
+
+    const submit = () => {
+        if (url) onSubmit(task.id, url);
+        else if (file) onSubmitFile(task.id, file);
+    };
 
     return (
         <div className={`stp-task${isMine ? ' stp-task--mine' : ''}`}>
@@ -71,12 +90,21 @@ const TaskCard = ({ task, isMine, onSubmit, submitting }) => {
                         id={`stp-url-${task.id}`}
                         placeholder="https://github.com/foydalanuvchi/loyiha"
                         value={url}
-                        onChange={e => setUrl(e.target.value)}
+                        onChange={e => { setUrl(e.target.value); if (e.target.value) { setFile(null); setFileError(''); } }}
                     />
+                    <div className="stp-submit-divider"><span>yoki</span></div>
+                    <label className="stp-field-label" htmlFor={`stp-file-${task.id}`}>ZIP fayl yuklash</label>
+                    <input
+                        id={`stp-file-${task.id}`}
+                        type="file"
+                        accept=".zip"
+                        onChange={e => { handleFileChange(e); if (e.target.files?.[0]) setUrl(''); }}
+                    />
+                    {fileError && <p className="stp-file-error">{fileError}</p>}
                     <button
                         className="stp-btn stp-btn--primary"
-                        disabled={!url || submitting}
-                        onClick={() => onSubmit(task.id, url)}
+                        disabled={(!url && !file) || submitting}
+                        onClick={submit}
                     >
                         {submitting ? 'Yuborilmoqda…' : 'Topshirish'}
                     </button>
@@ -268,6 +296,35 @@ const StudentTeamProject = () => {
         }
     };
 
+    // Two-step, mirroring the backend split (upload-zip validates+saves and
+    // hands back a submission_files reference; /submit is the one place
+    // that actually flips task status and triggers AI review — see
+    // upload_task_zip's docstring on why that logic isn't duplicated here
+    // either). A student without a GitHub repo can attach a ZIP instead.
+    const submitTaskFile = async (taskId, file) => {
+        const entry = entries[0];
+        if (!entry) return;
+        setSubmittingId(taskId);
+        setError(null);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const uploadResult = await request(
+                `${API_URL}v1/team-projects/teams/${entry.my_team.id}/tasks/${taskId}/upload-zip`,
+                'POST', formData,
+            );
+            await request(
+                `${API_URL}v1/team-projects/teams/${entry.my_team.id}/tasks/${taskId}/submit`,
+                'POST', JSON.stringify({ submission_files: uploadResult.submission_files }), headers(),
+            );
+            await reload();
+        } catch (e) {
+            setError(getBackendErrorMessage(e, "Vazifani topshirib bo'lmadi"));
+        } finally {
+            setSubmittingId(null);
+        }
+    };
+
     const finalize = async (team) => {
         setFinalizing(true);
         setError(null);
@@ -387,6 +444,7 @@ const StudentTeamProject = () => {
                         isMine={task.assigned_student_id === meId}
                         submitting={submittingId === task.id}
                         onSubmit={submitTask}
+                        onSubmitFile={submitTaskFile}
                     />
                 ))}
             </div>

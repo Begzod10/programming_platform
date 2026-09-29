@@ -66,7 +66,21 @@
     display: block; flex-basis: 100%; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 4px;
 }
 .stp-submit-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.stp-submit-row input { flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
+.stp-submit-row input[type="text"], .stp-submit-row input:not([type]) {
+    flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px;
+}
+.stp-submit-row input[type="file"] {
+    flex-basis: 100%; font-size: 12.5px; color: #475569;
+}
+.stp-submit-divider {
+    flex-basis: 100%; display: flex; align-items: center; gap: 8px;
+    color: #94a3b8; font-size: 11px; font-weight: 700; text-transform: uppercase;
+    margin: 2px 0;
+}
+.stp-submit-divider::before, .stp-submit-divider::after {
+    content: ''; flex: 1; height: 1px; background: #e2e8f0;
+}
+.stp-file-error { flex-basis: 100%; color: #dc2626; font-size: 12px; font-weight: 600; margin: 0; }
 
 .stp-btn { border: none; border-radius: 10px; padding: 9px 16px; font-weight: 700; font-size: 13px; cursor: pointer; }
 .stp-btn--primary { background: #0d9488; color: #fff; }
