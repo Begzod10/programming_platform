@@ -80,24 +80,37 @@ async def forming_team(async_client, db_session):
 
 
 def _valid_tasks(student_ids):
+    # Descriptions/acceptance_criteria/files detailed enough to clear
+    # validate_plan's content-quality floor (MIN_DESCRIPTION_LEN/
+    # MIN_ACCEPTANCE_CRITERIA) — the manual-plan endpoint reuses the same
+    # validator an AI-generated plan goes through, so a teacher-authored
+    # plan has to clear the same bar.
     return [
         {
             "assigned_student_id": student_ids[0],
             "title": "Login form", "title_ru": "Login formasi",
-            "description": "d", "description_ru": "o",
+            "description": "Build a login form with username and password fields.",
+            "description_ru": "Login formasi yasang.",
             "required_level": "Beginner",
-            "interface_contract": {"produces": ["POST /api/login -> {token}"], "consumes": []},
-            "acceptance_criteria": ["works"],
+            "interface_contract": {
+                "files": ["src/Login.jsx"],
+                "produces": ["POST /api/login -> {token}"], "consumes": [],
+            },
+            "acceptance_criteria": ["Valid login redirects to dashboard", "Invalid login shows an error"],
             "depends_on": [],
             "estimated_hours": 4,
         },
         {
             "assigned_student_id": student_ids[1],
             "title": "Dashboard", "title_ru": "Boshqaruv paneli",
-            "description": "d", "description_ru": "o",
+            "description": "Build a dashboard page that shows the logged-in user's data.",
+            "description_ru": "Boshqaruv panelini yasang.",
             "required_level": "Beginner",
-            "interface_contract": {"produces": [], "consumes": ["POST /api/login -> {token}"]},
-            "acceptance_criteria": ["works"],
+            "interface_contract": {
+                "files": ["src/Dashboard.jsx"],
+                "produces": [], "consumes": ["POST /api/login -> {token}"],
+            },
+            "acceptance_criteria": ["Dashboard loads user data", "Redirects to login if not authenticated"],
             "depends_on": [0],
             "estimated_hours": 4,
         },

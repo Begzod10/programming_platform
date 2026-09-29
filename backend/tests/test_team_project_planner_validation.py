@@ -19,10 +19,18 @@ def _task(member_idx, required_level="Beginner", produces=None, consumes=None,
     return {
         "assign_to_member_index": member_idx,
         "title": "t", "title_ru": "t",
-        "description": "d", "description_ru": "d",
+        # Long/detailed enough to clear validate_plan's content-quality
+        # floor (MIN_DESCRIPTION_LEN/MIN_ACCEPTANCE_CRITERIA) — these tests
+        # exercise the structural checks, so the content fields just need
+        # to be "valid enough" to not also trip the content checks and
+        # muddy an assertion that's testing something else entirely.
+        "description": "This is a sufficiently detailed task description for tests.",
+        "description_ru": "d",
         "required_level": required_level,
-        "interface_contract": {"produces": produces or [], "consumes": consumes or []},
-        "acceptance_criteria": ["ok"],
+        "interface_contract": {
+            "files": ["src/Task.jsx"], "produces": produces or [], "consumes": consumes or [],
+        },
+        "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],
         "depends_on": depends_on or [],
         "estimated_hours": estimated_hours,
     }
@@ -131,6 +139,46 @@ def test_depends_on_cycle_is_rejected():
     }
     errors = validate_plan(plan, members)
     assert any("depends_on has a cycle" in e for e in errors)
+
+
+def test_short_description_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["description"] = "too short"
+    errors = validate_plan(plan, members)
+    assert any("description too short" in e for e in errors)
+
+
+def test_empty_acceptance_criteria_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["acceptance_criteria"] = []
+    errors = validate_plan(plan, members)
+    assert any("acceptance_criteria must have at least" in e for e in errors)
+
+
+def test_single_acceptance_criterion_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["acceptance_criteria"] = ["only one"]
+    errors = validate_plan(plan, members)
+    assert any("acceptance_criteria must have at least" in e for e in errors)
+
+
+def test_blank_acceptance_criteria_entries_dont_count():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["acceptance_criteria"] = ["real one", "   ", ""]
+    errors = validate_plan(plan, members)
+    assert any("acceptance_criteria must have at least" in e for e in errors)
+
+
+def test_empty_interface_contract_files_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["interface_contract"]["files"] = []
+    errors = validate_plan(plan, members)
+    assert any("interface_contract.files must name at least one real file" in e for e in errors)
 
 
 def test_find_cycle_returns_none_for_acyclic_graph():

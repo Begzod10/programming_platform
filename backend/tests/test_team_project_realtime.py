@@ -302,10 +302,13 @@ async def test_manual_plan_triggers_broadcast(async_client, db_session, _patched
             "project_title": "Mini CRM",
             "tasks": [{
                 "assigned_student_id": sid,
-                "title": "T", "title_ru": "Т", "description": "D", "description_ru": "О",
+                "title": "T", "title_ru": "Т",
+                "description": "Build a login page with a form and validation.",
+                "description_ru": "Постройте страницу входа с формой и валидацией.",
                 "required_level": "Beginner",
-                "interface_contract": {"produces": [], "consumes": []},
-                "acceptance_criteria": [], "depends_on": [], "estimated_hours": 4,
+                "interface_contract": {"files": ["src/Task.jsx"], "produces": [], "consumes": []},
+                "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],
+                "depends_on": [], "estimated_hours": 4,
             }],
         },
     )
@@ -350,9 +353,17 @@ async def test_generate_plan_for_team_broadcasts_on_success(async_client, db_ses
         "project_title": "Mini CRM", "project_description": "d",
         "tasks": [{
             "assign_to_member_index": 0, "title": "T", "title_ru": "Т",
-            "description": "D", "description_ru": "О", "required_level": "Beginner",
-            "interface_contract": {"produces": [], "consumes": []},
-            "acceptance_criteria": ["ok"], "depends_on": [], "estimated_hours": 4,
+            # Detailed enough to clear validate_plan's content-quality floor
+            # (MIN_DESCRIPTION_LEN/MIN_ACCEPTANCE_CRITERIA) — this fixture is
+            # named "valid_plan" and the test asserts the SUCCESS broadcast
+            # path, so it needs to actually pass validate_plan, not just
+            # look plausible.
+            "description": "Build a login page with a form and validation.",
+            "description_ru": "Постройте страницу входа с формой и валидацией.",
+            "required_level": "Beginner",
+            "interface_contract": {"files": ["src/Task.jsx"], "produces": [], "consumes": []},
+            "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],
+            "depends_on": [], "estimated_hours": 4,
         }],
     }
     with patch(
