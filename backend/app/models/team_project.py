@@ -127,6 +127,13 @@ class TeamProject(Base):
     teacher: Mapped[Optional["Student"]] = relationship("Student", foreign_keys=[teacher_id])
     teams: Mapped[List["TeamProjectTeam"]] = relationship(
         "TeamProjectTeam", back_populates="team_project", cascade="all, delete-orphan",
+        # No order_by here used to mean "whatever order Postgres feels like"
+        # — stable right after INSERT, but an UPDATE (e.g. a regenerate
+        # bumping generation_attempts) can shift a row's physical location
+        # under MVCC, silently reshuffling "Team 1, Team 2, Team 3..." into
+        # "Team 1, Team 5, Team 4...". id order == creation order, which is
+        # also the numbering in each team's `name` ("Team N").
+        order_by="TeamProjectTeam.id",
     )
     events: Mapped[List["TeamProjectEvent"]] = relationship(
         "TeamProjectEvent", back_populates="team_project", cascade="all, delete-orphan",
