@@ -110,6 +110,16 @@
 }
 .ttp-field textarea { min-height: 56px; resize: vertical; }
 .ttp-error { color: #dc2626; font-size: 13px; }
+.ttp-student-picker {
+    display: flex; flex-direction: column; gap: 12px; max-height: 260px;
+    overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px;
+}
+.ttp-student-picker-group-name { font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+.ttp-student-checkbox {
+    display: flex; align-items: center; gap: 8px; font-weight: 500; color: #334155;
+    padding: 3px 0; cursor: pointer;
+}
+.ttp-student-checkbox input { cursor: pointer; }
 .ttp-modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 22px; border-top: 1px solid #e2e8f0; }
 
 /* ── Detail page ── */

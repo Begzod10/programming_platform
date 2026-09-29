@@ -56,6 +56,14 @@ class TeamProjectCreate(BaseModel):
     course_id: Optional[int] = None
     team_size: int = 4
     deadline_days: int = 14
+    # Explicit roster the teacher picked, NOT necessarily group_id's full
+    # membership — lets a teacher exclude a student who won't be
+    # participating, or pull students in from another of their groups.
+    # group_id stays required (the FK, and the "one active assignment per
+    # group" collision check use it) but no longer determines who's on a
+    # team; every id here must belong to one of the teacher's own groups
+    # or flows (validated in create_team_project), not just this one.
+    student_ids: List[int] = Field(min_length=2)
 
 
 class TaskRead(BaseModel):

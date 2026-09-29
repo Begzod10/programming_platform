@@ -368,7 +368,7 @@ async def create_assignment(
 
     tp = await create_team_project(
         db, group_id=body.group_id, course_id=body.course_id, teacher_id=teacher.id,
-        team_size=body.team_size, deadline_days=body.deadline_days,
+        team_size=body.team_size, deadline_days=body.deadline_days, student_ids=body.student_ids,
     )
     tp = await _fetch_team_project(db, tp.id)
     return _team_project_read(tp)

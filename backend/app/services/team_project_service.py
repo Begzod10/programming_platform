@@ -17,9 +17,11 @@ from app.models.team_project import (
     TeamProject, TeamProjectTeam, TeamProjectMember, TeamProjectEvent, TeamRole,
     TeamProjectStatus,
 )
+from app.models.user import Student
 from app.schemas.team_project import SkillProfile
 from app.services import skill_profile_service
 from app.services.team_project_constants import THEMES, TECH_STACKS, LEVEL_RANK as _LEVEL_RANK
+from app.services.teacher_students import teacher_student_ids_subquery
 
 # _LEVEL_RANK ranks current_level for auto-picking the strongest member as
 # lead — matches the level progression in app/models/user.py::StudentLevel.
@@ -63,7 +65,7 @@ def _cycle_sample(pool: list, count: int, avoid_key: Optional[str] = None) -> li
 
 async def create_team_project(
         db: AsyncSession, *, group_id: int, course_id: Optional[int],
-        teacher_id: int, team_size: int, deadline_days: int,
+        teacher_id: int, team_size: int, deadline_days: int, student_ids: List[int],
 ) -> TeamProject:
     group = (await db.execute(
         select(Group).where(Group.id == group_id)
@@ -71,11 +73,33 @@ async def create_team_project(
     if group is None:
         raise HTTPException(status_code=404, detail="Guruh topilmadi")
 
-    students = list(group.students)
+    # student_ids is the teacher's explicit pick — NOT necessarily
+    # group.students. It can include students from the teacher's other
+    # groups/flows (see teacher_student_ids_subquery) and can leave out
+    # students in `group` who won't be participating this round. Every id
+    # still has to belong to a group/flow this teacher actually owns —
+    # otherwise a teacher could staff another teacher's student onto a
+    # team without them ever being reachable/notified through their own
+    # roster.
+    requested_ids = set(student_ids)
+    reachable = teacher_student_ids_subquery(teacher_id)
+    allowed_ids = set((await db.execute(
+        select(reachable.c.student_id).where(reachable.c.student_id.in_(requested_ids))
+    )).scalars().all())
+    invalid_ids = requested_ids - allowed_ids
+    if invalid_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Studentlar sizning guruhlaringizga tegishli emas: {sorted(invalid_ids)}",
+        )
+
+    students = (await db.execute(
+        select(Student).where(Student.id.in_(requested_ids))
+    )).scalars().all()
     if len(students) < 2:
         raise HTTPException(
             status_code=400,
-            detail="Jamoa tuzish uchun guruhda kamida 2 ta o'quvchi bo'lishi kerak",
+            detail="Jamoa tuzish uchun kamida 2 ta o'quvchi tanlanishi kerak",
         )
 
     existing = (await db.execute(
@@ -92,7 +116,7 @@ async def create_team_project(
 
     profiles_by_id = {
         p.student_id: p
-        for p in await skill_profile_service.build_group_skill_profiles(db, group_id)
+        for p in await skill_profile_service.build_profiles_for_student_ids(db, list(requested_ids))
     }
 
     team_project = TeamProject(

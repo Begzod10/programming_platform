@@ -104,7 +104,7 @@ async def two_teams_project(async_client, db_session):
     ):
         tp = await create_team_project(
             db_session, group_id=group.id, course_id=None, teacher_id=teacher_id,
-            team_size=2, deadline_days=14,
+            team_size=2, deadline_days=14, student_ids=student_ids,
         )
     await db_session.commit()
 

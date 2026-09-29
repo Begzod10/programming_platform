@@ -11,6 +11,14 @@ const CreateModal = ({ onClose, onCreated }) => {
     const [groupId, setGroupId] = useState('');
     const [teamSize, setTeamSize] = useState(4);
     const [deadlineDays, setDeadlineDays] = useState(14);
+    // Explicit per-student opt-in, keyed by student_id — NOT derived from
+    // groupId at submit time. A teacher picks a primary group (still
+    // required: group_id is the FK team_project rows hang off, and the
+    // "one active assignment per group" check uses it), then can uncheck
+    // anyone who won't be participating this round, or check students in
+    // from one of their OTHER groups too — see backend/create_team_project's
+    // docstring on why student_ids no longer has to equal group.students.
+    const [selected, setSelected] = useState({});
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState(null);
 
@@ -20,8 +28,30 @@ const CreateModal = ({ onClose, onCreated }) => {
             .catch(() => {});
     }, [request]);
 
+    // Picking a primary group is a convenience default, not a constraint:
+    // check every one of its students, but leave any other group's
+    // checkboxes (from a previous pick) exactly as the teacher left them.
+    const chooseGroup = (id) => {
+        setGroupId(id);
+        const group = groups.find(g => String(g.id) === String(id));
+        if (!group) return;
+        setSelected(prev => {
+            const next = { ...prev };
+            for (const s of group.students || []) next[s.id] = true;
+            return next;
+        });
+    };
+
+    const toggleStudent = (studentId) => {
+        setSelected(prev => ({ ...prev, [studentId]: !prev[studentId] }));
+    };
+
+    const selectedIds = Object.keys(selected).filter(id => selected[id]).map(Number);
+    const selectedCount = selectedIds.length;
+
     const submit = async () => {
         if (!groupId) { setError("Guruhni tanlang"); return; }
+        if (selectedCount < 2) { setError("Kamida 2 ta o'quvchi tanlang"); return; }
         setBusy(true);
         setError(null);
         try {
@@ -29,6 +59,7 @@ const CreateModal = ({ onClose, onCreated }) => {
                 group_id: Number(groupId),
                 team_size: Number(teamSize),
                 deadline_days: Number(deadlineDays),
+                student_ids: selectedIds,
             }), headers());
             onCreated();
             onClose();
@@ -45,15 +76,15 @@ const CreateModal = ({ onClose, onCreated }) => {
 
     return ReactDOM.createPortal(
         <div className="ttp-overlay" onClick={onClose}>
-            <div className="ttp-modal" onClick={e => e.stopPropagation()}>
+            <div className="ttp-modal ttp-modal--wide" onClick={e => e.stopPropagation()}>
                 <header className="ttp-modal-head">
                     <h3>Jamoaviy loyiha topshirig'i</h3>
                     <button className="ttp-close" onClick={onClose}>✕</button>
                 </header>
                 <div className="ttp-modal-body">
                     <label className="ttp-field">
-                        <span>Guruh</span>
-                        <select value={groupId} onChange={e => setGroupId(e.target.value)}>
+                        <span>Asosiy guruh</span>
+                        <select value={groupId} onChange={e => chooseGroup(e.target.value)}>
                             <option value="">— tanlang —</option>
                             {groups.map(g => (
                                 <option key={g.id} value={g.id}>
@@ -72,6 +103,37 @@ const CreateModal = ({ onClose, onCreated }) => {
                         <input type="number" min={1} max={90} value={deadlineDays}
                                onChange={e => setDeadlineDays(e.target.value)} />
                     </label>
+
+                    {groups.length > 0 && (
+                        <div className="ttp-field">
+                            <span>
+                                O'quvchilarni tanlang ({selectedCount} ta tanlandi) — ishtirok
+                                etmaydiganlarni belgidan chiqaring, kerak bo'lsa boshqa
+                                guruhdan ham qo'shing
+                            </span>
+                            <div className="ttp-student-picker">
+                                {groups.map(g => (
+                                    <div key={g.id} className="ttp-student-picker-group">
+                                        <div className="ttp-student-picker-group-name">{g.name}</div>
+                                        {(g.students || []).length === 0 && (
+                                            <p className="ttp-muted">O'quvchilar yo'q</p>
+                                        )}
+                                        {(g.students || []).map(s => (
+                                            <label key={s.id} className="ttp-student-checkbox">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!!selected[s.id]}
+                                                    onChange={() => toggleStudent(s.id)}
+                                                />
+                                                {s.full_name || s.username}
+                                            </label>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {error && <div className="ttp-error">{error}</div>}
                 </div>
                 <footer className="ttp-modal-foot">

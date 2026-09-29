@@ -52,6 +52,22 @@ async def build_group_skill_profiles(db: AsyncSession, group_id: int) -> List[Sk
     return await _build_profiles(db, students)
 
 
+async def build_profiles_for_student_ids(db: AsyncSession, student_ids: List[int]) -> List[SkillProfile]:
+    """Same as build_group_skill_profiles, but for an explicit id list —
+    the team-projects create flow no longer assumes "the roster" is one
+    Group's full membership (a teacher can hand-pick students across
+    several of their groups), so team formation needs a profile builder
+    that isn't tied to a single group_id."""
+    if not student_ids:
+        return []
+    students = (await db.execute(
+        select(Student).where(Student.id.in_(student_ids))
+    )).scalars().all()
+    if not students:
+        return []
+    return await _build_profiles(db, students)
+
+
 async def build_skill_profile(db: AsyncSession, student_id: int) -> Optional[SkillProfile]:
     student = (await db.execute(
         select(Student).where(Student.id == student_id)
