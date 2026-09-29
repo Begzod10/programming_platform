@@ -1,14 +1,18 @@
 .ttp-page { padding: 24px 24px 80px; max-width: 1100px; margin: 0 auto; }
-.ttp-page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+.ttp-page-head {
+    display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+    gap: 12px; margin-bottom: 22px;
+}
 .ttp-page-head h2 {
     margin: 0; font-size: 23px; font-weight: 800; color: #0f172a;
-    display: flex; align-items: center; gap: 10px;
+    display: flex; align-items: center; gap: 10px; min-width: 0;
 }
 .ttp-page-head h2::before {
     content: ''; width: 8px; height: 24px; border-radius: 4px;
     background: linear-gradient(180deg, #0d9488, #14b8a6);
-    display: inline-block;
+    display: inline-block; flex-shrink: 0;
 }
+.ttp-page-head .ttp-btn { flex-shrink: 0; white-space: nowrap; }
 .ttp-muted { color: rgba(15,23,42,0.5); font-size: 13px; font-weight: 600; }
 
 .ttp-btn {
