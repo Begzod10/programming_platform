@@ -341,7 +341,16 @@ _TASK_MISMATCH_PATTERNS = tuple(re.compile(p, re.IGNORECASE) for p in (
     # — a requirement-reference word followed, within a bounded window, by
     # a negation. Word order here matches every confirmed production
     # example (the reference word comes first, then the negation).
-    r"(?:talab\s+qilin\w*|kerak\s+bo['\u2018\u2019]?lgan)"
+    # `qilin(?!magan)\w*` excludes "qilinmagan" ("NOT required") from the
+    # reference-word match \u2014 \w* alone also swallowed the negated form,
+    # so "bu tag talab qilinmagan va ishlatilmagan" (an EXTRA, optional
+    # tag not needed for the lesson and so unused \u2014 harmless, often
+    # praise-adjacent) matched the same as "talab qilingan ... mavjud
+    # emas" (a REQUIRED thing is MISSING \u2014 a real problem). Confirmed
+    # false positive: an HTML/CSS submission whose only "issue" was an
+    # optional <link> tag not needed for the lesson got its AI-stated 80
+    # capped to 50 by exactly this sentence.
+    r"(?:talab\s+qilin(?!magan)\w*|kerak\s+bo['\u2018\u2019]?lgan)"
     r".{0,80}?(?:mavjud\s+emas|ishlatilmagan)",
     # "boshqa mavzu/dars ... mos kelmaydi/emas" (either order).
     r"boshqa\s+(?:mavzu|dars)\w*.{0,80}?mos\s+(?:kelmaydi|emas)",

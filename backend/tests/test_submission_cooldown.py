@@ -28,9 +28,9 @@ async def student(async_client: AsyncClient):
     return body["user"]["id"], {"Authorization": f"Bearer {body['access_token']}"}
 
 
-async def _submitted(db, student_id, ago: timedelta) -> Project:
+async def _submitted(db, student_id, ago: timedelta, status: str = "Submitted") -> Project:
     p = Project(student_id=student_id, title="Loyiha", description="desc",
-                difficulty_level="Easy", status="Submitted",
+                difficulty_level="Easy", status=status,
                 submitted_at=utcnow() - ago)
     db.add(p)
     await db.commit()
@@ -71,6 +71,21 @@ async def test_project_can_be_excluded_from_its_own_cooldown(db_session, student
     p = await _submitted(db_session, sid, timedelta(minutes=1))
     assert await seconds_until_can_submit(db_session, sid) > 0
     assert await seconds_until_can_submit(db_session, sid, exclude_project_id=p.id) == 0
+
+
+async def test_rejected_submission_does_not_block_resubmission(db_session, student):
+    """A student whose project just failed review can immediately fix and
+    resubmit instead of waiting out the anti-spam timer."""
+    sid, _ = student
+    await _submitted(db_session, sid, timedelta(minutes=1), status="Rejected")
+    assert await seconds_until_can_submit(db_session, sid) == 0
+
+
+async def test_approved_submission_still_blocks_for_rest_of_10_minutes(db_session, student):
+    sid, _ = student
+    await _submitted(db_session, sid, timedelta(minutes=3), status="Approved")
+    wait = await seconds_until_can_submit(db_session, sid)
+    assert 7 * 60 - 5 <= wait <= 7 * 60 + 1
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
