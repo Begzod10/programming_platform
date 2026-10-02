@@ -18,14 +18,15 @@ def _task(member_idx, required_level="Beginner", produces=None, consumes=None,
           depends_on=None, estimated_hours=4):
     return {
         "assign_to_member_index": member_idx,
-        "title": "t", "title_ru": "t",
+        "title": "t", "title_ru": "т",
         # Long/detailed enough to clear validate_plan's content-quality
-        # floor (MIN_DESCRIPTION_LEN/MIN_ACCEPTANCE_CRITERIA) — these tests
-        # exercise the structural checks, so the content fields just need
-        # to be "valid enough" to not also trip the content checks and
-        # muddy an assertion that's testing something else entirely.
+        # floor (MIN_DESCRIPTION_LEN/MIN_ACCEPTANCE_CRITERIA/bilingual
+        # checks) — these tests exercise the structural checks, so the
+        # content fields just need to be "valid enough" to not also trip
+        # the content checks and muddy an assertion that's testing
+        # something else entirely.
         "description": "This is a sufficiently detailed task description for tests.",
-        "description_ru": "d",
+        "description_ru": "Это достаточно подробное описание задачи для тестов.",
         "required_level": required_level,
         "interface_contract": {
             "files": ["src/Task.jsx"], "produces": produces or [], "consumes": consumes or [],
@@ -147,6 +148,38 @@ def test_short_description_is_rejected():
     plan["tasks"][0]["description"] = "too short"
     errors = validate_plan(plan, members)
     assert any("description too short" in e for e in errors)
+
+
+def test_missing_title_ru_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["title_ru"] = ""
+    errors = validate_plan(plan, members)
+    assert any("title_ru is missing/empty" in e for e in errors)
+
+
+def test_title_ru_identical_to_title_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["title_ru"] = plan["tasks"][0]["title"]
+    errors = validate_plan(plan, members)
+    assert any("title_ru is identical to title" in e for e in errors)
+
+
+def test_short_description_ru_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["description_ru"] = "too short"
+    errors = validate_plan(plan, members)
+    assert any("description_ru too short or missing" in e for e in errors)
+
+
+def test_description_ru_identical_to_description_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["description_ru"] = plan["tasks"][0]["description"]
+    errors = validate_plan(plan, members)
+    assert any("description_ru is identical to description" in e for e in errors)
 
 
 def test_empty_acceptance_criteria_is_rejected():

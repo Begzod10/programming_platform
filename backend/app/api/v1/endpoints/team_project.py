@@ -10,7 +10,7 @@ from fastapi import (
     APIRouter, Depends, File, HTTPException, Query, UploadFile,
     WebSocket, WebSocketDisconnect, status,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -700,6 +700,108 @@ async def submit_task(
     await broadcast_team(db, team_id)
     await broadcast_project(db, team_project_id)
     return _task_read(task)
+
+
+# ── Teacher: delete a task ───────────────────────────────────────────────────
+def _guard_team_not_finalized(team: TeamProjectTeam) -> None:
+    """Shared guard for both delete endpoints below — once a team has
+    finalized (submitted/reviewed), its tasks are what final grading and
+    any awarded points are based on; deleting one after the fact would
+    silently corrupt that record. Before finalize, task.points_awarded is
+    always 0 regardless of individual task approval (only
+    team_project_points_service, run from the finalize endpoint, ever
+    sets it) — so there's nothing to unwind for a still-in-progress team."""
+    if team.status in (TeamStatus.submitted, TeamStatus.reviewed):
+        raise HTTPException(
+            status_code=400,
+            detail="Jamoa allaqachon yakunlangan — vazifalarni o'chirib bo'lmaydi",
+        )
+
+
+@router.delete("/teams/{team_id}/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task(
+        team_id: int, task_id: int,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(selectinload(TeamProjectTeam.team_project))
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+    if team.team_project.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    _guard_team_not_finalized(team)
+
+    task = (await db.execute(
+        select(TeamProjectTask).where(
+            TeamProjectTask.id == task_id, TeamProjectTask.team_id == team_id,
+        )
+    )).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=404, detail="Vazifa topilmadi")
+
+    db.add(TeamProjectEvent(
+        team_project_id=team.team_project_id, team_id=team_id,
+        actor_student_id=teacher.id, event_type="task_deleted",
+        payload_json=json.dumps({"task_id": task_id, "title": task.title}),
+    ))
+    await db.delete(task)
+    await db.flush()
+
+    # No tasks left — the team has no plan again, same shape as right
+    # after formation, so the regenerate/manual-plan UI naturally
+    # reappears instead of showing an empty grid with no way forward.
+    remaining = (await db.execute(
+        select(func.count()).select_from(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
+    )).scalar_one()
+    if remaining == 0:
+        team.status = TeamStatus.forming
+
+    await db.commit()
+    await broadcast_team(db, team_id)
+    await broadcast_project(db, team.team_project_id)
+
+
+@router.delete("/teams/{team_id}/tasks", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_all_tasks(
+        team_id: int,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    """Bulk sibling of delete_task — clears every task on a team in one
+    call, for a teacher who wants to scrap a whole plan and regenerate/
+    hand-author it from scratch rather than deleting tasks one at a time."""
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(selectinload(TeamProjectTeam.team_project))
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+    if team.team_project.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    _guard_team_not_finalized(team)
+
+    tasks = (await db.execute(
+        select(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
+    )).scalars().all()
+    if not tasks:
+        return
+
+    db.add(TeamProjectEvent(
+        team_project_id=team.team_project_id, team_id=team_id,
+        actor_student_id=teacher.id, event_type="task_deleted",
+        payload_json=json.dumps({"count": len(tasks), "bulk": True}),
+    ))
+    for task in tasks:
+        await db.delete(task)
+    team.status = TeamStatus.forming
+    await db.commit()
+    await broadcast_team(db, team_id)
+    await broadcast_project(db, team.team_project_id)
 
 
 # ── Teacher: reassign a task ─────────────────────────────────────────────────

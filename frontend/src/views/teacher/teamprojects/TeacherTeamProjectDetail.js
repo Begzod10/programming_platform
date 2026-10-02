@@ -5,6 +5,8 @@ import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import { formatTeamEvent } from './formatTeamEvent';
 import { isStuckWithNoManualPlan } from './isStuckWithNoManualPlan';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { pickLang } from '../../../utils/pickLang';
 import './TeacherTeamProjects.css';
 
 const STATUS_LABELS = {
@@ -33,7 +35,7 @@ const fmtDate = (iso) => {
 // (depends_on is a list of other tasks' `order`, not names, on the wire),
 // deadline, hours estimate, and the AI review's full breakdown (not just
 // the one-line feedback TaskRow shows inline).
-const TaskDetailModal = ({ task, allTasks, onClose }) => {
+const TaskDetailModal = ({ task, allTasks, onClose, lang }) => {
     const contract = task.interface_contract || {};
     const dependsOnTasks = (task.depends_on || [])
         .map(order => allTasks.find(t => t.order === order))
@@ -44,7 +46,7 @@ const TaskDetailModal = ({ task, allTasks, onClose }) => {
         <div className="ttp-overlay" onClick={onClose}>
             <div className="ttp-modal ttp-modal--wide" onClick={e => e.stopPropagation()}>
                 <div className="ttp-modal-head">
-                    <h3>{task.title}</h3>
+                    <h3>{pickLang(task, 'title', lang)}</h3>
                     <button className="ttp-close" onClick={onClose}>✕</button>
                 </div>
                 <div className="ttp-modal-body">
@@ -57,7 +59,7 @@ const TaskDetailModal = ({ task, allTasks, onClose }) => {
                         {task.deadline_at && <span className="ttp-muted">Muddat: {fmtDate(task.deadline_at)}</span>}
                     </div>
 
-                    <p className="ttd-task-desc">{task.description}</p>
+                    <p className="ttd-task-desc">{pickLang(task, 'description', lang)}</p>
 
                     {task.acceptance_criteria?.length > 0 && (
                         <div className="ttd-detail-section">
@@ -88,7 +90,7 @@ const TaskDetailModal = ({ task, allTasks, onClose }) => {
                             <h5>Bog'liq vazifalar (avval tugashi kerak)</h5>
                             <ul className="ttd-criteria">
                                 {dependsOnTasks.map(t => (
-                                    <li key={t.id}>{t.title} — <em>{t.assigned_student_name || '—'}</em></li>
+                                    <li key={t.id}>{pickLang(t, 'title', lang)} — <em>{t.assigned_student_name || '—'}</em></li>
                                 ))}
                             </ul>
                         </div>
@@ -138,7 +140,7 @@ const TaskDetailModal = ({ task, allTasks, onClose }) => {
     );
 };
 
-const TaskRow = ({ task, members, allTasks, onReassign }) => {
+const TaskRow = ({ task, members, allTasks, onReassign, onDelete, lang }) => {
     const [reassignTo, setReassignTo] = useState('');
     const [showDetail, setShowDetail] = useState(false);
     const feedback = task.ai_feedback;
@@ -146,12 +148,12 @@ const TaskRow = ({ task, members, allTasks, onReassign }) => {
     return (
         <div className="ttd-task">
             <div className="ttd-task-head">
-                <strong>{task.title}</strong>
+                <strong>{pickLang(task, 'title', lang)}</strong>
                 <span className={`ttp-status ttp-status--${task.status}`}>
                     {TASK_STATUS_LABELS[task.status] || task.status}
                 </span>
             </div>
-            <p className="ttd-task-desc">{task.description}</p>
+            <p className="ttd-task-desc">{pickLang(task, 'description', lang)}</p>
             {task.acceptance_criteria?.length > 0 && (
                 <ul className="ttd-criteria">
                     {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
@@ -175,6 +177,9 @@ const TaskRow = ({ task, members, allTasks, onReassign }) => {
                 <button className="ttd-detail-btn" onClick={() => setShowDetail(true)}>
                     <span aria-hidden="true">ℹ️</span> Batafsil
                 </button>
+                <button className="ttd-delete-btn" onClick={() => onDelete(task.id)}>
+                    <span aria-hidden="true">🗑️</span> O'chirish
+                </button>
                 <div className="ttd-reassign">
                     <select value={reassignTo} onChange={e => setReassignTo(e.target.value)}>
                         <option value="">Boshqa a'zoga topshirish…</option>
@@ -192,7 +197,7 @@ const TaskRow = ({ task, members, allTasks, onReassign }) => {
                 </div>
             </div>
             {showDetail && (
-                <TaskDetailModal task={task} allTasks={allTasks} onClose={() => setShowDetail(false)} />
+                <TaskDetailModal task={task} allTasks={allTasks} onClose={() => setShowDetail(false)} lang={lang} />
             )}
         </div>
     );
@@ -463,12 +468,14 @@ const TeacherTeamProjectDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { request } = useHttp();
+    const { lang } = useTranslation();
     const [tp, setTp] = useState(null);
     const [loading, setLoading] = useState(true);
     const [manualPlanTeamId, setManualPlanTeamId] = useState(null);
     const [manualPlanSubmitting, setManualPlanSubmitting] = useState(false);
     const [manualPlanError, setManualPlanError] = useState('');
     const [peerRatingsByTeam, setPeerRatingsByTeam] = useState({});
+    const [deleteError, setDeleteError] = useState('');
 
     const reload = useCallback(async () => {
         setLoading(true);
@@ -550,6 +557,31 @@ const TeacherTeamProjectDetail = () => {
         } catch {}
     };
 
+    const deleteTask = async (teamId, taskId) => {
+        if (!window.confirm("Bu vazifani o'chirishni tasdiqlaysizmi?")) return;
+        setDeleteError('');
+        try {
+            await request(
+                `${API_URL}v1/team-projects/teams/${teamId}/tasks/${taskId}`,
+                'DELETE', null, headers(),
+            );
+            await reload();
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e));
+        }
+    };
+
+    const deleteAllTasks = async (teamId) => {
+        if (!window.confirm("Bu jamoaning BARCHA vazifalarini o'chirishni tasdiqlaysizmi? Bu amalni qaytarib bo'lmaydi.")) return;
+        setDeleteError('');
+        try {
+            await request(`${API_URL}v1/team-projects/teams/${teamId}/tasks`, 'DELETE', null, headers());
+            await reload();
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e));
+        }
+    };
+
     const submitManualPlan = async (teamId, body) => {
         setManualPlanSubmitting(true);
         setManualPlanError('');
@@ -581,6 +613,8 @@ const TeacherTeamProjectDetail = () => {
                 </div>
                 <span className="ttp-muted">{STATUS_LABELS[tp.status] || tp.status}</span>
             </div>
+
+            {deleteError && <div className="ttp-error">{deleteError}</div>}
 
             {tp.teams.map(team => (
                 <div key={team.id} className="ttd-team-section">
@@ -665,11 +699,22 @@ const TeacherTeamProjectDetail = () => {
                         </p>
                     )}
 
+                    {team.tasks.length > 0 && (
+                        <button
+                            className="ttp-btn ttp-btn--ghost ttp-btn--sm ttd-delete-all-btn"
+                            onClick={() => deleteAllTasks(team.id)}
+                        >
+                            🗑️ Barcha vazifalarni o'chirish
+                        </button>
+                    )}
+
                     <div className="ttd-tasks-grid">
                         {team.tasks.map(task => (
                             <TaskRow
                                 key={task.id} task={task} members={team.members} allTasks={team.tasks}
                                 onReassign={(taskId, studentId) => reassign(team.id, taskId, studentId)}
+                                onDelete={taskId => deleteTask(team.id, taskId)}
+                                lang={lang}
                             />
                         ))}
                     </div>

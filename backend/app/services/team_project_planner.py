@@ -70,8 +70,9 @@ TALABLAR:
 - `description` bir jumlali umumiy gap bo'lmasin — o'quvchi hech kimdan so'ramasdan ishni boshlay oladigan darajada aniq yoz (kamida {MIN_DESCRIPTION_LEN} belgi).
 - `acceptance_criteria` kamida {MIN_ACCEPTANCE_CRITERIA} ta ANIQ, tekshirib bo'ladigan band bo'lsin (masalan "Login formasi noto'g'ri parolda xato xabar ko'rsatadi" — "Yaxshi ishlaydi" kabi umumiy gap emas).
 - `interface_contract.files` bo'sh bo'lmasin — vazifa natijasida yaratiladigan/o'zgartiriladigan haqiqiy fayl(lar) nomini yoz (masalan "src/components/LoginForm.jsx").
+- `title_ru` va `description_ru` — `title`/`description`ning so'zma-so'z tarjimasi emas, lekin XUDDI SHU ma'noni beruvchi TABIIY, TO'LIQ rus tilidagi matn bo'lishi SHART. Bo'sh qoldirish yoki `title`/`description` bilan bir xil (o'zbekcha) matnni qaytarish QATʼIYAN TAQIQLANADI — ba'zi o'quvchilar faqat rus tilini tushunadi va bu maydonlarsiz ular vazifani tushuna olmaydi.
 
-JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma (quyidagi bitta vazifa TO'LIQ, YETARLI misol — shu darajada aniq yoz):
+JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma (quyidagi bitta vazifa TO'LIQ, YETARLI misol — shu darajada aniq yoz, RUSCHA maydonlar ham xuddi shunday to'liq bo'lsin):
 {{
   "project_title": "...",
   "project_description": "...",
@@ -80,7 +81,7 @@ JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma (quyidagi bitta v
       "assign_to_member_index": 0,
       "title": "Login sahifasi", "title_ru": "Страница входа",
       "description": "Foydalanuvchi nomi va parol maydonlari bo'lgan login formasi yasang. Muvaffaqiyatli kirishda /dashboard sahifasiga yo'naltiring, xato bo'lsa forma ustida qizil xato xabari chiqsin.",
-      "description_ru": "...",
+      "description_ru": "Создайте форму входа с полями имени пользователя и пароля. При успешном входе перенаправляйте на страницу /dashboard, при ошибке показывайте красное сообщение об ошибке над формой.",
       "required_level": "Beginner|Intermediate|Advanced",
       "interface_contract": {{"files": ["src/pages/Login.jsx"], "produces": ["auth_token in localStorage"], "consumes": []}},
       "acceptance_criteria": ["To'g'ri login/parolda /dashboard'ga yo'naltiradi", "Noto'g'ri parolda forma ustida xato xabari chiqadi", "Bo'sh maydon bilan yuborib bo'lmaydi"],
@@ -298,6 +299,30 @@ def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:
                 f"Task {idx}: description too short (must be at least "
                 f"{MIN_DESCRIPTION_LEN} chars of real detail, not a placeholder)."
             )
+
+        # Bilingual floor — some students only read Russian, so a task
+        # with a real Uzbek description but an empty/missing/copied
+        # title_ru or description_ru is just as unusable to them as one
+        # with no description at all. Without this, generate_plan_for_team
+        # used to silently fall back title_ru/description_ru to the Uzbek
+        # text whenever the AI skipped them (`task.get("title_ru") or
+        # task["title"]`), so a "successfully generated" plan could still
+        # be 100% Uzbek under a field that looks like it's the Russian one.
+        title = task.get("title")
+        title_ru = task.get("title_ru")
+        if not isinstance(title_ru, str) or not title_ru.strip():
+            errors.append(f"Task {idx}: title_ru is missing/empty.")
+        elif isinstance(title, str) and title_ru.strip().lower() == title.strip().lower():
+            errors.append(f"Task {idx}: title_ru is identical to title (not actually translated).")
+
+        description_ru = task.get("description_ru")
+        if not isinstance(description_ru, str) or len(description_ru.strip()) < MIN_DESCRIPTION_LEN:
+            errors.append(
+                f"Task {idx}: description_ru too short or missing (must be at least "
+                f"{MIN_DESCRIPTION_LEN} chars of real Russian detail, not a placeholder)."
+            )
+        elif isinstance(description, str) and description_ru.strip().lower() == description.strip().lower():
+            errors.append(f"Task {idx}: description_ru is identical to description (not actually translated).")
 
         acceptance_criteria = task.get("acceptance_criteria")
         if not isinstance(acceptance_criteria, list) or len(

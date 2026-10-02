@@ -348,9 +348,10 @@ async def test_concurrent_regenerate_does_not_duplicate_tasks(
                 {
                     "title": f"Task {label} {i}", "title_ru": f"Задача {label} {i}",
                     # Detailed enough to clear validate_plan's content-quality
-                    # floor (MIN_DESCRIPTION_LEN/MIN_ACCEPTANCE_CRITERIA).
+                    # floor (MIN_DESCRIPTION_LEN/MIN_ACCEPTANCE_CRITERIA/
+                    # bilingual checks).
                     "description": f"Build task {label} {i} with a form and validation logic.",
-                    "description_ru": "о",
+                    "description_ru": f"Постройте задачу {label} {i} с формой и логикой валидации.",
                     "required_level": "Beginner", "assign_to_member_index": i,
                     "interface_contract": {"files": [f"src/Task{i}.jsx"], "produces": [], "consumes": []},
                     "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],

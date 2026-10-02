@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { pickLang } from '../../../utils/pickLang';
 import './StudentTeamProject.css';
 
 // Matches the two shapes api/search/base.js's request() wrapper can reject
@@ -37,7 +39,7 @@ function deadlineLabel(task) {
     return { text: `${daysLeft} kun qoldi`, warning: daysLeft <= 2 };
 }
 
-const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting }) => {
+const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting, lang }) => {
     const [url, setUrl] = useState('');
     const [file, setFile] = useState(null);
     const [fileError, setFileError] = useState('');
@@ -64,12 +66,12 @@ const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting }) => {
     return (
         <div className={`stp-task${isMine ? ' stp-task--mine' : ''}`}>
             <div className="stp-task-head">
-                <strong>{task.title}</strong>
+                <strong>{pickLang(task, 'title', lang)}</strong>
                 <span className={`stp-chip stp-chip--${task.status}`}>
                     {STATUS_LABELS[task.status] || task.status}
                 </span>
             </div>
-            <p className="stp-task-desc">{task.description}</p>
+            <p className="stp-task-desc">{pickLang(task, 'description', lang)}</p>
             {task.acceptance_criteria?.length > 0 && (
                 <ul className="stp-criteria">
                     {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
@@ -193,6 +195,7 @@ const PeerRatings = ({ team, meId, onSubmit, submitting, submitted, initialRatin
 
 const StudentTeamProject = () => {
     const { request } = useHttp();
+    const { lang } = useTranslation();
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submittingId, setSubmittingId] = useState(null);
@@ -445,6 +448,7 @@ const StudentTeamProject = () => {
                         submitting={submittingId === task.id}
                         onSubmit={submitTask}
                         onSubmitFile={submitTaskFile}
+                        lang={lang}
                     />
                 ))}
             </div>
