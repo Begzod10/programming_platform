@@ -93,3 +93,36 @@ async def test_get_course_progress_requires_auth_returns_401(async_client: Async
         f"{BASE}/{LESSON_ID}/exercises/progress"
     )
     assert resp.status_code == 401
+
+
+# ── fill_in_blank: text attached to the blank may be retyped ─────────────────
+
+def _blank_exercise(description, correct):
+    from types import SimpleNamespace
+    return SimpleNamespace(
+        id=1, exercise_type="fill_in_blank", description=description,
+        correct_answers=correct,
+    )
+
+
+def test_fill_blank_accepts_retyping_the_text_attached_to_the_blank():
+    from app.services.exercise_service import check_answer_locally
+    ex = _blank_exercise(
+        "Asosiy brend rangi. Bo'sh joyni to'ldiring: ___primary: #3498db;", "$")
+    assert check_answer_locally(ex, "$")["is_correct"] is True
+    assert check_answer_locally(ex, "$primary")["is_correct"] is True
+
+
+def test_fill_blank_attached_text_leniency_does_not_accept_wrong_answers():
+    from app.services.exercise_service import check_answer_locally
+    ex = _blank_exercise("Bo'sh joyni to'ldiring: ___primary: #3498db;", "$")
+    assert check_answer_locally(ex, "primary")["is_correct"] is False
+    assert check_answer_locally(ex, "@primary")["is_correct"] is False
+    assert check_answer_locally(ex, "$primaryprimary")["is_correct"] is False
+
+
+def test_fill_blank_without_attached_text_is_unchanged():
+    from app.services.exercise_service import check_answer_locally
+    ex = _blank_exercise("Bo'sh joyni to'ldiring: ___ ", "$")
+    assert check_answer_locally(ex, "$")["is_correct"] is True
+    assert check_answer_locally(ex, "$primary")["is_correct"] is False
