@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
@@ -140,7 +140,7 @@ const TaskDetailModal = ({ task, allTasks, onClose, lang }) => {
     );
 };
 
-const TaskRow = ({ task, members, allTasks, onReassign, onDelete, lang }) => {
+const TaskRow = ({ task, members, allTasks, onReassign, onDelete, onReview, lang }) => {
     const [reassignTo, setReassignTo] = useState('');
     const [showDetail, setShowDetail] = useState(false);
     const feedback = task.ai_feedback;
@@ -177,6 +177,16 @@ const TaskRow = ({ task, members, allTasks, onReassign, onDelete, lang }) => {
                 <button className="ttd-detail-btn" onClick={() => setShowDetail(true)}>
                     <span aria-hidden="true">ℹ️</span> Batafsil
                 </button>
+                {(task.status === 'submitted' || task.status === 'changes_requested') && (
+                    <>
+                        <button className="ttd-detail-btn" onClick={() => onReview(task.id, 'approve')}>
+                            <span aria-hidden="true">✅</span> Tasdiqlash
+                        </button>
+                        <button className="ttd-detail-btn" onClick={() => onReview(task.id, 'request_changes')}>
+                            <span aria-hidden="true">✏️</span> O'zgartirish so'rash
+                        </button>
+                    </>
+                )}
                 <button className="ttd-delete-btn" onClick={() => onDelete(task.id)}>
                     <span aria-hidden="true">🗑️</span> O'chirish
                 </button>
@@ -489,14 +499,18 @@ const TeacherTeamProjectDetail = () => {
     const [peerRatingsByTeam, setPeerRatingsByTeam] = useState({});
     const [deleteError, setDeleteError] = useState('');
 
+    const loadedOnce = useRef(false);
     const reload = useCallback(async () => {
-        setLoading(true);
+        // Only the first load replaces the page with a spinner — later
+        // reloads refresh in place so an open form / typed text isn't lost.
+        if (!loadedOnce.current) setLoading(true);
         try {
             const data = await request(`${API_URL}v1/team-projects/${id}`, 'GET', null, headers());
             setTp(data);
         } catch {
-            setTp(null);
+            if (!loadedOnce.current) setTp(null);
         } finally {
+            loadedOnce.current = true;
             setLoading(false);
         }
     }, [request, id]);
@@ -571,6 +585,46 @@ const TeacherTeamProjectDetail = () => {
             await reload();
         } catch (e) {
             setDeleteError(extractErrorMessage(e) || "Vazifani qayta tayinlab bo'lmadi");
+        }
+    };
+
+    const reviewTask = async (teamId, taskId, decision) => {
+        let comment = null;
+        if (decision === 'request_changes') {
+            comment = window.prompt("Talabaga izoh (nimani o'zgartirish kerak?):");
+            if (!comment || !comment.trim()) return;
+        } else if (!window.confirm('Bu vazifani tasdiqlaysizmi?')) {
+            return;
+        }
+        setDeleteError('');
+        try {
+            await request(
+                `${API_URL}v1/team-projects/teams/${teamId}/tasks/${taskId}/teacher-review`,
+                'POST', JSON.stringify({ decision, comment }), headers(),
+            );
+            await reload();
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e) || "Baholab bo'lmadi");
+        }
+    };
+
+    const extendDeadline = async (teamId) => {
+        const raw = window.prompt('Necha kunga uzaytiramiz? (1–90)', '3');
+        if (raw === null) return;
+        const days = parseInt(raw, 10);
+        if (!days || days < 1 || days > 90) {
+            setDeleteError('Kun soni 1 dan 90 gacha bo\'lishi kerak');
+            return;
+        }
+        setDeleteError('');
+        try {
+            await request(
+                `${API_URL}v1/team-projects/teams/${teamId}/extend-deadline`,
+                'POST', JSON.stringify({ days }), headers(),
+            );
+            await reload();
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e) || "Muddatni uzaytirib bo'lmadi");
         }
     };
 
@@ -724,6 +778,14 @@ const TeacherTeamProjectDetail = () => {
                             🗑️ Barcha vazifalarni o'chirish
                         </button>
                     )}
+                    {team.tasks.length > 0 && team.status !== 'submitted' && team.status !== 'reviewed' && (
+                        <button
+                            className="ttp-btn ttp-btn--ghost ttp-btn--sm"
+                            onClick={() => extendDeadline(team.id)}
+                        >
+                            ⏰ Muddatni uzaytirish
+                        </button>
+                    )}
 
                     <div className="ttd-tasks-grid">
                         {team.tasks.map(task => (
@@ -731,6 +793,7 @@ const TeacherTeamProjectDetail = () => {
                                 key={task.id} task={task} members={team.members} allTasks={team.tasks}
                                 onReassign={(taskId, studentId) => reassign(team.id, taskId, studentId)}
                                 onDelete={taskId => deleteTask(team.id, taskId)}
+                                onReview={(taskId, decision) => reviewTask(team.id, taskId, decision)}
                                 lang={lang}
                             />
                         ))}

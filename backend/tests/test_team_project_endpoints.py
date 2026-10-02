@@ -647,3 +647,159 @@ async def test_reassign_is_rejected_for_an_approved_task(async_client, db_sessio
         headers=fx["teacher_headers"], json={"student_id": members[1].student_id},
     )
     assert resp.status_code == 400, resp.text
+
+
+# ── teacher verdict, deadline enforcement/extension, stale review, dependency cleanup ──
+
+async def _other_teacher_headers(async_client) -> dict:
+    other_teacher_id, _ = await _register(async_client, "otherteacher")
+    from app.db.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as s:
+        t = (await s.execute(select(Student).where(Student.id == other_teacher_id))).scalar_one()
+        t.role = "teacher"
+        other_username = t.username
+        await s.commit()
+    return await _login_headers(async_client, other_username)
+
+
+async def _team_with_task(db_session, fx, status=TaskStatus.submitted, **task_kwargs):
+    team = fx["teams"][0]
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().all()
+    team.status = TeamStatus.working
+    task = _plain_task(team.id, members[0].student_id, status)
+    for k, v in task_kwargs.items():
+        setattr(task, k, v)
+    db_session.add(task)
+    await db_session.commit()
+    await db_session.refresh(task)
+    username = next(u for sid, u in zip(fx["student_ids"], fx["student_usernames"])
+                    if sid == members[0].student_id)
+    return team, task, fx["student_headers"][username]
+
+
+async def test_teacher_can_approve_a_submitted_task(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    team, task, _ = await _team_with_task(db_session, fx)
+    resp = await async_client.post(
+        f"{BASE}/teams/{team.id}/tasks/{task.id}/teacher-review",
+        headers=fx["teacher_headers"], json={"decision": "approve", "comment": "Zo'r"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "approved"
+    assert resp.json()["lead_comment"] == "Zo'r"
+
+
+async def test_teacher_request_changes_needs_a_comment(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    team, task, _ = await _team_with_task(db_session, fx)
+    url = f"{BASE}/teams/{team.id}/tasks/{task.id}/teacher-review"
+    bad = await async_client.post(url, headers=fx["teacher_headers"], json={"decision": "request_changes"})
+    assert bad.status_code == 400
+    ok = await async_client.post(
+        url, headers=fx["teacher_headers"], json={"decision": "request_changes", "comment": "Login ishlamaydi"})
+    assert ok.status_code == 200 and ok.json()["status"] == "changes_requested"
+
+
+async def test_teacher_review_rejects_other_teachers_students_and_bad_states(
+    async_client, db_session, two_teams_project,
+):
+    fx = two_teams_project
+    team, task, student_headers = await _team_with_task(db_session, fx)
+    url = f"{BASE}/teams/{team.id}/tasks/{task.id}/teacher-review"
+    body = {"decision": "approve"}
+    assert (await async_client.post(url, headers=student_headers, json=body)).status_code == 403
+    assert (await async_client.post(url, headers=await _other_teacher_headers(async_client), json=body)).status_code == 403
+
+    task.status = TaskStatus.assigned  # never submitted
+    await db_session.commit()
+    assert (await async_client.post(url, headers=fx["teacher_headers"], json=body)).status_code == 400
+
+    task.status = TaskStatus.approved  # already final
+    await db_session.commit()
+    assert (await async_client.post(url, headers=fx["teacher_headers"], json=body)).status_code == 400
+
+
+async def test_submit_after_deadline_is_rejected_until_teacher_extends(
+    async_client, db_session, two_teams_project,
+):
+    from datetime import timedelta
+    from app.utils.datetime_utils import utcnow
+    fx = two_teams_project
+    team, task, student_headers = await _team_with_task(
+        db_session, fx, status=TaskStatus.assigned, deadline_at=utcnow() - timedelta(days=1))
+    submit_url = f"{BASE}/teams/{team.id}/tasks/{task.id}/submit"
+    payload = {"submission_url": "https://github.com/acme/repo"}
+    review = AsyncMock(return_value={"success": False, "reason": "skipped"})
+
+    with patch("app.api.v1.endpoints.team_project.review_task_submission", new=review):
+        late = await async_client.post(submit_url, json=payload, headers=student_headers)
+        assert late.status_code == 400, late.text
+
+        ext = await async_client.post(
+            f"{BASE}/teams/{team.id}/extend-deadline", json={"days": 3}, headers=fx["teacher_headers"])
+        assert ext.status_code == 200 and ext.json()["extended_tasks"] == 1
+
+        ok = await async_client.post(submit_url, json=payload, headers=student_headers)
+        assert ok.status_code == 200, ok.text
+
+
+async def test_extend_deadline_rejects_other_teachers_and_bad_days(
+    async_client, db_session, two_teams_project,
+):
+    fx = two_teams_project
+    team, _, _ = await _team_with_task(db_session, fx)
+    url = f"{BASE}/teams/{team.id}/extend-deadline"
+    assert (await async_client.post(url, json={"days": 3}, headers=await _other_teacher_headers(async_client))).status_code == 403
+    assert (await async_client.post(url, json={"days": 0}, headers=fx["teacher_headers"])).status_code == 422
+
+
+async def test_stale_ai_review_does_not_overwrite_a_teacher_verdict(db_session, two_teams_project):
+    """The AI call is slow; if the teacher decides meanwhile, the late AI
+    result must be dropped, not clobber the verdict."""
+    from app.services import team_project_task_review as module
+    fx = two_teams_project
+    team, task, _ = await _team_with_task(
+        db_session, fx, status=TaskStatus.submitted, submission_url="https://github.com/acme/repo")
+
+    async def _slow_ai(*args, **kwargs):
+        task.status = TaskStatus.approved          # teacher approves during the AI call
+        task.lead_comment = "teacher said so"
+        await db_session.commit()
+        return "raw", {"score": 20, "approved": False}, "mock", 1
+
+    with patch.object(module, "fetch_github_snapshot",
+                      new=AsyncMock(return_value={"exists": True, "content_text": "x"})), \
+         patch.object(module, "call_chain", new=_slow_ai):
+        result = await review_task_submission(db_session, task.id)
+
+    assert result["success"] is False
+    await db_session.refresh(task)
+    assert task.status == TaskStatus.approved and task.lead_comment == "teacher said so"
+
+
+async def test_deleting_a_task_removes_it_from_siblings_depends_on(
+    async_client, db_session, two_teams_project,
+):
+    import json as _json
+    fx = two_teams_project
+    team = fx["teams"][0]
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().all()
+    team.status = TeamStatus.working
+    first = _plain_task(team.id, members[0].student_id)
+    second = _plain_task(team.id, members[1].student_id)
+    second.order = 1
+    second.depends_on_json = _json.dumps([0])
+    db_session.add_all([first, second])
+    await db_session.commit()
+    await db_session.refresh(first)
+    await db_session.refresh(second)
+
+    resp = await async_client.delete(
+        f"{BASE}/teams/{team.id}/tasks/{first.id}", headers=fx["teacher_headers"])
+    assert resp.status_code == 204, resp.text
+    await db_session.refresh(second)
+    assert _json.loads(second.depends_on_json) == []

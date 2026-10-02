@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import { useTranslation } from '../../../i18n/useTranslation';
@@ -118,6 +118,12 @@ const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting, lang }) =>
                     <p>{lang === 'ru' && feedback.feedback_ru ? feedback.feedback_ru : feedback.feedback}</p>
                 </div>
             )}
+            {task.lead_comment && (
+                <div className="stp-feedback">
+                    <strong>{lang === 'ru' ? 'Комментарий учителя' : "O'qituvchi izohi"}</strong>
+                    <p>{task.lead_comment}</p>
+                </div>
+            )}
         </div>
     );
 };
@@ -207,16 +213,20 @@ const StudentTeamProject = () => {
     const [myRatingsLoaded, setMyRatingsLoaded] = useState(false);
     const [error, setError] = useState(null);
 
+    const loadedOnce = useRef(false);
     const reload = useCallback(async () => {
-        setLoading(true);
+        // Only the first load replaces the page with a spinner — a submit or
+        // finalize reloads in place so typed URLs / peer-rating stars survive.
+        if (!loadedOnce.current) setLoading(true);
         setError(null);
         try {
             const data = await request(`${API_URL}v1/team-projects/my`, 'GET', null, headers());
             setEntries(Array.isArray(data) ? data : []);
         } catch (e) {
-            setEntries([]);
+            if (!loadedOnce.current) setEntries([]);
             setError(getBackendErrorMessage(e, "Ma'lumotlarni yuklab bo'lmadi. Sahifani yangilang."));
         } finally {
+            loadedOnce.current = true;
             setLoading(false);
         }
     }, [request]);

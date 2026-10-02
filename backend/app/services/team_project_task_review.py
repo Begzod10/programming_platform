@@ -7,6 +7,7 @@ import asyncio
 import json
 import logging
 import re
+from datetime import timezone
 from typing import Optional
 
 from sqlalchemy import select
@@ -41,6 +42,14 @@ _INJECTION_GUARD = (
 
 
 _UNREADABLE_CODE_MAX_SCORE = 30
+
+
+def _naive_utc(moment):
+    """Comparable form: SQLite returns naive datetimes where Postgres returns
+    aware ones, and a just-set Python value is aware."""
+    if moment is None or moment.tzinfo is None:
+        return moment
+    return moment.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def _coerce_score(value) -> Optional[int]:
@@ -147,6 +156,7 @@ async def review_task_submission(db: AsyncSession, task_id: int) -> dict:
         )
 
     prompt = _build_task_review_prompt(task, code_block)
+    submitted_at_before = task.submitted_at
 
     try:
         _, parsed, provider, _attempts = await asyncio.wait_for(
@@ -169,6 +179,16 @@ async def review_task_submission(db: AsyncSession, task_id: int) -> dict:
 
     if not parsed or not isinstance(parsed, dict):
         return {"success": False, "reason": "AI response unusable"}
+
+    # The AI call can take a minute+. If the task was resubmitted, reassigned,
+    # deleted or given a teacher verdict meanwhile, this result is stale —
+    # writing it would clobber the newer state (or crash on a deleted row).
+    try:
+        await db.refresh(task)
+    except Exception:
+        return {"success": False, "reason": "task no longer exists"}
+    if task.status != TaskStatus.submitted or _naive_utc(task.submitted_at) != _naive_utc(submitted_at_before):
+        return {"success": False, "reason": "task changed during review"}
 
     score = _coerce_score(parsed.get("score"))
     if score is None:

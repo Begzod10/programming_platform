@@ -41,4 +41,17 @@ describe('formatTeamEvent', () => {
   test('missing payload does not throw', () => {
     expect(() => formatTeamEvent({ event_type: 'team_finalized' })).not.toThrow();
   });
+
+  test('teacher-side and new events have readable labels and details', () => {
+    expect(formatTeamEvent({ event_type: 'task_reviewed_by_teacher', payload: { task_id: 4, decision: 'approve' } }))
+      .toEqual({ label: "Vazifa o'qituvchi tomonidan baholandi", detail: 'Vazifa #4 — tasdiqlandi' });
+    expect(formatTeamEvent({ event_type: 'task_reviewed_by_teacher', payload: { task_id: 4, decision: 'request_changes' } }).detail)
+      .toBe("Vazifa #4 — o'zgartirish so'raldi");
+    expect(formatTeamEvent({ event_type: 'deadline_extended', payload: { days: 3, tasks: 2 } }))
+      .toEqual({ label: 'Muddat uzaytirildi', detail: '+3 kun, 2 ta vazifa' });
+    expect(formatTeamEvent({ event_type: 'task_submitted', payload: { task_id: 9, kind: 'zip' } }).detail)
+      .toBe('Vazifa #9 (ZIP)');
+    expect(formatTeamEvent({ event_type: 'task_deleted', payload: { task_id: 1, title: 'Login' } }))
+      .toEqual({ label: "Vazifa o'chirildi", detail: 'Login' });
+  });
 });

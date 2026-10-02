@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import List, Optional, Dict
+from typing import List, Literal, Optional, Dict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -66,6 +66,17 @@ class TeamProjectCreate(BaseModel):
     student_ids: List[int] = Field(min_length=2)
 
 
+class TeacherReviewBody(BaseModel):
+    """A teacher's own verdict on a submitted task, overriding/standing in for
+    the AI review (e.g. when the AI is off, down, or got it wrong)."""
+    decision: Literal["approve", "request_changes"]
+    comment: Optional[str] = Field(default=None, max_length=2000)
+
+
+class ExtendDeadlineBody(BaseModel):
+    days: int = Field(ge=1, le=90)
+
+
 class TaskRead(BaseModel):
     id: int
     order: int
@@ -85,6 +96,7 @@ class TaskRead(BaseModel):
     submission_url: Optional[str] = None
     ai_score: Optional[int] = None
     ai_feedback: Optional[dict] = None
+    lead_comment: Optional[str] = None
     deadline_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

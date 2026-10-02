@@ -17,6 +17,13 @@ const EVENT_LABELS = {
     team_finalized: 'Jamoa loyihani yakunladi',
     points_awarded: 'Ballar berildi',
     task_reviewed: 'Vazifa AI tomonidan tekshirildi',
+    task_submitted: 'Vazifa topshirildi',
+    task_reviewed_by_teacher: "Vazifa o'qituvchi tomonidan baholandi",
+    task_deleted: "Vazifa o'chirildi",
+    tasks_deleted_bulk: "Barcha vazifalar o'chirildi",
+    deadline_extended: 'Muddat uzaytirildi',
+    plan_regenerated: 'Reja qayta yaratildi',
+    peer_ratings_submitted: "A'zolar bir-birini baholadi",
 };
 
 export function formatTeamEvent(event) {
@@ -42,6 +49,27 @@ export function formatTeamEvent(event) {
             break;
         case 'task_reviewed':
             detail = `${p.score ?? '?'}/100 — ${p.approved ? 'tasdiqlandi' : 'rad etildi'}`;
+            break;
+        case 'task_submitted':
+            detail = `Vazifa #${p.task_id ?? '?'} (${p.kind === 'zip' ? 'ZIP' : 'GitHub'})`;
+            break;
+        case 'task_reviewed_by_teacher':
+            detail = `Vazifa #${p.task_id ?? '?'} — ${p.decision === 'approve' ? 'tasdiqlandi' : "o'zgartirish so'raldi"}`;
+            break;
+        case 'task_deleted':
+            detail = p.title || `Vazifa #${p.task_id ?? '?'}`;
+            break;
+        case 'tasks_deleted_bulk':
+            detail = `${p.deleted ?? '?'} ta vazifa`;
+            break;
+        case 'deadline_extended':
+            detail = `+${p.days ?? '?'} kun, ${p.tasks ?? '?'} ta vazifa`;
+            break;
+        case 'plan_regenerated':
+            detail = `${p.deleted_tasks ?? '?'} ta eski vazifa o'chirildi`;
+            break;
+        case 'peer_ratings_submitted':
+            detail = `${p.count ?? '?'} ta baho`;
             break;
         default:
             detail = '';
