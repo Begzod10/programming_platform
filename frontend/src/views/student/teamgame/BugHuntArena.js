@@ -21,6 +21,7 @@ export function BugSnippet({ code, language, options, chosen, showResult, correc
     // 1-based line number -> its index within `options` (the candidate list)
     const candidateByLine = {};
     (options || []).forEach((lineStr, idx) => { candidateByLine[Number(lineStr)] = idx; });
+    const hasVisibleCandidate = lines.some((_, i) => candidateByLine[i + 1] !== undefined);
 
     return (
         <div className="stg-bug-code" role="group">
@@ -50,13 +51,29 @@ export function BugSnippet({ code, language, options, chosen, showResult, correc
                         ) : (
                             <span className="stg-bug-gutter stg-bug-gutter--inert" aria-hidden="true">{lineNum}</span>
                         )}
-                        <pre
-                            className="stg-bug-line-code"
-                            dangerouslySetInnerHTML={{ __html: highlightedLines[i] || ' ' }}
-                        />
+                        <pre className="stg-bug-line-code">
+                            <code dangerouslySetInnerHTML={{ __html: highlightedLines[i] || ' ' }} />
+                        </pre>
                     </div>
                 );
             })}
+            {!hasVisibleCandidate && (options || []).length > 0 && (
+                <div className="stg-bug-fallback" role="group">
+                    {options.map((lineStr, idx) => (
+                        <button
+                            key={idx}
+                            type="button"
+                            className="stg-bug-gutter stg-bug-gutter--candidate"
+                            onClick={() => onPick(idx)}
+                            disabled={disabled}
+                            aria-pressed={chosen === idx}
+                        >
+                            <span className="stg-bug-letter">{OPTION_LABELS[idx]}</span>
+                            <span className="stg-bug-linenum">{lineStr}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

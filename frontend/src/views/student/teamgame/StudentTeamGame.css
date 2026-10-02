@@ -769,3 +769,13 @@
         animation: none !important;
     }
 }
+
+/* Shown only when none of a bug-hunt question's candidate lines exist in its
+   snippet (malformed data) — keeps the question answerable instead of a dead end. */
+.stg-bug-fallback {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
