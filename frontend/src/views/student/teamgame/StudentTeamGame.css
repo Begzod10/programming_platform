@@ -618,6 +618,12 @@
 .stg-bug-code {
     width: 100%;
     max-width: 780px;
+    /* The overlay is a scrolling flex column and overflow-x:auto below drops
+       this item's min-height to 0, so without this a long snippet was
+       squeezed to fit the screen — hiding the tappable lines (e.g. 11-20 of
+       a 22-line snippet) in an easy-to-miss inner scroll area. Let the
+       overlay scroll instead. */
+    flex-shrink: 0;
     background: rgba(0, 0, 0, 0.22);
     border: 1.5px solid rgba(255, 255, 255, 0.11);
     border-radius: 14px;
