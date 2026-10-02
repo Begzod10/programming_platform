@@ -32,6 +32,7 @@ def _task(member_idx, required_level="Beginner", produces=None, consumes=None,
             "files": ["src/Task.jsx"], "produces": produces or [], "consumes": consumes or [],
         },
         "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],
+        "acceptance_criteria_ru": ["Первый конкретный критерий", "Второй конкретный критерий"],
         "depends_on": depends_on or [],
         "estimated_hours": estimated_hours,
     }
@@ -223,3 +224,24 @@ def test_find_cycle_detects_three_node_cycle():
     assert cycle is not None
     # the cycle should revisit its own start
     assert cycle[0] == cycle[-1]
+
+
+def test_missing_acceptance_criteria_ru_is_rejected():
+    plan = {"tasks": [_task(0)]}
+    del plan["tasks"][0]["acceptance_criteria_ru"]
+    errors = validate_plan(plan, _members("Beginner"))
+    assert any("acceptance_criteria_ru must be a list" in e for e in errors)
+
+
+def test_acceptance_criteria_ru_length_mismatch_is_rejected():
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["acceptance_criteria_ru"] = ["Только один пункт"]
+    errors = validate_plan(plan, _members("Beginner"))
+    assert any("exactly as many entries" in e for e in errors)
+
+
+def test_acceptance_criteria_ru_copied_from_uz_is_rejected():
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["acceptance_criteria_ru"] = list(plan["tasks"][0]["acceptance_criteria"])
+    errors = validate_plan(plan, _members("Beginner"))
+    assert any("identical to the uz text" in e for e in errors)

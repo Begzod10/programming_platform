@@ -143,6 +143,8 @@ async def _reconcile_indexes(conn) -> None:
         text("ALTER TABLE early_modules ADD COLUMN IF NOT EXISTS description_ru TEXT"),
         text("ALTER TABLE early_activities ADD COLUMN IF NOT EXISTS title_ru VARCHAR(150)"),
         text("ALTER TABLE early_activities ADD COLUMN IF NOT EXISTS instruction_text_ru TEXT"),
+        # 2026-10-02: Russian acceptance criteria on team-project tasks.
+        text("ALTER TABLE team_project_tasks ADD COLUMN IF NOT EXISTS acceptance_criteria_ru_json TEXT"),
         # 2026-09-14: close the gennis/turon sync duplicate-row class of bug
         # (confirmed live: two Student rows both with turon_id=19042, one
         # synthetic-username, one real — corrupted a teacher's whole roster

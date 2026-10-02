@@ -76,6 +76,7 @@ class TaskRead(BaseModel):
     required_level: str
     interface_contract: dict
     acceptance_criteria: List[str]
+    acceptance_criteria_ru: List[str] = []
     depends_on: List[int]
     estimated_hours: int
     status: str
@@ -211,6 +212,7 @@ class ManualTaskItem(BaseModel):
     required_level: str
     interface_contract: dict = {}
     acceptance_criteria: List[str] = []
+    acceptance_criteria_ru: List[str] = []
     # 0-based indices into THIS tasks list — same contract as the AI
     # planner's depends_on (see TeamProjectTask.depends_on_json).
     depends_on: List[int] = []

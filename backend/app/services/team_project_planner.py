@@ -70,6 +70,7 @@ TALABLAR:
 - `description` bir jumlali umumiy gap bo'lmasin — o'quvchi hech kimdan so'ramasdan ishni boshlay oladigan darajada aniq yoz (kamida {MIN_DESCRIPTION_LEN} belgi).
 - `acceptance_criteria` kamida {MIN_ACCEPTANCE_CRITERIA} ta ANIQ, tekshirib bo'ladigan band bo'lsin (masalan "Login formasi noto'g'ri parolda xato xabar ko'rsatadi" — "Yaxshi ishlaydi" kabi umumiy gap emas).
 - `interface_contract.files` bo'sh bo'lmasin — vazifa natijasida yaratiladigan/o'zgartiriladigan haqiqiy fayl(lar) nomini yoz (masalan "src/components/LoginForm.jsx").
+- `acceptance_criteria_ru` — `acceptance_criteria` ro'yxatining XUDDI SHU TARTIBDAGI va XUDDI SHU SONDAGI tabiiy rus tilidagi tarjimasi (har bir band uchun bitta rus bandi). Bo'sh yoki o'zbekcha qoldirish TAQIQLANADI.
 - `title_ru` va `description_ru` — `title`/`description`ning so'zma-so'z tarjimasi emas, lekin XUDDI SHU ma'noni beruvchi TABIIY, TO'LIQ rus tilidagi matn bo'lishi SHART. Bo'sh qoldirish yoki `title`/`description` bilan bir xil (o'zbekcha) matnni qaytarish QATʼIYAN TAQIQLANADI — ba'zi o'quvchilar faqat rus tilini tushunadi va bu maydonlarsiz ular vazifani tushuna olmaydi.
 
 JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma (quyidagi bitta vazifa TO'LIQ, YETARLI misol — shu darajada aniq yoz, RUSCHA maydonlar ham xuddi shunday to'liq bo'lsin):
@@ -85,6 +86,7 @@ JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma (quyidagi bitta v
       "required_level": "Beginner|Intermediate|Advanced",
       "interface_contract": {{"files": ["src/pages/Login.jsx"], "produces": ["auth_token in localStorage"], "consumes": []}},
       "acceptance_criteria": ["To'g'ri login/parolda /dashboard'ga yo'naltiradi", "Noto'g'ri parolda forma ustida xato xabari chiqadi", "Bo'sh maydon bilan yuborib bo'lmaydi"],
+      "acceptance_criteria_ru": ["При верном логине и пароле перенаправляет на /dashboard", "При неверном пароле над формой показывается сообщение об ошибке", "Нельзя отправить форму с пустым полем"],
       "depends_on": [],
       "estimated_hours": 4
     }}
@@ -189,6 +191,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
                 required_level=task.get("required_level", "Beginner"),
                 interface_contract_json=json.dumps(task.get("interface_contract", {})),
                 acceptance_criteria_json=json.dumps(task.get("acceptance_criteria", [])),
+                acceptance_criteria_ru_json=json.dumps(task.get("acceptance_criteria_ru", [])),
                 depends_on_json=json.dumps(task.get("depends_on", [])),
                 estimated_hours=int(task.get("estimated_hours", 4)),
                 deadline_at=deadline_at,
@@ -332,6 +335,22 @@ def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:
                 f"Task {idx}: acceptance_criteria must have at least "
                 f"{MIN_ACCEPTANCE_CRITERIA} concrete, non-empty entries."
             )
+
+        criteria_ru = task.get("acceptance_criteria_ru")
+        if not isinstance(criteria_ru, list) or not all(
+            isinstance(c, str) and c.strip() for c in criteria_ru
+        ):
+            errors.append(f"Task {idx}: acceptance_criteria_ru must be a list of non-empty Russian strings.")
+        elif isinstance(acceptance_criteria, list) and len(criteria_ru) != len(acceptance_criteria):
+            errors.append(
+                f"Task {idx}: acceptance_criteria_ru must have exactly as many entries as "
+                f"acceptance_criteria ({len(acceptance_criteria)}), got {len(criteria_ru)}."
+            )
+        elif isinstance(acceptance_criteria, list) and any(
+            ru.strip().lower() == uz.strip().lower()
+            for ru, uz in zip(criteria_ru, acceptance_criteria) if isinstance(uz, str)
+        ):
+            errors.append(f"Task {idx}: acceptance_criteria_ru has entries identical to the uz text (not translated).")
 
         contract = task.get("interface_contract") or {}
         if not (contract.get("files") and any(isinstance(f, str) and f.strip() for f in contract["files"])):

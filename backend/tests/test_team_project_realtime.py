@@ -308,6 +308,7 @@ async def test_manual_plan_triggers_broadcast(async_client, db_session, _patched
                 "required_level": "Beginner",
                 "interface_contract": {"files": ["src/Task.jsx"], "produces": [], "consumes": []},
                 "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],
+                    "acceptance_criteria_ru": ["Первый конкретный критерий", "Второй конкретный критерий"],
                 "depends_on": [], "estimated_hours": 4,
             }],
         },
@@ -363,6 +364,7 @@ async def test_generate_plan_for_team_broadcasts_on_success(async_client, db_ses
             "required_level": "Beginner",
             "interface_contract": {"files": ["src/Task.jsx"], "produces": [], "consumes": []},
             "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],
+                    "acceptance_criteria_ru": ["Первый конкретный критерий", "Второй конкретный критерий"],
             "depends_on": [], "estimated_hours": 4,
         }],
     }

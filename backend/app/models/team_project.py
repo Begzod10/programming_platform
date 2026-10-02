@@ -268,6 +268,9 @@ class TeamProjectTask(Base):
     interface_contract_json: Mapped[str] = mapped_column(Text, nullable=False)
     # list[str]
     acceptance_criteria_json: Mapped[str] = mapped_column(Text, nullable=False)
+    # list[str], index-aligned with acceptance_criteria_json; NULL on tasks
+    # created before Russian criteria existed (readers fall back to uz).
+    acceptance_criteria_ru_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # list[int] — other tasks' `order` values this one depends on.
     depends_on_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
 

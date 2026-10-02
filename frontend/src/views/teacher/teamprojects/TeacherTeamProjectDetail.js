@@ -6,7 +6,7 @@ import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import { formatTeamEvent } from './formatTeamEvent';
 import { isStuckWithNoManualPlan } from './isStuckWithNoManualPlan';
 import { useTranslation } from '../../../i18n/useTranslation';
-import { pickLang } from '../../../utils/pickLang';
+import { pickLang, pickLangList } from '../../../utils/pickLang';
 import './TeacherTeamProjects.css';
 
 const STATUS_LABELS = {
@@ -65,7 +65,7 @@ const TaskDetailModal = ({ task, allTasks, onClose, lang }) => {
                         <div className="ttd-detail-section">
                             <h5>Qabul mezonlari</h5>
                             <ul className="ttd-criteria">
-                                {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
+                                {pickLangList(task, 'acceptance_criteria', lang).map((c, i) => <li key={i}>{c}</li>)}
                             </ul>
                         </div>
                     )}
@@ -156,7 +156,7 @@ const TaskRow = ({ task, members, allTasks, onReassign, onDelete, lang }) => {
             <p className="ttd-task-desc">{pickLang(task, 'description', lang)}</p>
             {task.acceptance_criteria?.length > 0 && (
                 <ul className="ttd-criteria">
-                    {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
+                    {pickLangList(task, 'acceptance_criteria', lang).map((c, i) => <li key={i}>{c}</li>)}
                 </ul>
             )}
             <p className="ttp-muted">Bajaruvchi: {task.assigned_student_name || '—'}</p>
@@ -334,7 +334,7 @@ const extractErrorMessage = (e) => {
 const emptyManualTask = () => ({
     title: '', title_ru: '', description: '', description_ru: '',
     required_level: 'Beginner', estimated_hours: 4,
-    acceptance_criteria_text: '', depends_on: [],
+    acceptance_criteria_text: '', acceptance_criteria_ru_text: '', depends_on: [],
 });
 
 // AI-disabled / /regenerate-exhausted fallback: lets the teacher author a
@@ -370,6 +370,7 @@ const ManualPlanForm = ({ team, onSubmit, onCancel, submitting, error }) => {
             description: t.description, description_ru: t.description_ru,
             required_level: t.required_level,
             acceptance_criteria: t.acceptance_criteria_text.split('\n').map(s => s.trim()).filter(Boolean),
+            acceptance_criteria_ru: t.acceptance_criteria_ru_text.split('\n').map(s => s.trim()).filter(Boolean),
             depends_on: t.depends_on,
             estimated_hours: Number(t.estimated_hours) || 4,
         })),
@@ -428,6 +429,11 @@ const ManualPlanForm = ({ team, onSubmit, onCancel, submitting, error }) => {
                             <span>Qabul mezonlari (har birini yangi qatordan)</span>
                             <textarea value={task.acceptance_criteria_text}
                                       onChange={e => updateTask(idx, { acceptance_criteria_text: e.target.value })} />
+                        </label>
+                        <label className="ttp-field">
+                            <span>Qabul mezonlari — rus tilida (har birini yangi qatordan, o'zbekchadagi tartibda)</span>
+                            <textarea value={task.acceptance_criteria_ru_text}
+                                      onChange={e => updateTask(idx, { acceptance_criteria_ru_text: e.target.value })} />
                         </label>
                         {team.members.length > 1 && (
                             <div className="ttd-depends-on">

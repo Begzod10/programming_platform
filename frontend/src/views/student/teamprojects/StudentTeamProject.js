@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import { useTranslation } from '../../../i18n/useTranslation';
-import { pickLang } from '../../../utils/pickLang';
+import { pickLang, pickLangList } from '../../../utils/pickLang';
 import './StudentTeamProject.css';
 
 // Matches the two shapes api/search/base.js's request() wrapper can reject
@@ -74,7 +74,7 @@ const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting, lang }) =>
             <p className="stp-task-desc">{pickLang(task, 'description', lang)}</p>
             {task.acceptance_criteria?.length > 0 && (
                 <ul className="stp-criteria">
-                    {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
+                    {pickLangList(task, 'acceptance_criteria', lang).map((c, i) => <li key={i}>{c}</li>)}
                 </ul>
             )}
             {deadline && (

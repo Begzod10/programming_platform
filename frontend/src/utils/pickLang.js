@@ -10,3 +10,11 @@ export function pickLang(obj, field, lang) {
     }
     return obj?.[field] ?? '';
 }
+
+export function pickLangList(obj, field, lang) {
+    if (lang === 'ru') {
+        const ru = obj?.[`${field}_ru`];
+        if (Array.isArray(ru) && ru.length > 0) return ru;
+    }
+    return obj?.[field] ?? [];
+}

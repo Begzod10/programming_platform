@@ -355,6 +355,7 @@ async def test_concurrent_regenerate_does_not_duplicate_tasks(
                     "required_level": "Beginner", "assign_to_member_index": i,
                     "interface_contract": {"files": [f"src/Task{i}.jsx"], "produces": [], "consumes": []},
                     "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],
+                    "acceptance_criteria_ru": ["Первый конкретный критерий", "Второй конкретный критерий"],
                     "depends_on": [], "estimated_hours": 4,
                 }
                 for i in range(2)
