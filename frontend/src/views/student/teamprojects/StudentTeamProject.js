@@ -115,7 +115,7 @@ const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting, lang }) =>
             {feedback && (
                 <div className={`stp-feedback${task.status === 'approved' ? ' stp-feedback--ok' : ''}`}>
                     <strong>{task.ai_score != null ? `${task.ai_score}/100` : ''}</strong>
-                    <p>{feedback.feedback}</p>
+                    <p>{lang === 'ru' && feedback.feedback_ru ? feedback.feedback_ru : feedback.feedback}</p>
                 </div>
             )}
         </div>
@@ -432,10 +432,16 @@ const StudentTeamProject = () => {
             {team.tasks.length === 0 && (
                 team.status === 'forming' && team.generation_attempts >= 3 ? (
                     <p className="stp-muted stp-muted--error">
-                        Loyiha rejasini avtomatik yaratib bo'lmadi. Iltimos, o'qituvchingizga xabar bering.
+                        {lang === 'ru'
+                            ? 'Не удалось автоматически создать план проекта. Сообщите об этом своему учителю.'
+                            : "Loyiha rejasini avtomatik yaratib bo'lmadi. Iltimos, o'qituvchingizga xabar bering."}
                     </p>
                 ) : (
-                    <p className="stp-muted">Loyiha rejasi tayyorlanmoqda, biroz kuting…</p>
+                    <p className="stp-muted">
+                        {lang === 'ru'
+                            ? 'План проекта ещё готовится — подождите или дождитесь, пока учитель его создаст…'
+                            : "Loyiha rejasi tayyorlanmoqda yoki o'qituvchi tomonidan yaratilishi kutilmoqda…"}
+                    </p>
                 )
             )}
 

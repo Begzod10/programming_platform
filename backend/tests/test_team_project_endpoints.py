@@ -549,3 +549,101 @@ async def test_review_task_submission_penalizes_unfetchable_repo(db_session, two
     assert result["success"] is True
     assert "o'qib bo'lmadi" in captured_prompt["value"]
     assert "404 not found" in captured_prompt["value"]
+
+
+# ── audit fixes: regenerate guard, failed-regenerate recovery, no duplicate plan ──
+
+def _plain_task(team_id, student_id, status=TaskStatus.assigned):
+    return TeamProjectTask(
+        team_id=team_id, assigned_student_id=student_id, order=0,
+        title="T", title_ru="Т", description="D", description_ru="О",
+        required_level="Beginner", interface_contract_json="{}",
+        acceptance_criteria_json="[]", depends_on_json="[]", estimated_hours=4,
+        status=status,
+    )
+
+
+async def test_regenerate_is_rejected_on_a_finalized_team(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    team = fx["teams"][0]
+    member = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().first()
+    team.status = TeamStatus.reviewed
+    db_session.add(_plain_task(team.id, member.student_id, TaskStatus.approved))
+    await db_session.commit()
+
+    resp = await async_client.post(f"{BASE}/teams/{team.id}/regenerate", headers=fx["teacher_headers"])
+    assert resp.status_code == 400, resp.text
+
+    remaining = (await db_session.execute(
+        select(TeamProjectTask).where(TeamProjectTask.team_id == team.id)
+    )).scalars().all()
+    assert len(remaining) == 1, "a finalized team's approved work must not be wiped"
+
+
+async def test_failed_regenerate_returns_team_to_forming_not_stranded_working(
+    async_client, db_session, two_teams_project,
+):
+    fx = two_teams_project
+    team = fx["teams"][0]
+    member = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().first()
+    team.status = TeamStatus.working
+    db_session.add(_plain_task(team.id, member.student_id))
+    await db_session.commit()
+
+    async def _ai_down(*args, **kwargs):
+        raise RuntimeError("provider down")
+
+    with patch("app.services.team_project_planner.call_chain", new=_ai_down):
+        resp = await async_client.post(f"{BASE}/teams/{team.id}/regenerate", headers=fx["teacher_headers"])
+    assert resp.status_code == 200, resp.text
+
+    await db_session.refresh(team)
+    assert team.status == TeamStatus.forming  # manual-plan fallback only accepts "forming"
+    left = (await db_session.execute(
+        select(TeamProjectTask).where(TeamProjectTask.team_id == team.id)
+    )).scalars().all()
+    assert left == []
+
+
+async def test_generate_plan_skips_a_team_that_already_has_tasks(db_session, two_teams_project):
+    from unittest.mock import AsyncMock
+    from app.services.team_project_planner import generate_plan_for_team
+
+    fx = two_teams_project
+    team = fx["teams"][0]
+    member = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().first()
+    db_session.add(_plain_task(team.id, member.student_id))
+    await db_session.commit()
+    attempts_before = team.generation_attempts
+
+    ai = AsyncMock()
+    with patch("app.services.team_project_planner.call_chain", new=ai):
+        await generate_plan_for_team(db_session, team.id)
+
+    ai.assert_not_awaited()
+    await db_session.refresh(team)
+    assert team.generation_attempts == attempts_before
+
+
+async def test_reassign_is_rejected_for_an_approved_task(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    team = fx["teams"][0]
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().all()
+    task = _plain_task(team.id, members[0].student_id, TaskStatus.approved)
+    db_session.add(task)
+    await db_session.commit()
+    await db_session.refresh(task)
+
+    resp = await async_client.post(
+        f"{BASE}/teams/{team.id}/tasks/{task.id}/reassign",
+        headers=fx["teacher_headers"], json={"student_id": members[1].student_id},
+    )
+    assert resp.status_code == 400, resp.text

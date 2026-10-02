@@ -334,7 +334,7 @@ const extractErrorMessage = (e) => {
 const emptyManualTask = () => ({
     title: '', title_ru: '', description: '', description_ru: '',
     required_level: 'Beginner', estimated_hours: 4,
-    acceptance_criteria_text: '', acceptance_criteria_ru_text: '', depends_on: [],
+    acceptance_criteria_text: '', acceptance_criteria_ru_text: '', files_text: '', depends_on: [],
 });
 
 // AI-disabled / /regenerate-exhausted fallback: lets the teacher author a
@@ -369,6 +369,7 @@ const ManualPlanForm = ({ team, onSubmit, onCancel, submitting, error }) => {
             title: t.title, title_ru: t.title_ru,
             description: t.description, description_ru: t.description_ru,
             required_level: t.required_level,
+            interface_contract: { files: t.files_text.split('\n').map(s => s.trim()).filter(Boolean) },
             acceptance_criteria: t.acceptance_criteria_text.split('\n').map(s => s.trim()).filter(Boolean),
             acceptance_criteria_ru: t.acceptance_criteria_ru_text.split('\n').map(s => s.trim()).filter(Boolean),
             depends_on: t.depends_on,
@@ -424,6 +425,11 @@ const ManualPlanForm = ({ team, onSubmit, onCancel, submitting, error }) => {
                             <span>Taxminiy soat</span>
                             <input type="number" min={1} value={task.estimated_hours}
                                    onChange={e => updateTask(idx, { estimated_hours: e.target.value })} />
+                        </label>
+                        <label className="ttp-field">
+                            <span>Fayllar — vazifa yaratadigan/o'zgartiradigan fayl(lar) (har birini yangi qatordan, masalan src/pages/Login.jsx)</span>
+                            <textarea value={task.files_text}
+                                      onChange={e => updateTask(idx, { files_text: e.target.value })} />
                         </label>
                         <label className="ttp-field">
                             <span>Qabul mezonlari (har birini yangi qatordan)</span>
@@ -547,10 +553,13 @@ const TeacherTeamProjectDetail = () => {
     useSessionSocket(id, null, null, handleProjectWsMessage, 'team-projects');
 
     const regenerate = async (teamId) => {
+        setDeleteError('');
         try {
             await request(`${API_URL}v1/team-projects/teams/${teamId}/regenerate`, 'POST', null, headers());
             await reload();
-        } catch {}
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e) || "Rejani qayta yaratib bo'lmadi");
+        }
     };
 
     const reassign = async (teamId, taskId, studentId) => {
@@ -560,7 +569,9 @@ const TeacherTeamProjectDetail = () => {
                 'POST', JSON.stringify({ student_id: studentId }), headers(),
             );
             await reload();
-        } catch {}
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e) || "Vazifani qayta tayinlab bo'lmadi");
+        }
     };
 
     const deleteTask = async (teamId, taskId) => {

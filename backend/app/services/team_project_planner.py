@@ -13,7 +13,7 @@ import logging
 from datetime import timedelta
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -141,9 +141,23 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
     stack = TECH_STACKS_BY_KEY.get(team.tech_stack, {"frontend": team.tech_stack, "backend": ""})
     prompt = _build_plan_prompt(theme.get("label", team.theme), stack, members_summary)
 
+    # A plan already exists (e.g. the teacher saved a manual plan or another
+    # generation finished while this one was queued) — never materialize a
+    # second set of tasks next to it. Regenerate deletes the old tasks and
+    # flushes before calling in, so it sees none here.
+    existing_tasks = (await db.execute(
+        select(func.count()).select_from(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
+    )).scalar_one()
+    if existing_tasks:
+        return
+
     team.generation_attempts += 1
     try:
-        _, parsed, provider, attempts = await call_chain(prompt, max_tokens=2000, validator=parse_ai_json)
+        # Bilingual tasks (title/description/criteria in uz AND ru, Cyrillic
+        # tokenizes expensively) need ~1k tokens each — 2000 total truncated
+        # the JSON for larger teams, failing every attempt deterministically.
+        plan_tokens = min(8000, 900 * len(members_summary) + 600)
+        _, parsed, provider, attempts = await call_chain(prompt, max_tokens=plan_tokens, validator=parse_ai_json)
         plan = _normalize_plan(parsed, len(members_summary))
         plan_errors = validate_plan(plan, members_summary)
         if plan_errors:
@@ -155,6 +169,15 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
             event_type="plan_generation_failed",
             payload_json=json.dumps({"error": str(e)}),
         ))
+        # A regenerate deletes the old tasks before generating; if generation
+        # then fails, the team must not stay "working" with zero tasks — the
+        # manual-plan fallback only accepts a "forming" team.
+        if team.status == TeamStatus.working:
+            remaining = (await db.execute(
+                select(func.count()).select_from(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
+            )).scalar_one()
+            if remaining == 0:
+                team.status = TeamStatus.forming
         await db.commit()
         # Local import: avoids a module-load cycle (team_project.py already
         # imports generate_plan_for_team from this module at top level).

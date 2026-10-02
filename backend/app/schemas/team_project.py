@@ -54,8 +54,8 @@ class SkillProfile(BaseModel):
 class TeamProjectCreate(BaseModel):
     group_id: int
     course_id: Optional[int] = None
-    team_size: int = 4
-    deadline_days: int = 14
+    team_size: int = Field(default=4, ge=1, le=10)
+    deadline_days: int = Field(default=14, ge=1, le=365)
     # Explicit roster the teacher picked, NOT necessarily group_id's full
     # membership — lets a teacher exclude a student who won't be
     # participating, or pull students in from another of their groups.

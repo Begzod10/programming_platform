@@ -35,7 +35,7 @@ from app.services.team_project_planner import generate_plan_for_team, validate_p
 from app.services.team_project_task_review import review_task_submission
 from app.services.team_project_constants import THEMES_BY_KEY, TECH_STACKS_BY_KEY
 from app.services.project_service import ProjectService
-from app.services.github_repo_service import zip_bytes_have_code_file
+from app.services.github_repo_service import parse_github_url, zip_bytes_have_code_file
 from app.schemas.project import ProjectCreate
 from app.utils.datetime_utils import utcnow
 from app.ws.manager import team_ws_manager, team_project_ws_manager
@@ -480,6 +480,7 @@ async def regenerate_team_plan(
             raise HTTPException(status_code=404, detail="Jamoa topilmadi")
         if team.team_project.teacher_id != teacher.id:
             raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+        _guard_team_not_finalized(team)
         if team.generation_attempts >= MAX_GENERATION_ATTEMPTS:
             raise HTTPException(status_code=400, detail="Urinishlar soni tugadi (3/3)")
 
@@ -684,10 +685,25 @@ async def submit_task(
     if not body.submission_url and not body.submission_files:
         raise HTTPException(status_code=400, detail="Havola yoki fayl kerak")
 
+    team = (await db.execute(
+        select(TeamProjectTeam).where(TeamProjectTeam.id == team_id)
+    )).scalar_one()
+    _guard_team_not_finalized(team)
+    if task.status == TaskStatus.approved:
+        raise HTTPException(status_code=400, detail="Bu vazifa allaqachon tasdiqlangan")
+    if body.submission_url and parse_github_url(body.submission_url) is None:
+        raise HTTPException(status_code=400, detail="GitHub havolasi noto'g'ri")
+
     task.submission_url = body.submission_url
     task.submission_files = body.submission_files
     task.submitted_at = utcnow()
     task.status = TaskStatus.submitted
+    # A resubmission starts a fresh review: the stuck-review sweep only picks
+    # up tasks with reviewed_at IS NULL, so a stale value from the previous
+    # review would leave a failed re-review stuck forever.
+    task.reviewed_at = None
+    task.ai_score = None
+    task.ai_feedback_json = None
     await db.commit()
 
     await review_task_submission(db, task_id)
@@ -834,6 +850,11 @@ async def reassign_task(
     )).scalar_one_or_none()
     if task is None:
         raise HTTPException(status_code=404, detail="Vazifa topilmadi")
+    _guard_team_not_finalized(team)
+    if task.status == TaskStatus.approved:
+        # Points were already awarded to the current assignee; resetting the
+        # task would let the new assignee be paid for it again.
+        raise HTTPException(status_code=400, detail="Tasdiqlangan vazifani qayta tayinlab bo'lmaydi")
     member = (await db.execute(
         select(TeamProjectMember).where(
             TeamProjectMember.team_id == team_id, TeamProjectMember.student_id == body.student_id,
