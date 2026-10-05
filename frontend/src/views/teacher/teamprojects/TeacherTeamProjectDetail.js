@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import { formatTeamEvent } from './formatTeamEvent';
 import { isStuckWithNoManualPlan } from './isStuckWithNoManualPlan';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { pickLang, pickLangList } from '../../../utils/pickLang';
+import { visibleTeams } from './visibleTeams';
 import './TeacherTeamProjects.css';
 
 const STATUS_LABELS = {
@@ -489,6 +490,7 @@ const ManualPlanForm = ({ team, onSubmit, onCancel, submitting, error }) => {
 const TeacherTeamProjectDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { request } = useHttp();
     const { lang } = useTranslation();
     const [tp, setTp] = useState(null);
@@ -673,6 +675,9 @@ const TeacherTeamProjectDetail = () => {
     if (loading) return <div className="ttp-page"><p className="ttp-muted">Yuklanmoqda…</p></div>;
     if (!tp) return <div className="ttp-page"><p className="ttp-muted">Topshiriq topilmadi.</p></div>;
 
+    const shownTeams = visibleTeams(tp.teams, searchParams.get('team'));
+    const showingOneTeam = shownTeams.length === 1 && tp.teams.length > 1;
+
     return (
         <div className="ttp-page">
             <div className="ttp-page-head">
@@ -680,14 +685,22 @@ const TeacherTeamProjectDetail = () => {
                     <button className="ttp-btn ttp-btn--ghost" onClick={() => navigate('/teacher/team-projects')}>
                         ← Orqaga
                     </button>
-                    <h2>Topshiriq #{tp.id}</h2>
+                    <h2>Topshiriq #{tp.id}{showingOneTeam ? ` · ${shownTeams[0].name}` : ''}</h2>
                 </div>
                 <span className="ttp-muted">{STATUS_LABELS[tp.status] || tp.status}</span>
             </div>
 
+            {showingOneTeam && (
+                <div className="ttp-muted" style={{ marginBottom: 12 }}>
+                    <button className="ttp-btn ttp-btn--ghost ttp-btn--sm" onClick={() => setSearchParams({})}>
+                        Barcha jamoalarni ko'rsatish ({tp.teams.length})
+                    </button>
+                </div>
+            )}
+
             {deleteError && <div className="ttp-error">{deleteError}</div>}
 
-            {tp.teams.map(team => (
+            {shownTeams.map(team => (
                 <div key={team.id} className="ttd-team-section">
                     <div className="ttd-team-header">
                         <h3>{team.name}</h3>
