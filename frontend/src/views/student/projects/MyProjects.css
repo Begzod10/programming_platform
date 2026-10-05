@@ -1305,3 +1305,67 @@
     .tc-confirm-actions .tc-cancel-btn,
     .tc-confirm-actions .tc-delete-btn { width: 100%; flex: none; min-height: 44px; }
 }
+/* ══════════════════════════════════════════════════════════════
+   Mening loyihalarim — dark full-bleed list (shares AppHeader)
+   ══════════════════════════════════════════════════════════════ */
+.mpx-dark {
+    position:fixed; inset:0; overflow-y:auto; overflow-x:hidden; color:#eef1ff;
+    background:
+        radial-gradient(1100px 560px at 82% -6%, rgba(139,123,242,.18), transparent 60%),
+        radial-gradient(820px 460px at 6% 2%, rgba(54,224,107,.07), transparent 55%),
+        linear-gradient(160deg,#070a1c 0%,#0d1230 46%,#141b42 100%);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,sans-serif;
+}
+.mpx-dark::-webkit-scrollbar { width:9px; }
+.mpx-dark::-webkit-scrollbar-thumb { background:rgba(255,255,255,.12); border-radius:10px; }
+
+.mpx-shell { max-width:1360px; margin:0 auto; padding:26px 32px 56px; }
+
+.mpx-header { display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:26px; }
+.mpx-title { font-size:2.1rem; font-weight:800; letter-spacing:-.6px; margin:0; }
+.mpx-tools { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.mpx-search { position:relative; display:flex; align-items:center; }
+.mpx-search-ic { position:absolute; left:14px; color:#6b7399; pointer-events:none; }
+.mpx-search input {
+    width:300px; max-width:60vw; padding:12px 16px 12px 40px; border-radius:13px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:#eef1ff;
+    font-size:.9rem; font-family:inherit; outline:none; transition:.2s;
+}
+.mpx-search input::placeholder { color:#6b7399; }
+.mpx-search input:focus { border-color:rgba(139,123,242,.5); background:rgba(139,123,242,.06); box-shadow:0 0 0 3px rgba(139,123,242,.12); }
+.mpx-select {
+    padding:12px 16px; border-radius:13px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1);
+    color:#eef1ff; font-size:.9rem; font-family:inherit; cursor:pointer; outline:none; transition:.2s;
+}
+.mpx-select:hover { border-color:rgba(255,255,255,.18); }
+.mpx-select option { background:#0d1230; color:#eef1ff; }
+
+.mpx-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:20px; }
+
+.mpx-state { display:flex; align-items:center; justify-content:center; gap:12px; padding:80px 20px; color:#9aa3c7; font-size:1rem; }
+.mpx-spinner { width:36px; height:36px; border-radius:50%; border:3px solid rgba(255,255,255,.12); border-top-color:#8b7bf2; animation:mpxSpin .9s linear infinite; }
+@keyframes mpxSpin { to { transform:rotate(360deg); } }
+
+@media (max-width:860px) {
+    .mpx-shell { padding:20px 18px 44px; }
+    .mpx-title { font-size:1.7rem; }
+    .mpx-grid { grid-template-columns:1fr; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   Detail / edit modal — force the dark theme so every token-based
+   label, close button and dropzone hint stays legible on the dark
+   card, regardless of the global light/dark token state.
+   ══════════════════════════════════════════════════════════════ */
+.mp-overlay { background:rgba(4,6,18,.74); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+.mp-modal {
+    --surface:#0f1536; --surface-2:#141b3e;
+    --ink:#eef1ff;
+    --ink-50:rgba(238,241,255,.6); --ink-35:rgba(238,241,255,.44);
+    --ink-12:rgba(238,241,255,.14); --ink-06:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.1);
+}
+.mp-modal-header { color:var(--ink); }
+.mp-close { color:var(--ink); background:rgba(255,255,255,.08); }
+.mp-close:hover { background:rgba(240,85,107,.18); color:#ff9db0; }
+.mp-dropzone { border-color:rgba(255,255,255,.16); background:rgba(255,255,255,.03); }

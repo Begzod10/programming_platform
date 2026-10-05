@@ -553,6 +553,15 @@ async def award_certificate(
     except Exception as e:
         print(f"⚠️  Category-certificate check failed for student={student_id}: {e}")
 
+    # Real-time: notify the student of the new course certificate.
+    try:
+        title_res = await db.execute(select(Course.title).where(Course.id == course_id))
+        course_title = title_res.scalar_one_or_none() or "Kurs"
+        from app.services import notification_service
+        await notification_service.notify_certificate_earned(db, student_id, course_title)
+    except Exception as e:
+        print(f"⚠️  Certificate notification failed for student={student_id}: {e}")
+
     return cert
 
 
@@ -647,6 +656,10 @@ async def award_achievement(
     # 5. Saqlash
     await db.commit()
     await db.refresh(new_sa)
+
+    # Real-time: notify the student of the new achievement.
+    from app.services import notification_service
+    await notification_service.notify_achievement_earned(db, student_id, achievement)
     return new_sa
 
 

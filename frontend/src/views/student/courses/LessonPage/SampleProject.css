@@ -1,40 +1,46 @@
+/* ══════════════════════════════════════════════════════════════
+   SampleProject ("Namuna" / live code example) — dark glass to match
+   the redesigned lesson page. The live HTML preview iframe stays on a
+   white surface (it renders the student-facing page); everything around
+   it is dark. Code panel is already dark.
+   ══════════════════════════════════════════════════════════════ */
 .sp-wrap {
-    margin: 24px 0;
-    border-radius: 14px;
-    border: 1px solid rgba(108, 92, 231, 0.18);
+    margin: 20px 0;
+    border-radius: 16px;
+    border: 1px solid rgba(139, 123, 242, 0.28);
     overflow: hidden;
-    background: #fff;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: 0 10px 30px -16px rgba(0, 0, 0, 0.5);
 }
 
 .sp-toggle {
     width: 100%;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 14px 18px;
-    background: rgba(108, 92, 231, 0.05);
+    gap: 9px;
+    padding: 15px 18px;
+    background: linear-gradient(100deg, rgba(139, 123, 242, 0.16), rgba(255, 255, 255, 0.02));
     border: none;
     cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #6c5ce7;
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #b7adfb;
     font-family: var(--font-ui);
     text-align: left;
-    transition: background 0.15s;
+    transition: background 0.18s;
 }
+.sp-toggle:hover { background: linear-gradient(100deg, rgba(139, 123, 242, 0.24), rgba(255, 255, 255, 0.03)); }
+.sp-toggle span { flex: 1; color: #eef1ff; }
+.sp-toggle svg:first-child { color: #b7adfb; }
 
-.sp-toggle:hover { background: rgba(108, 92, 231, 0.09); }
-
-.sp-toggle span { flex: 1; }
-
-.sp-body { padding: 0; }
+.sp-body { padding: 0; border-top: 1px solid rgba(255, 255, 255, 0.08); }
 
 .sp-desc {
     margin: 0;
-    padding: 10px 18px;
-    font-size: 0.85rem;
-    color: rgba(26, 26, 46, 0.65);
-    border-bottom: 1px solid rgba(108, 92, 231, 0.10);
+    padding: 12px 18px;
+    font-size: 0.86rem;
+    color: rgba(238, 241, 255, 0.62);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .sp-panes {
@@ -43,17 +49,9 @@
     min-height: 340px;
 }
 
-/* Tablet portrait (≤820px) — was a standalone ≤768px query, moved onto
- * the canonical breakpoint. Also stacks `.sp-panes--full` (the
- * Python/SQL layout), which the old rule missed — that variant left
- * the terminal-hint column and the code panel squeezed side-by-side
- * on narrow screens instead of stacking like the web preview/code
- * split does. */
 @media (max-width: 820px) {
     .sp-panes,
-    .sp-panes--full {
-        grid-template-columns: 1fr;
-    }
+    .sp-panes--full { grid-template-columns: 1fr; }
     .sp-terminal-hint {
         border-right: none;
         border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -62,37 +60,39 @@
 }
 
 .sp-preview {
-    border-right: 1px solid rgba(108, 92, 231, 0.10);
+    border-right: 1px solid rgba(255, 255, 255, 0.07);
     display: flex;
     flex-direction: column;
+    background: #0d1230;
 }
 
 .sp-pane-hd {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 14px;
+    padding: 9px 14px;
     font-size: 0.72rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: rgba(26, 26, 46, 0.50);
-    border-bottom: 1px solid rgba(108, 92, 231, 0.08);
-    background: rgba(108, 92, 231, 0.03);
+    color: rgba(238, 241, 255, 0.5);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.03);
 }
+.sp-pane-hd svg { color: #7ef0a3; }
 
 .sp-iframe {
     flex: 1;
     border: none;
     width: 100%;
     min-height: 300px;
-    background: #fff;
+    background: #fff; /* live render of the student page — stays white */
 }
 
 .sp-code-panel {
     display: flex;
     flex-direction: column;
-    background: #1e1e2e;
+    background: #0b1022;
     overflow: hidden;
 }
 
@@ -101,27 +101,26 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     padding: 0 12px;
     flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .sp-tab {
-    padding: 8px 14px;
+    padding: 9px 14px;
     background: none;
     border: none;
     border-bottom: 2px solid transparent;
-    color: rgba(255, 255, 255, 0.45);
+    color: rgba(238, 241, 255, 0.45);
     font-size: 0.78rem;
     font-weight: 600;
     cursor: pointer;
     font-family: var(--font-mono);
     transition: all 0.15s;
 }
-
 .sp-tab.active {
-    color: #a29bfe;
-    border-bottom-color: #6c5ce7;
+    color: #b7adfb;
+    border-bottom-color: #8b7bf2;
 }
-
-.sp-tab:hover { color: rgba(255, 255, 255, 0.75); }
+.sp-tab:hover { color: rgba(238, 241, 255, 0.8); }
 
 .sp-pre {
     flex: 1;
@@ -135,11 +134,11 @@
     white-space: pre;
     max-height: 340px;
 }
+.sp-pre::-webkit-scrollbar { width: 8px; height: 8px; }
+.sp-pre::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 8px; }
 
 /* Python / SQL: code panel takes full width */
-.sp-panes--full {
-    grid-template-columns: auto 1fr;
-}
+.sp-panes--full { grid-template-columns: auto 1fr; }
 
 .sp-terminal-hint {
     display: flex;
@@ -148,12 +147,12 @@
     justify-content: center;
     gap: 10px;
     padding: 24px 20px;
-    background: #1e1e2e;
-    color: rgba(205, 214, 244, 0.55);
+    background: #0b1022;
+    color: rgba(205, 214, 244, 0.6);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 0.82rem;
     text-align: center;
     min-width: 180px;
 }
-
-.sp-terminal-hint strong { color: #a6e3a1; }
+.sp-terminal-hint svg { color: #7ef0a3; }
+.sp-terminal-hint strong { color: #7ef0a3; }

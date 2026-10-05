@@ -13,6 +13,7 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
+import { useTranslation } from '../../../../i18n/useTranslation';
 import './Dictselectionpopup.css';
 
 // Inline SVG icons — emojis render as missing-glyph boxes on some
@@ -42,6 +43,8 @@ const WarnIcon = (props) => (
 const BASE = `${API_URL}v1/dictionary/`;
 
 export default function DictSelectionPopup({ lessonId }) {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const { request } = useHttp();
     const [popup,   setPopup]   = useState(null); // null | { x, y, word, context, done, saving, error }
     const btnRef                = useRef(null);
@@ -147,9 +150,9 @@ export default function DictSelectionPopup({ lessonId }) {
                 error:   false,
                 invalid: tooLong || tooManyWords,
                 invalidReason: tooLong
-                    ? "Juda uzun (80 belgigacha)"
+                    ? (ru ? "Слишком длинно (до 80 символов)" : "Juda uzun (80 belgigacha)")
                     : tooManyWords
-                        ? "Faqat 1-6 ta so'z"
+                        ? (ru ? "Только 1-6 слов" : "Faqat 1-6 ta so'z")
                         : null,
             });
         };
@@ -231,9 +234,9 @@ export default function DictSelectionPopup({ lessonId }) {
             style={{ left: popup.x, top: popup.y }}
         >
             {popup.done ? (
-                <span className="dsp-done"><CheckIcon /> Qo'shildi!</span>
+                <span className="dsp-done"><CheckIcon /> {ru ? 'Добавлено!' : "Qo'shildi!"}</span>
             ) : popup.error ? (
-                <span className="dsp-err"><WarnIcon /> Xatolik</span>
+                <span className="dsp-err"><WarnIcon /> {ru ? 'Ошибка' : 'Xatolik'}</span>
             ) : popup.invalid ? (
                 <span className="dsp-invalid">
                     <WarnIcon /> {popup.invalidReason}
@@ -248,7 +251,7 @@ export default function DictSelectionPopup({ lessonId }) {
                     >
                         {popup.saving
                             ? <span className="dsp-spin" />
-                            : <><BookIcon /> Lug'atga qo'shish</>
+                            : <><BookIcon /> {ru ? 'Добавить в словарь' : "Lug'atga qo'shish"}</>
                         }
                     </button>
                 </>

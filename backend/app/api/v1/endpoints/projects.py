@@ -15,6 +15,7 @@ from app.models.course import Course
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.services.project_service import ProjectService
 from app.services import achievement_service
+from app.services import notification_service
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead, ProjectReadWithStudent
 from app.models.user import Student
 from app.services.ranking_service import RankingService
@@ -380,6 +381,9 @@ async def review_project(
     project.reviewed_at = utcnow()
 
     await db.commit()
+
+    # Real-time: tell the student their project was approved.
+    await notification_service.notify_project_reviewed(db, project)
 
     sub_result = await db.execute(
         select(Submission).where(Submission.project_id == project_id)

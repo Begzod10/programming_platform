@@ -1,16 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import './LeaderBoard.css';
-import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { API_URL, useHttp, headers, resolveImageUrl } from '../../../api/search/base';
 import { useAuth } from '../../../context/AuthContext';
 import { useTranslation } from '../../../i18n/useTranslation';
+import AppHeader from '../../../components/appheader/AppHeader';
 import {
-    Trophy,
-    Crown,
-    Medal,
-    Infinity as InfinityIcon,
-    CalendarDays,
-    Calendar,
-    Sun,
+    Trophy, Crown, Medal, Infinity as InfinityIcon,
+    CalendarDays, Calendar, Sun,
 } from 'lucide-react';
 
 const TABS = [
@@ -20,16 +16,18 @@ const TABS = [
     { key: 'daily',   labelKey: 'rating.periods.today', Icon: Sun },
 ];
 
-// Display order on the podium: silver, gold, bronze
+// Display order on the podium: silver (2), gold (1), bronze (3)
 const PODIUM_RANKS = [2, 1, 3];
+const AVATAR_PALETTE = ['#8b7bf2', '#36e06b', '#e17055', '#22d3ee', '#e84393', '#fbbf24'];
 
-const AVATAR_PALETTE = ['#6C5CE7', '#00B894', '#E17055', '#0984E3', '#E84393', '#FDCB6E'];
+const prefersReduced = () =>
+    typeof window !== 'undefined' && window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function formatPoints(value) {
     if (typeof value !== 'number' || Number.isNaN(value)) return '—';
-    return value.toLocaleString('ru-RU');
+    return value.toLocaleString('ru-RU').replace(/,/g, ' ');
 }
-
 function initialsOf(name) {
     if (!name) return '?';
     return name.split(' ').filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -38,47 +36,42 @@ function initialsOf(name) {
 function Avatar({ url, name, size, ring }) {
     const initials = initialsOf(name);
     const color = AVATAR_PALETTE[(name?.charCodeAt(0) ?? 0) % AVATAR_PALETTE.length];
-
+    const src = resolveImageUrl(url);
     return (
-        <div
-            className={`lb-avatar ${ring ? `lb-avatar--${ring}` : ''}`}
-            style={{ width: size, height: size }}
-        >
-            {url
-                ? <img src={url} alt={name} />
+        <div className={`lb-avatar ${ring ? `lb-avatar--${ring}` : ''}`} style={{ width: size, height: size }}>
+            {src
+                ? <img src={src} alt={name} onError={e => { e.target.style.display = 'none'; }} />
                 : <span style={{ background: color }}>{initials}</span>}
         </div>
     );
 }
 
+/* ── Podium column (avatar + crown on top, glass block below) ── */
 function PodiumColumn({ student, rank, getPoints, isMe, t }) {
     const empty = !student;
     const name = student ? (student.full_name || student.username || '—') : '—';
     const pts  = student ? getPoints(student) : 0;
-    const Icon = rank === 1 ? Crown : Medal;
 
     return (
-        <div className={`lb-podium-col lb-podium-col--${rank} ${empty ? 'lb-podium-col--empty' : ''}`}>
+        <div className={`lb-pcol lb-pcol--${rank} ${empty ? 'lb-pcol--empty' : ''}`}>
             {!empty && (
-                <>
-                    <Avatar
-                        url={student.avatar_url}
-                        name={name}
-                        size={rank === 1 ? 66 : 56}
-                        ring={rank === 1 ? 'gold' : 'white'}
-                    />
-                    <p className="lb-podium-name">
+                <div className="lb-pcol-top">
+                    <span className={`lb-crown lb-crown--${rank}`} aria-hidden="true"><Crown size={rank === 1 ? 26 : 20} /></span>
+                    <Avatar url={student.avatar_url} name={name} size={rank === 1 ? 92 : 76}
+                        ring={rank === 1 ? 'gold' : rank === 2 ? 'silver' : 'bronze'} />
+                    <p className="lb-pcol-name">
                         {name.split(' ')[0]}
                         {isMe && <span className="lb-chip-you">{t('rating.you')}</span>}
                     </p>
-                    <p className="lb-podium-pts">
-                        {formatPoints(pts)} <span>{t('rating.pts')}</span>
-                    </p>
-                </>
+                    <p className="lb-pcol-pts">{formatPoints(pts)} <span>{t('rating.pts')}</span></p>
+                </div>
             )}
-            <div className={`lb-podium-block lb-podium-block--${rank} ${isMe ? 'lb-podium-block--me' : ''}`}>
-                <Icon size={18} className="lb-podium-icon" aria-hidden="true" />
-                <span className="lb-podium-num">{rank}</span>
+            <div className={`lb-block lb-block--${rank} ${isMe ? 'lb-block--me' : ''}`}>
+                <span className="lb-block-glow" aria-hidden="true" />
+                {rank === 1
+                    ? <Crown size={26} className="lb-block-ico" aria-hidden="true" />
+                    : <Medal size={22} className="lb-block-ico" aria-hidden="true" />}
+                <span className="lb-block-num">{rank}</span>
             </div>
         </div>
     );
@@ -88,11 +81,13 @@ function SkeletonPodium() {
     return (
         <div className="lb-podium" aria-hidden="true">
             {PODIUM_RANKS.map(rank => (
-                <div key={rank} className={`lb-podium-col lb-podium-col--${rank}`}>
-                    <div className="lb-skel lb-skel-avatar" />
-                    <div className="lb-skel lb-skel-line" style={{ width: 56 }} />
-                    <div className="lb-skel lb-skel-line" style={{ width: 40 }} />
-                    <div className={`lb-podium-block lb-podium-block--${rank} lb-podium-block--skeleton`} />
+                <div key={rank} className={`lb-pcol lb-pcol--${rank}`}>
+                    <div className="lb-pcol-top">
+                        <div className="lb-skel lb-skel-avatar" />
+                        <div className="lb-skel lb-skel-line" style={{ width: 64 }} />
+                        <div className="lb-skel lb-skel-line" style={{ width: 48 }} />
+                    </div>
+                    <div className={`lb-block lb-block--${rank} lb-block--skeleton`} />
                 </div>
             ))}
         </div>
@@ -102,13 +97,13 @@ function SkeletonPodium() {
 function SkeletonRows() {
     return (
         <ol className="lb-list" aria-hidden="true">
-            {Array.from({ length: 5 }).map((_, i) => (
-                <li key={i} className="lb-item lb-item--skeleton">
+            {Array.from({ length: 6 }).map((_, i) => (
+                <li key={i} className="lb-row lb-row--skeleton">
                     <span className="lb-skel lb-skel-rank" />
                     <span className="lb-skel lb-skel-avatar-sm" />
-                    <div className="lb-item-info">
-                        <div className="lb-skel lb-skel-line" style={{ width: '48%' }} />
-                        <div className="lb-skel lb-item-bar-wrap" />
+                    <div className="lb-row-info">
+                        <div className="lb-skel lb-skel-line" style={{ width: '42%' }} />
+                        <div className="lb-skel lb-row-bar-wrap" />
                     </div>
                 </li>
             ))}
@@ -119,19 +114,16 @@ function SkeletonRows() {
 export default function Leaderboard() {
     const { request } = useHttp();
     const { user } = useAuth();
-    const { t } = useTranslation();
+    const { t, lang } = useTranslation();
+    const ru = lang === 'ru';
     const [activeTab, setActiveTab] = useState('all');
-    const [data,      setData]      = useState([]);
-    const [myRank,    setMyRank]    = useState(null);
-    const [loading,   setLoading]   = useState(true);
-    const [error,     setError]     = useState('');
+    const [data, setData] = useState([]);
+    const [myRank, setMyRank] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     const [myRankError, setMyRankError] = useState('');
-    // Class ("sinf") filter — mirrors the teacher rankings page's group
-    // dropdown (frontend/src/views/teacher/StudentRankings/StudentRankings.js).
-    // Only shown once we know the student actually has a class to filter by.
-    const [groups,  setGroups]  = useState([]);
+    const [groups, setGroups] = useState([]);
     const [groupId, setGroupId] = useState('');
-    const listRef = useRef(null);
 
     const fetchRanking = (period, groupIdVal) => {
         setLoading(true);
@@ -142,7 +134,6 @@ export default function Leaderboard() {
             .catch(() => setError(t('rating.loadError')))
             .finally(() => setLoading(false));
     };
-
     const fetchMyRank = (period) => {
         setMyRankError('');
         request(`${API_URL}v1/rankings/me?period=${period}`, 'GET', null, headers())
@@ -160,14 +151,10 @@ export default function Leaderboard() {
     useEffect(() => {
         fetchRanking(activeTab, groupId);
         fetchMyRank(activeTab);
-        listRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    }, [activeTab]); // eslint-disable-line
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab]);
 
-    const handleGroupChange = (e) => {
-        const next = e.target.value;
-        setGroupId(next);
-        fetchRanking(activeTab, next);
-    };
+    const handleGroupChange = (e) => { const next = e.target.value; setGroupId(next); fetchRanking(activeTab, next); };
 
     const getPoints = (student) => {
         switch (activeTab) {
@@ -177,7 +164,6 @@ export default function Leaderboard() {
             default:        return student.points ?? 0;
         }
     };
-
     const getMyPoints = () => {
         if (!myRank) return null;
         switch (activeTab) {
@@ -187,7 +173,6 @@ export default function Leaderboard() {
             default:        return myRank.total_points   ?? null;
         }
     };
-
     const getMyRankValue = () => {
         if (!myRank) return '—';
         let rank;
@@ -200,13 +185,9 @@ export default function Leaderboard() {
         return (rank && rank !== '-') ? `#${rank}` : '—';
     };
 
-    // MyRankingRead has no student_id/username — match the current user against
-    // list rows via the auth user's id (Ranking.student_id references the same
-    // students table row as the logged-in user), with username as a fallback.
     const isCurrentUser = (student) => {
         if (!student || !user) return false;
-        if (student.student_id != null && user.id != null
-            && Number(student.student_id) === Number(user.id)) return true;
+        if (student.student_id != null && user.id != null && Number(student.student_id) === Number(user.id)) return true;
         if (student.username && user.username) return student.username === user.username;
         return false;
     };
@@ -216,83 +197,48 @@ export default function Leaderboard() {
     const leaderPoints = data.length > 0 ? getPoints(data[0]) : 0;
 
     return (
-        <div className="lb">
+        <div className="lb-page">
+            <AppHeader />
 
-            {/* ── HEADER ── */}
-            <div className="lb-header">
-                <div className="lb-header-top">
-                    <div className="lb-title-block">
-                        <span className="lb-trophy-chip" aria-hidden="true"><Trophy size={18} /></span>
-                        <div>
-                            <h1 className="lb-title">{t('rating.title')}</h1>
-                            <p className="lb-subtitle">
-                                {t('rating.students').replace('{count}', data.length.toLocaleString('ru-RU'))}
-                            </p>
+            <div className="lb-shell">
+                {/* ── my-rank band + period tabs ── */}
+                <div className="lb-top">
+                    <div className="lb-myband">
+                        <div className="lb-myband-l">
+                            <span className="lb-myband-ico" aria-hidden="true"><Trophy size={18} /></span>
+                            <span className="lb-myband-label">{t('rating.myPlace')}</span>
+                            <span className="lb-myband-pos">{getMyRankValue()}</span>
+                        </div>
+                        <div className="lb-myband-r">
+                            <span className="lb-myband-pts">{formatPoints(getMyPoints())}</span>
+                            <span className="lb-myband-unit">{t('rating.pts')}</span>
                         </div>
                     </div>
 
-                    <div className="lb-tabs">
-                        {TABS.map(tab => {
-                            const Icon = tab.Icon;
-                            const active = activeTab === tab.key;
-                            return (
-                                <button
-                                    key={tab.key}
-                                    type="button"
-                                    className={`lb-tab ${active ? 'lb-tab--active' : ''}`}
-                                    aria-pressed={active}
-                                    onClick={() => setActiveTab(tab.key)}
-                                >
-                                    <Icon size={13} className="lb-tab-icon" aria-hidden="true" />
-                                    <span className="lb-tab-label">{t(tab.labelKey)}</span>
-                                </button>
-                            );
-                        })}
+                    <div className="lb-controls">
+                        <div className="lb-tabs">
+                            {TABS.map(tab => {
+                                const Icon = tab.Icon;
+                                const active = activeTab === tab.key;
+                                return (
+                                    <button key={tab.key} type="button"
+                                        className={`lb-tab ${active ? 'lb-tab--active' : ''}`}
+                                        aria-pressed={active} onClick={() => setActiveTab(tab.key)}>
+                                        <Icon size={14} aria-hidden="true" />
+                                        <span className="lb-tab-label">{t(tab.labelKey)}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {groups.length > 0 && (
+                            <select className="lb-group-select" value={groupId} onChange={handleGroupChange}
+                                aria-label={ru ? 'Фильтр по классу' : "Sinf bo'yicha filtrlash"}>
+                                <option value="">{ru ? 'Все классы' : 'Barcha sinflar'}</option>
+                                {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                            </select>
+                        )}
                     </div>
-
-                    {groups.length > 0 && (
-                        <select
-                            className="lb-group-select"
-                            value={groupId}
-                            onChange={handleGroupChange}
-                            aria-label="Sinf bo'yicha filtrlash"
-                        >
-                            <option value="">Barcha sinflar</option>
-                            {groups.map(g => (
-                                <option key={g.id} value={g.id}>{g.name}</option>
-                            ))}
-                        </select>
-                    )}
                 </div>
-
-                {/* My rank band — always anchors the current user, even on the podium */}
-                {myRank ? (
-                    <div className="lb-myrank">
-                        <div className="lb-myrank-left">
-                            <span className="lb-myrank-label">{t('rating.myPlace')}</span>
-                            <span className="lb-myrank-pos">{getMyRankValue()}</span>
-                        </div>
-                        <div className="lb-myrank-right">
-                            <span className="lb-myrank-pts">{formatPoints(getMyPoints())}</span>
-                            <span className="lb-myrank-unit">{t('rating.pts')}</span>
-                        </div>
-                    </div>
-                ) : myRankError && (
-                    <div className="lb-myrank lb-myrank--error">
-                        <span className="lb-myrank-error-text">{myRankError}</span>
-                        <button
-                            type="button"
-                            className="lb-retry lb-retry--sm"
-                            onClick={() => fetchMyRank(activeTab)}
-                        >
-                            {t('rating.retry')}
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            {/* ── SCROLLABLE BODY ── */}
-            <div className="lb-body" ref={listRef}>
 
                 {loading ? (
                     <>
@@ -303,76 +249,61 @@ export default function Leaderboard() {
                     <div className="lb-state lb-state--error">
                         <span className="lb-state-icon" aria-hidden="true">⚠</span>
                         <p>{error}</p>
-                        <button type="button" className="lb-retry" onClick={() => fetchRanking(activeTab)}>
+                        <button type="button" className="lb-retry" onClick={() => fetchRanking(activeTab, groupId)}>
                             {t('rating.retry')}
                         </button>
                     </div>
                 ) : data.length === 0 ? (
                     <div className="lb-state lb-state--empty">
-                        <Trophy size={34} className="lb-state-trophy" aria-hidden="true" />
+                        <Trophy size={40} className="lb-state-trophy" aria-hidden="true" />
                         <p className="lb-state-title">{t('rating.emptyTitle')}</p>
                         <p className="lb-state-hint">{t('rating.emptyHint')}</p>
                     </div>
                 ) : (
                     <>
-                        {/* ── PODIUM (top 3) ── */}
+                        {/* ── PODIUM ── */}
                         {top3.length > 0 && (
                             <div className="lb-podium">
+                                <span className="lb-trophy lb-trophy--l" aria-hidden="true"><Trophy size={64} /></span>
                                 {PODIUM_RANKS.map(rank => (
-                                    <PodiumColumn
-                                        key={rank}
-                                        rank={rank}
-                                        student={top3[rank - 1]}
-                                        getPoints={getPoints}
-                                        isMe={isCurrentUser(top3[rank - 1])}
-                                        t={t}
-                                    />
+                                    <PodiumColumn key={rank} rank={rank} student={top3[rank - 1]}
+                                        getPoints={getPoints} isMe={isCurrentUser(top3[rank - 1])} t={t} />
                                 ))}
+                                <span className="lb-trophy lb-trophy--r" aria-hidden="true"><Trophy size={64} /></span>
                             </div>
                         )}
 
                         {/* ── LIST (4+) ── */}
                         {rest.length > 0 && (
-                            <>
-                                <div className="lb-list-caption">{t('rating.barCaption')}</div>
-                                <ol className="lb-list">
-                                    {rest.map((student, idx) => {
-                                        const rank = student.rank ?? idx + 4;
-                                        const name = student.full_name || student.username || '—';
-                                        const pts  = getPoints(student);
-                                        const pct  = leaderPoints > 0 ? Math.round((pts / leaderPoints) * 100) : 0;
-                                        const mine = isCurrentUser(student);
-
-                                        return (
-                                            <li
-                                                key={student.student_id ?? idx}
-                                                className={`lb-item ${mine ? 'lb-item--me' : ''}`}
-                                            >
-                                                <span className="lb-item-rank">{rank}</span>
-
-                                                <Avatar url={student.avatar_url} name={name} size={38} />
-
-                                                <div className="lb-item-info">
-                                                    <span className="lb-item-name">
-                                                        {name}
-                                                        {mine && <span className="lb-chip-you">{t('rating.you')}</span>}
-                                                    </span>
-                                                    <div className="lb-item-bar-wrap">
-                                                        <div className="lb-item-bar" style={{ width: `${pct}%` }} />
-                                                    </div>
+                            <ol className="lb-list">
+                                {rest.map((student, idx) => {
+                                    const rank = student.rank ?? idx + 4;
+                                    const name = student.full_name || student.username || '—';
+                                    const pts  = getPoints(student);
+                                    const pct  = leaderPoints > 0 ? Math.max(3, Math.round((pts / leaderPoints) * 100)) : 0;
+                                    const mine = isCurrentUser(student);
+                                    return (
+                                        <li key={student.student_id ?? idx} className={`lb-row ${mine ? 'lb-row--me' : ''}`}
+                                            style={prefersReduced() ? undefined : { animationDelay: `${Math.min(idx, 10) * 0.045}s` }}>
+                                            <span className="lb-row-rank">{rank}</span>
+                                            <Avatar url={student.avatar_url} name={name} size={46} />
+                                            <div className="lb-row-info">
+                                                <span className="lb-row-name">
+                                                    {name}
+                                                    {mine && <span className="lb-chip-you">{t('rating.you')}</span>}
+                                                </span>
+                                                <div className="lb-row-bar-wrap">
+                                                    <div className="lb-row-bar" style={{ width: `${pct}%` }} />
                                                 </div>
-
-                                                <div className="lb-item-right">
-                                                    <span className="lb-item-pts">
-                                                        {formatPoints(pts)} <em>{t('rating.pts')}</em>
-                                                    </span>
-                                                    <span className="lb-item-pct">{pct}%</span>
-                                                </div>
-                                            </li>
-                                        );
-                                    })}
-                                </ol>
-                            </>
+                                            </div>
+                                            <div className="lb-row-right">
+                                                <span className="lb-row-pts">{formatPoints(pts)}</span>
+                                                <span className="lb-row-unit">{t('rating.pts')}</span>
+                                            </div>
+                                        </li>
+                                    );
+                                })}
+                            </ol>
                         )}
                     </>
                 )}

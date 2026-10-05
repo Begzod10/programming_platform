@@ -137,3 +137,98 @@
 .duel-team.is-mine { box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.35); }
 .duel-team-head { display: flex; justify-content: space-between; align-items: baseline; font-weight: 800; color: #2d2d3f; margin-bottom: 4px; }
 .duel-team-head small { font-size: 0.8rem; color: #6b7280; }
+
+/* ══════════════════════════════════════════════════════════════
+   1 vs 1 poyga (duel) — dark glassmorphism for the LOGGED-IN app.
+   Scoped to .duel-app-shell so the guest /play/duel page (.duel-guest-
+   shell, sky background + white card) is left exactly as-is.
+   ══════════════════════════════════════════════════════════════ */
+.duel-app-shell {
+    --d-ink:#eef1ff; --d-muted:#9aa3c7; --d-faint:#6b7399;
+    --d-glass:rgba(255,255,255,.045); --d-glass-hi:rgba(255,255,255,.07);
+    --d-stroke:rgba(255,255,255,.09); --d-stroke-hi:rgba(255,255,255,.16);
+    --d-green:#36e06b; --d-green-soft:#7ef0a3; --d-violet:#8b7bf2; --d-violet-soft:#b7adfb;
+    --d-cyan:#22d3ee; --d-amber:#fbbf24; --d-red:#f0556b;
+    position:fixed; inset:0; overflow-y:auto; overflow-x:hidden; color:var(--d-ink);
+    background:
+        radial-gradient(1100px 560px at 70% -6%, rgba(139,123,242,.2), transparent 60%),
+        radial-gradient(900px 500px at 10% 8%, rgba(34,211,238,.08), transparent 55%),
+        linear-gradient(160deg,#070a1c 0%,#0d1230 44%,#141b42 100%);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,sans-serif;
+}
+.duel-app-shell::-webkit-scrollbar { width:9px; }
+.duel-app-shell::-webkit-scrollbar-thumb { background:rgba(255,255,255,.12); border-radius:10px; }
+.duel-app-shell .duel-page { padding:28px 16px 56px; }
+
+/* card */
+.duel-app-shell .duel-card {
+    background:var(--d-glass); color:var(--d-ink);
+    border:1px solid var(--d-stroke); border-radius:22px;
+    box-shadow:0 20px 60px rgba(0,0,0,.4); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); max-width:560px;
+}
+.duel-app-shell .duel-card h2 { color:var(--d-ink); }
+.duel-app-shell .duel-sub { color:var(--d-muted); }
+.duel-app-shell .duel-or { color:var(--d-faint); }
+.duel-app-shell .duel-error { background:rgba(240,85,107,.12); color:#ffd9df; border:1px solid rgba(240,85,107,.3); }
+
+/* buttons */
+.duel-app-shell .duel-btn { background:rgba(139,123,242,.16); color:var(--d-violet-soft); }
+.duel-app-shell .duel-btn--primary { background:linear-gradient(135deg,#7ef0a3,#2bc45a); color:#071; box-shadow:0 8px 18px rgba(54,224,107,.3); }
+.duel-app-shell .duel-btn--ghost { background:transparent; color:var(--d-muted); }
+
+/* inputs */
+.duel-app-shell .duel-code-input, .duel-app-shell .duel-name-input {
+    background:rgba(0,0,0,.2); color:var(--d-ink); border:2px solid var(--d-stroke); }
+.duel-app-shell .duel-code-input:focus, .duel-app-shell .duel-name-input:focus { border-color:var(--d-violet-soft); }
+.duel-app-shell .duel-code-input::placeholder, .duel-app-shell .duel-name-input::placeholder { color:var(--d-faint); }
+.duel-app-shell .duel-code { color:var(--d-violet-soft); text-shadow:0 0 24px rgba(139,123,242,.5); }
+
+/* players / waiting */
+.duel-app-shell .duel-players { color:var(--d-ink); }
+.duel-app-shell .duel-waiting { color:var(--d-muted); }
+
+/* scores */
+.duel-app-shell .duel-score { background:rgba(255,255,255,.05); }
+.duel-app-shell .duel-score--me { background:rgba(139,123,242,.16); box-shadow:inset 0 0 0 1px rgba(139,123,242,.3); }
+.duel-app-shell .duel-score-name { color:var(--d-muted); }
+.duel-app-shell .duel-score-num { color:var(--d-ink); }
+.duel-app-shell .duel-score-num small { color:var(--d-faint); }
+.duel-app-shell .duel-offline { color:var(--d-red); }
+.duel-app-shell .duel-vs { color:var(--d-faint); }
+
+/* progress / countdown / question */
+.duel-app-shell .duel-progress { color:var(--d-violet-soft); }
+.duel-app-shell .duel-countdown { color:var(--d-ink); }
+.duel-app-shell .duel-hint { color:var(--d-violet-soft); }
+.duel-app-shell .duel-question { color:var(--d-ink); }
+.duel-app-shell .duel-banner { color:var(--d-muted); }
+.duel-app-shell .duel-banner.is-good { color:var(--d-green-soft); }
+.duel-app-shell .duel-result { color:var(--d-ink); }
+.duel-app-shell .duel-result.is-win { color:var(--d-amber); text-shadow:0 0 24px rgba(251,191,36,.4); }
+
+/* options */
+.duel-app-shell .duel-option { background:rgba(255,255,255,.04); border:2px solid var(--d-stroke); color:var(--d-ink); }
+.duel-app-shell .duel-option:not(:disabled):hover { border-color:var(--d-violet); background:rgba(139,123,242,.12); }
+.duel-app-shell .duel-option.is-correct { background:linear-gradient(135deg,#2bc45a,#36e06b); border-color:#36e06b; color:#071; }
+
+/* game-kind / level pills */
+.duel-app-shell .duel-kind { background:var(--d-glass); border:2px solid var(--d-stroke); color:var(--d-muted); }
+.duel-app-shell .duel-kind.is-on { background:var(--d-violet); border-color:var(--d-violet); color:#fff; }
+
+/* leaderboard */
+.duel-app-shell .duel-board li { color:var(--d-ink); }
+.duel-app-shell .duel-board li:nth-child(odd) { background:rgba(255,255,255,.05); }
+.duel-app-shell .duel-board li.is-me { background:rgba(139,123,242,.2); }
+.duel-app-shell .duel-board li b { color:var(--d-violet-soft); }
+.duel-app-shell .duel-ranking { color:var(--d-ink); }
+
+/* badges */
+.duel-app-shell .duel-badge { background:rgba(255,255,255,.06); color:var(--d-faint); }
+.duel-app-shell .duel-badge.is-on { background:rgba(251,191,36,.18); color:var(--d-amber); filter:none; opacity:1; }
+
+/* teams */
+.duel-app-shell .duel-team--0 { background:rgba(34,211,238,.12); border-color:rgba(34,211,238,.4); }
+.duel-app-shell .duel-team--1 { background:rgba(240,85,107,.12); border-color:rgba(240,85,107,.4); }
+.duel-app-shell .duel-team.is-mine { box-shadow:0 0 0 3px rgba(139,123,242,.4); }
+.duel-app-shell .duel-team-head { color:var(--d-ink); }
+.duel-app-shell .duel-team-head small { color:var(--d-muted); }

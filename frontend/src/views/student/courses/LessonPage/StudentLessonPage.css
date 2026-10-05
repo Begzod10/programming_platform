@@ -164,6 +164,114 @@
 }
 .slp-exit-btn:hover { background: rgba(255,118,117,0.13); border-color: rgba(255,118,117,0.5); }
 
+/* ── Language switcher (UZ / RU) ── */
+.slp-lang {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    border: 1px solid var(--ink-12);
+    background: var(--ink-06);
+}
+.slp-lang-btn {
+    border: none;
+    background: transparent;
+    color: var(--ink-60);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 5px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: var(--t-mid);
+    line-height: 1;
+}
+.slp-lang-btn:hover:not(.is-active) { color: var(--ink); background: rgba(139,123,242,0.12); }
+.slp-lang-btn.is-active {
+    color: #fff;
+    background: linear-gradient(135deg, #8b7bf2, #6d5ef0);
+    box-shadow: 0 2px 8px rgba(109,94,240,0.35);
+}
+
+/* ═══════════════════════════════════════════════
+   LESSON COMPANION RAIL (wide screens only)
+═══════════════════════════════════════════════ */
+.slp-companion {
+    position: fixed;
+    top: 120px;
+    right: 24px;
+    width: 230px;
+    padding: 18px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: saturate(140%) blur(10px);
+    box-shadow: 0 12px 32px -14px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 15;
+    color: var(--ink);
+}
+.slp-companion-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--ink-60);
+}
+.slp-companion-lesson { font-size: 15px; font-weight: 700; color: var(--ink); }
+.slp-companion-bar-wrap {
+    height: 5px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.1);
+}
+.slp-companion-bar {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #8b7bf2, #6d5ef0);
+    transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+}
+.slp-companion-sections { font-size: 12px; color: var(--ink-45); }
+.slp-companion-chip {
+    align-self: flex-start;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 999px;
+    color: #c6bcff;
+    background: rgba(139,123,242,0.15);
+    border: 1px solid rgba(139,123,242,0.3);
+}
+.slp-companion-chip.is-done {
+    color: var(--green);
+    background: rgba(0,184,148,0.14);
+    border-color: rgba(0,184,148,0.3);
+}
+.slp-companion-cta {
+    margin-top: 4px;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #8b7bf2, #6d5ef0);
+    color: #fff;
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: var(--t-mid);
+    box-shadow: 0 4px 14px rgba(109,94,240,0.3);
+}
+.slp-companion-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(109,94,240,0.4); }
+.slp-companion-cta:active { transform: scale(0.97); }
+
+@media (max-width: 1400px) {
+    .slp-companion { display: none; }
+}
+
 /* ═══════════════════════════════════════════════
    LESSON HERO
 ═══════════════════════════════════════════════ */
@@ -248,6 +356,7 @@
     background: var(--surface); border-radius: var(--r-lg); overflow: hidden;
     border: 1px solid var(--ink-06); box-shadow: 0 2px 10px rgba(0,0,0,0.04);
     animation: blockIn 0.4s ease both; transition: box-shadow var(--t-mid);
+    scroll-margin-top: 84px; /* keep the sticky top bar clear when the companion TOC jumps here */
 }
 .slp-block:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.07); }
 
@@ -1635,4 +1744,63 @@
 .slp-modal-submit:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FULL-BLEED DARK PAGE WRAPPER (matches the rest of the platform)
+   Forces the dark navy theme regardless of the global theme toggle,
+   fills the viewport, and restyles the lesson chrome in glass/cyan.
+   ══════════════════════════════════════════════════════════════ */
+.slp-page {
+    --ink:#eef1ff; --ink-60:rgba(238,241,255,.62); --ink-45:rgba(238,241,255,.45);
+    --ink-30:rgba(238,241,255,.3); --ink-12:rgba(238,241,255,.12); --ink-06:rgba(238,241,255,.06);
+    --surface:#0f1536; --surface-2:#141b3e;
+    --purple:#8b7bf2; --purple-lt:#b7adfb; --purple-bg:rgba(139,123,242,.16); --red-bg:rgba(240,85,107,.16);
+    position:fixed; inset:0; overflow-y:auto; overflow-x:hidden; color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,sans-serif;
+    background:
+        radial-gradient(1100px 560px at 82% -8%, rgba(34,211,238,.12), transparent 60%),
+        radial-gradient(820px 460px at 6% 2%, rgba(139,123,242,.12), transparent 55%),
+        linear-gradient(160deg,#060a1e 0%,#0b1430 46%,#0e1a3e 100%);
+}
+.slp-page::-webkit-scrollbar { width:9px; }
+.slp-page::-webkit-scrollbar-thumb { background:rgba(255,255,255,.12); border-radius:10px; }
+.slp-page .slp-container { max-width:1120px; margin:0 auto; padding:0 32px 56px; }
+
+/* ── top bar → full-bleed solid header (spans the viewport, content
+   aligned to the 1120px reading column) ── */
+.slp-page .slp-top-bar {
+    position:sticky; top:0; z-index:30;
+    width:100vw; margin-left:calc(50% - 50vw); margin-right:calc(50% - 50vw); margin-bottom:24px;
+    padding:15px max(20px, calc((100vw - 1120px) / 2 + 32px));
+    background:#090d20; border-bottom:1px solid rgba(255,255,255,.08);
+    box-shadow:0 10px 30px -14px rgba(0,0,0,.6);
+}
+.slp-page .slp-bc-btn { color:var(--ink-60); }
+.slp-page .slp-bc-btn:hover { color:var(--purple-lt); background:rgba(139,123,242,.14); }
+.slp-page .slp-bc-current { color:var(--ink); }
+.slp-page .slp-nav-btn {
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:var(--ink);
+}
+.slp-page .slp-nav-btn:hover:not(:disabled) { border-color:rgba(34,211,238,.45); color:#22d3ee; background:rgba(34,211,238,.12); }
+.slp-page .slp-exit-btn { background:rgba(240,85,107,.1); border:1px solid rgba(240,85,107,.3); color:#ffb3bd; }
+.slp-page .slp-exit-btn:hover { background:rgba(240,85,107,.18); border-color:rgba(240,85,107,.5); }
+
+/* ── lesson hero → glass + cyan glow ── */
+.slp-page .slp-lesson-hero {
+    background:linear-gradient(120deg, rgba(34,211,238,.09), rgba(139,123,242,.07) 60%, rgba(54,224,107,.05));
+    border:1px solid rgba(255,255,255,.09);
+}
+.slp-page .slp-lesson-hero::before { background:radial-gradient(circle, rgba(34,211,238,.14), transparent 70%); }
+.slp-page .slp-chapter-badge { background:rgba(139,123,242,.16); border:1px solid rgba(139,123,242,.3); color:var(--purple-lt); }
+.slp-page .slp-hero-done-badge { background:rgba(54,224,107,.14); color:#7ef0a3; border:1px solid rgba(54,224,107,.3); }
+.slp-page .slp-lesson-progress-fill,
+.slp-page .slp-progress-fill { background:linear-gradient(90deg,#8b7bf2,#22d3ee) !important; }
+
+/* ── content blocks → glass cards ── */
+.slp-page .slp-block { border:1px solid rgba(255,255,255,.08); }
+
+@media (max-width:860px) {
+    .slp-page .slp-container { padding:0 16px 40px; }
+    .slp-page .slp-top-bar { padding:12px 16px; }
 }

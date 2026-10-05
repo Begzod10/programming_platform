@@ -4,14 +4,17 @@ import { useState, useEffect } from 'react';
 import { useHttp, headers } from '../../../api/search/base';
 import { Flame } from 'lucide-react';
 import { BASE, MODES } from './practiceUtils';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 
 /* Small horizontal-bar list used by the Taqsimot panel. Keeps the
    render dumb so by_difficulty / by_part_of_speech share the same shape. */
 function BreakdownBars({ items, total, palette }) {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const entries = Object.entries(items);
     if (!entries.length || total === 0) {
-        return <div className="pr-breakdown-empty">Yo'q</div>;
+        return <div className="pr-breakdown-empty">{ru ? 'Нет' : "Yo'q"}</div>;
     }
     return (
         <div className="pr-breakdown-bars">
@@ -43,6 +46,8 @@ function BreakdownBars({ items, total, palette }) {
 
 export function Statistika() {
     const { request } = useHttp();
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const [stats, setStats]         = useState(null);
     const [needsReview, setNeedsReview] = useState({ items: [], total: 0 });
     const [breakdown, setBreakdown] = useState({ total: 0, by_difficulty: {}, by_part_of_speech: {} });
@@ -66,17 +71,17 @@ export function Statistika() {
             })
             .catch(() => {
                 if (cancelled) return;
-                setError("Statistikani yuklab bo'lmadi");
+                setError(ru ? 'Не удалось загрузить статистику' : "Statistikani yuklab bo'lmadi");
             })
             .finally(() => { if (!cancelled) setLoading(false); });
         return () => { cancelled = true; };
     }, [request]);
 
     if (loading) {
-        return <div className="pr-stats-loading">Yuklanmoqda…</div>;
+        return <div className="pr-stats-loading">{ru ? 'Загрузка…' : 'Yuklanmoqda…'}</div>;
     }
     if (error || !stats) {
-        return <div className="pr-error">{error || 'Maʼlumot topilmadi'}</div>;
+        return <div className="pr-error">{error || (ru ? 'Данные не найдены' : 'Maʼlumot topilmadi')}</div>;
     }
 
     const { streak, last_7_days, mode_breakdown, totals } = stats;
@@ -88,7 +93,9 @@ export function Statistika() {
     const dayLabel = (iso) => {
         const d = new Date(iso);
         // Local short weekday label — Uzbek shortcodes.
-        const days = ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh'];
+        const days = ru
+            ? ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+            : ['Ya', 'Du', 'Se', 'Ch', 'Pa', 'Ju', 'Sh'];
         return days[d.getDay()];
     };
 
@@ -100,26 +107,27 @@ export function Statistika() {
                 <div className="pr-streak-body">
                     <div className="pr-streak-num">{streak.current}</div>
                     <div className="pr-streak-lbl">
-                        {streak.current === 0 ? 'Bugundan boshlang' : 'kunlik streak'}
+                        {streak.current === 0 ? (ru ? 'Начните сегодня' : 'Bugundan boshlang') : (ru ? 'дней подряд' : 'kunlik streak')}
                     </div>
                 </div>
                 <div className="pr-streak-meta">
                     <div>
                         <span className="pr-streak-meta-num">{streak.longest}</span>
-                        <span className="pr-streak-meta-lbl">eng uzun</span>
+                        <span className="pr-streak-meta-lbl">{ru ? 'рекорд' : 'eng uzun'}</span>
                     </div>
                     <div>
                         <span className="pr-streak-meta-num">
                             {streak.today_practised ? '✓' : '–'}
                         </span>
-                        <span className="pr-streak-meta-lbl">bugun</span>
+                        <span className="pr-streak-meta-lbl">{ru ? 'сегодня' : 'bugun'}</span>
                     </div>
                 </div>
             </div>
 
+            <div className="pr-row2">
             {/* ── 7-day activity bar chart ────────────────────────────── */}
-            <section className="pr-section">
-                <h3 className="pr-section-title">Oxirgi 7 kun</h3>
+            <section className="pr-section pr-week-sec">
+                <h3 className="pr-section-title">{ru ? 'Последние 7 дней' : 'Oxirgi 7 kun'}</h3>
                 <div className="pr-week">
                     {last_7_days.map((d) => {
                         const h = (d.words / maxWordsDay) * 100;
@@ -129,7 +137,7 @@ export function Statistika() {
                                     <div
                                         className={`pr-week-bar ${d.words === 0 ? 'pr-week-bar--empty' : ''}`}
                                         style={{ height: `${Math.max(h, 4)}%` }}
-                                        title={`${d.date}: ${d.words} so'z · ${d.accuracy}%`}
+                                        title={ru ? `${d.date}: ${d.words} слов · ${d.accuracy}%` : `${d.date}: ${d.words} so'z · ${d.accuracy}%`}
                                     />
                                 </div>
                                 <div className="pr-week-label">{dayLabel(d.date)}</div>
@@ -143,7 +151,7 @@ export function Statistika() {
             {/* ── Mode-accuracy breakdown ─────────────────────────────── */}
             {mode_breakdown.length > 0 && (
                 <section className="pr-section">
-                    <h3 className="pr-section-title">Rejimlar bo'yicha aniqlik</h3>
+                    <h3 className="pr-section-title">{ru ? 'Точность по режимам' : "Rejimlar bo'yicha aniqlik"}</h3>
                     <div className="pr-modebars">
                         {mode_breakdown.map((m) => {
                             const meta = MODES.find((x) => x.key === m.mode);
@@ -161,7 +169,7 @@ export function Statistika() {
                                         />
                                     </div>
                                     <div className="pr-modebar-foot">
-                                        {m.sessions} sessiya · {m.words} so'z
+                                        {ru ? `${m.sessions} сессий · ${m.words} слов` : `${m.sessions} sessiya · ${m.words} so'z`}
                                     </div>
                                 </div>
                             );
@@ -169,31 +177,32 @@ export function Statistika() {
                     </div>
                 </section>
             )}
+            </div>
 
             {/* ── Totals card ─────────────────────────────────────────── */}
             <section className="pr-section">
-                <h3 className="pr-section-title">Umumiy</h3>
+                <h3 className="pr-section-title">{ru ? 'Итого' : 'Umumiy'}</h3>
                 <div className="pr-totals">
                     <div className="pr-total">
                         <div className="pr-total-num">{totals.words}</div>
-                        <div className="pr-total-lbl">jami so'z</div>
+                        <div className="pr-total-lbl">{ru ? 'всего слов' : "jami so'z"}</div>
                     </div>
                     <div className="pr-total">
                         <div className="pr-total-num">{totals.mastered}</div>
-                        <div className="pr-total-lbl">o'zlashtirilgan</div>
+                        <div className="pr-total-lbl">{ru ? 'освоено' : "o'zlashtirilgan"}</div>
                         <div className="pr-total-sub">{totals.mastery_pct}%</div>
                     </div>
                     <div className="pr-total">
                         <div className="pr-total-num">{totals.sessions}</div>
-                        <div className="pr-total-lbl">sessiya</div>
+                        <div className="pr-total-lbl">{ru ? 'сессий' : 'sessiya'}</div>
                     </div>
                     <div className="pr-total">
                         <div className="pr-total-num">{totals.drilled}</div>
-                        <div className="pr-total-lbl">mashq</div>
+                        <div className="pr-total-lbl">{ru ? 'практик' : 'mashq'}</div>
                     </div>
                     <div className="pr-total">
                         <div className="pr-total-num">{totals.accuracy}%</div>
-                        <div className="pr-total-lbl">o'rtacha aniqlik</div>
+                        <div className="pr-total-lbl">{ru ? 'средняя точность' : "o'rtacha aniqlik"}</div>
                     </div>
                 </div>
             </section>
@@ -201,10 +210,10 @@ export function Statistika() {
             {/* ── Taqsimot — by-difficulty + by-PoS ─────────────────── */}
             {breakdown.total > 0 && (
                 <section className="pr-section">
-                    <h3 className="pr-section-title">Taqsimot</h3>
+                    <h3 className="pr-section-title">{ru ? 'Распределение' : 'Taqsimot'}</h3>
                     <div className="pr-breakdown">
                         <div className="pr-breakdown-col">
-                            <div className="pr-breakdown-label">Daraja</div>
+                            <div className="pr-breakdown-label">{ru ? 'Уровень' : 'Daraja'}</div>
                             <BreakdownBars
                                 items={breakdown.by_difficulty}
                                 total={breakdown.total}
@@ -212,7 +221,7 @@ export function Statistika() {
                             />
                         </div>
                         <div className="pr-breakdown-col">
-                            <div className="pr-breakdown-label">So'z turi</div>
+                            <div className="pr-breakdown-label">{ru ? 'Часть речи' : "So'z turi"}</div>
                             <BreakdownBars
                                 items={breakdown.by_part_of_speech}
                                 total={breakdown.total}
@@ -229,10 +238,10 @@ export function Statistika() {
             {needsReview.items.length > 0 && (
                 <section className="pr-section">
                     <div className="pr-section-head">
-                        <h3 className="pr-section-title">Mashq qilingani yaxshi</h3>
+                        <h3 className="pr-section-title">{ru ? 'Стоит повторить' : 'Mashq qilingani yaxshi'}</h3>
                         {needsReview.total > needsReview.items.length && (
                             <span className="pr-section-more">
-                                yana {needsReview.total - needsReview.items.length}
+                                {ru ? `ещё ${needsReview.total - needsReview.items.length}` : `yana ${needsReview.total - needsReview.items.length}`}
                             </span>
                         )}
                     </div>
@@ -240,11 +249,11 @@ export function Statistika() {
                         {needsReview.items.map((w) => {
                             let tag, tagCls;
                             if (w.review_count === 0) {
-                                tag = 'Yangi'; tagCls = 'new';
+                                tag = ru ? 'Новое' : 'Yangi'; tagCls = 'new';
                             } else if (w.accuracy !== null && w.accuracy < 70) {
                                 tag = `${w.accuracy}%`; tagCls = 'low';
                             } else {
-                                tag = 'Eski'; tagCls = 'stale';
+                                tag = ru ? 'Старое' : 'Eski'; tagCls = 'stale';
                             }
                             return (
                                 <div key={w.id} className="pr-needs-row">
@@ -268,18 +277,24 @@ export function Statistika() {
    HISTORY — drill-results sub-tab with by-date / by-month / averages
    ═══════════════════════════════════════════════════════════════════════ */
 
-function formatDateShort(iso) {
+function formatDateShort(iso, ru) {
     // "2026-06-10" → "10 Iyn"
-    const months = ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn',
-                    'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek'];
+    const months = ru
+        ? ['янв', 'фев', 'мар', 'апр', 'мая', 'июн',
+           'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
+        : ['Yan', 'Fev', 'Mar', 'Apr', 'May', 'Iyn',
+           'Iyl', 'Avg', 'Sen', 'Okt', 'Noy', 'Dek'];
     const d = new Date(iso + 'T00:00:00');
     return `${d.getDate()} ${months[d.getMonth()]}`;
 }
 
-function formatMonth(key) {
+function formatMonth(key, ru) {
     // "2026-06" → "Iyun 2026"
-    const months = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
-                    'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
+    const months = ru
+        ? ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+           'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+        : ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
+           'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
     const [y, m] = key.split('-');
     return `${months[Number(m) - 1]} ${y}`;
 }
@@ -291,12 +306,14 @@ function formatDateTime(iso) {
     return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function formatDuration(seconds) {
+function formatDuration(seconds, ru) {
     if (seconds == null) return '—';
-    if (seconds < 60) return `${seconds}s`;
+    const uS = ru ? 'с' : 's';
+    const uM = ru ? 'м' : 'm';
+    if (seconds < 60) return `${seconds}${uS}`;
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
-    return s ? `${m}m ${s}s` : `${m}m`;
+    return s ? `${m}${uM} ${s}${uS}` : `${m}${uM}`;
 }
 
 function Sparkline({ points, accessor = (d) => d.words, ariaLabel }) {
@@ -329,6 +346,8 @@ function Sparkline({ points, accessor = (d) => d.words, ariaLabel }) {
 function PeriodBars({ points, accessor, labelFor }) {
     // Horizontal bars — one per period bucket. Picks the busiest bucket as
     // the 100% reference so quiet weeks still register visually.
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const max = Math.max(1, ...points.map(accessor));
     return (
         <div className="pr-period">
@@ -346,7 +365,7 @@ function PeriodBars({ points, accessor, labelFor }) {
                         </div>
                         <div className="pr-period-val">
                             <span className="pr-period-val-num">{p.sessions}</span>
-                            <span className="pr-period-val-sub">{p.words || 0} so'z · {p.accuracy || 0}%</span>
+                            <span className="pr-period-val-sub">{ru ? `${p.words || 0} слов · ${p.accuracy || 0}%` : `${p.words || 0} so'z · ${p.accuracy || 0}%`}</span>
                         </div>
                     </div>
                 );
@@ -357,6 +376,8 @@ function PeriodBars({ points, accessor, labelFor }) {
 
 export function History() {
     const { request } = useHttp();
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const [data, setData]     = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError]   = useState('');
@@ -374,14 +395,14 @@ export function History() {
             })
             .catch(() => {
                 if (cancelled) return;
-                setError("Tarixni yuklab bo'lmadi");
+                setError(ru ? 'Не удалось загрузить историю' : "Tarixni yuklab bo'lmadi");
             })
             .finally(() => { if (!cancelled) setLoading(false); });
         return () => { cancelled = true; };
     }, [request]);
 
-    if (loading) return <div className="pr-stats-loading">Yuklanmoqda…</div>;
-    if (error || !data) return <div className="pr-error">{error || 'Maʼlumot topilmadi'}</div>;
+    if (loading) return <div className="pr-stats-loading">{ru ? 'Загрузка…' : 'Yuklanmoqda…'}</div>;
+    if (error || !data) return <div className="pr-error">{error || (ru ? 'Данные не найдены' : 'Maʼlumot topilmadi')}</div>;
 
     const { totals, averages, by_date, by_month, recent } = data;
 
@@ -400,30 +421,30 @@ export function History() {
         <div className="pr-hist">
             {/* ── Averages row ────────────────────────────────────────── */}
             <section className="pr-section">
-                <h3 className="pr-section-title">O'rtacha ko'rsatkichlar</h3>
+                <h3 className="pr-section-title">{ru ? 'Средние показатели' : "O'rtacha ko'rsatkichlar"}</h3>
                 <div className="pr-avg-grid">
                     <div className="pr-avg">
                         <div className="pr-avg-num">{averages.per_session_accuracy}%</div>
-                        <div className="pr-avg-lbl">o'rtacha aniqlik</div>
+                        <div className="pr-avg-lbl">{ru ? 'средняя точность' : "o'rtacha aniqlik"}</div>
                     </div>
                     <div className="pr-avg">
                         <div className="pr-avg-num">{averages.per_session_words}</div>
-                        <div className="pr-avg-lbl">so'z / mashq</div>
+                        <div className="pr-avg-lbl">{ru ? 'слов / практика' : "so'z / mashq"}</div>
                     </div>
                     <div className="pr-avg">
                         <div className="pr-avg-num">
                             {averages.per_session_minutes || '—'}
-                            {averages.per_session_minutes ? <span className="pr-avg-unit">m</span> : null}
+                            {averages.per_session_minutes ? <span className="pr-avg-unit">{ru ? 'м' : 'm'}</span> : null}
                         </div>
-                        <div className="pr-avg-lbl">vaqt / mashq</div>
+                        <div className="pr-avg-lbl">{ru ? 'время / практика' : 'vaqt / mashq'}</div>
                     </div>
                     <div className="pr-avg">
                         <div className="pr-avg-num">{averages.sessions_per_week}</div>
-                        <div className="pr-avg-lbl">mashq / hafta</div>
+                        <div className="pr-avg-lbl">{ru ? 'практик / неделя' : 'mashq / hafta'}</div>
                     </div>
                     <div className="pr-avg">
                         <div className="pr-avg-num">{averages.active_days_in_window}</div>
-                        <div className="pr-avg-lbl">faol kun ({data.window.days}d)</div>
+                        <div className="pr-avg-lbl">{ru ? `активных дней (${data.window.days}д)` : `faol kun (${data.window.days}d)`}</div>
                     </div>
                 </div>
             </section>
@@ -431,11 +452,11 @@ export function History() {
             {/* ── Sparkline of activity ───────────────────────────────── */}
             {trimmedDays.length > 1 && (
                 <section className="pr-section">
-                    <h3 className="pr-section-title">Faollik dinamikasi</h3>
-                    <Sparkline points={trimmedDays} ariaLabel="Kunlik so'z hajmi" />
+                    <h3 className="pr-section-title">{ru ? 'Динамика активности' : 'Faollik dinamikasi'}</h3>
+                    <Sparkline points={trimmedDays} ariaLabel={ru ? 'Дневной объём слов' : "Kunlik so'z hajmi"} />
                     <div className="pr-spark-foot">
-                        <span>{formatDateShort(trimmedDays[0].date)}</span>
-                        <span>{formatDateShort(trimmedDays[trimmedDays.length - 1].date)}</span>
+                        <span>{formatDateShort(trimmedDays[0].date, ru)}</span>
+                        <span>{formatDateShort(trimmedDays[trimmedDays.length - 1].date, ru)}</span>
                     </div>
                 </section>
             )}
@@ -444,20 +465,20 @@ export function History() {
             <section className="pr-section">
                 <div className="pr-section-head">
                     <h3 className="pr-section-title">
-                        {grain === 'day' ? "Kunlik natijalar" : "Oylik natijalar"}
+                        {grain === 'day' ? (ru ? 'Результаты по дням' : "Kunlik natijalar") : (ru ? 'Результаты по месяцам' : "Oylik natijalar")}
                     </h3>
                     <div className="pr-grain">
                         <button
                             className={`pr-grain-btn ${grain === 'day' ? 'active' : ''}`}
                             onClick={() => setGrain('day')}
                         >
-                            Kun
+                            {ru ? 'День' : 'Kun'}
                         </button>
                         <button
                             className={`pr-grain-btn ${grain === 'month' ? 'active' : ''}`}
                             onClick={() => setGrain('month')}
                         >
-                            Oy
+                            {ru ? 'Месяц' : 'Oy'}
                         </button>
                     </div>
                 </div>
@@ -465,49 +486,51 @@ export function History() {
                     <PeriodBars
                         points={[...trimmedDays].reverse()}
                         accessor={(d) => d.sessions}
-                        labelFor={(d) => formatDateShort(d.date)}
+                        labelFor={(d) => formatDateShort(d.date, ru)}
                     />
                 ) : (
                     <PeriodBars
                         points={[...by_month].reverse()}
                         accessor={(d) => d.sessions}
-                        labelFor={(d) => formatMonth(d.month)}
+                        labelFor={(d) => formatMonth(d.month, ru)}
                     />
                 )}
             </section>
 
             {/* ── Lifetime totals ──────────────────────────────────────── */}
             <section className="pr-section">
-                <h3 className="pr-section-title">Umumiy hisob</h3>
+                <h3 className="pr-section-title">{ru ? 'Общий итог' : 'Umumiy hisob'}</h3>
                 <div className="pr-totals">
                     <div className="pr-total">
                         <div className="pr-total-num">{totals.sessions}</div>
-                        <div className="pr-total-lbl">mashqlar</div>
+                        <div className="pr-total-lbl">{ru ? 'практик' : 'mashqlar'}</div>
                     </div>
                     <div className="pr-total">
                         <div className="pr-total-num">{totals.words}</div>
-                        <div className="pr-total-lbl">jami so'z</div>
+                        <div className="pr-total-lbl">{ru ? 'всего слов' : "jami so'z"}</div>
                     </div>
                     <div className="pr-total">
                         <div className="pr-total-num">{totals.correct}</div>
-                        <div className="pr-total-lbl">to'g'ri javob</div>
+                        <div className="pr-total-lbl">{ru ? 'верных ответов' : "to'g'ri javob"}</div>
                     </div>
                     <div className="pr-total">
                         <div className="pr-total-num">{totals.accuracy}%</div>
-                        <div className="pr-total-lbl">aniqlik</div>
+                        <div className="pr-total-lbl">{ru ? 'точность' : 'aniqlik'}</div>
                     </div>
                     <div className="pr-total">
                         <div className="pr-total-num">{totals.active_days}</div>
-                        <div className="pr-total-lbl">faol kun</div>
+                        <div className="pr-total-lbl">{ru ? 'активных дней' : 'faol kun'}</div>
                     </div>
                     {totals.minutes > 0 && (
                         <div className="pr-total">
                             <div className="pr-total-num">
                                 {totals.minutes >= 60
-                                    ? `${Math.floor(totals.minutes / 60)}s ${totals.minutes % 60}d`
-                                    : `${totals.minutes}d`}
+                                    ? (ru
+                                        ? `${Math.floor(totals.minutes / 60)}ч ${totals.minutes % 60}м`
+                                        : `${Math.floor(totals.minutes / 60)}s ${totals.minutes % 60}d`)
+                                    : (ru ? `${totals.minutes}м` : `${totals.minutes}d`)}
                             </div>
-                            <div className="pr-total-lbl">jami vaqt</div>
+                            <div className="pr-total-lbl">{ru ? 'всего времени' : 'jami vaqt'}</div>
                         </div>
                     )}
                 </div>
@@ -517,13 +540,13 @@ export function History() {
             {recent.length > 0 && (
                 <section className="pr-section">
                     <div className="pr-section-head">
-                        <h3 className="pr-section-title">Mashqlar ro'yxati</h3>
+                        <h3 className="pr-section-title">{ru ? 'Список практик' : "Mashqlar ro'yxati"}</h3>
                         {recent.length > 5 && (
                             <button
                                 className="pr-section-more pr-section-more--btn"
                                 onClick={() => setExpanded((v) => !v)}
                             >
-                                {expanded ? 'Kamroq' : `Yana ${recent.length - 5} ta`}
+                                {expanded ? (ru ? 'Меньше' : 'Kamroq') : (ru ? `Ещё ${recent.length - 5}` : `Yana ${recent.length - 5} ta`)}
                             </button>
                         )}
                     </div>
@@ -546,7 +569,7 @@ export function History() {
                                         {formatDateTime(s.completed_at || s.started_at)}
                                     </div>
                                     <div className="pr-sess-dur">
-                                        {formatDuration(s.duration_seconds)}
+                                        {formatDuration(s.duration_seconds, ru)}
                                     </div>
                                     <div className="pr-sess-score">
                                         {s.correct}/{s.total_words}

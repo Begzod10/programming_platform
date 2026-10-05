@@ -14,6 +14,7 @@ import {
 import { FlashcardMode, QuizMode, SpellingMode, ListeningMode, ClozeMode } from './PracticeModes';
 import { BucketsBar, LeechAlert, HistoryStrip, QueuePreview, ScopePicker } from './PracticeWidgets';
 import { Statistika, History } from './PracticeStats';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -22,6 +23,8 @@ import { Statistika, History } from './PracticeStats';
 
 export default function Practice() {
     const { request } = useHttp();
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
 
     /* Top tab — 'drill' shows the pick/drill/recap phase machinery, 'stats'
        shows the read-only Statistika dashboard. The toggle is only visible
@@ -162,7 +165,7 @@ export default function Practice() {
                 `${BASE}/words?${params.toString()}`, 'GET', null, headers(),
             );
             if (!Array.isArray(data) || data.length === 0) {
-                setError("Bu filtr bilan mashq qilish uchun so'z yo'q");
+                setError(ru ? 'Нет слов для практики с этим фильтром' : "Bu filtr bilan mashq qilish uchun so'z yo'q");
                 return;
             }
             const s = await request(
@@ -180,7 +183,7 @@ export default function Practice() {
             setSessionId(s.id);
             setPhase('drill');
         } catch {
-            setError("Yuklab bo'lmadi — keyinroq urinib ko'ring");
+            setError(ru ? 'Не удалось загрузить — попробуйте позже' : "Yuklab bo'lmadi — keyinroq urinib ko'ring");
         } finally {
             setBusy(false);
         }
@@ -212,7 +215,7 @@ export default function Practice() {
             setMode(active.mode);
             setPhase('drill');
         } catch {
-            setError("Sessiyani tiklab bo'lmadi");
+            setError(ru ? 'Не удалось восстановить сессию' : "Sessiyani tiklab bo'lmadi");
         } finally {
             setBusy(false);
         }
@@ -380,17 +383,18 @@ export default function Practice() {
             return (
                 <div className="pr-state pr-state--error" style={{ display:'flex', flexDirection:'column', gap:14, alignItems:'center', padding:'48px 24px', textAlign:'center' }}>
                     <span style={{ fontSize: 40 }}>🧭</span>
-                    <h3 style={{ margin: 0 }}>Сессия прервана</h3>
+                    <h3 style={{ margin: 0 }}>{ru ? 'Сессия прервана' : 'Sessiya uzildi'}</h3>
                     <p style={{ margin: 0, color: 'rgba(0,0,0,0.55)' }}>
-                        Что-то пошло не так с очередью практики. Вернитесь к выбору
-                        режима и начните заново — ваш прогресс сохранён.
+                        {ru
+                            ? 'Что-то пошло не так с очередью практики. Вернитесь к выбору режима и начните заново — ваш прогресс сохранён.'
+                            : "Mashq navbatida nimadir xato ketdi. Rejim tanlashga qaytib, qaytadan boshlang — yutuqlaringiz saqlangan."}
                     </p>
                     <button
                         className="pr-btn pr-btn--primary"
                         onClick={goPick}
                         style={{ marginTop: 6 }}
                     >
-                        ← К выбору режима
+                        {ru ? '← К выбору режима' : '← Rejim tanlashga'}
                     </button>
                 </div>
             );
@@ -410,17 +414,17 @@ export default function Practice() {
                 <FireBadge streak={fireStreak} />
 
                 <header className="pr-drill-head">
-                    <button className="pr-back" onClick={goPick}>← Chiqish</button>
+                    <button className="pr-back" onClick={goPick}>{ru ? '← Выход' : '← Chiqish'}</button>
                     <div className="pr-progress">
                         <div className="pr-progress-text">
                             {done + 1} / {total}
                             {isQuizPlus && (
                                 <span className={`pr-pass-tag pr-pass-tag--${qpPass}`}>
-                                    {' · '}{qpPass === 'mcq' ? 'Raund 1: MCQ' : 'Raund 2: Yozish'}
+                                    {' · '}{qpPass === 'mcq' ? (ru ? 'Раунд 1: MCQ' : 'Raund 1: MCQ') : (ru ? 'Раунд 2: Письмо' : 'Raund 2: Yozish')}
                                 </span>
                             )}
-                            {!isQuizPlus && item.replay && <span className="pr-replay-tag"> · qaytarish</span>}
-                            {!isQuizPlus && round > 1 && !item.replay && <span className="pr-round-tag"> · raund {round}</span>}
+                            {!isQuizPlus && item.replay && <span className="pr-replay-tag">{ru ? ' · повтор' : ' · qaytarish'}</span>}
+                            {!isQuizPlus && round > 1 && !item.replay && <span className="pr-round-tag">{ru ? ` · раунд ${round}` : ` · raund ${round}`}</span>}
                         </div>
                         <div className="pr-progress-bar">
                             <div
@@ -453,30 +457,30 @@ export default function Practice() {
                         {pct >= 80 ? '🎉' : pct >= 50 ? '👍' : '📚'}
                     </div>
                     <div className="pr-recap-title">
-                        {pct >= 80 ? "Zo'r natija!" : pct >= 50 ? 'Yaxshi!' : 'Yana mashq qilamiz'}
+                        {pct >= 80 ? (ru ? 'Отличный результат!' : "Zo'r natija!") : pct >= 50 ? (ru ? 'Хорошо!' : 'Yaxshi!') : (ru ? 'Потренируемся ещё' : 'Yana mashq qilamiz')}
                     </div>
                     <div className="pr-recap-stats">
                         <div className="pr-recap-stat">
                             <span className="pr-recap-num">{correct}</span>
-                            <span className="pr-recap-lbl">to'g'ri</span>
+                            <span className="pr-recap-lbl">{ru ? 'верно' : "to'g'ri"}</span>
                         </div>
                         <div className="pr-recap-divider" />
                         <div className="pr-recap-stat">
                             <span className="pr-recap-num">{firstPassTotal - correct}</span>
-                            <span className="pr-recap-lbl">noto'g'ri</span>
+                            <span className="pr-recap-lbl">{ru ? 'неверно' : "noto'g'ri"}</span>
                         </div>
                         <div className="pr-recap-divider" />
                         <div className="pr-recap-stat">
                             <span className="pr-recap-num">{pct}%</span>
-                            <span className="pr-recap-lbl">aniqlik</span>
+                            <span className="pr-recap-lbl">{ru ? 'точность' : 'aniqlik'}</span>
                         </div>
                     </div>
                     <div className="pr-recap-actions">
                         <button className="pr-btn pr-btn--ghost" onClick={goPick}>
-                            Yana boshlash
+                            {ru ? 'Начать заново' : 'Yana boshlash'}
                         </button>
                         <button className="pr-btn pr-btn--primary" onClick={() => { goPick(); setTimeout(start, 100); }}>
-                            Davom etish
+                            {ru ? 'Продолжить' : 'Davom etish'}
                         </button>
                     </div>
                 </div>
@@ -492,19 +496,19 @@ export default function Practice() {
                     className={`pr-subtab ${tab === 'drill' ? 'active' : ''}`}
                     onClick={() => setTab('drill')}
                 >
-                    🎯 Boshlash
+                    🎯 {ru ? 'Начать' : 'Boshlash'}
                 </button>
                 <button
                     className={`pr-subtab ${tab === 'stats' ? 'active' : ''}`}
                     onClick={() => setTab('stats')}
                 >
-                    📊 Statistika
+                    📊 {ru ? 'Статистика' : 'Statistika'}
                 </button>
                 <button
                     className={`pr-subtab ${tab === 'hist' ? 'active' : ''}`}
                     onClick={() => setTab('hist')}
                 >
-                    📜 Tarix
+                    📜 {ru ? 'История' : 'Tarix'}
                 </button>
             </div>
 
@@ -523,21 +527,21 @@ export default function Practice() {
             {active && (
                 <div className="pr-resume">
                     <div className="pr-resume-head">
-                        <span className="pr-resume-tag">Davom etish</span>
+                        <span className="pr-resume-tag">{ru ? 'Продолжить' : 'Davom etish'}</span>
                         <span className="pr-resume-mode">{MODES.find(m => m.key === active.mode)?.label || active.mode}</span>
                     </div>
                     <div className="pr-resume-body">
-                        Boshlagan mashqingiz bor —
+                        {ru ? 'У вас есть начатая практика —' : 'Boshlagan mashqingiz bor —'}
                         {' '}{active.progress?.pos ?? active.progress?.idx ?? 0}
                         {' / '}
                         {(active.progress?.queue?.length) || (active.progress?.word_ids?.length) || 0}
                     </div>
                     <div className="pr-resume-actions">
                         <button className="pr-btn pr-btn--ghost" onClick={discardActive}>
-                            Bekor qilish
+                            {ru ? 'Отмена' : 'Bekor qilish'}
                         </button>
                         <button className="pr-btn pr-btn--primary" onClick={resume}>
-                            Davom etish →
+                            {ru ? 'Продолжить →' : 'Davom etish →'}
                         </button>
                     </div>
                 </div>
@@ -545,8 +549,11 @@ export default function Practice() {
 
             <LeechAlert leeches={leeches} />
 
+            <div className="pr-pick-cols">
+            <div className="pr-pick-left">
+
             <section className="pr-section">
-                <h3 className="pr-section-title">1. Rejim tanlang</h3>
+                <h3 className="pr-section-title">{ru ? '1. Выберите режим' : '1. Rejim tanlang'}</h3>
                 <div className="pr-modes">
                     {MODES.map((m) => (
                         <button
@@ -557,7 +564,7 @@ export default function Practice() {
                             <span className="pr-mode-icon" aria-hidden>{m.icon}</span>
                             <span className="pr-mode-text">
                                 <span className="pr-mode-label">{m.label}</span>
-                                <span className="pr-mode-desc">{m.desc}</span>
+                                <span className="pr-mode-desc">{ru ? (m.desc_ru || m.desc) : m.desc}</span>
                             </span>
                             {mode === m.key && <span className="pr-mode-check"><Icon.Check /></span>}
                         </button>
@@ -566,47 +573,61 @@ export default function Practice() {
             </section>
 
             <section className="pr-section">
-                <h3 className="pr-section-title">2. So'zlar to'plamini tanlang</h3>
+                <h3 className="pr-section-title">{ru ? '2. Выберите набор слов' : "2. So'zlar to'plamini tanlang"}</h3>
                 <div className="pr-filters">
                     <button
                         className={`pr-filter ${filter === 'all' ? 'active' : ''}`}
                         onClick={() => setFilter('all')}
                     >
-                        Barchasi
+                        {ru ? 'Все' : 'Barchasi'}
                         {counts.total > 0 && <span className="pr-filter-count">{counts.total}</span>}
                     </button>
                     <button
                         className={`pr-filter pr-filter--due ${filter === 'due' ? 'active' : ''}`}
                         onClick={() => setFilter('due')}
                     >
-                        <Icon.Clock /> Takrorlash vaqti
+                        <Icon.Clock /> {ru ? 'Пора повторить' : 'Takrorlash vaqti'}
                         {counts.due > 0 && <span className="pr-filter-count">{counts.due}</span>}
                     </button>
                     <button
                         className={`pr-filter pr-filter--weak ${filter === 'weak' ? 'active' : ''}`}
                         onClick={() => setFilter('weak')}
                     >
-                        <Icon.Warn /> Qiyin so'zlar
+                        <Icon.Warn /> {ru ? 'Трудные слова' : "Qiyin so'zlar"}
                         {counts.fragile > 0 && <span className="pr-filter-count">{counts.fragile}</span>}
                     </button>
                 </div>
                 <p className="pr-filter-hint">
-                    {filter === 'due' && 'Takrorlash vaqti kelgan yoki yangi so\'zlar.'}
-                    {filter === 'weak' && 'Bir necha marta unutgan yoki qiyin keladigan so\'zlar.'}
-                    {filter === 'all' && 'Saqlangan barcha so\'zlardan random tanlanadi.'}
+                    {filter === 'due' && (ru ? 'Слова, которые пора повторить, или новые.' : 'Takrorlash vaqti kelgan yoki yangi so\'zlar.')}
+                    {filter === 'weak' && (ru ? 'Слова, которые вы несколько раз забывали или которые даются трудно.' : 'Bir necha marta unutgan yoki qiyin keladigan so\'zlar.')}
+                    {filter === 'all' && (ru ? 'Случайный выбор из всех сохранённых слов.' : 'Saqlangan barcha so\'zlardan random tanlanadi.')}
                 </p>
             </section>
 
             <ScopePicker tree={scopeTree} scope={scope} onChange={setScope} />
 
+            </div>
+            <div className="pr-pick-right">
+
             <QueuePreview words={preview} />
 
             <section className="pr-section">
-                <h3 className="pr-section-title">Sizning vaziyatingiz</h3>
+                <h3 className="pr-section-title">{ru ? 'Ваша ситуация' : 'Sizning vaziyatingiz'}</h3>
                 <BucketsBar buckets={buckets} />
             </section>
 
             <HistoryStrip history={history} />
+
+            <div className="pr-brand-card">
+                <img className="pr-brand-logo" src="https://play-lh.googleusercontent.com/xiJhv9DqAZaOq6htMaZSAQ5DBoH_v7fripUMYx04Kv-5iQnfWAFopqZIED6Sr7Q7wN0" alt="GENNIS" />
+                <div className="pr-brand-text">
+                    <div className="pr-brand-title">{ru ? '5 минут каждый день' : 'Har kuni 5 daqiqa'}</div>
+                    <div className="pr-brand-sub">{ru ? 'Регулярная практика — и словарный запас закрепится 🚀' : "Muntazam mashq — lug'at mustahkam bo'ladi 🚀"}</div>
+                </div>
+            </div>
+
+            </div>
+            </div>
 
             <div className="pr-start-wrap">
                 <button
@@ -615,10 +636,10 @@ export default function Practice() {
                     disabled={busy || counts.total < 2}
                 >
                     {counts.total < 2
-                        ? "Mashq uchun kamida 2 ta so'z kerak"
+                        ? (ru ? 'Для практики нужно минимум 2 слова' : "Mashq uchun kamida 2 ta so'z kerak")
                         : busy
-                            ? 'Yuklanmoqda…'
-                            : "Mashqni boshlash"}
+                            ? (ru ? 'Загрузка…' : 'Yuklanmoqda…')
+                            : (ru ? 'Начать практику' : "Mashqni boshlash")}
                 </button>
             </div>
 

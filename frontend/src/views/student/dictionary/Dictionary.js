@@ -2,12 +2,17 @@ import { useState, useEffect, useCallback } from 'react';
 import './Dictionary.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import Practice from './Practice';
+import AppHeader from '../../../components/appheader/AppHeader';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { Search, Plus, X, Trash2, Target, BookOpen, ChevronLeft, LayoutGrid, List } from 'lucide-react';
 
 const BASE = `${API_URL}v1/dictionary/`;
 const langParam = () => `?lang=${localStorage.getItem('lang') || 'uz'}`;
 
 export default function Dictionary() {
     const { request } = useHttp();
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
 
     const [words,    setWords]    = useState([]);
     const [loading,  setLoading]  = useState(true);
@@ -17,6 +22,7 @@ export default function Dictionary() {
     const [toast,    setToast]    = useState('');
     const [filter,   setFilter]   = useState('all');
     const [view,     setView]     = useState('grid');
+    const [expandedId, setExpandedId] = useState(null);
     const [tab,      setTab]      = useState('words'); // 'words' | 'practice'
 
     // ✅ Modal state
@@ -43,7 +49,7 @@ export default function Dictionary() {
     useEffect(() => {
         request(BASE + langParam(), 'GET', null, headers())
             .then(setWords)
-            .catch(() => setError("So'zlarni yuklashda xatolik"))
+            .catch(() => setError(ru ? 'Ошибка при загрузке слов' : "So'zlarni yuklashda xatolik"))
             .finally(() => setLoading(false));
     }, []);
 
@@ -52,16 +58,16 @@ export default function Dictionary() {
         request(`${BASE}${id}`, 'DELETE', null, headers())
             .then(() => {
                 setWords(w => w.filter(x => x.id !== id));
-                showToast("O'chirildi", 'warn');
+                showToast(ru ? 'Удалено' : "O'chirildi", 'warn');
             })
-            .catch(() => setError("O'chirishda xatolik"))
+            .catch(() => setError(ru ? 'Ошибка при удалении' : "O'chirishda xatolik"))
             .finally(() => setDeleting(null));
     };
 
     // ✅ Ruchnoy so'z qo'shish
     const handleAddWord = async () => {
         if (!form.word.trim()) {
-            setFormError("So'z kiriting!");
+            setFormError(ru ? 'Введите слово!' : "So'z kiriting!");
             return;
         }
         setAdding(true);
@@ -77,13 +83,13 @@ export default function Dictionary() {
             setWords(w => [newWord, ...w]);
             setShowModal(false);
             setForm({ word: '', context: '' });
-            showToast("So'z qo'shildi ✓");
+            showToast(ru ? 'Слово добавлено ✓' : "So'z qo'shildi ✓");
         } catch (e) {
             // Surface the actual backend reason (length / word count / dup /
             // schema validation) instead of a generic "xatolik" — the popup
             // path already does this; the manual dialog was hiding it.
             const detail = e?.response?.data?.detail;
-            let msg = "Xatolik yuz berdi, qayta urinib ko'ring";
+            let msg = ru ? 'Произошла ошибка, попробуйте ещё раз' : "Xatolik yuz berdi, qayta urinib ko'ring";
             if (typeof detail === 'string' && detail.trim()) {
                 msg = detail;
             } else if (Array.isArray(detail) && detail[0]?.msg) {
@@ -115,7 +121,7 @@ export default function Dictionary() {
             if (!course) {
                 course = {
                     id: cid,
-                    title: w.course_title || (cid ? `Kurs #${cid}` : 'Eski darslar'),
+                    title: w.course_title || (cid ? (ru ? `Курс #${cid}` : `Kurs #${cid}`) : (ru ? 'Старые уроки' : 'Eski darslar')),
                     total: 0,
                     lessons: new Map(),
                 };
@@ -126,7 +132,7 @@ export default function Dictionary() {
             if (!lesson) {
                 lesson = {
                     id: w.lesson_id,
-                    title: w.lesson_title || `${w.lesson_id}-dars`,
+                    title: w.lesson_title || (ru ? `Урок ${w.lesson_id}` : `${w.lesson_id}-dars`),
                     count: 0,
                 };
                 course.lessons.set(w.lesson_id, lesson);
@@ -173,12 +179,13 @@ export default function Dictionary() {
             <div className="d-loader-ring">
                 <div /><div /><div /><div />
             </div>
-            <p>Yuklanmoqda...</p>
+            <p>{ru ? 'Загрузка...' : 'Yuklanmoqda...'}</p>
         </div>
     );
 
     return (
-        <div className="d-wrap">
+        <div className="dx-dark">
+            <AppHeader />
 
             {/* Toast */}
             {toast && (
@@ -188,357 +195,193 @@ export default function Dictionary() {
                 </div>
             )}
 
-            {/* ✅ Modal */}
+            {/* ✅ Add-word Modal */}
             {showModal && (
                 <div className="d-modal-overlay" onClick={closeModal}>
                     <div className="d-modal" onClick={e => e.stopPropagation()}>
                         <div className="d-modal-header">
                             <span className="d-modal-icon">✏️</span>
                             <div>
-                                <div className="d-modal-title">So'z qo'shish</div>
-                                <div className="d-modal-sub">Lug'atingizga yangi so'z qo'shing</div>
+                                <div className="d-modal-title">{ru ? 'Добавить слово' : "So'z qo'shish"}</div>
+                                <div className="d-modal-sub">{ru ? 'Добавьте новое слово в свой словарь' : "Lug'atingizga yangi so'z qo'shing"}</div>
                             </div>
                             <button className="d-modal-close" onClick={closeModal}>✕</button>
                         </div>
-
                         <div className="d-modal-body">
                             <div className="d-field">
-                                <label className="d-label">So'z <span className="d-required">*</span></label>
+                                <label className="d-label">{ru ? 'Слово' : "So'z"} <span className="d-required">*</span></label>
                                 <input
                                     className={`d-input ${formError && !form.word.trim() ? 'error' : ''}`}
-                                    placeholder="Masalan: flexbox, margin, gap..."
+                                    placeholder={ru ? 'Например: flexbox, margin, gap...' : 'Masalan: flexbox, margin, gap...'}
                                     value={form.word}
-                                    onChange={e => {
-                                        setForm(f => ({ ...f, word: e.target.value }));
-                                        setFormError('');
-                                    }}
+                                    onChange={e => { setForm(f => ({ ...f, word: e.target.value })); setFormError(''); }}
                                     onKeyDown={e => e.key === 'Enter' && handleAddWord()}
                                     autoFocus
                                 />
                             </div>
-
                             <div className="d-field">
-                                <label className="d-label">
-                                    Izoh
-                                    <span className="d-optional">ixtiyoriy</span>
-                                </label>
+                                <label className="d-label">{ru ? 'Пояснение' : 'Izoh'} <span className="d-optional">{ru ? 'необязательно' : 'ixtiyoriy'}</span></label>
                                 <textarea
                                     className="d-textarea"
-                                    placeholder="Bu so'zning ma'nosi yoki misol..."
+                                    placeholder={ru ? 'Значение этого слова или пример...' : "Bu so'zning ma'nosi yoki misol..."}
                                     value={form.context}
                                     onChange={e => setForm(f => ({ ...f, context: e.target.value }))}
                                     rows={3}
                                 />
                             </div>
-
-                            {formError && (
-                                <div className="d-form-error">⚠️ {formError}</div>
-                            )}
+                            {formError && <div className="d-form-error">⚠️ {formError}</div>}
                         </div>
-
                         <div className="d-modal-footer">
-                            <button className="d-btn-cancel" onClick={closeModal}>
-                                Bekor qilish
-                            </button>
-                            <button
-                                className="d-btn-add"
-                                onClick={handleAddWord}
-                                disabled={adding}
-                            >
-                                {adding
-                                    ? <><span className="d-spin-white" /> Qo'shilmoqda...</>
-                                    : <><span>+</span> Qo'shish</>
-                                }
+                            <button className="d-btn-cancel" onClick={closeModal}>{ru ? 'Отмена' : 'Bekor qilish'}</button>
+                            <button className="d-btn-add" onClick={handleAddWord} disabled={adding}>
+                                {adding ? <><span className="d-spin-white" /> {ru ? 'Добавление...' : "Qo'shilmoqda..."}</> : <><span>+</span> {ru ? 'Добавить' : "Qo'shish"}</>}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* ── Sidebar ── */}
-            <aside className="d-sidebar">
-                <div className="d-sidebar-logo">
-                    <span className="d-sidebar-icon">📖</span>
-                    <div>
-                        <div className="d-sidebar-title">Lug'at</div>
-                        <div className="d-sidebar-hint">Darsdan so'z qo'shing</div>
-                    </div>
+            {tab === 'practice' ? (
+                <div className="dx-shell">
+                    <button className="dx-back" onClick={() => setTab('words')}><ChevronLeft size={17} /> {ru ? 'Словарь' : "Lug'at"}</button>
+                    <Practice />
                 </div>
-
-                {/* Single compact stat strip — the big counter pill was redundant
-                    with the "Hammasi N" lesson filter directly below it, and the
-                    sidebar "+ So'z qo'shish" duplicated the topbar action. Kept
-                    a tighter mini-stats row so dars/natija counts stay visible. */}
-                <div className="d-sidebar-stats">
-                    <div className="d-sstat">
-                        <span className="d-sstat-val">{words.length}</span>
-                        <span className="d-sstat-key">so'z</span>
-                    </div>
-                    <div className="d-sstat-div" />
-                    <div className="d-sstat">
-                        <span className="d-sstat-val">{lessons.length}</span>
-                        <span className="d-sstat-key">dars</span>
-                    </div>
-                    <div className="d-sstat-div" />
-                    <div className="d-sstat">
-                        <span className="d-sstat-val">{filtered.length}</span>
-                        <span className="d-sstat-key">natija</span>
-                    </div>
-                </div>
-
-                {/* Scope filter — Hammasi / Qo'lda / Course → Lessons hierarchy.
-                    Course headers filter every lesson in that course at once;
-                    individual lessons drill down further. */}
-                {(scopeTree.courses.length > 0 || scopeTree.manual > 0) && (
-                    <div className="d-lessons-nav">
-                        <div className="d-lessons-label">Kurslar va darslar</div>
-                        <button
-                            className={`d-lesson-item ${filter === 'all' ? 'active' : ''}`}
-                            onClick={() => setFilter('all')}
-                        >
-                            <span className="d-lesson-dot" />
-                            Hammasi
-                            <span className="d-lesson-count">{words.length}</span>
-                        </button>
-                        {scopeTree.manual > 0 && (
-                            <button
-                                className={`d-lesson-item ${filter === 'manual' ? 'active' : ''}`}
-                                onClick={() => setFilter('manual')}
-                            >
-                                <span className="d-lesson-dot" />
-                                Qo'lda qo'shilgan
-                                <span className="d-lesson-count">{scopeTree.manual}</span>
-                            </button>
-                        )}
-                        {scopeTree.courses.map((c) => {
-                            const courseKey = `c:${c.id}`;
-                            return (
-                                <div key={c.id} className="d-course-group">
-                                    <button
-                                        className={`d-lesson-item d-course-item ${filter === courseKey ? 'active' : ''}`}
-                                        onClick={() => setFilter(courseKey)}
-                                        title={c.title}
-                                    >
-                                        <span className="d-lesson-dot" />
-                                        <span className="d-course-name">{c.title}</span>
-                                        <span className="d-lesson-count">{c.total}</span>
-                                    </button>
-                                    {c.lessons.map((l) => {
-                                        const lessonKey = `l:${l.id}`;
-                                        return (
-                                            <button
-                                                key={l.id}
-                                                className={`d-lesson-item d-lesson-child ${filter === lessonKey ? 'active' : ''}`}
-                                                onClick={() => setFilter(lessonKey)}
-                                                title={l.title}
-                                            >
-                                                <span className="d-lesson-dot" />
-                                                <span className="d-lesson-child-name">{l.title}</span>
-                                                <span className="d-lesson-count">{l.count}</span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-
-                <div className="d-sidebar-tip">
-                    <div className="d-tip-icon">💡</div>
-                    <p>Dars paytida matnni belgilab, <strong>«Lug'atga qo'shish»</strong> tugmasini bosing</p>
-                </div>
-            </aside>
-
-            {/* ── Main ── */}
-            <main className="d-main">
-
-                {/* Tab strip — "So'zlar" (existing) | "Mashq" (SRS practice) */}
-                <div className="d-tabs">
-                    <button
-                        className={`d-tab ${tab === 'words' ? 'active' : ''}`}
-                        onClick={() => setTab('words')}
-                    >
-                        📒 So'zlar
-                    </button>
-                    <button
-                        className={`d-tab ${tab === 'practice' ? 'active' : ''}`}
-                        onClick={() => setTab('practice')}
-                    >
-                        🎯 Mashq
-                    </button>
-                </div>
-
-                {tab === 'practice' ? <Practice /> : <>
-
-                {/* Top bar */}
-                <div className="d-topbar">
-                    <div className="d-search-wrap">
-                        <svg className="d-search-icon" viewBox="0 0 20 20" fill="none">
-                            <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.8"/>
-                            <path d="M13.5 13.5L17 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-                        </svg>
-                        <input
-                            className="d-search"
-                            placeholder="So'z qidirish..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                        />
-                        {search && (
-                            <button className="d-search-clear" onClick={() => setSearch('')}>✕</button>
-                        )}
-                    </div>
-
-                    {/* ✅ Topbar da ham qo'shish tugmasi */}
-                    <button className="d-topbar-add" onClick={() => setShowModal(true)}>
-                        <span>+</span> So'z qo'shish
-                    </button>
-
-                    <div className="d-view-toggle">
-                        <button
-                            className={`d-vbtn ${view === 'grid' ? 'active' : ''}`}
-                            onClick={() => setView('grid')}
-                            title="Grid"
-                        >
-                            <svg viewBox="0 0 16 16" fill="currentColor">
-                                <rect x="1" y="1" width="6" height="6" rx="1.5"/>
-                                <rect x="9" y="1" width="6" height="6" rx="1.5"/>
-                                <rect x="1" y="9" width="6" height="6" rx="1.5"/>
-                                <rect x="9" y="9" width="6" height="6" rx="1.5"/>
-                            </svg>
-                        </button>
-                        <button
-                            className={`d-vbtn ${view === 'list' ? 'active' : ''}`}
-                            onClick={() => setView('list')}
-                            title="List"
-                        >
-                            <svg viewBox="0 0 16 16" fill="currentColor">
-                                <rect x="1" y="2" width="14" height="2.5" rx="1.25"/>
-                                <rect x="1" y="6.75" width="14" height="2.5" rx="1.25"/>
-                                <rect x="1" y="11.5" width="14" height="2.5" rx="1.25"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                {error && (
-                    <div className="d-error">
-                        {error}
-                        <button onClick={() => setError('')}>✕</button>
-                    </div>
-                )}
-
-                {/* Empty state */}
-                {filtered.length === 0 && (
-                    <div className="d-empty">
-                        <div className="d-empty-visual">
-                            {search ? '🔎' : words.length === 0 ? '📭' : '🗂️'}
-                        </div>
-                        <div className="d-empty-title">
-                            {search
-                                ? `«${search}» topilmadi`
-                                : words.length === 0
-                                    ? "Lug'at hali bo'sh"
-                                    : "Bu darsda so'z yo'q"}
-                        </div>
-                        <div className="d-empty-sub">
-                            {search
-                                ? "Boshqa kalit so'z bilan qidiring"
-                                : words.length === 0
-                                    ? "Quyidagi tugma orqali so'z qo'shing"
-                                    : ''}
-                        </div>
-                        {words.length === 0 && !search && (
-                            <button className="d-empty-reset" onClick={() => setShowModal(true)}>
-                                + So'z qo'shish
-                            </button>
-                        )}
-                        {search && (
-                            <button className="d-empty-reset" onClick={() => setSearch('')}>
-                                Tozalash
-                            </button>
-                        )}
-                        {!search && filter !== 'all' && (
-                            <button className="d-empty-reset" onClick={() => setFilter('all')}>
-                                Barchasini ko'rish
-                            </button>
-                        )}
-                    </div>
-                )}
-
-                {/* Grid view */}
-                {filtered.length > 0 && view === 'grid' && (
-                    <div className="d-grid">
-                        {filtered.map((item, i) => (
-                            <div
-                                className="d-card"
-                                key={item.id}
-                                style={{ '--delay': `${Math.min(i * 0.04, 0.35)}s` }}
-                            >
-                                <div className="d-card-inner">
-                                    <div className="d-card-top">
-                                        <span className="d-card-word">{item.word}</span>
-                                        {item.lesson_id
-                                            ? <span className="d-card-tag">{item.lesson_id}-dars</span>
-                                            : <span className="d-card-tag manual">✍️ qo'lda</span>
-                                        }
-                                    </div>
-                                    {item.context && (
-                                        <p className="d-card-ctx">"{item.context}"</p>
-                                    )}
-                                    <button
-                                        className="d-card-del"
-                                        onClick={() => handleDelete(item.id)}
-                                        disabled={deleting === item.id}
-                                        aria-label={`Удалить слово ${item.word}`}
-                                        title="Удалить слово"
-                                    >
-                                        {deleting === item.id
-                                            ? <span className="d-spin" />
-                                            : <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                                                <path d="M7 4h6M4 7h12M6 7l1 9h6l1-9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                                              </svg>
-                                        }
-                                    </button>
-                                </div>
-                                <div className="d-card-accent" />
+            ) : (
+                <div className="dx-layout">
+                    {/* ── left filter sidebar ── */}
+                    <aside className="dx-aside">
+                        <div className="dx-aside-head">
+                            <span className="dx-aside-ic"><BookOpen size={20} /></span>
+                            <div>
+                                <div className="dx-aside-title">{ru ? 'Словарь' : "Lug'at"}</div>
+                                <div className="dx-aside-sub">{ru ? 'Добавляйте слова с урока' : "Darsdan so'z qo'shing"}</div>
                             </div>
-                        ))}
-                    </div>
-                )}
-
-                {/* List view */}
-                {filtered.length > 0 && view === 'list' && (
-                    <div className="d-list">
-                        {filtered.map((item, i) => (
-                            <div
-                                className="d-list-row"
-                                key={item.id}
-                                style={{ '--delay': `${Math.min(i * 0.03, 0.3)}s` }}
-                            >
-                                <div className="d-list-index">{i + 1}</div>
-                                <div className="d-list-word">{item.word}</div>
-                                <div className="d-list-ctx">{item.context || '—'}</div>
-                                {item.lesson_id
-                                    ? <span className="d-list-tag">Урок {item.lesson_id}</span>
-                                    : <span className="d-list-tag manual">✍️ вручную</span>
-                                }
-                                <button
-                                    className="d-list-del"
-                                    onClick={() => handleDelete(item.id)}
-                                    disabled={deleting === item.id}
-                                    aria-label={`Удалить слово ${item.word}`}
-                                    title="Удалить слово"
-                                >
-                                    {deleting === item.id ? <span className="d-spin" aria-hidden="true" /> : '✕'}
+                        </div>
+                        <div className="dx-aside-stats">
+                            <div className="dx-ast"><span className="dx-ast-n">{words.length}</span><span className="dx-ast-k">{ru ? 'слов' : "so'z"}</span></div>
+                            <div className="dx-ast-div" />
+                            <div className="dx-ast"><span className="dx-ast-n">{lessons.length}</span><span className="dx-ast-k">{ru ? 'урок' : 'dars'}</span></div>
+                            <div className="dx-ast-div" />
+                            <div className="dx-ast"><span className="dx-ast-n">{filtered.length}</span><span className="dx-ast-k">{ru ? 'результат' : 'natija'}</span></div>
+                        </div>
+                        {(scopeTree.courses.length > 0 || scopeTree.manual > 0) && (
+                            <nav className="dx-tree">
+                                <div className="dx-tree-label">{ru ? 'Курсы и уроки' : 'Kurslar va darslar'}</div>
+                                <button className={`dx-tree-item ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>
+                                    <span className="dx-tree-dot" /><span className="dx-tree-name">{ru ? 'Все' : 'Hammasi'}</span><span className="dx-tree-n">{words.length}</span>
                                 </button>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                                {scopeTree.manual > 0 && (
+                                    <button className={`dx-tree-item ${filter === 'manual' ? 'active' : ''}`} onClick={() => setFilter('manual')}>
+                                        <span className="dx-tree-dot" /><span className="dx-tree-name">{ru ? 'Добавлено вручную' : "Qo'lda qo'shilgan"}</span><span className="dx-tree-n">{scopeTree.manual}</span>
+                                    </button>
+                                )}
+                                {scopeTree.courses.map((c) => (
+                                    <div key={c.id} className="dx-tree-group">
+                                        <button className={`dx-tree-item dx-tree-course ${filter === `c:${c.id}` ? 'active' : ''}`}
+                                            onClick={() => setFilter(`c:${c.id}`)} title={c.title}>
+                                            <span className="dx-tree-dot" /><span className="dx-tree-name">{c.title}</span><span className="dx-tree-n">{c.total}</span>
+                                        </button>
+                                        {c.lessons.map((l) => (
+                                            <button key={l.id} className={`dx-tree-item dx-tree-lesson ${filter === `l:${l.id}` ? 'active' : ''}`}
+                                                onClick={() => setFilter(`l:${l.id}`)} title={l.title}>
+                                                <span className="dx-tree-dot" /><span className="dx-tree-name">{l.title}</span><span className="dx-tree-n">{l.count}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                ))}
+                            </nav>
+                        )}
+                        <div className="dx-aside-tip">
+                            <span className="dx-tip-ic">💡</span>
+                            <p>{ru ? <>Во время урока выделите текст и нажмите кнопку <strong>«Добавить в словарь»</strong></> : <>Dars paytida matnni belgilab, <strong>«Lug'atga qo'shish»</strong> tugmasini bosing</>}</p>
+                        </div>
+                    </aside>
 
-                </>}
-            </main>
+                    {/* ── right content ── */}
+                    <div className="dx-content">
+                        <div className="dx-ctabs">
+                            <button className="dx-ctab active"><BookOpen size={15} /> {ru ? 'Слова' : "So'zlar"}</button>
+                            <button className="dx-ctab" onClick={() => setTab('practice')}><Target size={15} /> {ru ? 'Практика' : 'Mashq'}</button>
+                        </div>
+
+                        <div className="dx-content-tools">
+                            <div className="dx-search dx-search--full">
+                                <Search size={16} className="dx-search-ic" />
+                                <input placeholder={ru ? 'Поиск слова...' : "So'z qidirish..."} value={search} onChange={e => setSearch(e.target.value)} />
+                                {search && <button className="dx-search-clear" onClick={() => setSearch('')}><X size={14} /></button>}
+                            </div>
+                            <button className="dx-add" onClick={() => setShowModal(true)}><Plus size={16} /> {ru ? 'Слово' : "So'z"}</button>
+                            <div className="dx-viewtoggle">
+                                <button className={`dx-vbtn ${view === 'grid' ? 'active' : ''}`} onClick={() => setView('grid')} title={ru ? 'Плитки' : 'Katak'} aria-label="Grid"><LayoutGrid size={16} /></button>
+                                <button className={`dx-vbtn ${view === 'list' ? 'active' : ''}`} onClick={() => setView('list')} title={ru ? 'Список' : "Ro'yxat"} aria-label="List"><List size={16} /></button>
+                            </div>
+                        </div>
+
+                        {error && <div className="d-error">{error}<button onClick={() => setError('')}>✕</button></div>}
+
+                        {filtered.length === 0 ? (
+                            <div className="dx-empty">
+                                <div className="dx-empty-ic">{search ? '🔎' : words.length === 0 ? '📭' : '🗂️'}</div>
+                                <h3>{search ? (ru ? `«${search}» не найдено` : `«${search}» topilmadi`) : words.length === 0 ? (ru ? 'Словарь пока пуст' : "Lug'at hali bo'sh") : (ru ? 'В этом разделе нет слов' : "Bu bo'limda so'z yo'q")}</h3>
+                                {words.length === 0 && !search && <button className="dx-add" onClick={() => setShowModal(true)}><Plus size={16} /> {ru ? 'Добавить слово' : "So'z qo'shish"}</button>}
+                                {search && <button className="dx-chip-btn" onClick={() => setSearch('')}>{ru ? 'Очистить' : 'Tozalash'}</button>}
+                                {!search && filter !== 'all' && <button className="dx-chip-btn" onClick={() => setFilter('all')}>{ru ? 'Показать все' : "Barchasini ko'rish"}</button>}
+                            </div>
+                        ) : view === 'list' ? (
+                            <div className="dx-list">
+                                {filtered.map((item, i) => {
+                                    const exp = expandedId === item.id;
+                                    return (
+                                        <div className={`dx-lrow ${exp ? 'expanded' : ''}`} key={item.id}
+                                            onClick={() => setExpandedId(exp ? null : item.id)}>
+                                            <span className="dx-lrow-num">{i + 1}</span>
+                                            <code className="dx-lrow-word">{item.word}</code>
+                                            {item.context && <span className="dx-lrow-ctx">{item.context}</span>}
+                                            <div className="dx-lrow-end">
+                                                {item.lesson_id
+                                                    ? <span className="dx-wtag">{ru ? `Урок ${item.lesson_id}` : `${item.lesson_id}-dars`}</span>
+                                                    : <span className="dx-wtag dx-wtag--manual">{ru ? '✍️ вручную' : "✍️ qo'lda"}</span>}
+                                                <button className="dx-card-del" onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                                                    disabled={deleting === item.id} title={ru ? 'Удалить' : "O'chirish"} aria-label={ru ? 'Удалить' : "O'chirish"}>
+                                                    {deleting === item.id ? <span className="dx-spin" /> : <Trash2 size={15} />}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="dx-grid">
+                                {filtered.map((item, i) => {
+                                    const exp = expandedId === item.id;
+                                    const longCtx = (item.context || '').length > 90;
+                                    return (
+                                        <div className={`dx-card ${exp ? 'expanded' : ''}`} key={item.id} style={{ '--delay': `${Math.min(i * 0.035, 0.4)}s` }}
+                                            onClick={() => longCtx && setExpandedId(exp ? null : item.id)}>
+                                            <div className="dx-card-code"><code>{item.word}</code></div>
+                                            {item.context && <p className="dx-card-desc">{item.context}</p>}
+                                            {longCtx && <span className="dx-card-more">{exp ? (ru ? '▲ меньше' : '▲ kamroq') : (ru ? '▾ больше' : '▾ ko\'proq')}</span>}
+                                            <div className="dx-card-foot">
+                                                <div className="dx-card-tags">
+                                                    {item.lesson_id
+                                                        ? <span className="dx-wtag">{ru ? `Урок ${item.lesson_id}` : `${item.lesson_id}-dars`}</span>
+                                                        : <span className="dx-wtag dx-wtag--manual">{ru ? '✍️ вручную' : "✍️ qo'lda"}</span>}
+                                                    {item.course_title && <span className="dx-wtag dx-wtag--course">{item.course_title}</span>}
+                                                </div>
+                                                <button className="dx-card-del" onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+                                                    disabled={deleting === item.id} title={ru ? 'Удалить' : "O'chirish"} aria-label={ru ? 'Удалить' : "O'chirish"}>
+                                                    {deleting === item.id ? <span className="dx-spin" /> : <Trash2 size={15} />}
+                                                </button>
+                                            </div>
+                                            <div className="dx-card-glow" />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

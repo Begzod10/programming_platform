@@ -7,11 +7,11 @@ import { Flame } from 'lucide-react';
 export const BASE = `${API_URL}v1/dictionary/practice`;
 
 export const MODES = [
-    { key: 'flashcard', label: 'Flashcard',  desc: 'Bilaman / Bilmayman', icon: '🃏' },
-    { key: 'quiz',      label: 'Quiz+',      desc: '4 tadan birini tanlash yoki yozish', icon: '🎯' },
-    { key: 'spelling',  label: 'Spelling',   desc: "So'zni yozing",       icon: '⌨️' },
-    { key: 'listening', label: 'Listening',  desc: 'Eshitib yozish',      icon: '🎧' },
-    { key: 'cloze',     label: 'Cloze',      desc: "Gapda bo'shliqni to'ldiring", icon: '✏️' },
+    { key: 'flashcard', label: 'Flashcard',  desc: 'Bilaman / Bilmayman', desc_ru: 'Знаю / Не знаю', icon: '🃏' },
+    { key: 'quiz',      label: 'Quiz+',      desc: '4 tadan birini tanlash yoki yozish', desc_ru: 'Выбрать один из 4 или написать', icon: '🎯' },
+    { key: 'spelling',  label: 'Spelling',   desc: "So'zni yozing",       desc_ru: 'Напишите слово', icon: '⌨️' },
+    { key: 'listening', label: 'Listening',  desc: 'Eshitib yozish',      desc_ru: 'Прослушать и написать', icon: '🎧' },
+    { key: 'cloze',     label: 'Cloze',      desc: "Gapda bo'shliqni to'ldiring", desc_ru: 'Заполните пропуск в предложении', icon: '✏️' },
 ];
 
 export const DEFAULT_COUNT = 10;

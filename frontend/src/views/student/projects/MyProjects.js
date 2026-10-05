@@ -4,7 +4,9 @@ import './MyProjects.css';
 import ProjectCard from './ProjectCard';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { ConfirmModal } from '../../teacher/courses/TeacherCourses/ConfirmModal';
-import { Trophy } from 'lucide-react';
+import { Trophy, Search } from 'lucide-react';
+import AppHeader from '../../../components/appheader/AppHeader';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 const DIFFICULTIES = ['Easy', 'Medium', 'Hard'];
 
@@ -19,7 +21,10 @@ const Modal = ({ onClose, children, wide }) => ReactDOM.createPortal(
 );
 
 /* ── Upload Method Selector ── */
-const UploadMethodSelector = ({ method, onChange }) => (
+const UploadMethodSelector = ({ method, onChange }) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
+    return (
     <div className="mp-method-selector">
         <button
             type="button"
@@ -33,12 +38,12 @@ const UploadMethodSelector = ({ method, onChange }) => (
             </span>
             <span className="mp-method-label">
                 <span className="mp-method-title">GitHub</span>
-                <span className="mp-method-sub">Ссылка на репозиторий</span>
+                <span className="mp-method-sub">{ru ? 'Ссылка на репозиторий' : 'Repozitoriy havolasi'}</span>
             </span>
             {method === 'github' && <span className="mp-method-check">✓</span>}
         </button>
         <div className="mp-method-divider">
-            <span>или</span>
+            <span>{ru ? 'или' : 'yoki'}</span>
         </div>
         <button
             type="button"
@@ -53,16 +58,19 @@ const UploadMethodSelector = ({ method, onChange }) => (
                 </svg>
             </span>
             <span className="mp-method-label">
-                <span className="mp-method-title">ZIP-архив</span>
-                <span className="mp-method-sub">Загрузить файл до 15MB</span>
+                <span className="mp-method-title">{ru ? 'ZIP-архив' : 'ZIP-arxiv'}</span>
+                <span className="mp-method-sub">{ru ? 'Загрузить файл до 15MB' : '15MB gacha fayl yuklash'}</span>
             </span>
             {method === 'zip' && <span className="mp-method-check">✓</span>}
         </button>
     </div>
-);
+    );
+};
 
 /* ── ZIP Drop Zone ── */
 const ZipDropZone = ({ selectedFile, onFileSelect, uploading, compact = false }) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const fileInputRef = useRef(null);
     const [dragging, setDragging] = useState(false);
 
@@ -104,8 +112,8 @@ const ZipDropZone = ({ selectedFile, onFileSelect, uploading, compact = false })
                         <span className="mp-file-name">{selectedFile.name}</span>
                         <span className={`mp-file-size ${isOverLimit || isEmpty ? 'mp-overlimit' : ''}`}>
                             {isEmpty
-                                ? '⚠️ Файл пустой — выберите другой'
-                                : `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB${isOverLimit ? ' · ⚠️ Превышает 15MB' : ''}`
+                                ? (ru ? '⚠️ Файл пустой — выберите другой' : "⚠️ Fayl bo'sh — boshqasini tanlang")
+                                : `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB${isOverLimit ? (ru ? ' · ⚠️ Превышает 15MB' : ' · ⚠️ 15MB dan oshadi') : ''}`
                             }
                         </span>
                     </div>
@@ -115,9 +123,13 @@ const ZipDropZone = ({ selectedFile, onFileSelect, uploading, compact = false })
                 <div className="mp-dropzone-placeholder">
                     <span className="mp-dropzone-icon mp-dropzone-icon-empty">{dragging ? '🎯' : '📁'}</span>
                     <span className="mp-dropzone-text">
-                        {dragging ? 'Отпустите файл' : compact ? 'Перетащите .zip или нажмите' : 'Перетащите .zip архив сюда или нажмите для выбора'}
+                        {dragging
+                            ? (ru ? 'Отпустите файл' : 'Faylni qo‘yib yuboring')
+                            : compact
+                                ? (ru ? 'Перетащите .zip или нажмите' : '.zip faylni tashlang yoki bosing')
+                                : (ru ? 'Перетащите .zip архив сюда или нажмите для выбора' : '.zip arxivni shu yerga tashlang yoki tanlash uchun bosing')}
                     </span>
-                    {!compact && <span className="mp-dropzone-hint">Максимум 15 MB · только .zip</span>}
+                    {!compact && <span className="mp-dropzone-hint">{ru ? 'Максимум 15 MB · только .zip' : 'Maksimum 15 MB · faqat .zip'}</span>}
                 </div>
             )}
             {selectedFile && !isEmpty && (
@@ -147,6 +159,8 @@ const GRADE_TONE = {
 };
 
 const AuthorshipBadges = ({ authorship }) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     if (!authorship || !authorship.available) return null;
     const badges = [];
 
@@ -154,33 +168,43 @@ const AuthorshipBadges = ({ authorship }) => {
         badges.push({
             key: 'fork',
             tone: 'danger',
-            label: '⚠️ Это форк',
+            label: ru ? '⚠️ Это форк' : '⚠️ Bu fork',
             title: authorship.parent_repo
-                ? `Форк репозитория ${authorship.parent_repo} — оценка ограничена`
-                : 'Репозиторий — форк. Оценка ограничена.',
+                ? (ru
+                    ? `Форк репозитория ${authorship.parent_repo} — оценка ограничена`
+                    : `${authorship.parent_repo} repozitoriysining fork'i — baholash cheklangan`)
+                : (ru
+                    ? 'Репозиторий — форк. Оценка ограничена.'
+                    : "Repozitoriy — fork. Baholash cheklangan."),
         });
     }
     if (authorship.commit_count === 1) {
         badges.push({
             key: 'single-commit',
             tone: 'warn',
-            label: '⚠️ 1 коммит',
-            title: 'Только один коммит — нет поэтапной работы',
+            label: ru ? '⚠️ 1 коммит' : '⚠️ 1 ta commit',
+            title: ru
+                ? 'Только один коммит — нет поэтапной работы'
+                : "Faqat bitta commit — bosqichma-bosqich ish yo'q",
         });
     } else if (typeof authorship.commit_count === 'number' && authorship.commit_count >= 3) {
         badges.push({
             key: 'commits',
             tone: 'ok',
-            label: `✓ ${authorship.commit_count} коммитов`,
-            title: 'Несколько коммитов — видна поэтапная работа',
+            label: ru ? `✓ ${authorship.commit_count} коммитов` : `✓ ${authorship.commit_count} ta commit`,
+            title: ru
+                ? 'Несколько коммитов — видна поэтапная работа'
+                : "Bir nechta commit — bosqichma-bosqich ish ko'rinadi",
         });
     }
     if (authorship.owner_is_contributor === false) {
         badges.push({
             key: 'not-owner',
             tone: 'danger',
-            label: '⚠️ Владелец не среди авторов',
-            title: 'Коммиты сделаны не владельцем репозитория',
+            label: ru ? '⚠️ Владелец не среди авторов' : '⚠️ Egasi mualliflar orasida yo‘q',
+            title: ru
+                ? 'Коммиты сделаны не владельцем репозитория'
+                : "Commitlar repozitoriy egasi tomonidan qilinmagan",
         });
     }
 
@@ -197,12 +221,14 @@ const AuthorshipBadges = ({ authorship }) => {
 };
 
 const AiReviewResult = ({ data }) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     if (!data) return null;
 
     if (data.error) {
         return (
             <div className="mp-ai-result mp-ai-error">
-                <p>❌ {data.errorMessage || 'AI-проверка не удалась'}</p>
+                <p>❌ {data.errorMessage || (ru ? 'AI-проверка не удалась' : 'AI-tekshiruv muvaffaqiyatsiz tugadi')}</p>
                 {data.errorStatus && <p className="mp-ai-meta">HTTP {data.errorStatus}</p>}
             </div>
         );
@@ -219,20 +245,20 @@ const AiReviewResult = ({ data }) => {
                     ✨ {prov.label}{prov.sub && <span className="mp-ai-provider-sub"> · {prov.sub}</span>}
                 </span>
                 <span className={`mp-ai-grade ${gradeTone}`}>
-                    {data.grade || '?'} · {data.points ?? 0} баллов
+                    {data.grade || '?'} · {data.points ?? 0} {ru ? 'баллов' : 'ball'}
                 </span>
             </div>
 
             <div className="mp-ai-meta">
                 {sourceLabel && <span>{sourceLabel}</span>}
                 {Array.isArray(data.files_reviewed) && data.files_reviewed.length > 0 && (
-                    <span>{data.files_reviewed.length} файлов проверено</span>
+                    <span>{data.files_reviewed.length} {ru ? 'файлов проверено' : 'ta fayl tekshirildi'}</span>
                 )}
                 {typeof data.reviews_remaining_today === 'number' && (
-                    <span>Осталось сегодня: {data.reviews_remaining_today}</span>
+                    <span>{ru ? 'Осталось сегодня' : 'Bugun qoldi'}: {data.reviews_remaining_today}</span>
                 )}
                 {typeof data.old_points === 'number' && data.old_points > 0 && data.old_points !== data.new_points && (
-                    <span>было: {data.old_points}</span>
+                    <span>{ru ? 'было' : 'oldin'}: {data.old_points}</span>
                 )}
             </div>
 
@@ -242,28 +268,28 @@ const AiReviewResult = ({ data }) => {
 
             {Array.isArray(data.strengths) && data.strengths.length > 0 && (
                 <div className="mp-ai-list mp-ai-strengths">
-                    <span className="mp-ai-list-title">✅ Сильные стороны</span>
+                    <span className="mp-ai-list-title">{ru ? '✅ Сильные стороны' : '✅ Kuchli tomonlari'}</span>
                     <ul>{data.strengths.map((s, i) => <li key={i}>{s}</li>)}</ul>
                 </div>
             )}
 
             {Array.isArray(data.improvements) && data.improvements.length > 0 && (
                 <div className="mp-ai-list mp-ai-improvements">
-                    <span className="mp-ai-list-title">💡 Что улучшить</span>
+                    <span className="mp-ai-list-title">{ru ? '💡 Что улучшить' : '💡 Nimani yaxshilash kerak'}</span>
                     <ul>{data.improvements.map((s, i) => <li key={i}>{s}</li>)}</ul>
                 </div>
             )}
 
             {data.feedback && (
                 <details className="mp-ai-details">
-                    <summary>Подробнее</summary>
+                    <summary>{ru ? 'Подробнее' : 'Batafsil'}</summary>
                     <p>{data.feedback}</p>
                 </details>
             )}
 
             {Array.isArray(data.files_reviewed) && data.files_reviewed.length > 0 && (
                 <details className="mp-ai-details">
-                    <summary>Проверенные файлы ({data.files_reviewed.length})</summary>
+                    <summary>{ru ? 'Проверенные файлы' : 'Tekshirilgan fayllar'} ({data.files_reviewed.length})</summary>
                     <ul className="mp-ai-files">
                         {data.files_reviewed.map((f, i) => <li key={i}><code>{f}</code></li>)}
                     </ul>
@@ -274,25 +300,28 @@ const AiReviewResult = ({ data }) => {
 };
 
 /* ── Form Fields for Edit ── */
-const ProjectFormFields = ({ form, errors, set, zipFile, onZipSelect, uploadMethod, onMethodChange }) => (
+const ProjectFormFields = ({ form, errors, set, zipFile, onZipSelect, uploadMethod, onMethodChange }) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
+    return (
     <>
         <div className="mp-field">
-            <label>Название *</label>
+            <label>{ru ? 'Название *' : 'Nomi *'}</label>
             <input placeholder="E-commerce Backend" value={form.title}
                 onChange={e => set('title', e.target.value)}
                 className={errors.title ? 'mp-input-error' : ''} />
             {errors.title && <span className="mp-error">{errors.title}</span>}
         </div>
         <div className="mp-field">
-            <label>Описание *</label>
-            <textarea placeholder="Краткое описание..." value={form.description}
+            <label>{ru ? 'Описание *' : 'Tavsif *'}</label>
+            <textarea placeholder={ru ? 'Краткое описание...' : 'Qisqacha tavsif...'} value={form.description}
                 onChange={e => set('description', e.target.value)}
                 className={errors.description ? 'mp-input-error' : ''} rows={3} />
             {errors.description && <span className="mp-error">{errors.description}</span>}
         </div>
 
         <div className="mp-field">
-            <label>Способ загрузки кода *</label>
+            <label>{ru ? 'Способ загрузки кода *' : 'Kodni yuklash usuli *'}</label>
             <UploadMethodSelector method={uploadMethod} onChange={onMethodChange} />
             {errors.source && <span className="mp-error">{errors.source}</span>}
         </div>
@@ -309,7 +338,7 @@ const ProjectFormFields = ({ form, errors, set, zipFile, onZipSelect, uploadMeth
 
         <div className={`mp-source-panel ${uploadMethod === 'zip' ? 'mp-source-panel-visible' : ''}`}>
             <div className="mp-field">
-                <label>ZIP-архив</label>
+                <label>{ru ? 'ZIP-архив' : 'ZIP-arxiv'}</label>
                 <ZipDropZone selectedFile={zipFile} onFileSelect={onZipSelect} compact />
                 {errors.zip && <span className="mp-error">{errors.zip}</span>}
             </div>
@@ -321,23 +350,28 @@ const ProjectFormFields = ({ form, errors, set, zipFile, onZipSelect, uploadMeth
                 onChange={e => set('live_demo_url', e.target.value)} />
         </div>
         <div className="mp-field">
-            <label>Технологии (через запятую)</label>
+            <label>{ru ? 'Технологии (через запятую)' : 'Texnologiyalar (vergul bilan)'}</label>
             <input placeholder="React, FastAPI, PostgreSQL" value={form.technologies_used}
                 onChange={e => set('technologies_used', e.target.value)} />
         </div>
         <div className="mp-field">
-            <label>Сложность</label>
+            <label>{ru ? 'Сложность' : 'Murakkablik'}</label>
             <select value={form.difficulty_level} onChange={e => set('difficulty_level', e.target.value)}>
                 {DIFFICULTIES.map(d => <option key={d}>{d}</option>)}
             </select>
         </div>
     </>
-);
+    );
+};
 
 function MyProjects() {
     const { request } = useHttp();
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
 
     const [projects, setProjects] = useState([]);
+    const [search, setSearch] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
     const [loading, setLoading] = useState(true);
     const [editModal, setEditModal] = useState(false);
     const [detail, setDetail] = useState(null);
@@ -385,18 +419,18 @@ function MyProjects() {
 
     const validate = () => {
         const e = {};
-        if (!form.title.trim()) e.title = 'Введите название';
-        if (!form.description.trim()) e.description = 'Введите описание';
-        else if (form.description.trim().length < 10) e.description = 'Минимум 10 символов';
+        if (!form.title.trim()) e.title = ru ? 'Введите название' : 'Nomini kiriting';
+        if (!form.description.trim()) e.description = ru ? 'Введите описание' : 'Tavsifni kiriting';
+        else if (form.description.trim().length < 10) e.description = ru ? 'Минимум 10 символов' : 'Kamida 10 ta belgi';
 
         if (uploadMethod === 'github') {
-            if (!form.github_url.trim()) e.github_url = 'Введите GitHub ссылку';
+            if (!form.github_url.trim()) e.github_url = ru ? 'Введите GitHub ссылку' : 'GitHub havolasini kiriting';
         } else if (!formZipFile) {
-            e.zip = 'Выберите ZIP-файл';
+            e.zip = ru ? 'Выберите ZIP-файл' : 'ZIP-faylni tanlang';
         } else if (formZipFile.size === 0) {
-            e.zip = 'ZIP-файл пустой';
+            e.zip = ru ? 'ZIP-файл пустой' : "ZIP-fayl bo'sh";
         } else if (formZipFile.size > 15 * 1024 * 1024) {
-            e.zip = 'Файл превышает 15MB';
+            e.zip = ru ? 'Файл превышает 15MB' : '15MB dan oshadi';
         }
 
         setErrors(e);
@@ -439,11 +473,11 @@ function MyProjects() {
             setFormZipFile(null);
 
             if (zipUploadFailed) {
-                setUploadMsg('⚠️ Проект сохранён, но ZIP не загрузился. Загрузите файл ещё раз.');
+                setUploadMsg(ru ? '⚠️ Проект сохранён, но ZIP не загрузился. Загрузите файл ещё раз.' : '⚠️ Loyiha saqlandi, lekin ZIP yuklanmadi. Faylni qayta yuklang.');
                 setTimeout(() => setUploadMsg(''), 6000);
             }
         } catch {
-            setApiError('Ошибка при обновлении проекта');
+            setApiError(ru ? 'Ошибка при обновлении проекта' : 'Loyihani yangilashda xatolik');
         } finally {
             setSaving(false);
         }
@@ -462,11 +496,11 @@ function MyProjects() {
             .then(() => {
                 setProjects(p => p.map(pr => pr.id === projectId ? { ...pr, status: 'Submitted' } : pr));
                 setDetail(d => d ? { ...d, status: 'Submitted' } : d);
-                setUploadMsg('✅ Проект отправлен на проверку');
+                setUploadMsg(ru ? '✅ Проект отправлен на проверку' : '✅ Loyiha tekshiruvga yuborildi');
                 setTimeout(() => setUploadMsg(''), 4000);
             })
             .catch(() => {
-                setUploadMsg('❌ Не удалось отправить. Попробуйте ещё раз.');
+                setUploadMsg(ru ? '❌ Не удалось отправить. Попробуйте ещё раз.' : '❌ Yuborib bo‘lmadi. Qayta urinib ko‘ring.');
                 setTimeout(() => setUploadMsg(''), 5000);
             });
     };
@@ -481,18 +515,18 @@ function MyProjects() {
             .then(() => {
                 setProjects(p => p.filter(pr => pr.id !== projectId));
                 setDetail(null);
-                setUploadMsg('✅ Проект удалён');
+                setUploadMsg(ru ? '✅ Проект удалён' : '✅ Loyiha o‘chirildi');
                 setTimeout(() => setUploadMsg(''), 4000);
             })
             .catch(() => {
-                setUploadMsg('❌ Не удалось удалить. Попробуйте ещё раз.');
+                setUploadMsg(ru ? '❌ Не удалось удалить. Попробуйте ещё раз.' : '❌ O‘chirib bo‘lmadi. Qayta urinib ko‘ring.');
                 setTimeout(() => setUploadMsg(''), 5000);
             });
     };
 
     const handleZipUpload = (projectId, file) => {
         if (!file || file.size === 0 || file.size > 15 * 1024 * 1024) {
-            setUploadMsg('❌ Некорректный файл');
+            setUploadMsg(ru ? '❌ Некорректный файл' : '❌ Noto‘g‘ri fayl');
             return;
         }
 
@@ -503,7 +537,7 @@ function MyProjects() {
 
         request(`${API_URL}v1/project/${projectId}/upload-zip`, 'POST', formData, headers())
             .then(() => {
-                setUploadMsg('✅ ZIP загружен успешно');
+                setUploadMsg(ru ? '✅ ZIP загружен успешно' : '✅ ZIP muvaffaqiyatli yuklandi');
                 setSelectedFile(null);
                 return request(`${API_URL}v1/project/${projectId}`, 'GET', null, headers());
             })
@@ -513,7 +547,7 @@ function MyProjects() {
                     setDetail(res);
                 }
             })
-            .catch(() => setUploadMsg('❌ Ошибка загрузки'))
+            .catch(() => setUploadMsg(ru ? '❌ Ошибка загрузки' : '❌ Yuklashda xatolik'))
             .finally(() => setUploading(false));
     };
 
@@ -532,10 +566,10 @@ function MyProjects() {
                 const updated = { ...detail, project_files: fileUrlInput.trim() };
                 setProjects(p => p.map(pr => pr.id === detail.id ? updated : pr));
                 setDetail(updated);
-                setFileUrlMsg('✅ Ссылка обновлена');
+                setFileUrlMsg(ru ? '✅ Ссылка обновлена' : '✅ Havola yangilandi');
                 setShowFileUrlEdit(false);
             })
-            .catch(() => setFileUrlMsg('❌ Ошибка обновления'))
+            .catch(() => setFileUrlMsg(ru ? '❌ Ошибка обновления' : '❌ Yangilashda xatolik'))
             .finally(() => setFileUrlSaving(false));
     };
 
@@ -559,7 +593,7 @@ function MyProjects() {
                 // FastAPI puts the human message in response.data.detail.
                 const detail = e?.response?.data?.detail
                     || e?.message
-                    || 'AI-проверка не удалась';
+                    || (ru ? 'AI-проверка не удалась' : 'AI-tekshiruv muvaffaqiyatsiz tugadi');
                 setAiResult({
                     error: 'request_failed',
                     errorStatus: status,
@@ -602,52 +636,76 @@ function MyProjects() {
         if (method === 'zip') setField('github_url', '');
     };
 
-    return (
-        <div className="mp-container item-fade-in">
-            <div className="mp-header">
-                <div>
-                    <h2>Мои Проекты</h2>
-                    <p className="mp-subtitle">Управление вашими проектами</p>
-                </div>
-            </div>
+    const STATUS_GROUP = (s) =>
+        /approved|reviewed/i.test(s) ? 'approved'
+        : /submitted|under review/i.test(s) ? 'review'
+        : /rejected/i.test(s) ? 'rejected' : 'draft';
+    const filtered = projects.filter(p =>
+        (!search || (p.title || '').toLowerCase().includes(search.toLowerCase())) &&
+        (statusFilter === 'all' || STATUS_GROUP(p.status) === statusFilter)
+    );
+    const statusOptions = [
+        { v: 'all', label: ru ? 'Все статусы' : 'Barcha holatlar' },
+        { v: 'approved', label: ru ? 'Одобренные' : 'Tasdiqlangan' },
+        { v: 'review', label: ru ? 'На проверке' : 'Tekshiruvda' },
+        { v: 'rejected', label: ru ? 'Отклонённые' : 'Rad etilgan' },
+        { v: 'draft', label: ru ? 'Черновики' : 'Qoralama' },
+    ];
 
-            {loading ? (
-                <div className="mp-loading">
-                    <div className="mp-spinner" />
-                    <p>Загрузка...</p>
+    return (
+        <div className="mpx-dark">
+            <AppHeader />
+            <div className="mpx-shell">
+                <div className="mpx-header">
+                    <h1 className="mpx-title">{ru ? 'Мои проекты' : 'Mening loyihalarim'}</h1>
+                    <div className="mpx-tools">
+                        <div className="mpx-search">
+                            <Search size={16} className="mpx-search-ic" />
+                            <input value={search} onChange={e => setSearch(e.target.value)}
+                                placeholder={ru ? 'Поиск...' : 'Qidirish...'} />
+                        </div>
+                        <select className="mpx-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                            {statusOptions.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+                        </select>
+                    </div>
                 </div>
-            ) : projects.length === 0 ? (
-                <div className="mp-empty">
-                    <span>📂</span>
-                    <p>У вас пока нет проектов</p>
-                </div>
-            ) : (
-                <div className="projects-grid">
-                    {projects.map(p => (
-                        <ProjectCard
-                            key={p.id}
-                            title={p.title}
-                            status={p.status}
-                            difficulty={p.difficulty_level}
-                            points={p.points_earned}
-                            techStack={p.technologies_used || []}
-                            grade={p.grade}
-                            viewsCount={p.views_count || 0}
-                            onDetails={() => {
-                                setAiResult('');
-                                setUploadMsg('');
-                                setDetail(p);
-                            }}
-                        />
-                    ))}
-                </div>
-            )}
+
+                {loading ? (
+                    <div className="mpx-state"><div className="mpx-spinner" /> {ru ? 'Загрузка...' : 'Yuklanmoqda...'}</div>
+                ) : filtered.length === 0 ? (
+                    <div className="mpx-state">📂 {projects.length === 0
+                        ? (ru ? 'У вас пока нет проектов' : "Hali loyihalaringiz yo'q")
+                        : (ru ? 'Ничего не найдено' : 'Hech narsa topilmadi')}</div>
+                ) : (
+                    <div className="mpx-grid">
+                        {filtered.map(p => (
+                            <ProjectCard
+                                key={p.id}
+                                ru={ru}
+                                title={p.title}
+                                status={p.status}
+                                difficulty={p.difficulty_level}
+                                points={p.points_earned}
+                                techStack={p.technologies_used || []}
+                                grade={p.grade}
+                                githubUrl={p.github_url}
+                                onViewCode={(url) => window.open(url, '_blank', 'noopener')}
+                                onDetails={() => {
+                                    setAiResult('');
+                                    setUploadMsg('');
+                                    setDetail(p);
+                                }}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
 
             {/* EDIT MODAL */}
             {editModal && (
                 <Modal onClose={() => setEditModal(false)}>
                     <div className="mp-modal-header">
-                        <h3>✏️ Редактировать проект</h3>
+                        <h3>{ru ? '✏️ Редактировать проект' : '✏️ Loyihani tahrirlash'}</h3>
                         <button className="mp-close" onClick={() => setEditModal(false)}>✕</button>
                     </div>
                     <div className="mp-modal-body">
@@ -663,9 +721,9 @@ function MyProjects() {
                         />
                     </div>
                     <div className="mp-modal-footer">
-                        <button className="mp-btn-cancel" onClick={() => setEditModal(false)}>Отмена</button>
+                        <button className="mp-btn-cancel" onClick={() => setEditModal(false)}>{ru ? 'Отмена' : 'Bekor qilish'}</button>
                         <button className="mp-btn-save" onClick={handleUpdate} disabled={saving}>
-                            {saving ? '⏳ Сохранение...' : '💾 Сохранить'}
+                            {saving ? (ru ? '⏳ Сохранение...' : '⏳ Saqlanmoqda...') : (ru ? '💾 Сохранить' : '💾 Saqlash')}
                         </button>
                     </div>
                 </Modal>
@@ -691,15 +749,21 @@ function MyProjects() {
                                 Approved: 'mp-status-approved',
                                 Rejected: 'mp-status-denied'
                             }[detail.status] || ''}`}>
-                                {{
+                                {(ru ? {
                                     Draft: 'Черновик',
                                     Submitted: 'Отправлен',
                                     'Under Review': 'На проверке',
                                     Approved: 'Одобрен',
                                     Rejected: 'Отклонён'
-                                }[detail.status] || detail.status}
+                                } : {
+                                    Draft: 'Qoralama',
+                                    Submitted: 'Yuborilgan',
+                                    'Under Review': 'Tekshiruvda',
+                                    Approved: 'Tasdiqlangan',
+                                    Rejected: 'Rad etilgan'
+                                })[detail.status] || detail.status}
                             </span>
-                            {detail.grade && <span className={`mp-grade mp-grade-${detail.grade}`}>Оценка: {detail.grade}</span>}
+                            {detail.grade && <span className={`mp-grade mp-grade-${detail.grade}`}>{ru ? 'Оценка' : 'Baho'}: {detail.grade}</span>}
                         </div>
 
                         {/* Stats */}
@@ -707,18 +771,18 @@ function MyProjects() {
                             <div className="mp-stat">
                                 <span className="mp-stat-icon" aria-hidden="true"><Trophy size={16} /></span>
                                 <span className="mp-stat-val">{detail.points_earned ?? 0}</span>
-                                <span className="mp-stat-label">очков</span>
+                                <span className="mp-stat-label">{ru ? 'очков' : 'ball'}</span>
                             </div>
                             <div className="mp-stat">
                                 <span className="mp-stat-icon">👁️</span>
                                 <span className="mp-stat-val">{detail.views_count ?? 0}</span>
-                                <span className="mp-stat-label">просмотров</span>
+                                <span className="mp-stat-label">{ru ? 'просмотров' : 'ko‘rishlar'}</span>
                             </div>
                         </div>
 
                         {/* Description, Links, Technologies, etc. */}
                         <div className="mp-detail-row">
-                            <span className="mp-detail-label">Описание</span>
+                            <span className="mp-detail-label">{ru ? 'Описание' : 'Tavsif'}</span>
                             <span className="mp-detail-value">{detail.description || '—'}</span>
                         </div>
 
@@ -738,7 +802,7 @@ function MyProjects() {
 
                         {(detail.technologies_used || []).length > 0 && (
                             <div className="mp-detail-row">
-                                <span className="mp-detail-label">Технологии</span>
+                                <span className="mp-detail-label">{ru ? 'Технологии' : 'Texnologiyalar'}</span>
                                 <div className="mp-card-techs">
                                     {detail.technologies_used.map((t, i) => <span key={i} className="mp-tech">{t}</span>)}
                                 </div>
@@ -747,25 +811,25 @@ function MyProjects() {
 
                         {detail.instructor_feedback && (
                             <div className="mp-feedback">
-                                <span className="mp-detail-label">💬 Отзыв преподавателя</span>
+                                <span className="mp-detail-label">{ru ? '💬 Отзыв преподавателя' : '💬 O‘qituvchi izohi'}</span>
                                 <p>{detail.instructor_feedback}</p>
                             </div>
                         )}
 
                         {/* ZIP Upload Section */}
                         <div className="mp-section">
-                            <span className="mp-detail-label">📦 ZIP-архив проекта</span>
+                            <span className="mp-detail-label">{ru ? '📦 ZIP-архив проекта' : '📦 Loyiha ZIP-arxivi'}</span>
                             {detail.project_files && (
                                 <div className="mp-current-file">
-                                    <span className="mp-current-file-label">Текущий файл:</span>
-                                    <a href={detail.project_files} target="_blank" rel="noreferrer" className="mp-link mp-link-sm">📎 Открыть</a>
+                                    <span className="mp-current-file-label">{ru ? 'Текущий файл:' : 'Joriy fayl:'}</span>
+                                    <a href={detail.project_files} target="_blank" rel="noreferrer" className="mp-link mp-link-sm">{ru ? '📎 Открыть' : '📎 Ochish'}</a>
                                 </div>
                             )}
                             <ZipDropZone selectedFile={selectedFile} onFileSelect={setSelectedFile} uploading={uploading} />
                             <div className="mp-zip-row">
                                 <button className="mp-btn-zip-upload" onClick={() => handleZipUpload(detail.id, selectedFile)}
                                     disabled={uploading || !selectedFile}>
-                                    {uploading ? <>Загрузка...</> : '📤 Загрузить ZIP'}
+                                    {uploading ? <>{ru ? 'Загрузка...' : 'Yuklanmoqda...'}</> : (ru ? '📤 Загрузить ZIP' : '📤 ZIP yuklash')}
                                 </button>
                                 {uploadMsg && <span className={`mp-upload-msg ${uploadMsg.startsWith('✅') ? 'success' : 'error'}`}>{uploadMsg}</span>}
                             </div>
@@ -774,41 +838,41 @@ function MyProjects() {
                         {/* File URL */}
                         <div className="mp-section">
                             <div className="mp-section-header">
-                                <span className="mp-detail-label">🔗 Ссылка на файл</span>
+                                <span className="mp-detail-label">{ru ? '🔗 Ссылка на файл' : '🔗 Fayl havolasi'}</span>
                                 <button className="mp-toggle-link" onClick={() => { setShowFileUrlEdit(v => !v); setFileUrlMsg(''); setFileUrlInput(detail.project_files || ''); }}>
-                                    {showFileUrlEdit ? 'Скрыть' : '✏️ Изменить'}
+                                    {showFileUrlEdit ? (ru ? 'Скрыть' : 'Yashirish') : (ru ? '✏️ Изменить' : '✏️ O‘zgartirish')}
                                 </button>
                             </div>
                             {showFileUrlEdit ? (
                                 <div className="mp-file-url-edit">
                                     <input className="mp-file-url-input" placeholder="https://..." value={fileUrlInput} onChange={e => setFileUrlInput(e.target.value)} />
                                     <button className="mp-btn-save mp-btn-save-sm" onClick={handlePatchFileUrl} disabled={fileUrlSaving || !fileUrlInput.trim()}>
-                                        {fileUrlSaving ? '⏳' : 'Сохранить'}
+                                        {fileUrlSaving ? '⏳' : (ru ? 'Сохранить' : 'Saqlash')}
                                     </button>
                                 </div>
                             ) : detail.project_files ? (
                                 <a href={detail.project_files} target="_blank" rel="noreferrer" className="mp-link">{detail.project_files}</a>
-                            ) : <span className="mp-hint">Ссылка не указана</span>}
+                            ) : <span className="mp-hint">{ru ? 'Ссылка не указана' : 'Havola ko‘rsatilmagan'}</span>}
                             {fileUrlMsg && <span className={`mp-upload-msg ${fileUrlMsg.startsWith('✅') ? 'success' : 'error'}`}>{fileUrlMsg}</span>}
                         </div>
 
                         {/* AI Review */}
                         <div className="mp-section">
-                            <span className="mp-detail-label">🤖 AI-проверка</span>
+                            <span className="mp-detail-label">{ru ? '🤖 AI-проверка' : '🤖 AI-tekshiruv'}</span>
                             <button className="mp-btn-ai" onClick={() => handleAiReview(detail.id)} disabled={aiLoading}>
-                                {aiLoading ? 'Анализ...' : '✨ Запустить AI-проверку'}
+                                {aiLoading ? (ru ? 'Анализ...' : 'Tahlil qilinmoqda...') : (ru ? '✨ Запустить AI-проверку' : '✨ AI-tekshiruvni ishga tushirish')}
                             </button>
                             <AiReviewResult data={aiResult} />
                         </div>
                     </div>
 
                     <div className="mp-modal-footer">
-                        <button className="mp-btn-delete" onClick={() => handleDelete(detail.id)}>🗑️ Удалить</button>
+                        <button className="mp-btn-delete" onClick={() => handleDelete(detail.id)}>{ru ? '🗑️ Удалить' : '🗑️ O‘chirish'}</button>
                         <div style={{ display: 'flex', gap: '8px' }}>
                             {detail.status === 'Draft' && (
                                 <>
-                                    <button className="mp-btn-edit" onClick={openEdit}>✏️ Изменить</button>
-                                    <button className="mp-btn-submit" onClick={() => handleSubmit(detail.id)}>🚀 Отправить на проверку</button>
+                                    <button className="mp-btn-edit" onClick={openEdit}>{ru ? '✏️ Изменить' : '✏️ O‘zgartirish'}</button>
+                                    <button className="mp-btn-submit" onClick={() => handleSubmit(detail.id)}>{ru ? '🚀 Отправить на проверку' : '🚀 Tekshiruvga yuborish'}</button>
                                 </>
                             )}
                         </div>
@@ -818,7 +882,7 @@ function MyProjects() {
 
             {confirmDeleteId && (
                 <ConfirmModal
-                    title="Удалить проект?"
+                    title={ru ? 'Удалить проект?' : 'Loyiha o‘chirilsinmi?'}
                     onConfirm={() => doDeleteProject(confirmDeleteId)}
                     onClose={() => setConfirmDeleteId(null)}
                 />

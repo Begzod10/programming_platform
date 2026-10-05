@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import { useTranslation } from '../../../i18n/useTranslation';
+import AppHeader from '../../../components/appheader/AppHeader';
 import { playSynth } from '../../../utils/soundSynth';
 
 const TEXT = {
@@ -604,5 +605,10 @@ export default function Duel({ guest = false }) {
             </div>
         );
     }
-    return <DuelInner guest={false} />;
+    return (
+        <div className="duel-app-shell">
+            <AppHeader />
+            <DuelInner guest={false} />
+        </div>
+    );
 }

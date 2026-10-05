@@ -3,10 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import './StudentCourses.css';
 import StudentCoursePage from '../CoursePage/StudentCoursePage';
 import StudentLessonPage from '../LessonPage/StudentLessonPage';
-import { API_URL, useHttp, headers } from '../../../../api/search/base';
+import { API_URL, useHttp, headers, resolveImageUrl } from '../../../../api/search/base';
 import axiosInstance from '../../../../api/axiosInstance';
 import { useTranslation } from '../../../../i18n/useTranslation';
-import { Lock, Award } from 'lucide-react';
+import { Lock, Award, Search, Map, X } from 'lucide-react';
+import AppHeader from '../../../../components/appheader/AppHeader';
 
 /* ── tech category visual config ── */
 const TECH_META = {
@@ -278,6 +279,28 @@ const FullLoader = ({ text = 'Загрузка…' }) => (
 /* ═══════════════════════════════════════════
    MAIN
 ═══════════════════════════════════════════ */
+/* ── Animated progress ring for the dark courses list ── */
+const CxRing = ({ pct, size = 64, stroke = 6, gradId = 'cxGreen', children }) => {
+    const r = (size - stroke) / 2, circ = 2 * Math.PI * r;
+    const [off, setOff] = useState(circ);
+    useEffect(() => {
+        const id = setTimeout(() => setOff(circ - circ * (pct || 0) / 100), 200);
+        return () => clearTimeout(id);
+    }, [pct, circ]);
+    return (
+        <div className="cx-ring" style={{ width: size, height: size }}>
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth={stroke} />
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={`url(#${gradId})`} strokeWidth={stroke}
+                    strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={off}
+                    transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                    style={{ transition: 'stroke-dashoffset 1.1s cubic-bezier(.2,.75,.25,1)', filter: 'drop-shadow(0 0 5px rgba(54,224,107,.4))' }} />
+            </svg>
+            <div className="cx-ring-center">{children}</div>
+        </div>
+    );
+};
+
 const StudentCourses = () => {
     const { request }              = useHttp();
     const { lang }                 = useTranslation();
@@ -298,8 +321,21 @@ const StudentCourses = () => {
     const [search,     setSearch]     = useState('');
     const [downloadingCategoryId, setDownloadingCategoryId] = useState(null);
     const [certDownloadError, setCertDownloadError] = useState('');
+    const [overall, setOverall] = useState(null); // exercises totals for the hero "Mashqlar" ring
+    const [lessonsError, setLessonsError] = useState(null); // 'locked' | 'error' | null
 
     const loadedRef = useRef(new Set());
+
+    const ru = lang === 'ru';
+
+    // Overall exercise stats power the hero "Mashqlar" ring (list view only).
+    useEffect(() => {
+        if (view !== 'list') return;
+        fetch(`${API_URL}v1/student/me/course-stats`, { headers: headers() })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => setOverall(d?.overall || null))
+            .catch(() => {});
+    }, [view]);
 
     /* ── category certificate download ──
        Mirrors DegreeCard.js's handleDownload: an idempotent check-and-earn
@@ -440,13 +476,17 @@ const StudentCourses = () => {
             );
         } catch (e) {
             console.error(e);
-            loadedRef.current.delete(String(cId));
+            // Keep the loadedRef entry so we don't retry forever; surface a
+            // proper "locked / not enrolled" state instead of an endless loader.
+            const locked = e?.status === 403 || /ruxsat|access/i.test(e?.message || '');
+            setLessonsError(locked ? 'locked' : 'error');
         }
     }, [request, lang]);
 
     // Грузим уроки когда courseId появляется в URL или меняется язык
     useEffect(() => {
         if (courseId) {
+            setLessonsError(null);
             loadedRef.current.delete(String(courseId));
             loadLessons(courseId);
         }
@@ -509,6 +549,15 @@ const StudentCourses = () => {
         })
         .filter((c) => !search || c.title?.toLowerCase().includes(search.toLowerCase()));
 
+    // Hero "current active course": the in-progress course with the most
+    // progress; fall back to any started course, then the first course.
+    const activeCourse =
+        [...courses].filter((c) => { const p = c.progress_percentage || 0; return p > 0 && p < 100; })
+            .sort((a, b) => (b.progress_percentage || 0) - (a.progress_percentage || 0))[0]
+        || [...courses].filter((c) => (c.progress_percentage || 0) > 0)
+            .sort((a, b) => (b.progress_percentage || 0) - (a.progress_percentage || 0))[0]
+        || courses[0] || null;
+
     /* Live category course counts — only count published courses the student
        can actually see, so a chip never claims more than the list shows.
        done_count/is_complete drive the certificate badge below: the same
@@ -546,12 +595,39 @@ const StudentCourses = () => {
 
     /* ══ COURSE VIEW ══ */
     if (view === 'course') {
-        // Курс нашли но уроки ещё грузятся — показываем лоадер
-        if (!currentCourse) return <FullLoader text="Загрузка курса…" />;
+        // Locked / not-enrolled course → clear dark message (no endless loader).
+        if (lessonsError) {
+            return (
+                <div className="cx-dark">
+                    <AppHeader />
+                    <div className="cx-course-state">
+                        <div className={`cx-course-state-ic ${lessonsError === 'locked' ? 'locked' : 'err'}`}>
+                            {lessonsError === 'locked' ? <Lock size={30} /> : '⚠️'}
+                        </div>
+                        <h3>{lessonsError === 'locked'
+                            ? (ru ? 'Курс закрыт' : 'Bu kurs yopiq')
+                            : (ru ? 'Не удалось загрузить' : "Yuklab bo'lmadi")}</h3>
+                        <p>{lessonsError === 'locked'
+                            ? (ru ? 'У вас нет доступа к этому курсу. Обратитесь к преподавателю, чтобы он вас добавил.'
+                                  : "Bu kursga kirish ruxsati yo'q. O'qituvchi sizni qo'shishi kerak.")
+                            : (ru ? 'Попробуйте позже.' : "Birozdan keyin qayta urinib ko'ring.")}</p>
+                        <button className="cx-continue" onClick={goToCourses}>{ru ? 'Все курсы' : 'Barcha kurslar'}</button>
+                    </div>
+                </div>
+            );
+        }
 
-        // Уроки грузятся — ждём (loadedRef ещё не добавил courseId, значит запрос в процессе)
-        if (currentCourse.lessons.length === 0 && !loadedRef.current.has(String(courseId))) {
-            return <FullLoader text="Загрузка уроков…" />;
+        // Still loading — dark loader (course chrome is full-bleed/dark now).
+        if (!currentCourse || (currentCourse.lessons.length === 0 && !loadedRef.current.has(String(courseId)))) {
+            return (
+                <div className="cx-dark">
+                    <AppHeader />
+                    <div className="cx-course-state">
+                        <div className="cx-course-spinner" />
+                        <p>{ru ? 'Загрузка уроков…' : 'Darslar yuklanmoqda…'}</p>
+                    </div>
+                </div>
+            );
         }
 
         return (
@@ -563,142 +639,184 @@ const StudentCourses = () => {
         );
     }
 
-    /* ══ COURSES LIST ══ */
+    /* ══ COURSES LIST (dark, full-bleed) ══ */
+    const activeImg = activeCourse ? resolveImageUrl(activeCourse.image) : '';
+    const activePct = Math.round(activeCourse?.progress_percentage || 0);
+    const exPct = overall?.exercises_pct ?? activePct;
+    const exCorrect = overall?.exercises_correct ?? 0;
+    const exTotal = overall?.exercises_total ?? 0;
+
     return (
-        <div className="sc-root">
-            <div className="sc-header">
-                <div className="sc-header-left">
-                    <h2 className="sc-title">Мои курсы</h2>
-                    <p className="sc-subtitle">Продолжайте обучение там, где остановились</p>
-                </div>
-                <div className="sc-header-right">
-                    <button
-                        className="sc-filter"
-                        style={{ borderColor: '#6c5ce7', color: '#6c5ce7', background: '#f5f3ff' }}
-                        onClick={() => navigate('/student/roadmap')}
-                    >
-                        🗺️ Карта обучения
-                    </button>
-                    <div className="sc-search-wrap">
-                        <svg className="sc-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-                        </svg>
-                        <input className="sc-search" placeholder="Поиск курса…" value={search} onChange={(e) => setSearch(e.target.value)} />
-                        {search && <button className="sc-search-clear" onClick={() => setSearch('')}>✕</button>}
+        <div className="cx-dark">
+            <AppHeader />
+            <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+                <defs>
+                    <linearGradient id="cxGreen" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stopColor="#7ef0a3" /><stop offset="1" stopColor="#2bc45a" />
+                    </linearGradient>
+                    <linearGradient id="cxBlue" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stopColor="#7ef0a3" /><stop offset="1" stopColor="#3b82f6" />
+                    </linearGradient>
+                </defs>
+            </svg>
+
+            <div className="cx-shell">
+                {loading ? (
+                    <div className="cx-grid">{[1, 2, 3, 4, 5, 6].map((n) => <div key={n} className="cx-card cx-card-skel" />)}</div>
+                ) : courses.length === 0 ? (
+                    <div className="cx-empty">
+                        <div className="cx-empty-icon">📚</div>
+                        <h3>{ru ? 'Курсов пока нет' : "Kurslar yo'q"}</h3>
+                        <p>{ru ? 'Здесь появятся ваши курсы' : "Bu yerda kurslaringiz paydo bo'ladi"}</p>
                     </div>
-                    <div className="sc-filters">
-                        {[{ key: 'all', label: 'Все' }, { key: 'inProgress', label: 'В процессе' }, { key: 'done', label: 'Завершённые' }]
-                            .map(({ key, label }) => (
-                                <button key={key} className={`sc-filter ${filter === key ? 'active' : ''}`} onClick={() => setFilter(key)}>
+                ) : (
+                    <>
+                        {activeCourse && (
+                            <div className="cx-hero cx-rise">
+                                <div className="cx-hero-left">
+                                    <CxRing pct={activePct} size={168} stroke={8} gradId="cxGreen">
+                                        <div className="cx-hero-icon">
+                                            {activeImg ? <img src={activeImg} alt="" /> : <span>{(activeCourse.title || '📘')[0]}</span>}
+                                        </div>
+                                    </CxRing>
+                                    <div className="cx-hero-info">
+                                        <div className="cx-hero-label">{ru ? 'Текущий активный курс' : 'Joriy faol kurs'}</div>
+                                        <div className="cx-hero-title">{activeCourse.title}</div>
+                                        <div className="cx-hero-sub">{activePct}% {ru ? 'завершено' : 'bajarildi'}</div>
+                                        <div className="cx-hero-bar"><div className="cx-hero-fill" style={{ width: `${activePct}%` }} /></div>
+                                    </div>
+                                </div>
+                                <div className="cx-hero-divider" />
+                                <div className="cx-hero-right">
+                                    <CxRing pct={exPct} size={92} stroke={7} gradId="cxBlue">
+                                        <span className="cx-hero-ex-pct">{exPct}%</span>
+                                    </CxRing>
+                                    <div className="cx-hero-ex-info">
+                                        <div className="cx-hero-ex-title">{ru ? 'Упражнения' : 'Mashqlar'}</div>
+                                        <div className="cx-hero-ex-sub">{exCorrect}/{exTotal} {ru ? 'верно' : "to'g'ri"}</div>
+                                    </div>
+                                    <button className="cx-continue" onClick={() => goToCourse(activeCourse)}>
+                                        {ru ? 'Продолжить обучение' : 'Davom etish'}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── toolbar: title + stats + search + roadmap ── */}
+                        <div className="cx-toolbar">
+                            <div className="cx-toolbar-left">
+                                <div className="cx-section-title">{ru ? 'Все курсы' : 'Barcha kurslar'}</div>
+                                <div className="cx-stats">
+                                    <span className="cx-stat"><b>{courses.length}</b> {ru ? 'курсов' : 'kurs'}</span>
+                                    <span className="cx-stat cx-stat-green"><b>{courses.filter((c) => (c.progress_percentage || 0) === 100).length}</b> {ru ? 'завершено' : 'tugallandi'}</span>
+                                    <span className="cx-stat cx-stat-violet"><b>{courses.filter((c) => { const p = c.progress_percentage || 0; return p > 0 && p < 100; }).length}</b> {ru ? 'в процессе' : 'jarayonda'}</span>
+                                </div>
+                            </div>
+                            <div className="cx-toolbar-right">
+                                <div className="cx-search">
+                                    <Search size={16} className="cx-search-icon" />
+                                    <input value={search} onChange={(e) => setSearch(e.target.value)}
+                                        placeholder={ru ? 'Поиск курса…' : 'Kurs qidirish…'} />
+                                    {search && <button className="cx-search-clear" onClick={() => setSearch('')} aria-label="Clear"><X size={14} /></button>}
+                                </div>
+                                <button className="cx-roadmap" onClick={() => navigate('/student/roadmap')}>
+                                    <Map size={16} /> {ru ? 'Карта' : "Yo'l xaritasi"}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* ── status filter pills ── */}
+                        <div className="cx-filters">
+                            {[
+                                { key: 'all', label: ru ? 'Все' : 'Barchasi' },
+                                { key: 'inProgress', label: ru ? 'В процессе' : 'Jarayonda' },
+                                { key: 'done', label: ru ? 'Завершённые' : 'Tugallangan' },
+                            ].map(({ key, label }) => (
+                                <button key={key} className={`cx-pill ${filter === key ? 'active' : ''}`} onClick={() => setFilter(key)}>
                                     {label}
                                 </button>
                             ))}
-                    </div>
-                </div>
-            </div>
+                        </div>
 
-            {!loading && categoryCounts.length > 0 && (
-                <div className="sc-lang-section">
-                    <div className="sc-lang-header">
-                        <span className="sc-lang-title">Yo'nalishlar</span>
-                        {categoryFilter !== 'all' && (
-                            <button className="sc-lang-reset" onClick={() => setCategoryFilter('all')}>
-                                Barchasini ko'rsatish
-                            </button>
-                        )}
-                    </div>
-                    <div className="sc-lang-grid">
-                        {categoryCounts.map((cat) => {
-                            const meta = getTechMeta(cat.slug);
-                            const active = categoryFilter === cat.id;
-                            const catPercent = cat.live_count > 0 ? Math.round((cat.done_count / cat.live_count) * 100) : 0;
-                            const catCircumference = 2 * Math.PI * 12;
-                            const catDash = (catPercent / 100) * catCircumference;
-                            const isDownloading = downloadingCategoryId === cat.id;
-                            return (
-                                // A <div role="button"> (not a nested <button>) because the
-                                // certificate badge below is itself a real <button> — buttons
-                                // can't nest in valid HTML.
-                                <div
-                                    key={cat.id}
-                                    role="button"
-                                    tabIndex={0}
-                                    className={`sc-lang-card ${active ? 'active' : ''}`}
-                                    style={{ '--lang-color': meta.color, '--lang-bg': meta.bg }}
-                                    onClick={() => setCategoryFilter(active ? 'all' : cat.id)}
-                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCategoryFilter(active ? 'all' : cat.id); } }}
-                                >
-                                    {cat.is_complete && (
-                                        <button
-                                            className="sc-lang-cert-badge"
-                                            disabled={isDownloading}
-                                            title="Sertifikatni yuklab olish"
-                                            aria-label={`${cat.name} sertifikatini yuklab olish`}
-                                            style={{ color: readableTextColor(meta.color) }}
-                                            onClick={(e) => { e.stopPropagation(); handleDownloadCategoryCertificate(cat); }}
-                                        >
-                                            {isDownloading ? (
-                                                <span className="sc-lang-cert-spinner" />
+                        {/* ── direction (category) chips with certificate download ── */}
+                        {categoryCounts.length > 0 && (
+                            <div className="cx-cats">
+                                {categoryFilter !== 'all' && (
+                                    <button className="cx-cat cx-cat-reset" onClick={() => setCategoryFilter('all')}>
+                                        ✕ {ru ? 'Все направления' : "Barcha yo'nalishlar"}
+                                    </button>
+                                )}
+                                {categoryCounts.map((cat) => {
+                                    const meta = getTechMeta(cat.slug);
+                                    const active = categoryFilter === cat.id;
+                                    const catPct = cat.live_count > 0 ? Math.round((cat.done_count / cat.live_count) * 100) : 0;
+                                    const isDownloading = downloadingCategoryId === cat.id;
+                                    return (
+                                        <div key={cat.id} role="button" tabIndex={0}
+                                            className={`cx-cat ${active ? 'active' : ''}`}
+                                            style={{ '--cat-color': meta.color }}
+                                            onClick={() => setCategoryFilter(active ? 'all' : cat.id)}
+                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCategoryFilter(active ? 'all' : cat.id); } }}>
+                                            <span className="cx-cat-icon">{meta.icon}</span>
+                                            <span className="cx-cat-name">{cat.name}</span>
+                                            <span className="cx-cat-count">{cat.done_count}/{cat.live_count}</span>
+                                            {cat.is_complete ? (
+                                                <button className="cx-cat-cert" disabled={isDownloading}
+                                                    title={ru ? 'Скачать сертификат' : 'Sertifikatni yuklab olish'}
+                                                    onClick={(e) => { e.stopPropagation(); handleDownloadCategoryCertificate(cat); }}>
+                                                    {isDownloading ? <span className="cx-cat-spinner" /> : <Award size={13} strokeWidth={2.5} />}
+                                                </button>
                                             ) : (
-                                                <Award size={13} strokeWidth={2.5} />
+                                                <span className="cx-cat-pct">{catPct}%</span>
                                             )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        {certDownloadError && <p className="cx-cat-error">{certDownloadError}</p>}
+
+                        {/* ── grid ── */}
+                        {displayed.length === 0 ? (
+                            <div className="cx-empty">
+                                <div className="cx-empty-icon">🔍</div>
+                                <h3>{ru ? 'Ничего не найдено' : 'Hech narsa topilmadi'}</h3>
+                                <p>{ru ? 'Попробуйте изменить фильтр или поиск' : "Filtr yoki qidiruvni o'zgartiring"}</p>
+                            </div>
+                        ) : (
+                            <div className="cx-grid">
+                                {displayed.map((course, i) => {
+                                    const pct = Math.round(course.progress_percentage || 0);
+                                    const img = resolveImageUrl(course.image);
+                                    const locked = course.is_enrolled === false || course.is_locked === true;
+                                    const lessonsCount = course.lessons_count || (course.lessons ? course.lessons.length : 0);
+                                    return (
+                                        <button key={course.id} className="cx-card cx-rise" style={{ animationDelay: `${i * 0.04}s` }}
+                                            onClick={() => goToCourse(course)}>
+                                            <div className="cx-card-icon">
+                                                {img ? <img src={img} alt="" /> : <span>{(course.title || '📘')[0]}</span>}
+                                                {locked && <span className="cx-card-lock"><Lock size={13} /></span>}
+                                            </div>
+                                            <div className="cx-card-body">
+                                                <div className="cx-card-top">
+                                                    {course.instructor_name && <span className="cx-card-teacher">{course.instructor_name}</span>}
+                                                    {course.difficulty_level && <span className="cx-card-diff">{course.difficulty_level}</span>}
+                                                </div>
+                                                <div className="cx-card-title">{course.title}</div>
+                                                <div className="cx-card-meta">
+                                                    {lessonsCount > 0 && <span className="cx-card-lessons">{lessonsCount} {ru ? 'уроков' : 'dars'}</span>}
+                                                    <span className="cx-card-pct" style={{ color: pct === 100 ? '#36e06b' : pct > 0 ? '#b7adfb' : '#6b7399' }}>{pct}%</span>
+                                                </div>
+                                                <div className="cx-card-bar"><div className="cx-card-fill" style={{ width: `${pct}%` }} /></div>
+                                            </div>
                                         </button>
-                                    )}
-                                    {!cat.is_complete && cat.live_count > 0 && (
-                                        <span className="sc-lang-ring" title={`${cat.done_count}/${cat.live_count} kurs tugallandi`}>
-                                            <svg viewBox="0 0 28 28" className="sc-lang-ring-svg">
-                                                <circle cx="14" cy="14" r="12" fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="3" />
-                                                <circle cx="14" cy="14" r="12" fill="none"
-                                                    stroke={meta.color} strokeWidth="3" strokeLinecap="round"
-                                                    strokeDasharray={`${catDash} ${catCircumference}`} transform="rotate(-90 14 14)" />
-                                            </svg>
-                                        </span>
-                                    )}
-                                    <span className="sc-lang-icon">{meta.icon}</span>
-                                    <span className="sc-lang-name">{cat.name}</span>
-                                    <span className="sc-lang-count">{cat.live_count} kurs</span>
-                                </div>
-                            );
-                        })}
-                    </div>
-                    {certDownloadError && (
-                        <p className="sc-lang-cert-error">{certDownloadError}</p>
-                    )}
-                </div>
-            )}
-
-            {!loading && courses.length > 0 && (
-                <div className="sc-stats-bar">
-                    <div className="sc-stat-item"><span className="sc-stat-num">{courses.length}</span><span className="sc-stat-text">курсов</span></div>
-                    <div className="sc-stat-divider" />
-                    <div className="sc-stat-item">
-                        <span className="sc-stat-num">{courses.filter((c) => (c.progress_percentage || 0) === 100).length}</span>
-                        <span className="sc-stat-text">завершено</span>
-                    </div>
-                    <div className="sc-stat-divider" />
-                    <div className="sc-stat-item">
-                        <span className="sc-stat-num">{courses.filter((c) => { const p = c.progress_percentage || 0; return p > 0 && p < 100; }).length}</span>
-                        <span className="sc-stat-text">в процессе</span>
-                    </div>
-                </div>
-            )}
-
-            {loading ? (
-                <div className="sc-grid">{[1, 2, 3, 4, 5, 6].map((n) => <CardSkeleton key={n} />)}</div>
-            ) : displayed.length === 0 ? (
-                <div className="sc-empty">
-                    <div className="sc-empty-icon">{search ? '🔍' : '📚'}</div>
-                    <h3 className="sc-empty-title">{search ? 'Ничего не найдено' : 'Курсов пока нет'}</h3>
-                    <p className="sc-empty-sub">{search ? `По запросу «${search}» курсов не найдено` : 'Здесь появятся ваши курсы'}</p>
-                    {search && <button className="sc-empty-reset" onClick={() => setSearch('')}>Сбросить поиск</button>}
-                </div>
-            ) : (
-                <div className="sc-grid">
-                    {displayed.map((course) => (
-                        <CourseCard key={course.id} course={course} onOpen={() => goToCourse(course)} />
-                    ))}
-                </div>
-            )}
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
         </div>
     );
 };

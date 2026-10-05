@@ -77,9 +77,10 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
+    phone: Optional[str] = None
 
 
-    @field_validator("username", "full_name", "bio")
+    @field_validator("username", "full_name", "bio", "phone")
     @classmethod
     def strip_strings(cls, v: Optional[str]) -> Optional[str]:
         return v.strip() if v else v
@@ -101,6 +102,11 @@ class UserUpdate(BaseModel):
                 "to'g'ridan-to'g'ri emas, /student/avatar endpoint orqali yuklang."
             )
         return v
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6, max_length=72)
 
 
 class UserRead(BaseModel):

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { Star, Trophy } from 'lucide-react';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
+import { useTranslation } from '../../../../i18n/useTranslation';
 
 /* ─────────────────────────────────────────────────────────────
    Умный парсер → всегда возвращает чистый массив строк
@@ -26,6 +27,8 @@ export const parseListField = (val) => {
 ═══════════════════════════════════════════════════════════ */
 export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission = null}) => {
     const {request} = useHttp();
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
 
     const exType = ex.exercise_type;
 
@@ -230,8 +233,8 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                             {ex.difficulty_level}
                         </span>
                     )}
-                    {ex.points > 0 && <span className="slp-ex-pts-badge"><Star size={12} aria-hidden="true" /> {ex.points} pts</span>}
-                    {score > 0 && <span className="slp-ex-score-badge"><Trophy size={12} aria-hidden="true" /> +{score} pts</span>}
+                    {ex.points > 0 && <span className="slp-ex-pts-badge"><Star size={12} aria-hidden="true" /> {ex.points} {ru ? 'балл' : 'ball'}</span>}
+                    {score > 0 && <span className="slp-ex-score-badge"><Trophy size={12} aria-hidden="true" /> +{score} {ru ? 'балл' : 'ball'}</span>}
                     {hasPreviousSubmission && result === initialResult && (
                         // Hide once the student takes a fresh action this
                         // session — `result` diverges from `initialResult`
@@ -245,21 +248,21 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                                     : previousSubmission.is_correct === false ? 'bad'
                                     : 'pending'
                             }`}
-                            title="Avval javob bergan edingiz. Qayta urinish mumkin."
+                            title={ru ? 'Вы уже отвечали. Можно попробовать снова.' : 'Avval javob bergan edingiz. Qayta urinish mumkin.'}
                         >
-                            {previousSubmission.is_correct === true ? '✓ Bajarilgan'
-                                : previousSubmission.is_correct === false ? "✕ Javob noto’g‘ri"
-                                : '✓ Javob yuborilgan'}
+                            {previousSubmission.is_correct === true ? (ru ? '✓ Выполнено' : '✓ Bajarilgan')
+                                : previousSubmission.is_correct === false ? (ru ? '✕ Ответ неверный' : "✕ Javob noto’g‘ri")
+                                : (ru ? '✓ Ответ отправлен' : '✓ Javob yuborilgan')}
                         </span>
                     )}
                     <span className="slp-ex-type-label">
                         {{
-                            fill_in_blank: '✏️ Заполни пропуск',
-                            multiple_choice: '🔘 Выбор ответа',
-                            drag_and_drop: '↕️ Расставь порядок',
-                            text_input: '📝 Свободный ответ',
-                            matching: '🔗 Найди пару',
-                        }[exType] || '❓ Задание'}
+                            fill_in_blank: ru ? '✏️ Заполни пропуск' : '✏️ Bo‘sh joyni to‘ldiring',
+                            multiple_choice: ru ? '🔘 Выбор ответа' : '🔘 Javob tanlash',
+                            drag_and_drop: ru ? '↕️ Расставь порядок' : '↕️ Tartibini joylashtiring',
+                            text_input: ru ? '📝 Свободный ответ' : '📝 Erkin javob',
+                            matching: ru ? '🔗 Найди пару' : '🔗 Juftini toping',
+                        }[exType] || (ru ? '❓ Задание' : '❓ Topshiriq')}
                     </span>
                 </div>
                 {ex.title && <div className="slp-ex-card-title">{ex.title}</div>}
@@ -309,7 +312,7 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                             {desc && <div className="slp-ex-question">{desc}</div>}
                             <input
                                 className={`slp-ex-fill-input slp-ex-fill-input-single ${isDone ? (result === 'correct' ? 'correct' : 'wrong') : ''}`}
-                                placeholder="Ваш ответ..."
+                                placeholder={ru ? 'Ваш ответ...' : 'Javobingiz...'}
                                 disabled={isDone}
                                 value={fillAnswers[0] || ''}
                                 onChange={e => {
@@ -349,7 +352,7 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                                 );
                             })}
                             {ex.is_multiple_select && (
-                                <div className="slp-ex-multi-hint">⚡ Можно выбрать несколько ответов</div>
+                                <div className="slp-ex-multi-hint">{ru ? '⚡ Можно выбрать несколько ответов' : '⚡ Bir nechta javobni tanlash mumkin'}</div>
                             )}
                         </div>
                     </>
@@ -359,7 +362,7 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                     <>
                         {ex.description && <div className="slp-ex-question">{ex.description}</div>}
                         <div className="slp-ex-drag-wrap">
-                            <div className="slp-ex-dropzone-label">Правильный порядок:</div>
+                            <div className="slp-ex-dropzone-label">{ru ? 'Правильный порядок:' : 'To‘g‘ri tartib:'}</div>
                             <div
                                 className="slp-ex-dropzone"
                                 onDragOver={e => e.preventDefault()}
@@ -372,7 +375,7 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                                 }}
                             >
                                 {dragDropped.length === 0
-                                    ? <span className="slp-drop-hint">Перетащите элементы сюда по порядку</span>
+                                    ? <span className="slp-drop-hint">{ru ? 'Перетащите элементы сюда по порядку' : 'Elementlarni shu yerga tartib bilan tashlang'}</span>
                                     : dragDropped.map((w, i) => (
                                         // Key combines word + position (not just index): dragDropped's
                                         // membership and order both change as chips are dropped/removed,
@@ -393,7 +396,7 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                                     ))
                                 }
                             </div>
-                            <div className="slp-ex-drag-chips-label">Доступные элементы:</div>
+                            <div className="slp-ex-drag-chips-label">{ru ? 'Доступные элементы:' : 'Mavjud elementlar:'}</div>
                             <div className="slp-ex-drag-words">
                                 {dragAvailable.map((w, i) => (
                                     // Same reasoning as dragDropped above: this list's membership and
@@ -455,7 +458,7 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                                 </div>
                             </div>
                             {selectedLeftIndex !== null && (
-                                <div className="slp-ex-match-hint">👉 Теперь выберите пару справа</div>
+                                <div className="slp-ex-match-hint">{ru ? '👉 Теперь выберите пару справа' : '👉 Endi o‘ngdan juftini tanlang'}</div>
                             )}
                         </div>
                     </>
@@ -466,7 +469,7 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                         {ex.description && <div className="slp-ex-question">{ex.description}</div>}
                         <textarea
                             className="slp-ex-textarea"
-                            placeholder="Напишите ваш ответ..."
+                            placeholder={ru ? 'Напишите ваш ответ...' : 'Javobingizni yozing...'}
                             disabled={isDone}
                             value={textAnswer}
                             rows={4}
@@ -474,7 +477,7 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                         />
                         <div className="slp-ex-ai-note">
                             <span className="slp-ai-dot"/>
-                            Ответ будет проверен AI
+                            {ru ? 'Ответ будет проверен AI' : 'Javob AI tomonidan tekshiriladi'}
                         </div>
                     </>
                 )}
@@ -482,7 +485,7 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                 {ex.hint && (
                     <div className="slp-ex-hint-wrap">
                         <button className="slp-ex-hint-btn" onClick={() => setShowHint(h => !h)}>
-                            💡 {showHint ? 'Скрыть подсказку' : 'Показать подсказку'}
+                            💡 {showHint ? (ru ? 'Скрыть подсказку' : 'Maslahatni yashirish') : (ru ? 'Показать подсказку' : 'Maslahatni ko‘rsatish')}
                         </button>
                         {showHint && <div className="slp-ex-hint-text">{ex.hint}</div>}
                     </div>
@@ -494,9 +497,9 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                             {result === 'correct' ? '🎉' : result === 'wrong' ? '❌' : '✅'}
                         </span>
                         <div>
-                            {result === 'correct' && <><strong>Правильно!</strong> Отличная работа!</>}
-                            {result === 'wrong' && <><strong>Неправильно.</strong> Попробуйте ещё раз.</>}
-                            {result === 'submitted' && <><strong>Ответ отправлен!</strong> AI проверит его.</>}
+                            {result === 'correct' && (ru ? <><strong>Правильно!</strong> Отличная работа!</> : <><strong>To‘g‘ri!</strong> Ajoyib ish!</>)}
+                            {result === 'wrong' && (ru ? <><strong>Неправильно.</strong> Попробуйте ещё раз.</> : <><strong>Noto‘g‘ri.</strong> Yana urinib ko‘ring.</>)}
+                            {result === 'submitted' && (ru ? <><strong>Ответ отправлен!</strong> AI проверит его.</> : <><strong>Javob yuborildi!</strong> AI uni tekshiradi.</>)}
                         </div>
                     </div>
                 )}
@@ -519,18 +522,18 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
                             disabled={submitting || !buildAnswer()}
                         >
                             {submitting
-                                ? <><span className="slp-btn-spin"/>Проверяем...</>
-                                : '✅ Проверить ответ'
+                                ? <><span className="slp-btn-spin"/>{ru ? 'Проверяем...' : 'Tekshirilmoqda...'}</>
+                                : (ru ? '✅ Проверить ответ' : '✅ Javobni tekshirish')
                             }
                         </button>
                     )}
                     {isWrong && (
                         <button className="slp-ex-retry-btn" onClick={handleRetry}>
-                            🔄 Попробовать снова
+                            🔄 {ru ? 'Попробовать снова' : 'Qayta urinish'}
                         </button>
                     )}
                     {isDone && result === 'correct' && (
-                        <div className="slp-ex-done-label">✓ Выполнено</div>
+                        <div className="slp-ex-done-label">{ru ? '✓ Выполнено' : '✓ Bajarilgan'}</div>
                     )}
                 </div>
             </div>
@@ -542,6 +545,8 @@ export const ExerciseCard = ({ex, courseId, lessonId, index, previousSubmission 
    EXERCISE SECTION BLOCK
 ═══════════════════════════════════════════════════════════ */
 export const ExerciseSection = ({section, courseId, lessonId, submissions = {}, submissionsReady = false}) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const exercises = section.exercises || [];
     if (exercises.length === 0) return null;
     const totalPts = exercises.reduce((s, e) => s + (e.points || 0), 0);
@@ -559,7 +564,7 @@ export const ExerciseSection = ({section, courseId, lessonId, submissions = {}, 
             <div className="slp-ex-section-bar">
                 <div className="slp-ex-section-left">
                     <span className="slp-ex-section-icon">🎯</span>
-                    <span className="slp-ex-section-count">{exercises.length} заданий</span>
+                    <span className="slp-ex-section-count">{exercises.length} {ru ? 'заданий' : 'topshiriq'}</span>
                     {completedCount > 0 && (
                         <span className="slp-ex-section-done">
                             ✓ {completedCount}/{exercises.length}
@@ -567,7 +572,7 @@ export const ExerciseSection = ({section, courseId, lessonId, submissions = {}, 
                     )}
                 </div>
                 {totalPts > 0 && (
-                    <span className="slp-ex-section-pts"><Trophy size={14} aria-hidden="true" /> {totalPts} pts всего</span>
+                    <span className="slp-ex-section-pts"><Trophy size={14} aria-hidden="true" /> {totalPts} {ru ? 'балл всего' : 'ball jami'}</span>
                 )}
             </div>
             <div className="slp-ex-section-list">

@@ -1,15 +1,18 @@
 /* Pre-drill UI panels — BucketsBar, LeechAlert, HistoryStrip, QueuePreview, ScopePicker. */
 
 import { MODES, Icon } from './practiceUtils';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 export function BucketsBar({ buckets }) {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const total = Object.values(buckets).reduce((a, b) => a + b, 0);
     if (total === 0) return null;
     const cfg = [
-        { key: 'fragile',  label: 'Qiyin',     color: '#f43f5e' },
-        { key: 'learning', label: "O'rganish", color: '#6c5ce7' },
-        { key: 'solid',    label: 'Mustahkam', color: '#10b981' },
-        { key: 'mastered', label: 'O\'zlashtirilgan', color: '#0d9488' },
+        { key: 'fragile',  label: ru ? 'Трудные'    : 'Qiyin',     color: '#f43f5e' },
+        { key: 'learning', label: ru ? 'Изучаю'     : "O'rganish", color: '#6c5ce7' },
+        { key: 'solid',    label: ru ? 'Закреплено' : 'Mustahkam', color: '#10b981' },
+        { key: 'mastered', label: ru ? 'Освоено'    : 'O\'zlashtirilgan', color: '#0d9488' },
     ];
     return (
         <div className="pr-buckets">
@@ -42,35 +45,39 @@ export function BucketsBar({ buckets }) {
 }
 
 export function LeechAlert({ leeches }) {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     if (!leeches.length) return null;
     return (
         <div className="pr-leech">
             <div className="pr-leech-head">
                 <Icon.Skull />
-                <span>Ko'p marta unutgan so'zlar ({leeches.length})</span>
+                <span>{ru ? `Часто забываемые слова (${leeches.length})` : `Ko'p marta unutgan so'zlar (${leeches.length})`}</span>
             </div>
             <div className="pr-leech-list">
                 {leeches.slice(0, 5).map((w) => (
                     <div key={w.id} className="pr-leech-row">
                         <strong>{w.word}</strong>
                         <span className="pr-leech-meta">
-                            {w.lapses}× unutilgan
+                            {ru ? `забыто ${w.lapses}×` : `${w.lapses}× unutilgan`}
                         </span>
                     </div>
                 ))}
             </div>
             <p className="pr-leech-hint">
-                Bu so'zlarni qayta yozib chiqing yoki tushuntirishni o'zgartiring — eski yondashuv ishlamayapti.
+                {ru ? 'Перепишите эти слова заново или измените объяснение — прежний подход не работает.' : "Bu so'zlarni qayta yozib chiqing yoki tushuntirishni o'zgartiring — eski yondashuv ishlamayapti."}
             </p>
         </div>
     );
 }
 
 export function HistoryStrip({ history }) {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     if (!history.length) return null;
     return (
         <div className="pr-history">
-            <div className="pr-history-label">So'nggi mashqlar</div>
+            <div className="pr-history-label">{ru ? 'Последние практики' : "So'nggi mashqlar"}</div>
             <div className="pr-history-rows">
                 {history.slice(0, 5).map((s) => {
                     const pct = s.total_words > 0
@@ -98,23 +105,25 @@ export function HistoryStrip({ history }) {
 }
 
 export function QueuePreview({ words }) {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     if (!words.length) return null;
     return (
         <div className="pr-queue">
-            <div className="pr-queue-label">Navbatdagi so'zlar (birinchi 5 ta)</div>
+            <div className="pr-queue-label">{ru ? 'Слова в очереди (первые 5)' : "Navbatdagi so'zlar (birinchi 5 ta)"}</div>
             <div className="pr-queue-list">
                 {words.slice(0, 5).map((w) => {
-                    let tag = 'Yangi';
+                    let tag = ru ? 'Новое' : 'Yangi';
                     let tagCls = 'new';
                     if ((w.review_count || 0) > 0) {
                         if ((w.lapses || 0) >= 2 || (w.ease_factor || 2.5) < 2.0) {
-                            tag = 'Qiyin'; tagCls = 'weak';
+                            tag = ru ? 'Трудное' : 'Qiyin'; tagCls = 'weak';
                         } else if ((w.interval_days || 0) > 21) {
-                            tag = "O'zlashtirilgan"; tagCls = 'master';
+                            tag = ru ? 'Освоено' : "O'zlashtirilgan"; tagCls = 'master';
                         } else if ((w.interval_days || 0) > 7) {
-                            tag = 'Mustahkam'; tagCls = 'solid';
+                            tag = ru ? 'Закреплено' : 'Mustahkam'; tagCls = 'solid';
                         } else {
-                            tag = "O'rganish"; tagCls = 'learn';
+                            tag = ru ? 'Изучаю' : "O'rganish"; tagCls = 'learn';
                         }
                     }
                     return (
@@ -137,6 +146,8 @@ export function QueuePreview({ words }) {
    ═══════════════════════════════════════════════════════════════════════ */
 
 export function ScopePicker({ tree, scope, onChange }) {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     if (!tree.length) return null;
 
     // Flatten the tree into select options for the two dropdowns. A more
@@ -147,10 +158,10 @@ export function ScopePicker({ tree, scope, onChange }) {
 
     return (
         <section className="pr-section">
-            <h3 className="pr-section-title">Doira (ixtiyoriy)</h3>
+            <h3 className="pr-section-title">{ru ? 'Область (необязательно)' : 'Doira (ixtiyoriy)'}</h3>
             <div className="pr-scope">
                 <label className="pr-scope-field">
-                    <span className="pr-scope-lbl">Kurs</span>
+                    <span className="pr-scope-lbl">{ru ? 'Курс' : 'Kurs'}</span>
                     <select
                         className="pr-scope-select"
                         value={scope.course_id || ''}
@@ -163,14 +174,14 @@ export function ScopePicker({ tree, scope, onChange }) {
                             });
                         }}
                     >
-                        <option value="">Barchasi</option>
+                        <option value="">{ru ? 'Все' : 'Barchasi'}</option>
                         {allCourses.map((c) => (
                             <option key={c.id} value={c.id}>{c.title}</option>
                         ))}
                     </select>
                 </label>
                 <label className="pr-scope-field">
-                    <span className="pr-scope-lbl">Dars</span>
+                    <span className="pr-scope-lbl">{ru ? 'Урок' : 'Dars'}</span>
                     <select
                         className="pr-scope-select"
                         value={scope.lesson_id || ''}
@@ -184,7 +195,7 @@ export function ScopePicker({ tree, scope, onChange }) {
                         disabled={!activeCourse}
                     >
                         <option value="">
-                            {activeCourse ? 'Barcha darslar' : 'Avval kursni tanlang'}
+                            {activeCourse ? (ru ? 'Все уроки' : 'Barcha darslar') : (ru ? 'Сначала выберите курс' : 'Avval kursni tanlang')}
                         </option>
                         {(activeCourse?.lessons || []).map((l) => (
                             <option key={l.id} value={l.id}>{l.title}</option>
@@ -196,7 +207,7 @@ export function ScopePicker({ tree, scope, onChange }) {
                         type="button"
                         className="pr-scope-clear"
                         onClick={() => onChange({ category_id: null, course_id: null, lesson_id: null })}
-                    >Tozalash</button>
+                    >{ru ? 'Очистить' : 'Tozalash'}</button>
                 )}
             </div>
         </section>

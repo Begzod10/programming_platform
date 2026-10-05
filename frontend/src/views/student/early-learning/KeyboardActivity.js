@@ -29,11 +29,15 @@ const FINGER_OF = {
 };
 
 const FINGER_NAME = ['jimjiloq', 'nomsiz', "o'rta", "ko'rsatkich"];
+const FINGER_NAME_RU = ['мизинец', 'безымянный', 'средний', 'указательный'];
 const FINGER_COLORS = ['#ff8a80', '#ffb74d', '#81c784', '#64b5f6'];
 
-function fingerLabel(key) {
+function fingerLabel(key, ru) {
     const f = FINGER_OF[key];
     if (!f) return '';
+    if (ru) {
+        return `${f[0] === 'L' ? 'Левая' : 'Правая'} рука — ${FINGER_NAME_RU[f[1]]} палец`;
+    }
     return `${f[0] === 'L' ? "Chap" : "O'ng"} qo'l — ${FINGER_NAME[f[1]]} barmoq`;
 }
 
@@ -178,7 +182,7 @@ export default function KeyboardActivity({ activity, onBack, onComplete, lang, t
 
             <div className="kb-target-wrap">
                 <div className="kb-target" key={roundIndex}>{target.toUpperCase()}</div>
-                <div className="kb-finger-label">{fingerLabel(target)}</div>
+                <div className="kb-finger-label">{fingerLabel(target, lang === 'ru')}</div>
             </div>
 
             <div className="kb-board">

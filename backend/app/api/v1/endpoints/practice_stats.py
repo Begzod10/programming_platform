@@ -268,16 +268,19 @@ async def get_sessions_overview(
         PracticeSession.completed_at.isnot(None),
     ]
 
+    # Group by the actual cast expression — SQLAlchemy 2.0 rejects a bare
+    # string label like .group_by("d") (raises ArgumentError → 500).
+    completed_date = cast(PracticeSession.completed_at, Date)
     day_rows = (
         await db.execute(
             select(
-                cast(PracticeSession.completed_at, Date).label("d"),
+                completed_date.label("d"),
                 func.count(PracticeSession.id).label("sessions"),
                 func.coalesce(func.sum(PracticeSession.total_words), 0).label("words"),
                 func.coalesce(func.sum(PracticeSession.correct), 0).label("correct"),
             )
             .where(*base_filter, PracticeSession.completed_at >= day_window_start)
-            .group_by("d")
+            .group_by(completed_date)
         )
     ).all()
     by_day_map = {r.d: r for r in day_rows}

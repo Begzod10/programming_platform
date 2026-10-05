@@ -20,6 +20,7 @@ import Dictionary        from './views/student/dictionary/Dictionary';
 import StudentTeamGame   from './views/student/teamgame/StudentTeamGame';
 import StudentTeamProject from './views/student/teamprojects/StudentTeamProject';
 import StudentCourseStats from './views/student/stats/StudentCourseStats';
+import Notifications from './views/student/notifications/Notifications';
 import Store              from './views/student/store/Store';
 import EarlyLearning      from './views/student/early-learning/EarlyLearning';
 import Quiz               from './views/student/quiz/Quiz';
@@ -43,6 +44,7 @@ import TeacherTeamProjectDetail from './views/teacher/teamprojects/TeacherTeamPr
 import TeacherTeamGameSession   from './views/teacher/teamgame/TeacherTeamGameSession';
 import TeacherAchievements      from './views/teacher/TeacherAchievements/TeacherAchievements';
 import ProjectLeaderboard       from './views/shared/ProjectLeaderboard/ProjectLeaderboard';
+import ProjectRating            from './views/student/projectrating/ProjectRating';
 import PublicProfile            from './views/public/PublicProfile/PublicProfile';
 import ActivityAnalytics        from './views/teacher/activityanalytics/ActivityAnalytics';
 import ErrorLogPage             from './views/teacher/errorlog/ErrorLogPage';
@@ -119,7 +121,7 @@ function AppRouter() {
                 <Route path="profile"                                     element={<StudentProfilePageWrapper />} />
                 <Route path="projects"                                    element={<MyProjects />} />
                 <Route path="rankings"                                    element={<Leaderboard />} />
-                <Route path="project-rating"                              element={<ProjectLeaderboard role="student" />} />
+                <Route path="project-rating"                              element={<ProjectRating />} />
                 <Route path="degrees"                                     element={<Degrees />} />
                 <Route path="achievements"                               element={<Achievements />} />
                 <Route path="dictionary"                                  element={<Dictionary />} />
@@ -132,6 +134,7 @@ function AppRouter() {
                 <Route path="early-learning"                              element={<EarlyLearning />} />
                 <Route path="early-learning/:moduleId"                    element={<EarlyLearning />} />
                 <Route path="statistics"                                  element={<StudentCourseStats />} />
+                <Route path="notifications"                                element={<Notifications />} />
 
                 {/* Курсы */}
                 <Route path="roadmap"                                      element={<CourseRoadmap />} />

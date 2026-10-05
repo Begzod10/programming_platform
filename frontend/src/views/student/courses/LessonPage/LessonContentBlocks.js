@@ -78,7 +78,7 @@ export const LessonContentBlocks = ({
                 const isActive = activeSection === section.id;
 
                 return (
-                    <div key={section.id} className={`slp-block slp-block-${section.type}`}
+                    <div key={section.id} data-section-id={section.id} className={`slp-block slp-block-${section.type}`}
                          style={{animationDelay: `${sIdx * 0.06}s`}}>
                         <div className="slp-block-header"
                              onClick={() => setActiveSection(isActive ? null : section.id)}

@@ -8,12 +8,25 @@ function StudentLayout() {
     const location = useLocation();
 
     const path = location.pathname;
-    const segment = path.split('/')[2] || 'dashboard';
+    const parts = path.split('/').filter(Boolean); // ['student', 'courses', ...]
+    const segment = parts[1] || 'dashboard';
+    // The whole courses area (list, detail, and the lesson page itself) is
+    // full-bleed like the new home — no sidebar anywhere.
+    const isCourseArea = segment === 'courses';
 
     // The kids' early-learning game runs full-bleed with its own sky
     // backdrop — no sidebar, no glass-panel chrome. It provides its own
     // "Qaytish" exit button since there's no sidebar to navigate away from.
-    if (segment === 'early-learning') {
+    //
+    // The main dashboard is the new "home" of the platform: it runs
+    // full-bleed too, with navigation built into its own top bar (app
+    // launcher + avatar menu) instead of a persistent sidebar.
+    if (segment === 'early-learning' || segment === 'dashboard' || segment === 'profile'
+        || segment === 'roadmap' || segment === 'projects' || segment === 'dictionary'
+        || segment === 'statistics' || segment === 'notifications' || segment === 'rankings'
+        || segment === 'project-rating' || segment === 'degrees' || segment === 'achievements'
+        || segment === 'team-game' || segment === 'team-projects'
+        || segment === 'quiz' || segment === 'duel' || isCourseArea) {
         return <Outlet />;
     }
 

@@ -769,3 +769,23 @@
         animation: none !important;
     }
 }
+
+/* ── Slim themed scrollbars inside the quiz / bug-hunt arena ──────────
+   The overlay (and any scrollable child like the code block) otherwise
+   shows the chunky default OS scrollbar, which clashes with the dark
+   immersive arena. Thin, translucent, rounded — matches the surface. */
+.stg-quiz-overlay,
+.stg-quiz-overlay * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent; }
+.stg-quiz-overlay::-webkit-scrollbar,
+.stg-quiz-overlay *::-webkit-scrollbar { width: 8px; height: 8px; }
+.stg-quiz-overlay::-webkit-scrollbar-track,
+.stg-quiz-overlay *::-webkit-scrollbar-track { background: transparent; margin: 6px; }
+.stg-quiz-overlay::-webkit-scrollbar-thumb,
+.stg-quiz-overlay *::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,.16); border-radius: 8px;
+    border: 2px solid transparent; background-clip: padding-box;
+}
+.stg-quiz-overlay::-webkit-scrollbar-thumb:hover,
+.stg-quiz-overlay *::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3); background-clip: padding-box; }
+.stg-quiz-overlay::-webkit-scrollbar-corner,
+.stg-quiz-overlay *::-webkit-scrollbar-corner { background: transparent; }

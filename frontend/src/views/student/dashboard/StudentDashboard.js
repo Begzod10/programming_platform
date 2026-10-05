@@ -1,55 +1,225 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { API_URL, headers, resolveImageUrl } from '../../../api/search/base';
+import { API_URL, headers } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
+import AppHeader from '../../../components/appheader/AppHeader';
 import './StudentDashboard.css';
-import { Star, Trophy, Flame, CheckCircle, Monitor, BookMarked, BarChart2, GraduationCap, Gamepad2 } from 'lucide-react';
+import { BookOpen, Trophy, Award, Medal, Flame, ArrowRight } from 'lucide-react';
 
 const LEVEL_META = {
-    Beginner:     { ru: 'Начинающий', uz: "Boshlang'ich", color: '#c2410c', bg: '#fff7ed' },
-    Intermediate: { ru: 'Средний',    uz: "O'rta",        color: '#1d4ed8', bg: '#eff6ff' },
-    Advanced:     { ru: 'Продвинутый',uz: "Ilg'or",       color: '#166534', bg: '#f0fdf4' },
+    Beginner:     { ru: 'Начинающий', uz: "Boshlang'ich" },
+    Intermediate: { ru: 'Средний',    uz: "O'rta" },
+    Advanced:     { ru: 'Продвинутый', uz: "Ilg'or" },
 };
 
 const QUIZ_DAILY_LIMIT = 2;
 
-function ProgressRing({ pct, size = 60, stroke = 6, color = '#6c5ce7' }) {
+const prefersReduced = () =>
+    typeof window !== 'undefined' &&
+    window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ── Count-up number ───────────────────────────────────────────── */
+function useCountUp(target, duration = 1200) {
+    const [val, setVal] = useState(prefersReduced() ? target : 0);
+    useEffect(() => {
+        if (prefersReduced()) { setVal(target); return; }
+        let raf;
+        const t0 = performance.now();
+        const loop = (now) => {
+            const t = Math.min(1, (now - t0) / duration);
+            const eased = 1 - Math.pow(1 - t, 3);
+            setVal(Math.round(target * eased));
+            if (t < 1) raf = requestAnimationFrame(loop);
+        };
+        raf = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(raf);
+    }, [target, duration]);
+    return val;
+}
+
+function CountUp({ value, duration, suffix = '', group = false }) {
+    const v = useCountUp(value || 0, duration);
+    const text = group ? v.toLocaleString('ru-RU').replace(/,/g, ' ') : v;
+    return <>{text}{suffix}</>;
+}
+
+/* ── Animated progress ring ────────────────────────────────────── */
+function ProgressRing({ pct, size = 200, stroke = 14, gradId = 'dbRingGrad', children, delay = 300 }) {
     const r = (size - stroke) / 2;
     const circ = 2 * Math.PI * r;
-    const dash = (pct / 100) * circ;
+    const [offset, setOffset] = useState(circ);
+    useEffect(() => {
+        if (prefersReduced()) { setOffset(circ - (circ * (pct || 0)) / 100); return; }
+        const id = setTimeout(() => setOffset(circ - (circ * (pct || 0)) / 100), delay);
+        return () => clearTimeout(id);
+    }, [pct, circ, delay]);
     return (
-        <svg width={size} height={size} className="db-ring">
-            <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e2e8f0" strokeWidth={stroke} />
-            <circle
-                cx={size/2} cy={size/2} r={r} fill="none"
-                stroke={color} strokeWidth={stroke}
-                strokeDasharray={`${dash} ${circ - dash}`}
-                strokeLinecap="round"
-                transform={`rotate(-90 ${size/2} ${size/2})`}
-                style={{ transition: 'stroke-dasharray 0.6s ease' }}
-            />
-            <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle"
-                fill="#1e293b" fontSize={size * 0.22} fontWeight="700">
-                {pct}%
-            </text>
+        <div className="db-ring" style={{ width: size, height: size }}>
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+                    stroke="rgba(255,255,255,.07)" strokeWidth={stroke} />
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none"
+                    stroke={`url(#${gradId})`} strokeWidth={stroke} strokeLinecap="round"
+                    strokeDasharray={circ} strokeDashoffset={offset}
+                    transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                    style={{ transition: 'stroke-dashoffset 1.3s cubic-bezier(.2,.75,.25,1)', filter: 'drop-shadow(0 0 6px rgba(54,224,107,.45))' }} />
+            </svg>
+            <div className="db-ring-center">{children}</div>
+        </div>
+    );
+}
+
+/* ── Project bar chart ─────────────────────────────────────────── */
+function BarChart({ bars }) {
+    const [on, setOn] = useState(false);
+    useEffect(() => {
+        if (prefersReduced()) { setOn(true); return; }
+        const id = setTimeout(() => setOn(true), 450);
+        return () => clearTimeout(id);
+    }, []);
+    const max = Math.max(1, ...bars.map(b => b.value));
+    return (
+        <div className="db-bars">
+            {bars.map((b, i) => (
+                <div className="db-bar-col" key={i}>
+                    <div className={`db-bar-val ${on ? 'on' : ''}`}>{b.value}</div>
+                    <div className="db-bar-track"
+                        style={{
+                            height: on ? `${Math.max(4, (b.value / max) * 100)}%` : 0,
+                            background: b.color,
+                            transitionDelay: `${i * 110}ms`,
+                        }} />
+                    <div className="db-bar-name">{b.name}</div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+/* ── Contribution heatmap ──────────────────────────────────────── */
+function Heatmap({ days, ru }) {
+    const gridRef = useRef(null);
+    useEffect(() => {
+        if (!gridRef.current || prefersReduced()) return;
+        const cells = gridRef.current.querySelectorAll('.db-cell');
+        cells.forEach((c, i) => {
+            const col = Math.floor(i / 7);
+            setTimeout(() => c.classList.add('in'), 550 + col * 22 + (i % 7) * 6);
+        });
+    }, [days]);
+
+    const max = Math.max(1, ...days.map(d => d.count));
+    const level = (c) => {
+        if (c <= 0) return 0;
+        const q = c / max;
+        if (q > 0.66) return 4;
+        if (q > 0.33) return 3;
+        if (q > 0.12) return 2;
+        return 1;
+    };
+
+    const monthNames = ru
+        ? ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек']
+        : ['Yan','Fev','Mar','Apr','May','Iyn','Iyl','Avg','Sen','Okt','Noy','Dek'];
+    const weeks = Math.ceil(days.length / 7);
+    const monthCols = [];
+    let lastMonth = -1;
+    for (let w = 0; w < weeks; w++) {
+        const d = days[w * 7];
+        if (!d) continue;
+        const m = new Date(d.date).getMonth();
+        if (m !== lastMonth) { monthCols.push({ w, label: monthNames[m] }); lastMonth = m; }
+    }
+
+    return (
+        <div className="db-heat">
+            <div className="db-heat-grid" ref={gridRef}>
+                {days.map((d, i) => (
+                    <div key={i}
+                        className={`db-cell db-cell-l${level(d.count)}`}
+                        style={{ transitionDelay: `${(i % 7) * 10}ms` }}
+                        title={`${d.date} · ${d.count} ${ru ? 'действий' : 'ta faollik'}`} />
+                ))}
+            </div>
+            <div className="db-heat-months">
+                {monthCols.map((m, i) => (
+                    <span key={i} style={{ gridColumn: m.w + 1 }}>{m.label}</span>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+/* ── Skill radar ───────────────────────────────────────────────── */
+function shortSkill(title) {
+    const t = (title || '').trim();
+    if (t.length <= 12) return t;
+    const words = t.split(/[\s/]+/).filter(Boolean);
+    if (words[0].length <= 12) return words[0];
+    return words[0].slice(0, 11) + '…';
+}
+
+function SkillRadar({ skills }) {
+    const [on, setOn] = useState(false);
+    useEffect(() => {
+        if (prefersReduced()) { setOn(true); return; }
+        const id = setTimeout(() => setOn(true), 600);
+        return () => clearTimeout(id);
+    }, []);
+    const W = 320, H = 280, cx = W / 2, cy = 128, R = 78, n = skills.length;
+    const pt = (i, rr) => {
+        const a = (Math.PI * 2 * i) / n - Math.PI / 2;
+        return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr];
+    };
+    const collapsed = skills.map(() => `${cx},${cy}`).join(' ');
+    const full = skills.map((s, i) => pt(i, (R * Math.max(4, s.pct)) / 100).join(',')).join(' ');
+    return (
+        <svg className="db-radar" viewBox={`0 0 ${W} ${H}`} width="100%" preserveAspectRatio="xMidYMid meet">
+            {[0.25, 0.5, 0.75, 1].map((f, i) => (
+                <polygon key={i} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="1"
+                    points={skills.map((_, j) => pt(j, R * f).join(',')).join(' ')} />
+            ))}
+            {skills.map((_, i) => {
+                const [x, y] = pt(i, R);
+                return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(255,255,255,.08)" />;
+            })}
+            <polygon points={on ? full : collapsed}
+                fill="url(#dbRadarFill)" stroke="#36e06b" strokeWidth="2"
+                style={{ transition: 'all 1.1s cubic-bezier(.2,.75,.25,1)', filter: 'drop-shadow(0 0 8px rgba(54,224,107,.4))' }} />
+            {skills.map((s, i) => {
+                const [vx, vy] = pt(i, (R * Math.max(4, s.pct)) / 100);
+                const [lx, ly] = pt(i, R + 16);
+                const anchor = Math.abs(lx - cx) < 8 ? 'middle' : (lx > cx ? 'start' : 'end');
+                return (
+                    <g key={i}>
+                        <circle cx={on ? vx : cx} cy={on ? vy : cy} r="3" fill="#7ef0a3"
+                            style={{ transition: 'all 1.1s cubic-bezier(.2,.75,.25,1)' }} />
+                        <text x={lx} y={ly} fill="#9aa3c7" fontSize="10.5" fontWeight="600"
+                            textAnchor={anchor} dominantBaseline="middle">
+                            {shortSkill(s.name)}
+                        </text>
+                    </g>
+                );
+            })}
         </svg>
     );
 }
 
-function DictSessionDot({ session, ru }) {
-    const score = session?.score ?? 0;
-    const done = session?.is_completed ?? false;
+/* ── Shared SVG gradient defs ──────────────────────────────────── */
+function SvgDefs() {
     return (
-        <div className={`db-dict-dot ${done ? 'db-dict-dot--done' : 'db-dict-dot--empty'}`}>
-            {done ? (
-                <>
-                    <span className="db-dict-dot-score">{score}</span>
-                    <span className="db-dict-dot-label">{ru ? 'очков' : 'ball'}</span>
-                </>
-            ) : (
-                <span className="db-dict-dot-label">{ru ? 'осталась' : 'qoldi'}</span>
-            )}
-        </div>
+        <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
+            <defs>
+                <linearGradient id="dbRingGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stopColor="#7ef0a3" /><stop offset="1" stopColor="#2bc45a" />
+                </linearGradient>
+                <radialGradient id="dbRadarFill">
+                    <stop offset="0" stopColor="#7ef0a3" stopOpacity=".5" />
+                    <stop offset="1" stopColor="#36e06b" stopOpacity=".16" />
+                </radialGradient>
+            </defs>
+        </svg>
     );
 }
 
@@ -60,6 +230,7 @@ export default function StudentDashboard() {
     const [stats, setStats] = useState(null);
     const [dictStatus, setDictStatus] = useState(null);
     const [dictWords, setDictWords] = useState([]);
+    const [activity, setActivity] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -71,23 +242,25 @@ export default function StudentDashboard() {
             fetch(`${API_URL}v1/student/me/course-stats`, { headers: headers() }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
             fetch(`${API_URL}v1/dictionary/quiz/status`, { headers: headers() }).then(r => r.ok ? r.json() : null).catch(() => null),
             fetch(`${API_URL}v1/dictionary/?lang=${localStorage.getItem('lang') || 'uz'}`, { headers: headers() }).then(r => r.ok ? r.json() : []).catch(() => []),
-        ]).then(([meData, statsData, dictStatusData, dictWordsData]) => {
+            fetch(`${API_URL}v1/student/me/activity`, { headers: headers() }).then(r => r.ok ? r.json() : null).catch(() => null),
+        ]).then(([meData, statsData, dictStatusData, dictWordsData, activityData]) => {
             setMe(meData);
             setStats(statsData);
             setDictStatus(dictStatusData);
             setDictWords(Array.isArray(dictWordsData) ? dictWordsData : []);
+            setActivity(activityData);
         }).catch(e => setError(e.message)).finally(() => setLoading(false));
     }, []);
 
-    if (loading) return <div className="db-state db-loading">⏳ {ru ? 'Загрузка...' : 'Yuklanmoqda...'}</div>;
-    if (error || !me || !stats) return <div className="db-state db-error">⚠️ {ru ? 'Ошибка загрузки данных' : 'Ma\'lumot yuklanmadi'}</div>;
+    const go = (id) => navigate(`/student/${id}`);
+
+    if (loading) return <div className="db-dark"><div className="db-state">⏳ {ru ? 'Загрузка...' : 'Yuklanmoqda...'}</div></div>;
+    if (error || !me || !stats) return <div className="db-dark"><div className="db-state db-error">⚠️ {ru ? 'Ошибка загрузки данных' : "Ma'lumot yuklanmadi"}</div></div>;
 
     const profile = stats.profile || {};
     const overall = stats.overall || {};
     const courses = stats.courses || [];
     const lvl = LEVEL_META[profile.level] || LEVEL_META.Beginner;
-    const displayName = me.full_name || me.username || '';
-    const avatarSrc = resolveImageUrl(me.avatar_url);
 
     // Dictionary stats
     const totalWords = dictWords.length;
@@ -95,251 +268,195 @@ export default function StudentDashboard() {
     const totalAttempts = dictWords.reduce((s, w) => s + (w.correct_count || 0) + (w.incorrect_count || 0), 0);
     const accuracyPct = totalAttempts > 0 ? Math.round((totalCorrect / totalAttempts) * 100) : 0;
     const practicedWords = dictWords.filter(w => (w.correct_count || 0) + (w.incorrect_count || 0) > 0).length;
-
     const playedToday = dictStatus?.played_today ?? 0;
-    const todaySessions = dictStatus?.sessions ?? [];
-    const todayScore = todaySessions.reduce((s, sess) => s + (sess.score || 0), 0);
     const allDone = playedToday >= QUIZ_DAILY_LIMIT;
 
-    // Build session slots: fill played sessions, pad with nulls for remaining
-    const sessionSlots = Array.from({ length: QUIZ_DAILY_LIMIT }, (_, i) => todaySessions[i] ?? null);
+    // Project bars + metrics
+    const bars = [
+        { name: ru ? 'Всего' : 'Jami',       value: overall.projects_total || 0,     color: 'linear-gradient(180deg,#b7adfb,#8b7bf2)' },
+        { name: ru ? 'Одобр.' : 'Tasdiq',    value: overall.projects_approved || 0,  color: 'linear-gradient(180deg,#7ef0a3,#2bc45a)' },
+        { name: ru ? 'Провер.' : 'Tekshir',  value: overall.projects_submitted || 0, color: 'linear-gradient(180deg,#fcd34d,#f59e0b)' },
+        { name: ru ? 'Откл.' : 'Rad etildi', value: overall.projects_rejected || 0,  color: 'linear-gradient(180deg,#f0556b,#c0392b)' },
+    ];
+
+    // Skill radar from course mastery (top courses by exercise count, de-duped by title)
+    const seen = new Set();
+    const skills = courses
+        .filter(c => (c.exercises_total || 0) > 0)
+        .filter(c => { const k = (c.title || '').trim(); if (seen.has(k)) return false; seen.add(k); return true; })
+        .slice(0, 6)
+        .map(c => ({ name: c.title, pct: c.exercises_pct || 0 }));
+
+    const courseColor = (pct) => pct >= 80 ? '#36e06b' : pct >= 40 ? '#8b7bf2' : '#f0556b';
+
+    const features = [
+        { title: ru ? 'Мои курсы' : 'Mening kurslarim',     Icon: BookOpen, glow: 'rgba(54,224,107,.5)',  path: 'courses' },
+        { title: ru ? 'Рейтинг' : 'Reyting',      Icon: Trophy,   glow: 'rgba(139,123,242,.5)', path: 'rankings' },
+        { title: ru ? 'Сертификаты' : 'Sertifikatlar', Icon: Award,    glow: 'rgba(54,224,107,.5)',  path: 'degrees' },
+        { title: ru ? 'Достижения' : 'Yutuqlar',  Icon: Medal,    glow: 'rgba(139,123,242,.5)', path: 'achievements' },
+    ];
 
     return (
-        <div className="db-page">
+        <div className="db-dark">
+            <SvgDefs />
+            <AppHeader me={me} />
 
-            {/* ── Welcome header ── */}
-            <div className="db-welcome item-fade-in">
-                <div className="db-welcome-avatar">
-                    {avatarSrc
-                        ? <img src={avatarSrc} alt="" className="db-avatar-img" />
-                        : <div className="db-avatar-initials">{(displayName || 'U')[0].toUpperCase()}</div>
-                    }
-                </div>
-                <div className="db-welcome-body">
-                    <h1 className="db-welcome-title">
-                        {ru ? 'Добро пожаловать' : 'Xush kelibsiz'}, <span className="db-welcome-name">{displayName}</span>!
-                    </h1>
+            <div className="db-shell">
+                {/* ── status chips ── */}
+                <div className="db-welcome db-rise" style={{ animationDelay: '.04s' }}>
                     <div className="db-welcome-meta">
-                        <span className="db-level-badge" style={{ color: lvl.color, background: lvl.bg }}>
-                            {ru ? lvl.ru : lvl.uz}
-                        </span>
-                        {me.current_streak > 0 && (
-                            <span className="db-streak-chip"><Flame size={14} aria-hidden="true" /> {me.current_streak} {ru ? 'дн.' : 'kun'}</span>
+                        <span className="db-level">{ru ? lvl.ru : lvl.uz}</span>
+                        {(profile.current_streak > 0) && (
+                            <span className="db-streak"><Flame size={13} /> {profile.current_streak} {ru ? 'дн.' : 'kun'}</span>
                         )}
+                        <span className="db-points">★ <CountUp value={profile.total_points || 0} group /> {ru ? 'очков' : 'ball'}</span>
                     </div>
                 </div>
-            </div>
 
-            {/* ── Quick stats row ── */}
-            <div className="db-stats-grid item-fade-in">
-                <div className="db-stat-card">
-                    <span className="db-stat-icon" aria-hidden="true"><Star size={20} /></span>
-                    <span className="db-stat-val">{(profile.total_points || 0).toLocaleString()}</span>
-                    <span className="db-stat-label">{ru ? 'Очков' : 'Ball'}</span>
-                </div>
-                <div className="db-stat-card">
-                    <span className="db-stat-icon" aria-hidden="true"><Trophy size={20} /></span>
-                    <span className="db-stat-val">{profile.global_rank ? `#${profile.global_rank}` : '—'}</span>
-                    <span className="db-stat-label">{ru ? 'Рейтинг' : 'Reyting'}</span>
-                </div>
-                <div className="db-stat-card">
-                    <span className="db-stat-icon" aria-hidden="true"><Flame size={20} /></span>
-                    <span className="db-stat-val">{profile.current_streak || 0}</span>
-                    <span className="db-stat-label">{ru ? 'Дней подряд' : 'Ketma-ket kun'}</span>
-                </div>
-                <div className="db-stat-card">
-                    <span className="db-stat-icon" aria-hidden="true"><CheckCircle size={20} /></span>
-                    <span className="db-stat-val">{overall.projects_approved || 0}</span>
-                    <span className="db-stat-label">{ru ? 'Проектов сдано' : 'Loyiha topshirilgan'}</span>
-                </div>
-            </div>
-
-            {/* ── Overall progress ── */}
-            <div className="db-section item-fade-in">
-                <h2 className="db-section-title">{ru ? 'Общий прогресс' : 'Umumiy progress'}</h2>
-                <div className="db-overall-card">
-                    <div className="db-overall-left">
-                        <ProgressRing pct={overall.exercises_pct || 0} color="#6c5ce7" />
-                        <div className="db-overall-text">
-                            <div className="db-overall-label">{ru ? 'Упражнения' : 'Mashqlar'}</div>
-                            <div className="db-overall-sub">
-                                {overall.exercises_correct || 0}/{overall.exercises_total || 0} {ru ? 'верно' : "to'g'ri"}
-                            </div>
-                        </div>
-                    </div>
-                    <div className="db-overall-divider" />
-                    <div className="db-overall-pills">
-                        <div className="db-pill">
-                            <span className="db-pill-val" style={{ color: '#6c5ce7' }}>{overall.projects_total || 0}</span>
-                            <span className="db-pill-label">{ru ? 'Проектов всего' : 'Loyihalar jami'}</span>
-                        </div>
-                        <div className="db-pill">
-                            <span className="db-pill-val" style={{ color: '#16a34a' }}>{overall.projects_approved || 0}</span>
-                            <span className="db-pill-label">{ru ? 'Одобрено' : 'Tasdiqlangan'}</span>
-                        </div>
-                        <div className="db-pill">
-                            <span className="db-pill-val" style={{ color: '#d97706' }}>{overall.projects_submitted || 0}</span>
-                            <span className="db-pill-label">{ru ? 'На проверке' : 'Tekshirilmoqda'}</span>
-                        </div>
-                        <div className="db-pill">
-                            <span className="db-pill-val" style={{ color: '#6c5ce7' }}>{(overall.total_points_from_projects || 0).toLocaleString()}</span>
-                            <span className="db-pill-label">{ru ? 'Очков за проекты' : 'Loyihadan ball'}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* ── Dictionary practice ── */}
-            <div className="db-section item-fade-in">
-                <div className="db-section-header">
-                    <h2 className="db-section-title">📖 {ru ? 'Словарь и практика' : "Lug'at va mashq"}</h2>
-                    <button className="db-see-all" onClick={() => navigate('/student/dictionary')}>
-                        {ru ? 'Открыть →' : "Ochish →"}
-                    </button>
-                </div>
-                <div className="db-dict-card">
-
-                    {/* Left: overall word stats */}
-                    <div className="db-dict-left">
-                        <div className="db-dict-stat-row">
-                            <div className="db-dict-bignum">{totalWords}</div>
-                            <div className="db-dict-bignumlabel">{ru ? 'слов в словаре' : "so'z lug'atda"}</div>
-                        </div>
-                        <div className="db-dict-subrow">
-                            <span className="db-dict-sub">
-                                <span className="db-dict-sub-val" style={{ color: '#6c5ce7' }}>{practicedWords}</span>
-                                {' '}{ru ? 'отработано' : 'mashq qilingan'}
+                {/* ── feature cards ── */}
+                <div className="db-features">
+                    {features.map((f, i) => (
+                        <button key={f.path} className="db-feature db-rise"
+                            style={{ animationDelay: `${0.08 + i * 0.05}s` }}
+                            onClick={() => go(f.path)}>
+                            <span className="db-f-glow" style={{ background: `radial-gradient(circle, ${f.glow}, transparent 70%)` }} />
+                            <span className="db-f-top">
+                                <span className="db-f-title">{f.title}</span>
+                                <span className="db-f-icon"><f.Icon size={34} /></span>
                             </span>
-                        </div>
-                        {totalAttempts > 0 && (
-                            <div className="db-dict-accuracy-row">
-                                <ProgressRing pct={accuracyPct} size={52} stroke={5} color="#0ea5e9" />
-                                <div className="db-dict-accuracy-text">
-                                    <div className="db-dict-accuracy-label">{ru ? 'Точность' : 'Aniqlik'}</div>
-                                    <div className="db-dict-accuracy-sub">{totalCorrect}/{totalAttempts}</div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="db-dict-divider" />
-
-                    {/* Right: today's quiz sessions */}
-                    <div className="db-dict-right">
-                        <div className="db-dict-today-title">
-                            {ru ? 'Сегодня' : 'Bugun'}
-                            {allDone && (
-                                <span className="db-dict-done-badge">
-                                    {ru ? '✓ выполнено' : "✓ bajarildi"}
-                                </span>
-                            )}
-                        </div>
-                        <div className="db-dict-dots">
-                            {sessionSlots.map((sess, i) => (
-                                <DictSessionDot key={i} session={sess} ru={ru} />
-                            ))}
-                        </div>
-                        {todayScore > 0 && (
-                            <div className="db-dict-today-score">
-                                +{todayScore} {ru ? 'очков сегодня' : 'ball bugun'}
-                            </div>
-                        )}
-                        {totalWords === 0 ? (
-                            <p className="db-dict-hint">
-                                {ru ? 'Добавьте слова из уроков, чтобы начать практику' : "Mashq boshlash uchun darslardagi so'zlarni qo'shing"}
-                            </p>
-                        ) : !allDone ? (
-                            <button className="db-dict-play-btn" onClick={() => navigate('/student/dictionary')}>
-                                {ru ? '▶ Начать практику' : "▶ Mashqni boshlash"}
-                            </button>
-                        ) : (
-                            <p className="db-dict-hint">
-                                {ru ? 'Все сессии на сегодня завершены 🎉' : "Bugungi barcha sessiyalar tugadi 🎉"}
-                            </p>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* ── My courses ── */}
-            <div className="db-section item-fade-in">
-                <div className="db-section-header">
-                    <h2 className="db-section-title">{ru ? 'Мои курсы' : 'Mening kurslarim'}</h2>
-                    <button className="db-see-all" onClick={() => navigate('/student/courses')}>
-                        {ru ? 'Все курсы →' : 'Barcha kurslar →'}
-                    </button>
-                </div>
-                {courses.length === 0 ? (
-                    <div className="db-empty">
-                        <span className="db-empty-icon">📚</span>
-                        <p>{ru ? 'Пока нет активных курсов' : "Faol kurslar yo'q"}</p>
-                        <button className="db-cta" onClick={() => navigate('/student/courses')}>
-                            {ru ? 'Начать обучение' : "O'qishni boshlash"}
-                        </button>
-                    </div>
-                ) : (
-                    <div className="db-courses-grid">
-                        {courses.map(course => (
-                            <div
-                                key={course.id}
-                                className="db-course-card"
-                                style={{ borderTopColor: course.color_accent || '#6c5ce7' }}
-                                onClick={() => navigate(`/student/courses/${course.id}`)}
-                                role="button"
-                                tabIndex={0}
-                                onKeyDown={e => e.key === 'Enter' && navigate(`/student/courses/${course.id}`)}
-                            >
-                                <div className="db-course-title">{course.title}</div>
-                                <div className="db-course-track">
-                                    <div
-                                        className="db-course-fill"
-                                        style={{
-                                            width: `${course.exercises_pct || 0}%`,
-                                            background: course.color_accent || '#6c5ce7',
-                                        }}
-                                    />
-                                </div>
-                                <div className="db-course-meta">
-                                    <span>{course.exercises_correct || 0}/{course.exercises_total || 0} {ru ? 'упр.' : 'mashq'}</span>
-                                    <span style={{ color: course.color_accent || '#6c5ce7', fontWeight: 700 }}>
-                                        {course.exercises_pct || 0}%
-                                    </span>
-                                </div>
-                                {(course.submissions_pending > 0) && (
-                                    <div className="db-course-badge db-course-badge--pending">
-                                        ⏳ {course.submissions_pending} {ru ? 'на проверке' : 'tekshirilmoqda'}
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* ── Quick navigation ── */}
-            <div className="db-section item-fade-in">
-                <h2 className="db-section-title">{ru ? 'Быстрый доступ' : 'Tezkor kirish'}</h2>
-                <div className="db-quick-links">
-                    {[
-                        { Icon: Monitor,      ru: 'Проекты',     uz: 'Loyihalar',    path: '/student/projects' },
-                        { Icon: Trophy,       ru: 'Рейтинг',     uz: 'Reyting',      path: '/student/rankings' },
-                        { Icon: BookMarked,   ru: 'Словарь',     uz: "Lug'at",       path: '/student/dictionary' },
-                        { Icon: BarChart2,    ru: 'Статистика',  uz: 'Statistika',   path: '/student/statistics' },
-                        { Icon: GraduationCap,ru: 'Сертификаты', uz: 'Sertifikatlar',path: '/student/degrees' },
-                        { Icon: Gamepad2,     ru: 'Игры',        uz: "O'yinlar",     path: '/student/team-game' },
-                    ].map(link => (
-                        <button
-                            key={link.path}
-                            className="db-qlink"
-                            onClick={() => navigate(link.path)}
-                        >
-                            <span className="db-qlink-icon" aria-hidden="true"><link.Icon size={20} /></span>
-                            <span className="db-qlink-label">{ru ? link.ru : link.uz}</span>
+                            <span className="db-f-more">{ru ? 'Подробнее' : 'Batafsil'} <ArrowRight size={15} /></span>
                         </button>
                     ))}
                 </div>
-            </div>
 
+                {/* ── analytics row ── */}
+                <div className="db-grid-main">
+
+                    {/* progress + bars */}
+                    <div className="db-card db-p-progress db-rise" style={{ animationDelay: '.28s' }}>
+                        <div className="db-panel-head">
+                            <div className="db-panel-title">{ru ? 'Общий прогресс' : 'Umumiy progress'}</div>
+                        </div>
+                        <div className="db-progress-body">
+                            <ProgressRing pct={overall.exercises_pct || 0}>
+                                <div className="db-ring-pct"><CountUp value={overall.exercises_pct || 0} duration={1300} suffix="%" /></div>
+                                <div className="db-ring-lbl">{ru ? 'Упражнения' : 'Mashqlar'}</div>
+                                <div className="db-ring-sub">{overall.exercises_correct || 0}/{overall.exercises_total || 0} {ru ? 'верно' : "to'g'ri"}</div>
+                            </ProgressRing>
+                            <BarChart bars={bars} />
+                        </div>
+                        <div className="db-metrics">
+                            <div className="db-metric"><div className="db-m-val" style={{ color: '#f0556b' }}><CountUp value={overall.projects_total || 0} /></div><div className="db-m-lbl">{ru ? 'Проектов всего' : 'Loyihalar jami'}</div></div>
+                            <div className="db-metric"><div className="db-m-val" style={{ color: '#fbbf24' }}><CountUp value={overall.projects_approved || 0} /></div><div className="db-m-lbl">{ru ? 'Одобрено' : 'Tasdiqlangan'}</div></div>
+                            <div className="db-metric"><div className="db-m-val" style={{ color: '#f0556b' }}><CountUp value={overall.projects_submitted || 0} /></div><div className="db-m-lbl">{ru ? 'На проверке' : 'Tekshirilmoqda'}</div></div>
+                            <div className="db-metric"><div className="db-m-val" style={{ color: '#36e06b' }}><CountUp value={overall.total_points_from_projects || 0} group /></div><div className="db-m-lbl">{ru ? 'Очков за проекты' : 'Loyihadan ball'}</div></div>
+                        </div>
+                    </div>
+
+                    {/* heatmap */}
+                    <div className="db-card db-p-heat db-rise" style={{ animationDelay: '.32s' }}>
+                        <div className="db-panel-head">
+                            <div className="db-panel-title">{ru ? 'Карта активности' : 'Faollik xaritasi'}</div>
+                            <div className="db-chip">{ru ? '6 месяцев' : "So'nggi 6 oy"}</div>
+                        </div>
+                        {activity && activity.days?.length ? (
+                            <>
+                                <Heatmap days={activity.days} ru={ru} />
+                                <div className="db-heat-foot">
+                                    <span><b>{activity.active_days}</b> {ru ? 'актив. дней' : 'faol kun'} · {ru ? 'серия' : 'seriya'} <b>{activity.longest_streak}</b></span>
+                                    <span className="db-heat-legend">
+                                        {ru ? 'Меньше' : 'Kam'}
+                                        <i className="db-cell db-cell-l0 in" />
+                                        <i className="db-cell db-cell-l1 in" />
+                                        <i className="db-cell db-cell-l2 in" />
+                                        <i className="db-cell db-cell-l3 in" />
+                                        <i className="db-cell db-cell-l4 in" />
+                                        {ru ? 'Больше' : "Ko'p"}
+                                    </span>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="db-heat-empty">{ru ? 'Данные активности появятся по мере занятий' : "Faollik ma'lumotlari mashqlar bilan to'planadi"}</div>
+                        )}
+                    </div>
+
+                    {/* radar */}
+                    <div className="db-card db-p-radar db-rise" style={{ animationDelay: '.36s' }}>
+                        <div className="db-panel-head"><div className="db-panel-title">{ru ? 'Карта навыков' : "Ko'nikmalar xaritasi"}</div></div>
+                        <div className="db-radar-wrap">
+                            {skills.length >= 3
+                                ? <SkillRadar skills={skills} />
+                                : <div className="db-heat-empty">{ru ? 'Начните курсы, чтобы увидеть профиль навыков' : "Ko'nikma profilini ko'rish uchun kurslarni boshlang"}</div>}
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── bottom row ── */}
+                <div className="db-grid-bottom">
+
+                    {/* dictionary */}
+                    <div className="db-card db-p-dict db-rise" style={{ animationDelay: '.4s' }}>
+                        <div className="db-panel-head">
+                            <div className="db-panel-title">{ru ? 'Словарь и практика' : "Lug'at va mashq"}</div>
+                            <button className="db-chip" onClick={() => go('dictionary')}>{ru ? 'Сегодня' : 'Bugun'}</button>
+                        </div>
+                        <div className="db-dict-body">
+                            <div className="db-dict-nums">
+                                <div className="db-dict-stat"><div className="db-d-big"><CountUp value={totalWords} /></div><div className="db-d-lbl">{ru ? 'слов в словаре' : "so'z lug'atda"}</div></div>
+                                <div className="db-dict-stat"><div className="db-d-big"><CountUp value={practicedWords} /></div><div className="db-d-lbl">{ru ? 'отработано' : 'mashq qilingan'}</div></div>
+                            </div>
+                            <div className="db-dict-acc">
+                                <ProgressRing pct={accuracyPct} size={118} stroke={9} delay={500}>
+                                    <div className="db-acc-pct"><CountUp value={accuracyPct} duration={1100} suffix="%" /></div>
+                                    <div className="db-acc-sub">{totalCorrect}/{totalAttempts}</div>
+                                </ProgressRing>
+                                <div className="db-acc-lbl">{ru ? 'Точность' : 'Aniqlik'}{allDone ? ' ✓' : ''}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* courses */}
+                    <div className="db-card db-p-courses db-rise" style={{ animationDelay: '.44s' }}>
+                        <div className="db-panel-head">
+                            <div className="db-panel-title">{ru ? 'Мои курсы' : 'Mening kurslarim'}</div>
+                            <button className="db-see-all" onClick={() => go('courses')}>{ru ? 'Все курсы' : 'Barcha kurslar'} <ArrowRight size={14} /></button>
+                        </div>
+                        {courses.length === 0 ? (
+                            <div className="db-heat-empty">{ru ? 'Пока нет активных курсов' : "Faol kurslar yo'q"}</div>
+                        ) : (
+                            <div className="db-course-list">
+                                {courses.map((c, i) => {
+                                    const col = courseColor(c.exercises_pct || 0);
+                                    return (
+                                        <div className="db-course-row" key={c.id ?? i}
+                                            role="button" tabIndex={0}
+                                            onClick={() => navigate(`/student/courses/${c.id}`)}
+                                            onKeyDown={e => e.key === 'Enter' && navigate(`/student/courses/${c.id}`)}>
+                                            <div className="db-course-top">
+                                                <span className="db-course-name">{c.title}</span>
+                                                <span className="db-course-pts">{c.exercises_correct || 0}/{c.exercises_total || 0}</span>
+                                            </div>
+                                            <div className="db-course-track">
+                                                <CourseFill pct={c.exercises_pct || 0} color={col} index={i} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
         </div>
     );
+}
+
+function CourseFill({ pct, color, index }) {
+    const [w, setW] = useState(0);
+    useEffect(() => {
+        if (prefersReduced()) { setW(pct); return; }
+        const id = setTimeout(() => setW(pct), 900 + index * 70);
+        return () => clearTimeout(id);
+    }, [pct, index]);
+    return <div className="db-course-fill" style={{ width: `${w}%`, background: `linear-gradient(90deg, ${color}, ${color}bb)` }} />;
 }

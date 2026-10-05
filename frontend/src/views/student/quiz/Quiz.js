@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import './Quiz.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
+import AppHeader from '../../../components/appheader/AppHeader';
+import { useTranslation } from '../../../i18n/useTranslation';
 import { HelpCircle, CheckCircle2, XCircle, Trophy, ArrowLeft, Clock, BookOpen, Sparkles } from 'lucide-react';
 
 const OPTION_KEYS = ['A', 'B', 'C', 'D'];
@@ -9,6 +11,8 @@ const OPTION_KEYS = ['A', 'B', 'C', 'D'];
 const DIFF_EMOJI = { beginner: '🌱', intermediate: '🔥', advanced: '⚡' };
 
 function QuizCard({ quiz, myResult, onStart }) {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const passed = myResult?.passed;
     const diffKey = (quiz.difficulty_level || 'beginner').toLowerCase();
     return (
@@ -19,7 +23,7 @@ function QuizCard({ quiz, myResult, onStart }) {
                     {DIFF_EMOJI[diffKey] || '📘'} {quiz.difficulty_level}
                 </span>
                 {passed && (
-                    <span className="qz-card-passed" title="O'tilgan">
+                    <span className="qz-card-passed" title={ru ? 'Пройдено' : "O'tilgan"}>
                         <CheckCircle2 size={15} /> {myResult.score}%
                     </span>
                 )}
@@ -31,13 +35,13 @@ function QuizCard({ quiz, myResult, onStart }) {
             )}
             <div className="qz-card-meta">
                 {quiz.time_limit_minutes && (
-                    <span><Clock size={13} /> {quiz.time_limit_minutes} daq</span>
+                    <span><Clock size={13} /> {quiz.time_limit_minutes} {ru ? 'мин' : 'daq'}</span>
                 )}
                 {quiz.points_reward > 0 && (
                     <span className="qz-card-pts"><Sparkles size={13} /> +{quiz.points_reward}</span>
                 )}
             </div>
-            <span className="qz-card-cta">{passed ? 'Qayta urinish' : 'Boshlash'} →</span>
+            <span className="qz-card-cta">{passed ? (ru ? 'Повторить' : 'Qayta urinish') : (ru ? 'Начать' : 'Boshlash')} →</span>
         </button>
     );
 }
@@ -46,6 +50,8 @@ export default function Quiz() {
     const { quizId } = useParams();
     const navigate = useNavigate();
     const { request } = useHttp();
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
 
     const [quizzes,   setQuizzes]   = useState([]);
     const [myResults, setMyResults] = useState([]);
@@ -66,7 +72,7 @@ export default function Quiz() {
             request(`${API_URL}v1/quizzes/my-results`, 'GET', null, headers()),
         ])
             .then(([qz, res]) => { setQuizzes(qz || []); setMyResults(res || []); })
-            .catch(() => setError("Viktorinalarni yuklab bo'lmadi"))
+            .catch(() => setError(ru ? 'Не удалось загрузить викторины' : "Viktorinalarni yuklab bo'lmadi"))
             .finally(() => setLoading(false));
     }, [request]);
 
@@ -78,7 +84,7 @@ export default function Quiz() {
         setQIndex(0);
         request(`${API_URL}v1/quizzes/${id}`, 'GET', null, headers())
             .then(q => { setActiveQuiz(q); setStartedAt(Date.now()); })
-            .catch(() => setError("Testni yuklab bo'lmadi"))
+            .catch(() => setError(ru ? 'Не удалось загрузить тест' : "Testni yuklab bo'lmadi"))
             .finally(() => setLoading(false));
     }, [request]);
 
@@ -117,34 +123,34 @@ export default function Quiz() {
         setLoading(true);
         request(`${API_URL}v1/quizzes/${activeQuiz.id}/submit`, 'POST', payload, headers())
             .then(res => setResult(res))
-            .catch(() => setError("Natijani yuborib bo'lmadi"))
+            .catch(() => setError(ru ? 'Не удалось отправить результат' : "Natijani yuborib bo'lmadi"))
             .finally(() => setLoading(false));
     };
 
     // ── RESULT SCREEN ──
     if (result) {
         return (
-            <div className="qz-root qz-result-wrap">
+            <div className="qz-root qz-root--page qz-result-wrap">
                 <div className={`qz-result ${result.passed ? 'qz-result--pass' : 'qz-result--fail'}`}>
                     <div className="qz-result-icon-wrap">
                         {result.passed
                             ? <CheckCircle2 size={44} className="qz-result-icon" />
                             : <XCircle size={44} className="qz-result-icon" />}
                     </div>
-                    <h2>{result.passed ? "O'tdingiz!" : 'Keyingi safar!'}</h2>
+                    <h2>{result.passed ? (ru ? 'Вы прошли!' : "O'tdingiz!") : (ru ? 'В следующий раз!' : 'Keyingi safar!')}</h2>
                     <p className="qz-result-score">{result.score}%</p>
                     <p className="qz-result-sub">
-                        {result.correct_answers} / {result.total_questions} to'g'ri javob
+                        {result.correct_answers} / {result.total_questions} {ru ? 'правильных ответов' : "to'g'ri javob"}
                     </p>
                     {result.passed && activeQuiz?.points_reward > 0 && (
-                        <p className="qz-result-pts"><Trophy size={16} /> +{activeQuiz.points_reward} ball</p>
+                        <p className="qz-result-pts"><Trophy size={16} /> +{activeQuiz.points_reward} {ru ? 'баллов' : 'ball'}</p>
                     )}
                     <div className="qz-result-actions">
                         <button className="qz-btn qz-btn--ghost" onClick={() => loadQuiz(activeQuiz.id)}>
-                            Qayta urinish
+                            {ru ? 'Повторить' : 'Qayta urinish'}
                         </button>
                         <button className="qz-btn qz-btn--primary" onClick={handleBack}>
-                            Ro'yxatga qaytish
+                            {ru ? 'Вернуться к списку' : "Ro'yxatga qaytish"}
                         </button>
                     </div>
                 </div>
@@ -155,7 +161,8 @@ export default function Quiz() {
     // ── PLAY SCREEN ──
     if (activeQuiz) {
         return (
-            <div className="qz-root">
+            <div className="qz-root qz-root--page qz-root--play">
+                <div className="qz-play-shell">
                 <div className="qz-play-header">
                     <button className="qz-back" onClick={handleBack}><ArrowLeft size={18} /></button>
                     <div className="qz-play-title">{activeQuiz.title}</div>
@@ -193,38 +200,42 @@ export default function Quiz() {
                             disabled={!answers[question.id]}
                             onClick={handleNext}
                         >
-                            {isLast ? 'Yakunlash' : 'Keyingisi'}
+                            {isLast ? (ru ? 'Завершить' : 'Yakunlash') : (ru ? 'Далее' : 'Keyingisi')}
                         </button>
                     </div>
                 )}
+                </div>
             </div>
         );
     }
 
     // ── LIST SCREEN ──
     return (
-        <div className="qz-root">
-            <div className="qz-header">
-                <span className="qz-header-icon"><HelpCircle size={20} /></span>
-                <div>
-                    <h2 className="qz-title">Viktorina</h2>
-                    <p className="qz-subtitle">Savollarga javob bering, ball to'plang</p>
+        <div className="qz-root qz-root--page">
+            <AppHeader />
+            <div className="qz-shell">
+                <div className="qz-header">
+                    <span className="qz-header-icon"><HelpCircle size={22} /></span>
+                    <div>
+                        <h2 className="qz-title">{ru ? 'Викторина' : 'Viktorina'}</h2>
+                        <p className="qz-subtitle">{ru ? 'Отвечайте на вопросы, набирайте баллы' : "Savollarga javob bering, ball to'plang"}</p>
+                    </div>
                 </div>
+
+                {loading && <div className="qz-state"><div className="qz-spinner" /></div>}
+                {!loading && error && <div className="qz-state qz-state--error">{error}</div>}
+                {!loading && !error && quizzes.length === 0 && (
+                    <div className="qz-state">{ru ? 'Пока для вас нет подходящих викторин' : "Hozircha sizga mos viktorina yo'q"}</div>
+                )}
+
+                {!loading && !error && quizzes.length > 0 && (
+                    <div className="qz-grid">
+                        {quizzes.map(q => (
+                            <QuizCard key={q.id} quiz={q} myResult={bestResultFor(q.id)} onStart={handleStart} />
+                        ))}
+                    </div>
+                )}
             </div>
-
-            {loading && <div className="qz-state"><div className="qz-spinner" /></div>}
-            {!loading && error && <div className="qz-state qz-state--error">{error}</div>}
-            {!loading && !error && quizzes.length === 0 && (
-                <div className="qz-state">Hozircha sizga mos viktorina yo'q</div>
-            )}
-
-            {!loading && !error && quizzes.length > 0 && (
-                <div className="qz-grid">
-                    {quizzes.map(q => (
-                        <QuizCard key={q.id} quiz={q} myResult={bestResultFor(q.id)} onStart={handleStart} />
-                    ))}
-                </div>
-            )}
         </div>
     );
 }
