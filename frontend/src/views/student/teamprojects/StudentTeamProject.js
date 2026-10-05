@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import AppHeader from '../../../components/appheader/AppHeader';
 import { Users2, Crown, Link2, Upload, Clock, Rocket } from 'lucide-react';
 import { useTranslation } from '../../../i18n/useTranslation';
+import { pickLang, pickLangList } from '../../../utils/pickLang';
 import './StudentTeamProject.css';
 
 // Matches the two shapes api/search/base.js's request() wrapper can reject
@@ -43,8 +44,7 @@ function deadlineLabel(task, ru) {
     return { text: ru ? `Осталось ${daysLeft} дн.` : `${daysLeft} kun qoldi`, warning: daysLeft <= 2 };
 }
 
-const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting }) => {
-    const { lang } = useTranslation();
+const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting, lang }) => {
     const ru = lang === 'ru';
     const [url, setUrl] = useState('');
     const [file, setFile] = useState(null);
@@ -72,15 +72,15 @@ const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting }) => {
     return (
         <div className={`stp-task${isMine ? ' stp-task--mine' : ''}`}>
             <div className="stp-task-head">
-                <strong>{task.title}</strong>
+                <strong>{pickLang(task, 'title', lang)}</strong>
                 <span className={`stp-chip stp-chip--${task.status}`}>
                     {STATUS_LABELS(ru)[task.status] || task.status}
                 </span>
             </div>
-            <p className="stp-task-desc">{task.description}</p>
+            <p className="stp-task-desc">{pickLang(task, 'description', lang)}</p>
             {task.acceptance_criteria?.length > 0 && (
                 <ul className="stp-criteria">
-                    {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
+                    {pickLangList(task, 'acceptance_criteria', lang).map((c, i) => <li key={i}>{c}</li>)}
                 </ul>
             )}
             {deadline && (
@@ -121,7 +121,13 @@ const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting }) => {
             {feedback && (
                 <div className={`stp-feedback${task.status === 'approved' ? ' stp-feedback--ok' : ''}`}>
                     <strong>{task.ai_score != null ? `${task.ai_score}/100` : ''}</strong>
-                    <p>{feedback.feedback}</p>
+                    <p>{lang === 'ru' && feedback.feedback_ru ? feedback.feedback_ru : feedback.feedback}</p>
+                </div>
+            )}
+            {task.lead_comment && (
+                <div className="stp-feedback">
+                    <strong>{lang === 'ru' ? 'Комментарий учителя' : "O'qituvchi izohi"}</strong>
+                    <p>{task.lead_comment}</p>
                 </div>
             )}
         </div>
@@ -218,16 +224,20 @@ const StudentTeamProject = () => {
     const [myRatingsLoaded, setMyRatingsLoaded] = useState(false);
     const [error, setError] = useState(null);
 
+    const loadedOnce = useRef(false);
     const reload = useCallback(async () => {
-        setLoading(true);
+        // Only the first load replaces the page with a spinner — a submit or
+        // finalize reloads in place so typed URLs / peer-rating stars survive.
+        if (!loadedOnce.current) setLoading(true);
         setError(null);
         try {
             const data = await request(`${API_URL}v1/team-projects/my`, 'GET', null, headers());
             setEntries(Array.isArray(data) ? data : []);
         } catch (e) {
-            setEntries([]);
+            if (!loadedOnce.current) setEntries([]);
             setError(getBackendErrorMessage(e, ru ? 'Не удалось загрузить данные. Обновите страницу.' : "Ma'lumotlarni yuklab bo'lmadi. Sahifani yangilang."));
         } finally {
+            loadedOnce.current = true;
             setLoading(false);
         }
     }, [request, ru]);
@@ -476,11 +486,15 @@ const StudentTeamProject = () => {
                 team.status === 'forming' && team.generation_attempts >= 3 ? (
                     <p className="stp-muted stp-muted--error">
                         {ru
-                            ? 'Не удалось автоматически создать план проекта. Пожалуйста, сообщите вашему преподавателю.'
+                            ? 'Не удалось автоматически создать план проекта. Сообщите об этом своему учителю.'
                             : "Loyiha rejasini avtomatik yaratib bo'lmadi. Iltimos, o'qituvchingizga xabar bering."}
                     </p>
                 ) : (
-                    <p className="stp-muted">{ru ? 'План проекта готовится, немного подождите…' : 'Loyiha rejasi tayyorlanmoqda, biroz kuting…'}</p>
+                    <p className="stp-muted">
+                        {ru
+                            ? 'План проекта ещё готовится — подождите или дождитесь, пока учитель его создаст…'
+                            : "Loyiha rejasi tayyorlanmoqda yoki o'qituvchi tomonidan yaratilishi kutilmoqda…"}
+                    </p>
                 )
             )}
 
@@ -493,6 +507,7 @@ const StudentTeamProject = () => {
                         submitting={submittingId === task.id}
                         onSubmit={submitTask}
                         onSubmitFile={submitTaskFile}
+                        lang={lang}
                     />
                 ))}
             </div>

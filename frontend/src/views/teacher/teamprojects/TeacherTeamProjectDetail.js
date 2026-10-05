@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import { formatTeamEvent } from './formatTeamEvent';
 import { isStuckWithNoManualPlan } from './isStuckWithNoManualPlan';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { pickLang, pickLangList } from '../../../utils/pickLang';
 import './TeacherTeamProjects.css';
 
 const STATUS_LABELS = {
@@ -33,7 +35,7 @@ const fmtDate = (iso) => {
 // (depends_on is a list of other tasks' `order`, not names, on the wire),
 // deadline, hours estimate, and the AI review's full breakdown (not just
 // the one-line feedback TaskRow shows inline).
-const TaskDetailModal = ({ task, allTasks, onClose }) => {
+const TaskDetailModal = ({ task, allTasks, onClose, lang }) => {
     const contract = task.interface_contract || {};
     const dependsOnTasks = (task.depends_on || [])
         .map(order => allTasks.find(t => t.order === order))
@@ -44,7 +46,7 @@ const TaskDetailModal = ({ task, allTasks, onClose }) => {
         <div className="ttp-overlay" onClick={onClose}>
             <div className="ttp-modal ttp-modal--wide" onClick={e => e.stopPropagation()}>
                 <div className="ttp-modal-head">
-                    <h3>{task.title}</h3>
+                    <h3>{pickLang(task, 'title', lang)}</h3>
                     <button className="ttp-close" onClick={onClose}>✕</button>
                 </div>
                 <div className="ttp-modal-body">
@@ -57,13 +59,13 @@ const TaskDetailModal = ({ task, allTasks, onClose }) => {
                         {task.deadline_at && <span className="ttp-muted">Muddat: {fmtDate(task.deadline_at)}</span>}
                     </div>
 
-                    <p className="ttd-task-desc">{task.description}</p>
+                    <p className="ttd-task-desc">{pickLang(task, 'description', lang)}</p>
 
                     {task.acceptance_criteria?.length > 0 && (
                         <div className="ttd-detail-section">
                             <h5>Qabul mezonlari</h5>
                             <ul className="ttd-criteria">
-                                {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
+                                {pickLangList(task, 'acceptance_criteria', lang).map((c, i) => <li key={i}>{c}</li>)}
                             </ul>
                         </div>
                     )}
@@ -88,7 +90,7 @@ const TaskDetailModal = ({ task, allTasks, onClose }) => {
                             <h5>Bog'liq vazifalar (avval tugashi kerak)</h5>
                             <ul className="ttd-criteria">
                                 {dependsOnTasks.map(t => (
-                                    <li key={t.id}>{t.title} — <em>{t.assigned_student_name || '—'}</em></li>
+                                    <li key={t.id}>{pickLang(t, 'title', lang)} — <em>{t.assigned_student_name || '—'}</em></li>
                                 ))}
                             </ul>
                         </div>
@@ -138,7 +140,7 @@ const TaskDetailModal = ({ task, allTasks, onClose }) => {
     );
 };
 
-const TaskRow = ({ task, members, allTasks, onReassign }) => {
+const TaskRow = ({ task, members, allTasks, onReassign, onDelete, onReview, lang }) => {
     const [reassignTo, setReassignTo] = useState('');
     const [showDetail, setShowDetail] = useState(false);
     const feedback = task.ai_feedback;
@@ -146,15 +148,15 @@ const TaskRow = ({ task, members, allTasks, onReassign }) => {
     return (
         <div className="ttd-task">
             <div className="ttd-task-head">
-                <strong>{task.title}</strong>
+                <strong>{pickLang(task, 'title', lang)}</strong>
                 <span className={`ttp-status ttp-status--${task.status}`}>
                     {TASK_STATUS_LABELS[task.status] || task.status}
                 </span>
             </div>
-            <p className="ttd-task-desc">{task.description}</p>
+            <p className="ttd-task-desc">{pickLang(task, 'description', lang)}</p>
             {task.acceptance_criteria?.length > 0 && (
                 <ul className="ttd-criteria">
-                    {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
+                    {pickLangList(task, 'acceptance_criteria', lang).map((c, i) => <li key={i}>{c}</li>)}
                 </ul>
             )}
             <p className="ttp-muted">Bajaruvchi: {task.assigned_student_name || '—'}</p>
@@ -175,6 +177,19 @@ const TaskRow = ({ task, members, allTasks, onReassign }) => {
                 <button className="ttd-detail-btn" onClick={() => setShowDetail(true)}>
                     <span aria-hidden="true">ℹ️</span> Batafsil
                 </button>
+                {(task.status === 'submitted' || task.status === 'changes_requested') && (
+                    <>
+                        <button className="ttd-detail-btn" onClick={() => onReview(task.id, 'approve')}>
+                            <span aria-hidden="true">✅</span> Tasdiqlash
+                        </button>
+                        <button className="ttd-detail-btn" onClick={() => onReview(task.id, 'request_changes')}>
+                            <span aria-hidden="true">✏️</span> O'zgartirish so'rash
+                        </button>
+                    </>
+                )}
+                <button className="ttd-delete-btn" onClick={() => onDelete(task.id)}>
+                    <span aria-hidden="true">🗑️</span> O'chirish
+                </button>
                 <div className="ttd-reassign">
                     <select value={reassignTo} onChange={e => setReassignTo(e.target.value)}>
                         <option value="">Boshqa a'zoga topshirish…</option>
@@ -192,7 +207,7 @@ const TaskRow = ({ task, members, allTasks, onReassign }) => {
                 </div>
             </div>
             {showDetail && (
-                <TaskDetailModal task={task} allTasks={allTasks} onClose={() => setShowDetail(false)} />
+                <TaskDetailModal task={task} allTasks={allTasks} onClose={() => setShowDetail(false)} lang={lang} />
             )}
         </div>
     );
@@ -329,7 +344,7 @@ const extractErrorMessage = (e) => {
 const emptyManualTask = () => ({
     title: '', title_ru: '', description: '', description_ru: '',
     required_level: 'Beginner', estimated_hours: 4,
-    acceptance_criteria_text: '', depends_on: [],
+    acceptance_criteria_text: '', acceptance_criteria_ru_text: '', files_text: '', depends_on: [],
 });
 
 // AI-disabled / /regenerate-exhausted fallback: lets the teacher author a
@@ -364,7 +379,9 @@ const ManualPlanForm = ({ team, onSubmit, onCancel, submitting, error }) => {
             title: t.title, title_ru: t.title_ru,
             description: t.description, description_ru: t.description_ru,
             required_level: t.required_level,
+            interface_contract: { files: t.files_text.split('\n').map(s => s.trim()).filter(Boolean) },
             acceptance_criteria: t.acceptance_criteria_text.split('\n').map(s => s.trim()).filter(Boolean),
+            acceptance_criteria_ru: t.acceptance_criteria_ru_text.split('\n').map(s => s.trim()).filter(Boolean),
             depends_on: t.depends_on,
             estimated_hours: Number(t.estimated_hours) || 4,
         })),
@@ -420,9 +437,19 @@ const ManualPlanForm = ({ team, onSubmit, onCancel, submitting, error }) => {
                                    onChange={e => updateTask(idx, { estimated_hours: e.target.value })} />
                         </label>
                         <label className="ttp-field">
+                            <span>Fayllar — vazifa yaratadigan/o'zgartiradigan fayl(lar) (har birini yangi qatordan, masalan src/pages/Login.jsx)</span>
+                            <textarea value={task.files_text}
+                                      onChange={e => updateTask(idx, { files_text: e.target.value })} />
+                        </label>
+                        <label className="ttp-field">
                             <span>Qabul mezonlari (har birini yangi qatordan)</span>
                             <textarea value={task.acceptance_criteria_text}
                                       onChange={e => updateTask(idx, { acceptance_criteria_text: e.target.value })} />
+                        </label>
+                        <label className="ttp-field">
+                            <span>Qabul mezonlari — rus tilida (har birini yangi qatordan, o'zbekchadagi tartibda)</span>
+                            <textarea value={task.acceptance_criteria_ru_text}
+                                      onChange={e => updateTask(idx, { acceptance_criteria_ru_text: e.target.value })} />
                         </label>
                         {team.members.length > 1 && (
                             <div className="ttd-depends-on">
@@ -463,21 +490,27 @@ const TeacherTeamProjectDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const { request } = useHttp();
+    const { lang } = useTranslation();
     const [tp, setTp] = useState(null);
     const [loading, setLoading] = useState(true);
     const [manualPlanTeamId, setManualPlanTeamId] = useState(null);
     const [manualPlanSubmitting, setManualPlanSubmitting] = useState(false);
     const [manualPlanError, setManualPlanError] = useState('');
     const [peerRatingsByTeam, setPeerRatingsByTeam] = useState({});
+    const [deleteError, setDeleteError] = useState('');
 
+    const loadedOnce = useRef(false);
     const reload = useCallback(async () => {
-        setLoading(true);
+        // Only the first load replaces the page with a spinner — later
+        // reloads refresh in place so an open form / typed text isn't lost.
+        if (!loadedOnce.current) setLoading(true);
         try {
             const data = await request(`${API_URL}v1/team-projects/${id}`, 'GET', null, headers());
             setTp(data);
         } catch {
-            setTp(null);
+            if (!loadedOnce.current) setTp(null);
         } finally {
+            loadedOnce.current = true;
             setLoading(false);
         }
     }, [request, id]);
@@ -534,10 +567,13 @@ const TeacherTeamProjectDetail = () => {
     useSessionSocket(id, null, null, handleProjectWsMessage, 'team-projects');
 
     const regenerate = async (teamId) => {
+        setDeleteError('');
         try {
             await request(`${API_URL}v1/team-projects/teams/${teamId}/regenerate`, 'POST', null, headers());
             await reload();
-        } catch {}
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e) || "Rejani qayta yaratib bo'lmadi");
+        }
     };
 
     const reassign = async (teamId, taskId, studentId) => {
@@ -547,7 +583,74 @@ const TeacherTeamProjectDetail = () => {
                 'POST', JSON.stringify({ student_id: studentId }), headers(),
             );
             await reload();
-        } catch {}
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e) || "Vazifani qayta tayinlab bo'lmadi");
+        }
+    };
+
+    const reviewTask = async (teamId, taskId, decision) => {
+        let comment = null;
+        if (decision === 'request_changes') {
+            comment = window.prompt("Talabaga izoh (nimani o'zgartirish kerak?):");
+            if (!comment || !comment.trim()) return;
+        } else if (!window.confirm('Bu vazifani tasdiqlaysizmi?')) {
+            return;
+        }
+        setDeleteError('');
+        try {
+            await request(
+                `${API_URL}v1/team-projects/teams/${teamId}/tasks/${taskId}/teacher-review`,
+                'POST', JSON.stringify({ decision, comment }), headers(),
+            );
+            await reload();
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e) || "Baholab bo'lmadi");
+        }
+    };
+
+    const extendDeadline = async (teamId) => {
+        const raw = window.prompt('Necha kunga uzaytiramiz? (1–90)', '3');
+        if (raw === null) return;
+        const days = parseInt(raw, 10);
+        if (!days || days < 1 || days > 90) {
+            setDeleteError('Kun soni 1 dan 90 gacha bo\'lishi kerak');
+            return;
+        }
+        setDeleteError('');
+        try {
+            await request(
+                `${API_URL}v1/team-projects/teams/${teamId}/extend-deadline`,
+                'POST', JSON.stringify({ days }), headers(),
+            );
+            await reload();
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e) || "Muddatni uzaytirib bo'lmadi");
+        }
+    };
+
+    const deleteTask = async (teamId, taskId) => {
+        if (!window.confirm("Bu vazifani o'chirishni tasdiqlaysizmi?")) return;
+        setDeleteError('');
+        try {
+            await request(
+                `${API_URL}v1/team-projects/teams/${teamId}/tasks/${taskId}`,
+                'DELETE', null, headers(),
+            );
+            await reload();
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e));
+        }
+    };
+
+    const deleteAllTasks = async (teamId) => {
+        if (!window.confirm("Bu jamoaning BARCHA vazifalarini o'chirishni tasdiqlaysizmi? Bu amalni qaytarib bo'lmaydi.")) return;
+        setDeleteError('');
+        try {
+            await request(`${API_URL}v1/team-projects/teams/${teamId}/tasks`, 'DELETE', null, headers());
+            await reload();
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e));
+        }
     };
 
     const submitManualPlan = async (teamId, body) => {
@@ -581,6 +684,8 @@ const TeacherTeamProjectDetail = () => {
                 </div>
                 <span className="ttp-muted">{STATUS_LABELS[tp.status] || tp.status}</span>
             </div>
+
+            {deleteError && <div className="ttp-error">{deleteError}</div>}
 
             {tp.teams.map(team => (
                 <div key={team.id} className="ttd-team-section">
@@ -665,11 +770,31 @@ const TeacherTeamProjectDetail = () => {
                         </p>
                     )}
 
+                    {team.tasks.length > 0 && (
+                        <button
+                            className="ttp-btn ttp-btn--ghost ttp-btn--sm ttd-delete-all-btn"
+                            onClick={() => deleteAllTasks(team.id)}
+                        >
+                            🗑️ Barcha vazifalarni o'chirish
+                        </button>
+                    )}
+                    {team.tasks.length > 0 && team.status !== 'submitted' && team.status !== 'reviewed' && (
+                        <button
+                            className="ttp-btn ttp-btn--ghost ttp-btn--sm"
+                            onClick={() => extendDeadline(team.id)}
+                        >
+                            ⏰ Muddatni uzaytirish
+                        </button>
+                    )}
+
                     <div className="ttd-tasks-grid">
                         {team.tasks.map(task => (
                             <TaskRow
                                 key={task.id} task={task} members={team.members} allTasks={team.tasks}
                                 onReassign={(taskId, studentId) => reassign(team.id, taskId, studentId)}
+                                onDelete={taskId => deleteTask(team.id, taskId)}
+                                onReview={(taskId, decision) => reviewTask(team.id, taskId, decision)}
+                                lang={lang}
                             />
                         ))}
                     </div>

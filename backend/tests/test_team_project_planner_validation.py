@@ -18,19 +18,21 @@ def _task(member_idx, required_level="Beginner", produces=None, consumes=None,
           depends_on=None, estimated_hours=4):
     return {
         "assign_to_member_index": member_idx,
-        "title": "t", "title_ru": "t",
+        "title": "t", "title_ru": "т",
         # Long/detailed enough to clear validate_plan's content-quality
-        # floor (MIN_DESCRIPTION_LEN/MIN_ACCEPTANCE_CRITERIA) — these tests
-        # exercise the structural checks, so the content fields just need
-        # to be "valid enough" to not also trip the content checks and
-        # muddy an assertion that's testing something else entirely.
+        # floor (MIN_DESCRIPTION_LEN/MIN_ACCEPTANCE_CRITERIA/bilingual
+        # checks) — these tests exercise the structural checks, so the
+        # content fields just need to be "valid enough" to not also trip
+        # the content checks and muddy an assertion that's testing
+        # something else entirely.
         "description": "This is a sufficiently detailed task description for tests.",
-        "description_ru": "d",
+        "description_ru": "Это достаточно подробное описание задачи для тестов.",
         "required_level": required_level,
         "interface_contract": {
             "files": ["src/Task.jsx"], "produces": produces or [], "consumes": consumes or [],
         },
         "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],
+        "acceptance_criteria_ru": ["Первый конкретный критерий", "Второй конкретный критерий"],
         "depends_on": depends_on or [],
         "estimated_hours": estimated_hours,
     }
@@ -149,6 +151,38 @@ def test_short_description_is_rejected():
     assert any("description too short" in e for e in errors)
 
 
+def test_missing_title_ru_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["title_ru"] = ""
+    errors = validate_plan(plan, members)
+    assert any("title_ru is missing/empty" in e for e in errors)
+
+
+def test_title_ru_identical_to_title_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["title_ru"] = plan["tasks"][0]["title"]
+    errors = validate_plan(plan, members)
+    assert any("title_ru is identical to title" in e for e in errors)
+
+
+def test_short_description_ru_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["description_ru"] = "too short"
+    errors = validate_plan(plan, members)
+    assert any("description_ru too short or missing" in e for e in errors)
+
+
+def test_description_ru_identical_to_description_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["description_ru"] = plan["tasks"][0]["description"]
+    errors = validate_plan(plan, members)
+    assert any("description_ru is identical to description" in e for e in errors)
+
+
 def test_empty_acceptance_criteria_is_rejected():
     members = _members("Beginner")
     plan = {"tasks": [_task(0)]}
@@ -190,3 +224,60 @@ def test_find_cycle_detects_three_node_cycle():
     assert cycle is not None
     # the cycle should revisit its own start
     assert cycle[0] == cycle[-1]
+
+
+def test_missing_acceptance_criteria_ru_is_rejected():
+    plan = {"tasks": [_task(0)]}
+    del plan["tasks"][0]["acceptance_criteria_ru"]
+    errors = validate_plan(plan, _members("Beginner"))
+    assert any("acceptance_criteria_ru must be a list" in e for e in errors)
+
+
+def test_acceptance_criteria_ru_length_mismatch_is_rejected():
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["acceptance_criteria_ru"] = ["Только один пункт"]
+    errors = validate_plan(plan, _members("Beginner"))
+    assert any("exactly as many entries" in e for e in errors)
+
+
+def test_acceptance_criteria_ru_copied_from_uz_is_rejected():
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["acceptance_criteria_ru"] = list(plan["tasks"][0]["acceptance_criteria"])
+    errors = validate_plan(plan, _members("Beginner"))
+    assert any("identical to the uz text" in e for e in errors)
+
+
+# ── deterministic repair of common AI slips (so a good plan isn't thrown away) ──
+
+from app.services.team_project_planner import _normalize_plan, _repair_task_fields  # noqa: E402
+
+
+def test_template_level_is_repaired_to_the_lowest_listed_valid_level():
+    task = _task(0)
+    task["required_level"] = "Advanced|Intermediate"
+    _repair_task_fields([task])
+    assert task["required_level"] == "Intermediate"
+
+
+def test_unrepairable_level_is_left_for_validation_to_reject():
+    task = _task(0)
+    task["required_level"] = "Expert"
+    _repair_task_fields([task])
+    assert task["required_level"] == "Expert"
+
+
+def test_invented_consumes_are_dropped_and_real_ones_kept_even_with_different_case():
+    a = _task(0, produces=["POST /api/login -> {token}"])
+    b = _task(1, consumes=["post /api/login  -> {token}", "user_id", "post_id"])
+    _repair_task_fields([a, b])
+    assert b["interface_contract"]["consumes"] == ["POST /api/login -> {token}"]
+
+
+def test_ai_plan_with_invented_consumes_and_template_level_now_validates():
+    members = _members("Beginner", "Intermediate", "Intermediate")
+    t0 = _task(0, "Beginner", produces=["feed list"])
+    t1 = _task(1, "Intermediate", consumes=["feed list", "user_id"])
+    t2 = _task(2, "Intermediate", consumes=["comment_text", "post_id"])
+    t2["required_level"] = "Advanced|Intermediate"
+    plan = _normalize_plan({"project_title": "X", "tasks": [t0, t1, t2]}, 3)
+    assert validate_plan(plan, members) == []

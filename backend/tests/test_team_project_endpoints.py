@@ -348,12 +348,14 @@ async def test_concurrent_regenerate_does_not_duplicate_tasks(
                 {
                     "title": f"Task {label} {i}", "title_ru": f"Задача {label} {i}",
                     # Detailed enough to clear validate_plan's content-quality
-                    # floor (MIN_DESCRIPTION_LEN/MIN_ACCEPTANCE_CRITERIA).
+                    # floor (MIN_DESCRIPTION_LEN/MIN_ACCEPTANCE_CRITERIA/
+                    # bilingual checks).
                     "description": f"Build task {label} {i} with a form and validation logic.",
-                    "description_ru": "о",
+                    "description_ru": f"Постройте задачу {label} {i} с формой и логикой валидации.",
                     "required_level": "Beginner", "assign_to_member_index": i,
                     "interface_contract": {"files": [f"src/Task{i}.jsx"], "produces": [], "consumes": []},
                     "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],
+                    "acceptance_criteria_ru": ["Первый конкретный критерий", "Второй конкретный критерий"],
                     "depends_on": [], "estimated_hours": 4,
                 }
                 for i in range(2)
@@ -547,3 +549,334 @@ async def test_review_task_submission_penalizes_unfetchable_repo(db_session, two
     assert result["success"] is True
     assert "o'qib bo'lmadi" in captured_prompt["value"]
     assert "404 not found" in captured_prompt["value"]
+
+
+# ── audit fixes: regenerate guard, failed-regenerate recovery, no duplicate plan ──
+
+def _plain_task(team_id, student_id, status=TaskStatus.assigned):
+    return TeamProjectTask(
+        team_id=team_id, assigned_student_id=student_id, order=0,
+        title="T", title_ru="Т", description="D", description_ru="О",
+        required_level="Beginner", interface_contract_json="{}",
+        acceptance_criteria_json="[]", depends_on_json="[]", estimated_hours=4,
+        status=status,
+    )
+
+
+async def test_regenerate_is_rejected_on_a_finalized_team(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    team = fx["teams"][0]
+    member = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().first()
+    team.status = TeamStatus.reviewed
+    db_session.add(_plain_task(team.id, member.student_id, TaskStatus.approved))
+    await db_session.commit()
+
+    resp = await async_client.post(f"{BASE}/teams/{team.id}/regenerate", headers=fx["teacher_headers"])
+    assert resp.status_code == 400, resp.text
+
+    remaining = (await db_session.execute(
+        select(TeamProjectTask).where(TeamProjectTask.team_id == team.id)
+    )).scalars().all()
+    assert len(remaining) == 1, "a finalized team's approved work must not be wiped"
+
+
+async def test_failed_regenerate_returns_team_to_forming_not_stranded_working(
+    async_client, db_session, two_teams_project,
+):
+    fx = two_teams_project
+    team = fx["teams"][0]
+    member = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().first()
+    team.status = TeamStatus.working
+    db_session.add(_plain_task(team.id, member.student_id))
+    await db_session.commit()
+
+    async def _ai_down(*args, **kwargs):
+        raise RuntimeError("provider down")
+
+    with patch("app.services.team_project_planner.call_chain", new=_ai_down):
+        resp = await async_client.post(f"{BASE}/teams/{team.id}/regenerate", headers=fx["teacher_headers"])
+    assert resp.status_code == 200, resp.text
+
+    await db_session.refresh(team)
+    assert team.status == TeamStatus.forming  # manual-plan fallback only accepts "forming"
+    left = (await db_session.execute(
+        select(TeamProjectTask).where(TeamProjectTask.team_id == team.id)
+    )).scalars().all()
+    assert left == []
+
+
+async def test_generate_plan_skips_a_team_that_already_has_tasks(db_session, two_teams_project):
+    from unittest.mock import AsyncMock
+    from app.services.team_project_planner import generate_plan_for_team
+
+    fx = two_teams_project
+    team = fx["teams"][0]
+    member = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().first()
+    db_session.add(_plain_task(team.id, member.student_id))
+    await db_session.commit()
+    attempts_before = team.generation_attempts
+
+    ai = AsyncMock()
+    with patch("app.services.team_project_planner.call_chain", new=ai):
+        await generate_plan_for_team(db_session, team.id)
+
+    ai.assert_not_awaited()
+    await db_session.refresh(team)
+    assert team.generation_attempts == attempts_before
+
+
+async def test_reassign_is_rejected_for_an_approved_task(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    team = fx["teams"][0]
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().all()
+    task = _plain_task(team.id, members[0].student_id, TaskStatus.approved)
+    db_session.add(task)
+    await db_session.commit()
+    await db_session.refresh(task)
+
+    resp = await async_client.post(
+        f"{BASE}/teams/{team.id}/tasks/{task.id}/reassign",
+        headers=fx["teacher_headers"], json={"student_id": members[1].student_id},
+    )
+    assert resp.status_code == 400, resp.text
+
+
+# ── teacher verdict, deadline enforcement/extension, stale review, dependency cleanup ──
+
+async def _other_teacher_headers(async_client) -> dict:
+    other_teacher_id, _ = await _register(async_client, "otherteacher")
+    from app.db.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as s:
+        t = (await s.execute(select(Student).where(Student.id == other_teacher_id))).scalar_one()
+        t.role = "teacher"
+        other_username = t.username
+        await s.commit()
+    return await _login_headers(async_client, other_username)
+
+
+async def _team_with_task(db_session, fx, status=TaskStatus.submitted, **task_kwargs):
+    team = fx["teams"][0]
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().all()
+    team.status = TeamStatus.working
+    task = _plain_task(team.id, members[0].student_id, status)
+    for k, v in task_kwargs.items():
+        setattr(task, k, v)
+    db_session.add(task)
+    await db_session.commit()
+    await db_session.refresh(task)
+    username = next(u for sid, u in zip(fx["student_ids"], fx["student_usernames"])
+                    if sid == members[0].student_id)
+    return team, task, fx["student_headers"][username]
+
+
+async def test_teacher_can_approve_a_submitted_task(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    team, task, _ = await _team_with_task(db_session, fx)
+    resp = await async_client.post(
+        f"{BASE}/teams/{team.id}/tasks/{task.id}/teacher-review",
+        headers=fx["teacher_headers"], json={"decision": "approve", "comment": "Zo'r"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "approved"
+    assert resp.json()["lead_comment"] == "Zo'r"
+
+
+async def test_teacher_request_changes_needs_a_comment(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    team, task, _ = await _team_with_task(db_session, fx)
+    url = f"{BASE}/teams/{team.id}/tasks/{task.id}/teacher-review"
+    bad = await async_client.post(url, headers=fx["teacher_headers"], json={"decision": "request_changes"})
+    assert bad.status_code == 400
+    ok = await async_client.post(
+        url, headers=fx["teacher_headers"], json={"decision": "request_changes", "comment": "Login ishlamaydi"})
+    assert ok.status_code == 200 and ok.json()["status"] == "changes_requested"
+
+
+async def test_teacher_review_rejects_other_teachers_students_and_bad_states(
+    async_client, db_session, two_teams_project,
+):
+    fx = two_teams_project
+    team, task, student_headers = await _team_with_task(db_session, fx)
+    url = f"{BASE}/teams/{team.id}/tasks/{task.id}/teacher-review"
+    body = {"decision": "approve"}
+    assert (await async_client.post(url, headers=student_headers, json=body)).status_code == 403
+    assert (await async_client.post(url, headers=await _other_teacher_headers(async_client), json=body)).status_code == 403
+
+    task.status = TaskStatus.assigned  # never submitted
+    await db_session.commit()
+    assert (await async_client.post(url, headers=fx["teacher_headers"], json=body)).status_code == 400
+
+    task.status = TaskStatus.approved  # already final
+    await db_session.commit()
+    assert (await async_client.post(url, headers=fx["teacher_headers"], json=body)).status_code == 400
+
+
+async def test_submit_after_deadline_is_rejected_until_teacher_extends(
+    async_client, db_session, two_teams_project,
+):
+    from datetime import timedelta
+    from app.utils.datetime_utils import utcnow
+    fx = two_teams_project
+    team, task, student_headers = await _team_with_task(
+        db_session, fx, status=TaskStatus.assigned, deadline_at=utcnow() - timedelta(days=1))
+    submit_url = f"{BASE}/teams/{team.id}/tasks/{task.id}/submit"
+    payload = {"submission_url": "https://github.com/acme/repo"}
+    review = AsyncMock(return_value={"success": False, "reason": "skipped"})
+
+    with patch("app.api.v1.endpoints.team_project.review_task_submission", new=review):
+        late = await async_client.post(submit_url, json=payload, headers=student_headers)
+        assert late.status_code == 400, late.text
+
+        ext = await async_client.post(
+            f"{BASE}/teams/{team.id}/extend-deadline", json={"days": 3}, headers=fx["teacher_headers"])
+        assert ext.status_code == 200 and ext.json()["extended_tasks"] == 1
+
+        ok = await async_client.post(submit_url, json=payload, headers=student_headers)
+        assert ok.status_code == 200, ok.text
+
+
+async def test_extend_deadline_rejects_other_teachers_and_bad_days(
+    async_client, db_session, two_teams_project,
+):
+    fx = two_teams_project
+    team, _, _ = await _team_with_task(db_session, fx)
+    url = f"{BASE}/teams/{team.id}/extend-deadline"
+    assert (await async_client.post(url, json={"days": 3}, headers=await _other_teacher_headers(async_client))).status_code == 403
+    assert (await async_client.post(url, json={"days": 0}, headers=fx["teacher_headers"])).status_code == 422
+
+
+async def test_stale_ai_review_does_not_overwrite_a_teacher_verdict(db_session, two_teams_project):
+    """The AI call is slow; if the teacher decides meanwhile, the late AI
+    result must be dropped, not clobber the verdict."""
+    from app.services import team_project_task_review as module
+    fx = two_teams_project
+    team, task, _ = await _team_with_task(
+        db_session, fx, status=TaskStatus.submitted, submission_url="https://github.com/acme/repo")
+
+    async def _slow_ai(*args, **kwargs):
+        task.status = TaskStatus.approved          # teacher approves during the AI call
+        task.lead_comment = "teacher said so"
+        await db_session.commit()
+        return "raw", {"score": 20, "approved": False}, "mock", 1
+
+    with patch.object(module, "fetch_github_snapshot",
+                      new=AsyncMock(return_value={"exists": True, "content_text": "x"})), \
+         patch.object(module, "call_chain", new=_slow_ai):
+        result = await review_task_submission(db_session, task.id)
+
+    assert result["success"] is False
+    await db_session.refresh(task)
+    assert task.status == TaskStatus.approved and task.lead_comment == "teacher said so"
+
+
+async def test_deleting_a_task_removes_it_from_siblings_depends_on(
+    async_client, db_session, two_teams_project,
+):
+    import json as _json
+    fx = two_teams_project
+    team = fx["teams"][0]
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().all()
+    team.status = TeamStatus.working
+    first = _plain_task(team.id, members[0].student_id)
+    second = _plain_task(team.id, members[1].student_id)
+    second.order = 1
+    second.depends_on_json = _json.dumps([0])
+    db_session.add_all([first, second])
+    await db_session.commit()
+    await db_session.refresh(first)
+    await db_session.refresh(second)
+
+    resp = await async_client.delete(
+        f"{BASE}/teams/{team.id}/tasks/{first.id}", headers=fx["teacher_headers"])
+    assert resp.status_code == 204, resp.text
+    await db_session.refresh(second)
+    assert _json.loads(second.depends_on_json) == []
+
+
+# ── plan generation: auto-repair + one AI repair round ──
+
+def _generated_plan(member_count, *, broken=False):
+    tasks = [
+        {
+            "title": f"Task {i}", "title_ru": f"Задача {i}",
+            "description": f"Build task number {i} with a form and validation logic.",
+            "description_ru": f"Постройте задачу номер {i} с формой и логикой валидации.",
+            "required_level": "Beginner", "assign_to_member_index": i,
+            "interface_contract": {"files": [f"src/Task{i}.jsx"], "produces": [], "consumes": []},
+            "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],
+            "acceptance_criteria_ru": ["Первый конкретный критерий", "Второй конкретный критерий"],
+            "depends_on": [], "estimated_hours": 4,
+        }
+        for i in range(member_count)
+    ]
+    if broken:
+        tasks.pop()   # wrong task count: not something deterministic repair can fix
+    return {"project_title": "Loyiha", "project_description": "desc", "tasks": tasks}
+
+
+async def _fresh_team(db_session, fx):
+    team = fx["teams"][0]
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().all()
+    return team, len(members)
+
+
+async def test_generation_with_a_wrong_task_count_is_repaired_by_a_second_ai_call(
+    db_session, two_teams_project,
+):
+    from app.services.team_project_planner import generate_plan_for_team
+    fx = two_teams_project
+    team, n = await _fresh_team(db_session, fx)
+    calls = []
+
+    async def _ai(prompt, max_tokens=2000, validator=None):
+        calls.append(prompt)
+        return "raw", _generated_plan(n, broken=len(calls) == 1), "mock", 1
+
+    with patch("app.services.team_project_planner.call_chain", new=_ai):
+        await generate_plan_for_team(db_session, team.id)
+
+    assert len(calls) == 2
+    assert "XATOLAR" in calls[1] and "Expected" in calls[1]     # the errors were shown to the model
+    await db_session.refresh(team)
+    assert team.generation_attempts == 1                          # one attempt, not two
+    tasks = (await db_session.execute(
+        select(TeamProjectTask).where(TeamProjectTask.team_id == team.id))).scalars().all()
+    assert len(tasks) == n
+
+
+async def test_valid_first_response_makes_a_single_ai_call(db_session, two_teams_project):
+    from app.services.team_project_planner import generate_plan_for_team
+    fx = two_teams_project
+    team, n = await _fresh_team(db_session, fx)
+    ai = AsyncMock(return_value=("raw", _generated_plan(n), "mock", 1))
+    with patch("app.services.team_project_planner.call_chain", new=ai):
+        await generate_plan_for_team(db_session, team.id)
+    assert ai.await_count == 1
+
+
+async def test_still_invalid_after_the_repair_round_fails_and_returns_team_to_forming(
+    db_session, two_teams_project,
+):
+    from app.services.team_project_planner import generate_plan_for_team
+    fx = two_teams_project
+    team, n = await _fresh_team(db_session, fx)
+    ai = AsyncMock(return_value=("raw", _generated_plan(n, broken=True), "mock", 1))
+    with patch("app.services.team_project_planner.call_chain", new=ai):
+        await generate_plan_for_team(db_session, team.id)
+    assert ai.await_count == 2
+    await db_session.refresh(team)
+    assert team.status == TeamStatus.forming and team.generation_attempts == 1

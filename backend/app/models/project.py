@@ -36,6 +36,10 @@ class Project(Base):
     keystroke_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     paste_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     code_explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # sha256 of the whitespace/path-normalized submitted code (see
+    # integrity_check.content_fingerprint) — lets a later submission be
+    # matched against other students' work. Not exposed through any schema.
+    content_fingerprint: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
 
     submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -51,6 +55,24 @@ class Project(Base):
         "Lesson",
         back_populates="project"
     )
+
+
+class ProjectViolation(Base):
+    """One row per submission-rule violation (see services/submission_violations.py).
+    The newest row for a student is also what bans them from submitting for
+    BAN_DURATION, so no separate "banned until" column can drift out of sync."""
+    __tablename__ = "project_violations"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    project_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True,
+    )
+    code: Mapped[str] = mapped_column(String(40), nullable=False)
+    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
 class ProjectLike(Base):

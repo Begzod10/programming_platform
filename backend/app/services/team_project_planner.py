@@ -9,11 +9,12 @@ TeamProjectTask rows. Reuses the same provider-fallback client
 HTTP/provider code here.
 """
 import json
+import re
 import logging
 from datetime import timedelta
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -64,14 +65,17 @@ TALABLAR:
 - Loyiha kichik va 1-2 haftada tugatsa bo'ladigan darajada bo'lsin.
 - Har bir vazifa aniq bir fayl/sahifa/komponentga tegishli bo'lsin (masalan "login sahifasi", "navbar", "profil kartasi"), shunda a'zolar bir-birining ishiga deyarli tegmasdan parallel ishlay oladi.
 - Vazifalar sonini jamoa a'zolari soniga TENG qil — har bir a'zoga (jumladan eng kuchli a'zoga ham) bittadan vazifa. `assign_to_member_index` qiymatlari 0 dan {len(members_summary) - 1} gacha bo'lgan har bir indeksni ANIQ BIR MARTA ishlatishi SHART (takrorlanmasligi va hech biri tashlab ketilmasligi kerak).
+- Har bir a'zoning HOZIRGI yo'nalishiga mos qism ber: a'zo xulosasida "CURRENT FOCUS" yoki "Current technologies" yozilgan bo'lsa, vazifa shu texnologiyada bo'lsin (masalan JavaScript o'rganayotgan a'zoga frontend/JS qismi). "Earlier (not recently practiced)" ro'yxatidagi texnologiyalar bo'yicha murakkab vazifa BERMA — a'zo ularni yaqinda mashq qilmagan.
 - `required_level` har doim shu vazifaga tayinlangan a'zoning darajasidan OSHMASLIGI kerak (masalan Beginner a'zoga Advanced vazifa berilmaydi).
 - `depends_on` — bu vazifa ro'yxatidagi BOSHQA vazifalarning 0-dan boshlanuvchi INDEKSLARI (ro'yxatdagi o'rni), boshqa hech narsa emas. O'z-o'ziga bog'liqlik va aylanma bog'liqlik (A→B→A) bo'lmasin.
 - `interface_contract.consumes` dagi har bir yozuv boshqa BIRON BIR vazifaning `interface_contract.produces` yozuvi bilan SO'ZMA-SO'Z (aynan) bir xil bo'lishi SHART — shu matnni aynan ko'chirib yoz, qayta ifodalab yozma.
 - `description` bir jumlali umumiy gap bo'lmasin — o'quvchi hech kimdan so'ramasdan ishni boshlay oladigan darajada aniq yoz (kamida {MIN_DESCRIPTION_LEN} belgi).
 - `acceptance_criteria` kamida {MIN_ACCEPTANCE_CRITERIA} ta ANIQ, tekshirib bo'ladigan band bo'lsin (masalan "Login formasi noto'g'ri parolda xato xabar ko'rsatadi" — "Yaxshi ishlaydi" kabi umumiy gap emas).
 - `interface_contract.files` bo'sh bo'lmasin — vazifa natijasida yaratiladigan/o'zgartiriladigan haqiqiy fayl(lar) nomini yoz (masalan "src/components/LoginForm.jsx").
+- `acceptance_criteria_ru` — `acceptance_criteria` ro'yxatining XUDDI SHU TARTIBDAGI va XUDDI SHU SONDAGI tabiiy rus tilidagi tarjimasi (har bir band uchun bitta rus bandi). Bo'sh yoki o'zbekcha qoldirish TAQIQLANADI.
+- `title_ru` va `description_ru` — `title`/`description`ning so'zma-so'z tarjimasi emas, lekin XUDDI SHU ma'noni beruvchi TABIIY, TO'LIQ rus tilidagi matn bo'lishi SHART. Bo'sh qoldirish yoki `title`/`description` bilan bir xil (o'zbekcha) matnni qaytarish QATʼIYAN TAQIQLANADI — ba'zi o'quvchilar faqat rus tilini tushunadi va bu maydonlarsiz ular vazifani tushuna olmaydi.
 
-JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma (quyidagi bitta vazifa TO'LIQ, YETARLI misol — shu darajada aniq yoz):
+JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma (quyidagi bitta vazifa TO'LIQ, YETARLI misol — shu darajada aniq yoz, RUSCHA maydonlar ham xuddi shunday to'liq bo'lsin):
 {{
   "project_title": "...",
   "project_description": "...",
@@ -80,10 +84,11 @@ JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma (quyidagi bitta v
       "assign_to_member_index": 0,
       "title": "Login sahifasi", "title_ru": "Страница входа",
       "description": "Foydalanuvchi nomi va parol maydonlari bo'lgan login formasi yasang. Muvaffaqiyatli kirishda /dashboard sahifasiga yo'naltiring, xato bo'lsa forma ustida qizil xato xabari chiqsin.",
-      "description_ru": "...",
+      "description_ru": "Создайте форму входа с полями имени пользователя и пароля. При успешном входе перенаправляйте на страницу /dashboard, при ошибке показывайте красное сообщение об ошибке над формой.",
       "required_level": "Beginner|Intermediate|Advanced",
       "interface_contract": {{"files": ["src/pages/Login.jsx"], "produces": ["auth_token in localStorage"], "consumes": []}},
       "acceptance_criteria": ["To'g'ri login/parolda /dashboard'ga yo'naltiradi", "Noto'g'ri parolda forma ustida xato xabari chiqadi", "Bo'sh maydon bilan yuborib bo'lmaydi"],
+      "acceptance_criteria_ru": ["При верном логине и пароле перенаправляет на /dashboard", "При неверном пароле над формой показывается сообщение об ошибке", "Нельзя отправить форму с пустым полем"],
       "depends_on": [],
       "estimated_hours": 4
     }}
@@ -138,11 +143,34 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
     stack = TECH_STACKS_BY_KEY.get(team.tech_stack, {"frontend": team.tech_stack, "backend": ""})
     prompt = _build_plan_prompt(theme.get("label", team.theme), stack, members_summary)
 
+    # A plan already exists (e.g. the teacher saved a manual plan or another
+    # generation finished while this one was queued) — never materialize a
+    # second set of tasks next to it. Regenerate deletes the old tasks and
+    # flushes before calling in, so it sees none here.
+    existing_tasks = (await db.execute(
+        select(func.count()).select_from(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
+    )).scalar_one()
+    if existing_tasks:
+        return
+
     team.generation_attempts += 1
     try:
-        _, parsed, provider, attempts = await call_chain(prompt, max_tokens=2000, validator=parse_ai_json)
+        # Bilingual tasks (title/description/criteria in uz AND ru, Cyrillic
+        # tokenizes expensively) need ~1k tokens each — 2000 total truncated
+        # the JSON for larger teams, failing every attempt deterministically.
+        plan_tokens = min(8000, 900 * len(members_summary) + 600)
+        _, parsed, provider, attempts = await call_chain(prompt, max_tokens=plan_tokens, validator=parse_ai_json)
         plan = _normalize_plan(parsed, len(members_summary))
         plan_errors = validate_plan(plan, members_summary)
+        if plan_errors:
+            # One automatic repair round: show the model exactly what failed.
+            # Previously a single invalid response burned one of the teacher's
+            # 3 attempts, and the same kind of mistake tends to repeat.
+            repair_prompt = _build_repair_prompt(prompt, parsed, plan_errors)
+            _, parsed, provider, attempts = await call_chain(
+                repair_prompt, max_tokens=plan_tokens, validator=parse_ai_json)
+            plan = _normalize_plan(parsed, len(members_summary))
+            plan_errors = validate_plan(plan, members_summary)
         if plan_errors:
             raise ValueError("; ".join(plan_errors))
     except Exception as e:
@@ -152,6 +180,15 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
             event_type="plan_generation_failed",
             payload_json=json.dumps({"error": str(e)}),
         ))
+        # A regenerate deletes the old tasks before generating; if generation
+        # then fails, the team must not stay "working" with zero tasks — the
+        # manual-plan fallback only accepts a "forming" team.
+        if team.status == TeamStatus.working:
+            remaining = (await db.execute(
+                select(func.count()).select_from(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
+            )).scalar_one()
+            if remaining == 0:
+                team.status = TeamStatus.forming
         await db.commit()
         # Local import: avoids a module-load cycle (team_project.py already
         # imports generate_plan_for_team from this module at top level).
@@ -188,6 +225,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
                 required_level=task.get("required_level", "Beginner"),
                 interface_contract_json=json.dumps(task.get("interface_contract", {})),
                 acceptance_criteria_json=json.dumps(task.get("acceptance_criteria", [])),
+                acceptance_criteria_ru_json=json.dumps(task.get("acceptance_criteria_ru", [])),
                 depends_on_json=json.dumps(task.get("depends_on", [])),
                 estimated_hours=int(task.get("estimated_hours", 4)),
                 deadline_at=deadline_at,
@@ -299,6 +337,30 @@ def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:
                 f"{MIN_DESCRIPTION_LEN} chars of real detail, not a placeholder)."
             )
 
+        # Bilingual floor — some students only read Russian, so a task
+        # with a real Uzbek description but an empty/missing/copied
+        # title_ru or description_ru is just as unusable to them as one
+        # with no description at all. Without this, generate_plan_for_team
+        # used to silently fall back title_ru/description_ru to the Uzbek
+        # text whenever the AI skipped them (`task.get("title_ru") or
+        # task["title"]`), so a "successfully generated" plan could still
+        # be 100% Uzbek under a field that looks like it's the Russian one.
+        title = task.get("title")
+        title_ru = task.get("title_ru")
+        if not isinstance(title_ru, str) or not title_ru.strip():
+            errors.append(f"Task {idx}: title_ru is missing/empty.")
+        elif isinstance(title, str) and title_ru.strip().lower() == title.strip().lower():
+            errors.append(f"Task {idx}: title_ru is identical to title (not actually translated).")
+
+        description_ru = task.get("description_ru")
+        if not isinstance(description_ru, str) or len(description_ru.strip()) < MIN_DESCRIPTION_LEN:
+            errors.append(
+                f"Task {idx}: description_ru too short or missing (must be at least "
+                f"{MIN_DESCRIPTION_LEN} chars of real Russian detail, not a placeholder)."
+            )
+        elif isinstance(description, str) and description_ru.strip().lower() == description.strip().lower():
+            errors.append(f"Task {idx}: description_ru is identical to description (not actually translated).")
+
         acceptance_criteria = task.get("acceptance_criteria")
         if not isinstance(acceptance_criteria, list) or len(
             [c for c in acceptance_criteria if isinstance(c, str) and c.strip()]
@@ -307,6 +369,22 @@ def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:
                 f"Task {idx}: acceptance_criteria must have at least "
                 f"{MIN_ACCEPTANCE_CRITERIA} concrete, non-empty entries."
             )
+
+        criteria_ru = task.get("acceptance_criteria_ru")
+        if not isinstance(criteria_ru, list) or not all(
+            isinstance(c, str) and c.strip() for c in criteria_ru
+        ):
+            errors.append(f"Task {idx}: acceptance_criteria_ru must be a list of non-empty Russian strings.")
+        elif isinstance(acceptance_criteria, list) and len(criteria_ru) != len(acceptance_criteria):
+            errors.append(
+                f"Task {idx}: acceptance_criteria_ru must have exactly as many entries as "
+                f"acceptance_criteria ({len(acceptance_criteria)}), got {len(criteria_ru)}."
+            )
+        elif isinstance(acceptance_criteria, list) and any(
+            ru.strip().lower() == uz.strip().lower()
+            for ru, uz in zip(criteria_ru, acceptance_criteria) if isinstance(uz, str)
+        ):
+            errors.append(f"Task {idx}: acceptance_criteria_ru has entries identical to the uz text (not translated).")
 
         contract = task.get("interface_contract") or {}
         if not (contract.get("files") and any(isinstance(f, str) and f.strip() for f in contract["files"])):
@@ -393,12 +471,65 @@ def _deadline_days_for(team: TeamProjectTeam) -> int:
     return tp.deadline_days if tp is not None else 14
 
 
+def _norm_key(text) -> str:
+    return " ".join(str(text).lower().split())
+
+
+def _repair_task_fields(tasks: list) -> None:
+    """Fix the two things the model gets wrong most often, in place, so a good
+    plan isn't thrown away (and an attempt burned) over them:
+      * required_level copied from the prompt's template ("Advanced|Intermediate")
+        -> the LOWEST listed valid level;
+      * `consumes` entries no other task produces (invented names like
+        "user_id") -> matched case/whitespace-insensitively to a real `produces`
+        string, otherwise dropped (it was a made-up dependency)."""
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        level = task.get("required_level")
+        if isinstance(level, str) and level not in LEVEL_RANK:
+            listed = [t.strip() for t in re.split(r"[|/,]", level) if t.strip() in LEVEL_RANK]
+            if listed:
+                task["required_level"] = min(listed, key=lambda t: LEVEL_RANK[t])
+
+    produced = []
+    for i, task in enumerate(tasks):
+        contract = task.get("interface_contract") if isinstance(task, dict) else None
+        produced.append([p for p in (contract or {}).get("produces") or [] if isinstance(p, str)])
+    for i, task in enumerate(tasks):
+        contract = task.get("interface_contract") if isinstance(task, dict) else None
+        if not isinstance(contract, dict) or not isinstance(contract.get("consumes"), list):
+            continue
+        others = {_norm_key(p): p for j, items in enumerate(produced) if j != i for p in items}
+        kept = []
+        for c in contract["consumes"]:
+            if isinstance(c, str) and _norm_key(c) in others:
+                kept.append(others[_norm_key(c)])
+        contract["consumes"] = kept
+
+
+def _build_repair_prompt(original_prompt: str, previous: Optional[dict], errors: list[str]) -> str:
+    shown = json.dumps(previous, ensure_ascii=False)[:6000] if previous else "(yo'q)"
+    problems = "\n".join(f"- {e}" for e in errors[:15])
+    return (
+        f"{original_prompt}\n\n"
+        "DIQQAT: avvalgi javobingizda quyidagi XATOLAR topildi:\n"
+        f"{problems}\n\n"
+        f"Avvalgi javobingiz:\n{shown}\n\n"
+        "Shu xatolarni tuzatib, TO'LIQ va to'g'ri JSONni qaytaring (faqat JSON). "
+        "`required_level` faqat bitta so'z bo'lsin: Beginner, Intermediate yoki Advanced. "
+        "`consumes` ga faqat boshqa vazifaning `produces` ida aynan shunday yozilgan matnni qo'ying "
+        "yoki bo'sh qoldiring."
+    )
+
+
 def _normalize_plan(parsed: Optional[dict], member_count: int) -> dict:
     if not parsed or not isinstance(parsed, dict):
         raise ValueError("AI did not return a usable plan")
     tasks = parsed.get("tasks")
     if not isinstance(tasks, list) or not tasks:
         raise ValueError("AI plan has no tasks")
+    _repair_task_fields(tasks)
     return {
         "project_title": str(parsed.get("project_title") or "Jamoaviy loyiha")[:300],
         "project_description": str(parsed.get("project_description") or ""),

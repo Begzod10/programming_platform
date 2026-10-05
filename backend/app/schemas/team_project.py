@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import List, Optional, Dict
+from typing import List, Literal, Optional, Dict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -54,8 +54,8 @@ class SkillProfile(BaseModel):
 class TeamProjectCreate(BaseModel):
     group_id: int
     course_id: Optional[int] = None
-    team_size: int = 4
-    deadline_days: int = 14
+    team_size: int = Field(default=4, ge=1, le=10)
+    deadline_days: int = Field(default=14, ge=1, le=365)
     # Explicit roster the teacher picked, NOT necessarily group_id's full
     # membership — lets a teacher exclude a student who won't be
     # participating, or pull students in from another of their groups.
@@ -64,6 +64,17 @@ class TeamProjectCreate(BaseModel):
     # team; every id here must belong to one of the teacher's own groups
     # or flows (validated in create_team_project), not just this one.
     student_ids: List[int] = Field(min_length=2)
+
+
+class TeacherReviewBody(BaseModel):
+    """A teacher's own verdict on a submitted task, overriding/standing in for
+    the AI review (e.g. when the AI is off, down, or got it wrong)."""
+    decision: Literal["approve", "request_changes"]
+    comment: Optional[str] = Field(default=None, max_length=2000)
+
+
+class ExtendDeadlineBody(BaseModel):
+    days: int = Field(ge=1, le=90)
 
 
 class TaskRead(BaseModel):
@@ -76,6 +87,7 @@ class TaskRead(BaseModel):
     required_level: str
     interface_contract: dict
     acceptance_criteria: List[str]
+    acceptance_criteria_ru: List[str] = []
     depends_on: List[int]
     estimated_hours: int
     status: str
@@ -84,6 +96,7 @@ class TaskRead(BaseModel):
     submission_url: Optional[str] = None
     ai_score: Optional[int] = None
     ai_feedback: Optional[dict] = None
+    lead_comment: Optional[str] = None
     deadline_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -211,6 +224,7 @@ class ManualTaskItem(BaseModel):
     required_level: str
     interface_contract: dict = {}
     acceptance_criteria: List[str] = []
+    acceptance_criteria_ru: List[str] = []
     # 0-based indices into THIS tasks list — same contract as the AI
     # planner's depends_on (see TeamProjectTask.depends_on_json).
     depends_on: List[int] = []

@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { isStuckWithNoManualPlan } from './isStuckWithNoManualPlan';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { pickLang } from '../../../utils/pickLang';
 import './TeacherTeamProjects.css';
 
 // Deterministic pastel-on-dark avatar color, picked from the name so the
@@ -253,7 +255,7 @@ const STATUS_LABELS = {
     submitted: 'Topshirilgan', reviewed: 'Baholangan', active: 'Faol',
 };
 
-const TeamCard = ({ team, onRegenerate, onOpen, showName = true }) => (
+const TeamCard = ({ team, onRegenerate, onOpen, showName = true, lang }) => (
     <div className="ttp-team-card" onClick={() => onOpen()}>
         <div className="ttp-team-head">
             {/* A project with only one team has nothing to distinguish it
@@ -287,7 +289,7 @@ const TeamCard = ({ team, onRegenerate, onOpen, showName = true }) => (
                 {team.tasks.map(t => (
                     <li key={t.id}>
                         <span className={`ttp-task-dot ttp-task-dot--${t.status}`} />
-                        {t.title} — <em>{t.assigned_student_name}</em>
+                        {pickLang(t, 'title', lang)} — <em>{t.assigned_student_name}</em>
                     </li>
                 ))}
             </ul>
@@ -306,6 +308,7 @@ const TeamCard = ({ team, onRegenerate, onOpen, showName = true }) => (
 const TeacherTeamProjects = () => {
     const navigate = useNavigate();
     const { request } = useHttp();
+    const { lang } = useTranslation();
     const [assignments, setAssignments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
@@ -358,6 +361,7 @@ const TeacherTeamProjects = () => {
                                     key={team.id} team={team} onRegenerate={regenerate}
                                     onOpen={() => navigate(`/teacher/team-projects/${tp.id}`)}
                                     showName={tp.teams.length > 1}
+                                    lang={lang}
                                 />
                             ))}
                         </div>

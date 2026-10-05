@@ -23,7 +23,8 @@ from fastapi.responses import FileResponse
 from app.services.grok_service import analyze_project_with_grok
 from app.services.lesson_context_resolver import load_lesson_context_for_project
 from app.services.ai_review_service import run_ai_review_for_project
-from app.services.github_repo_service import zip_bytes_have_code_file
+from app.services.github_repo_service import zip_bytes_have_code_file, zip_plain_text_only_names
+from app.services.integrity_check import PLAIN_TEXT_UPLOAD_MESSAGE
 from app.services.submission_cooldown import enforce_submission_cooldown
 
 import uuid
@@ -198,6 +199,12 @@ async def upload_project_zip(
     # that just wraps a nested .rar/.png). Without this, the project gets
     # created as "Submitted" and stays stuck there forever, since the AI
     # pipeline runs with raise_on_error=False and never surfaces why.
+    txt_only = zip_plain_text_only_names(contents)
+    if txt_only:
+        raise HTTPException(
+            status_code=400,
+            detail=PLAIN_TEXT_UPLOAD_MESSAGE.format(files=", ".join(txt_only[:5])),
+        )
     if not zip_bytes_have_code_file(contents):
         raise HTTPException(
             status_code=400,
@@ -653,6 +660,12 @@ async def upload_project_zip_by_id(
     # Same fail-fast gate as upload_project_zip — reject a ZIP with no
     # readable code file immediately instead of letting it get stuck in
     # "Submitted" after a silent AI-review failure.
+    txt_only = zip_plain_text_only_names(contents)
+    if txt_only:
+        raise HTTPException(
+            status_code=400,
+            detail=PLAIN_TEXT_UPLOAD_MESSAGE.format(files=", ".join(txt_only[:5])),
+        )
     if not zip_bytes_have_code_file(contents):
         raise HTTPException(
             status_code=400,

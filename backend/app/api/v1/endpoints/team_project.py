@@ -3,14 +3,14 @@ import json
 import logging
 import uuid
 from collections import defaultdict
-from datetime import timedelta
+from datetime import timedelta, timezone
 from typing import Optional
 
 from fastapi import (
     APIRouter, Depends, File, HTTPException, Query, UploadFile,
     WebSocket, WebSocketDisconnect, status,
 )
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -29,13 +29,15 @@ from app.schemas.team_project import (
     TeamProjectCreate, TeamProjectRead, TeamRead, TaskRead, MemberRead,
     MyTeamProjectRead, TaskSubmitBody, ReassignBody, FinalizeBody, PeerRatingItem,
     PeerRatingRead, MyPeerRatingRead, TeamEventRead, ManualPlanBody,
+    TeacherReviewBody, ExtendDeadlineBody,
 )
 from app.services.team_project_service import create_team_project
 from app.services.team_project_planner import generate_plan_for_team, validate_plan, MAX_GENERATION_ATTEMPTS
 from app.services.team_project_task_review import review_task_submission
 from app.services.team_project_constants import THEMES_BY_KEY, TECH_STACKS_BY_KEY
 from app.services.project_service import ProjectService
-from app.services.github_repo_service import zip_bytes_have_code_file
+from app.services.github_repo_service import parse_github_url, zip_bytes_have_code_file, zip_plain_text_only_names
+from app.services.integrity_check import PLAIN_TEXT_UPLOAD_MESSAGE
 from app.schemas.project import ProjectCreate
 from app.utils.datetime_utils import utcnow
 from app.ws.manager import team_ws_manager, team_project_ws_manager
@@ -81,6 +83,7 @@ def _task_read(task: TeamProjectTask) -> TaskRead:
         required_level=task.required_level,
         interface_contract=json.loads(task.interface_contract_json or "{}"),
         acceptance_criteria=json.loads(task.acceptance_criteria_json or "[]"),
+        acceptance_criteria_ru=json.loads(task.acceptance_criteria_ru_json or "[]"),
         depends_on=json.loads(task.depends_on_json or "[]"),
         estimated_hours=task.estimated_hours, status=task.status.value,
         assigned_student_id=task.assigned_student_id,
@@ -91,6 +94,7 @@ def _task_read(task: TeamProjectTask) -> TaskRead:
         submission_url=task.submission_url,
         ai_score=task.ai_score,
         ai_feedback=json.loads(task.ai_feedback_json) if task.ai_feedback_json else None,
+        lead_comment=task.lead_comment,
         deadline_at=task.deadline_at,
     )
 
@@ -419,6 +423,7 @@ async def my_team_projects(
         select(TeamProject)
         .where(TeamProject.id.in_(team_project_ids))
         .options(*_team_load_options())
+        .order_by(TeamProject.id.desc())
     )).unique().scalars().all()
 
     out = []
@@ -479,6 +484,7 @@ async def regenerate_team_plan(
             raise HTTPException(status_code=404, detail="Jamoa topilmadi")
         if team.team_project.teacher_id != teacher.id:
             raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+        _guard_team_not_finalized(team)
         if team.generation_attempts >= MAX_GENERATION_ATTEMPTS:
             raise HTTPException(status_code=400, detail="Urinishlar soni tugadi (3/3)")
 
@@ -489,6 +495,12 @@ async def regenerate_team_plan(
         )).scalars().all()
         for t in old_tasks:
             await db.delete(t)
+        if old_tasks:
+            db.add(TeamProjectEvent(
+                team_project_id=team.team_project_id, team_id=team_id,
+                actor_student_id=teacher.id, event_type="plan_regenerated",
+                payload_json=json.dumps({"deleted_tasks": len(old_tasks)}),
+            ))
         await db.flush()
 
         await generate_plan_for_team(db, team_id)
@@ -578,6 +590,7 @@ async def create_manual_plan(
             required_level=task.required_level,
             interface_contract_json=json.dumps(task.interface_contract),
             acceptance_criteria_json=json.dumps(task.acceptance_criteria),
+            acceptance_criteria_ru_json=json.dumps(task.acceptance_criteria_ru),
             depends_on_json=json.dumps(task.depends_on),
             estimated_hours=task.estimated_hours,
             deadline_at=deadline_at,
@@ -625,6 +638,20 @@ async def upload_task_zip(
     if task.assigned_student_id != student.id:
         raise HTTPException(status_code=403, detail="Bu vazifa sizga tegishli emas")
 
+    # Same state rules as /submit — don't store a file the submit would reject
+    # (every rejected upload leaves an orphan file on disk).
+    team = (await db.execute(
+        select(TeamProjectTeam).where(TeamProjectTeam.id == team_id)
+    )).scalar_one()
+    _guard_team_not_finalized(team)
+    if task.status == TaskStatus.approved:
+        raise HTTPException(status_code=400, detail="Bu vazifa allaqachon tasdiqlangan")
+    if _is_past(task.deadline_at):
+        raise HTTPException(
+            status_code=400,
+            detail="Topshirish muddati tugagan. O'qituvchingizdan muddatni uzaytirishni so'rang",
+        )
+
     allowed_types = ["application/zip", "application/x-zip-compressed", "application/octet-stream"]
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="Faqat ZIP fayl!")
@@ -647,6 +674,12 @@ async def upload_task_zip(
     # only ever fail AI review later (a ZIP that's just images/binaries),
     # rather than letting the task sit "submitted" forever with no code to
     # actually review.
+    txt_only = zip_plain_text_only_names(contents)
+    if txt_only:
+        raise HTTPException(
+            status_code=400,
+            detail=PLAIN_TEXT_UPLOAD_MESSAGE.format(files=", ".join(txt_only[:5])),
+        )
     if not zip_bytes_have_code_file(contents):
         raise HTTPException(
             status_code=400,
@@ -682,10 +715,39 @@ async def submit_task(
     if not body.submission_url and not body.submission_files:
         raise HTTPException(status_code=400, detail="Havola yoki fayl kerak")
 
+    team = (await db.execute(
+        select(TeamProjectTeam).where(TeamProjectTeam.id == team_id)
+    )).scalar_one()
+    _guard_team_not_finalized(team)
+    if task.status == TaskStatus.approved:
+        raise HTTPException(status_code=400, detail="Bu vazifa allaqachon tasdiqlangan")
+    if _is_past(task.deadline_at):
+        raise HTTPException(
+            status_code=400,
+            detail="Topshirish muddati tugagan. O'qituvchingizdan muddatni uzaytirishni so'rang",
+        )
+    if body.submission_url and parse_github_url(body.submission_url) is None:
+        raise HTTPException(status_code=400, detail="GitHub havolasi noto'g'ri")
+
     task.submission_url = body.submission_url
     task.submission_files = body.submission_files
     task.submitted_at = utcnow()
     task.status = TaskStatus.submitted
+    # A resubmission starts a fresh review: the stuck-review sweep only picks
+    # up tasks with reviewed_at IS NULL, so a stale value from the previous
+    # review would leave a failed re-review stuck forever.
+    task.reviewed_at = None
+    task.ai_score = None
+    task.ai_feedback_json = None
+    task.lead_comment = None
+    db.add(TeamProjectEvent(
+        team_project_id=team.team_project_id, team_id=team_id,
+        actor_student_id=student.id, event_type="task_submitted",
+        payload_json=json.dumps({
+            "task_id": task_id,
+            "kind": "url" if body.submission_url else "zip",
+        }),
+    ))
     await db.commit()
 
     await review_task_submission(db, task_id)
@@ -700,6 +762,218 @@ async def submit_task(
     await broadcast_team(db, team_id)
     await broadcast_project(db, team_project_id)
     return _task_read(task)
+
+
+def _is_past(moment) -> bool:
+    if moment is None:
+        return False
+    if moment.tzinfo is None:  # SQLite hands back naive datetimes
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment < utcnow()
+
+
+async def _load_owned_team(db: AsyncSession, team_id: int, teacher: Student) -> TeamProjectTeam:
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(selectinload(TeamProjectTeam.team_project))
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+    if team.team_project.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    return team
+
+
+# ── Teacher: approve / request changes on a submitted task ──────────────────
+@router.post("/teams/{team_id}/tasks/{task_id}/teacher-review", response_model=TaskRead)
+async def teacher_review_task(
+        team_id: int, task_id: int, body: TeacherReviewBody,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    """The teacher's own verdict. Until now only the AI could approve a task,
+    so with the AI off/down — or simply wrong — a team could never finish.
+    Overrides a pending or changes_requested AI result; an already-approved
+    task is final (its points are awarded at finalize)."""
+    team = await _load_owned_team(db, team_id, teacher)
+    _guard_team_not_finalized(team)
+
+    task = (await db.execute(
+        select(TeamProjectTask).where(
+            TeamProjectTask.id == task_id, TeamProjectTask.team_id == team_id,
+        )
+    )).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=404, detail="Vazifa topilmadi")
+    if task.status == TaskStatus.approved:
+        raise HTTPException(status_code=400, detail="Bu vazifa allaqachon tasdiqlangan")
+    if task.status not in (TaskStatus.submitted, TaskStatus.changes_requested):
+        raise HTTPException(status_code=400, detail="Vazifa hali topshirilmagan")
+    comment = (body.comment or "").strip() or None
+    if body.decision == "request_changes" and not comment:
+        raise HTTPException(status_code=400, detail="O'zgartirish so'rashda izoh yozing")
+
+    task.status = (
+        TaskStatus.approved if body.decision == "approve" else TaskStatus.changes_requested
+    )
+    task.lead_comment = comment
+    task.reviewed_at = utcnow()
+    db.add(TeamProjectEvent(
+        team_project_id=team.team_project_id, team_id=team_id,
+        actor_student_id=teacher.id, event_type="task_reviewed_by_teacher",
+        payload_json=json.dumps({"task_id": task_id, "decision": body.decision}),
+    ))
+    await db.commit()
+    await db.refresh(task, attribute_names=["assigned_student"])
+
+    await broadcast_team(db, team_id)
+    await broadcast_project(db, team.team_project_id)
+    return _task_read(task)
+
+
+# ── Teacher: give a team more time ───────────────────────────────────────────
+@router.post("/teams/{team_id}/extend-deadline")
+async def extend_team_deadline(
+        team_id: int, body: ExtendDeadlineBody,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    """Submissions are rejected once a task's deadline passes; this resets the
+    deadline of every not-yet-approved task on the team to now + N days."""
+    team = await _load_owned_team(db, team_id, teacher)
+    _guard_team_not_finalized(team)
+
+    new_deadline = utcnow() + timedelta(days=body.days)
+    tasks = (await db.execute(
+        select(TeamProjectTask).where(
+            TeamProjectTask.team_id == team_id, TeamProjectTask.status != TaskStatus.approved,
+        )
+    )).scalars().all()
+    for t in tasks:
+        t.deadline_at = new_deadline
+    db.add(TeamProjectEvent(
+        team_project_id=team.team_project_id, team_id=team_id,
+        actor_student_id=teacher.id, event_type="deadline_extended",
+        payload_json=json.dumps({"days": body.days, "tasks": len(tasks)}),
+    ))
+    await db.commit()
+    await broadcast_team(db, team_id)
+    await broadcast_project(db, team.team_project_id)
+    return {"extended_tasks": len(tasks), "deadline_at": new_deadline.isoformat()}
+
+
+# ── Teacher: delete a task ───────────────────────────────────────────────────
+def _guard_team_not_finalized(team: TeamProjectTeam) -> None:
+    """Shared guard for both delete endpoints below — once a team has
+    finalized (submitted/reviewed), its tasks are what final grading and
+    any awarded points are based on; deleting one after the fact would
+    silently corrupt that record. Before finalize, task.points_awarded is
+    always 0 regardless of individual task approval (only
+    team_project_points_service, run from the finalize endpoint, ever
+    sets it) — so there's nothing to unwind for a still-in-progress team."""
+    if team.status in (TeamStatus.submitted, TeamStatus.reviewed):
+        raise HTTPException(
+            status_code=400,
+            detail="Jamoa allaqachon yakunlangan — vazifalarni o'chirib bo'lmaydi",
+        )
+
+
+@router.delete("/teams/{team_id}/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task(
+        team_id: int, task_id: int,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(selectinload(TeamProjectTeam.team_project))
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+    if team.team_project.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    _guard_team_not_finalized(team)
+
+    task = (await db.execute(
+        select(TeamProjectTask).where(
+            TeamProjectTask.id == task_id, TeamProjectTask.team_id == team_id,
+        )
+    )).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=404, detail="Vazifa topilmadi")
+
+    db.add(TeamProjectEvent(
+        team_project_id=team.team_project_id, team_id=team_id,
+        actor_student_id=teacher.id, event_type="task_deleted",
+        payload_json=json.dumps({"task_id": task_id, "title": task.title}),
+    ))
+    deleted_order = task.order
+    await db.delete(task)
+    await db.flush()
+
+    # Other tasks may list the deleted one in depends_on (by `order`); a
+    # dangling reference would show as a blocker nobody can ever clear.
+    siblings = (await db.execute(
+        select(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
+    )).scalars().all()
+    for sib in siblings:
+        deps = json.loads(sib.depends_on_json or "[]")
+        if deleted_order in deps:
+            sib.depends_on_json = json.dumps([d for d in deps if d != deleted_order])
+
+    # No tasks left — the team has no plan again, same shape as right
+    # after formation, so the regenerate/manual-plan UI naturally
+    # reappears instead of showing an empty grid with no way forward.
+    remaining = (await db.execute(
+        select(func.count()).select_from(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
+    )).scalar_one()
+    if remaining == 0:
+        team.status = TeamStatus.forming
+
+    await db.commit()
+    await broadcast_team(db, team_id)
+    await broadcast_project(db, team.team_project_id)
+
+
+@router.delete("/teams/{team_id}/tasks", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_all_tasks(
+        team_id: int,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    """Bulk sibling of delete_task — clears every task on a team in one
+    call, for a teacher who wants to scrap a whole plan and regenerate/
+    hand-author it from scratch rather than deleting tasks one at a time."""
+    team = (await db.execute(
+        select(TeamProjectTeam)
+        .where(TeamProjectTeam.id == team_id)
+        .options(selectinload(TeamProjectTeam.team_project))
+    )).scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=404, detail="Jamoa topilmadi")
+    if team.team_project.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    _guard_team_not_finalized(team)
+
+    tasks = (await db.execute(
+        select(TeamProjectTask).where(TeamProjectTask.team_id == team_id)
+    )).scalars().all()
+    if not tasks:
+        return
+
+    db.add(TeamProjectEvent(
+        team_project_id=team.team_project_id, team_id=team_id,
+        actor_student_id=teacher.id, event_type="task_deleted",
+        payload_json=json.dumps({"count": len(tasks), "bulk": True}),
+    ))
+    for task in tasks:
+        await db.delete(task)
+    team.status = TeamStatus.forming
+    await db.commit()
+    await broadcast_team(db, team_id)
+    await broadcast_project(db, team.team_project_id)
 
 
 # ── Teacher: reassign a task ─────────────────────────────────────────────────
@@ -730,6 +1004,11 @@ async def reassign_task(
     )).scalar_one_or_none()
     if task is None:
         raise HTTPException(status_code=404, detail="Vazifa topilmadi")
+    _guard_team_not_finalized(team)
+    if task.status == TaskStatus.approved:
+        # Points were already awarded to the current assignee; resetting the
+        # task would let the new assignee be paid for it again.
+        raise HTTPException(status_code=400, detail="Tasdiqlangan vazifani qayta tayinlab bo'lmaydi")
     member = (await db.execute(
         select(TeamProjectMember).where(
             TeamProjectMember.team_id == team_id, TeamProjectMember.student_id == body.student_id,
@@ -928,6 +1207,11 @@ async def submit_peer_ratings(
                 rated_student_id=item.rated_student_id,
                 score=item.score, comment=item.comment,
             ))
+    db.add(TeamProjectEvent(
+        team_project_id=team.team_project_id, team_id=team_id,
+        actor_student_id=student.id, event_type="peer_ratings_submitted",
+        payload_json=json.dumps({"count": len(body)}),
+    ))
     await db.commit()
 
 
