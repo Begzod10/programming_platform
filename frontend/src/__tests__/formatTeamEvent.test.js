@@ -54,4 +54,11 @@ describe('formatTeamEvent', () => {
     expect(formatTeamEvent({ event_type: 'task_deleted', payload: { task_id: 1, title: 'Login' } }))
       .toEqual({ label: "Vazifa o'chirildi", detail: 'Login' });
   });
+
+  test('stack and task edits are labelled', () => {
+    expect(formatTeamEvent({ event_type: 'stack_changed', payload: { from: 'next', to: 'vanilla' } }))
+      .toEqual({ label: "Texnologiya o'zgartirildi", detail: 'next → vanilla' });
+    expect(formatTeamEvent({ event_type: 'task_edited', payload: { task_id: 64 } }))
+      .toEqual({ label: 'Vazifa tahrirlandi', detail: 'Vazifa #64' });
+  });
 });

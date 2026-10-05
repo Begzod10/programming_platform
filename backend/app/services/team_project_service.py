@@ -5,6 +5,7 @@ app/services/team_project_planner.py for what happens next, per-team).
 """
 import json
 import random
+import re
 from typing import List, Optional
 
 from fastapi import HTTPException
@@ -60,6 +61,36 @@ def _cycle_sample(pool: list, count: int, avoid_key: Optional[str] = None) -> li
             remaining = (first_pool if not picks else pool)[:]
             random.shuffle(remaining)
         picks.append(remaining.pop())
+    return picks
+
+
+def stack_fits(stack: dict, summaries: List[str]) -> bool:
+    """Can this team do this stack? A stack with no `needs` (vanilla JS) always
+    fits; a framework stack needs at least half the team to have its framework
+    in their skill summary."""
+    needs = stack.get("needs")
+    if not needs:
+        return True
+    pattern = re.compile(needs, re.I)
+    familiar = sum(1 for s in summaries if pattern.search(s or ""))
+    return familiar * 2 >= len(summaries) and familiar > 0
+
+
+def pick_stacks_for_teams(
+        member_summaries: List[List[str]], drawn: List[dict], rng=random,
+) -> List[dict]:
+    """One stack per team. Keep the random draw (`drawn`) when it fits the team;
+    otherwise take a random fitting stack, avoiding the previous team's stack
+    when another one fits. `member_summaries[i]` are team i's members' skill
+    summaries."""
+    picks: List[dict] = []
+    for i, summaries in enumerate(member_summaries):
+        choice = drawn[i]
+        if not stack_fits(choice, summaries):
+            fitting = [s for s in TECH_STACKS if stack_fits(s, summaries)]
+            varied = [s for s in fitting if not picks or s["key"] != picks[-1]["key"]]
+            choice = rng.choice(varied or fitting)
+        picks.append(choice)
     return picks
 
 
@@ -130,7 +161,11 @@ async def create_team_project(
 
     last_theme, last_stack = await _last_used_theme_and_stack(db, teacher_id)
     themes = _cycle_sample(THEMES, len(chunks), avoid_key=last_theme)
-    stacks = _cycle_sample(TECH_STACKS, len(chunks), avoid_key=last_stack)
+    stacks = pick_stacks_for_teams(
+        [[(profiles_by_id[s.id].summary if s.id in profiles_by_id else "") for s in members]
+         for members in chunks],
+        _cycle_sample(TECH_STACKS, len(chunks), avoid_key=last_stack),
+    )
 
     teams: List[TeamProjectTeam] = []
     for idx, members in enumerate(chunks):
