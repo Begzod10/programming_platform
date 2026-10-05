@@ -36,7 +36,8 @@ from app.services.team_project_planner import generate_plan_for_team, validate_p
 from app.services.team_project_task_review import review_task_submission
 from app.services.team_project_constants import THEMES_BY_KEY, TECH_STACKS_BY_KEY
 from app.services.project_service import ProjectService
-from app.services.github_repo_service import parse_github_url, zip_bytes_have_code_file
+from app.services.github_repo_service import parse_github_url, zip_bytes_have_code_file, zip_plain_text_only_names
+from app.services.integrity_check import PLAIN_TEXT_UPLOAD_MESSAGE
 from app.schemas.project import ProjectCreate
 from app.utils.datetime_utils import utcnow
 from app.ws.manager import team_ws_manager, team_project_ws_manager
@@ -673,6 +674,12 @@ async def upload_task_zip(
     # only ever fail AI review later (a ZIP that's just images/binaries),
     # rather than letting the task sit "submitted" forever with no code to
     # actually review.
+    txt_only = zip_plain_text_only_names(contents)
+    if txt_only:
+        raise HTTPException(
+            status_code=400,
+            detail=PLAIN_TEXT_UPLOAD_MESSAGE.format(files=", ".join(txt_only[:5])),
+        )
     if not zip_bytes_have_code_file(contents):
         raise HTTPException(
             status_code=400,

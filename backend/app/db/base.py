@@ -35,6 +35,7 @@ from app.models.store import (
 from app.models.early_learning import EarlyModule, EarlyActivity, EarlyActivityCompletion
 from app.models.error_log import AppErrorLog
 from app.models.duel_stat import DuelStat
+from app.models.project import ProjectViolation  # noqa: F401  registers the table for create_all
 from app.models.team_project import (
     TeamProject,
     TeamProjectTeam,

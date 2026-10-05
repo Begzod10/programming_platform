@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project
+from app.services.submission_violations import active_ban, reason_text
 from app.utils.datetime_utils import utcnow
 
 SUBMIT_COOLDOWN = timedelta(minutes=10)
@@ -62,6 +63,22 @@ async def enforce_submission_cooldown(
         *,
         exclude_project_id: Optional[int] = None,
 ) -> None:
+    # A rule-violation ban (submission_violations.py) outranks the cooldown and
+    # does NOT exclude the project being submitted: a banned student can't
+    # retry the same upload either.
+    ban = await active_ban(db, student_id)
+    if ban is not None:
+        left, code = ban
+        minutes, seconds = divmod(left, 60)
+        uz, ru = reason_text(code)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(f"Qoidabuzarlik tufayli {minutes} daqiqa {seconds} soniya topshira olmaysiz "
+                    f"({uz}). / Из-за нарушения правил вы не можете отправлять проекты "
+                    f"{minutes} мин {seconds} с ({ru})."),
+            headers={"Retry-After": str(left)},
+        )
+
     wait = await seconds_until_can_submit(
         db, student_id, exclude_project_id=exclude_project_id)
     if wait > 0:

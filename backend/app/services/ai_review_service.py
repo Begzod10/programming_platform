@@ -29,6 +29,9 @@ from app.services.github_repo_service import (
 )
 from app.services.grok_service import analyze_project_with_grok
 from app.services.integrity_check import check_submission_integrity
+from app.services.submission_violations import (
+    REPEATED_REJECTIONS_LIMIT, ban_notice, reason_text, recent_rejections, record_violation,
+)
 from app.services.lesson_context_resolver import load_lesson_context_for_project
 from app.services.ranking_service import RankingService
 from app.services.sample_copy_check import check_against_sample, load_lesson_sample_code
@@ -185,25 +188,19 @@ async def run_ai_review_for_project(
         return _fail(raise_on_error, 400,
                      f"{source_label} bo'sh yoki o'qiladigan fayllar topilmadi")
 
-    # Submission-pattern check (see integrity_check.py): a burst of lesson
-    # projects, or code pasted into a plain .txt, is held for a teacher
-    # instead of auto-graded. Lesson projects only — standalone and team
+    # Rule check (see integrity_check.py / submission_violations.py): copied
+    # work, instructions aimed at the grader, or resending rejected code
+    # unchanged is rejected here WITHOUT the AI, and the student is banned from
+    # submitting for 20 minutes. Lesson projects only — standalone and team
     # projects keep their existing flow. Teachers' own re-grades skip it.
-    # 409, not 400: callers treat 400 as "fix and resubmit" (→ Rejected);
-    # anything else keeps the project "Submitted" with this as feedback.
+    violation = None
     if lesson_context and not skip_integrity_check:
         integrity = await check_submission_integrity(
             db, project,
             files_included=snapshot["files_included"],
             content_text=snapshot["content_text"],
         )
-        if integrity.held:
-            logger.info("[integrity] project=%d held for teacher: %s",
-                        project.id, [f["code"] for f in integrity.triggers])
-            project.instructor_feedback = integrity.feedback()
-            await db.commit()
-            return _fail(raise_on_error, status.HTTP_409_CONFLICT,
-                         integrity.feedback())
+        violation = integrity.first
 
     # Deterministic copy check against the lesson's OWN sample project —
     # see sample_copy_check.py's module docstring for why this can't be
@@ -220,7 +217,16 @@ async def run_ai_review_for_project(
     )
     copy_check = check_against_sample(snapshot["content_text"], sample_code)
 
-    if copy_check.is_copy:
+    if violation is None and copy_check.is_copy and lesson_context and not skip_integrity_check:
+        violation = {
+            "code": "sample_copy",
+            "detail": f"Namuna kodi bilan {copy_check.ratio:.0%} mos",
+        }
+
+    if violation is not None and violation["code"] != "sample_copy":
+        logger.info("[violation] project=%d code=%s", project.id, violation["code"])
+        review = _violation_review(violation)
+    elif copy_check.is_copy:
         logger.info(
             "[sample-copy] project=%d flagged, ratio=%.2f",
             project.id, copy_check.ratio,
@@ -319,6 +325,25 @@ async def run_ai_review_for_project(
     project.status = "Approved" if new_points >= 75 else "Rejected"
     project.reviewed_at = datetime.now(timezone.utc)
 
+    # Ban: a rule violation, or the last of N rejections inside the window
+    # (rejected projects skip the 10-minute cooldown, so without this a
+    # student could probe the grader in an unlimited retry loop).
+    ban_code = None
+    ban_detail = None
+    if violation is not None:
+        ban_code, ban_detail = violation["code"], violation.get("detail")
+    elif (project.status == "Rejected" and lesson_context and not skip_integrity_check
+          and await recent_rejections(db, project.student_id) >= REPEATED_REJECTIONS_LIMIT):
+        ban_code = "repeated_rejections"
+    if ban_code is not None:
+        await record_violation(
+            db, student_id=project.student_id, project_id=project.id,
+            code=ban_code, detail=ban_detail,
+        )
+        project.instructor_feedback = f"{project.instructor_feedback}\n\n{ban_notice(ban_code)}"
+        review["feedback"] = project.instructor_feedback
+        review["ban_code"] = ban_code
+
     strengths = review.get("strengths") or []
     improvements = review.get("improvements") or []
     bugs = review.get("bugs") or []
@@ -379,6 +404,29 @@ async def run_ai_review_for_project(
             "owner_is_contributor": authorship.get("owner_is_contributor"),
         },
         **{k: v for k, v in review.items() if k != "error"},
+    }
+
+
+def _violation_review(violation: dict) -> dict:
+    """Synthetic review for a rule violation: rejected, 0 points, no AI call."""
+    uz, ru = reason_text(violation["code"])
+    return {
+        "grade": "F",
+        "points": 0,
+        "feedback": (
+            f"Loyiha rad etildi: {uz}.\n"
+            f"Проект отклонён: {ru}.\n"
+            f"({violation.get('detail') or ''})"
+        ),
+        "strengths": [],
+        "improvements": [
+            "Topshiriqni o'zingiz mustaqil bajarib yuboring. / "
+            "Выполните задание самостоятельно и отправьте заново.",
+        ],
+        "bugs": [],
+        "summary": f"Qoidabuzarlik: {uz}",
+        "provider": None,
+        "violation": violation["code"],
     }
 
 

@@ -57,6 +57,24 @@ class Project(Base):
     )
 
 
+class ProjectViolation(Base):
+    """One row per submission-rule violation (see services/submission_violations.py).
+    The newest row for a student is also what bans them from submitting for
+    BAN_DURATION, so no separate "banned until" column can drift out of sync."""
+    __tablename__ = "project_violations"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    project_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL"), nullable=True,
+    )
+    code: Mapped[str] = mapped_column(String(40), nullable=False)
+    detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 class ProjectLike(Base):
     """One row per (student, project) like — the real per-student dedup
     mechanism for `Project.likes_count`.
