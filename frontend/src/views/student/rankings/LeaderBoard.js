@@ -203,7 +203,18 @@ export default function Leaderboard() {
             <div className="lb-shell">
                 {/* ── my-rank band + period tabs ── */}
                 <div className="lb-top">
-                    <div className="lb-myband">
+                    {myRankError && !myRank ? (
+                        // A failed my-rank request must say so (with a retry) — a silent
+                        // "—" left students unable to tell an error from "no rank yet".
+                        <div className="lb-myband lb-myrank lb-myrank--error">
+                            <span className="lb-myrank-error-text">{myRankError}</span>
+                            <button type="button" className="lb-retry lb-retry--sm"
+                                onClick={() => fetchMyRank(activeTab)}>
+                                {t('rating.retry')}
+                            </button>
+                        </div>
+                    ) : (
+                    <div className="lb-myband lb-myrank">
                         <div className="lb-myband-l">
                             <span className="lb-myband-ico" aria-hidden="true"><Trophy size={18} /></span>
                             <span className="lb-myband-label">{t('rating.myPlace')}</span>
@@ -214,6 +225,7 @@ export default function Leaderboard() {
                             <span className="lb-myband-unit">{t('rating.pts')}</span>
                         </div>
                     </div>
+                    )}
 
                     <div className="lb-controls">
                         <div className="lb-tabs">

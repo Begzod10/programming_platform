@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { API_URL, headers, resolveImageUrl } from '../../api/search/base';
+import { API_URL, headers, resolveImageUrl, useHttp } from '../../api/search/base';
 import { useTranslation } from '../../i18n/useTranslation';
 import { useAuth } from '../../context/AuthContext';
 import './AppHeader.css';
@@ -58,6 +58,7 @@ export default function AppHeader({ me: meProp }) {
     const navigate = useNavigate();
     const { lang, toggleLang } = useTranslation();
     const { logout } = useAuth();
+    const { request } = useHttp();
     const [menuOpen, setMenuOpen] = useState(false);
     const [avatarOpen, setAvatarOpen] = useState(false);
     const [meFetched, setMeFetched] = useState(null);
@@ -70,35 +71,37 @@ export default function AppHeader({ me: meProp }) {
         const v = typeof localStorage !== 'undefined' ? localStorage.getItem('notif:unread') : null;
         return v === null ? 0 : Number(v) || 0;
     });
+    // Goes through useHttp (axios) like every other call, not a bare fetch():
+    // the axios interceptor refreshes an expired token, fetch() would just 401.
     useEffect(() => {
         let alive = true;
-        const poll = () => {
-            fetch(`${API_URL}v1/notifications/unread-count`, { headers: headers() })
-                .then(r => r.ok ? r.json() : null)
-                .then(d => {
-                    if (!alive || !d) return;
-                    const c = d.unread_count || 0;
-                    setUnread(c);
-                    try { localStorage.setItem('notif:unread', String(c)); } catch { /* ignore */ }
-                })
-                .catch(() => {});
+        const poll = async () => {
+            try {
+                const d = await request(`${API_URL}v1/notifications/unread-count`, 'GET', null, headers());
+                if (!alive || !d) return;
+                const c = d.unread_count || 0;
+                setUnread(c);
+                try { localStorage.setItem('notif:unread', String(c)); } catch { /* ignore */ }
+            } catch { /* ignore — the badge is cosmetic */ }
         };
         poll();
         const id = setInterval(poll, 25000);
         return () => { alive = false; clearInterval(id); };
-    }, []);
+    }, [request]);
 
     // Pages that don't already have the user object can let the header
     // fetch its own lightweight copy for the avatar / menu.
     useEffect(() => {
         if (meProp) return;
         let alive = true;
-        fetch(`${API_URL}v1/student/me`, { headers: headers() })
-            .then(r => r.ok ? r.json() : null)
-            .then(d => { if (alive) setMeFetched(d); })
-            .catch(() => {});
+        (async () => {
+            try {
+                const d = await request(`${API_URL}v1/student/me`, 'GET', null, headers());
+                if (alive) setMeFetched(d || null);
+            } catch { /* ignore — falls back to initials */ }
+        })();
         return () => { alive = false; };
-    }, [meProp]);
+    }, [meProp, request]);
 
     const me = meProp || meFetched;
 
