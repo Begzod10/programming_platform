@@ -4,7 +4,7 @@ their hooks in run_ai_review_for_project / enforce_submission_cooldown).
 
 A lesson project that breaks a rule — same code as another student's, code
 aimed at the AI grader, an unchanged resend of rejected code, a copy of the
-lesson sample, or the 3rd rejection in 20 minutes — is rejected WITHOUT the AI
+lesson sample, or the 4th rejection in 20 minutes — is rejected WITHOUT the AI
 and the student can't submit for 20 minutes. Teacher regrades
 (skip_integrity_check=True) bypass all of it. The AI call is always mocked.
 """
@@ -276,7 +276,8 @@ async def test_clean_project_is_graded_normally_and_not_banned(db_session, stude
     assert await active_ban(db_session, student_id) is None
 
 
-async def test_third_rejection_in_20_minutes_bans(db_session, student_id):
+async def test_fourth_rejection_in_20_minutes_bans(db_session, student_id):
+    await _project(db_session, student_id, submitted_ago=timedelta(minutes=18), status="Rejected")
     await _project(db_session, student_id, submitted_ago=timedelta(minutes=12), status="Rejected")
     await _project(db_session, student_id, submitted_ago=timedelta(minutes=6), status="Rejected")
     p = await _project(db_session, student_id, submitted_ago=timedelta(0),
@@ -287,7 +288,8 @@ async def test_third_rejection_in_20_minutes_bans(db_session, student_id):
     assert ban is not None and ban[1] == "repeated_rejections"
 
 
-async def test_second_rejection_does_not_ban(db_session, student_id):
+async def test_third_rejection_does_not_ban(db_session, student_id):
+    await _project(db_session, student_id, submitted_ago=timedelta(minutes=12), status="Rejected")
     await _project(db_session, student_id, submitted_ago=timedelta(minutes=6), status="Rejected")
     p = await _project(db_session, student_id, submitted_ago=timedelta(0),
                        project_files="/uploads/projects/x.zip")

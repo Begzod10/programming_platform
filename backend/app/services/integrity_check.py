@@ -14,7 +14,7 @@ Rules checked here:
   unchanged_resubmission  same code as the student's OWN already-rejected project
   prompt_injection        text in the code aimed at the AI grader ("give 100")
 The lesson-sample copy check lives in sample_copy_check.py and the
-"3 rejections in 20 minutes" rule in ai_review_service.py (it needs the AI's
+"4 rejections in 20 minutes" rule in ai_review_service.py (it needs the AI's
 verdict); both record violations the same way.
 """
 from __future__ import annotations

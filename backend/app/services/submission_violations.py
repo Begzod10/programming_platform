@@ -28,7 +28,7 @@ BAN_DURATION = timedelta(minutes=20)
 # Rejections in a row that count as spamming the grader. Rejected projects
 # skip the normal 10-minute cooldown (so a student can fix and retry at
 # once); this is what stops that from becoming a free retry loop.
-REPEATED_REJECTIONS_LIMIT = 3
+REPEATED_REJECTIONS_LIMIT = 4
 REPEATED_REJECTIONS_WINDOW = timedelta(minutes=20)
 
 # code -> (uzbek, russian) reason shown to the student
