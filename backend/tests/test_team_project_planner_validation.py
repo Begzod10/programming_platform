@@ -332,3 +332,31 @@ def test_mentions_python_and_the_prompt_shows_each_members_experience():
     assert not mentions_python("Completed Javascript (15/15 lessons). Technologies: css, html.")
     prompt = _build_plan_prompt("Booking", {"frontend": "Next.js", "backend": "Django"}, _py_members(False, True))
     assert "Python/Django tajribasi: YOQ" in prompt and "Python/Django tajribasi: bor" in prompt
+
+
+# ── AI plans: the task level must match the member's level (not lower) ──
+
+def test_ai_plan_rejects_a_task_below_the_members_level():
+    members = _members("Advanced", "Intermediate")
+    plan = {"tasks": [_task(0, "Intermediate"), _task(1, "Intermediate")]}   # Advanced member got Intermediate
+    errors = validate_plan(plan, members, require_level_match=True)
+    assert any("below member 0's level Advanced" in e for e in errors)
+
+
+def test_ai_plan_accepts_levels_equal_to_the_members():
+    members = _members("Advanced", "Intermediate")
+    plan = {"tasks": [_task(0, "Advanced"), _task(1, "Intermediate")]}
+    assert validate_plan(plan, members, require_level_match=True) == []
+
+
+def test_lower_level_tasks_are_still_allowed_for_manual_plans():
+    members = _members("Advanced", "Intermediate")
+    plan = {"tasks": [_task(0, "Intermediate"), _task(1, "Beginner")]}
+    assert validate_plan(plan, members) == []           # default: only "not above" is enforced
+
+
+def test_a_task_above_the_members_level_is_rejected_either_way():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0, "Advanced")]}
+    assert validate_plan(plan, members)
+    assert validate_plan(plan, members, require_level_match=True)

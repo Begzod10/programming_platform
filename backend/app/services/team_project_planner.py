@@ -89,7 +89,7 @@ TALABLAR:
 - Vazifalar sonini jamoa a'zolari soniga TENG qil — har bir a'zoga (jumladan eng kuchli a'zoga ham) bittadan vazifa. `assign_to_member_index` qiymatlari 0 dan {len(members_summary) - 1} gacha bo'lgan har bir indeksni ANIQ BIR MARTA ishlatishi SHART (takrorlanmasligi va hech biri tashlab ketilmasligi kerak).
 - Har bir a'zoning HOZIRGI yo'nalishiga mos qism ber: a'zo xulosasida "CURRENT FOCUS" yoki "Current technologies" yozilgan bo'lsa, vazifa shu texnologiyada bo'lsin (masalan JavaScript o'rganayotgan a'zoga frontend/JS qismi). "Earlier (not recently practiced)" ro'yxatidagi texnologiyalar bo'yicha murakkab vazifa BERMA — a'zo ularni yaqinda mashq qilmagan.
 - A'zo yonida "Python/Django tajribasi: YOQ" yozilgan bo'lsa, unga Django/Python/Flask backend vazifasini BERMA — uni faqat tajribasi "bor" a'zoga ber. Agar jamoada hech kimda Python tajribasi bo'lmasa, backend qismini eng yuqori darajali a'zoga ber va uni sodda qil. Frontend/JavaScript o'rgangan a'zoga frontend qismini ber.
-- `required_level` har doim shu vazifaga tayinlangan a'zoning darajasidan OSHMASLIGI kerak (masalan Beginner a'zoga Advanced vazifa berilmaydi).
+- `required_level` har doim shu vazifaga tayinlangan a'zoning darajasiga TENG bo'lsin — oshmasin ham, pastroq ham bo'lmasin (Beginner a'zoga Advanced vazifa berilmaydi, Advanced a'zoga esa Intermediate vazifa BERILMAYDI). Vazifaning murakkabligi ham shu darajaga mos bo'lsin: Advanced a'zoga eng murakkab ishlar (backend/arxitektura, holat boshqaruvi, xatolarni boshqarish, validatsiya), Beginner a'zoga sodda, aniq qadamli ishlar. Kuchli a'zoga yengil vazifa berma.
 - `depends_on` — bu vazifa ro'yxatidagi BOSHQA vazifalarning 0-dan boshlanuvchi INDEKSLARI (ro'yxatdagi o'rni), boshqa hech narsa emas. O'z-o'ziga bog'liqlik va aylanma bog'liqlik (A→B→A) bo'lmasin.
 - `interface_contract.consumes` dagi har bir yozuv boshqa BIRON BIR vazifaning `interface_contract.produces` yozuvi bilan SO'ZMA-SO'Z (aynan) bir xil bo'lishi SHART — shu matnni aynan ko'chirib yoz, qayta ifodalab yozma.
 - `description` bir jumlali umumiy gap bo'lmasin — o'quvchi hech kimdan so'ramasdan ishni boshlay oladigan darajada aniq yoz (kamida {MIN_DESCRIPTION_LEN} belgi).
@@ -196,7 +196,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
         plan_tokens = min(8000, 900 * len(members_summary) + 600)
         _, parsed, provider, attempts = await call_chain(prompt, max_tokens=plan_tokens, validator=parse_ai_json)
         plan = _normalize_plan(parsed, len(members_summary))
-        plan_errors = validate_plan(plan, members_summary)
+        plan_errors = validate_plan(plan, members_summary, require_level_match=True)
         if plan_errors:
             # One automatic repair round: show the model exactly what failed.
             # Previously a single invalid response burned one of the teacher's
@@ -205,7 +205,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
             _, parsed, provider, attempts = await call_chain(
                 repair_prompt, max_tokens=plan_tokens, validator=parse_ai_json)
             plan = _normalize_plan(parsed, len(members_summary))
-            plan_errors = validate_plan(plan, members_summary)
+            plan_errors = validate_plan(plan, members_summary, require_level_match=True)
         if plan_errors:
             raise ValueError("; ".join(plan_errors))
     except Exception as e:
@@ -297,7 +297,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
     await broadcast_project(db, team_project_id)
 
 
-def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:
+def validate_plan(plan: dict, members_summary: list[dict], *, require_level_match: bool = False) -> list[str]:
     """Returns a list of human-readable problems; empty list = valid.
 
     This is the guardrail the original spec asked for and the first AI
@@ -356,6 +356,13 @@ def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:
                     errors.append(
                         f"Task {idx}: required_level {required_level} exceeds "
                         f"member {member_idx}'s level {assigned_level}."
+                    )
+                elif require_level_match and LEVEL_RANK[required_level] < LEVEL_RANK.get(assigned_level, 0):
+                    # AI plans only: an Advanced student must not get an
+                    # Intermediate-level piece. Manual plans may do so on purpose.
+                    errors.append(
+                        f"Task {idx}: required_level {required_level} is below member "
+                        f"{member_idx}'s level {assigned_level} — give a task at the member's own level."
                     )
 
         est_hours = task.get("estimated_hours")
