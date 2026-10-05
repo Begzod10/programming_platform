@@ -503,7 +503,7 @@ async def regenerate_team_plan(
             ))
         await db.flush()
 
-        await generate_plan_for_team(db, team_id)
+        await generate_plan_for_team(db, team_id, refresh_skills=True)
 
         tp = await _fetch_team_project(db, team.team_project_id)
         team_out = next(t for t in tp.teams if t.id == team_id)

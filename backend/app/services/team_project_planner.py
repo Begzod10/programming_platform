@@ -46,9 +46,31 @@ _INJECTION_GUARD = (
 )
 
 
+_PYTHON_WORDS = re.compile(r"\b(python|django|flask|fastapi)\b", re.I)
+
+
+def mentions_python(summary: Optional[str]) -> bool:
+    """Does a member's skill summary show any Python/Django/Flask experience?
+    (A course title, a lesson language or a project technology all land in it.)"""
+    return bool(_PYTHON_WORDS.search(summary or ""))
+
+
+def _is_python_backend_task(task: dict) -> bool:
+    contract = task.get("interface_contract") or {}
+    files = [f for f in (contract.get("files") or []) if isinstance(f, str)]
+    text = f"{task.get('title', '')} {task.get('description', '')}"
+    return any(f.lower().endswith(".py") for f in files) or bool(
+        re.search(r"\b(django|flask|fastapi)\b", text, re.I))
+
+
 def _build_plan_prompt(theme_label: str, stack: dict, members_summary: list[dict]) -> str:
+    def _experience(m: dict) -> str:
+        if "has_python" not in m:
+            return ""
+        return f" | Python/Django tajribasi: {'bor' if m['has_python'] else 'YOQ'}"
+
     members_block = "\n".join(
-        f"{i}. {m['full_name']} ({m['level']}) — <student_input>{m['summary']}</student_input>"
+        f"{i}. {m['full_name']} ({m['level']}){_experience(m)} — <student_input>{m['summary']}</student_input>"
         for i, m in enumerate(members_summary)
     )
     return f"""Sen tajribali dasturlash o'qituvchisisiz. {len(members_summary)} nafar o'quvchidan
@@ -66,6 +88,7 @@ TALABLAR:
 - Har bir vazifa aniq bir fayl/sahifa/komponentga tegishli bo'lsin (masalan "login sahifasi", "navbar", "profil kartasi"), shunda a'zolar bir-birining ishiga deyarli tegmasdan parallel ishlay oladi.
 - Vazifalar sonini jamoa a'zolari soniga TENG qil — har bir a'zoga (jumladan eng kuchli a'zoga ham) bittadan vazifa. `assign_to_member_index` qiymatlari 0 dan {len(members_summary) - 1} gacha bo'lgan har bir indeksni ANIQ BIR MARTA ishlatishi SHART (takrorlanmasligi va hech biri tashlab ketilmasligi kerak).
 - Har bir a'zoning HOZIRGI yo'nalishiga mos qism ber: a'zo xulosasida "CURRENT FOCUS" yoki "Current technologies" yozilgan bo'lsa, vazifa shu texnologiyada bo'lsin (masalan JavaScript o'rganayotgan a'zoga frontend/JS qismi). "Earlier (not recently practiced)" ro'yxatidagi texnologiyalar bo'yicha murakkab vazifa BERMA — a'zo ularni yaqinda mashq qilmagan.
+- A'zo yonida "Python/Django tajribasi: YOQ" yozilgan bo'lsa, unga Django/Python/Flask backend vazifasini BERMA — uni faqat tajribasi "bor" a'zoga ber. Agar jamoada hech kimda Python tajribasi bo'lmasa, backend qismini eng yuqori darajali a'zoga ber va uni sodda qil. Frontend/JavaScript o'rgangan a'zoga frontend qismini ber.
 - `required_level` har doim shu vazifaga tayinlangan a'zoning darajasidan OSHMASLIGI kerak (masalan Beginner a'zoga Advanced vazifa berilmaydi).
 - `depends_on` — bu vazifa ro'yxatidagi BOSHQA vazifalarning 0-dan boshlanuvchi INDEKSLARI (ro'yxatdagi o'rni), boshqa hech narsa emas. O'z-o'ziga bog'liqlik va aylanma bog'liqlik (A→B→A) bo'lmasin.
 - `interface_contract.consumes` dagi har bir yozuv boshqa BIRON BIR vazifaning `interface_contract.produces` yozuvi bilan SO'ZMA-SO'Z (aynan) bir xil bo'lishi SHART — shu matnni aynan ko'chirib yoz, qayta ifodalab yozma.
@@ -105,7 +128,7 @@ async def generate_plan_for_team_standalone(team_id: int) -> None:
         await generate_plan_for_team(db, team_id)
 
 
-async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
+async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skills: bool = False) -> None:
     team = (await db.execute(
         select(TeamProjectTeam)
         .where(TeamProjectTeam.id == team_id)
@@ -126,6 +149,17 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
     if not members:
         return
 
+    if refresh_skills:
+        # The stored snapshot is from when the team was formed; a regenerate
+        # happens later, after students have moved on (finished a course,
+        # switched technology), so plan from what they know now.
+        from app.services.skill_profile_service import build_profiles_for_student_ids
+        fresh = {p.student_id: p.summary for p in
+                 await build_profiles_for_student_ids(db, [m.student_id for m in members])}
+        for m in members:
+            if fresh.get(m.student_id):
+                m.skill_summary_at_assignment = fresh[m.student_id]
+
     # Member snapshots taken at assignment time are the source of truth for
     # planning (see TeamProjectMember.skill_summary_at_assignment docstring)
     # — no need to rebuild live SkillProfiles here.
@@ -135,6 +169,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
             "full_name": _member_label(m),
             "level": m.level_at_assignment,
             "summary": m.skill_summary_at_assignment,
+            "has_python": mentions_python(m.skill_summary_at_assignment),
         }
         for m in members
     ]
@@ -409,6 +444,24 @@ def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:
         for consumed in (contract.get("consumes") or []):
             if consumed not in others_produce:
                 errors.append(f"Task {idx}: consumes {consumed!r} which no other task produces.")
+
+    # A Django/Python backend task must not go to someone with no Python
+    # experience while a teammate who has it gets something else. Skipped when
+    # nobody on the team has it (someone has to do the backend then) and for
+    # manual plans (members_summary there has no has_python hint).
+    if any(m.get("has_python") for m in members_summary):
+        for idx, task in enumerate(tasks):
+            if not isinstance(task, dict):
+                continue
+            member_idx = task.get("assign_to_member_index")
+            if (isinstance(member_idx, int) and 0 <= member_idx < member_count
+                    and not members_summary[member_idx].get("has_python", True)
+                    and _is_python_backend_task(task)):
+                errors.append(
+                    f"Task {idx}: a Django/Python backend task is assigned to "
+                    f"{members_summary[member_idx].get('full_name')}, who has no Python/Django "
+                    "experience — give it to a member who has."
+                )
 
     # depends_on must reference real, other tasks' indices and be acyclic.
     valid_indices = set(range(len(tasks)))
