@@ -245,3 +245,39 @@ def test_acceptance_criteria_ru_copied_from_uz_is_rejected():
     plan["tasks"][0]["acceptance_criteria_ru"] = list(plan["tasks"][0]["acceptance_criteria"])
     errors = validate_plan(plan, _members("Beginner"))
     assert any("identical to the uz text" in e for e in errors)
+
+
+# ── deterministic repair of common AI slips (so a good plan isn't thrown away) ──
+
+from app.services.team_project_planner import _normalize_plan, _repair_task_fields  # noqa: E402
+
+
+def test_template_level_is_repaired_to_the_lowest_listed_valid_level():
+    task = _task(0)
+    task["required_level"] = "Advanced|Intermediate"
+    _repair_task_fields([task])
+    assert task["required_level"] == "Intermediate"
+
+
+def test_unrepairable_level_is_left_for_validation_to_reject():
+    task = _task(0)
+    task["required_level"] = "Expert"
+    _repair_task_fields([task])
+    assert task["required_level"] == "Expert"
+
+
+def test_invented_consumes_are_dropped_and_real_ones_kept_even_with_different_case():
+    a = _task(0, produces=["POST /api/login -> {token}"])
+    b = _task(1, consumes=["post /api/login  -> {token}", "user_id", "post_id"])
+    _repair_task_fields([a, b])
+    assert b["interface_contract"]["consumes"] == ["POST /api/login -> {token}"]
+
+
+def test_ai_plan_with_invented_consumes_and_template_level_now_validates():
+    members = _members("Beginner", "Intermediate", "Intermediate")
+    t0 = _task(0, "Beginner", produces=["feed list"])
+    t1 = _task(1, "Intermediate", consumes=["feed list", "user_id"])
+    t2 = _task(2, "Intermediate", consumes=["comment_text", "post_id"])
+    t2["required_level"] = "Advanced|Intermediate"
+    plan = _normalize_plan({"project_title": "X", "tasks": [t0, t1, t2]}, 3)
+    assert validate_plan(plan, members) == []

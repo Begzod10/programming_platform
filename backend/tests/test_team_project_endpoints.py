@@ -803,3 +803,80 @@ async def test_deleting_a_task_removes_it_from_siblings_depends_on(
     assert resp.status_code == 204, resp.text
     await db_session.refresh(second)
     assert _json.loads(second.depends_on_json) == []
+
+
+# ── plan generation: auto-repair + one AI repair round ──
+
+def _generated_plan(member_count, *, broken=False):
+    tasks = [
+        {
+            "title": f"Task {i}", "title_ru": f"Задача {i}",
+            "description": f"Build task number {i} with a form and validation logic.",
+            "description_ru": f"Постройте задачу номер {i} с формой и логикой валидации.",
+            "required_level": "Beginner", "assign_to_member_index": i,
+            "interface_contract": {"files": [f"src/Task{i}.jsx"], "produces": [], "consumes": []},
+            "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],
+            "acceptance_criteria_ru": ["Первый конкретный критерий", "Второй конкретный критерий"],
+            "depends_on": [], "estimated_hours": 4,
+        }
+        for i in range(member_count)
+    ]
+    if broken:
+        tasks.pop()   # wrong task count: not something deterministic repair can fix
+    return {"project_title": "Loyiha", "project_description": "desc", "tasks": tasks}
+
+
+async def _fresh_team(db_session, fx):
+    team = fx["teams"][0]
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
+    )).scalars().all()
+    return team, len(members)
+
+
+async def test_generation_with_a_wrong_task_count_is_repaired_by_a_second_ai_call(
+    db_session, two_teams_project,
+):
+    from app.services.team_project_planner import generate_plan_for_team
+    fx = two_teams_project
+    team, n = await _fresh_team(db_session, fx)
+    calls = []
+
+    async def _ai(prompt, max_tokens=2000, validator=None):
+        calls.append(prompt)
+        return "raw", _generated_plan(n, broken=len(calls) == 1), "mock", 1
+
+    with patch("app.services.team_project_planner.call_chain", new=_ai):
+        await generate_plan_for_team(db_session, team.id)
+
+    assert len(calls) == 2
+    assert "XATOLAR" in calls[1] and "Expected" in calls[1]     # the errors were shown to the model
+    await db_session.refresh(team)
+    assert team.generation_attempts == 1                          # one attempt, not two
+    tasks = (await db_session.execute(
+        select(TeamProjectTask).where(TeamProjectTask.team_id == team.id))).scalars().all()
+    assert len(tasks) == n
+
+
+async def test_valid_first_response_makes_a_single_ai_call(db_session, two_teams_project):
+    from app.services.team_project_planner import generate_plan_for_team
+    fx = two_teams_project
+    team, n = await _fresh_team(db_session, fx)
+    ai = AsyncMock(return_value=("raw", _generated_plan(n), "mock", 1))
+    with patch("app.services.team_project_planner.call_chain", new=ai):
+        await generate_plan_for_team(db_session, team.id)
+    assert ai.await_count == 1
+
+
+async def test_still_invalid_after_the_repair_round_fails_and_returns_team_to_forming(
+    db_session, two_teams_project,
+):
+    from app.services.team_project_planner import generate_plan_for_team
+    fx = two_teams_project
+    team, n = await _fresh_team(db_session, fx)
+    ai = AsyncMock(return_value=("raw", _generated_plan(n, broken=True), "mock", 1))
+    with patch("app.services.team_project_planner.call_chain", new=ai):
+        await generate_plan_for_team(db_session, team.id)
+    assert ai.await_count == 2
+    await db_session.refresh(team)
+    assert team.status == TeamStatus.forming and team.generation_attempts == 1

@@ -9,6 +9,7 @@ TeamProjectTask rows. Reuses the same provider-fallback client
 HTTP/provider code here.
 """
 import json
+import re
 import logging
 from datetime import timedelta
 from typing import Optional
@@ -64,6 +65,7 @@ TALABLAR:
 - Loyiha kichik va 1-2 haftada tugatsa bo'ladigan darajada bo'lsin.
 - Har bir vazifa aniq bir fayl/sahifa/komponentga tegishli bo'lsin (masalan "login sahifasi", "navbar", "profil kartasi"), shunda a'zolar bir-birining ishiga deyarli tegmasdan parallel ishlay oladi.
 - Vazifalar sonini jamoa a'zolari soniga TENG qil — har bir a'zoga (jumladan eng kuchli a'zoga ham) bittadan vazifa. `assign_to_member_index` qiymatlari 0 dan {len(members_summary) - 1} gacha bo'lgan har bir indeksni ANIQ BIR MARTA ishlatishi SHART (takrorlanmasligi va hech biri tashlab ketilmasligi kerak).
+- Har bir a'zoning HOZIRGI yo'nalishiga mos qism ber: a'zo xulosasida "CURRENT FOCUS" yoki "Current technologies" yozilgan bo'lsa, vazifa shu texnologiyada bo'lsin (masalan JavaScript o'rganayotgan a'zoga frontend/JS qismi). "Earlier (not recently practiced)" ro'yxatidagi texnologiyalar bo'yicha murakkab vazifa BERMA — a'zo ularni yaqinda mashq qilmagan.
 - `required_level` har doim shu vazifaga tayinlangan a'zoning darajasidan OSHMASLIGI kerak (masalan Beginner a'zoga Advanced vazifa berilmaydi).
 - `depends_on` — bu vazifa ro'yxatidagi BOSHQA vazifalarning 0-dan boshlanuvchi INDEKSLARI (ro'yxatdagi o'rni), boshqa hech narsa emas. O'z-o'ziga bog'liqlik va aylanma bog'liqlik (A→B→A) bo'lmasin.
 - `interface_contract.consumes` dagi har bir yozuv boshqa BIRON BIR vazifaning `interface_contract.produces` yozuvi bilan SO'ZMA-SO'Z (aynan) bir xil bo'lishi SHART — shu matnni aynan ko'chirib yoz, qayta ifodalab yozma.
@@ -160,6 +162,15 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
         _, parsed, provider, attempts = await call_chain(prompt, max_tokens=plan_tokens, validator=parse_ai_json)
         plan = _normalize_plan(parsed, len(members_summary))
         plan_errors = validate_plan(plan, members_summary)
+        if plan_errors:
+            # One automatic repair round: show the model exactly what failed.
+            # Previously a single invalid response burned one of the teacher's
+            # 3 attempts, and the same kind of mistake tends to repeat.
+            repair_prompt = _build_repair_prompt(prompt, parsed, plan_errors)
+            _, parsed, provider, attempts = await call_chain(
+                repair_prompt, max_tokens=plan_tokens, validator=parse_ai_json)
+            plan = _normalize_plan(parsed, len(members_summary))
+            plan_errors = validate_plan(plan, members_summary)
         if plan_errors:
             raise ValueError("; ".join(plan_errors))
     except Exception as e:
@@ -460,12 +471,65 @@ def _deadline_days_for(team: TeamProjectTeam) -> int:
     return tp.deadline_days if tp is not None else 14
 
 
+def _norm_key(text) -> str:
+    return " ".join(str(text).lower().split())
+
+
+def _repair_task_fields(tasks: list) -> None:
+    """Fix the two things the model gets wrong most often, in place, so a good
+    plan isn't thrown away (and an attempt burned) over them:
+      * required_level copied from the prompt's template ("Advanced|Intermediate")
+        -> the LOWEST listed valid level;
+      * `consumes` entries no other task produces (invented names like
+        "user_id") -> matched case/whitespace-insensitively to a real `produces`
+        string, otherwise dropped (it was a made-up dependency)."""
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        level = task.get("required_level")
+        if isinstance(level, str) and level not in LEVEL_RANK:
+            listed = [t.strip() for t in re.split(r"[|/,]", level) if t.strip() in LEVEL_RANK]
+            if listed:
+                task["required_level"] = min(listed, key=lambda t: LEVEL_RANK[t])
+
+    produced = []
+    for i, task in enumerate(tasks):
+        contract = task.get("interface_contract") if isinstance(task, dict) else None
+        produced.append([p for p in (contract or {}).get("produces") or [] if isinstance(p, str)])
+    for i, task in enumerate(tasks):
+        contract = task.get("interface_contract") if isinstance(task, dict) else None
+        if not isinstance(contract, dict) or not isinstance(contract.get("consumes"), list):
+            continue
+        others = {_norm_key(p): p for j, items in enumerate(produced) if j != i for p in items}
+        kept = []
+        for c in contract["consumes"]:
+            if isinstance(c, str) and _norm_key(c) in others:
+                kept.append(others[_norm_key(c)])
+        contract["consumes"] = kept
+
+
+def _build_repair_prompt(original_prompt: str, previous: Optional[dict], errors: list[str]) -> str:
+    shown = json.dumps(previous, ensure_ascii=False)[:6000] if previous else "(yo'q)"
+    problems = "\n".join(f"- {e}" for e in errors[:15])
+    return (
+        f"{original_prompt}\n\n"
+        "DIQQAT: avvalgi javobingizda quyidagi XATOLAR topildi:\n"
+        f"{problems}\n\n"
+        f"Avvalgi javobingiz:\n{shown}\n\n"
+        "Shu xatolarni tuzatib, TO'LIQ va to'g'ri JSONni qaytaring (faqat JSON). "
+        "`required_level` faqat bitta so'z bo'lsin: Beginner, Intermediate yoki Advanced. "
+        "`consumes` ga faqat boshqa vazifaning `produces` ida aynan shunday yozilgan matnni qo'ying "
+        "yoki bo'sh qoldiring."
+    )
+
+
 def _normalize_plan(parsed: Optional[dict], member_count: int) -> dict:
     if not parsed or not isinstance(parsed, dict):
         raise ValueError("AI did not return a usable plan")
     tasks = parsed.get("tasks")
     if not isinstance(tasks, list) or not tasks:
         raise ValueError("AI plan has no tasks")
+    _repair_task_fields(tasks)
     return {
         "project_title": str(parsed.get("project_title") or "Jamoaviy loyiha")[:300],
         "project_description": str(parsed.get("project_description") or ""),

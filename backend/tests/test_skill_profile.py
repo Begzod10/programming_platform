@@ -403,3 +403,51 @@ async def test_skill_profile_endpoint_requires_auth(async_client, three_students
         f"/api/v1/teacher/students/{three_students['advanced']}/skill-profile",
     )
     assert resp.status_code == 401
+
+
+async def test_summary_separates_current_focus_from_earlier_technologies(
+    three_students, db_session, category,
+):
+    """A student who finished Django months ago and is on JavaScript now must
+    be described as a JavaScript student — the planner gave such a student a
+    Django backend task because the summary just listed every technology
+    alphabetically."""
+    from datetime import datetime, timedelta, timezone
+    student_id = three_students["intermediate"]
+    old_course = await _make_course(
+        db_session, category_id=category.id, instructor_id=student_id, title="Django Asoslari")
+    new_course = await _make_course(
+        db_session, category_id=category.id, instructor_id=student_id, title="JavaScript Asoslari")
+    old_lesson = await _make_lesson(db_session, old_course.id, "D1", code_language="Django")
+    new_lessons = [await _make_lesson(db_session, new_course.id, f"J{i}", code_language="JavaScript")
+                   for i in range(3)]
+    now = datetime.now(timezone.utc)
+    db_session.add(LessonCompletion(
+        student_id=student_id, lesson_id=old_lesson.id, completed_at=now - timedelta(days=90)))
+    for lesson in new_lessons:
+        db_session.add(LessonCompletion(
+            student_id=student_id, lesson_id=lesson.id, completed_at=now - timedelta(days=2)))
+    await db_session.commit()
+
+    profile = await build_skill_profile(db_session, student_id)
+    assert "CURRENT FOCUS (last 30 days): JavaScript Asoslari (3 lessons)" in profile.summary
+    assert "Current technologies: javascript." in profile.summary
+    assert "Earlier (not recently practiced): django." in profile.summary
+    assert profile.technologies_seen == ["django", "javascript"]   # the full list is unchanged
+
+
+async def test_summary_without_recent_activity_keeps_the_plain_technology_list(
+    three_students, db_session, category,
+):
+    from datetime import datetime, timedelta, timezone
+    student_id = three_students["beginner"]
+    course = await _make_course(db_session, category_id=category.id, instructor_id=student_id)
+    lesson = await _make_lesson(db_session, course.id, "L1", code_language="Python")
+    db_session.add(LessonCompletion(
+        student_id=student_id, lesson_id=lesson.id,
+        completed_at=datetime.now(timezone.utc) - timedelta(days=200)))
+    await db_session.commit()
+
+    profile = await build_skill_profile(db_session, student_id)
+    assert "CURRENT FOCUS" not in profile.summary
+    assert "Technologies: python." in profile.summary
