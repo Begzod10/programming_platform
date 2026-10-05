@@ -20,15 +20,13 @@ const fmtDate = (iso) => {
     return d.toLocaleDateString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 
-// Returns 'ok' | 'warn' | 'sus'
-const projectFlag = (p) => {
-    const t = p.time_spent_seconds ?? 9999;
-    const paste = p.paste_count ?? 0;
-    const keys  = p.keystroke_count ?? 9999;
-    if (t < 60 || (paste > 3 && keys < 30)) return 'sus';
-    if (t < 120 || (paste > 1 && keys < 80)) return 'warn';
-    return 'ok';
-};
+// Returns 'ok' | 'sus'. Only the server-side integrity check can say a project
+// is suspicious (burst of submissions, code in .txt, same code as another
+// student). The time/keystroke/paste numbers are NOT used: the keystroke and
+// paste counters only count typing in the optional comment box, and the time
+// is how long the submit dialog was open — for a ZIP/GitHub submission both
+// are ~0 for every honest student, so they flagged almost everyone.
+const projectFlag = (p) => (p.integrity_held ? 'sus' : 'ok');
 const exerciseFlag = (e) => {
     const ms = e.time_spent_ms ?? 9999999;
     if (e.is_correct && ms < 3000) return 'sus';
@@ -40,13 +38,6 @@ const flagBadge = (flag) => {
     if (flag === 'sus')  return <span className="aa-badge aa-badge-red">⚠ Shubhali</span>;
     if (flag === 'warn') return <span className="aa-badge aa-badge-yellow">⚡ Tez</span>;
     return <span className="aa-badge aa-badge-green">✓ Normal</span>;
-};
-
-const timeColor = (sec, warnAt, badAt) => {
-    if (sec == null) return '';
-    if (sec < badAt)  return 'bad';
-    if (sec < warnAt) return 'warn';
-    return 'good';
 };
 
 /* ── Projects tab ────────────────────────────────────────── */
@@ -136,17 +127,17 @@ function ProjectsTab({ data }) {
                                             {p.grade && <span className="aa-badge aa-badge-purple" style={{marginLeft: 4}}>{p.grade}</span>}
                                         </td>
                                         <td>
-                                            <span className={`aa-metric-val ${timeColor(p.time_spent_seconds, 120, 60)}`}>
+                                            <span className="aa-metric-val" title="Topshirish oynasi ochiq turgan vaqt">
                                                 {fmtTime(p.time_spent_seconds)}
                                             </span>
                                         </td>
                                         <td>
-                                            <span className={`aa-metric-val ${p.keystroke_count != null && p.keystroke_count < 50 ? 'bad' : 'good'}`}>
+                                            <span className="aa-metric-val" title="Faqat izoh maydonidagi bosishlar — kodni sanamaydi">
                                                 {p.keystroke_count ?? '—'}
                                             </span>
                                         </td>
                                         <td>
-                                            <span className={`aa-metric-val ${p.paste_count > 2 ? 'bad' : p.paste_count > 0 ? 'warn' : 'good'}`}>
+                                            <span className="aa-metric-val" title="Faqat izoh maydoniga paste — kodni sanamaydi">
                                                 {p.paste_count ?? '—'}
                                             </span>
                                         </td>

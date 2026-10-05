@@ -20,6 +20,7 @@ teacher sees them on the pending project; their own review overwrites it.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -49,6 +50,39 @@ STUDENT_MESSAGE = (
     "Natija tez orada chiqadi."
 )
 
+# Shown to the student when the only reason for the hold is that their code
+# sits in .txt files. A very common accident: Windows hides known extensions,
+# so "index.html" saved from Notepad is really "index.html.txt". Without this
+# the student just sees "teacher will check" and has no idea what to fix.
+PLAIN_TEXT_HINT = (
+    "Eslatma: kodingiz .txt fayl(lar)da topshirilgan ({files}). Agar bu HTML/CSS/JS "
+    "fayl bo'lsa, kengaytmani .html/.css/.js ga o'zgartirib qayta yuboring "
+    "(Windows: Вид → «Расширения имён файлов»ni yoqing).\n"
+    "Примечание: код отправлен в .txt файле ({files}). Если это HTML/CSS/JS, "
+    "переименуйте файл в .html/.css/.js и отправьте снова."
+)
+
+# Too little code to say anything: boilerplate pages and one-line answers are
+# legitimately identical between students.
+FINGERPRINT_MIN_CHARS = 400
+
+_FILE_BLOCK = re.compile(r"^### [^\n]*\n```\n(.*?)\n```\s*(?=^### |\Z)", re.M | re.S)
+
+
+def content_fingerprint(content_text: str) -> Optional[str]:
+    """sha256 of the submitted code, insensitive to file names, file order,
+    whitespace and letter case — so the same work re-zipped under another
+    folder name or re-indented still matches. None when there is too little
+    code for a match to mean anything."""
+    bodies = _FILE_BLOCK.findall(content_text or "") or [content_text or ""]
+    normalized = sorted(
+        n for n in (re.sub(r"\s+", " ", b).strip().lower() for b in bodies) if n
+    )
+    joined = "\x00".join(normalized)
+    if len(joined) < FINGERPRINT_MIN_CHARS:
+        return None
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
 
 @dataclass(frozen=True)
 class IntegrityResult:
@@ -62,7 +96,11 @@ class IntegrityResult:
     def feedback(self) -> Optional[str]:
         if not self.held:
             return None
-        lines = [STUDENT_MESSAGE, "", "O'qituvchi uchun (avto-tekshiruv):"]
+        lines = [STUDENT_MESSAGE]
+        plain = next((t for t in self.triggers if t["code"] == "plain_text_only"), None)
+        if plain is not None:
+            lines += ["", PLAIN_TEXT_HINT.format(files=plain.get("files", ""))]
+        lines += ["", "O'qituvchi uchun (avto-tekshiruv):"]
         lines += [f"- {f['detail']}" for f in self.triggers + self.notes]
         return "\n".join(lines)
 
@@ -104,7 +142,28 @@ async def check_submission_integrity(
             "code": "plain_text_only",
             "detail": "Kod .html/.css/.js emas, faqat .txt faylda: "
                       + ", ".join(files_included[:5]),
+            "files": ", ".join(files_included[:5]),
         })
+
+    # The same code already submitted by a DIFFERENT student. Server-side and
+    # deterministic, like the two checks above — the client keystroke/paste
+    # counters only ever saw the comment box, never the code.
+    fingerprint = content_fingerprint(content_text)
+    project.content_fingerprint = fingerprint  # None clears a stale one on resubmit
+    if fingerprint is not None:
+        twin = (await db.execute(
+            select(Project.id, Project.student_id).where(
+                Project.content_fingerprint == fingerprint,
+                Project.student_id != project.student_id,
+                Project.id != project.id,
+            ).order_by(Project.id).limit(1)
+        )).first()
+        if twin is not None:
+            triggers.append({
+                "code": "duplicate_content",
+                "detail": f"Xuddi shu kod boshqa o'quvchining #{twin.id}-loyihasida "
+                          "ham bor (fayl nomlari/bo'sh joylar e'tiborga olinmadi)",
+            })
 
     banners = len(_BANNER.findall(content_text or ""))
     if banners >= BANNER_NOTE_MIN:

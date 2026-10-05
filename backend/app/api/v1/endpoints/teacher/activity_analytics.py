@@ -26,7 +26,8 @@ async def get_project_activity(
                 p.keystroke_count,
                 p.paste_count,
                 p.code_explanation,
-                p.submitted_at
+                p.submitted_at,
+                (p.instructor_feedback LIKE '%avto-tekshiruv%') AS integrity_held
             FROM projects p
             JOIN students s ON s.id = p.student_id
             JOIN student_groups sg ON sg.student_id = s.id
@@ -54,6 +55,10 @@ async def get_project_activity(
             "paste_count":         r[8],
             "code_explanation":    r[9] or "",
             "submitted_at":        r[10].isoformat() if r[10] else None,
+            # Held for a teacher by services/integrity_check.py (burst, .txt-only
+            # code, same code as another student). The keystroke/paste/time
+            # numbers above can't say this: they only measure the comment box.
+            "integrity_held":      bool(r[11]),
         })
     return result
 

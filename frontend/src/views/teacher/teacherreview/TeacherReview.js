@@ -518,13 +518,12 @@ function TeacherReview() {
                                 )}
 
                                 {/* ── Anti-cheat summary ── */}
-                                <div className="tr-info-card" style={{background: (() => {
-                                    const t = detail.time_spent_seconds || 0;
-                                    const p = detail.paste_count || 0;
-                                    const k = detail.keystroke_count || 0;
-                                    if (t < 60 || (p > 2 && k < 50)) return '#fff3cd';
-                                    return '#f0fff4';
-                                })()}}>
+                                {/* These counters only cover the submit dialog's comment box
+                                    (the code is written outside the platform and arrives as a
+                                    ZIP/GitHub link), so they must not be read as cheating
+                                    signals. Server-side checks (burst, .txt-only, same code as
+                                    another student) are listed in the feedback above. */}
+                                <div className="tr-info-card" style={{background: '#f7f7fb'}}>
                                     <label>🔍 Faollik tahlili</label>
                                     <div style={{display:'flex', gap:16, flexWrap:'wrap', marginTop:4, fontSize:13}}>
                                         <span title="Loyiha modali ochilgandan topshirilgunga qadar">
@@ -536,12 +535,6 @@ function TeacherReview() {
                                         <span title="Necha marta paste qilgan">
                                             📋 <strong>{detail.paste_count ?? '—'}</strong> paste
                                         </span>
-                                        {detail.time_spent_seconds != null && detail.time_spent_seconds < 60 && (
-                                            <span style={{color:'#c0392b', fontWeight:600}}>⚠️ Juda tez topshirdi</span>
-                                        )}
-                                        {detail.paste_count > 2 && (detail.keystroke_count || 0) < 50 && (
-                                            <span style={{color:'#c0392b', fontWeight:600}}>⚠️ Ko'p paste, kam yozuv</span>
-                                        )}
                                     </div>
                                     {detail.code_explanation && (
                                         <div style={{marginTop:10, borderTop:'1px solid #e0e0e0', paddingTop:8}}>

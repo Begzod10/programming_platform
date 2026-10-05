@@ -149,3 +149,87 @@ async def test_teacher_regrade_skips_the_hold(db_session, student_id):
     assert result["success"] is True
     await db_session.refresh(p)
     assert p.status == "Approved" and p.grade == "A"
+
+
+# ── duplicate content across students / .txt hint ─────────────────────────────
+
+from app.services.integrity_check import content_fingerprint  # noqa: E402
+
+def _unique_page() -> str:
+    """A fresh page per test: committed rows persist across tests in the shared
+    test DB, so a fixed page would match another test's project."""
+    tag = uuid.uuid4().hex
+    return "<!DOCTYPE html>\n<html>\n<body>\n" + "\n".join(
+        f"  <p class=\"row{i}\">Qator raqami {i} {tag} uchun uzun matn</p>" for i in range(20)
+    ) + "\n</body>\n</html>"
+
+
+def _snapshot(path, body):
+    return f"### {path}\n```\n{body}\n```"
+
+
+def test_fingerprint_ignores_file_names_whitespace_case_and_order():
+    _PAGE = _unique_page()
+    a = _snapshot("Новая папка/index.html", _PAGE) + "\n\n" + _snapshot("style.css", "body { color: red; }" * 20)
+    b = _snapshot("style.css", "BODY {  color:  red; }" * 20 + "") + "\n\n" + _snapshot(
+        "hw/INDEX.HTML", _PAGE.replace("\n", "\n    "))
+    assert content_fingerprint(a) is not None
+    assert content_fingerprint(a) == content_fingerprint(b)
+
+
+def test_fingerprint_differs_for_different_code_and_is_none_for_tiny_code():
+    _PAGE = _unique_page()
+    assert content_fingerprint(_snapshot("a.html", _PAGE)) != content_fingerprint(
+        _snapshot("a.html", _PAGE.replace("Qator", "Boshqa")))
+    assert content_fingerprint(_snapshot("a.html", "<h1>Hi</h1>")) is None
+
+
+async def _other_student(async_client) -> int:
+    uid = uuid.uuid4().hex[:8]
+    reg = await async_client.post(
+        "/api/v1/auth/register",
+        json={"username": f"integ2_{uid}", "email": f"integ2_{uid}@example.com",
+              "password": "securepass123"},
+    )
+    assert reg.status_code == 201, reg.text
+    return reg.json()["user"]["id"]
+
+
+async def test_same_code_from_another_student_is_held(async_client, db_session, student_id):
+    _PAGE = _unique_page()
+    text = _snapshot("index.html", _PAGE)
+    other = await _other_student(async_client)
+    first = await _project(db_session, other, submitted_ago=timedelta(hours=3))
+    r1 = await check_submission_integrity(db_session, first, files_included=["index.html"], content_text=text)
+    assert not r1.held                      # the first one in is not a duplicate of anything
+    await db_session.commit()
+
+    second = await _project(db_session, student_id, submitted_ago=timedelta(0))
+    r2 = await check_submission_integrity(
+        db_session, second, files_included=["folder/index.html"],
+        content_text=_snapshot("folder/index.html", _PAGE.replace("\n", "\n  ")))
+    assert r2.held
+    assert [t["code"] for t in r2.triggers] == ["duplicate_content"]
+    assert f"#{first.id}" in r2.feedback()
+
+
+async def test_same_students_own_resubmission_is_not_a_duplicate(db_session, student_id):
+    _PAGE = _unique_page()
+    text = _snapshot("index.html", _PAGE)
+    first = await _project(db_session, student_id, submitted_ago=timedelta(hours=3))
+    await check_submission_integrity(db_session, first, files_included=["index.html"], content_text=text)
+    await db_session.commit()
+    again = await _project(db_session, student_id, submitted_ago=timedelta(0))
+    r = await check_submission_integrity(db_session, again, files_included=["index.html"], content_text=text)
+    assert not r.held
+
+
+async def test_plain_text_hold_tells_the_student_what_to_fix(db_session, student_id):
+    p = await _project(db_session, student_id, submitted_ago=timedelta(0))
+    r = await check_submission_integrity(
+        db_session, p, files_included=["Новая папка/diyor.html.txt"], content_text="<h1>x</h1>")
+    fb = r.feedback()
+    assert "diyor.html.txt" in fb
+    assert "kengaytmani" in fb          # uz hint
+    assert "переименуйте" in fb         # ru hint
+    assert "O'qituvchi uchun" in fb     # teacher section still there

@@ -36,6 +36,10 @@ class Project(Base):
     keystroke_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     paste_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     code_explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # sha256 of the whitespace/path-normalized submitted code (see
+    # integrity_check.content_fingerprint) — lets a later submission be
+    # matched against other students' work. Not exposed through any schema.
+    content_fingerprint: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
 
     submitted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
