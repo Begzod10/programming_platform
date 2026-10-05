@@ -360,3 +360,60 @@ def test_a_task_above_the_members_level_is_rejected_either_way():
     plan = {"tasks": [_task(0, "Advanced")]}
     assert validate_plan(plan, members)
     assert validate_plan(plan, members, require_level_match=True)
+
+
+# ── tasks must not lean on frameworks the assignee never studied ──
+
+def _skilled(*summaries):
+    return [{"student_id": i, "full_name": f"S{i}", "level": "Advanced", "summary": s}
+            for i, s in enumerate(summaries)]
+
+
+def _task_about(member_idx, text):
+    t = _task(member_idx, "Advanced")
+    t["title"] = text
+    t["description"] = text
+    return t
+
+
+JS_ONLY = "Completed Javascript (15/15 lessons). Current technologies: javascript, dom, fetch."
+REDUX = "Completed React: Redux Toolkit, TypeScript va Testlash. Current technologies: react, redux."
+
+
+def test_extra_library_for_a_member_who_never_studied_it_is_rejected():
+    members = _skilled(JS_ONLY, REDUX)
+    plan = {"tasks": [_task_about(0, "Redux bilan savat holatini boshqaring"), _task(1, "Advanced")]}
+    errors = validate_plan(plan, members)
+    assert any("uses Redux" in e and "S0" in e for e in errors)
+
+
+def test_extra_library_for_a_member_who_studied_it_is_fine():
+    members = _skilled(JS_ONLY, REDUX)
+    plan = {"tasks": [_task(0, "Advanced"), _task_about(1, "Redux bilan savat holatini boshqaring")]}
+    assert not any("uses " in e for e in validate_plan(plan, members))
+
+
+def test_extra_library_is_rejected_even_if_nobody_has_it():
+    members = _skilled(JS_ONLY, JS_ONLY)
+    plan = {"tasks": [_task_about(0, "Pinia store yarating"), _task(1, "Advanced")]}
+    assert any("uses Pinia/Vuex" in e for e in validate_plan(plan, members))
+
+
+def test_stack_framework_goes_to_a_member_who_has_it_when_a_teammate_does():
+    members = _skilled(JS_ONLY, REDUX)
+    plan = {"tasks": [_task_about(0, "React komponentlarini yozing"), _task(1, "Advanced")]}
+    assert any("uses React" in e and "give it to a member who has" in e for e in validate_plan(plan, members))
+
+
+def test_stack_framework_is_allowed_when_nobody_has_it():
+    members = _skilled(JS_ONLY, JS_ONLY)
+    plan = {"tasks": [_task_about(0, "React komponentlarini yozing"), _task(1, "Advanced")]}
+    assert not any("uses React" in e for e in validate_plan(plan, members))
+
+
+def test_plain_javascript_tasks_and_manual_plans_are_not_flagged():
+    plan = {"tasks": [_task_about(0, "Vanilla JS bilan modal oyna"), _task(1, "Advanced")]}
+    assert not any("uses " in e for e in validate_plan(plan, _skilled(JS_ONLY, JS_ONLY)))
+    manual = {"tasks": [_task_about(0, "Redux store"), _task(1, "Advanced")]}
+    assert not any("uses " in e for e in validate_plan(
+        manual, [{"student_id": 0, "level": "Advanced"}, {"student_id": 1, "level": "Advanced"}]))

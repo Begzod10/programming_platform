@@ -55,6 +55,33 @@ def mentions_python(summary: Optional[str]) -> bool:
     return bool(_PYTHON_WORDS.search(summary or ""))
 
 
+# Frameworks a task can lean on. (name, regex in the task text, regex a member's
+# skill summary must match to have seen it.) "stack" ones are the project's own
+# stack — a member without them is skipped only if a teammate has them; "extra"
+# ones are add-on libraries nobody can be handed unless they have studied them.
+_FRAMEWORK_RULES = [
+    ("stack", "React", re.compile(r"\breact\b", re.I), re.compile(r"\breact\b", re.I)),
+    ("stack", "Vue", re.compile(r"\bvue(?:\.?js)?\b", re.I), re.compile(r"\bvue(?:\.?js)?\b", re.I)),
+    ("stack", "Next.js", re.compile(r"\bnext\.?js\b", re.I), re.compile(r"\b(?:next\.?js|react)\b", re.I)),
+    ("stack", "Node/Express", re.compile(r"\b(?:express|node\.?js)\b", re.I), re.compile(r"\b(?:express|node\.?js)\b", re.I)),
+    ("extra", "Redux", re.compile(r"\bredux\b", re.I), re.compile(r"\bredux\b", re.I)),
+    ("extra", "Pinia/Vuex", re.compile(r"\b(?:pinia|vuex)\b", re.I), re.compile(r"\b(?:pinia|vuex)\b", re.I)),
+    ("extra", "Zustand", re.compile(r"\bzustand\b", re.I), re.compile(r"\bzustand\b", re.I)),
+    ("extra", "TypeScript", re.compile(r"\btypescript\b", re.I), re.compile(r"\btypescript\b", re.I)),
+    ("extra", "Tailwind", re.compile(r"\btailwind\b", re.I), re.compile(r"\btailwind\b", re.I)),
+    ("extra", "Bootstrap", re.compile(r"\bbootstrap\b", re.I), re.compile(r"\bbootstrap\b", re.I)),
+    ("extra", "SASS/SCSS", re.compile(r"\b(?:sass|scss)\b", re.I), re.compile(r"\b(?:sass|scss)\b", re.I)),
+    ("extra", "jQuery", re.compile(r"\bjquery\b", re.I), re.compile(r"\bjquery\b", re.I)),
+    ("extra", "GraphQL", re.compile(r"\bgraphql\b", re.I), re.compile(r"\bgraphql\b", re.I)),
+]
+
+
+def _task_text(task: dict) -> str:
+    criteria = task.get("acceptance_criteria") or []
+    crit = " ".join(c for c in criteria if isinstance(c, str)) if isinstance(criteria, list) else ""
+    return f"{task.get('title', '')} {task.get('description', '')} {crit}"
+
+
 def _is_python_backend_task(task: dict) -> bool:
     contract = task.get("interface_contract") or {}
     files = [f for f in (contract.get("files") or []) if isinstance(f, str)]
@@ -88,6 +115,7 @@ TALABLAR:
 - Har bir vazifa aniq bir fayl/sahifa/komponentga tegishli bo'lsin (masalan "login sahifasi", "navbar", "profil kartasi"), shunda a'zolar bir-birining ishiga deyarli tegmasdan parallel ishlay oladi.
 - Vazifalar sonini jamoa a'zolari soniga TENG qil — har bir a'zoga (jumladan eng kuchli a'zoga ham) bittadan vazifa. `assign_to_member_index` qiymatlari 0 dan {len(members_summary) - 1} gacha bo'lgan har bir indeksni ANIQ BIR MARTA ishlatishi SHART (takrorlanmasligi va hech biri tashlab ketilmasligi kerak).
 - Har bir a'zoning HOZIRGI yo'nalishiga mos qism ber: a'zo xulosasida "CURRENT FOCUS" yoki "Current technologies" yozilgan bo'lsa, vazifa shu texnologiyada bo'lsin (masalan JavaScript o'rganayotgan a'zoga frontend/JS qismi). "Earlier (not recently practiced)" ro'yxatidagi texnologiyalar bo'yicha murakkab vazifa BERMA — a'zo ularni yaqinda mashq qilmagan.
+- Vazifaga a'zo o'rganmagan framework yoki kutubxonani (Redux, Pinia, TypeScript, Tailwind, Bootstrap, SASS va h.k.) QO'SHMA. Faqat a'zoning xulosasida (kurs yoki texnologiya sifatida) uchraydigan texnologiyalardan foydalan; ular bo'lmasa oddiy HTML/CSS/JavaScript bilan yoz.
 - A'zo yonida "Python/Django tajribasi: YOQ" yozilgan bo'lsa, unga Django/Python/Flask backend vazifasini BERMA — uni faqat tajribasi "bor" a'zoga ber. Agar jamoada hech kimda Python tajribasi bo'lmasa, backend qismini eng yuqori darajali a'zoga ber va uni sodda qil. Frontend/JavaScript o'rgangan a'zoga frontend qismini ber.
 - `required_level` har doim shu vazifaga tayinlangan a'zoning darajasiga TENG bo'lsin — oshmasin ham, pastroq ham bo'lmasin (Beginner a'zoga Advanced vazifa berilmaydi, Advanced a'zoga esa Intermediate vazifa BERILMAYDI). Vazifaning murakkabligi ham shu darajaga mos bo'lsin: Advanced a'zoga eng murakkab ishlar (backend/arxitektura, holat boshqaruvi, xatolarni boshqarish, validatsiya), Beginner a'zoga sodda, aniq qadamli ishlar. Kuchli a'zoga yengil vazifa berma.
 - `depends_on` — bu vazifa ro'yxatidagi BOSHQA vazifalarning 0-dan boshlanuvchi INDEKSLARI (ro'yxatdagi o'rni), boshqa hech narsa emas. O'z-o'ziga bog'liqlik va aylanma bog'liqlik (A→B→A) bo'lmasin.
@@ -468,6 +496,29 @@ def validate_plan(plan: dict, members_summary: list[dict], *, require_level_matc
                     f"Task {idx}: a Django/Python backend task is assigned to "
                     f"{members_summary[member_idx].get('full_name')}, who has no Python/Django "
                     "experience — give it to a member who has."
+                )
+
+    # A task must not lean on a framework/library its assignee never studied.
+    # Only checked when members carry a skill summary (manual plans don't).
+    if all("summary" in m for m in members_summary):
+        for idx, task in enumerate(tasks):
+            if not isinstance(task, dict):
+                continue
+            member_idx = task.get("assign_to_member_index")
+            if not (isinstance(member_idx, int) and 0 <= member_idx < member_count):
+                continue
+            text = _task_text(task)
+            member = members_summary[member_idx]
+            own = member.get("summary") or ""
+            for kind, name, in_task, has in _FRAMEWORK_RULES:
+                if not in_task.search(text) or has.search(own):
+                    continue
+                if kind == "stack" and not any(has.search(m.get("summary") or "") for m in members_summary):
+                    continue   # nobody has it; somebody has to build it
+                errors.append(
+                    f"Task {idx}: uses {name}, but {member.get('full_name')} has not studied it"
+                    + (" — give it to a member who has." if kind == "stack"
+                       else " — remove it from this task or use plain JavaScript/CSS instead.")
                 )
 
     # depends_on must reference real, other tasks' indices and be acyclic.
