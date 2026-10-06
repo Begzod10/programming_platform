@@ -70,6 +70,7 @@
 @keyframes dbPop { from{opacity:0; transform:translateY(-8px) scale(.98)} to{opacity:1; transform:none} }
 .db-launcher {
     position:absolute; top:54px; right:0; z-index:60; width:430px; max-width:92vw;
+    max-height:calc(100vh - 72px); overflow-y:auto;
     background:rgba(13,18,42,.97); border:1px solid var(--db-stroke-hi); border-radius:18px;
     box-shadow:0 24px 60px rgba(0,0,0,.5); padding:16px;
     backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
@@ -116,10 +117,29 @@
 
 @media (max-width:860px) {
     .db-topbar { padding:14px 18px; }
-    .db-launcher-grid { grid-template-columns:repeat(2,1fr); }
 }
-@media (max-width:680px) {
-    .db-brand-name { font-size:17px; }
+@media (max-width:620px) {
+    .db-topbar { padding:12px 14px; }
+    .db-topbar-actions { gap:8px; }
+    .db-brand { gap:10px; }
+    .db-brand-name { font-size:16px; }
+    .db-brand-name span { display:none; }      /* drop " IT Platform" suffix */
+    .db-ticon, .db-avatar { width:40px; height:40px; }
+    .db-lang-btn { padding:6px 9px; font-size:.72rem; }
+    .db-launcher, .db-avatar-menu { top:56px; }
+    /* viewport-spanning panels so they never run off the left edge */
+    .db-launcher {
+        position:fixed; left:10px; right:10px; width:auto; max-width:none;
+        max-height:calc(100vh - 72px); overflow-y:auto;
+    }
+    .db-avatar-menu { position:fixed; right:10px; }
+}
+@media (max-width:420px) {
+    .db-brand-name { display:none; }            /* logo only on tiny phones */
+    .db-logo { width:38px; height:38px; }
+    .db-topbar-actions { gap:6px; }
+    .db-lang { padding:2px; }
+    .db-lang-btn { padding:6px 7px; }
 }
 @media (prefers-reduced-motion:reduce) {
     .db-launcher, .db-avatar-menu { animation-duration:.001s; }

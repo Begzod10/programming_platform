@@ -142,7 +142,8 @@
 .lb-row--me .lb-row-rank { color:var(--lb-green-soft); }
 .lb-row-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:9px; }
 .lb-row-name { font-size:1rem; font-weight:700; display:inline-flex; align-items:center; gap:8px;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    max-width:100%; min-width:0; }
+.lb-row-name-txt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
 .lb-row-bar-wrap { height:8px; border-radius:6px; background:rgba(255,255,255,.07); overflow:hidden; }
 .lb-row-bar { height:100%; border-radius:6px; min-width:6px;
     background:linear-gradient(90deg, #0ea5b7, #22d3ee 70%, #67e8f9);
@@ -156,7 +157,7 @@
 
 /* "you" chip */
 .lb-chip-you { font-size:.6rem; font-weight:800; letter-spacing:.6px; padding:2px 7px; border-radius:7px;
-    color:#071; background:var(--lb-green-soft); }
+    color:#071; background:var(--lb-green-soft); flex-shrink:0; white-space:nowrap; }
 
 /* ── states ── */
 .lb-state { display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px;
@@ -188,15 +189,52 @@
     .lb-shell { padding:0 16px 40px; }
     .lb-trophy { display:none; }
     .lb-pcol { width:33%; }
-    .lb-myband { flex-direction:column; align-items:flex-start; gap:10px; }
+    .lb-myband { gap:12px; }
+    .lb-myband-l { min-width:0; }
+    .lb-myband-label { white-space:nowrap; }
+    .lb-tabs { flex-wrap:wrap; }
+    .lb-controls { justify-content:flex-start; }
 }
 @media (max-width:620px) {
+    /* stack the controls and let the period tabs fill the row as a 2×2 grid
+       so they don't leave a big empty strip on the right */
+    .lb-controls { flex-direction:column; align-items:stretch; gap:10px; }
+    .lb-tabs { display:grid; grid-template-columns:1fr 1fr; width:100%; }
+    .lb-tab { justify-content:center; }
+    .lb-group-select { width:100%; }
+}
+@media (max-width:620px) {
+    .lb-myband-pos { font-size:1.2rem; }
+    .lb-myband-pts { font-size:1.28rem; }
+    .lb-myband-label { font-size:.9rem; }
+    .lb-podium { gap:8px; min-height:300px; }
+    .lb-pcol { width:33%; }
     .lb-pcol-name { font-size:.9rem; }
     .lb-pcol--1 .lb-pcol-name { font-size:1rem; }
+    .lb-avatar--gold, .lb-avatar--silver, .lb-avatar--bronze { width:64px !important; height:64px !important; }
     .lb-block-num { font-size:1.9rem; }
+    .lb-block--1 .lb-block-num { font-size:2.1rem; }
     .lb-block--1 { height:130px; } .lb-block--2 { height:102px; } .lb-block--3 { height:84px; }
     .lb-row { padding:12px 14px; gap:12px; }
     .lb-row-pts { font-size:1rem; }
+}
+@media (max-width:420px) {
+    .lb-shell { padding:0 12px 36px; }
+    .lb-myband { padding:14px 16px; }
+    .lb-myband-pos { font-size:1.05rem; }
+    .lb-myband-pts { font-size:1.1rem; }
+    .lb-podium { gap:5px; min-height:260px; }
+    .lb-pcol-name { font-size:.78rem; }
+    .lb-pcol--1 .lb-pcol-name { font-size:.88rem; }
+    .lb-pcol-pts { font-size:.82rem; }
+    .lb-avatar--gold, .lb-avatar--silver, .lb-avatar--bronze { width:50px !important; height:50px !important; }
+    .lb-crown { top:-16px; }
+    .lb-crown--1 { top:-18px; }
+    .lb-block-num { font-size:1.5rem; }
+    .lb-block--1 .lb-block-num { font-size:1.75rem; }
+    .lb-block--1 { height:108px; } .lb-block--2 { height:86px; } .lb-block--3 { height:70px; }
+    .lb-row { padding:11px 12px; gap:10px; }
+    .lb-row-rank { width:22px; font-size:1rem; }
 }
 @media (prefers-reduced-motion:reduce) {
     .lb-pcol-top, .lb-block, .lb-row, .lb-row-bar { animation:none; }

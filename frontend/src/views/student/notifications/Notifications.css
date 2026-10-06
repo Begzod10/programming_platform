@@ -119,10 +119,33 @@
     background:linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.08), rgba(255,255,255,.04));
     border:1px solid var(--nt-stroke); animation:ntPulse 1.4s ease-in-out infinite; }
 
+@media (max-width:860px) {
+    .nt-head { align-items:flex-start; }
+}
 @media (max-width:680px) {
     .nt-shell { padding:0 16px 40px; }
     .nt-head h1 { font-size:1.3rem; }
     .nt-markall { font-size:.76rem; padding:8px 12px; }
+}
+@media (max-width:620px) {
+    .nt-shell { padding:0 16px 36px; }
+    .nt-head h1 { font-size:1.24rem; }
+    .nt-filters { gap:7px; }
+    .nt-filter { padding:7px 11px; font-size:.78rem; }
+    .nt-card { padding:14px 14px; gap:11px; }
+    .nt-card-ico { width:40px; height:40px; }
+    .nt-card-body { padding-right:16px; }
+    .nt-dot { right:14px; top:14px; }
+    .nt-card-arrow { display:none; }
+}
+@media (max-width:420px) {
+    .nt-shell { padding:0 12px 32px; }
+    .nt-head h1 { font-size:1.12rem; }
+    .nt-head-ico { width:42px; height:42px; }
+    .nt-card { padding:12px 12px; gap:10px; }
+    .nt-card-ico { width:36px; height:36px; }
+    .nt-card-title { font-size:.9rem; }
+    .nt-card-text { font-size:.82rem; }
 }
 @media (prefers-reduced-motion:reduce) {
     .nt-rise { animation-duration:.001s; }

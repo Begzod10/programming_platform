@@ -142,7 +142,8 @@ function Heatmap({ days, ru }) {
                         title={`${d.date} · ${d.count} ${ru ? 'действий' : 'ta faollik'}`} />
                 ))}
             </div>
-            <div className="st-heat-months">
+            <div className="st-heat-months"
+                 style={{ gridTemplateColumns: `repeat(${weeks}, 1fr)` }}>
                 {monthCols.map((m, i) => (
                     <span key={i} style={{ gridColumn: m.w + 1 }}>{m.label}</span>
                 ))}

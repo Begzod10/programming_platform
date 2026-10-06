@@ -183,7 +183,7 @@
 ═══════════════════════════════════════════ */
 .sc-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
   gap: 18px;
 }
 
@@ -573,7 +573,7 @@
    RESPONSIVE
 ═══════════════════════════════════════════ */
 @media (max-width: 1024px) {
-  .sc-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .sc-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 14px; }
   .sc-title { font-size: 28px; }
 }
 
@@ -594,7 +594,7 @@
   /* Folded in from a standalone ≤640px query — kept on the canonical
    * tablet breakpoint so the lang grid doesn't jump separately from
    * the rest of the header/grid changes above. */
-  .sc-lang-grid     { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+  .sc-lang-grid     { grid-template-columns: repeat(auto-fill, minmax(min(100%, 90px), 1fr)); gap: 8px; }
   .sc-lang-card     { padding: 12px 8px 10px; border-radius: 12px; }
   .sc-lang-icon     { font-size: 22px; }
   .sc-lang-name     { font-size: 11.5px; }
@@ -719,7 +719,7 @@
 
 .sc-lang-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 120px), 1fr));
   gap: 12px;
 }
 
@@ -914,7 +914,7 @@
 
 /* ── section + grid ── */
 .cx-section-title { font-size:1.1rem; font-weight:700; margin-top:6px; }
-.cx-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:18px; }
+.cx-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap:18px; }
 .cx-card {
     display:flex; align-items:center; gap:18px; text-align:left; cursor:pointer;
     background:var(--cx-glass); border:1px solid var(--cx-stroke); border-radius:18px; padding:18px;
@@ -946,6 +946,26 @@
     .cx-shell { padding:20px 18px 40px; }
     .cx-hero-divider { display:none; }
     .cx-grid { grid-template-columns:1fr; }
+    .cx-hero { padding:22px 20px; gap:20px; }
+    .cx-hero-left { min-width:0; gap:18px; }
+    .cx-hero-info { min-width:0; }
+    .cx-hero-right { width:100%; }
+}
+@media (max-width:560px) {
+    .cx-shell { padding:14px 14px 36px; }
+    .cx-hero { padding:18px 16px; }
+    .cx-hero-left { flex-direction:column; align-items:flex-start; gap:14px; }
+    .cx-hero-icon { width:72px; height:72px; }
+    .cx-hero-title { font-size:1.35rem; }
+    .cx-hero-ex-title { font-size:1rem; }
+    .cx-continue { width:100%; text-align:center; }
+    .cx-search input { width:100%; max-width:none; }
+    .cx-toolbar-right { width:100%; }
+    .cx-search { flex:1; }
+}
+@media (max-width:420px) {
+    .cx-shell { padding:12px 12px 32px; }
+    .cx-hero-title { font-size:1.2rem; }
 }
 @media (prefers-reduced-motion:reduce) {
     .cx-rise { animation-duration:.001s; }

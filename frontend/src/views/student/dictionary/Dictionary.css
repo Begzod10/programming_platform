@@ -494,7 +494,7 @@
 ══════════════════════════════════════════ */
 .d-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr));
     gap: 14px;
     align-content: start;
 }
@@ -1021,7 +1021,7 @@
     .d-lessons-nav,
     .d-sidebar-tip     { flex: 1 1 100%; }
     .d-main { padding: 16px; }
-    .d-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+    .d-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr)); gap: 10px; }
 }
 
 @media (max-width: 480px) {
@@ -1183,7 +1183,7 @@
 
 /* ── Cards: real fill (auto-fit instead of auto-fill) + safer wrap ─── */
 .d-grid {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
     gap: 14px;
 }
 .d-card-word {
@@ -1313,7 +1313,7 @@
 .dx-tab.active .dx-tab-n { background:rgba(139,123,242,.2); color:#b7adfb; }
 
 /* grid + card */
-.dx-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:20px; }
+.dx-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap:20px; }
 @keyframes dxRise { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
 .dx-card { position:relative; display:flex; flex-direction:column; gap:14px; overflow:hidden;
     background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); border-radius:18px; padding:18px;

@@ -289,7 +289,7 @@ export default function Leaderboard() {
                                             <Avatar url={student.avatar_url} name={name} size={46} />
                                             <div className="lb-row-info">
                                                 <span className="lb-row-name">
-                                                    {name}
+                                                    <span className="lb-row-name-txt">{name}</span>
                                                     {mine && <span className="lb-chip-you">{t('rating.you')}</span>}
                                                 </span>
                                                 <div className="lb-row-bar-wrap">

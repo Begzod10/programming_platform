@@ -1005,6 +1005,12 @@
 
 @media (max-width: 560px) {
     .slp-ex-match-columns { grid-template-columns: 1fr; }
+    /* project card: stop the status badge from squeezing the title into a
+       one-word-per-line sliver — let it wrap onto its own line */
+    .slp-project-task { padding: 18px; }
+    .slp-project-top { flex-wrap: wrap; gap: 12px; }
+    .slp-project-info { flex: 1 1 auto; min-width: 0; }
+    .slp-project-check { order: 3; flex-basis: 100%; width: fit-content; white-space: normal; }
 }
 
 /* TEXT INPUT */

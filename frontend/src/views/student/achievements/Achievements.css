@@ -115,7 +115,7 @@
     background:var(--ac-glass-hi); color:var(--ac-muted); border:1px solid var(--ac-stroke); }
 
 /* ── grid + cards ── */
-.ach-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:18px; }
+.ach-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap:18px; }
 .ach-card { position:relative; display:flex; flex-direction:column; align-items:center; text-align:center;
     gap:9px; padding:26px 20px 22px;
     background:var(--ac-glass); border:1px solid var(--ac-stroke); border-radius:var(--ac-r); overflow:hidden;
@@ -184,13 +184,33 @@
     .ach-controls { flex-direction:column; align-items:stretch; }
     .ach-controls-r { justify-content:space-between; }
     .ach-search { flex:1; }
+    .ach-head h1 { font-size:1.3rem; }
 }
 @media (max-width:620px) {
+    .ach-shell { padding:0 16px 36px; }
     .ach-grid { grid-template-columns:1fr; }
-    .ach-head h1 { font-size:1.25rem; }
-    .ach-spotlight { flex-direction:column; text-align:center; }
+    .ach-head { padding:16px 18px; }
+    .ach-head h1 { font-size:1.2rem; }
+    .ach-head p { font-size:.84rem; }
+    .ach-controls-r { flex-direction:column; align-items:stretch; }
+    .ach-search { width:100%; min-width:0; }
+    .ach-search input { width:100%; }
+    .ach-sort { width:100%; }
+    .ach-spotlight { flex-direction:column; text-align:center; align-items:center; padding:20px; }
+    .ach-spot-body { width:100%; }
     .ach-spot-desc { white-space:normal; }
     .ach-spot-prog { flex-direction:column; align-items:stretch; }
+    .ach-spot-frac { align-self:center; }
+}
+@media (max-width:480px) {
+    .ach-stats { grid-template-columns:1fr; }
+}
+@media (max-width:420px) {
+    .ach-shell { padding:0 12px 32px; }
+    .ach-head { padding:14px 14px; }
+    .ach-head h1 { font-size:1.08rem; }
+    .ach-head-ico { width:44px; height:44px; }
+    .ach-ring { width:60px; height:60px; }
 }
 @media (prefers-reduced-motion:reduce) {
     .ach-card, .ach-prog-fill, .ach-skel, .ach-badge-shine { animation:none; }

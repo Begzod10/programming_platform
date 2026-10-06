@@ -78,12 +78,6 @@
 .duel-result { font-size: 2rem; font-weight: 900; padding: 14px 0; }
 .duel-result.is-win { color: #e6a400; }
 
-@media (max-width: 480px) {
-    .duel-card { padding: 22px 14px; }
-    .duel-question { font-size: 2.4rem; }
-    .duel-code { font-size: 2.6rem; }
-}
-
 /* The card is deliberately theme-independent (always white with dark text):
    it reads the app's --surface-2 nowhere, because on a dark theme / the
    layout-less guest page that variable is dark while the text stayed black.
@@ -232,3 +226,47 @@
 .duel-app-shell .duel-team.is-mine { box-shadow:0 0 0 3px rgba(139,123,242,.4); }
 .duel-app-shell .duel-team-head { color:var(--d-ink); }
 .duel-app-shell .duel-team-head small { color:var(--d-muted); }
+
+/* ══════════════════════════════════════════════════════════════
+   Responsive — shared .duel-* layout (applies to both the light
+   guest shell and the dark .duel-app-shell). Placed last so the
+   app-shell-scoped padding/compound-class rules win by source order.
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 860px) {
+    .duel-app-shell .duel-page { padding: 24px 16px 48px; }
+}
+@media (max-width: 620px) {
+    .duel-page { padding: 20px 14px 36px; }
+    .duel-app-shell .duel-page { padding: 20px 14px 44px; }
+    .duel-question { font-size: 2.6rem; }
+    .duel-question.is-emoji { font-size: 1.8rem; }
+    .duel-question.is-quiz { font-size: 1.2rem; }
+    .duel-code { font-size: 2.8rem; letter-spacing: 0.18em; }
+    .duel-option { padding: 15px 8px; font-size: 1.5rem; }
+    .duel-scores { flex-wrap: wrap; gap: 10px; }
+    .duel-score-num { font-size: 1.7rem; }
+}
+@media (max-width: 480px) {
+    .duel-card { padding: 22px 14px; }
+    .duel-question { font-size: 2.4rem; }
+    .duel-code { font-size: 2.6rem; }
+}
+@media (max-width: 420px) {
+    .duel-page { padding: 16px 10px 32px; }
+    .duel-app-shell .duel-page { padding: 16px 10px 36px; }
+    .duel-card { padding: 20px 12px; }
+    .duel-question { font-size: 2rem; }
+    .duel-question.is-emoji { font-size: 1.55rem; }
+    .duel-question.is-quiz { font-size: 1.1rem; }
+    .duel-code { font-size: 2.1rem; letter-spacing: 0.14em; }
+    .duel-code-input { font-size: 1.1rem; letter-spacing: 0.2em; }
+    .duel-options { gap: 10px; }
+    .duel-option { padding: 13px 6px; font-size: 1.3rem; }
+    .duel-scores { gap: 8px; }
+    .duel-score { padding: 9px 6px; }
+    .duel-score-num { font-size: 1.5rem; }
+    .duel-scores--multi .duel-score { flex: 1 1 70px; min-width: 64px; }
+    .duel-board li { font-size: 0.86rem; padding: 6px 8px; }
+    .duel-result { font-size: 1.7rem; }
+    .duel-countdown { font-size: 2rem; }
+}

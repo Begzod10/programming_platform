@@ -186,13 +186,37 @@
     .tpr-trophy { display:none; }
     .tpr-pcol { width:33%; }
     .tpr-search { flex-basis:100%; order:3; }
+    .tpr-tabs { flex-wrap:wrap; }
+    .tpr-controls { justify-content:flex-start; }
 }
 @media (max-width:620px) {
+    .tpr-head h1 { font-size:1.22rem; }
+    .tpr-podium { gap:8px; min-height:300px; }
+    .tpr-pcol { width:33%; }
     .tpr-pcol-name { font-size:.9rem; } .tpr-pcol--1 .tpr-pcol-name { font-size:1rem; }
+    .tpr-avatar--gold, .tpr-avatar--silver, .tpr-avatar--bronze { width:64px !important; height:64px !important; }
     .tpr-block-num { font-size:1.9rem; }
+    .tpr-block--1 .tpr-block-num { font-size:2.1rem; }
     .tpr-block--1 { height:130px; } .tpr-block--2 { height:102px; } .tpr-block--3 { height:84px; }
     .tpr-row { padding:12px 14px; gap:12px; }
     .tpr-row-line { flex-direction:column; align-items:flex-start; gap:3px; }
+    .tpr-course-select { max-width:100%; flex:1; }
+}
+@media (max-width:420px) {
+    .tpr-shell { padding:0 12px 36px; }
+    .tpr-head h1 { font-size:1.1rem; }
+    .tpr-title-ico { width:40px; height:40px; }
+    .tpr-podium { gap:5px; min-height:260px; }
+    .tpr-pcol-name { font-size:.78rem; } .tpr-pcol--1 .tpr-pcol-name { font-size:.88rem; }
+    .tpr-pcol-pts { font-size:.82rem; }
+    .tpr-avatar--gold, .tpr-avatar--silver, .tpr-avatar--bronze { width:50px !important; height:50px !important; }
+    .tpr-crown { top:-16px; }
+    .tpr-crown--1 { top:-18px; }
+    .tpr-block-num { font-size:1.5rem; }
+    .tpr-block--1 .tpr-block-num { font-size:1.75rem; }
+    .tpr-block--1 { height:108px; } .tpr-block--2 { height:86px; } .tpr-block--3 { height:70px; }
+    .tpr-row { padding:11px 12px; gap:10px; }
+    .tpr-row-rank { width:22px; font-size:1rem; }
 }
 @media (prefers-reduced-motion:reduce) {
     .tpr-pcol-top, .tpr-block, .tpr-row, .tpr-row-bar, .tpr-spinner { animation:none; }

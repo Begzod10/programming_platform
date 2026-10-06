@@ -124,8 +124,11 @@
 
 /* heatmap */
 .db-p-heat { padding:22px; display:flex; flex-direction:column; }
-.db-heat { flex:1; }
-.db-heat-grid { display:grid; grid-auto-flow:column; grid-template-rows:repeat(7,1fr); gap:5px; }
+.db-heat { flex:1; display:flex; flex-direction:column; justify-content:center; gap:8px; }
+/* square cells sized to fill the card width (as large as possible), the grid
+   centered vertically so the map sits balanced in the card */
+.db-heat-grid { display:grid; grid-auto-flow:column; grid-auto-columns:1fr;
+    grid-template-rows:repeat(7,1fr); gap:5px; width:100%; }
 .db-cell { aspect-ratio:1; border-radius:4px; background:rgba(255,255,255,.05);
     transform:scale(.4); opacity:0; transition:transform .3s, opacity .3s, box-shadow .15s; cursor:pointer; }
 .db-cell.in { transform:scale(1); opacity:1; }
@@ -135,9 +138,9 @@
 .db-cell-l2 { background:#2ba355; }
 .db-cell-l3 { background:#36e06b; }
 .db-cell-l4 { background:#7ef0a3; }
-.db-heat-months { display:grid; grid-auto-flow:column; grid-template-columns:repeat(auto-fill,minmax(0,1fr));
+.db-heat-months { display:grid; column-gap:5px; width:100%;
     font-size:.68rem; color:var(--db-faint); font-weight:600; margin-top:8px; }
-.db-heat-months span { grid-row:1; }
+.db-heat-months span { grid-row:1; white-space:nowrap; }
 .db-heat-foot { display:flex; align-items:center; justify-content:space-between; margin-top:14px;
     font-size:.7rem; color:var(--db-faint); flex-wrap:wrap; gap:8px; }
 .db-heat-foot b { color:var(--db-green-soft); }

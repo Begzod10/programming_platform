@@ -293,7 +293,7 @@
 ═══════════════════════════════════════════════ */
 .projects-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
     gap: 20px;
 }
 
@@ -1176,7 +1176,7 @@
  * narrower viewports. */
 @media (max-width: 1024px) {
     .mp-container  { gap: 20px; }
-    .projects-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; }
+    .projects-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 18px; }
     .mp-header h2  { font-size: 24px; }
 }
 
@@ -1340,7 +1340,7 @@
 .mpx-select:hover { border-color:rgba(255,255,255,.18); }
 .mpx-select option { background:#0d1230; color:#eef1ff; }
 
-.mpx-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(320px, 1fr)); gap:20px; }
+.mpx-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap:20px; }
 
 .mpx-state { display:flex; align-items:center; justify-content:center; gap:12px; padding:80px 20px; color:#9aa3c7; font-size:1rem; }
 .mpx-spinner { width:36px; height:36px; border-radius:50%; border:3px solid rgba(255,255,255,.12); border-top-color:#8b7bf2; animation:mpxSpin .9s linear infinite; }

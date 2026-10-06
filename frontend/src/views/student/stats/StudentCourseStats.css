@@ -62,8 +62,8 @@
     grid-template-columns:1.12fr 1.12fr 1fr 1fr;
     grid-template-areas:
         "profile profile strip   strip"
-        "prog    prog    matrix  mini"
-        "dict    dict    matrix  mini";
+        "prog    prog    mini    mini"
+        "dict    dict    matrix  matrix";
 }
 .st-profile  { grid-area:profile; }
 .st-strip    { grid-area:strip; display:grid; grid-template-columns:1fr 1fr; gap:18px; }
@@ -152,8 +152,9 @@
 
 /* ── Contribution matrix ── */
 .st-matrix { padding:22px; display:flex; flex-direction:column; }
-.st-heat { flex:1; display:flex; flex-direction:column; justify-content:center; }
-.st-heat-grid { display:grid; grid-auto-flow:column; grid-template-rows:repeat(7,1fr); gap:5px; }
+.st-heat { flex:1; display:flex; flex-direction:column; justify-content:center; gap:10px; }
+.st-heat-grid { display:grid; grid-auto-flow:column; grid-auto-columns:1fr;
+    grid-template-rows:repeat(7,1fr); gap:5px; width:100%; }
 .st-cell { aspect-ratio:1; border-radius:4px; background:rgba(255,255,255,.05);
     transform:scale(.4); opacity:0; transition:transform .3s, opacity .3s, box-shadow .15s; cursor:pointer; }
 .st-cell.in { transform:scale(1); opacity:1; }
@@ -163,9 +164,9 @@
 .st-cell-l2 { background:#2ba355; }
 .st-cell-l3 { background:#36e06b; }
 .st-cell-l4 { background:#7ef0a3; }
-.st-heat-months { display:grid; grid-auto-flow:column; grid-template-columns:repeat(auto-fill,minmax(0,1fr));
+.st-heat-months { display:grid; column-gap:5px; width:100%;
     font-size:.68rem; color:var(--st-faint); font-weight:600; margin-top:8px; }
-.st-heat-months span { grid-row:1; }
+.st-heat-months span { grid-row:1; white-space:nowrap; }
 .st-heat-foot { display:flex; align-items:center; justify-content:space-between; margin-top:16px;
     font-size:.7rem; color:var(--st-faint); flex-wrap:wrap; gap:8px; }
 .st-heat-foot b { color:var(--st-green-soft); }
@@ -199,8 +200,9 @@
 
 /* ── dictionary ── */
 .st-dict { padding:22px; }
-.st-dict-body { display:flex; gap:24px; align-items:center; }
-.st-dict-nums { flex:1; display:flex; flex-direction:column; gap:20px; }
+.st-dict-body { display:flex; gap:20px 32px; align-items:center;
+    justify-content:space-around; flex-wrap:wrap; }
+.st-dict-nums { display:contents; }
 .st-dict-stat { display:flex; flex-direction:column; }
 .st-d-big { font-size:2.1rem; font-weight:800; line-height:1.05; color:var(--st-amber); font-variant-numeric:tabular-nums; }
 .st-d-lbl { font-size:.76rem; color:var(--st-muted); margin-top:5px; }
@@ -217,8 +219,8 @@
             "profile profile"
             "strip   strip"
             "prog    prog"
-            "matrix  mini"
-            "dict    dict";
+            "mini    mini"
+            "matrix  dict";
     }
     .st-mini-col { gap:14px; }
 }
@@ -241,8 +243,42 @@
     .st-prog-body { flex-direction:column; }
     .st-bars { width:100%; height:150px; }
     .st-metrics { grid-template-columns:1fr 1fr; gap:18px; }
-    .st-dict-body { flex-direction:column; align-items:stretch; }
-    .st-dict-acc { align-self:center; }
+    .st-dict-body { flex-direction:column; align-items:center; }
+    .st-dict-stat { align-items:center; text-align:center; }
+}
+@media (max-width:620px) {
+    .st-shell { padding:0 16px 40px; gap:16px; }
+    .st-head h1 { font-size:1.3rem; }
+    .st-bento {
+        grid-template-columns:1fr;
+        grid-template-areas:
+            "profile"
+            "strip"
+            "prog"
+            "matrix"
+            "mini"
+            "dict";
+    }
+    .st-strip { grid-template-columns:1fr; }
+    .st-profile-stats { grid-template-columns:repeat(3,1fr); gap:8px; }
+    .st-ps { padding:12px 10px; gap:5px; }
+    .st-prog-body { flex-direction:column; align-items:stretch; gap:18px; }
+    .st-bars { width:100%; height:150px; }
+    .st-metrics { grid-template-columns:1fr 1fr; gap:16px; }
+    .st-dict-body { flex-direction:column; align-items:center; gap:16px; }
+    .st-profile-name { font-size:1.05rem; }
+}
+@media (max-width:420px) {
+    .st-shell { padding:0 12px 36px; }
+    .st-head h1 { font-size:1.16rem; }
+    .st-profile-stats { grid-template-columns:repeat(3,1fr); gap:6px; }
+    .st-ps { padding:10px 7px; }
+    .st-ps-ico { width:28px; height:28px; }
+    .st-metrics { grid-template-columns:1fr; }
+    .st-ring-pct { font-size:2.1rem; }
+    .st-exc-pct { font-size:1.6rem; }
+    .st-m-val { font-size:1.5rem; }
+    .st-d-big { font-size:1.7rem; }
 }
 
 @media (prefers-reduced-motion:reduce) {

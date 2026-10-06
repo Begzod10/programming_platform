@@ -114,7 +114,7 @@
     background:var(--dg-glass-hi); color:var(--dg-muted); border:1px solid var(--dg-stroke); }
 
 /* ── grid + cards ── */
-.dg-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:18px; }
+.dg-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap:18px; }
 .dg-card { position:relative; display:flex; flex-direction:column; align-items:center; text-align:center;
     gap:10px; padding:26px 22px 22px;
     background:var(--dg-glass); border:1px solid var(--dg-stroke); border-radius:var(--dg-r); overflow:hidden;
@@ -202,14 +202,34 @@
     .dg-controls { flex-direction:column; align-items:stretch; }
     .dg-controls-r { justify-content:space-between; }
     .dg-search { flex:1; }
+    .dg-head h1 { font-size:1.3rem; }
 }
 @media (max-width:620px) {
+    .dg-shell { padding:0 16px 36px; }
     .dg-grid { grid-template-columns:1fr; }
-    .dg-head { flex-direction:row; }
-    .dg-head h1 { font-size:1.25rem; }
-    .dg-spotlight { flex-direction:column; text-align:center; }
+    .dg-head { flex-direction:row; padding:16px 18px; }
+    .dg-head h1 { font-size:1.2rem; }
+    .dg-head p { font-size:.84rem; }
+    .dg-controls-r { flex-direction:column; align-items:stretch; }
+    .dg-search { width:100%; min-width:0; }
+    .dg-search input { width:100%; }
+    .dg-sort { width:100%; }
+    .dg-chips { flex-wrap:wrap; }
+    .dg-spotlight { flex-direction:column; text-align:center; align-items:center; padding:20px; }
+    .dg-spot-body { width:100%; }
     .dg-spot-desc { white-space:normal; }
     .dg-spot-prog { flex-direction:column; align-items:stretch; }
+    .dg-spot-frac { align-self:center; }
+}
+@media (max-width:480px) {
+    .dg-stats { grid-template-columns:1fr; }
+}
+@media (max-width:420px) {
+    .dg-shell { padding:0 12px 32px; }
+    .dg-head { padding:14px 14px; }
+    .dg-head h1 { font-size:1.08rem; }
+    .dg-head-ico { width:44px; height:44px; }
+    .dg-ring { width:60px; height:60px; }
 }
 @media (prefers-reduced-motion:reduce) {
     .dg-card, .dg-prog-fill, .dg-skel, .dg-badge-shine { animation:none; }
