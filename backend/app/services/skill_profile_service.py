@@ -41,6 +41,20 @@ MIN_ATTEMPTS_FOR_ACCURACY = 5
 # someone who finished Django long ago and is now on JavaScript should get
 # JavaScript work. Anything done inside this window counts as "current focus".
 RECENT_WINDOW = timedelta(days=30)
+
+# Project.technologies_used is free text and in practice holds whole sentences
+# and code fragments ("... }; mashina.rang = ...", "html · css · :focus · ..."),
+# which flooded the technology list and the planner prompt. A technology is a
+# short plain token.
+_TECH_BAD_CHARS = set('{}();="<>·\n')
+MAX_TECH_LEN = 24
+
+
+def _clean_tech(raw) -> Optional[str]:
+    tech = " ".join(str(raw).lower().split())
+    if not tech or len(tech) > MAX_TECH_LEN or any(c in _TECH_BAD_CHARS for c in tech):
+        return None
+    return tech
 MAX_PAST_PROJECTS = 5
 PAST_PROJECT_TEXT_LIMIT = 300
 
@@ -135,16 +149,17 @@ async def _build_profiles(db: AsyncSession, students: List[Student]) -> List[Ski
         ]
 
         technologies_seen = sorted({
-            t.strip().lower()
-            for p in projects if p.technologies_used
-            for t in p.technologies_used.split(",") if t.strip()
-        } | code_languages)
+            t for t in (_clean_tech(x) for p in projects if p.technologies_used
+                        for x in p.technologies_used.split(","))
+            if t
+        } | {t for t in (_clean_tech(x) for x in code_languages) if t})
 
-        recent_technologies = sorted(recent_languages | {
-            t.strip().lower()
-            for p in projects
-            if p.technologies_used and _is_recent(p.submitted_at or p.reviewed_at, recent_since)
-            for t in p.technologies_used.split(",") if t.strip()
+        recent_technologies = sorted({t for t in (_clean_tech(x) for x in recent_languages) if t} | {
+            t for t in (
+                _clean_tech(x) for p in projects
+                if p.technologies_used and _is_recent(p.submitted_at or p.reviewed_at, recent_since)
+                for x in p.technologies_used.split(",")
+            ) if t
         })
 
         summary = _build_summary(

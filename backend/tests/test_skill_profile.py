@@ -451,3 +451,16 @@ async def test_summary_without_recent_activity_keeps_the_plain_technology_list(
     profile = await build_skill_profile(db_session, student_id)
     assert "CURRENT FOCUS" not in profile.summary
     assert "Technologies: python." in profile.summary
+
+
+async def test_technology_list_drops_code_fragments_and_sentences(three_students, db_session):
+    student_id = three_students["advanced"]
+    junk = "react, ... }; mashina.rang = \"x\"; — yangi qiymat qo'shish, html · css · :focus · flexbox, node"
+    db_session.add(Project(
+        student_id=student_id, title="P", description="d",
+        difficulty_level="Medium", technologies_used=junk,
+    ))
+    await db_session.commit()
+    profile = await build_skill_profile(db_session, student_id)
+    assert {"react", "node"} <= set(profile.technologies_seen)
+    assert all(len(t) <= 24 and "·" not in t and ";" not in t for t in profile.technologies_seen)

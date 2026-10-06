@@ -13,12 +13,18 @@ THEMES = [
     {"key": "booking", "label": "Bandlash tizimi", "label_ru": "Система бронирования"},
 ]
 
+# `needs`: a regex over a member's skill summary (course titles, lesson
+# languages, project technologies). A stack with a frontend framework is only
+# offered to a team where at least half of the members have seen that
+# framework — nobody on this platform learns React/Vue/Next.js by default, so a
+# random pick used to hand teams a framework none of them had studied. "vanilla"
+# needs nothing, so every team always has at least one eligible stack.
 TECH_STACKS = [
-    {"key": "react", "label": "React", "frontend": "React", "backend": "FastAPI"},
-    {"key": "vue", "label": "Vue", "frontend": "Vue", "backend": "Flask"},
-    {"key": "next", "label": "Next.js", "frontend": "Next.js", "backend": "Django"},
-    {"key": "express", "label": "Node/Express", "frontend": "React", "backend": "Node/Express"},
-    {"key": "vanilla", "label": "Vanilla JS", "frontend": "Vanilla JS", "backend": "Flask"},
+    {"key": "react", "label": "React", "frontend": "React", "backend": "FastAPI", "needs": r"\breact\b"},
+    {"key": "vue", "label": "Vue", "frontend": "Vue", "backend": "Flask", "needs": r"\bvue\b"},
+    {"key": "next", "label": "Next.js", "frontend": "Next.js", "backend": "Django", "needs": r"\b(?:next\.?js|react)\b"},
+    {"key": "express", "label": "Node/Express", "frontend": "React", "backend": "Node/Express", "needs": r"\breact\b"},
+    {"key": "vanilla", "label": "Vanilla JS", "frontend": "Vanilla JS", "backend": "Flask", "needs": None},
 ]
 
 THEMES_BY_KEY = {t["key"]: t for t in THEMES}

@@ -359,7 +359,7 @@ const TeacherTeamProjects = () => {
                             {tp.teams.map(team => (
                                 <TeamCard
                                     key={team.id} team={team} onRegenerate={regenerate}
-                                    onOpen={() => navigate(`/teacher/team-projects/${tp.id}`)}
+                                    onOpen={() => navigate(`/teacher/team-projects/${tp.id}?team=${team.id}`)}
                                     showName={tp.teams.length > 1}
                                     lang={lang}
                                 />

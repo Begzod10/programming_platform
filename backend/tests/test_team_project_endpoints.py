@@ -880,3 +880,24 @@ async def test_still_invalid_after_the_repair_round_fails_and_returns_team_to_fo
     assert ai.await_count == 2
     await db_session.refresh(team)
     assert team.status == TeamStatus.forming and team.generation_attempts == 1
+
+
+async def test_regenerate_refreshes_the_members_skill_summary(
+    async_client, db_session, two_teams_project,
+):
+    fx = two_teams_project
+    team, n = await _fresh_team(db_session, fx)
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id))).scalars().all()
+    for m in members:
+        m.skill_summary_at_assignment = "STALE snapshot"
+    await db_session.commit()
+
+    ai = AsyncMock(return_value=("raw", _generated_plan(n), "mock", 1))
+    with patch("app.services.team_project_planner.call_chain", new=ai):
+        resp = await async_client.post(f"{BASE}/teams/{team.id}/regenerate", headers=fx["teacher_headers"])
+    assert resp.status_code == 200, resp.text
+
+    await db_session.refresh(members[0])
+    assert members[0].skill_summary_at_assignment != "STALE snapshot"
+    assert "STALE snapshot" not in ai.await_args.args[0]       # the model saw the fresh one

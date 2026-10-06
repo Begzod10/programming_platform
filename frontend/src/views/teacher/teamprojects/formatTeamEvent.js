@@ -24,6 +24,8 @@ const EVENT_LABELS = {
     deadline_extended: 'Muddat uzaytirildi',
     plan_regenerated: 'Reja qayta yaratildi',
     peer_ratings_submitted: "A'zolar bir-birini baholadi",
+    stack_changed: "Texnologiya o'zgartirildi",
+    task_edited: 'Vazifa tahrirlandi',
 };
 
 export function formatTeamEvent(event) {
@@ -67,6 +69,12 @@ export function formatTeamEvent(event) {
             break;
         case 'plan_regenerated':
             detail = `${p.deleted_tasks ?? '?'} ta eski vazifa o'chirildi`;
+            break;
+        case 'stack_changed':
+            detail = p.from && p.to ? `${p.from} → ${p.to}` : (p.to || '');
+            break;
+        case 'task_edited':
+            detail = `Vazifa #${p.task_id ?? '?'}`;
             break;
         case 'peer_ratings_submitted':
             detail = `${p.count ?? '?'} ta baho`;

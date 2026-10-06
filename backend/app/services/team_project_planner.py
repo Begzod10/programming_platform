@@ -46,9 +46,58 @@ _INJECTION_GUARD = (
 )
 
 
+_PYTHON_WORDS = re.compile(r"\b(python|django|flask|fastapi)\b", re.I)
+
+
+def mentions_python(summary: Optional[str]) -> bool:
+    """Does a member's skill summary show any Python/Django/Flask experience?
+    (A course title, a lesson language or a project technology all land in it.)"""
+    return bool(_PYTHON_WORDS.search(summary or ""))
+
+
+# Frameworks a task can lean on. (name, regex in the task text, regex a member's
+# skill summary must match to have seen it.) "stack" ones are the project's own
+# stack — a member without them is skipped only if a teammate has them; "extra"
+# ones are add-on libraries nobody can be handed unless they have studied them.
+_FRAMEWORK_RULES = [
+    ("stack", "React", re.compile(r"\breact\b", re.I), re.compile(r"\breact\b", re.I)),
+    ("stack", "Vue", re.compile(r"\bvue(?:\.?js)?\b", re.I), re.compile(r"\bvue(?:\.?js)?\b", re.I)),
+    ("stack", "Next.js", re.compile(r"\bnext\.?js\b", re.I), re.compile(r"\b(?:next\.?js|react)\b", re.I)),
+    ("stack", "Node/Express", re.compile(r"\b(?:express|node\.?js)\b", re.I), re.compile(r"\b(?:express|node\.?js)\b", re.I)),
+    ("extra", "Redux", re.compile(r"\bredux\b", re.I), re.compile(r"\bredux\b", re.I)),
+    ("extra", "Pinia/Vuex", re.compile(r"\b(?:pinia|vuex)\b", re.I), re.compile(r"\b(?:pinia|vuex)\b", re.I)),
+    ("extra", "Zustand", re.compile(r"\bzustand\b", re.I), re.compile(r"\bzustand\b", re.I)),
+    ("extra", "TypeScript", re.compile(r"\btypescript\b", re.I), re.compile(r"\btypescript\b", re.I)),
+    ("extra", "Tailwind", re.compile(r"\btailwind\b", re.I), re.compile(r"\btailwind\b", re.I)),
+    ("extra", "Bootstrap", re.compile(r"\bbootstrap\b", re.I), re.compile(r"\bbootstrap\b", re.I)),
+    ("extra", "SASS/SCSS", re.compile(r"\b(?:sass|scss)\b", re.I), re.compile(r"\b(?:sass|scss)\b", re.I)),
+    ("extra", "jQuery", re.compile(r"\bjquery\b", re.I), re.compile(r"\bjquery\b", re.I)),
+    ("extra", "GraphQL", re.compile(r"\bgraphql\b", re.I), re.compile(r"\bgraphql\b", re.I)),
+]
+
+
+def _task_text(task: dict) -> str:
+    criteria = task.get("acceptance_criteria") or []
+    crit = " ".join(c for c in criteria if isinstance(c, str)) if isinstance(criteria, list) else ""
+    return f"{task.get('title', '')} {task.get('description', '')} {crit}"
+
+
+def _is_python_backend_task(task: dict) -> bool:
+    contract = task.get("interface_contract") or {}
+    files = [f for f in (contract.get("files") or []) if isinstance(f, str)]
+    text = f"{task.get('title', '')} {task.get('description', '')}"
+    return any(f.lower().endswith(".py") for f in files) or bool(
+        re.search(r"\b(django|flask|fastapi)\b", text, re.I))
+
+
 def _build_plan_prompt(theme_label: str, stack: dict, members_summary: list[dict]) -> str:
+    def _experience(m: dict) -> str:
+        if "has_python" not in m:
+            return ""
+        return f" | Python/Django tajribasi: {'bor' if m['has_python'] else 'YOQ'}"
+
     members_block = "\n".join(
-        f"{i}. {m['full_name']} ({m['level']}) — <student_input>{m['summary']}</student_input>"
+        f"{i}. {m['full_name']} ({m['level']}){_experience(m)} — <student_input>{m['summary']}</student_input>"
         for i, m in enumerate(members_summary)
     )
     return f"""Sen tajribali dasturlash o'qituvchisisiz. {len(members_summary)} nafar o'quvchidan
@@ -66,7 +115,9 @@ TALABLAR:
 - Har bir vazifa aniq bir fayl/sahifa/komponentga tegishli bo'lsin (masalan "login sahifasi", "navbar", "profil kartasi"), shunda a'zolar bir-birining ishiga deyarli tegmasdan parallel ishlay oladi.
 - Vazifalar sonini jamoa a'zolari soniga TENG qil — har bir a'zoga (jumladan eng kuchli a'zoga ham) bittadan vazifa. `assign_to_member_index` qiymatlari 0 dan {len(members_summary) - 1} gacha bo'lgan har bir indeksni ANIQ BIR MARTA ishlatishi SHART (takrorlanmasligi va hech biri tashlab ketilmasligi kerak).
 - Har bir a'zoning HOZIRGI yo'nalishiga mos qism ber: a'zo xulosasida "CURRENT FOCUS" yoki "Current technologies" yozilgan bo'lsa, vazifa shu texnologiyada bo'lsin (masalan JavaScript o'rganayotgan a'zoga frontend/JS qismi). "Earlier (not recently practiced)" ro'yxatidagi texnologiyalar bo'yicha murakkab vazifa BERMA — a'zo ularni yaqinda mashq qilmagan.
-- `required_level` har doim shu vazifaga tayinlangan a'zoning darajasidan OSHMASLIGI kerak (masalan Beginner a'zoga Advanced vazifa berilmaydi).
+- Vazifaga a'zo o'rganmagan framework yoki kutubxonani (Redux, Pinia, TypeScript, Tailwind, Bootstrap, SASS va h.k.) QO'SHMA. Faqat a'zoning xulosasida (kurs yoki texnologiya sifatida) uchraydigan texnologiyalardan foydalan; ular bo'lmasa oddiy HTML/CSS/JavaScript bilan yoz.
+- A'zo yonida "Python/Django tajribasi: YOQ" yozilgan bo'lsa, unga Django/Python/Flask backend vazifasini BERMA — uni faqat tajribasi "bor" a'zoga ber. Agar jamoada hech kimda Python tajribasi bo'lmasa, backend qismini eng yuqori darajali a'zoga ber va uni sodda qil. Frontend/JavaScript o'rgangan a'zoga frontend qismini ber.
+- `required_level` har doim shu vazifaga tayinlangan a'zoning darajasiga TENG bo'lsin — oshmasin ham, pastroq ham bo'lmasin (Beginner a'zoga Advanced vazifa berilmaydi, Advanced a'zoga esa Intermediate vazifa BERILMAYDI). Vazifaning murakkabligi ham shu darajaga mos bo'lsin: Advanced a'zoga eng murakkab ishlar (backend/arxitektura, holat boshqaruvi, xatolarni boshqarish, validatsiya), Beginner a'zoga sodda, aniq qadamli ishlar. Kuchli a'zoga yengil vazifa berma.
 - `depends_on` — bu vazifa ro'yxatidagi BOSHQA vazifalarning 0-dan boshlanuvchi INDEKSLARI (ro'yxatdagi o'rni), boshqa hech narsa emas. O'z-o'ziga bog'liqlik va aylanma bog'liqlik (A→B→A) bo'lmasin.
 - `interface_contract.consumes` dagi har bir yozuv boshqa BIRON BIR vazifaning `interface_contract.produces` yozuvi bilan SO'ZMA-SO'Z (aynan) bir xil bo'lishi SHART — shu matnni aynan ko'chirib yoz, qayta ifodalab yozma.
 - `description` bir jumlali umumiy gap bo'lmasin — o'quvchi hech kimdan so'ramasdan ishni boshlay oladigan darajada aniq yoz (kamida {MIN_DESCRIPTION_LEN} belgi).
@@ -105,7 +156,7 @@ async def generate_plan_for_team_standalone(team_id: int) -> None:
         await generate_plan_for_team(db, team_id)
 
 
-async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
+async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skills: bool = False) -> None:
     team = (await db.execute(
         select(TeamProjectTeam)
         .where(TeamProjectTeam.id == team_id)
@@ -126,6 +177,17 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
     if not members:
         return
 
+    if refresh_skills:
+        # The stored snapshot is from when the team was formed; a regenerate
+        # happens later, after students have moved on (finished a course,
+        # switched technology), so plan from what they know now.
+        from app.services.skill_profile_service import build_profiles_for_student_ids
+        fresh = {p.student_id: p.summary for p in
+                 await build_profiles_for_student_ids(db, [m.student_id for m in members])}
+        for m in members:
+            if fresh.get(m.student_id):
+                m.skill_summary_at_assignment = fresh[m.student_id]
+
     # Member snapshots taken at assignment time are the source of truth for
     # planning (see TeamProjectMember.skill_summary_at_assignment docstring)
     # — no need to rebuild live SkillProfiles here.
@@ -135,6 +197,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
             "full_name": _member_label(m),
             "level": m.level_at_assignment,
             "summary": m.skill_summary_at_assignment,
+            "has_python": mentions_python(m.skill_summary_at_assignment),
         }
         for m in members
     ]
@@ -161,7 +224,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
         plan_tokens = min(8000, 900 * len(members_summary) + 600)
         _, parsed, provider, attempts = await call_chain(prompt, max_tokens=plan_tokens, validator=parse_ai_json)
         plan = _normalize_plan(parsed, len(members_summary))
-        plan_errors = validate_plan(plan, members_summary)
+        plan_errors = validate_plan(plan, members_summary, require_level_match=True)
         if plan_errors:
             # One automatic repair round: show the model exactly what failed.
             # Previously a single invalid response burned one of the teacher's
@@ -170,7 +233,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
             _, parsed, provider, attempts = await call_chain(
                 repair_prompt, max_tokens=plan_tokens, validator=parse_ai_json)
             plan = _normalize_plan(parsed, len(members_summary))
-            plan_errors = validate_plan(plan, members_summary)
+            plan_errors = validate_plan(plan, members_summary, require_level_match=True)
         if plan_errors:
             raise ValueError("; ".join(plan_errors))
     except Exception as e:
@@ -262,7 +325,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int) -> None:
     await broadcast_project(db, team_project_id)
 
 
-def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:
+def validate_plan(plan: dict, members_summary: list[dict], *, require_level_match: bool = False) -> list[str]:
     """Returns a list of human-readable problems; empty list = valid.
 
     This is the guardrail the original spec asked for and the first AI
@@ -321,6 +384,13 @@ def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:
                     errors.append(
                         f"Task {idx}: required_level {required_level} exceeds "
                         f"member {member_idx}'s level {assigned_level}."
+                    )
+                elif require_level_match and LEVEL_RANK[required_level] < LEVEL_RANK.get(assigned_level, 0):
+                    # AI plans only: an Advanced student must not get an
+                    # Intermediate-level piece. Manual plans may do so on purpose.
+                    errors.append(
+                        f"Task {idx}: required_level {required_level} is below member "
+                        f"{member_idx}'s level {assigned_level} — give a task at the member's own level."
                     )
 
         est_hours = task.get("estimated_hours")
@@ -409,6 +479,47 @@ def validate_plan(plan: dict, members_summary: list[dict]) -> list[str]:
         for consumed in (contract.get("consumes") or []):
             if consumed not in others_produce:
                 errors.append(f"Task {idx}: consumes {consumed!r} which no other task produces.")
+
+    # A Django/Python backend task must not go to someone with no Python
+    # experience while a teammate who has it gets something else. Skipped when
+    # nobody on the team has it (someone has to do the backend then) and for
+    # manual plans (members_summary there has no has_python hint).
+    if any(m.get("has_python") for m in members_summary):
+        for idx, task in enumerate(tasks):
+            if not isinstance(task, dict):
+                continue
+            member_idx = task.get("assign_to_member_index")
+            if (isinstance(member_idx, int) and 0 <= member_idx < member_count
+                    and not members_summary[member_idx].get("has_python", True)
+                    and _is_python_backend_task(task)):
+                errors.append(
+                    f"Task {idx}: a Django/Python backend task is assigned to "
+                    f"{members_summary[member_idx].get('full_name')}, who has no Python/Django "
+                    "experience — give it to a member who has."
+                )
+
+    # A task must not lean on a framework/library its assignee never studied.
+    # Only checked when members carry a skill summary (manual plans don't).
+    if all("summary" in m for m in members_summary):
+        for idx, task in enumerate(tasks):
+            if not isinstance(task, dict):
+                continue
+            member_idx = task.get("assign_to_member_index")
+            if not (isinstance(member_idx, int) and 0 <= member_idx < member_count):
+                continue
+            text = _task_text(task)
+            member = members_summary[member_idx]
+            own = member.get("summary") or ""
+            for kind, name, in_task, has in _FRAMEWORK_RULES:
+                if not in_task.search(text) or has.search(own):
+                    continue
+                if kind == "stack" and not any(has.search(m.get("summary") or "") for m in members_summary):
+                    continue   # nobody has it; somebody has to build it
+                errors.append(
+                    f"Task {idx}: uses {name}, but {member.get('full_name')} has not studied it"
+                    + (" — give it to a member who has." if kind == "stack"
+                       else " — remove it from this task or use plain JavaScript/CSS instead.")
+                )
 
     # depends_on must reference real, other tasks' indices and be acyclic.
     valid_indices = set(range(len(tasks)))

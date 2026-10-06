@@ -281,3 +281,139 @@ def test_ai_plan_with_invented_consumes_and_template_level_now_validates():
     t2["required_level"] = "Advanced|Intermediate"
     plan = _normalize_plan({"project_title": "X", "tasks": [t0, t1, t2]}, 3)
     assert validate_plan(plan, members) == []
+
+
+# ── Django/Python backend work must go to someone who has Python experience ──
+
+from app.services.team_project_planner import _build_plan_prompt, mentions_python  # noqa: E402
+
+
+def _py_members(*has_python):
+    return [{"student_id": i, "full_name": f"S{i}", "level": "Advanced", "summary": "",
+             "has_python": hp} for i, hp in enumerate(has_python)]
+
+
+def _django_task(member_idx):
+    t = _task(member_idx, "Advanced")
+    t["title"] = "Backend API"
+    t["description"] = "Django backendda foydalanuvchilar uchun REST endpoint yarating va tekshiring."
+    t["interface_contract"]["files"] = ["backend/users/views.py"]
+    return t
+
+
+def test_django_task_for_a_member_without_python_is_rejected_when_a_teammate_has_it():
+    members = _py_members(False, True)
+    plan = {"tasks": [_django_task(0), _task(1, "Advanced")]}      # member 0 has no Python
+    errors = validate_plan(plan, members)
+    assert any("no Python/Django experience" in e for e in errors)
+
+
+def test_django_task_for_a_member_with_python_is_fine():
+    members = _py_members(False, True)
+    plan = {"tasks": [_task(0, "Advanced"), _django_task(1)]}
+    assert not any("Python/Django" in e for e in validate_plan(plan, members))
+
+
+def test_backend_task_is_allowed_when_nobody_on_the_team_has_python():
+    members = _py_members(False, False)
+    plan = {"tasks": [_django_task(0), _task(1, "Advanced")]}
+    assert not any("Python/Django" in e for e in validate_plan(plan, members))
+
+
+def test_members_without_the_hint_such_as_manual_plans_are_not_checked():
+    members = _members("Advanced", "Advanced")
+    plan = {"tasks": [_django_task(0), _task(1, "Advanced")]}
+    assert not any("Python/Django" in e for e in validate_plan(plan, members))
+
+
+def test_mentions_python_and_the_prompt_shows_each_members_experience():
+    assert mentions_python("Completed Python Asoslari (5/5 lessons). Technologies: html.")
+    assert mentions_python("Django Asoslari")
+    assert not mentions_python("Completed Javascript (15/15 lessons). Technologies: css, html.")
+    prompt = _build_plan_prompt("Booking", {"frontend": "Next.js", "backend": "Django"}, _py_members(False, True))
+    assert "Python/Django tajribasi: YOQ" in prompt and "Python/Django tajribasi: bor" in prompt
+
+
+# ── AI plans: the task level must match the member's level (not lower) ──
+
+def test_ai_plan_rejects_a_task_below_the_members_level():
+    members = _members("Advanced", "Intermediate")
+    plan = {"tasks": [_task(0, "Intermediate"), _task(1, "Intermediate")]}   # Advanced member got Intermediate
+    errors = validate_plan(plan, members, require_level_match=True)
+    assert any("below member 0's level Advanced" in e for e in errors)
+
+
+def test_ai_plan_accepts_levels_equal_to_the_members():
+    members = _members("Advanced", "Intermediate")
+    plan = {"tasks": [_task(0, "Advanced"), _task(1, "Intermediate")]}
+    assert validate_plan(plan, members, require_level_match=True) == []
+
+
+def test_lower_level_tasks_are_still_allowed_for_manual_plans():
+    members = _members("Advanced", "Intermediate")
+    plan = {"tasks": [_task(0, "Intermediate"), _task(1, "Beginner")]}
+    assert validate_plan(plan, members) == []           # default: only "not above" is enforced
+
+
+def test_a_task_above_the_members_level_is_rejected_either_way():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0, "Advanced")]}
+    assert validate_plan(plan, members)
+    assert validate_plan(plan, members, require_level_match=True)
+
+
+# ── tasks must not lean on frameworks the assignee never studied ──
+
+def _skilled(*summaries):
+    return [{"student_id": i, "full_name": f"S{i}", "level": "Advanced", "summary": s}
+            for i, s in enumerate(summaries)]
+
+
+def _task_about(member_idx, text):
+    t = _task(member_idx, "Advanced")
+    t["title"] = text
+    t["description"] = text
+    return t
+
+
+JS_ONLY = "Completed Javascript (15/15 lessons). Current technologies: javascript, dom, fetch."
+REDUX = "Completed React: Redux Toolkit, TypeScript va Testlash. Current technologies: react, redux."
+
+
+def test_extra_library_for_a_member_who_never_studied_it_is_rejected():
+    members = _skilled(JS_ONLY, REDUX)
+    plan = {"tasks": [_task_about(0, "Redux bilan savat holatini boshqaring"), _task(1, "Advanced")]}
+    errors = validate_plan(plan, members)
+    assert any("uses Redux" in e and "S0" in e for e in errors)
+
+
+def test_extra_library_for_a_member_who_studied_it_is_fine():
+    members = _skilled(JS_ONLY, REDUX)
+    plan = {"tasks": [_task(0, "Advanced"), _task_about(1, "Redux bilan savat holatini boshqaring")]}
+    assert not any("uses " in e for e in validate_plan(plan, members))
+
+
+def test_extra_library_is_rejected_even_if_nobody_has_it():
+    members = _skilled(JS_ONLY, JS_ONLY)
+    plan = {"tasks": [_task_about(0, "Pinia store yarating"), _task(1, "Advanced")]}
+    assert any("uses Pinia/Vuex" in e for e in validate_plan(plan, members))
+
+
+def test_stack_framework_goes_to_a_member_who_has_it_when_a_teammate_does():
+    members = _skilled(JS_ONLY, REDUX)
+    plan = {"tasks": [_task_about(0, "React komponentlarini yozing"), _task(1, "Advanced")]}
+    assert any("uses React" in e and "give it to a member who has" in e for e in validate_plan(plan, members))
+
+
+def test_stack_framework_is_allowed_when_nobody_has_it():
+    members = _skilled(JS_ONLY, JS_ONLY)
+    plan = {"tasks": [_task_about(0, "React komponentlarini yozing"), _task(1, "Advanced")]}
+    assert not any("uses React" in e for e in validate_plan(plan, members))
+
+
+def test_plain_javascript_tasks_and_manual_plans_are_not_flagged():
+    plan = {"tasks": [_task_about(0, "Vanilla JS bilan modal oyna"), _task(1, "Advanced")]}
+    assert not any("uses " in e for e in validate_plan(plan, _skilled(JS_ONLY, JS_ONLY)))
+    manual = {"tasks": [_task_about(0, "Redux store"), _task(1, "Advanced")]}
+    assert not any("uses " in e for e in validate_plan(
+        manual, [{"student_id": 0, "level": "Advanced"}, {"student_id": 1, "level": "Advanced"}]))
