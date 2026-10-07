@@ -292,3 +292,99 @@ def test_no_same_language_distractor_leaves_a_single_option_so_the_client_falls_
     target = _make_word(1, "HTML", "Veb-sahifalar tuzilishi uchun markup tili.")
     pool = [target, _make_word(2, "width", "Задаёт горизонтальный размер элемента.")]
     assert len(_serialize(target, pool)["context_options"]) == 1
+
+
+# ── masking: suffixes, apostrophes, fixed length ─────────────────────────────
+
+from app.api.v1.endpoints.practice_words import _mask_word_in_text, _one_row_per_word  # noqa: E402
+
+
+def test_mask_catches_apostrophe_and_plain_suffixes():
+    out = _mask_word_in_text("JavaScript'da funksiyalar va funksiyani yoziladi", "funksiya")
+    assert "funksiya" not in out.lower()
+    assert _mask_word_in_text("JavaScript's tili, JavaScript'da", "JavaScript").count("_____") == 2
+
+
+def test_mask_has_a_fixed_length_and_leaves_longer_words_alone():
+    assert _mask_word_in_text("a width b", "width") == "a _____ b"
+    assert _mask_word_in_text("a hypertext b", "hypertext") == "a _____ b"
+    # a short token only matches as a whole word / apostrophe form
+    assert _mask_word_in_text("interface in the end", "in") == "interface _____ the end"
+
+
+def test_mask_of_a_phrase_skips_function_words():
+    out = _mask_word_in_text("the end of the road is near", "in the end")
+    assert out == "the _____ of the road is near"
+
+
+# ── options: no twin rows, no duplicates ─────────────────────────────────────
+
+def test_options_never_contain_the_target_twice_or_a_duplicate():
+    target = _make_word(1, "array", "Massiv — elementlar to'plami.")
+    twin = _make_word(2, "Array", "Массив — набор элементов.")
+    twin.lang = "ru"
+    same_def = _make_word(3, "list", "Massiv — elementlar to'plami.")
+    pool = [target, twin, same_def, _make_word(4, "set", "Noyob qiymatlar to'plami."),
+            _make_word(5, "dict", "Kalit-qiymat juftliklari.")]
+    for _ in range(40):
+        r = _serialize(target, pool)
+        assert [o.lower() for o in r["options"]].count("array") == 1
+        assert len({o.lower() for o in r["options"]}) == len(r["options"])
+        ctx = [c.lower() for c in r["context_options"]]
+        assert len(set(ctx)) == len(ctx)
+
+
+def test_one_row_per_word_prefers_the_ui_language():
+    uz = _make_word(1, "array", "uz def")
+    ru = _make_word(2, "Array", "ru def")
+    ru.lang = "ru"
+    other = _make_word(3, "set", "x")
+    assert [w.id for w in _one_row_per_word([uz, ru, other], "ru")] == [2, 3]
+    assert [w.id for w in _one_row_per_word([uz, ru, other], None)] == [1, 3]
+
+
+# ── SRS: ease recovers, lapses are forgiven once learned ─────────────────────
+
+from app.services import srs  # noqa: E402
+
+
+def test_good_reviews_win_back_ease_and_long_intervals_forgive_a_lapse():
+    s = srs.schedule_after_review(reps=3, lapses=2, ease_factor=1.9, interval_days=30, grade=2)
+    assert s["ease_factor"] == 1.95
+    assert s["lapses"] == 1                 # interval >= 21 days
+    young = srs.schedule_after_review(reps=2, lapses=2, ease_factor=1.9, interval_days=3, grade=2)
+    assert young["lapses"] == 2 and young["ease_factor"] == 1.95
+    capped = srs.schedule_after_review(reps=5, lapses=0, ease_factor=2.5, interval_days=10, grade=2)
+    assert capped["ease_factor"] == 2.5     # never above the default
+    hard = srs.schedule_after_review(reps=5, lapses=0, ease_factor=2.0, interval_days=10, grade=1)
+    assert hard["ease_factor"] == 1.85
+
+
+# ── HTTP: stats overview, UTC timestamps, session validation ─────────────────
+
+def test_weeks_active_handles_naive_first_seen_against_aware_now():
+    from datetime import datetime, timedelta, timezone
+    from app.api.v1.endpoints.practice_stats import _weeks_active
+    now = datetime.now(timezone.utc)
+    assert _weeks_active(now, (now - timedelta(days=21)).replace(tzinfo=None)) == pytest.approx(3.0, abs=0.01)
+    assert _weeks_active(now, now.replace(tzinfo=None)) == 1.0   # never below one week
+
+
+async def test_completed_session_times_are_marked_utc(async_client, student_with_words):
+    h = student_with_words["headers"]
+    created = await async_client.post("/api/v1/dictionary/practice/session", json={"mode": "flashcard"}, headers=h)
+    assert created.status_code == 200, created.text
+    assert created.json()["started_at"].endswith("Z")       # parsed as UTC by the browser
+    sid = created.json()["id"]
+    done = await async_client.put(f"/api/v1/dictionary/practice/session/{sid}/complete",
+                                  json={"total_words": 5, "correct": 4}, headers=h)
+    assert done.status_code == 200, done.text
+    assert done.json()["completed_at"].endswith("Z")
+
+
+async def test_complete_session_rejects_more_correct_than_total(async_client, student_with_words):
+    h = student_with_words["headers"]
+    sid = (await async_client.post("/api/v1/dictionary/practice/session", json={"mode": "quiz"}, headers=h)).json()["id"]
+    bad = await async_client.put(f"/api/v1/dictionary/practice/session/{sid}/complete",
+                                 json={"total_words": 3, "correct": 4}, headers=h)
+    assert bad.status_code == 400

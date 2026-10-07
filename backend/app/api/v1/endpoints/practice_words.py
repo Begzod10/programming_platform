@@ -35,8 +35,15 @@ def _apply_scope(stmt, *, category_id=None, course_id=None, lesson_id=None):
     return stmt
 
 
+_APOS = "'’ʻʼ`"
+# Function words that must not be masked on their own when the target is a
+# phrase ("to be", "in the end") — masking every "to"/"the" wrecks the text.
+_STOP_WORDS = {"a", "an", "the", "to", "of", "in", "on", "at", "by", "for", "and", "or", "is", "be", "it"}
+MASK = "_____"   # fixed length: a mask as long as the word gives the length away
+
+
 def _mask_word_in_text(text: str, word: str) -> str:
-    """Blank out standalone occurrences of `word`'s tokens inside `text`.
+    """Blank out occurrences of `word`'s tokens inside `text`.
 
     Recall-style surfaces (Quiz+ round 2 "Yozish" pass, Spelling, Listening,
     and the MCQ "pick the meaning" options) show a word's definition and ask
@@ -46,18 +53,43 @@ def _mask_word_in_text(text: str, word: str) -> str:
     the answer straight back to the student instead of testing recall.
     Mask it out of the copies used for those surfaces.
 
+    Uzbek attaches suffixes to a borrowed word ("JavaScript'da", "funksiyani",
+    "funksiyalar"), so a token also matches with an apostrophe suffix, and —
+    for tokens of 4+ letters, so "in" doesn't eat "interface" — a plain one.
+    Every hit becomes the same fixed-length mask.
+
     Cloze mode needs the *raw* context (it blanks the word out of a real
     usage sentence on purpose) — callers must keep using `word.context`
     there, never this masked copy.
     """
     if not text:
         return text
-    tokens = [t for t in re.split(r"[^\w']+", word or "") if len(t) >= 2]
+    tokens = [t for t in re.split(rf"[^\w{_APOS}]+", word or "") if len(t) >= 2]
+    if len(tokens) > 1:
+        content = [t for t in tokens if t.lower() not in _STOP_WORDS]
+        tokens = content or tokens
     out = text
     for tok in tokens:
-        pattern = re.compile(rf"(?<![\w']){re.escape(tok)}(?![\w'])", re.IGNORECASE)
-        out = pattern.sub(lambda m: "•" * max(len(m.group(0)), 3), out)
+        tail = rf"(?:[{_APOS}]\w*|\w*)" if len(tok) >= 4 else rf"(?:[{_APOS}]\w*)?(?!\w)"
+        pattern = re.compile(rf"(?<![\w{_APOS}]){re.escape(tok)}{tail}", re.IGNORECASE)
+        out = pattern.sub(MASK, out)
     return out
+
+
+def _one_row_per_word(words: list[UserDictionary], lang: Optional[str]) -> list[UserDictionary]:
+    """A word saved in both languages is two rows (one per `lang`): drill it
+    once. Keeps the first row in the given order, but a row in the student's
+    UI language wins over an earlier one in the other language."""
+    kept: dict[str, UserDictionary] = {}
+    order: list[str] = []
+    for w in words:
+        key = (w.word or "").strip().lower()
+        if key not in kept:
+            kept[key] = w
+            order.append(key)
+        elif lang and (w.lang or "") == lang and (kept[key].lang or "") != lang:
+            kept[key] = w
+    return [kept[k] for k in order]
 
 
 def _text_script(text: Optional[str]) -> str:
@@ -70,7 +102,17 @@ def _text_script(text: Optional[str]) -> str:
 
 
 def _serialize(word: UserDictionary, pool: list[UserDictionary]) -> dict:
-    distractors = [w for w in pool if w.id != word.id]
+    # A word saved in both uz and ru is two rows: never offer the target (or
+    # its twin row) as a wrong option, and never show two identical options —
+    # both would be "correct".
+    target_key = (word.word or "").strip().lower()
+    distractors = []
+    seen_words = {target_key}
+    for w in pool:
+        key = (w.word or "").strip().lower()
+        if w.id != word.id and key not in seen_words:
+            seen_words.add(key)
+            distractors.append(w)
     word_sample = random.sample(distractors, min(3, len(distractors)))
     options = [word.word] + [d.word for d in word_sample]
     random.shuffle(options)
@@ -82,15 +124,19 @@ def _serialize(word: UserDictionary, pool: list[UserDictionary]) -> dict:
     # `lang` column defaults to "uz" for old rows, so judge by the text itself.
     # With no same-language distractor the client falls back to the word-side MCQ.
     own_script = _text_script(word.context)
+    correct_ctx = _mask_word_in_text(word.context or "", word.word)
     ctx_pool = [w for w in distractors
                 if (w.context or "").strip() and _text_script(w.context) == own_script]
-    ctx_sample = random.sample(ctx_pool, min(3, len(ctx_pool)))
+    ctx_candidates, seen_ctx = [], {correct_ctx.strip().lower()}
+    for d in ctx_pool:
+        masked = _mask_word_in_text(d.context or "", d.word)
+        if masked.strip().lower() not in seen_ctx:
+            seen_ctx.add(masked.strip().lower())
+            ctx_candidates.append(masked)
     # Mask each option's own target word out of its own context text so the
     # "pick the meaning" MCQ pass can't be solved by literally spotting the
     # word inside the option (see _mask_word_in_text).
-    context_options = [_mask_word_in_text(word.context or "", word.word)] + [
-        _mask_word_in_text(d.context or "", d.word) for d in ctx_sample
-    ]
+    context_options = [correct_ctx] + random.sample(ctx_candidates, min(3, len(ctx_candidates)))
     random.shuffle(context_options)
 
     return {
@@ -118,6 +164,7 @@ async def get_practice_words(
     course_id: Optional[int] = Query(default=None),
     lesson_id: Optional[int] = Query(default=None),
     ids: Optional[str] = Query(default=None),
+    lang: Optional[str] = Query(default=None, max_length=4),
     db: AsyncSession = Depends(get_db),
     current_user: Student = Depends(get_current_student),
 ):
@@ -136,7 +183,7 @@ async def get_practice_words(
             )
         ).scalars().all()
         by_id = {w.id: w for w in rows}
-        ordered = [by_id[i] for i in id_list if i in by_id]
+        ordered = _one_row_per_word([by_id[i] for i in id_list if i in by_id], lang)
         pool = list(ordered)
         if len(pool) < 4:
             extra = (
@@ -169,6 +216,9 @@ async def get_practice_words(
         ).scalars().all()
         if len(ordered) < 2:
             raise HTTPException(400, "Mashq uchun yetarlicha so'z yo'q (kamida 2 ta kerak).")
+        ordered = _one_row_per_word(ordered, lang)
+        if len(ordered) < 2:
+            raise HTTPException(400, "Mashq uchun yetarlicha so'z yo'q (kamida 2 ta kerak).")
         selected = ordered[:count]
         pool = list({w.id: w for w in ordered}.values())
         if len(pool) < 4:
@@ -186,6 +236,7 @@ async def get_practice_words(
     all_words = (
         await db.execute(base.order_by(*srs.pool_priority_order(Word, now)))
     ).scalars().all()
+    all_words = _one_row_per_word(all_words, lang)
     if len(all_words) < 2:
         raise HTTPException(400, "Mashq uchun yetarlicha so'z yo'q (kamida 2 ta kerak).")
     selected = all_words[:count]
