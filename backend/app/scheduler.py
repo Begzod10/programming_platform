@@ -19,7 +19,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from app.db.session import AsyncSessionLocal
 from app.services.ranking_service import RankingService
 from app.services.translation_backfill import backfill_course_translations
@@ -67,6 +67,14 @@ async def job_reset_monthly():
         logger.info("✅ Oylik ballar reset qilindi")
 
 
+# Feedback texts that mean "no real review happened yet" (see the sweep below).
+TRANSIENT_REVIEW_MARKERS = (
+    "AI baholash vaqtincha ishlamayapti",
+    "o'qituvchi tomonidan tekshiriladi",
+)
+TRANSIENT_RETRY_WINDOW = timedelta(days=3)
+
+
 async def job_retry_stuck_project_reviews():
     """Safety net for a real incident found live: a student's ZIP upload
     (project id 4926, 2026-09-11) got permanently stuck at status
@@ -97,14 +105,31 @@ async def job_retry_stuck_project_reviews():
     from app.models.project import Project
     from app.api.v1.endpoints.projects import _run_ai_review_and_persist_failure
 
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=20)
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=20)
+    # A project parked with a *transient* placeholder ("AI is down, teacher will
+    # grade", or the old "held for teacher" notice) is also waiting on a review
+    # that never came: on 2026-09-25 two such projects sat unreviewed for 12
+    # days, since the AI came back but nothing re-ran them. Retried only inside
+    # a window, so one that keeps failing isn't hammered forever; a project that
+    # failed for a real reason (unreadable ZIP, rule violation) has different
+    # feedback text and is left alone.
+    transient_feedback = or_(*(
+        Project.instructor_feedback.ilike(f"%{marker}%")
+        for marker in TRANSIENT_REVIEW_MARKERS
+    ))
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(Project).where(
                 Project.status == "Submitted",
                 Project.reviewed_at.is_(None),
-                (Project.instructor_feedback.is_(None)) | (Project.instructor_feedback == ""),
                 Project.submitted_at < cutoff,
+                or_(
+                    Project.instructor_feedback.is_(None),
+                    Project.instructor_feedback == "",
+                    and_(transient_feedback,
+                         Project.submitted_at > now - TRANSIENT_RETRY_WINDOW),
+                ),
             )
         )
         stuck = result.scalars().all()
