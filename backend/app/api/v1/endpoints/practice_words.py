@@ -60,13 +60,30 @@ def _mask_word_in_text(text: str, word: str) -> str:
     return out
 
 
+def _text_script(text: Optional[str]) -> str:
+    """"cyrillic" when most letters are Cyrillic (Russian), else "latin"."""
+    letters = [c for c in (text or "") if c.isalpha()]
+    if not letters:
+        return "latin"
+    cyr = sum(1 for c in letters if "\u0400" <= c <= "\u04ff")
+    return "cyrillic" if cyr * 2 > len(letters) else "latin"
+
+
 def _serialize(word: UserDictionary, pool: list[UserDictionary]) -> dict:
     distractors = [w for w in pool if w.id != word.id]
     word_sample = random.sample(distractors, min(3, len(distractors)))
     options = [word.word] + [d.word for d in word_sample]
     random.shuffle(options)
 
-    ctx_pool = [w for w in distractors if (w.context or "").strip()]
+    # The options of the "pick the meaning" MCQ must all be in the same
+    # language as the right one — an Uzbek definition next to Russian ones is
+    # a giveaway (and looks broken). Words are saved with whichever language
+    # the lesson was in, so a student with both has mixed definitions; the
+    # `lang` column defaults to "uz" for old rows, so judge by the text itself.
+    # With no same-language distractor the client falls back to the word-side MCQ.
+    own_script = _text_script(word.context)
+    ctx_pool = [w for w in distractors
+                if (w.context or "").strip() and _text_script(w.context) == own_script]
     ctx_sample = random.sample(ctx_pool, min(3, len(ctx_pool)))
     # Mask each option's own target word out of its own context text so the
     # "pick the meaning" MCQ pass can't be solved by literally spotting the

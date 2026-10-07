@@ -257,3 +257,38 @@ async def test_due_counts_total_matches_seeded_words(
     assert body["total"] == 5
     # All newly created words have next_review_at=None → all are due.
     assert body["due"] == 5
+
+
+# ── "pick the meaning" options must all be in the same language ──────────────
+
+def test_context_options_never_mix_uzbek_and_russian_definitions():
+    uz = "Veb-sahifalarning tuzilishini belgilash uchun ishlatiladigan markup tili."
+    ru = "Задаёт горизонтальный размер элемента на веб-странице."
+    target = _make_word(1, "HTML", uz)
+    pool = [
+        target,
+        _make_word(2, "width", ru),
+        _make_word(3, "div", "Sahifa tarkibini guruhlash uchun ishlatiladigan element."),
+        _make_word(4, "flex", "Элементы выстраиваются в гибкую строку."),
+        _make_word(5, "plan", "Muayyan maqsadga erishish uchun rejalashtirilgan ishlar."),
+    ]
+    for _ in range(30):
+        opts = _serialize(target, pool)["context_options"]
+        assert not any(any("Ѐ" <= c <= "ӿ" for c in o) for o in opts), opts
+        assert len(opts) == 3   # target + the two other Uzbek definitions
+
+
+def test_russian_word_only_gets_russian_options():
+    ru = "Задаёт горизонтальный размер элемента на веб-странице."
+    target = _make_word(1, "width", ru)
+    pool = [target, _make_word(2, "HTML", "Veb-sahifalar tuzilishi uchun markup tili."),
+            _make_word(3, "flex", "Элементы выстраиваются в гибкую строку.")]
+    for _ in range(20):
+        opts = _serialize(target, pool)["context_options"]
+        assert all(any("Ѐ" <= c <= "ӿ" for c in o) for o in opts), opts
+
+
+def test_no_same_language_distractor_leaves_a_single_option_so_the_client_falls_back():
+    target = _make_word(1, "HTML", "Veb-sahifalar tuzilishi uchun markup tili.")
+    pool = [target, _make_word(2, "width", "Задаёт горизонтальный размер элемента.")]
+    assert len(_serialize(target, pool)["context_options"]) == 1
