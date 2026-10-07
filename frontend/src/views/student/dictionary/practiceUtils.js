@@ -64,8 +64,11 @@ export function judgeTyped(userInput, target) {
     const a = norm(userInput), b = norm(target);
     if (!a) return { ok: false, exact: false };
     if (a === b) return { ok: true, exact: true };
+    // One slip for a 4-6 letter word, two for a longer one. Two edits on a
+    // 5-letter word accepted "while" for "write" and "else" for "elif".
     const dist = editDistance(a, b);
-    if (b.length >= 4 && dist <= 2) return { ok: true, exact: false };
+    const allowed = b.length >= 7 ? 2 : b.length >= 4 ? 1 : 0;
+    if (dist <= allowed) return { ok: true, exact: false };
     return { ok: false, exact: false };
 }
 
@@ -76,7 +79,7 @@ export function judgeTyped(userInput, target) {
    "no" so the student doesn't sit waiting on a black-hole request.
    ═══════════════════════════════════════════════════════════════════════ */
 
-export const judgeTypedAsync = async (request, userInput, target, definition) => {
+export const judgeTypedAsync = async (request, userInput, target, definition, strict = false) => {
     const local = judgeTyped(userInput, target);
     if (local.ok) return { ...local, aiUsed: false };
 
@@ -85,7 +88,7 @@ export const judgeTypedAsync = async (request, userInput, target, definition) =>
         const aiPromise = request(
             `${BASE}/judge-answer`,
             'POST',
-            JSON.stringify({ user_input: userInput, target, definition }),
+            JSON.stringify({ user_input: userInput, target, definition, strict }),
             headers(),
         );
         const timed = await Promise.race([

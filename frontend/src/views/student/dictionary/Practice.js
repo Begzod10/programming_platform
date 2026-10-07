@@ -21,6 +21,20 @@ import { useTranslation } from '../../../i18n/useTranslation';
    ORCHESTRATOR — phases, chunked rounds, replay-missed pass
    ═══════════════════════════════════════════════════════════════════════ */
 
+/* POST one SRS result; one retry, because a dropped request silently lost the
+   answer (the word then looked untouched in the next session). */
+async function postResult(request, payload) {
+    const body = JSON.stringify(payload);
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            await request(`${BASE}/result`, 'POST', body, headers());
+            return;
+        } catch {
+            await new Promise((r) => setTimeout(r, 1500));
+        }
+    }
+}
+
 export default function Practice() {
     const { request } = useHttp();
     const { lang } = useTranslation();
@@ -76,6 +90,7 @@ export default function Practice() {
         if (scope.category_id) p.set('category_id', String(scope.category_id));
         if (scope.course_id)   p.set('course_id',   String(scope.course_id));
         if (scope.lesson_id)   p.set('lesson_id',   String(scope.lesson_id));
+        p.set('lang', lang);
         return p;
     };
 
@@ -113,18 +128,18 @@ export default function Practice() {
                     const cid = 0;
                     let cat = cats.get(cid);
                     if (!cat) {
-                        cat = { id: null, name: 'Hammasi', courses: new Map() };
+                        cat = { id: null, name: ru ? 'Все' : 'Hammasi', courses: new Map() };
                         cats.set(cid, cat);
                     }
                     let course = cat.courses.get(w.course_id);
                     if (!course) {
-                        course = { id: w.course_id, title: w.course_title || `Kurs #${w.course_id}`, lessons: new Map() };
+                        course = { id: w.course_id, title: w.course_title || (ru ? `Курс #${w.course_id}` : `Kurs #${w.course_id}`), lessons: new Map() };
                         cat.courses.set(w.course_id, course);
                     }
                     if (w.lesson_id && !course.lessons.has(w.lesson_id)) {
                         course.lessons.set(w.lesson_id, {
                             id: w.lesson_id,
-                            title: w.lesson_title || `${w.lesson_id}-dars`,
+                            title: w.lesson_title || (ru ? `Урок ${w.lesson_id}` : `${w.lesson_id}-dars`),
                         });
                     }
                 }
@@ -138,7 +153,7 @@ export default function Practice() {
                 setScopeTree(out);
             })
             .catch(() => setScopeTree([]));
-    }, [request]);
+    }, [request, ru]);
 
     /* ── preview the queue when the filter / scope changes ── */
     useEffect(() => {
@@ -164,14 +179,22 @@ export default function Practice() {
             const data = await request(
                 `${BASE}/words?${params.toString()}`, 'GET', null, headers(),
             );
-            if (!Array.isArray(data) || data.length === 0) {
-                setError(ru ? 'Нет слов для практики с этим фильтром' : "Bu filtr bilan mashq qilish uchun so'z yo'q");
+            // Spelling, Cloze and Quiz+ round 2 show the definition as the only
+            // clue; a word saved without one would be an unanswerable card.
+            const needsContext = mode === 'spelling' || mode === 'cloze' || mode === 'quiz';
+            const usable = Array.isArray(data)
+                ? data.filter((w) => !needsContext || (w.context || '').trim())
+                : [];
+            if (usable.length < (needsContext ? 2 : 1)) {
+                setError(Array.isArray(data) && data.length > 0 && needsContext
+                    ? (ru ? 'У этих слов нет сохранённых значений — выберите другой режим' : "Bu so'zlarning ma'nosi saqlanmagan — boshqa rejimni tanlang")
+                    : (ru ? 'Нет слов для практики с этим фильтром' : "Bu filtr bilan mashq qilish uchun so'z yo'q"));
                 return;
             }
             const s = await request(
                 `${BASE}/session`, 'POST', JSON.stringify({ mode }), headers(),
             );
-            setQueue(data.map((w) => ({ word: w, replay: false })));
+            setQueue(usable.map((w) => ({ word: w, replay: false })));
             setPos(0);
             setCorrect(0);
             setMissed([]);
@@ -182,8 +205,11 @@ export default function Practice() {
             setFireStreak(0);
             setSessionId(s.id);
             setPhase('drill');
-        } catch {
-            setError(ru ? 'Не удалось загрузить — попробуйте позже' : "Yuklab bo'lmadi — keyinroq urinib ko'ring");
+        } catch (e) {
+            const detail = String(e?.response?.data?.detail || e?.message || '');
+            setError(/yetarlicha/.test(detail)
+                ? (ru ? 'Недостаточно слов для практики (нужно минимум 2)' : "Mashq uchun so'z yetarli emas (kamida 2 ta kerak)")
+                : (ru ? 'Не удалось загрузить — попробуйте позже' : "Yuklab bo'lmadi — keyinroq urinib ko'ring"));
         } finally {
             setBusy(false);
         }
@@ -219,7 +245,7 @@ export default function Practice() {
         } finally {
             setBusy(false);
         }
-    }, [active, request]);
+    }, [active, request, ru]);
 
     const discardActive = useCallback(async () => {
         if (!active?.id) return;
@@ -256,20 +282,28 @@ export default function Practice() {
        Quiz+ branches here: instead of finalising on the first answer, we
        track per-pass correctness sets and finalise the word only after both
        passes have run over it. */
-    const onAnswer = useCallback(async ({ grade, was_correct }) => {
+    const onAnswer = useCallback(async ({ grade, was_correct, skip }) => {
         const item = queue[pos];
         if (!item) return;
 
-        // Fire streak — consecutive correct counter. Resets on any wrong.
-        setFireStreak((s) => was_correct ? s + 1 : 0);
+        // A skipped card (no usable text) records nothing: no score, no streak,
+        // no SRS change — it just moves on and is not replayed.
+        if (!skip) {
+            // Fire streak — consecutive correct counter. Resets on any wrong.
+            setFireStreak((s) => was_correct ? s + 1 : 0);
 
-        // Submit SRS update (fire-and-forget; the UI keeps moving). Quiz+
-        // submits twice per word (once per pass) so the SRS sees both signals.
-        request(
-            `${BASE}/result`, 'POST',
-            JSON.stringify({ word_id: item.word.id, grade, was_correct }),
-            headers(),
-        ).catch(() => {});
+            // SRS update (fire-and-forget; the UI keeps moving). Quiz+ writes
+            // ONCE per word, after the recall pass: it used to write after each
+            // pass, so a word moved two reps (a 3-day interval on first sight)
+            // or took two lapses in one sitting. Failing either pass is a lapse.
+            let srsGrade = grade, srsCorrect = was_correct;
+            if (mode === 'quiz' && qpPass === 'spelling' && !qpMcqOk.includes(item.word.id)) {
+                srsGrade = 0; srsCorrect = false;
+            }
+            if (!(mode === 'quiz' && qpPass === 'mcq')) {
+                postResult(request, { word_id: item.word.id, grade: srsGrade, was_correct: srsCorrect });
+            }
+        }
 
         /* ════ Quiz+ two-pass branch ════════════════════════════════════ */
         if (mode === 'quiz') {
@@ -312,10 +346,10 @@ export default function Practice() {
 
         /* ════ Other modes: chunked rounds + replay-missed ═══════════════ */
         const isReplayItem = item.replay;
-        if (!isReplayItem && was_correct) setCorrect((c) => c + 1);
+        if (!isReplayItem && was_correct && !skip) setCorrect((c) => c + 1);
 
         let newMissed = missed;
-        if (!isReplayItem && !was_correct) {
+        if (!isReplayItem && !was_correct && !skip) {
             newMissed = [...missed, item.word.id];
             setMissed(newMissed);
         }
@@ -347,7 +381,7 @@ export default function Practice() {
                     'PUT',
                     JSON.stringify({
                         total_words: queue.filter((q) => !q.replay).length,
-                        correct: correct + (was_correct && !isReplayItem ? 1 : 0),
+                        correct: correct + (was_correct && !isReplayItem && !skip ? 1 : 0),
                     }),
                     headers(),
                 );
@@ -400,6 +434,10 @@ export default function Practice() {
             );
         }
         const word = item.word;
+        // The same word can come twice in a row (a missed last word is replayed
+        // at once); the position + replay flag make React remount the card
+        // instead of keeping the old, already-answered state.
+        const cardKey = `${pos}-${word.id}-${item.replay ? 'r' : 'n'}`;
 
         const isQuizPlus = mode === 'quiz';
         const total = isQuizPlus
@@ -434,15 +472,17 @@ export default function Practice() {
                         </div>
                     </div>
                     <div className="pr-score">
-                        <Icon.Check /> {correct}
+                        <Icon.Check /> {isQuizPlus
+                            ? (qpPass === 'mcq' ? qpMcqOk.length : qpMcqOk.filter((id) => qpSpellOk.includes(id)).length)
+                            : correct}
                     </div>
                 </header>
 
-                {mode === 'flashcard' && <FlashcardMode key={word.id} word={word} onAnswer={onAnswer} />}
-                {mode === 'quiz'      && <QuizMode      key={`${word.id}-${qpPass}`} word={word} qpPass={qpPass} onAnswer={onAnswer} request={request} />}
-                {mode === 'spelling'  && <SpellingMode  key={word.id} word={word} onAnswer={onAnswer} request={request} />}
-                {mode === 'listening' && <ListeningMode key={word.id} word={word} onAnswer={onAnswer} request={request} />}
-                {mode === 'cloze'     && <ClozeMode     key={word.id} word={word} onAnswer={onAnswer} request={request} />}
+                {mode === 'flashcard' && <FlashcardMode key={cardKey} word={word} onAnswer={onAnswer} />}
+                {mode === 'quiz'      && <QuizMode      key={`${cardKey}-${qpPass}`} word={word} qpPass={qpPass} onAnswer={onAnswer} request={request} />}
+                {mode === 'spelling'  && <SpellingMode  key={cardKey} word={word} onAnswer={onAnswer} request={request} />}
+                {mode === 'listening' && <ListeningMode key={cardKey} word={word} onAnswer={onAnswer} request={request} />}
+                {mode === 'cloze'     && <ClozeMode     key={cardKey} word={word} onAnswer={onAnswer} request={request} />}
             </div>
         );
     }
