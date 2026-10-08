@@ -1772,6 +1772,13 @@
 .slp-page::-webkit-scrollbar { width:9px; }
 .slp-page::-webkit-scrollbar-thumb { background:rgba(255,255,255,.12); border-radius:10px; }
 .slp-page .slp-container { max-width:1120px; margin:0 auto; padding:0 32px 56px; }
+/* When the side rails (vocab + companion) appear, narrow the reading column
+   so the rails flank it instead of overlapping the text — and keep the
+   full-bleed header's content aligned to the same narrowed column. */
+@media (min-width:1500px) {
+    .slp-page .slp-container { max-width:820px; }
+    .slp-page .slp-top-bar { padding:15px max(20px, calc((100vw - 820px) / 2 + 32px)); }
+}
 
 /* ── top bar → full-bleed solid header (spans the viewport, content
    aligned to the 1120px reading column) ── */

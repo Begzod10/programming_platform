@@ -64,5 +64,8 @@
 .slp-cmp-cta:hover { transform:translateY(-1px); box-shadow:0 10px 22px rgba(139,123,242,.5); }
 
 /* ── hide when there's no real gutter space ── */
-@media (max-width: 1400px) { .slp-companion { display:none; } }
+/* Match the vocab panel: only show once there's room beside the reading
+   column, anchored just outside the centred content. */
+@media (max-width: 1499px) { .slp-companion { display:none; } }
+@media (min-width: 1500px) { .slp-companion { right: calc(50% - 730px); left:auto; } }
 @media (prefers-reduced-motion: reduce) { .slp-companion { animation:none; } }

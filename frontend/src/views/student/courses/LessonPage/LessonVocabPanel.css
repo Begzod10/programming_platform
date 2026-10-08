@@ -52,9 +52,13 @@
     background:linear-gradient(135deg,#7ef0a3,#2bc45a); box-shadow:0 6px 16px rgba(54,224,107,.3); transition:.2s; }
 .lvp-cta:hover { transform:translateY(-1px); box-shadow:0 10px 22px rgba(54,224,107,.45); }
 
-@media (max-width: 1400px) { .lvp-panel { display:none; } }
+/* Show the left panel only when the viewport is wide enough to fit it beside
+   the (narrowed) reading column without overlapping. Anchor it just outside
+   the centred content column so it always hugs the text instead of the edge. */
+@media (max-width: 1499px) { .lvp-panel { display:none; } }
+@media (min-width: 1500px) { .lvp-panel { left: calc(50% - 702px); right:auto; } }
 @media (prefers-reduced-motion: reduce) { .lvp-panel { animation:none; } }
 
-/* Hide the old floating vocab FAB on wide screens — the left panel replaces it.
-   (On narrow screens the FAB/drawer stays, since there's no gutter for the panel.) */
-@media (min-width: 1401px) { .ldd-fab { display:none !important; } }
+/* Hide the old floating vocab FAB only once the panel takes over.
+   (Below 1500px the FAB/drawer stays, since there's no gutter for the panel.) */
+@media (min-width: 1500px) { .ldd-fab { display:none !important; } }
