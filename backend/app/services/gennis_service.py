@@ -242,6 +242,20 @@ class GennisService:
         await db.commit()
         logger.info(f"O'qituvchi {teacher.username} sinxronizatsiyasi yakunlandi.")
 
+    @staticmethod
+    def _balance_from(*candidates) -> Optional[int]:
+        """First usable balance among the candidates (a number, or a numeric
+        string), or None when the source sent none — so "no data" is never
+        mistaken for a real balance of 0."""
+        for value in candidates:
+            if value is None or isinstance(value, bool):
+                continue
+            try:
+                return int(float(value))
+            except (TypeError, ValueError):
+                continue
+        return None
+
     @classmethod
     async def sync_student_data(cls, db: AsyncSession, student: Student, login_data: Dict[str, Any], system: str = "gennis"):
         """Talaba ma'lumotlarini va ism-familiyasini sinxronlash"""
@@ -257,7 +271,11 @@ class GennisService:
         student.gennis_token = token
         student.full_name = f"{user_info.get('name', '')} {user_info.get('surname', '')}".strip()
         student.surname = user_info.get("surname", "")
-        student.balance = user_info.get("balance", student_info.get("combined_debt", 0))
+        # Only overwrite when the source actually sent a balance: a login
+        # payload without one used to silently reset a student's balance to 0.
+        new_balance = cls._balance_from(user_info.get("balance"), student_info.get("combined_debt"))
+        if new_balance is not None:
+            student.balance = new_balance
 
         parsed_birth_date = cls._parse_birth_date(user_info.get("birth_date"))
         if parsed_birth_date is not None:
@@ -637,7 +655,9 @@ class GennisService:
             student.full_name = full_name
             student.surname = last_name
             student.phone = str(s_data.get("phone"))[:50]
-            student.balance = s_data.get("balance", 0)
+            new_balance = cls._balance_from(s_data.get("balance"))
+            if new_balance is not None:      # absent in the payload = keep what we have
+                student.balance = new_balance
             if parsed_birth_date is not None:
                 student.birth_date = parsed_birth_date
             if set_primary_group:
