@@ -9,6 +9,7 @@ import { useTranslation } from '../../../../i18n/useTranslation';
 import { Lock, Award, Search, Map, X } from 'lucide-react';
 import AppHeader from '../../../../components/appheader/AppHeader';
 import { useIsDemo } from '../../../../context/AuthContext';
+import { debtMessage } from '../../../../utils/certificateDebt';
 import { DEMO_COURSE_ID } from '../../../../constants/demo';
 
 /* ── tech category visual config ── */
@@ -370,11 +371,14 @@ const StudentCourses = () => {
             URL.revokeObjectURL(url);
         } catch (e) {
             console.error(e);
-            setCertDownloadError('Sertifikatni yuklab bo\'lmadi. Birozdan keyin qayta urinib ko\'ring.');
+            const debt = await debtMessage(e, lang === 'ru' ? 'ru' : 'uz');
+            setCertDownloadError(debt || (lang === 'ru'
+                ? 'Не удалось скачать сертификат. Попробуйте позже.'
+                : 'Sertifikatni yuklab bo\'lmadi. Birozdan keyin qayta urinib ko\'ring.'));
         } finally {
             setDownloadingCategoryId(null);
         }
-    }, [request]);
+    }, [request, lang]);
 
     /* ── fetch all courses ── */
     const fetchCourses = useCallback(() => {

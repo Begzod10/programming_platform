@@ -273,7 +273,10 @@ class GennisService:
         student.surname = user_info.get("surname", "")
         # Only overwrite when the source actually sent a balance: a login
         # payload without one used to silently reset a student's balance to 0.
-        new_balance = cls._balance_from(user_info.get("balance"), student_info.get("combined_debt"))
+        # `student.combined_debt` is NOT a balance — it is the sum of the group
+        # prices (the monthly tuition, always >= 0) — so it is never used here;
+        # the real signed balance (negative = owes) is `user.balance`.
+        new_balance = cls._balance_from(user_info.get("balance"))
         if new_balance is not None:
             student.balance = new_balance
 

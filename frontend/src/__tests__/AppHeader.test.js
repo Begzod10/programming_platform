@@ -10,6 +10,11 @@ jest.mock('../api/search/base', () => ({
     resolveImageUrl: (src) => src || '',
     useHttp: () => ({ request: mockRequest }),
 }));
+// The realtime WebSocket is covered on its own; here it must stay inert.
+jest.mock('../api/notificationsSocket', () => ({
+    subscribeNotifications: () => () => {},
+    closeNotificationsSocket: () => {},
+}));
 jest.mock('../context/AuthContext', () => ({ useAuth: () => ({ logout: jest.fn() }) }));
 jest.mock('lucide-react', () => new Proxy({ __esModule: true }, {
     get: (t, p) => (p in t || typeof p === 'symbol' ? t[p] : () => null),
