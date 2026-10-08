@@ -235,6 +235,28 @@ class RankingService:
         await self.db.refresh(student)
         return student
 
+    async def credit_yield(self, student_id: int, points: int) -> Optional[Student]:
+        """Credit a passive reward (the daily streak yield) to the SPENDABLE
+        wallet only.
+
+        Unlike `add_points_to_student`, this deliberately does NOT touch
+        `lifetime_points` or the leaderboard (`Ranking.total_points`) — a
+        streak bonus is "interest" on the balance, not earned career progress,
+        so it must never silently inflate a student's rank or level. Demo
+        accounts earn nothing; non-positive amounts are a no-op.
+        """
+        if points <= 0:
+            return None
+        res = await self.db.execute(
+            select(Student).where(Student.id == student_id).with_for_update()
+        )
+        student = res.scalar_one_or_none()
+        if not student or student.is_demo:
+            return student
+        student.total_points += points
+        await self.db.flush()
+        return student
+
     async def subtract_points_from_student(self, student_id: int, points: int) -> Optional[Student]:
         """Studentdan spendable balansdan ayirish.
 

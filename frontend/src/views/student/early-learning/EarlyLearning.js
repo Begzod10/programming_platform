@@ -3,6 +3,8 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import './EarlyLearning.css';
 import { API_URL, useHttp, headers, getCurrentUser } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
+import QuotaLockScreen from '../../../components/QuotaLockScreen';
+import { useDailyQuota } from '../../../hooks/useDailyQuota';
 import MatchingActivity from './MatchingActivity';
 import BuildActivity from './BuildActivity';
 import TraceActivity from './TraceActivity';
@@ -136,6 +138,9 @@ export default function EarlyLearning({ guest = false }) {
     const location = useLocation();
     const { request } = useHttp();
     const { t, lang, toggleLang } = useTranslation();
+    // Daily-quota gate — only real students (not guest /play, not teacher preview).
+    const quotaGated = !guest && !location.pathname.startsWith('/teacher');
+    const quota = useDailyQuota({ enabled: quotaGated });
 
     // This view is mounted under /student/early-learning (kids playing),
     // /teacher/early-learning (a teacher checking what's live), AND — with
@@ -299,6 +304,19 @@ export default function EarlyLearning({ guest = false }) {
             .then(setLeaderboard)
             .catch(console.error);
     };
+
+    // ── Daily-quota lock — block the whole kids' area until today's quota is met ──
+    if (quotaGated && !quota.loading && !quota.unlocked) {
+        return (
+            <div className="el-shell">
+                <Sky />
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                    <QuotaLockScreen completed={quota.completed}
+                        baseRequired={quota.baseRequired} remaining={quota.remaining} />
+                </div>
+            </div>
+        );
+    }
 
     // ── Playing a single activity ──
     if (moduleId && playingActivityId) {

@@ -22,6 +22,19 @@ class Settings(BaseSettings):
     MAX_FILE_SIZE: int = 10 * 1024 * 1024
     ALLOWED_EXTENSIONS: str = ".py,.js,.html,.css,.json,.md,.txt,.zip"
     API_V1_PREFIX: str = "/api/v1"
+
+    # ── Daily learning quota / games-lock ──────────────────────────────
+    # Students must complete DAILY_QUOTA_LESSONS lessons/day before the
+    # leisure sections (early-learning, duel) unlock. Uncompleted lessons
+    # carry over and accrue a penalty. All thresholds live here so the rule
+    # can be tuned without code changes.
+    DAILY_QUOTA_LESSONS: int = 2            # base mandatory lessons per day
+    QUOTA_PENALTY_PER_LESSON: int = 100     # points deducted per missed lesson at EOD
+    STREAK_YIELD_RATE: float = 0.001        # 0.1% nightly bonus on streak-period earnings
+    QUOTA_UNLOCK_MODE: str = "base"         # "base" = unlock at 2 | "full" = unlock at 2+debt
+    QUOTA_DEBT_CAP: int = 0                 # 0 = uncapped carry-over (per spec)
+    QUOTA_TZ: str = "Asia/Tashkent"         # single-tz platform; "today" is this zone's date
+
     # Comma-separated list of allowed origins. Default to local dev only —
     # production MUST override via .env. Wildcard with credentials is unsafe
     # and the CORS spec forbids it.

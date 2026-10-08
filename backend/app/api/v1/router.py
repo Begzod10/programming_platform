@@ -33,6 +33,9 @@ from app.api.v1.endpoints import early_learning
 from app.api.v1.endpoints import duel
 from app.api.v1.endpoints import classroom_integration
 from app.api.v1.endpoints import notifications
+from app.api.v1.endpoints import daily_quota
+from app.dependencies import require_games_unlocked
+from fastapi import Depends
 api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
@@ -63,9 +66,16 @@ api_router.include_router(parent.router, prefix="/parent", tags=["Parent MiniApp
 api_router.include_router(activity_analytics.router, prefix="/teacher/activity", tags=["Teacher Activity"])
 api_router.include_router(bot_stats.router, prefix="/bot", tags=["Bot Stats"])
 api_router.include_router(store.router, prefix="/store", tags=["Store"])
-api_router.include_router(early_learning.router, prefix="/early-learning", tags=["Early Learning"])
+api_router.include_router(
+    early_learning.router, prefix="/early-learning", tags=["Early Learning"],
+    dependencies=[Depends(require_games_unlocked)],   # gated behind the daily quota
+)
+# NOTE: the duel router carries a token-auth WebSocket route, so it is NOT
+# blanket-gated here (an HTTP-header dependency would break the WS handshake).
+# The quota lock is applied per-action inside duel.py instead.
 api_router.include_router(duel.router, prefix="/duels", tags=["Duels"])
 api_router.include_router(teacher_error_log.router, prefix="/teacher/error-log", tags=["Teacher - Error Log"])
 api_router.include_router(team_project.router, prefix="/team-projects", tags=["Team Projects"])
 api_router.include_router(classroom_integration.router, prefix="/integrations", tags=["Classroom Integration"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
+api_router.include_router(daily_quota.router, prefix="/daily", tags=["Daily Quota"])

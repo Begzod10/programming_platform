@@ -232,6 +232,42 @@ async def job_retry_stuck_team_task_reviews():
 # SCHEDULER ISHGA TUSHIRISH
 # ============================================================
 
+async def job_process_quota_eod():
+    """00:05 Asia/Tashkent — process the day that just ended for the daily
+    learning quota: penalize missed lessons (floored at 0), carry the debt
+    forward, update the quota streak + 0.1% yield, and seed tomorrow's row.
+
+    Commits PER STUDENT so one student's failure can't roll back the rest, and
+    so the job is safe to re-run after a restart (each day-row is idempotent
+    via its `processed` flag).
+    """
+    from zoneinfo import ZoneInfo
+    from app.services import daily_quota_service as dq
+    from app.services.ranking_service import RankingService
+    from app.models.user import Student
+
+    tz = ZoneInfo("Asia/Tashkent")
+    day = (datetime.now(tz) - timedelta(minutes=10)).date()  # the day that just closed
+    processed = 0
+    async with AsyncSessionLocal() as db:
+        rs = RankingService(db)
+        students = (await db.execute(
+            select(Student).where(Student.is_active.is_(True), Student.is_demo.is_(False))
+        )).scalars().all()
+        for student in students:
+            try:
+                await dq.process_eod_for_student(db, rs, student, day)
+                await db.commit()
+                processed += 1
+            except Exception as e:  # noqa: BLE001
+                logger.warning("quota EOD failed for student %s: %s", student.id, e)
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+    logger.info("✅ Kunlik kvota EOD qayta ishlandi: %s ta student (%s)", processed, day)
+
+
 def start_scheduler():
     """
     main.py da startup_event ichida chaqiring:
@@ -246,6 +282,14 @@ def start_scheduler():
         job_reset_daily,
         trigger=CronTrigger(hour=0, minute=0),  # 00:00 har kuni
         id="reset_daily",
+        replace_existing=True
+    )
+
+    # Har kecha 00:05 da kunlik kvota EOD (kunlik reset'dan keyin)
+    scheduler.add_job(
+        job_process_quota_eod,
+        trigger=CronTrigger(hour=0, minute=5),  # 00:05 — after the 00:00 daily reset
+        id="quota_eod",
         replace_existing=True
     )
 

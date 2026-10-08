@@ -139,6 +139,11 @@ async def complete_lesson(db: AsyncSession, lesson_id: int, student_id: int) -> 
 
     await db.commit()
 
+    # Daily-quota: count this lesson toward today's quota and unlock the games
+    # sections the instant the quota is met (best-effort; never breaks a lesson).
+    from app.services import daily_quota_service
+    await daily_quota_service.on_lesson_completed(db, student_id, lesson_id)
+
     # Student total points olish
     student_res = await db.execute(select(Student).where(Student.id == student_id))
     student = student_res.scalar_one_or_none()

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { API_URL, headers, resolveImageUrl, useHttp } from '../../api/search/base';
 import { subscribeNotifications, closeNotificationsSocket } from '../../api/notificationsSocket';
+import { useDailyQuota } from '../../hooks/useDailyQuota';
 import { useTranslation } from '../../i18n/useTranslation';
 import { useAuth } from '../../context/AuthContext';
 import DemoBanner from '../DemoBanner';
@@ -10,7 +11,7 @@ import './AppHeader.css';
 import {
     Bell, LayoutGrid, X, LogOut, User, BarChart3,
     LayoutDashboard, BookOpen, Map, Monitor, BookMarked, Gamepad2, Users2,
-    HelpCircle, Zap, Puzzle, Trophy, Construction, GraduationCap, Award,
+    HelpCircle, Zap, Puzzle, Trophy, Construction, GraduationCap, Award, Lock,
 } from 'lucide-react';
 
 // Localized toast heading per notification type (server stores only entity text).
@@ -20,6 +21,7 @@ const NOTE_HEADING = {
     project_submitted: { uz: 'Loyiha tekshirilmoqda', ru: 'Проект на проверке' },
     achievement:       { uz: 'Yangi yutuq!',          ru: 'Новое достижение!' },
     certificate:       { uz: 'Sertifikat olindi',     ru: 'Сертификат получен' },
+    games_unlocked:    { uz: "O'yinlar ochildi! 🎮",  ru: 'Игры разблокированы! 🎮' },
 };
 
 const LEVEL_META = {
@@ -101,6 +103,9 @@ export default function AppHeader({ me: meProp }) {
         const id = setInterval(poll, 25000);   // safety-net; the WS below is primary
         return () => { alive = false; clearInterval(id); };
     }, [request]);
+
+    // Daily-quota top-bar widget: today's progress + games lock state.
+    const quota = useDailyQuota();
 
     // Realtime: a single shared WebSocket keeps the badge live and pops a toast
     // the instant a notification is emitted — no waiting for the next poll.
@@ -199,13 +204,28 @@ export default function AppHeader({ me: meProp }) {
                             </div>
                         )}
                     </div>
-                    {!isDemo && (
+                    {!isDemo && (<>
+                        {quota.hasStatus && (
+                        <button
+                            className={`db-quota ${quota.unlocked ? 'db-quota--open' : 'db-quota--locked'}`}
+                            onClick={() => go(quota.unlocked ? 'duel' : 'courses')}
+                            title={quota.unlocked
+                                ? (ru ? 'Игры открыты на сегодня' : "Bugun o'yinlar ochiq")
+                                : (ru ? 'Выполни норму, чтобы открыть игры' : "Normani bajar, o'yinlar ochiladi")}>
+                            {quota.unlocked
+                                ? <><span className="db-quota-emoji">🎮</span>
+                                    <span className="db-quota-txt">{ru ? 'Открыто' : 'Ochildi'}</span></>
+                                : <><Lock size={14} />
+                                    <span className="db-quota-txt">{quota.completed}/{quota.baseRequired}</span>
+                                    <span className="db-quota-lbl">{ru ? 'Игры' : "O'yinlar"}</span></>}
+                        </button>
+                        )}
                         <button className="db-ticon" aria-label={ru ? 'Уведомления' : 'Bildirishnomalar'}
                             onClick={() => go('notifications')}>
                             <Bell size={20} />
                             {unread > 0 && <span className="db-badge">{unread > 9 ? '9+' : unread}</span>}
                         </button>
-                    )}
+                    </>)}
                     <div className="db-menu-anchor">
                         <button className="db-avatar" onClick={() => { setAvatarOpen(o => !o); setMenuOpen(false); }} aria-label="Profile">
                             {avatarSrc ? <img src={avatarSrc} alt="" /> : (firstName[0] || 'U').toUpperCase()}

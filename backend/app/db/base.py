@@ -44,6 +44,12 @@ from app.models.team_project import (
     TeamProjectPeerRating,
     TeamProjectEvent,
 )
+from app.models.daily_quota import (  # noqa: F401  registers tables for create_all
+    StudentDailyProgress,
+    PenaltyLog,
+    StreakTracker,
+    StreakBonusLog,
+)
 
 __all__ = [
     "Base",
@@ -93,4 +99,8 @@ __all__ = [
     "TeamProjectTask",
     "TeamProjectPeerRating",
     "TeamProjectEvent",
+    "StudentDailyProgress",
+    "PenaltyLog",
+    "StreakTracker",
+    "StreakBonusLog",
 ]

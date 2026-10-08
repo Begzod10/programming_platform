@@ -153,3 +153,12 @@ async def notify_certificate_earned(db: AsyncSession, student_id: int, course_ti
         db, student_id, type="certificate", tone="cert", title=(course_title or "Kurs"),
         link="/student/degrees",
     )
+
+
+async def notify_games_unlocked(db: AsyncSession, student_id: int) -> Optional[Notification]:
+    """Fired when a student meets the daily quota and the leisure sections
+    unlock — rendered as the celebratory "Games Unlocked 🎮" toast."""
+    return await _emit(
+        db, student_id, type="games_unlocked", tone="star", title="",
+        icon="🎮", link="/student/duel",
+    )

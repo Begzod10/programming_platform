@@ -145,6 +145,28 @@
     .db-launcher, .db-avatar-menu { animation-duration:.001s; }
 }
 
+/* ── daily-quota top-bar widget ── */
+.db-quota {
+    display:inline-flex; align-items:center; gap:7px; cursor:pointer;
+    padding:8px 13px; border-radius:12px; font-size:.8rem; font-weight:700;
+    font-family:inherit; transition:.2s; white-space:nowrap;
+}
+.db-quota-txt { font-variant-numeric:tabular-nums; }
+.db-quota-lbl { opacity:.72; font-weight:600; }
+.db-quota-emoji { font-size:.95rem; line-height:1; }
+.db-quota--locked {
+    color:#fcd34d; background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.28);
+}
+.db-quota--locked:hover { background:rgba(251,191,36,.2); border-color:rgba(251,191,36,.45); }
+.db-quota--open {
+    color:#7ef0a3; background:rgba(54,224,107,.12); border:1px solid rgba(54,224,107,.3);
+    animation:dbQuotaPop .5s cubic-bezier(.2,.8,.25,1);
+}
+.db-quota--open:hover { background:rgba(54,224,107,.2); border-color:rgba(54,224,107,.5); }
+@keyframes dbQuotaPop { 0%{transform:scale(.9)} 55%{transform:scale(1.08)} 100%{transform:scale(1)} }
+@media (max-width:620px) { .db-quota-lbl { display:none; } }
+@media (max-width:460px) { .db-quota { padding:7px 10px; } .db-quota--open .db-quota-txt { display:none; } }
+
 /* ── realtime notification toast ──
    Portaled to <body> (outside .db-dark), so it uses literal colours rather
    than the --db-* vars, which are scoped to the themed page container. */
