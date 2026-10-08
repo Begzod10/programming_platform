@@ -44,6 +44,9 @@ export default function QuotaLockScreen({ completed = 0, baseRequired = 2, remai
                     {ru ? 'Продолжить обучение' : "Darslarni davom ettirish"}
                     <ArrowRight size={18} />
                 </button>
+                <button className="qls-link" onClick={() => navigate('/student/daily-rules')}>
+                    {ru ? 'Как это работает?' : "Bu qanday ishlaydi?"}
+                </button>
             </div>
         </div>
     );

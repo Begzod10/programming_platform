@@ -208,7 +208,7 @@ export default function AppHeader({ me: meProp }) {
                         {quota.hasStatus && (
                         <button
                             className={`db-quota ${quota.unlocked ? 'db-quota--open' : 'db-quota--locked'}`}
-                            onClick={() => go(quota.unlocked ? 'duel' : 'courses')}
+                            onClick={() => go(quota.unlocked ? 'duel' : 'daily-rules')}
                             title={quota.unlocked
                                 ? (ru ? 'Игры открыты на сегодня' : "Bugun o'yinlar ochiq")
                                 : (ru ? 'Выполни норму, чтобы открыть игры' : "Normani bajar, o'yinlar ochiladi")}>

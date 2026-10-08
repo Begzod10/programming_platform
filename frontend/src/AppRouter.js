@@ -21,6 +21,7 @@ import StudentTeamGame   from './views/student/teamgame/StudentTeamGame';
 import StudentTeamProject from './views/student/teamprojects/StudentTeamProject';
 import StudentCourseStats from './views/student/stats/StudentCourseStats';
 import Notifications from './views/student/notifications/Notifications';
+import DailyRules from './views/student/dailyrules/DailyRules';
 import Store              from './views/student/store/Store';
 import EarlyLearning      from './views/student/early-learning/EarlyLearning';
 import Quiz               from './views/student/quiz/Quiz';
@@ -135,6 +136,7 @@ function AppRouter() {
                 <Route path="early-learning/:moduleId"                    element={<EarlyLearning />} />
                 <Route path="statistics"                                  element={<StudentCourseStats />} />
                 <Route path="notifications"                                element={<Notifications />} />
+                <Route path="daily-rules"                                  element={<DailyRules />} />
 
                 {/* Курсы */}
                 <Route path="roadmap"                                      element={<CourseRoadmap />} />

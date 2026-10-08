@@ -26,7 +26,7 @@ function StudentLayout() {
         || segment === 'statistics' || segment === 'notifications' || segment === 'rankings'
         || segment === 'project-rating' || segment === 'degrees' || segment === 'achievements'
         || segment === 'team-game' || segment === 'team-projects'
-        || segment === 'quiz' || segment === 'duel' || isCourseArea) {
+        || segment === 'quiz' || segment === 'duel' || segment === 'daily-rules' || isCourseArea) {
         return <Outlet />;
     }
 

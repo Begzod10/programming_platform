@@ -24,6 +24,28 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base_class import Base
 
 
+class QuotaConfig(Base):
+    """Singleton (id=1) runtime config for the daily-quota feature. DB-backed so
+    a teacher can flip it on/off and set the enforcement start date without a
+    redeploy. Seeded from app.config defaults on first read."""
+    __tablename__ = "quota_config"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Penalties + carry-over debt only apply to days on/after this date; the
+    # lock + widget still work before it (so students learn the rule first).
+    # NULL = enforce immediately.
+    enforce_from: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+
+    base_lessons: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
+    penalty_per_lesson: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    unlock_mode: Mapped[str] = mapped_column(String(10), nullable=False, default="base")
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_by: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # teacher id
+
+
 class StudentDailyProgress(Base):
     """One row per (student, Tashkent-calendar day). Source of truth for the
     lock state and the day's quota math."""
