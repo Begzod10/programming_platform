@@ -136,6 +136,9 @@ async def _reconcile_indexes(conn) -> None:
         # gennis_service.py) — student_platform never collected this
         # itself, so it's purely a mirror of upstream data, nullable.
         text("ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_date DATE"),
+        # 2026-10-08: demo accounts (see app/core/demo.py).
+        text("ALTER TABLE students ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE"),
+        text("CREATE INDEX IF NOT EXISTS ix_students_is_demo ON students (is_demo)"),
         # 2026-09-06: ru renderings of early-learning content, picked by the
         # API when ?lang=ru is requested — see EarlyModule.title_ru's
         # docstring. Nullable; a missing translation falls back to uz.

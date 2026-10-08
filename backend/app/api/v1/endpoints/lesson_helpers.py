@@ -500,6 +500,8 @@ async def _calc_course_progress(
     }
 
 
+from app.core.demo import DEMO_COURSE_ID
+
 async def _ensure_enrolled(db: AsyncSession, student_id: int, course_id: int):
     """Hard-lock: only enrolled students, the course instructor, or any teacher may proceed."""
     stmt = select(Student).options(selectinload(Student.enrolled_courses)).where(Student.id == student_id)
@@ -508,6 +510,12 @@ async def _ensure_enrolled(db: AsyncSession, student_id: int, course_id: int):
 
     # Teachers can view any course's content (they review and manage lessons)
     if student.role == UserRole.teacher:
+        return
+
+    # A demo visitor is deliberately NOT in student_courses (that would list
+    # them among the teacher's course students) — the demo course is theirs by
+    # definition, everything else stays locked.
+    if student.is_demo and course_id == DEMO_COURSE_ID:
         return
 
     course_res = await db.execute(select(Course).where(Course.id == course_id))

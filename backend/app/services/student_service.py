@@ -375,7 +375,7 @@ class StudentService:
             limit: int = 10,
             search: Optional[str] = None,
     ) -> List[Student]:
-        query = select(Student)
+        query = select(Student).where(Student.is_demo.is_(False))
         if search:
             query = query.where(
                 or_(

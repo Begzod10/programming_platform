@@ -17,7 +17,7 @@ from app.models.lesson import Lesson
 from app.models.user import Student
 from app.services import srs
 from .practice_words import _apply_scope
-from .practice_session import _session_dict
+from .practice_session import _session_dict, iso_utc
 
 router = APIRouter()
 
@@ -244,6 +244,15 @@ async def get_stats(
     }
 
 
+def _weeks_active(now: datetime, first_seen: datetime) -> float:
+    """Weeks since the first session, at least 1. `first_seen` is a naive-UTC
+    DateTime column and `now` is tz-aware, so subtracting them raised
+    TypeError (a 500 on /sessions-overview for every student who practised)."""
+    if first_seen.tzinfo is None and now.tzinfo is not None:
+        now = now.replace(tzinfo=None)
+    return max(1.0, (now - first_seen).total_seconds() / (7 * 86400))
+
+
 @router.get("/sessions-overview")
 async def get_sessions_overview(
     days: int = Query(default=30, ge=7, le=180),
@@ -387,7 +396,7 @@ async def get_sessions_overview(
     active_days_window = sum(1 for d in by_date if d["sessions"] > 0)
 
     if first_seen:
-        weeks_active = max(1.0, (now - first_seen).total_seconds() / (7 * 86400))
+        weeks_active = _weeks_active(now, first_seen)
         sessions_per_week = round(sessions_total / weeks_active, 1)
     else:
         sessions_per_week = 0
@@ -412,8 +421,8 @@ async def get_sessions_overview(
             "total_words": s.total_words,
             "correct": s.correct,
             "accuracy": accuracy,
-            "started_at": s.started_at.isoformat() if s.started_at else None,
-            "completed_at": s.completed_at.isoformat() if s.completed_at else None,
+            "started_at": iso_utc(s.started_at),
+            "completed_at": iso_utc(s.completed_at),
             "duration_seconds": duration_s,
         })
 
@@ -494,7 +503,7 @@ async def get_needs_review(
             "accuracy": acc,
             "lapses": w.lapses or 0,
             "interval_days": w.interval_days or 0,
-            "next_review_at": w.next_review_at.isoformat() if w.next_review_at else None,
+            "next_review_at": iso_utc(w.next_review_at),
         })
 
     needs_total = sum(

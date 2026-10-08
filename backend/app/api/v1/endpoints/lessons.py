@@ -34,6 +34,7 @@ from .lesson_helpers import (
     translate_project_feedback,
 )
 
+from app.core.demo import DEMO_LESSON_IDS
 router = APIRouter()
 
 
@@ -51,6 +52,8 @@ async def get_lessons(
     if current_student:
         await _ensure_enrolled(db, current_student.id, course_id)
     lessons = await lesson_service.get_lessons_by_course(db, course_id)
+    if current_student and current_student.is_demo:
+        lessons = [l for l in lessons if l.id in DEMO_LESSON_IDS]
 
     completed_ids: set = set()
     if current_student and lessons:
@@ -246,17 +249,18 @@ async def complete_lesson(
     cert = await achievement_service.award_certificate(db, current_student.id, course_id)
     progress = await _calc_course_progress(db, course_id, current_student.id)
 
-    try:
-        from app.services.streak_service import bump_streak
-        await bump_streak(db, current_student.id)
-        await db.commit()
-    except Exception:
-        await db.rollback()
+    if not current_student.is_demo:
+        try:
+            from app.services.streak_service import bump_streak
+            await bump_streak(db, current_student.id)
+            await db.commit()
+        except Exception:
+            await db.rollback()
 
-    try:
-        await achievement_service.check_and_award_achievements(db, current_student.id)
-    except Exception:
-        pass
+        try:
+            await achievement_service.check_and_award_achievements(db, current_student.id)
+        except Exception:
+            pass
 
     return {
         **result,

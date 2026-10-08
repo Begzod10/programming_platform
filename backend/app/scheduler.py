@@ -19,7 +19,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from app.db.session import AsyncSessionLocal
 from app.services.ranking_service import RankingService
 from app.services.translation_backfill import backfill_course_translations
@@ -67,6 +67,42 @@ async def job_reset_monthly():
         logger.info("✅ Oylik ballar reset qilindi")
 
 
+# Feedback texts that mean "no real review happened yet" (see the sweep below).
+TRANSIENT_REVIEW_MARKERS = (
+    "AI baholash vaqtincha ishlamayapti",
+    "o'qituvchi tomonidan tekshiriladi",
+)
+TRANSIENT_RETRY_WINDOW = timedelta(days=3)
+
+
+async def job_purge_expired_demo_accounts():
+    """Delete demo accounts (core/demo.py) older than DEMO_RETENTION.
+
+    They are flagged, excluded from every statistic and never enrolled, so
+    removing them changes no admin number — and a visitor who never became a
+    student never leaves a "deleted student" behind.
+    """
+    from app.models.user import Student
+    from app.core.demo import DEMO_RETENTION
+
+    cutoff = datetime.now(timezone.utc) - DEMO_RETENTION
+    async with AsyncSessionLocal() as db:
+        rows = (await db.execute(
+            select(Student).where(Student.is_demo.is_(True), Student.created_at < cutoff)
+        )).scalars().all()
+        removed = 0
+        for student in rows:
+            try:
+                await db.delete(student)
+                await db.commit()
+                removed += 1
+            except Exception as e:      # one stubborn row must not stop the rest
+                await db.rollback()
+                logger.warning("[demo-purge] student=%s not deleted: %s", student.id, e)
+        if removed:
+            logger.info("🧹 %d ta muddati o'tgan demo akkaunt o'chirildi", removed)
+
+
 async def job_retry_stuck_project_reviews():
     """Safety net for a real incident found live: a student's ZIP upload
     (project id 4926, 2026-09-11) got permanently stuck at status
@@ -97,14 +133,31 @@ async def job_retry_stuck_project_reviews():
     from app.models.project import Project
     from app.api.v1.endpoints.projects import _run_ai_review_and_persist_failure
 
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=20)
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=20)
+    # A project parked with a *transient* placeholder ("AI is down, teacher will
+    # grade", or the old "held for teacher" notice) is also waiting on a review
+    # that never came: on 2026-09-25 two such projects sat unreviewed for 12
+    # days, since the AI came back but nothing re-ran them. Retried only inside
+    # a window, so one that keeps failing isn't hammered forever; a project that
+    # failed for a real reason (unreadable ZIP, rule violation) has different
+    # feedback text and is left alone.
+    transient_feedback = or_(*(
+        Project.instructor_feedback.ilike(f"%{marker}%")
+        for marker in TRANSIENT_REVIEW_MARKERS
+    ))
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(Project).where(
                 Project.status == "Submitted",
                 Project.reviewed_at.is_(None),
-                (Project.instructor_feedback.is_(None)) | (Project.instructor_feedback == ""),
                 Project.submitted_at < cutoff,
+                or_(
+                    Project.instructor_feedback.is_(None),
+                    Project.instructor_feedback == "",
+                    and_(transient_feedback,
+                         Project.submitted_at > now - TRANSIENT_RETRY_WINDOW),
+                ),
             )
         )
         stuck = result.scalars().all()
@@ -228,6 +281,13 @@ def start_scheduler():
         backfill_course_translations,
         trigger=CronTrigger(hour=3, minute=0),
         id="translation_backfill_daily",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        job_purge_expired_demo_accounts,
+        trigger=CronTrigger(hour=4, minute=15),
+        id="purge_expired_demo_accounts",
         replace_existing=True,
     )
 

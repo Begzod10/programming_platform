@@ -319,3 +319,44 @@ async def update_user(user_id: int, user_data: UserUpdate, db: AsyncSession):
     await db.refresh(user)
 
     return user
+
+
+DEMO_DAILY_LIMIT = 300   # a global brake on demo sign-ups per day
+
+
+async def create_demo_student(db: AsyncSession, first_name: str, last_name: str):
+    """Make a demo account and return the usual login payload (see core/demo.py).
+
+    Not enrolled in any course and given no ranking row: the demo course is
+    opened by `_ensure_enrolled`, and rankings/statistics skip `is_demo`.
+    """
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import func
+    from app.core.demo import new_demo_credentials, DEMO_TOKEN_LIFETIME
+
+    since = datetime.now(timezone.utc) - timedelta(days=1)
+    today = (await db.execute(
+        select(func.count(Student.id)).where(Student.is_demo.is_(True), Student.created_at >= since)
+    )).scalar() or 0
+    if today >= DEMO_DAILY_LIMIT:
+        raise HTTPException(status_code=429, detail="Bugun demo kirishlar soni to'ldi. Ertaga urinib ko'ring.")
+
+    cred = new_demo_credentials()
+    student = Student(
+        username=cred["username"],
+        email=cred["email"],
+        full_name=f"{first_name} {last_name}",
+        surname=last_name,
+        hashed_password=get_password_hash(cred["password"]),   # unknown to everyone
+        role=UserRole.student,
+        is_demo=True,
+        is_verified=False,
+    )
+    db.add(student)
+    await db.commit()
+    await db.refresh(student)
+    return {
+        "access_token": create_access_token(subject=student.id, expires_delta=DEMO_TOKEN_LIFETIME),
+        "token_type": "bearer",
+        "user": student,
+    }

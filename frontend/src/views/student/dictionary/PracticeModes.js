@@ -8,7 +8,14 @@ export function FlashcardMode({ word, onAnswer }) {
     const { lang } = useTranslation();
     const ru = lang === 'ru';
     const [flipped, setFlipped] = useState(false);
-    useEffect(() => { setFlipped(false); }, [word.id]);
+    const answered = useRef(false);
+    useEffect(() => { setFlipped(false); answered.current = false; }, [word.id]);
+    // A fast double-tap used to post the same answer twice (double lapse).
+    const answer = (result) => {
+        if (answered.current) return;
+        answered.current = true;
+        onAnswer(result);
+    };
 
     return (
         <div className="pr-card pr-flash">
@@ -25,7 +32,7 @@ export function FlashcardMode({ word, onAnswer }) {
                 <div className="pr-flash-face pr-flash-back">
                     <div className="pr-flash-hint">{ru ? 'Значение' : "Ma'no"}</div>
                     <div className="pr-flash-ctx">
-                        {word.context || <em>{ru ? 'Контекста нет — прочитайте вслух, чтобы запомнить' : "Konteskt yo'q — ezma o'qib eslab qoling"}</em>}
+                        {word.context || <em>{ru ? 'Контекста нет — прочитайте вслух, чтобы запомнить' : "Kontekst yo'q — ovoz chiqarib o'qib eslab qoling"}</em>}
                     </div>
                 </div>
             </button>
@@ -34,13 +41,13 @@ export function FlashcardMode({ word, onAnswer }) {
                 <div className="pr-flash-actions">
                     <button
                         className="pr-btn pr-btn--bad"
-                        onClick={() => onAnswer({ grade: 0, was_correct: false })}
+                        onClick={() => answer({ grade: 0, was_correct: false })}
                     >
                         <Icon.X /> {ru ? 'Не знаю' : 'Bilmayman'}
                     </button>
                     <button
                         className="pr-btn pr-btn--good"
-                        onClick={() => onAnswer({ grade: 2, was_correct: true })}
+                        onClick={() => answer({ grade: 2, was_correct: true })}
                     >
                         <Icon.Check /> {ru ? 'Знаю' : 'Bilaman'}
                     </button>
@@ -59,7 +66,10 @@ function MCQ({ word, onAnswer }) {
     const { lang } = useTranslation();
     const ru = lang === 'ru';
     const [picked, setPicked] = useState(null);
+    const timer = useRef(null);
     useEffect(() => { setPicked(null); }, [word.id]);
+    // Leaving mid-answer must not fire onAnswer into the next screen.
+    useEffect(() => () => clearTimeout(timer.current), []);
 
     // Decide direction once per word. Meaning-side MCQ needs a real context
     // AND at least one extra distractor to be a fair test.
@@ -74,7 +84,7 @@ function MCQ({ word, onAnswer }) {
 
     const center = meaningMode
         ? <span className="pr-quiz-word">{word.word}</span>
-        : (word.context_masked || word.context || <em>{ru ? 'Контекста нет — выберите примерно' : "Konteskt yo'q — taxminan tanlang"}</em>);
+        : (word.context_masked || word.context || <em>{ru ? 'Контекста нет — выберите примерно' : "Kontekst yo'q — taxminan tanlang"}</em>);
 
     const opts = meaningMode ? ctxOpts : (word.options || []);
     // ctxOpts are already masked server-side (see practice_words.py
@@ -88,7 +98,7 @@ function MCQ({ word, onAnswer }) {
         if (picked !== null) return;
         const correct = opt === correctValue;
         setPicked(opt);
-        setTimeout(() => onAnswer({
+        timer.current = setTimeout(() => onAnswer({
             grade: correct ? 2 : 0,
             was_correct: correct,
         }), 650);
@@ -133,30 +143,33 @@ function MCQ({ word, onAnswer }) {
 /* TypedAnswer — shared by Spelling, Listening, Cloze, and Quiz+ spelling
    sub-mode. Local Levenshtein first; AI judge runs as a tiebreaker for
    non-exact rejections so paraphrases / missing function words can pass. */
-function TypedAnswer({ word, request, onAnswer, promptLabel, showContext, header }) {
+function TypedAnswer({ word, request, onAnswer, promptLabel, showContext, header, strict = false }) {
     const { lang } = useTranslation();
     const ru = lang === 'ru';
     const [value, setValue] = useState('');
     const [verdict, setVerdict] = useState(null);
     const [judging, setJudging] = useState(false);
     const inputRef = useRef(null);
+    const timers = useRef([]);
+    const later = (fn, ms) => { timers.current.push(setTimeout(fn, ms)); };
+    useEffect(() => () => { timers.current.forEach(clearTimeout); }, []);
 
     useEffect(() => {
         setValue('');
         setVerdict(null);
         setJudging(false);
-        setTimeout(() => inputRef.current?.focus(), 60);
-    }, [word.id]);
+        later(() => inputRef.current?.focus(), 60);
+    }, [word.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const submit = async (e) => {
         e?.preventDefault?.();
         if (verdict || judging) return;
         setJudging(true);
-        const v = await judgeTypedAsync(request, value, word.word, word.context);
+        const v = await judgeTypedAsync(request, value, word.word, word.context, strict);
         setVerdict(v);
         setJudging(false);
         const grade = v.exact ? 2 : v.ok ? 1 : 0;
-        setTimeout(() => onAnswer({ grade, was_correct: v.ok }), 900);
+        later(() => onAnswer({ grade, was_correct: v.ok }), 900);
     };
 
     return (
@@ -168,7 +181,7 @@ function TypedAnswer({ word, request, onAnswer, promptLabel, showContext, header
                     {/* Masked — this is a recall prompt (guess the word from its
                         meaning), so the word itself must not appear in the text
                         the student is shown before they answer. */}
-                    {word.context_masked || word.context || <em>{ru ? 'Контекста нет' : "Konteskt yo'q"}</em>}
+                    {word.context_masked || word.context || <em>{ru ? 'Контекста нет' : "Kontekst yo'q"}</em>}
                 </div>
             )}
             <form className="pr-typed-form" onSubmit={submit}>
@@ -279,6 +292,7 @@ export function ListeningMode({ word, onAnswer, request }) {
                 word={word}
                 request={request}
                 onAnswer={onAnswer}
+                strict
                 promptLabel={ru ? 'Напишите то, что услышали' : 'Eshitganingizni yozing'}
                 header={
                     <button type="button" className="pr-listen-btn" onClick={speak} title={ru ? 'Прослушать снова' : 'Qayta eshitish'}>
@@ -291,18 +305,32 @@ export function ListeningMode({ word, onAnswer, request }) {
 }
 
 
+/* Blank every occurrence of `word` in `ctx`, including the Uzbek forms that
+   carry a suffix ("JavaScript'da", "funksiyalar"). Unicode-aware: a plain \b
+   is ASCII-only, so Cyrillic words and words like "C++" were never found. */
+export function blankWord(ctx, word) {
+    const w = (word || '').trim();
+    if (!ctx || !w) return null;
+    const esc = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const apos = "['’ʻʼ`]";
+    const tail = w.length >= 4 ? `(?:${apos}\\p{L}*|\\p{L}*)` : `(?:${apos}\\p{L}*)?`;
+    const re = new RegExp(`(^|[^\\p{L}\\p{N}_])${esc}${tail}(?![\\p{L}\\p{N}_])`, 'giu');
+    if (!re.test(ctx)) return null;
+    re.lastIndex = 0;
+    return ctx.replace(re, '$1_____');
+}
+
+
 export function ClozeMode({ word, onAnswer, request }) {
     const { lang } = useTranslation();
     const ru = lang === 'ru';
-    const blanked = useMemo(() => {
-        const ctx = word.context || '';
-        if (!ctx) return null;
-        const re = new RegExp(`\\b${word.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
-        if (!re.test(ctx)) return null;
-        return ctx.replace(re, '_____');
-    }, [word]);
+    const blanked = useMemo(() => blankWord(word.context, word.word), [word]);
+    // Not found in the sentence: fall back to the masked definition (recall
+    // prompt), which still tests the word — and only if there is no text at
+    // all can the card be skipped, which records nothing.
+    const fallback = !blanked && (word.context_masked || '').trim();
 
-    if (!blanked) {
+    if (!blanked && !fallback) {
         return (
             <div className="pr-card pr-typed">
                 <div className="pr-typed-hint">
@@ -311,7 +339,7 @@ export function ClozeMode({ word, onAnswer, request }) {
                 <div className="pr-typed-ctx">«{word.word}»</div>
                 <button
                     className="pr-btn pr-btn--primary"
-                    onClick={() => onAnswer({ grade: 1, was_correct: true })}
+                    onClick={() => onAnswer({ skip: true, was_correct: true })}
                 >
                     {ru ? 'Пропустить' : "O'tkazib yuborish"}
                 </button>
@@ -325,8 +353,10 @@ export function ClozeMode({ word, onAnswer, request }) {
                 word={word}
                 request={request}
                 onAnswer={onAnswer}
-                promptLabel={ru ? 'Заполните пропуск:' : "Bo'shliqni to'ldiring:"}
-                header={<div className="pr-cloze-ctx">{blanked}</div>}
+                promptLabel={blanked
+                    ? (ru ? 'Заполните пропуск:' : "Bo'shliqni to'ldiring:")
+                    : (ru ? 'Значение:' : "Ma'no:")}
+                header={<div className="pr-cloze-ctx">{blanked || fallback}</div>}
             />
         </div>
     );

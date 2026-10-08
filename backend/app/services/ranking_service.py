@@ -19,7 +19,7 @@ class RankingService:
             return None
 
         student_res = await self.db.execute(
-            select(Student).where(Student.id == student_id, Student.role == UserRole.student)
+            select(Student).where(Student.id == student_id, Student.role == UserRole.student, Student.is_demo.is_(False))
         )
         student = student_res.scalar_one_or_none()
         if not student:
@@ -144,7 +144,7 @@ class RankingService:
             )
             .select_from(Student)
             .outerjoin(Ranking, Ranking.student_id == Student.id)
-            .where(Student.is_active == True, Student.role == UserRole.student)
+            .where(Student.is_active == True, Student.role == UserRole.student, Student.is_demo.is_(False))
         )
 
         if level:
@@ -200,6 +200,9 @@ class RankingService:
         student = res.scalar_one_or_none()
         if not student:
             return None
+
+        if student.is_demo:
+            return student      # a demo visitor earns nothing
 
         student.total_points += points
         student.lifetime_points += points
@@ -330,7 +333,7 @@ class RankingService:
         """Barcha studentlar ballarini Ranking jadvali bilan sinxronizatsiya qilish"""
         # Barcha studentlarni olamiz
         student_res = await self.db.execute(
-            select(Student).where(Student.role == UserRole.student)
+            select(Student).where(Student.role == UserRole.student, Student.is_demo.is_(False))
         )
         students = student_res.scalars().all()
 
@@ -385,7 +388,7 @@ class RankingService:
         active_rankings_subq = (
             select(Ranking.id)
             .join(Student, Student.id == Ranking.student_id)
-            .where(Student.is_active == True, Student.role == UserRole.student)
+            .where(Student.is_active == True, Student.role == UserRole.student, Student.is_demo.is_(False))
         )
 
         # Reassert Ranking.total_points == Student.lifetime_points (the
@@ -422,7 +425,7 @@ class RankingService:
                 )
                 .select_from(Ranking)
                 .join(Student, Student.id == Ranking.student_id)
-                .where(Student.is_active == True, Student.role == UserRole.student)
+                .where(Student.is_active == True, Student.role == UserRole.student, Student.is_demo.is_(False))
                 .subquery()
             )
 
@@ -444,7 +447,7 @@ class RankingService:
             update(Student)
             .where(
                 Student.is_active == True,
-                Student.role == UserRole.student,
+                Student.role == UserRole.student, Student.is_demo.is_(False),
                 Student.id.in_(select(Ranking.student_id)),
             )
             .values(
