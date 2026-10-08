@@ -7,6 +7,11 @@ import { useTranslation } from '../../i18n/useTranslation';
 import { useAuth } from '../../context/AuthContext';
 import DemoBanner from '../DemoBanner';
 import './AppHeader.css';
+import {
+    Bell, LayoutGrid, X, LogOut, User, BarChart3,
+    LayoutDashboard, BookOpen, Map, Monitor, BookMarked, Gamepad2, Users2,
+    HelpCircle, Zap, Puzzle, Trophy, Construction, GraduationCap, Award,
+} from 'lucide-react';
 
 // Localized toast heading per notification type (server stores only entity text).
 const NOTE_HEADING = {
@@ -16,11 +21,6 @@ const NOTE_HEADING = {
     achievement:       { uz: 'Yangi yutuq!',          ru: 'Новое достижение!' },
     certificate:       { uz: 'Sertifikat olindi',     ru: 'Сертификат получен' },
 };
-import {
-    Bell, LayoutGrid, X, LogOut, User, BarChart3,
-    LayoutDashboard, BookOpen, Map, Monitor, BookMarked, Gamepad2, Users2,
-    HelpCircle, Zap, Puzzle, Trophy, Construction, GraduationCap, Award,
-} from 'lucide-react';
 
 const LEVEL_META = {
     Beginner:     { ru: 'Начинающий', uz: "Boshlang'ich" },
