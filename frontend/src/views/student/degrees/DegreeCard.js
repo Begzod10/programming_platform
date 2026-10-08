@@ -4,6 +4,7 @@ import { API_URL, useHttp, headers, resolveImageUrl } from '../../../api/search/
 import axiosInstance from '../../../api/axiosInstance';
 import { useTranslation } from '../../../i18n/useTranslation';
 import AppHeader from '../../../components/appheader/AppHeader';
+import { debtMessage } from '../../../utils/certificateDebt';
 import {
     GraduationCap, Trophy, Lock, Download, Sparkles, CheckCircle2, Award, Loader2,
     Search, X, Target, TrendingUp, Flame,
@@ -111,7 +112,8 @@ const Degrees = () => {
             URL.revokeObjectURL(url);
         } catch (e) {
             console.error(e);
-            setError(ru ? 'Не удалось скачать сертификат. Попробуйте позже.' : "Sertifikatni yuklab bo'lmadi. Keyinroq urinib ko'ring.");
+            const debt = await debtMessage(e, ru ? 'ru' : 'uz');
+            setError(debt || (ru ? 'Не удалось скачать сертификат. Попробуйте позже.' : "Sertifikatni yuklab bo'lmadi. Keyinroq urinib ko'ring."));
         } finally {
             setDownloading(null);
         }
