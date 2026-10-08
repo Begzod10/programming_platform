@@ -57,3 +57,10 @@ manager = ConnectionManager()
 #      teacher-only.
 team_ws_manager = ConnectionManager()
 team_project_ws_manager = ConnectionManager()
+
+# Notifications: one logical channel per student, keyed by students.id. Its own
+# instance (not `manager`) because student ids and game-session ids are separate
+# autoincrement PK spaces — see the team_ws_manager note above for why sharing a
+# bare-int keyed dict across features is unsafe. The backend runs a single
+# uvicorn worker, so this in-process map reaches every live notification socket.
+notif_ws_manager = ConnectionManager()

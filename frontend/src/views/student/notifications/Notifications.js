@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL, headers, resolveImageUrl } from '../../../api/search/base';
+import { subscribeNotifications } from '../../../api/notificationsSocket';
 import { useTranslation } from '../../../i18n/useTranslation';
 import AppHeader from '../../../components/appheader/AppHeader';
 import './Notifications.css';
@@ -113,8 +114,16 @@ export default function Notifications() {
         fetch(`${API_URL}v1/student/me`, { headers: headers() })
             .then(r => r.ok ? r.json() : null).then(setMe).catch(() => {});
         load();
-        const id = setInterval(load, POLL_MS);   // keep the feed live
-        return () => clearInterval(id);
+        const id = setInterval(load, POLL_MS);   // safety-net; the WS below is primary
+        // Realtime: prepend each notification the instant it's emitted.
+        const unsub = subscribeNotifications((msg) => {
+            if (msg && msg.type === 'notification' && msg.notification) {
+                setItems(prev => prev.some(n => n.id === msg.notification.id)
+                    ? prev
+                    : [msg.notification, ...prev]);
+            }
+        });
+        return () => { clearInterval(id); unsub(); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

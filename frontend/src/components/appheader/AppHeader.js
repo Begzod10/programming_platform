@@ -1,9 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { API_URL, headers, resolveImageUrl, useHttp } from '../../api/search/base';
+import { subscribeNotifications, closeNotificationsSocket } from '../../api/notificationsSocket';
 import { useTranslation } from '../../i18n/useTranslation';
 import { useAuth } from '../../context/AuthContext';
 import './AppHeader.css';
+
+// Localized toast heading per notification type (server stores only entity text).
+const NOTE_HEADING = {
+    project_approved:  { uz: 'Loyiha tasdiqlandi',    ru: 'Проект одобрен' },
+    project_rejected:  { uz: 'Loyiha qaytarildi',     ru: 'Проект отклонён' },
+    project_submitted: { uz: 'Loyiha tekshirilmoqda', ru: 'Проект на проверке' },
+    achievement:       { uz: 'Yangi yutuq!',          ru: 'Новое достижение!' },
+    certificate:       { uz: 'Sertifikat olindi',     ru: 'Сертификат получен' },
+};
 import {
     Bell, LayoutGrid, X, LogOut, User, BarChart3,
     LayoutDashboard, BookOpen, Map, Monitor, BookMarked, Gamepad2, Users2,
@@ -85,9 +96,28 @@ export default function AppHeader({ me: meProp }) {
             } catch { /* ignore — the badge is cosmetic */ }
         };
         poll();
-        const id = setInterval(poll, 25000);
+        const id = setInterval(poll, 25000);   // safety-net; the WS below is primary
         return () => { alive = false; clearInterval(id); };
     }, [request]);
+
+    // Realtime: a single shared WebSocket keeps the badge live and pops a toast
+    // the instant a notification is emitted — no waiting for the next poll.
+    const [toast, setToast] = useState(null);
+    const toastTimer = useRef(null);
+    useEffect(() => {
+        const unsub = subscribeNotifications((msg) => {
+            if (msg && typeof msg.unread_count === 'number') {
+                setUnread(msg.unread_count);
+                try { localStorage.setItem('notif:unread', String(msg.unread_count)); } catch { /* ignore */ }
+            }
+            if (msg && msg.type === 'notification' && msg.notification) {
+                setToast(msg.notification);
+                if (toastTimer.current) clearTimeout(toastTimer.current);
+                toastTimer.current = setTimeout(() => setToast(null), 6000);
+            }
+        });
+        return () => { unsub(); if (toastTimer.current) clearTimeout(toastTimer.current); };
+    }, []);
 
     // Pages that don't already have the user object can let the header
     // fetch its own lightweight copy for the avatar / menu.
@@ -112,7 +142,7 @@ export default function AppHeader({ me: meProp }) {
     }, []);
 
     const go = (id) => { setMenuOpen(false); setAvatarOpen(false); navigate(`/student/${id}`); };
-    const handleLogout = () => { setAvatarOpen(false); logout(); navigate('/login'); };
+    const handleLogout = () => { setAvatarOpen(false); closeNotificationsSocket(); logout(); navigate('/login'); };
 
     const displayName = me?.full_name || me?.username || '';
     const firstName = (displayName || 'U').trim().split(/\s+/)[0];
@@ -191,6 +221,26 @@ export default function AppHeader({ me: meProp }) {
 
             {(menuOpen || avatarOpen) && (
                 <div className="db-backdrop" onClick={() => { setMenuOpen(false); setAvatarOpen(false); }} />
+            )}
+
+            {toast && createPortal(
+                <div className={`db-toast db-toast--${toast.tone || 'ok'}`} role="status"
+                    onClick={() => { setToast(null); go('notifications'); }}>
+                    <span className="db-toast-ico"><Bell size={17} /></span>
+                    <div className="db-toast-body">
+                        <div className="db-toast-head">
+                            {NOTE_HEADING[toast.type]
+                                ? (ru ? NOTE_HEADING[toast.type].ru : NOTE_HEADING[toast.type].uz)
+                                : (ru ? 'Уведомление' : 'Bildirishnoma')}
+                        </div>
+                        {toast.title && <div className="db-toast-title">{toast.title}</div>}
+                    </div>
+                    <button className="db-toast-x" aria-label="Close"
+                        onClick={(e) => { e.stopPropagation(); setToast(null); }}>
+                        <X size={15} />
+                    </button>
+                </div>,
+                document.body
             )}
         </>
     );

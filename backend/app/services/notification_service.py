@@ -9,11 +9,53 @@ event they describe has itself been committed.
 import logging
 from typing import Optional
 
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.notification import Notification
 
 logger = logging.getLogger(__name__)
+
+
+async def _unread_count(db: AsyncSession, student_id: int) -> int:
+    return (await db.execute(
+        select(func.count(Notification.id)).where(
+            Notification.student_id == student_id,
+            Notification.is_read == False,  # noqa: E712
+        )
+    )).scalar() or 0
+
+
+async def _broadcast_new(db: AsyncSession, student_id: int, note: Notification) -> None:
+    """Push a freshly-emitted notification to the student's live socket(s).
+
+    Best-effort: a failed push must never undo the already-committed row, so it
+    swallows everything. Safe to call after commit — the session uses
+    expire_on_commit=False, so ``note``'s attributes stay loaded.
+    """
+    try:
+        from app.schemas.notification import NotificationRead
+        from app.ws.manager import notif_ws_manager
+        await notif_ws_manager.broadcast(student_id, {
+            "type": "notification",
+            "notification": NotificationRead.model_validate(note).model_dump(mode="json"),
+            "unread_count": await _unread_count(db, student_id),
+        })
+    except Exception as e:  # noqa: BLE001 — realtime push is purely additive
+        logger.debug("notification ws push skipped (student=%s): %s", student_id, e)
+
+
+async def broadcast_unread(db: AsyncSession, student_id: int) -> None:
+    """Push just the current unread count so the header bell re-syncs instantly
+    across the student's other open tabs/devices (used after read / read-all)."""
+    try:
+        from app.ws.manager import notif_ws_manager
+        await notif_ws_manager.broadcast(student_id, {
+            "type": "unread",
+            "unread_count": await _unread_count(db, student_id),
+        })
+    except Exception as e:  # noqa: BLE001
+        logger.debug("notification ws unread push skipped (student=%s): %s", student_id, e)
 
 
 async def _emit(
@@ -49,7 +91,6 @@ async def _emit(
             db.add(note)
             await db.flush()
         await db.commit()
-        return note
     except Exception as e:  # noqa: BLE001 — best-effort, must never propagate
         logger.warning("notification emit failed (student=%s type=%s): %s", student_id, type, e)
         try:
@@ -57,6 +98,11 @@ async def _emit(
         except Exception:
             pass
         return None
+
+    # Committed. Push it to any live WebSocket the student has open — best-effort,
+    # never affects the caller even if the socket layer errors.
+    await _broadcast_new(db, student_id, note)
+    return note
 
 
 async def notify_project_reviewed(db: AsyncSession, project) -> Optional[Notification]:

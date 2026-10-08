@@ -1,13 +1,70 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
+
+from fastapi import (
+    APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect,
+)
 from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import decode_access_token
 from app.dependencies import get_db, get_current_student
 from app.models.notification import Notification
 from app.models.user import Student
 from app.schemas.notification import NotificationList, NotificationRead, UnreadCount
+from app.services import notification_service
+from app.ws.manager import notif_ws_manager
 
 router = APIRouter()
+
+
+@router.websocket("/ws")
+async def notifications_ws(
+    websocket: WebSocket,
+    token: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    """Realtime notification stream for the signed-in student.
+
+    Auth is via ``?token=`` because browsers can't set an Authorization header on
+    a WebSocket handshake (same approach as the team-game socket). The channel is
+    server→client only: on connect it pushes a ``{type:'unread'}`` frame, then a
+    ``{type:'notification'}`` frame each time one is emitted for this student.
+    Client may send ``"ping"`` to keep the connection warm (answered ``"pong"``).
+    """
+    user_id = decode_access_token(token) if token else None
+    if user_id is None:
+        await websocket.close(code=4001)
+        return
+
+    student = (await db.execute(
+        select(Student).where(Student.id == user_id)
+    )).scalar_one_or_none()
+    if not student or not student.is_active:
+        await websocket.close(code=4001)
+        return
+
+    await notif_ws_manager.connect(student.id, websocket)
+    try:
+        unread = (await db.execute(
+            select(func.count(Notification.id)).where(
+                Notification.student_id == student.id,
+                Notification.is_read == False,  # noqa: E712
+            )
+        )).scalar() or 0
+        await websocket.send_json({"type": "unread", "unread_count": unread})
+
+        # We only push server→client, but must keep reading so a disconnect is
+        # noticed promptly and heartbeat pings are answered.
+        while True:
+            msg = await websocket.receive_text()
+            if msg == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        pass
+    except Exception:  # noqa: BLE001 — never let a socket error bubble out
+        pass
+    finally:
+        notif_ws_manager.disconnect(student.id, websocket)
 
 
 @router.get("/", response_model=NotificationList)
@@ -78,6 +135,8 @@ async def mark_read(
             Notification.is_read == False,  # noqa: E712
         )
     )).scalar() or 0
+    # Re-sync the bell on the student's other open tabs/devices.
+    await notification_service.broadcast_unread(db, current_student.id)
     return UnreadCount(unread_count=unread)
 
 
@@ -95,4 +154,5 @@ async def mark_all_read(
         .values(is_read=True)
     )
     await db.commit()
+    await notification_service.broadcast_unread(db, current_student.id)
     return UnreadCount(unread_count=0)
