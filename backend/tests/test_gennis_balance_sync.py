@@ -13,8 +13,7 @@ from app.services.gennis_service import GennisService
     ((-200000,), -200000),
     ((0,), 0),                       # a real zero is a value
     (("12000",), 12000),
-    ((None, -50), -50),              # falls through to combined_debt
-    ((300, -50), 300),               # balance wins over combined_debt
+    ((None, -50), -50),              # the helper itself takes the first usable value
     ((None, None), None),            # nothing sent -> no value
     (("abc",), None),
     ((True,), None),
@@ -47,11 +46,20 @@ async def test_login_updates_the_balance(db_session):
     assert s.balance == -250000
 
 
-async def test_login_uses_combined_debt_when_there_is_no_balance(db_session):
-    s = await _student(db_session, 100)
-    await GennisService.sync_student_data(db_session, s, _login(combined_debt=-70000))
+async def test_combined_debt_is_a_price_not_a_balance(db_session):
+    """combined_debt is the group price (always >= 0): storing it as the balance
+    wiped out real debts and invented positive balances."""
+    s = await _student(db_session, -70000)
+    await GennisService.sync_student_data(db_session, s, _login(combined_debt=430000))
     await db_session.refresh(s)
     assert s.balance == -70000
+
+
+async def test_the_real_balance_wins_even_when_combined_debt_is_present(db_session):
+    s = await _student(db_session, 0)
+    await GennisService.sync_student_data(db_session, s, _login(balance_key=-120000, combined_debt=430000))
+    await db_session.refresh(s)
+    assert s.balance == -120000
 
 
 async def test_login_without_any_balance_keeps_the_existing_one(db_session):
