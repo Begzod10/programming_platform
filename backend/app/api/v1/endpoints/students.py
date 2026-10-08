@@ -157,7 +157,7 @@ async def update_my_profile(
         db: AsyncSession = Depends(get_db)
 ):
     service = StudentService(db)
-    return await service.update_student(current_student.id, data)
+    return await service.update_own_profile(current_student, data)
 
 
 @router.put("/me/password")

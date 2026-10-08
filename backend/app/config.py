@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     # separate from SECRET_KEY: if one leaks, the other stays safe. Empty by
     # default so /auth/sso 503s rather than silently trusting an unset secret.
     SSO_SHARED_SECRET: str = ""
+    # Shared with management-v2 (env STUDENT_PLATFORM_SERVICE_SECRET there too):
+    # authorises the call that writes a student's own profile edits (name,
+    # phone) back to management, which gennis-v2 and turon-v2 read. Empty = the
+    # write-back is off (local development, tests); management refuses an
+    # unset secret too, so neither side runs open.
+    STUDENT_PLATFORM_SERVICE_SECRET: str = ""
     # ─── AI providers ────────────────────────────────────────────────────
     # AI calls iterate through this chain in order, using the first provider
     # whose API key is set and whose call succeeds. OpenAI-only per explicit

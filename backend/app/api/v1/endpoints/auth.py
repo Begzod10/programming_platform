@@ -5,6 +5,7 @@ from app.schemas.user import UserCreate, UserRead, TokenResponse, UserUpdate, Us
 from app.services import auth_service, sso_service
 from app.models.user import Student
 from app.core.rate_limit import rate_limit
+from app.services.student_service import StudentService
 
 router = APIRouter()
 
@@ -95,4 +96,4 @@ async def update_me(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    return await auth_service.update_user(current_student.id, user_data, db)
+    return await StudentService(db).update_own_profile(current_student, user_data, ignore_none=True)

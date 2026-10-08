@@ -12,6 +12,7 @@ from app.models.exercise import Exercise, ExerciseSubmission
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.group import student_groups
 from app.schemas.user import UserUpdate
+from app.services import profile_sync
 from app.services.teacher_students import teacher_student_ids_subquery
 
 
@@ -402,6 +403,47 @@ class StudentService:
         student = await self.get_student_by_id(student_id)
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
+            setattr(student, field, value)
+        await self.db.commit()
+        await self.db.refresh(student)
+        return student
+
+    async def update_own_profile(self, student: Student, data: UserUpdate, *, ignore_none: bool = False) -> Student:
+        """The student editing their own profile (name, phone, bio, avatar).
+
+        For a gennis/turon student, name and phone belong to the source system:
+        they are written there FIRST (so a failure leaves both sides unchanged),
+        and username/email — the source's identity for them — cannot be edited.
+        """
+        fields = data.model_dump(exclude_unset=True)
+        if ignore_none:          # the legacy PUT /auth/me never wrote a null
+            fields = {k: v for k, v in fields.items() if v is not None}
+        linked = bool(profile_sync.external_identities(student)) and not student.is_demo
+
+        if linked:
+            fields.pop("username", None)
+            fields.pop("email", None)
+
+            new_name = surname = new_phone = None
+            if fields.get("full_name") is not None:
+                full = profile_sync.clean_full_name(fields["full_name"])
+                if full != (student.full_name or ""):
+                    new_name, surname = profile_sync.split_full_name(full, student.surname)
+                    fields["full_name"] = full
+                else:
+                    fields.pop("full_name")
+            if fields.get("phone") is not None:
+                phone = profile_sync.clean_phone(fields["phone"])
+                if phone != (student.phone or ""):
+                    new_phone = fields["phone"] = phone
+                else:
+                    fields.pop("phone")
+            if new_name is not None or new_phone is not None:
+                await profile_sync.push_profile(student, name=new_name, surname=surname, phone=new_phone)
+            if surname is not None:
+                fields["surname"] = surname
+
+        for field, value in fields.items():
             setattr(student, field, value)
         await self.db.commit()
         await self.db.refresh(student)
