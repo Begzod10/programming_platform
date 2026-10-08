@@ -6,6 +6,7 @@ import { useTranslation }  from '../../../i18n/useTranslation';
 import { API_URL }         from '../../../api/search/base';
 import Constellation       from './Constellation';
 import ChargeRing          from './ChargeRing';
+import DemoEntry           from './DemoEntry';
 import './Login.css';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -35,6 +36,7 @@ export default function Login({ onLogin }) {
   const [error,       setError]       = useState('');
   const [success,     setSuccess]     = useState(false);
   const [errorKey,    setErrorKey]    = useState(0);
+  const [demoOpen,    setDemoOpen]    = useState(false);
 
   const cardRef = useRef(null);
   const lite    = useMemo(detectLite, []);
@@ -127,6 +129,9 @@ export default function Login({ onLogin }) {
               <img src="https://play-lh.googleusercontent.com/xiJhv9DqAZaOq6htMaZSAQ5DBoH_v7fripUMYx04Kv-5iQnfWAFopqZIED6Sr7Q7wN0" alt="Gennis" />
             </div>
 
+            {demoOpen ? (
+              <DemoEntry onLogin={onLogin} onBack={() => setDemoOpen(false)} navigate={navigate} />
+            ) : (<>
             <h2 className="lp-title">{t('auth.welcome')}</h2>
             <p className="lp-subtitle">{t('auth.subtitle')}</p>
 
@@ -255,6 +260,15 @@ export default function Login({ onLogin }) {
             >
               {t('auth.playGuest')}
             </button>
+
+            <button
+              type="button"
+              className="lp-guest-link lp-demo-link"
+              onClick={() => setDemoOpen(true)}
+            >
+              {t('auth.demoTry')}
+            </button>
+            </>)}
 
             {/* Dev-only credential hint */}
             {process.env.NODE_ENV === 'development' && (

@@ -96,4 +96,10 @@ export function useAuth() {
     return context;
 }
 
+/** True for a demo visitor. Tolerant of a missing provider (isolated component tests). */
+export function useIsDemo() {
+    const context = useContext(AuthContext);
+    return !!context?.user?.is_demo;
+}
+
 export default AuthContext;

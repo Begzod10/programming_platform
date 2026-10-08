@@ -14,6 +14,8 @@ import { LessonProjectModal } from './LessonProjectModal';
 import { LessonContentBlocks } from './LessonContentBlocks';
 import LessonCompanion from './LessonCompanion';
 import LessonVocabPanel from './LessonVocabPanel';
+import DemoBanner from '../../../../components/DemoBanner';
+import { useIsDemo } from '../../../../context/AuthContext';
 
 // One-time Mermaid init at module load. startOnLoad:false because we trigger
 // run() manually after each lesson's text section mounts.
@@ -46,6 +48,10 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const {request} = useHttp();
     const {t, lang, toggleLang} = useTranslation();
     const ru = lang === 'ru';
+    // Demo visitors read the lesson and do its exercises, but cannot submit a
+    // project, ask the AI, or touch the dictionary (the backend refuses those too).
+    const isDemo = useIsDemo();
+    const [demoNotice, setDemoNotice] = useState(false);
 
     // AI review feedback is authored in Uzbek; the backend translates it on
     // read when we say which language the student is reading in.
@@ -157,6 +163,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
 
     // Record when the project modal opens
     const handleProjectModalOpen = () => {
+        if (isDemo) { setDemoNotice(true); return; }
         // Daily AI-review cap reached → don't even open the modal; the
         // submit would be skipped and the project stranded in "pending".
         if (quotaExhausted) return;
@@ -609,14 +616,17 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             </div>
 
             {/* ──────────── SIDE RAILS: vocab (left) + reading navigator (right) ──────────── */}
-            <LessonVocabPanel lessonId={lesson.id} ru={ru} />
-            <LessonCompanion
-                lesson={lesson}
-                currentIndex={currentIndex}
-                allLessons={allLessons}
-                isDone={isDone}
-                ru={ru}
-            />
+            {isDemo && <DemoBanner />}
+            {!isDemo && <LessonVocabPanel lessonId={lesson.id} ru={ru} />}
+            {!isDemo && (
+                <LessonCompanion
+                    lesson={lesson}
+                    currentIndex={currentIndex}
+                    allLessons={allLessons}
+                    isDone={isDone}
+                    ru={ru}
+                />
+            )}
 
             {/* ──────────── LESSON HEADER ──────────── */}
             <div className="slp-lesson-hero">
@@ -679,7 +689,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             />
 
             {/* ──────────── LESSON FEEDBACK ──────────── */}
-            {lesson?.id && <LessonFeedbackWidget lessonId={lesson.id}/>}
+            {lesson?.id && !isDemo && <LessonFeedbackWidget lessonId={lesson.id}/>}
 
             {/* ──────────── BOTTOM NAV ──────────── */}
             <div className="slp-bottom-nav">
@@ -816,8 +826,29 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 document.body
             )}
 
-            <DictSelectionPopup lessonId={lesson.id}/>
-            <LessonDictionaryDrawer lessonId={lesson.id}/>
+            {!isDemo && <DictSelectionPopup lessonId={lesson.id}/>}
+            {!isDemo && <LessonDictionaryDrawer lessonId={lesson.id}/>}
+
+            {demoNotice && (
+                <div role="dialog" aria-modal="true" onClick={() => setDemoNotice(false)} style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 2000,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+                }}>
+                    <div onClick={(e) => e.stopPropagation()} style={{
+                        background: '#fff', color: '#1b1b2f', borderRadius: 16, padding: '24px 22px',
+                        maxWidth: 420, width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,.3)',
+                    }}>
+                        <div style={{ fontSize: 38 }}>🔒</div>
+                        <h3 style={{ margin: '8px 0' }}>{ru ? 'Недоступно в демо-режиме' : "Demo rejimida yopiq"}</h3>
+                        <p style={{ margin: '0 0 16px', lineHeight: 1.5 }}>
+                            {ru
+                                ? 'Отправка проектов доступна только ученикам курса. Чтобы начать учиться, обратитесь к администратору.'
+                                : "Loyiha topshirish faqat kursga yozilgan o'quvchilar uchun. O'qishni boshlash uchun administratorga murojaat qiling."}
+                        </p>
+                        <button className="slp-exit-btn" onClick={() => setDemoNotice(false)}>{ru ? 'Понятно' : 'Tushunarli'}</button>
+                    </div>
+                </div>
+            )}
 
             {showCelebration && (
                 <CelebrationOverlay

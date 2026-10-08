@@ -75,6 +75,34 @@ TRANSIENT_REVIEW_MARKERS = (
 TRANSIENT_RETRY_WINDOW = timedelta(days=3)
 
 
+async def job_purge_expired_demo_accounts():
+    """Delete demo accounts (core/demo.py) older than DEMO_RETENTION.
+
+    They are flagged, excluded from every statistic and never enrolled, so
+    removing them changes no admin number — and a visitor who never became a
+    student never leaves a "deleted student" behind.
+    """
+    from app.models.user import Student
+    from app.core.demo import DEMO_RETENTION
+
+    cutoff = datetime.now(timezone.utc) - DEMO_RETENTION
+    async with AsyncSessionLocal() as db:
+        rows = (await db.execute(
+            select(Student).where(Student.is_demo.is_(True), Student.created_at < cutoff)
+        )).scalars().all()
+        removed = 0
+        for student in rows:
+            try:
+                await db.delete(student)
+                await db.commit()
+                removed += 1
+            except Exception as e:      # one stubborn row must not stop the rest
+                await db.rollback()
+                logger.warning("[demo-purge] student=%s not deleted: %s", student.id, e)
+        if removed:
+            logger.info("🧹 %d ta muddati o'tgan demo akkaunt o'chirildi", removed)
+
+
 async def job_retry_stuck_project_reviews():
     """Safety net for a real incident found live: a student's ZIP upload
     (project id 4926, 2026-09-11) got permanently stuck at status
@@ -253,6 +281,13 @@ def start_scheduler():
         backfill_course_translations,
         trigger=CronTrigger(hour=3, minute=0),
         id="translation_backfill_daily",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        job_purge_expired_demo_accounts,
+        trigger=CronTrigger(hour=4, minute=15),
+        id="purge_expired_demo_accounts",
         replace_existing=True,
     )
 

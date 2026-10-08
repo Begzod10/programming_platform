@@ -8,6 +8,8 @@ import axiosInstance from '../../../../api/axiosInstance';
 import { useTranslation } from '../../../../i18n/useTranslation';
 import { Lock, Award, Search, Map, X } from 'lucide-react';
 import AppHeader from '../../../../components/appheader/AppHeader';
+import { useIsDemo } from '../../../../context/AuthContext';
+import { DEMO_COURSE_ID } from '../../../../constants/demo';
 
 /* ── tech category visual config ── */
 const TECH_META = {
@@ -304,6 +306,7 @@ const CxRing = ({ pct, size = 64, stroke = 6, gradId = 'cxGreen', children }) =>
 const StudentCourses = () => {
     const { request }              = useHttp();
     const { lang }                 = useTranslation();
+    const isDemo                   = useIsDemo();
     const navigate                 = useNavigate();
     const { courseId, lessonId }   = useParams(); // всегда строки или undefined
 
@@ -380,6 +383,7 @@ const StudentCourses = () => {
             .then((data) => {
                 const list = (Array.isArray(data) ? data : [])
                     .filter((c) => c.is_published !== false)
+                    .filter((c) => !isDemo || sameId(c.id, DEMO_COURSE_ID))
                     .map((c) => ({
                         ...c,
                         image: c.image_url || '',
@@ -402,7 +406,7 @@ const StudentCourses = () => {
             })
             .catch(console.error)
             .finally(() => setLoading(false));
-    }, [request]);
+    }, [request, isDemo]);
 
     useEffect(() => { fetchCourses(); }, [fetchCourses]);
 

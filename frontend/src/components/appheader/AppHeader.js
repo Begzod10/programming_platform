@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { API_URL, headers, resolveImageUrl, useHttp } from '../../api/search/base';
 import { useTranslation } from '../../i18n/useTranslation';
 import { useAuth } from '../../context/AuthContext';
+import DemoBanner from '../DemoBanner';
 import './AppHeader.css';
 import {
     Bell, LayoutGrid, X, LogOut, User, BarChart3,
@@ -57,7 +58,8 @@ const NAV_GROUPS = (ru, earlyEligible) => [
 export default function AppHeader({ me: meProp }) {
     const navigate = useNavigate();
     const { lang, toggleLang } = useTranslation();
-    const { logout } = useAuth();
+    const { logout, user: authUser } = useAuth();
+    const isDemo = !!authUser?.is_demo;
     const { request } = useHttp();
     const [menuOpen, setMenuOpen] = useState(false);
     const [avatarOpen, setAvatarOpen] = useState(false);
@@ -120,7 +122,9 @@ export default function AppHeader({ me: meProp }) {
     const earlyEligible = me?.early_learning_eligible !== false;
     const lvl = LEVEL_META[me?.current_level] || LEVEL_META.Beginner;
     const points = (me?.total_points || 0).toLocaleString('ru-RU').replace(/,/g, ' ');
-    const navGroups = NAV_GROUPS(ru, earlyEligible);
+    const navGroups = isDemo
+        ? NAV_GROUPS(ru, false).map((g) => ({ ...g, items: g.items.filter((i) => i.id === 'courses') })).filter((g) => g.items.length)
+        : NAV_GROUPS(ru, earlyEligible);
 
     return (
         <>
@@ -165,11 +169,13 @@ export default function AppHeader({ me: meProp }) {
                             </div>
                         )}
                     </div>
-                    <button className="db-ticon" aria-label={ru ? 'Уведомления' : 'Bildirishnomalar'}
-                        onClick={() => go('notifications')}>
-                        <Bell size={20} />
-                        {unread > 0 && <span className="db-badge">{unread > 9 ? '9+' : unread}</span>}
-                    </button>
+                    {!isDemo && (
+                        <button className="db-ticon" aria-label={ru ? 'Уведомления' : 'Bildirishnomalar'}
+                            onClick={() => go('notifications')}>
+                            <Bell size={20} />
+                            {unread > 0 && <span className="db-badge">{unread > 9 ? '9+' : unread}</span>}
+                        </button>
+                    )}
                     <div className="db-menu-anchor">
                         <button className="db-avatar" onClick={() => { setAvatarOpen(o => !o); setMenuOpen(false); }} aria-label="Profile">
                             {avatarSrc ? <img src={avatarSrc} alt="" /> : (firstName[0] || 'U').toUpperCase()}
@@ -180,14 +186,16 @@ export default function AppHeader({ me: meProp }) {
                                     <div className="db-avatar-name">{displayName}</div>
                                     <div className="db-avatar-sub">{ru ? lvl.ru : lvl.uz} · ★ {points}</div>
                                 </div>
-                                <button className="db-avatar-mi" onClick={() => go('profile')}><User size={16} /> {ru ? 'Профиль' : 'Profil'}</button>
-                                <button className="db-avatar-mi" onClick={() => go('statistics')}><BarChart3 size={16} /> {ru ? 'Статистика' : 'Statistika'}</button>
+                                {!isDemo && <button className="db-avatar-mi" onClick={() => go('profile')}><User size={16} /> {ru ? 'Профиль' : 'Profil'}</button>}
+                                {!isDemo && <button className="db-avatar-mi" onClick={() => go('statistics')}><BarChart3 size={16} /> {ru ? 'Статистика' : 'Statistika'}</button>}
                                 <button className="db-avatar-mi db-avatar-mi--danger" onClick={handleLogout}><LogOut size={16} /> {ru ? 'Выйти' : 'Chiqish'}</button>
                             </div>
                         )}
                     </div>
                 </div>
             </div>
+
+            {isDemo && <DemoBanner />}
 
             {(menuOpen || avatarOpen) && (
                 <div className="db-backdrop" onClick={() => { setMenuOpen(false); setAvatarOpen(false); }} />
