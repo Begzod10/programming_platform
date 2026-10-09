@@ -14,7 +14,7 @@ from app.services import lesson_service, achievement_service
 from app.services.project_service import is_orphaned_submission
 from app.services.submission_cooldown import enforce_submission_cooldown
 from app.schemas.lesson import LessonCreate, LessonUpdate, LessonRead
-from app.models.user import Student
+from app.models.user import Student, UserRole
 from app.models.submission import Submission
 from app.models.project import Project
 from app.models.lesson import LessonCompletion, Lesson
@@ -35,6 +35,7 @@ from .lesson_helpers import (
 )
 
 from app.core.demo import DEMO_LESSON_IDS
+from app.utils.lesson_sections import ensure_section_ids
 router = APIRouter()
 
 
@@ -93,6 +94,8 @@ async def get_lessons(
             if tr_sections:
                 dto.sections_json = tr_sections
 
+    for dto in result:
+        dto.sections_json, _ = ensure_section_ids(dto.id, dto.sections_json)
     await _inject_file_previews(db, [l.id for l in lessons], result)
     await _hydrate_exercise_sections(db, result, lang=lang)
     return result
@@ -113,30 +116,35 @@ async def get_lesson(
         raise HTTPException(status_code=404, detail="Dars topilmadi")
 
     if current_student:
-        prev_res = await db.execute(
-            select(Lesson).where(
-                Lesson.course_id == course_id,
-                Lesson.is_active == True,
-                Lesson.order < lesson.order,
-            ).order_by(Lesson.order.desc()).limit(1)
-        )
-        prev_lesson = prev_res.scalar_one_or_none()
-        if prev_lesson and prev_lesson.has_project:
-            pass_check = await db.execute(
-                select(Project)
-                .join(Submission, Submission.project_id == Project.id)
-                .where(
-                    Submission.lesson_id == prev_lesson.id,
-                    Submission.student_id == current_student.id,
-                    Project.points_earned >= PROJECT_PASS_THRESHOLD,
-                    Project.status == "Approved",
+        # Every EARLIER project lesson must be passed, not only the one right
+        # before — otherwise a student whose project was rejected could still
+        # open the lessons after a project-less lesson, or go back to ones they
+        # had already completed. Teachers/demo visitors are not gated here
+        # (they have no submissions of their own to check).
+        if current_student.role == UserRole.student and not getattr(current_student, "is_demo", False):
+            earlier = [l.id for l in (await db.execute(
+                select(Lesson).where(
+                    Lesson.course_id == course_id,
+                    Lesson.is_active == True,
+                    Lesson.order < lesson.order,
                 )
-            )
-            if not pass_check.scalar_one_or_none():
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Oldingi darsning loyihasini muvaffaqiyatli topshiring",
-                )
+            )).scalars().all() if l.has_project]
+            if earlier:
+                passed = set((await db.execute(
+                    select(Submission.lesson_id)
+                    .join(Project, Project.id == Submission.project_id)
+                    .where(
+                        Submission.student_id == current_student.id,
+                        Submission.lesson_id.in_(earlier),
+                        Project.points_earned >= PROJECT_PASS_THRESHOLD,
+                        Project.status == "Approved",
+                    )
+                )).scalars().all())
+                if any(lid not in passed for lid in earlier):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Oldingi darsning loyihasini muvaffaqiyatli topshiring",
+                    )
 
     res = LessonRead.model_validate(lesson)
 
@@ -163,6 +171,7 @@ async def get_lesson(
         res.completed = is_comp
         res.progress_percentage = await _calc_lesson_progress(db, lesson, current_student.id)
 
+    res.sections_json, _ = ensure_section_ids(res.id, res.sections_json)
     await _inject_file_previews(db, [lesson_id], [res])
     await _hydrate_exercise_sections(db, [res], lang=lang)
     return res

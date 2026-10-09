@@ -10,6 +10,7 @@ import { Lock, Award, Search, Map, X } from 'lucide-react';
 import AppHeader from '../../../../components/appheader/AppHeader';
 import { useIsDemo } from '../../../../context/AuthContext';
 import { debtMessage } from '../../../../utils/certificateDebt';
+import { ensureSectionIds } from '../../../../utils/lessonSections';
 import { DEMO_COURSE_ID } from '../../../../constants/demo';
 
 /* ── tech category visual config ── */
@@ -69,6 +70,7 @@ const apiToLesson = (l, isCompleted = false, exercises = []) => {
     if (l.sections_json) {
         try {
             const sections = JSON.parse(l.sections_json);
+            ensureSectionIds(l.id, sections);
             if (exercises.length > 0 && !sections.find(s => s.type === 'exercise')) {
                 sections.push({ id: `e${l.id}`, type: 'exercise', label: 'Упражнения', exercises: exercises.map(apiToExercise) });
             }

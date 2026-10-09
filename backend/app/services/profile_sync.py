@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 UNREACHABLE = "Ma'lumotlar asosiy tizimga saqlanmadi. Birozdan keyin qayta urinib ko'ring."
 NOT_FOUND = "Hisobingiz asosiy tizimda topilmadi. Administratorga murojaat qiling."
+BAD_PASSWORD = "Parol 6 dan 72 tagacha belgidan iborat bo'lishi kerak."
 BAD_PHONE = "Telefon raqami noto'g'ri. 9 xonali raqam kiriting (masalan: 90 123 45 67)."
 
 
@@ -48,7 +49,7 @@ def external_identities(student) -> list[tuple[str, int]]:
     return out
 
 
-async def push_profile(student, *, phone: str) -> bool:
+async def push_profile(student, *, phone: Optional[str] = None, password: Optional[str] = None) -> bool:
     """Write the changed phone to management. Returns False when the write-back
     is not configured (nothing was sent), True when every system accepted it;
     raises HTTPException (502) when one refused or could not be reached."""
@@ -56,7 +57,7 @@ async def push_profile(student, *, phone: str) -> bool:
         logger.warning("profile write-back skipped: STUDENT_PLATFORM_SERVICE_SECRET is not set")
         return False
 
-    payload_fields = {"phone": phone}
+    payload_fields = {k: v for k, v in (("phone", phone), ("password", password)) if v is not None}
     url = f"{settings.MGMT_INTEGRATION_URL}/student-profile"
     headers = {"X-Student-Platform-Secret": settings.STUDENT_PLATFORM_SERVICE_SECRET}
     try:
@@ -66,10 +67,20 @@ async def push_profile(student, *, phone: str) -> bool:
                 if resp.status_code == 404:
                     raise HTTPException(status_code=502, detail=NOT_FOUND)
                 if resp.status_code == 422:
-                    raise HTTPException(status_code=400, detail=BAD_PHONE)
+                    raise HTTPException(status_code=400, detail=BAD_PASSWORD if password is not None else BAD_PHONE)
                 if resp.status_code >= 300:
                     logger.error("profile write-back refused: %s %s", resp.status_code, resp.text[:200])
                     raise HTTPException(status_code=502, detail=UNREACHABLE)
+                if password is not None:
+                    # An older management ignores the field and still answers ok —
+                    # never report a password as changed unless it says it wrote it.
+                    try:
+                        written = resp.json().get("written", [])
+                    except ValueError:
+                        written = []
+                    if "password" not in written:
+                        logger.error("management did not write the password (written=%s)", written)
+                        raise HTTPException(status_code=502, detail=UNREACHABLE)
     except httpx.HTTPError as e:
         logger.error("profile write-back failed: %s", e)
         raise HTTPException(status_code=502, detail=UNREACHABLE)

@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.dependencies import get_db, get_current_student
+from app.dependencies import get_db, get_current_student, require_games_unlocked
 from app.models.early_learning import (
     EarlyActivity, EarlyActivityCompletion, EarlyActivityDailyStars, EarlyModule,
 )
@@ -263,7 +263,7 @@ def _activity_out(
     )
 
 
-@router.get("/modules", response_model=List[EarlyModuleListItem])
+@router.get("/modules", response_model=List[EarlyModuleListItem], dependencies=[Depends(require_games_unlocked)])
 async def list_early_modules(
     lang: str = _LangQuery,
     current_student: Student = Depends(get_current_student),
@@ -287,7 +287,7 @@ async def list_early_modules(
     return [_list_item(m, completions, lang, daily) for m in modules]
 
 
-@router.get("/modules/{module_id}", response_model=EarlyModuleDetail)
+@router.get("/modules/{module_id}", response_model=EarlyModuleDetail, dependencies=[Depends(require_games_unlocked)])
 async def get_early_module(
     module_id: int,
     lang: str = _LangQuery,
@@ -382,7 +382,7 @@ async def get_public_early_module(
     )
 
 
-@router.post("/activities/{activity_id}/complete", response_model=EarlyActivityCompleteOut)
+@router.post("/activities/{activity_id}/complete", response_model=EarlyActivityCompleteOut, dependencies=[Depends(require_games_unlocked)])
 async def complete_early_activity(
     activity_id: int,
     payload: EarlyActivityCompleteIn,
@@ -465,7 +465,7 @@ async def complete_early_activity(
     return EarlyActivityCompleteOut.model_validate(existing)
 
 
-@router.get("/leaderboard", response_model=EarlyLeaderboardOut)
+@router.get("/leaderboard", response_model=EarlyLeaderboardOut, dependencies=[Depends(require_games_unlocked)])
 async def get_early_learning_leaderboard(
     limit: int = 20,
     period: Literal["all_time", "today"] = "all_time",

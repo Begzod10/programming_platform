@@ -35,13 +35,15 @@ def test_bad_phone_is_a_400(raw):
 
 class Remote:
     """Stands in for management-v2's PUT /student-profile."""
-    def __init__(self, status=200):
-        self.status, self.calls = status, []
+    def __init__(self, status=200, writes=True):
+        self.status, self.calls, self.writes = status, [], writes
 
     def install(self, monkeypatch):
         def handler(request: httpx.Request):
             self.calls.append((str(request.url), dict(request.headers), json.loads(request.content)))
-            return httpx.Response(self.status, json={"ok": self.status == 200})
+            body = json.loads(request.content)
+            written = [k for k in ("name", "surname", "phone", "password") if k in body] if self.writes else []
+            return httpx.Response(self.status, json={"ok": self.status == 200, "written": written})
         real = httpx.AsyncClient
         monkeypatch.setattr(profile_sync.httpx, "AsyncClient",
                             lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
@@ -194,3 +196,69 @@ async def test_without_a_configured_secret_the_edit_is_saved_locally_only(async_
     assert r.status_code == 200
     assert remote.calls == []
     assert (await _row(sid)).phone == "911111111"
+
+
+# ── password ─────────────────────────────────────────────────────────────────
+
+def _fake_login(monkeypatch, ok):
+    from app.services.gennis_service import GennisService
+
+    async def login(username, password):
+        return {"user": {"id": 1}} if ok(password) else None
+    monkeypatch.setattr(GennisService, "login", staticmethod(login))
+
+
+async def test_a_linked_students_password_is_checked_and_written_at_the_source(async_client, monkeypatch, secret):
+    remote = Remote(); remote.install(monkeypatch)
+    _fake_login(monkeypatch, lambda p: p == "oldpass123")
+    sid, h = await _student(async_client, gennis_id=810010)
+    before = (await _row(sid)).hashed_password
+    r = await async_client.put("/api/v1/student/me/password",
+                               json={"current_password": "oldpass123", "new_password": "newpass456"}, headers=h)
+    assert r.status_code == 200, r.text
+    (url, headers, body), = remote.calls
+    assert body == {"source": "gennis", "id": 810010, "password": "newpass456"}
+    assert (await _row(sid)).hashed_password == before        # the local copy is only a placeholder
+
+
+async def test_a_wrong_current_password_sends_nothing(async_client, monkeypatch, secret):
+    remote = Remote(); remote.install(monkeypatch)
+    _fake_login(monkeypatch, lambda p: p == "oldpass123")
+    _, h = await _student(async_client, turon_id=820010)
+    r = await async_client.put("/api/v1/student/me/password",
+                               json={"current_password": "nope12345", "new_password": "newpass456"}, headers=h)
+    assert r.status_code == 400 and remote.calls == []
+
+
+async def test_a_refused_password_write_is_an_error_not_a_silent_success(async_client, monkeypatch, secret):
+    Remote(status=500).install(monkeypatch)
+    _fake_login(monkeypatch, lambda p: True)
+    _, h = await _student(async_client, gennis_id=810011)
+    r = await async_client.put("/api/v1/student/me/password",
+                               json={"current_password": "oldpass123", "new_password": "newpass456"}, headers=h)
+    assert r.status_code == 502
+
+
+async def test_without_the_service_secret_a_linked_password_change_fails_loudly(async_client, monkeypatch):
+    monkeypatch.setattr(settings, "STUDENT_PLATFORM_SERVICE_SECRET", "")
+    _fake_login(monkeypatch, lambda p: True)
+    _, h = await _student(async_client, gennis_id=810012)
+    r = await async_client.put("/api/v1/student/me/password",
+                               json={"current_password": "oldpass123", "new_password": "newpass456"}, headers=h)
+    assert r.status_code == 502
+
+
+async def test_a_local_student_still_changes_the_local_password(async_client):
+    _, h = await _student(async_client)
+    r = await async_client.put("/api/v1/student/me/password",
+                               json={"current_password": "securepass123", "new_password": "another789"}, headers=h)
+    assert r.status_code == 200
+
+
+async def test_an_old_management_that_ignores_the_password_is_not_reported_as_success(async_client, monkeypatch, secret):
+    Remote(writes=False).install(monkeypatch)
+    _fake_login(monkeypatch, lambda p: True)
+    _, h = await _student(async_client, gennis_id=810013)
+    r = await async_client.put("/api/v1/student/me/password",
+                               json={"current_password": "oldpass123", "new_password": "newpass456"}, headers=h)
+    assert r.status_code == 502

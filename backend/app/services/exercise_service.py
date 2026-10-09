@@ -388,6 +388,41 @@ def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "u
         return None
 
 
+_KEYWORDS = {
+    "this", "new", "let", "const", "var", "function", "return", "class", "static",
+    "self", "def", "import", "from", "async", "await", "null", "undefined", "true", "false",
+}
+
+
+def _key_tokens(expected: Optional[str]) -> list:
+    """Code-like tokens of the expected answer: bracket/symbol runs such as
+    `{}` or `=>`, and bare language keywords such as `this`."""
+    if not expected:
+        return []
+    toks = [t for t in re.findall(r"[{}\[\]()<>=!&|+*/%$.:;#@-]{2,}", expected)]
+    toks += [w for w in re.findall(r"[A-Za-z_]+", expected) if w.lower() in _KEYWORDS]
+    return toks
+
+
+def check_text_answer_by_key(expected: Optional[str], student_answer: str) -> bool:
+    """Deterministic accept for short free-text answers: every key token of the
+    expected answer appears in the student's answer (symbol tokens must not be
+    glued to another symbol, so `${}` doesn't count as `{}`). Only ever turns
+    a would-be AI verdict into a pass — never into a fail."""
+    toks = _key_tokens(expected)
+    if not toks:
+        return False
+    ans = student_answer or ""
+    for t in toks:
+        if t.isalpha() or t.replace("_", "").isalpha():
+            if not re.search(rf"(?<![A-Za-z0-9_]){re.escape(t)}(?![A-Za-z0-9_])", ans, re.I):
+                return False
+        else:
+            if not re.search(rf"(?<![{{}}\[\]()<>=!&|+*/%$.:;#@-]){re.escape(t)}(?![{{}}\[\]()<>=!&|+*/%$.:;#@-])", ans):
+                return False
+    return True
+
+
 async def check_answer_with_grok(
         question: str,
         expected_answer: Optional[str],
@@ -488,7 +523,9 @@ async def submit_exercise(
 
     result = check_answer_locally(exercise, data.student_answer, lang=data.lang or "uz")
 
-    if result is None:
+    if result is None and check_text_answer_by_key(exercise.expected_answer, data.student_answer):
+        result = {"is_correct": True, "partial_score": 1.0, "feedback": "To'g'ri!"}
+    elif result is None:
         result = await check_answer_with_grok(
             question=exercise.description,
             expected_answer=exercise.expected_answer,

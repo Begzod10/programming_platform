@@ -18,6 +18,8 @@ from app.schemas.public_profile import (
     PublicCertificate,
     PublicTeamProject,
 )
+from app.services import profile_sync
+from app.services.gennis_service import GennisService
 from app.services.project_service import ProjectService
 from app.services.student_service import StudentService
 from app.models.user import Student
@@ -168,10 +170,22 @@ async def change_my_password(
 ):
     """Change the logged-in student's password. Requires the current
     password to match before setting the new one."""
-    if not verify_password(data.current_password, current_student.hashed_password):
-        raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
     if data.current_password == data.new_password:
         raise HTTPException(status_code=400, detail="Yangi parol joriy paroldan farq qilishi kerak")
+
+    # A gennis/turon student's password lives in management (the DB gennis-v2 and
+    # turon-v2 authenticate against); here only a placeholder is kept. So the
+    # current password is checked by logging in there, and the new one is written
+    # there — a failure leaves both sides unchanged.
+    if profile_sync.external_identities(current_student) and not current_student.is_demo:
+        if not await GennisService.login(current_student.username, data.current_password):
+            raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
+        if not await profile_sync.push_profile(current_student, password=data.new_password):
+            raise HTTPException(status_code=502, detail=profile_sync.UNREACHABLE)
+        return {"message": "Parol muvaffaqiyatli yangilandi"}
+
+    if not verify_password(data.current_password, current_student.hashed_password):
+        raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
     current_student.hashed_password = get_password_hash(data.new_password)
     await db.commit()
     return {"message": "Parol muvaffaqiyatli yangilandi"}
