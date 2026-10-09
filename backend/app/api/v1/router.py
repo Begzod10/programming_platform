@@ -35,7 +35,6 @@ from app.api.v1.endpoints import duel
 from app.api.v1.endpoints import classroom_integration
 from app.api.v1.endpoints import notifications
 from app.api.v1.endpoints import daily_quota
-from app.dependencies import require_games_unlocked
 from fastapi import Depends
 api_router = APIRouter()
 
@@ -69,8 +68,9 @@ api_router.include_router(bot_stats.router, prefix="/bot", tags=["Bot Stats"])
 api_router.include_router(store.router, prefix="/store", tags=["Store"])
 api_router.include_router(
     early_learning.router, prefix="/early-learning", tags=["Early Learning"],
-    dependencies=[Depends(require_games_unlocked)],   # gated behind the daily quota
 )
+# NOTE: the daily-quota gate is applied per-route inside early_learning.py —
+# a router-wide gate would also lock the guest /public/* routes (401).
 # NOTE: the duel router carries a token-auth WebSocket route, so it is NOT
 # blanket-gated here (an HTTP-header dependency would break the WS handshake).
 # The quota lock is applied per-action inside duel.py instead.
