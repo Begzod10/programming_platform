@@ -56,11 +56,24 @@ export default function LessonCompanion({ lesson, currentIndex, allLessons, isDo
     }, [lesson?.id]);
 
     const jump = (id) => {
-        const el = document.querySelector(`[data-section-id="${id}"]`);
+        const sel = `[data-section-id="${(window.CSS && CSS.escape) ? CSS.escape(String(id)) : id}"]`;
+        const el = document.querySelector(sel);
         if (!el) return;
-        // scrollIntoView works no matter which ancestor is the scroll container;
-        // scroll-margin-top on .slp-block (CSS) keeps the sticky top bar clear.
-        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // The lesson's scroll container is the fixed `.slp-page` — scrollIntoView
+        // is unreliable against a position:fixed scroller, so scroll it manually
+        // to the element's offset (with a gap for the sticky top bar). Fall back
+        // to scrollIntoView only when the page itself (window) is what scrolls.
+        const scroller = document.querySelector('.slp-page');
+        const usesScroller = scroller && scroller.contains(el)
+            && scroller.scrollHeight > scroller.clientHeight + 4;
+        if (usesScroller) {
+            const top = el.getBoundingClientRect().top
+                - scroller.getBoundingClientRect().top
+                + scroller.scrollTop - 80;
+            scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+        } else {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     };
 
     const total = allLessons?.length || 0;
