@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import mermaid from 'mermaid';
 import './StudentLessonPage.css';
 import {API_URL, useHttp, headers} from '../../../../api/search/base';
+import {ensureSectionIds} from '../../../../utils/lessonSections';
 import {useTranslation} from '../../../../i18n/useTranslation';
 import DictSelectionPopup from '../LessonPage/Dictselectionpopup';
 import LessonDictionaryDrawer from './LessonDictionaryDrawer';
@@ -48,6 +49,11 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     const {request} = useHttp();
     const {t, lang, toggleLang} = useTranslation();
     const ru = lang === 'ru';
+    // Back-fill stable section ids (bulk-imported lessons had sections sharing
+    // `undefined`, so the TOC jump links, scroll-spy and data-section-id never
+    // matched). Idempotent + mutates in place, so the companion and the content
+    // blocks — which both read lesson.sections — always agree.
+    if (lesson?.sections) ensureSectionIds(lesson.id, lesson.sections);
     // Demo visitors read the lesson and do its exercises, but cannot submit a
     // project, ask the AI, or touch the dictionary (the backend refuses those too).
     const isDemo = useIsDemo();
