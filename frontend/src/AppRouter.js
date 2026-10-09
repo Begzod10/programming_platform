@@ -51,6 +51,7 @@ import PublicProfile            from './views/public/PublicProfile/PublicProfile
 import ActivityAnalytics        from './views/teacher/activityanalytics/ActivityAnalytics';
 import ErrorLogPage             from './views/teacher/errorlog/ErrorLogPage';
 import TeacherCodeChecks        from './views/teacher/codechecks/TeacherCodeChecks';
+import TeacherNotifications    from './views/teacher/notifications/TeacherNotifications';
 
 /* ─── helpers ─── */
 function RootRedirect() {
@@ -176,6 +177,7 @@ function AppRouter() {
                 <Route path="activity-analytics"                          element={<ActivityAnalytics />} />
                 <Route path="error-log"                                   element={<ErrorLogPage />} />
                 <Route path="code-checks"                                 element={<TeacherCodeChecks />} />
+                <Route path="notifications"                               element={<TeacherNotifications />} />
                 <Route path="store"                                       element={<Store />} />
                 <Route path="early-learning"                              element={<EarlyLearning />} />
                 <Route path="early-learning/:moduleId"                    element={<EarlyLearning />} />

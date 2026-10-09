@@ -204,7 +204,9 @@ async def _maybe_create_check(db: AsyncSession, project, files, rng) -> Optional
     db.add(check)
     await db.commit()
     await db.refresh(check)
-    if not throttled:
+    if throttled:
+        await notify_teachers(db, check)
+    else:
         await _notify(db, check, project)
     return check
 
@@ -220,6 +222,51 @@ async def _notify(db: AsyncSession, check: ProjectCodeCheck, project) -> None:
               f"(по {SECONDS_PER_QUESTION} секунд). Ответьте в течение 72 часов."),
         link=f"/student/code-check/{check.id}", icon="📝",
     )
+
+
+_WHY = {
+    "failed": "kod testidan o'tmadi",
+    "suspicious": "testga to'g'ri javob berdi, lekin boshqa oynaga o'tgan",
+    "expired": "kod testini topshirmadi",
+    "unavailable": "kod testini tuzib bo'lmadi (qo'lda tekshirish kerak)",
+}
+
+
+async def notify_teachers(db: AsyncSession, check: ProjectCodeCheck) -> int:
+    """Tell the student's teacher(s) that a check needs them — once per check and teacher.
+    Teachers are reached through the group/flow they own; a student with no teacher just stays in the queue."""
+    if not check.needs_teacher or check.low_priority or check.resolution is not None:
+        return 0
+    try:
+        from app.models.notification import Notification
+        from app.models.user import Student
+        from app.services.notification_service import _emit
+        from app.services.teacher_students import student_teacher_ids_subquery
+
+        teacher_ids = [r[0] for r in (await db.execute(
+            select(student_teacher_ids_subquery(check.student_id).c.teacher_id))).all() if r[0]]
+        if not teacher_ids:
+            return 0
+        student = (await db.execute(select(Student).where(Student.id == check.student_id))).scalar_one_or_none()
+        project = (await db.execute(select(Project).where(Project.id == check.project_id))).scalar_one_or_none()
+        who = (student.full_name or student.username) if student else "O'quvchi"
+        what = f"«{project.title}» ({check.code_lines} qator)" if project else f"loyiha #{check.project_id}"
+        sent = 0
+        for tid in set(teacher_ids):
+            already = (await db.execute(select(func.count()).select_from(Notification).where(
+                Notification.student_id == tid, Notification.type == "code_check_teacher",
+                Notification.extra == str(check.id)))).scalar()
+            if already:
+                continue
+            note = await _emit(
+                db, tid, type="code_check_teacher", tone="wait", title="Kod tekshiruvi: e'tibor kerak",
+                body=f"{who}: {what} — {_WHY.get(check.status, 'tekshirish kerak')}.",
+                extra=str(check.id), link="/teacher/code-checks", icon="📝")
+            sent += 1 if note else 0
+        return sent
+    except Exception as e:  # noqa: BLE001 — a notification must never break the flow
+        logger.warning("teacher notification for check %s failed: %s", check.id, e)
+        return 0
 
 
 # ── the questions ────────────────────────────────────────────────────────────
@@ -354,6 +401,7 @@ async def _close(db: AsyncSession, check: ProjectCodeCheck, status: str) -> None
     check.finished_at = utcnow()
     check.needs_teacher = True
     await db.commit()
+    await notify_teachers(db, check)
 
 
 async def submit_check(db: AsyncSession, check: ProjectCodeCheck, answers: list, blur_count: int, times_ms: list) -> dict:
@@ -383,6 +431,7 @@ async def submit_check(db: AsyncSession, check: ProjectCodeCheck, answers: list,
     check.low_priority = passed and not suspicious and check.reason == "pace"
     check.needs_teacher = not passed or suspicious or check.low_priority
     await db.commit()
+    await notify_teachers(db, check)           # no-op for a clean pass and for the low-priority lane
     return {"status": check.status, "correct": correct, "total": len(questions), "passed": passed and not suspicious,
             "on_time": on_time}
 
@@ -391,14 +440,17 @@ async def expire_old_checks(db: AsyncSession) -> int:
     """Pending checks nobody took (or abandoned half-way) become 'expired' and go to the teacher."""
     now = utcnow()
     rows = (await db.execute(select(ProjectCodeCheck).where(ProjectCodeCheck.status == "pending"))).scalars().all()
-    n = 0
+    n, expired = 0, []
     for c in rows:
         abandoned = c.started_at is not None and now > _aware(c.started_at) + time_limit()
         if _aware(c.expires_at) < now or abandoned:
             c.status, c.finished_at, c.needs_teacher = "expired", now, True
             n += 1
+            expired.append(c)
     if n:
         await db.commit()
+        for c in expired:
+            await notify_teachers(db, c)
     return n
 
 

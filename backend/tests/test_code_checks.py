@@ -474,3 +474,108 @@ async def test_the_queue_puts_real_cases_above_fast_but_passed_ones_and_counts_b
 async def test_students_cannot_read_the_teacher_count(async_client):
     _, h = await _student(async_client)
     assert (await async_client.get("/api/v1/teacher/code-checks/count", headers=h)).status_code == 403
+
+
+# ── the teacher is told ──────────────────────────────────────────────────────
+
+async def _with_teacher(async_client):
+    """A teacher who owns a group the (new) student belongs to."""
+    from app.models.group import Group, student_groups
+    tid, th = await _student(async_client, role=UserRole.teacher)
+    sid, sh = await _student(async_client)
+    async with AsyncSessionLocal() as db:
+        g = Group(name=f"g_{uuid.uuid4().hex[:6]}", teacher_id=tid)
+        db.add(g)
+        await db.flush()
+        await db.execute(student_groups.insert().values(student_id=sid, group_id=g.id))
+        await db.commit()
+    return tid, th, sid, sh
+
+
+async def _notes(tid, check_id=None):
+    async with AsyncSessionLocal() as db:
+        q = select(Notification).where(Notification.student_id == tid, Notification.type == "code_check_teacher")
+        if check_id is not None:
+            q = q.where(Notification.extra == str(check_id))
+        return (await db.execute(q)).scalars().all()
+
+
+async def test_a_failed_quiz_notifies_the_students_teacher_once(async_client, fake_ai):
+    tid, th, sid, sh = await _with_teacher(async_client)
+    check = await _create(await _project(sid))
+    assert await _notes(tid) == []                                       # nothing yet: the student has not answered
+    await async_client.post(f"/api/v1/code-checks/{check.id}/start", headers=sh)
+    await async_client.post(f"/api/v1/code-checks/{check.id}/submit", headers=sh, json={"answers": [3, 3, 3]})
+    notes = await _notes(tid, check.id)
+    assert len(notes) == 1 and notes[0].link == "/teacher/code-checks" and not notes[0].is_read
+    assert "kod testidan o'tmadi" in notes[0].body and "Yangi loyiha" in notes[0].body
+    async with AsyncSessionLocal() as db:                                # asking again must not duplicate it
+        c = (await db.execute(select(ProjectCodeCheck).where(ProjectCodeCheck.id == check.id))).scalar_one()
+        assert await svc.notify_teachers(db, c) == 0
+    assert len(await _notes(tid, check.id)) == 1
+
+
+async def test_right_answers_after_leaving_the_tab_notify_with_that_reason(async_client, fake_ai):
+    tid, th, sid, sh = await _with_teacher(async_client)
+    check = await _create(await _project(sid))
+    await async_client.post(f"/api/v1/code-checks/{check.id}/start", headers=sh)
+    await async_client.post(f"/api/v1/code-checks/{check.id}/submit", headers=sh, json={"answers": [0, 1, 2], "blur_count": 4})
+    assert "boshqa oynaga o'tgan" in (await _notes(tid, check.id))[0].body
+
+
+async def test_a_clean_pass_and_the_low_priority_lane_do_not_notify(async_client, fake_ai):
+    tid, th, sid, sh = await _with_teacher(async_client)
+    check = await _create(await _project(sid))
+    await async_client.post(f"/api/v1/code-checks/{check.id}/start", headers=sh)
+    await async_client.post(f"/api/v1/code-checks/{check.id}/submit", headers=sh, json={"answers": [0, 1, 2]})
+    assert await _notes(tid) == []                                       # fast but passed: visible in the queue, no ping
+
+
+async def test_an_unavailable_quiz_notifies(async_client, monkeypatch):
+    async def none(code): return None
+    monkeypatch.setattr(svc, "generate_questions", none)
+    tid, th, sid, sh = await _with_teacher(async_client)
+    check = await _create(await _project(sid))
+    await async_client.post(f"/api/v1/code-checks/{check.id}/start", headers=sh)
+    assert "tuzib bo'lmadi" in (await _notes(tid, check.id))[0].body
+
+
+async def test_a_second_fast_project_that_skips_the_quiz_notifies_at_once(async_client):
+    tid, th, sid, sh = await _with_teacher(async_client)
+    await _create(await _project(sid))                                   # first quiz stays open
+    second = await _create(await _project(sid))
+    assert second.status == "unavailable"
+    assert len(await _notes(tid, second.id)) == 1
+
+
+async def test_an_expired_quiz_notifies_when_the_job_runs(async_client):
+    tid, th, sid, sh = await _with_teacher(async_client)
+    check = await _create(await _project(sid))
+    async with AsyncSessionLocal() as db:
+        c = (await db.execute(select(ProjectCodeCheck).where(ProjectCodeCheck.id == check.id))).scalar_one()
+        c.expires_at = utcnow() - timedelta(minutes=1)
+        await db.commit()
+        await svc.expire_old_checks(db)
+    assert "topshirmadi" in (await _notes(tid, check.id))[0].body
+
+
+async def test_a_student_without_a_teacher_just_stays_in_the_queue(async_client, fake_ai):
+    sid, sh = await _student(async_client)
+    check = await _create(await _project(sid))
+    await async_client.post(f"/api/v1/code-checks/{check.id}/start", headers=sh)
+    await async_client.post(f"/api/v1/code-checks/{check.id}/submit", headers=sh, json={"answers": [3, 3, 3]})
+    async with AsyncSessionLocal() as db:
+        c = (await db.execute(select(ProjectCodeCheck).where(ProjectCodeCheck.id == check.id))).scalar_one()
+        assert c.needs_teacher and await svc.notify_teachers(db, c) == 0
+
+
+async def test_the_teacher_can_read_and_clear_the_notification(async_client, fake_ai):
+    tid, th, sid, sh = await _with_teacher(async_client)
+    check = await _create(await _project(sid))
+    await async_client.post(f"/api/v1/code-checks/{check.id}/start", headers=sh)
+    await async_client.post(f"/api/v1/code-checks/{check.id}/submit", headers=sh, json={"answers": [3, 3, 3]})
+    listing = (await async_client.get("/api/v1/notifications/", headers=th)).json()
+    n = next(x for x in listing["items"] if x["type"] == "code_check_teacher")
+    assert listing["unread_count"] >= 1
+    r = await async_client.post(f"/api/v1/notifications/{n['id']}/read", headers=th)
+    assert r.status_code == 200 and r.json()["unread_count"] == 0
