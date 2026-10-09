@@ -244,19 +244,12 @@ class GennisService:
         logger.info(f"O'qituvchi {teacher.username} sinxronizatsiyasi yakunlandi.")
 
     @staticmethod
-    def _apply_source_photo(student, source_data: Dict[str, Any]) -> None:
-        """The profile photo is exactly the source system's: an absolute http(s)
-        url is stored, and a source that has none (`photo_url: null`, or any value
-        that is not such a url) CLEARS the student's photo — students cannot
-        upload their own. A payload without the key at all (an older management)
-        says nothing, so the current photo is kept."""
-        if not isinstance(source_data, dict) or "photo_url" not in source_data:
-            return
-        photo_url = source_data["photo_url"]
-        if isinstance(photo_url, str) and re.match(r"^https?://", photo_url.strip(), re.I):
-            student.avatar_url = photo_url.strip()[:512]
-        else:
-            student.avatar_url = None
+    def _clear_student_photo(student) -> None:
+        """Gennis/turon students have no profile photo here: they cannot upload
+        one and none is taken from turon-v2 / gennis-v2 either, so everyone shows
+        the empty (initial-letter) icon. Called on every sync so a photo that was
+        uploaded before this rule disappears at the next login."""
+        student.avatar_url = None
 
     @staticmethod
     def _balance_from(*candidates) -> Optional[int]:
@@ -285,14 +278,14 @@ class GennisService:
 
         # Ismlarni yangilash
         student.gennis_token = token
-        # Name and photo belong to the source (turon-v2 / gennis-v2): the student
-        # cannot edit them here, so every login restores them. A payload that
+        # The name belongs to the source (turon-v2 / gennis-v2): the student
+        # cannot edit it here, so every login restores it. A payload that
         # carries no name must not blank the stored one.
         source_name = f"{user_info.get('name', '')} {user_info.get('surname', '')}".strip()
         if source_name:
             student.full_name = source_name
             student.surname = user_info.get("surname", "") or student.surname
-        cls._apply_source_photo(student, user_info)
+        cls._clear_student_photo(student)
         # Only overwrite when the source actually sent a balance: a login
         # payload without one used to silently reset a student's balance to 0.
         # `student.combined_debt` is NOT a balance — it is the sum of the group
@@ -690,7 +683,7 @@ class GennisService:
                 student.group_id = container_id
             setattr(student, id_col, s_id)
 
-        cls._apply_source_photo(student, s_data)
+        cls._clear_student_photo(student)
 
         # Bog'liqlikni bazada yangilash (Xato bermasligi uchun ON CONFLICT)
         query = text(f"""
