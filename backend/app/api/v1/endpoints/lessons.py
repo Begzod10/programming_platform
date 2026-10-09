@@ -35,6 +35,7 @@ from .lesson_helpers import (
 )
 
 from app.core.demo import DEMO_LESSON_IDS
+from app.utils.lesson_sections import ensure_section_ids
 router = APIRouter()
 
 
@@ -93,6 +94,8 @@ async def get_lessons(
             if tr_sections:
                 dto.sections_json = tr_sections
 
+    for dto in result:
+        dto.sections_json, _ = ensure_section_ids(dto.id, dto.sections_json)
     await _inject_file_previews(db, [l.id for l in lessons], result)
     await _hydrate_exercise_sections(db, result, lang=lang)
     return result
@@ -163,6 +166,7 @@ async def get_lesson(
         res.completed = is_comp
         res.progress_percentage = await _calc_lesson_progress(db, lesson, current_student.id)
 
+    res.sections_json, _ = ensure_section_ids(res.id, res.sections_json)
     await _inject_file_previews(db, [lesson_id], [res])
     await _hydrate_exercise_sections(db, [res], lang=lang)
     return res

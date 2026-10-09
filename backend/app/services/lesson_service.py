@@ -36,9 +36,13 @@ async def get_lesson_by_id(db: AsyncSession, lesson_id: int) -> Optional[Lesson]
     return result.scalar_one_or_none()
 
 
+from app.utils.lesson_sections import ensure_section_ids
+
 async def create_lesson(db: AsyncSession, course_id: int, data: LessonCreate) -> Lesson:
     new_lesson = Lesson(**data.dict(), course_id=course_id)
     db.add(new_lesson)
+    await db.flush()                      # the id is needed to name sections that arrive without one
+    new_lesson.sections_json, _ = ensure_section_ids(new_lesson.id, new_lesson.sections_json)
     await db.commit()
     await db.refresh(new_lesson)
 
@@ -56,6 +60,8 @@ async def update_lesson(db: AsyncSession, lesson_id: int, data: LessonUpdate) ->
         return None
     for key, value in data.dict(exclude_unset=True).items():
         setattr(lesson, key, value)
+    if "sections_json" in data.dict(exclude_unset=True):
+        lesson.sections_json, _ = ensure_section_ids(lesson.id, lesson.sections_json)
     await db.commit()
 
     result = await db.execute(
