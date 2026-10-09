@@ -109,7 +109,7 @@ export default function DailyRules({ chrome = true }) {
                             ? 'Сначала учёба, потом игры — короткие правила ниже.'
                             : "Avval o'qish, keyin o'yin — qoidalar quyida."}</p>
                     </div>
-                    {status && (
+                    {status && chrome && (
                         <div className={`dr-today ${status.unlocked ? 'is-open' : 'is-locked'}`}>
                             {status.unlocked
                                 ? <>🎮 {ru ? 'Открыто' : 'Ochildi'}</>

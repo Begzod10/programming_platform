@@ -12,13 +12,17 @@
 .dr-dark::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 10px; }
 .dr-shell { max-width: 1040px; margin: 0 auto; padding: 0 24px 56px; }
 
-/* embedded (teacher layout) variant — self-contained dark panel, not full-bleed */
+/* embedded (teacher layout) variant — darken the white .page-container card
+   itself (via :has) and let the content grow so the card can scroll. */
 .dr-embed {
-    color: #eef1ff; min-height: 100%; padding: 22px 0 10px;
-    background: linear-gradient(160deg,#070a1c,#0d1230 55%,#141b42);
+    color: #eef1ff; background: transparent;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, sans-serif;
 }
-.dr-embed .dr-shell { padding-top: 0; }
+.dr-embed .dr-shell { padding-top: 4px; }
+.page-container:has(> .dr-embed) {
+    background: linear-gradient(160deg,#070a1c,#0d1230 55%,#141b42);
+}
+.page-container.scrollable > .dr-embed { min-height: fit-content; }
 
 @keyframes drRise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 .dr-rise { opacity: 0; animation: drRise .55s cubic-bezier(.2,.7,.3,1) forwards; }
