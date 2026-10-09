@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import './DailyRules.css';
 
-export default function DailyRules() {
+export default function DailyRules({ chrome = true }) {
     const { lang } = useTranslation();
     const ru = lang === 'ru';
     const [status, setStatus] = useState(null);
@@ -98,8 +98,8 @@ export default function DailyRules() {
     ];
 
     return (
-        <div className="dr-dark">
-            <AppHeader me={status ? undefined : undefined} />
+        <div className={chrome ? 'dr-dark' : 'dr-embed'}>
+            {chrome && <AppHeader />}
             <div className="dr-shell">
                 <div className="dr-hero dr-rise">
                     <div className="dr-hero-ico"><Lock size={26} /></div>

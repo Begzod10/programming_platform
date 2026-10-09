@@ -164,6 +164,7 @@ function AppRouter() {
                 <Route path="achievements"                                element={<TeacherAchievements />} />
                 <Route path="statistics"                                  element={<TeacherStatistics />} />
                 <Route path="feedback"                                    element={<TeacherFeedback />} />
+                <Route path="daily-rules"                                 element={<DailyRules chrome={false} />} />
                 <Route path="rankings"                                    element={<TeacherStudentsRankings />} /> {/* ← NEW */}
                 <Route path="project-rating"                              element={<ProjectLeaderboard role="teacher" />} />
                 <Route path="team-game"                                   element={<TeacherTeamGame />} />

@@ -66,6 +66,7 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
         { id: 'statistics',          label: 'Статистика',      Icon: TrendingUp,   section: 'insights' },
         { id: 'activity-analytics', label: 'Faollik tahlili', Icon: Activity,     section: 'insights' },
         { id: 'feedback',           label: 'Отзывы',          Icon: Star,         section: 'insights' },
+        { id: 'daily-rules',        label: 'Kunlik norma',    Icon: Gamepad2,     section: 'insights' },
         ...(ERROR_LOG_USERNAMES.has(username)
             ? [{ id: 'error-log', label: 'Xato jurnali', Icon: Bug, section: 'insights' }]
             : []),
