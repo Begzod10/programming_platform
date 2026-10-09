@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './sidebar.css';
 import { API_URL, useHttp, headers } from '../../api/search/base';
+import { subscribeNotifications, closeNotificationsSocket } from '../../api/notificationsSocket';
 import { useStore } from '../../context/StoreContext';
 import CoinChip from './CoinChip';
 import {
     User, Download, Users, BookOpen, Gamepad2,
     Trophy, Construction, Award, Medal, TrendingUp, Star, Activity,
-    ShoppingBag, Building2, Puzzle, Bug, Users2,
+    ShoppingBag, Building2, Puzzle, Bug, Users2, ShieldCheck, Bell,
 } from 'lucide-react';
 
 const COLLAPSED_KEY = 'sidebar:teacher:collapsed';
@@ -44,6 +45,30 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
     const { request } = useHttp();
     const { equipped, terminalMenuHidden } = useStore();
     const [isOpen, setIsOpen] = useState(false);
+    // unread notifications (badge on "Bildirishnomalar"): seeded by a request, then kept live by the socket
+    const [unread, setUnread] = useState(0);
+    useEffect(() => {
+        let alive = true;
+        request(`${API_URL}v1/notifications/unread-count`, 'GET', null, headers())
+            .then((d) => { if (alive && d) setUnread(d.unread_count || 0); })
+            .catch(() => { /* a convenience */ });
+        const unsub = subscribeNotifications((msg) => {
+            if (alive && msg && typeof msg.unread_count === 'number') setUnread(msg.unread_count);
+        });
+        return () => { alive = false; unsub(); };
+    }, [request]);
+
+    // how many code-check quizzes wait for this teacher (badge on "Kod tekshiruvi")
+    const [codeChecks, setCodeChecks] = useState(0);
+    useEffect(() => {
+        let alive = true;
+        const load = () => request(`${API_URL}v1/teacher/code-checks/count`, 'GET', null, headers())
+            .then((d) => { if (alive && d) setCodeChecks(d.count || 0); })
+            .catch(() => { /* the badge is a convenience */ });
+        load();
+        const t = setInterval(load, 60000);
+        return () => { alive = false; clearInterval(t); };
+    }, [request]);
     const [isCollapsed, setIsCollapsed] = useState(() => {
         try { return localStorage.getItem(COLLAPSED_KEY) === '1'; }
         catch { return false; }
@@ -51,6 +76,7 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
 
     const menuItems = [
         { id: 'profile',        label: 'Профиль',         Icon: User,         section: 'main' },
+        { id: 'notifications',  label: 'Bildirishnomalar', Icon: Bell,        section: 'main' },
         { id: 'review',         label: 'Проверка работ',  Icon: Download,     section: 'main' },
         { id: 'students',       label: 'Мои Студенты',    Icon: Users,        section: 'main' },
         { id: 'groups',         label: 'Мои Группы',      Icon: Building2,    section: 'main' },
@@ -66,6 +92,7 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
         { id: 'statistics',          label: 'Статистика',      Icon: TrendingUp,   section: 'insights' },
         { id: 'activity-analytics', label: 'Faollik tahlili', Icon: Activity,     section: 'insights' },
         { id: 'feedback',           label: 'Отзывы',          Icon: Star,         section: 'insights' },
+        { id: 'code-checks',        label: 'Kod tekshiruvi',  Icon: ShieldCheck,  section: 'insights' },
         { id: 'daily-rules',        label: 'Kunlik norma',    Icon: Gamepad2,     section: 'insights' },
         ...(ERROR_LOG_USERNAMES.has(username)
             ? [{ id: 'error-log', label: 'Xato jurnali', Icon: Bug, section: 'insights' }]
@@ -97,6 +124,7 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
     }, []);
 
     const handleLogout = () => {
+        closeNotificationsSocket();
         request(`${API_URL}v1/auth/logout`, 'POST', JSON.stringify({}), headers())
             .catch(() => {})
             .finally(() => {
@@ -169,6 +197,20 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
                                                 <span className="menu-item__rail" aria-hidden="true" />
                                                 <span className="menu-item__icon" aria-hidden="true"><item.Icon size={18} /></span>
                                                 <span className="menu-item__label">{item.label}</span>
+                                                {item.id === 'notifications' && unread > 0 && (
+                                                    <span aria-label={`${unread} ta o'qilmagan bildirishnoma`} style={{
+                                                        marginLeft: 'auto', background: '#e5484d', color: '#fff', borderRadius: 999,
+                                                        fontSize: 11, fontWeight: 700, minWidth: 18, height: 18, padding: '0 6px',
+                                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                    }}>{unread > 99 ? '99+' : unread}</span>
+                                                )}
+                                                {item.id === 'code-checks' && codeChecks > 0 && (
+                                                    <span aria-label={`${codeChecks} ta kutayotgan tekshiruv`} style={{
+                                                        marginLeft: 'auto', background: '#e5484d', color: '#fff', borderRadius: 999,
+                                                        fontSize: 11, fontWeight: 700, minWidth: 18, height: 18, padding: '0 6px',
+                                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                    }}>{codeChecks > 99 ? '99+' : codeChecks}</span>
+                                                )}
                                             </button>
                                         );
                                     })}

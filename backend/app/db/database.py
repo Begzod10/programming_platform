@@ -170,6 +170,13 @@ async def _reconcile_indexes(conn) -> None:
             "CREATE UNIQUE INDEX IF NOT EXISTS ux_students_gennis_id "
             "ON students (gennis_id) WHERE gennis_id IS NOT NULL"
         ),
+        # 2026-10-09: gennis/turon students have no profile photo (no uploads, none
+        # taken from the source) — drop the ones they had. The files stay on disk.
+        text(
+            "UPDATE students SET avatar_url = NULL "
+            "WHERE avatar_url IS NOT NULL AND role = 'student' "
+            "AND (gennis_id IS NOT NULL OR turon_id IS NOT NULL)"
+        ),
     ]
     for stmt in statements:
         await conn.execute(stmt)

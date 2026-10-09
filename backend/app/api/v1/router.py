@@ -21,6 +21,7 @@ from app.api.v1.endpoints.teacher import statistics as teacher_statistics
 from app.api.v1.endpoints.teacher import course_access as teacher_course_access
 from app.api.v1.endpoints.teacher import activity_analytics
 from app.api.v1.endpoints.teacher import error_log as teacher_error_log
+from app.api.v1.endpoints import code_checks
 from app.api.v1.endpoints import dictionary
 from app.api.v1.endpoints import practice as dict_practice
 from app.api.v1.endpoints import team_game_session, team_game_session_reports, team_game_questions
@@ -75,6 +76,8 @@ api_router.include_router(
 # The quota lock is applied per-action inside duel.py instead.
 api_router.include_router(duel.router, prefix="/duels", tags=["Duels"])
 api_router.include_router(teacher_error_log.router, prefix="/teacher/error-log", tags=["Teacher - Error Log"])
+api_router.include_router(code_checks.router, prefix="/code-checks", tags=["Code Checks"])
+api_router.include_router(code_checks.teacher_router, prefix="/teacher/code-checks", tags=["Teacher - Code Checks"])
 api_router.include_router(team_project.router, prefix="/team-projects", tags=["Team Projects"])
 api_router.include_router(classroom_integration.router, prefix="/integrations", tags=["Classroom Integration"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])

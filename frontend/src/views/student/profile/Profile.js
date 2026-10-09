@@ -159,6 +159,13 @@ function AvatarRing({ pct }) {
 
 const POINTS_GOAL = 5000; // ring fills toward this "mastery" milestone
 
+/** The text of an API error: the app wraps FastAPI errors as {error: {message}}. */
+export const apiErrorMessage = (e) => {
+    const body = e?.response?.data;
+    const msg = body?.error?.message ?? body?.detail;
+    return typeof msg === 'string' ? msg : '';
+};
+
 function Profile({ user: initialUser }) {
     const { request } = useHttp();
     const { lang, toggleLang } = useTranslation();
@@ -171,7 +178,7 @@ function Profile({ user: initialUser }) {
     const toastTimer = useRef(null);
 
     // Personal info form
-    const [info, setInfo] = useState({ full_name: '', email: '', phone: '' });
+    const [info, setInfo] = useState({ full_name: '', phone: '' });
     const [savingInfo, setSavingInfo] = useState(false);
     const [infoErr, setInfoErr] = useState('');
 
@@ -187,7 +194,7 @@ function Profile({ user: initialUser }) {
         request(`${API_URL}v1/student/me`, 'GET', null, headers())
             .then(data => {
                 setProfile(data);
-                setInfo({ full_name: data.full_name || '', email: data.email || '', phone: data.phone || '' });
+                setInfo({ full_name: data.full_name || '', phone: data.phone || '' });
                 return data;
             });
 
@@ -197,8 +204,7 @@ function Profile({ user: initialUser }) {
     }, []);
 
     const dirtyInfo = profile && (
-        info.full_name !== (profile.full_name || '') ||
-        info.email !== (profile.email || '') ||
+        (!profile.identity_managed && info.full_name !== (profile.full_name || '')) ||
         info.phone !== (profile.phone || '')
     );
 
@@ -206,12 +212,12 @@ function Profile({ user: initialUser }) {
         setSavingInfo(true);
         setInfoErr('');
         request(`${API_URL}v1/student/me`, 'PUT',
-            JSON.stringify({ full_name: info.full_name, email: info.email, phone: info.phone }), headers())
+            JSON.stringify(managed ? { phone: info.phone } : { full_name: info.full_name, phone: info.phone }), headers())
             .then(updated => {
                 setProfile(p => ({ ...p, ...updated }));
                 flash(ru ? 'Данные сохранены ✓' : "Ma'lumotlar saqlandi ✓");
             })
-            .catch(e => setInfoErr(e?.response?.data?.detail || (ru ? 'Не удалось сохранить' : "Saqlab bo'lmadi")))
+            .catch(e => setInfoErr(apiErrorMessage(e) || (ru ? 'Не удалось сохранить' : "Saqlab bo'lmadi")))
             .finally(() => setSavingInfo(false));
     };
 
@@ -226,7 +232,7 @@ function Profile({ user: initialUser }) {
                 setPwd({ current: '', next: '', confirm: '' });
                 flash(ru ? 'Пароль обновлён ✓' : 'Parol yangilandi ✓');
             })
-            .catch(e => setPwdErr(e?.response?.data?.detail || (ru ? 'Неверный текущий пароль' : "Joriy parol noto'g'ri")))
+            .catch(e => setPwdErr(apiErrorMessage(e) || (ru ? 'Неверный текущий пароль' : "Joriy parol noto'g'ri")))
             .finally(() => setSavingPwd(false));
     };
 
@@ -259,6 +265,8 @@ function Profile({ user: initialUser }) {
     const levelLabel = (LEVEL_LABEL[level] || LEVEL_LABEL.Beginner)[ru ? 'ru' : 'uz'];
     const points = profile?.total_points ?? 0;
     const avatarSrc = resolveImageUrl(profile?.avatar_url);
+    // Name and photo come from turon-v2 / gennis-v2: read-only here.
+    const managed = !!profile?.identity_managed;
     const regDate = profile?.created_at
         ? new Date(profile.created_at).toLocaleDateString(ru ? 'ru-RU' : 'uz-UZ', { year: 'numeric', month: '2-digit', day: '2-digit' })
         : '—';
@@ -288,12 +296,14 @@ function Profile({ user: initialUser }) {
                     <section className="pf-card pf-summary pf-rise">
                         <div className="pf-card-title">{ru ? 'Сводка профиля' : 'Profil ma\'lumoti'}</div>
 
-                        <div className="pf-avatar-wrap" onClick={() => setShowAvatar(true)} title={ru ? 'Изменить фото' : "Fotoni o'zgartirish"}>
+                        <div className="pf-avatar-wrap" onClick={managed ? undefined : () => setShowAvatar(true)}
+                            style={managed ? { cursor: 'default' } : undefined}
+                            title={managed ? undefined : (ru ? 'Изменить фото' : "Fotoni o'zgartirish")}>
                             <AvatarRing pct={ringPct} />
                             <div className="pf-avatar-photo">
                                 {avatarSrc ? <img src={avatarSrc} alt="avatar" /> : <span className="pf-avatar-initials">{(displayName[0] || 'U').toUpperCase()}</span>}
                             </div>
-                            <div className="pf-avatar-cam"><Camera size={18} /></div>
+                            {!managed && <div className="pf-avatar-cam"><Camera size={18} /></div>}
                         </div>
 
                         <h1 className="pf-name">{displayName}</h1>
@@ -329,10 +339,18 @@ function Profile({ user: initialUser }) {
                         <section className="pf-card pf-rise" style={{ animationDelay: '.06s' }}>
                             <div className="pf-card-title">{ru ? 'Личная информация' : "Shaxsiy ma'lumot"}</div>
                             {infoErr && <div className="pf-err">{infoErr}</div>}
+                            {managed && (
+                                <div className="pf-hint" style={{ fontSize: 13, opacity: .7, marginBottom: 10 }}>
+                                    {ru
+                                        ? 'Имя, фамилия и фото берутся из системы Gennis/Turon и здесь не меняются.'
+                                        : "Ism, familiya va rasm Gennis/Turon tizimidan olinadi va bu yerda o'zgartirilmaydi."}
+                                </div>
+                            )}
 
                             <label className="pf-input-group">
                                 <span>{ru ? 'Полное имя' : "To'liq ism"}</span>
                                 <input value={info.full_name} placeholder={ru ? 'Имя Фамилия' : 'Ism Familiya'}
+                                    readOnly={managed} className={managed ? 'pf-input-readonly' : undefined}
                                     onChange={e => setInfo(f => ({ ...f, full_name: e.target.value }))} />
                             </label>
                             <label className="pf-input-group">
@@ -341,9 +359,8 @@ function Profile({ user: initialUser }) {
                                     onChange={e => setInfo(f => ({ ...f, phone: e.target.value }))} />
                             </label>
                             <label className="pf-input-group">
-                                <span>{ru ? 'Эл. почта' : 'Email manzil'}</span>
-                                <input value={info.email} type="email" placeholder="you@example.com"
-                                    onChange={e => setInfo(f => ({ ...f, email: e.target.value }))} />
+                                <span>{ru ? 'Логин (username)' : 'Username (login)'}</span>
+                                <input value={profile?.username || ''} readOnly className="pf-input-readonly" />
                             </label>
                             <label className="pf-input-group">
                                 <span>{ru ? 'Дата регистрации' : "Ro'yxatdan o'tgan sana"}</span>

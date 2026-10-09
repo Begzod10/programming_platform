@@ -10,6 +10,10 @@ jest.mock('../api/search/base', () => ({
     resolveImageUrl: (src) => src || '',
     useHttp: () => ({ request: mockRequest }),
 }));
+// The daily-quota pill has its own tests and needs getToken/WebSocket; keep it inert here.
+jest.mock('../hooks/useDailyQuota', () => ({
+    useDailyQuota: () => ({ hasStatus: false, unlocked: true }),
+}));
 // The realtime WebSocket is covered on its own; here it must stay inert.
 jest.mock('../api/notificationsSocket', () => ({
     subscribeNotifications: () => () => {},

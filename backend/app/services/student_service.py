@@ -12,6 +12,7 @@ from app.models.exercise import Exercise, ExerciseSubmission
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.group import student_groups
 from app.schemas.user import UserUpdate
+from app.services import profile_sync
 from app.services.teacher_students import teacher_student_ids_subquery
 
 
@@ -402,6 +403,38 @@ class StudentService:
         student = await self.get_student_by_id(student_id)
         update_data = data.model_dump(exclude_unset=True)
         for field, value in update_data.items():
+            setattr(student, field, value)
+        await self.db.commit()
+        await self.db.refresh(student)
+        return student
+
+    async def update_own_profile(self, student: Student, data: UserUpdate, *, ignore_none: bool = False) -> Student:
+        """The student editing their own profile (phone, bio; for a local-only
+        account also name and avatar).
+
+        For a gennis/turon student the source system owns who they are: name,
+        photo, username and email cannot be edited here (every login restores
+        them from the source), and the phone is written to the source FIRST so a
+        failure leaves both sides unchanged.
+        """
+        fields = data.model_dump(exclude_unset=True)
+        if ignore_none:          # the legacy PUT /auth/me never wrote a null
+            fields = {k: v for k, v in fields.items() if v is not None}
+        linked = bool(profile_sync.external_identities(student)) and not student.is_demo
+
+        if linked:
+            for owned_by_source in ("username", "email", "full_name", "avatar_url"):
+                fields.pop(owned_by_source, None)
+
+            if fields.get("phone") is not None:
+                phone = profile_sync.clean_phone(fields["phone"])
+                if phone != (student.phone or ""):
+                    await profile_sync.push_profile(student, phone=phone)
+                    fields["phone"] = phone
+                else:
+                    fields.pop("phone")
+
+        for field, value in fields.items():
             setattr(student, field, value)
         await self.db.commit()
         await self.db.refresh(student)

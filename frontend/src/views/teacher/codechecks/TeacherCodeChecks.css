@@ -1,0 +1,25 @@
+.tcc-page { max-width: 880px; margin: 0 auto; padding: 24px 16px 64px; }
+.tcc-title { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.tcc-title h1 { margin: 0; font-size: 26px; }
+.tcc-lead { opacity: .7; line-height: 1.5; }
+.tcc-empty { padding: 32px; text-align: center; opacity: .75; }
+.tcc-card { border: 1px solid rgba(128,128,128,.3); border-radius: 14px; padding: 16px; margin: 14px 0; background: rgba(128,128,128,.06); }
+.tcc-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+.tcc-head h3 { margin: 0; font-size: 18px; } .tcc-head small { opacity: .6; font-weight: 400; }
+.tcc-head p { margin: 4px 0 0; opacity: .75; }
+.tcc-badge { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.tcc-bad { background: #ffe0e0; color: #9b1c1c; } .tcc-warn { background: #fff1d6; color: #8a5a00; }
+.tcc-wait { background: #e6e6ff; color: #3b3b9b; } .tcc-ok { background: #def7e3; color: #17692e; }
+.tcc-facts { list-style: none; margin: 12px 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; }
+.tcc-flag { color: #b42318; font-weight: 700; }
+.tcc-link { background: none; border: 0; color: #6c5ce7; cursor: pointer; padding: 0; font-size: 14px; }
+.tcc-q { margin: 10px 0; padding: 10px 12px; border-left: 3px solid rgba(128,128,128,.4); }
+.tcc-q p { margin: 0 0 6px; font-weight: 600; } .tcc-q ol { margin: 0; padding-left: 22px; }
+.tcc-right { color: #17692e; font-weight: 600; } .tcc-picked { text-decoration: underline; }
+.tcc-actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.tcc-btn { padding: 8px 16px; border-radius: 10px; border: 1px solid rgba(128,128,128,.5); background: transparent; color: inherit; cursor: pointer; font-weight: 600; }
+.tcc-danger { background: #c0392b; border-color: #c0392b; color: #fff; }
+.tcc-confirm textarea { width: 100%; min-height: 64px; margin-top: 8px; border-radius: 10px; padding: 8px; box-sizing: border-box; }
+.tcc-err { color: #b42318; }
+
+.tcc-card--low { opacity: .8; border-style: dashed; }

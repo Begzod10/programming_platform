@@ -384,6 +384,14 @@ async def run_ai_review_for_project(
 
     await db.commit()
 
+    # A ZIP project that arrived faster than anyone can write that much code (or a random
+    # sample) gets a short quiz on its own code — a signal for the teacher, never a penalty.
+    if new_points >= 75 and not skip_integrity_check:
+        from app.services.code_check_service import files_from_snapshot_text, maybe_create_check
+        await maybe_create_check(
+            db, project,
+            files=files_from_snapshot_text(snapshot["content_text"]) if source == "github" else None)
+
     authorship = snapshot.get("authorship") or {}
     return {
         "success": True,

@@ -1,6 +1,7 @@
 """A student's balance must follow gennis on every login — but a login payload
 that carries NO balance must never reset it to 0."""
 import uuid
+from types import SimpleNamespace
 
 import pytest
 
@@ -67,3 +68,77 @@ async def test_login_without_any_balance_keeps_the_existing_one(db_session):
     await GennisService.sync_student_data(db_session, s, _login())
     await db_session.refresh(s)
     assert s.balance == -90000       # used to be overwritten with 0
+
+
+# ── name and photo come from the source ──────────────────────────────────────
+
+async def test_login_restores_the_name_from_the_source(db_session):
+    s = await _student(db_session, 0)
+    s.full_name, s.surname = "Student O'zgartirgan", "Ism"
+    await db_session.commit()
+    await GennisService.sync_student_data(db_session, s, _login())
+    await db_session.refresh(s)
+    assert (s.full_name, s.surname) == ("Ali Valiyev", "Valiyev")
+
+
+async def test_a_payload_without_a_name_keeps_the_stored_one(db_session):
+    s = await _student(db_session, 0)
+    s.full_name, s.surname = "Ali Valiyev", "Valiyev"
+    await db_session.commit()
+    await GennisService.sync_student_data(db_session, s, {"access_token": "t", "user": {"student": {}}})
+    await db_session.refresh(s)
+    assert (s.full_name, s.surname) == ("Ali Valiyev", "Valiyev")
+
+
+# ── no profile photos for gennis/turon students: everyone shows the empty icon ──
+
+@pytest.mark.parametrize("source_photo", [
+    "https://admin.tisedu.uz/static/profile_photos/a9e7.jpg", None, "", "static/img_folder/x.jpg", "MISSING",
+])
+async def test_login_clears_the_photo_whatever_the_source_sends(db_session, source_photo):
+    s = await _student(db_session, 0)
+    s.avatar_url = "/uploads/avatars/uploaded-before.jpg"
+    await db_session.commit()
+    login = _login()
+    if source_photo != "MISSING":
+        login["user"]["photo_url"] = source_photo
+    await GennisService.sync_student_data(db_session, s, login)
+    await db_session.refresh(s)
+    assert s.avatar_url is None
+
+
+def test_clear_student_photo():
+    s = SimpleNamespace(avatar_url="https://admin.tisedu.uz/static/profile_photos/a.jpg")
+    GennisService._clear_student_photo(s)
+    assert s.avatar_url is None
+
+
+async def test_the_startup_migration_clears_photos_of_linked_students_only(db_session):
+    """database.py::_reconcile_indexes runs on every start; its avatar statement
+    drops photos of gennis/turon STUDENTS and leaves everyone else alone."""
+    from sqlalchemy import text, select
+    from app.db import database
+
+    class Recorder:
+        def __init__(self): self.sql = []
+        async def execute(self, stmt): self.sql.append(str(stmt))
+    rec = Recorder()
+    await database._reconcile_indexes(rec)
+    update = next(q for q in rec.sql if q.startswith("UPDATE students SET avatar_url"))
+
+    linked = await _student(db_session, 0); turon = await _student(db_session, 0)
+    local = await _student(db_session, 0); teacher = await _student(db_session, 0)
+    linked.gennis_id, turon.turon_id = 880001, 880002
+    teacher.gennis_id, teacher.role = 880003, UserRole.teacher
+    for st in (linked, turon, local, teacher):
+        st.avatar_url = f"/uploads/avatars/{st.id}.jpg"
+    await db_session.commit()
+
+    await db_session.execute(text(update))
+    await db_session.commit()
+    # read the column itself: the ORM identity map still holds the old objects
+    rows = {i: a for i, a in (await db_session.execute(select(Student.id, Student.avatar_url).where(
+        Student.id.in_([linked.id, turon.id, local.id, teacher.id])))).all()}
+    assert rows[linked.id] is None and rows[turon.id] is None
+    assert rows[local.id] == f"/uploads/avatars/{local.id}.jpg"
+    assert rows[teacher.id] == f"/uploads/avatars/{teacher.id}.jpg"

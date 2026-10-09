@@ -26,6 +26,7 @@ import Store              from './views/student/store/Store';
 import EarlyLearning      from './views/student/early-learning/EarlyLearning';
 import Quiz               from './views/student/quiz/Quiz';
 import Duel               from './views/student/duel/Duel';
+import CodeCheck          from './views/student/codecheck/CodeCheck';
 import DailyChallenge     from './views/student/early-learning/DailyChallenge';
 
 // ── Teacher views ──
@@ -49,6 +50,8 @@ import ProjectRating            from './views/student/projectrating/ProjectRatin
 import PublicProfile            from './views/public/PublicProfile/PublicProfile';
 import ActivityAnalytics        from './views/teacher/activityanalytics/ActivityAnalytics';
 import ErrorLogPage             from './views/teacher/errorlog/ErrorLogPage';
+import TeacherCodeChecks        from './views/teacher/codechecks/TeacherCodeChecks';
+import TeacherNotifications    from './views/teacher/notifications/TeacherNotifications';
 
 /* ─── helpers ─── */
 function RootRedirect() {
@@ -135,6 +138,7 @@ function AppRouter() {
                 <Route path="early-learning"                              element={<EarlyLearning />} />
                 <Route path="early-learning/:moduleId"                    element={<EarlyLearning />} />
                 <Route path="statistics"                                  element={<StudentCourseStats />} />
+                <Route path="code-check/:id"                              element={<CodeCheck />} />
                 <Route path="notifications"                                element={<Notifications />} />
                 <Route path="daily-rules"                                  element={<DailyRules />} />
 
@@ -173,6 +177,8 @@ function AppRouter() {
                 <Route path="team-projects/:id"                           element={<TeacherTeamProjectDetail />} />
                 <Route path="activity-analytics"                          element={<ActivityAnalytics />} />
                 <Route path="error-log"                                   element={<ErrorLogPage />} />
+                <Route path="code-checks"                                 element={<TeacherCodeChecks />} />
+                <Route path="notifications"                               element={<TeacherNotifications />} />
                 <Route path="store"                                       element={<Store />} />
                 <Route path="early-learning"                              element={<EarlyLearning />} />
                 <Route path="early-learning/:moduleId"                    element={<EarlyLearning />} />
