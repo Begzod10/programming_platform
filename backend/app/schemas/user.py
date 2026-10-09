@@ -143,6 +143,8 @@ class UserRead(BaseModel):
 
     # True for a demo visitor — the client limits its UI to the demo course.
     is_demo: bool = False
+    # True when name and photo come from gennis-v2 / turon-v2 and are read-only here.
+    identity_managed: bool = False
 
     # Role: Agar bazada kutilmagan rol yoki bo'sh (NULL) bo'lsa xato bermasligi uchun
     role: UserRole

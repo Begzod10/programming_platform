@@ -11,7 +11,7 @@ from app.config import settings
 from app.db.database import AsyncSessionLocal
 from app.models.user import Student
 from app.services import profile_sync
-from app.services.profile_sync import clean_full_name, clean_phone, split_full_name
+from app.services.profile_sync import clean_phone
 from fastapi import HTTPException
 
 
@@ -29,25 +29,6 @@ def test_bad_phone_is_a_400(raw):
     with pytest.raises(HTTPException) as e:
         clean_phone(raw)
     assert e.value.status_code == 400
-
-
-def test_clean_full_name():
-    assert clean_full_name("  Ali   Vali ") == "Ali Vali"
-    for bad in ("", "  ", None, "x" * 256):
-        with pytest.raises(HTTPException):
-            clean_full_name(bad)
-
-
-@pytest.mark.parametrize("full,surname,expected", [
-    ("Afruzbek Abdujjaborov", "Abdujjaborov", ("Afruzbek", "Abdujjaborov")),
-    ("Muhammad Ali Saparov", "Saparov", ("Muhammad Ali", "Saparov")),
-    ("Muhammad Ali Saparov", None, ("Muhammad Ali", "Saparov")),
-    ("Yangi Familiya", "Eski", ("Yangi", "Familiya")),
-    ("Faqatism", "Eski", ("Faqatism", "Eski")),
-    ("Abdujjaborov", "Abdujjaborov", ("Abdujjaborov", "Abdujjaborov")),
-])
-def test_split_full_name(full, surname, expected):
-    assert split_full_name(full, surname) == expected
 
 
 # ── the profile endpoint ─────────────────────────────────────────────────────
@@ -90,16 +71,52 @@ def secret(monkeypatch):
     monkeypatch.setattr(settings, "STUDENT_PLATFORM_SERVICE_SECRET", "s3cret")
 
 
-async def test_a_gennis_student_edit_is_written_to_the_source_then_saved(async_client, monkeypatch, secret):
+async def test_a_gennis_students_phone_is_written_to_the_source_then_saved(async_client, monkeypatch, secret):
     remote = Remote(); remote.install(monkeypatch)
     sid, h = await _student(async_client, gennis_id=810001, full_name="Ali Valiyev", surname="Valiyev", phone="900000000")
-    r = await async_client.put("/api/v1/student/me", json={"full_name": "Alisher Valiyev", "phone": "+998 91 234 56 78"}, headers=h)
+    r = await async_client.put("/api/v1/student/me", json={"phone": "+998 91 234 56 78"}, headers=h)
     assert r.status_code == 200, r.text
     (url, headers, body), = remote.calls
     assert url.endswith("/student-profile") and headers["x-student-platform-secret"] == "s3cret"
-    assert body == {"source": "gennis", "id": 810001, "name": "Alisher", "surname": "Valiyev", "phone": "912345678"}
+    assert body == {"source": "gennis", "id": 810001, "phone": "912345678"}
+    assert (await _row(sid)).phone == "912345678"
+
+
+async def test_name_and_photo_of_a_linked_student_cannot_be_edited(async_client, monkeypatch, secret):
+    """They come from turon-v2 / gennis-v2; every login restores them."""
+    remote = Remote(); remote.install(monkeypatch)
+    sid, h = await _student(async_client, gennis_id=810008, full_name="Ali Valiyev", surname="Valiyev",
+                            avatar_url="https://admin.tisedu.uz/static/profile_photos/a.jpg")
+    r = await async_client.put("/api/v1/student/me", json={
+        "full_name": "Boshqa Ism", "avatar_url": "/uploads/avatars/mine.jpg", "bio": "salom"}, headers=h)
+    assert r.status_code == 200, r.text
     row = await _row(sid)
-    assert (row.full_name, row.surname, row.phone) == ("Alisher Valiyev", "Valiyev", "912345678")
+    assert (row.full_name, row.surname) == ("Ali Valiyev", "Valiyev")
+    assert row.avatar_url == "https://admin.tisedu.uz/static/profile_photos/a.jpg"
+    assert row.bio == "salom"              # the rest stays editable
+    assert remote.calls == []              # and nothing about the name reaches the source
+
+
+async def test_a_linked_student_cannot_upload_or_delete_a_photo(async_client):
+    sid, h = await _student(async_client, turon_id=820002, avatar_url="https://admin.tisedu.uz/static/profile_photos/a.jpg")
+    up = await async_client.patch("/api/v1/student/me/avatar", files={"file": ("a.png", b"\x89PNG\r\n", "image/png")}, headers=h)
+    assert up.status_code == 403
+    assert (await async_client.delete("/api/v1/student/me/avatar", headers=h)).status_code == 403
+    assert (await _row(sid)).avatar_url == "https://admin.tisedu.uz/static/profile_photos/a.jpg"
+
+
+async def test_the_profile_tells_the_client_when_name_and_photo_are_read_only(async_client):
+    _, linked = await _student(async_client, gennis_id=810009)
+    _, local = await _student(async_client)
+    assert (await async_client.get("/api/v1/student/me", headers=linked)).json()["identity_managed"] is True
+    assert (await async_client.get("/api/v1/student/me", headers=local)).json()["identity_managed"] is False
+
+
+async def test_a_local_only_student_still_edits_their_own_name(async_client):
+    sid, h = await _student(async_client)
+    r = await async_client.put("/api/v1/student/me", json={"full_name": "Yangi Ism"}, headers=h)
+    assert r.status_code == 200
+    assert (await _row(sid)).full_name == "Yangi Ism"
 
 
 async def test_a_turon_student_is_written_with_the_turon_id(async_client, monkeypatch, secret):
@@ -122,10 +139,9 @@ async def test_nothing_is_sent_when_nothing_changed(async_client, monkeypatch, s
 async def test_a_refused_write_changes_nothing_here(async_client, monkeypatch, secret):
     Remote(status=500).install(monkeypatch)
     sid, h = await _student(async_client, gennis_id=810003, full_name="Ali Valiyev", surname="Valiyev", phone="900000000")
-    r = await async_client.put("/api/v1/student/me", json={"full_name": "Boshqa Ism", "phone": "911111111"}, headers=h)
+    r = await async_client.put("/api/v1/student/me", json={"phone": "911111111"}, headers=h)
     assert r.status_code == 502
-    row = await _row(sid)
-    assert (row.full_name, row.phone) == ("Ali Valiyev", "900000000")
+    assert (await _row(sid)).phone == "900000000"
 
 
 async def test_an_unreachable_source_changes_nothing_here(async_client, monkeypatch, secret):

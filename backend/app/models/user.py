@@ -128,6 +128,12 @@ class Student(Base):
     # `source` branch.
     turon_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True, unique=True)
 
+    @property
+    def identity_managed(self) -> bool:
+        """True when name and photo come from gennis-v2 / turon-v2 (the student
+        cannot edit them here); a local-only or demo account owns its own."""
+        return bool(self.gennis_id or self.turon_id) and not self.is_demo
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

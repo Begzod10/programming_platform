@@ -1,5 +1,6 @@
 import httpx
 import logging
+import re
 from datetime import date
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -243,6 +244,13 @@ class GennisService:
         logger.info(f"O'qituvchi {teacher.username} sinxronizatsiyasi yakunlandi.")
 
     @staticmethod
+    def _apply_source_photo(student, photo_url) -> None:
+        """The profile photo comes from the source system. Only an absolute
+        http(s) url is stored; a missing photo leaves the current one alone."""
+        if isinstance(photo_url, str) and re.match(r"^https?://", photo_url.strip(), re.I):
+            student.avatar_url = photo_url.strip()[:512]
+
+    @staticmethod
     def _balance_from(*candidates) -> Optional[int]:
         """First usable balance among the candidates (a number, or a numeric
         string), or None when the source sent none — so "no data" is never
@@ -269,8 +277,14 @@ class GennisService:
 
         # Ismlarni yangilash
         student.gennis_token = token
-        student.full_name = f"{user_info.get('name', '')} {user_info.get('surname', '')}".strip()
-        student.surname = user_info.get("surname", "")
+        # Name and photo belong to the source (turon-v2 / gennis-v2): the student
+        # cannot edit them here, so every login restores them. A payload that
+        # carries no name must not blank the stored one.
+        source_name = f"{user_info.get('name', '')} {user_info.get('surname', '')}".strip()
+        if source_name:
+            student.full_name = source_name
+            student.surname = user_info.get("surname", "") or student.surname
+        cls._apply_source_photo(student, user_info.get("photo_url"))
         # Only overwrite when the source actually sent a balance: a login
         # payload without one used to silently reset a student's balance to 0.
         # `student.combined_debt` is NOT a balance — it is the sum of the group
@@ -655,8 +669,9 @@ class GennisService:
             if student.username != s_username:
                 student.username = s_username
                 student.email = f"{s_username}@{system}.uz"
-            student.full_name = full_name
-            student.surname = last_name
+            if full_name and full_name != s_username:
+                student.full_name = full_name
+                student.surname = last_name
             student.phone = str(s_data.get("phone"))[:50]
             new_balance = cls._balance_from(s_data.get("balance"))
             if new_balance is not None:      # absent in the payload = keep what we have
@@ -666,6 +681,8 @@ class GennisService:
             if set_primary_group:
                 student.group_id = container_id
             setattr(student, id_col, s_id)
+
+        cls._apply_source_photo(student, s_data.get("photo_url"))
 
         # Bog'liqlikni bazada yangilash (Xato bermasligi uchun ON CONFLICT)
         query = text(f"""

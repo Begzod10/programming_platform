@@ -177,12 +177,22 @@ async def change_my_password(
     return {"message": "Parol muvaffaqiyatli yangilandi"}
 
 
+def _ensure_photo_editable(student: Student) -> None:
+    """A gennis/turon student's photo comes from turon-v2 / gennis-v2 and cannot be changed here."""
+    if student.identity_managed:
+        raise HTTPException(
+            status_code=403,
+            detail="Profil rasmi Gennis/Turon tizimidan olinadi va bu yerda o'zgartirilmaydi.",
+        )
+
+
 @router.patch("/me/avatar")
 async def upload_my_avatar(
         file: UploadFile = File(...),
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
+    _ensure_photo_editable(current_student)
     allowed_types = ["image/jpeg", "image/png", "image/webp"]
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="Faqat JPEG, PNG, WEBP!")
@@ -224,6 +234,7 @@ async def delete_my_avatar(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
+    _ensure_photo_editable(current_student)
     if not current_student.avatar_url:
         raise HTTPException(status_code=404, detail="Avatar mavjud emas!")
 

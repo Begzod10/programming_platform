@@ -67,3 +67,34 @@ async def test_login_without_any_balance_keeps_the_existing_one(db_session):
     await GennisService.sync_student_data(db_session, s, _login())
     await db_session.refresh(s)
     assert s.balance == -90000       # used to be overwritten with 0
+
+
+# ── name and photo come from the source ──────────────────────────────────────
+
+async def test_login_restores_the_name_and_takes_the_photo_from_the_source(db_session):
+    s = await _student(db_session, 0)
+    s.full_name, s.surname = "Student O'zgartirgan", "Ism"
+    await db_session.commit()
+    login = _login()
+    login["user"]["photo_url"] = "https://admin.tisedu.uz/static/profile_photos/a9e7.jpg"
+    await GennisService.sync_student_data(db_session, s, login)
+    await db_session.refresh(s)
+    assert (s.full_name, s.surname) == ("Ali Valiyev", "Valiyev")
+    assert s.avatar_url == "https://admin.tisedu.uz/static/profile_photos/a9e7.jpg"
+
+
+async def test_a_payload_without_a_name_or_photo_keeps_what_is_stored(db_session):
+    s = await _student(db_session, 0)
+    s.full_name, s.surname, s.avatar_url = "Ali Valiyev", "Valiyev", "https://admin.tisedu.uz/static/profile_photos/a.jpg"
+    await db_session.commit()
+    await GennisService.sync_student_data(db_session, s, {"access_token": "t", "user": {"student": {}}})
+    await db_session.refresh(s)
+    assert (s.full_name, s.surname) == ("Ali Valiyev", "Valiyev")
+    assert s.avatar_url == "https://admin.tisedu.uz/static/profile_photos/a.jpg"
+
+
+@pytest.mark.parametrize("bad", ["static/img_folder/19._.jpg", "/static/profile_photos/a.jpg", "javascript:alert(1)", "", None, 5])
+async def test_only_an_absolute_http_photo_is_stored(db_session, bad):
+    s = await _student(db_session, 0)
+    GennisService._apply_source_photo(s, bad)
+    assert s.avatar_url is None
