@@ -244,11 +244,19 @@ class GennisService:
         logger.info(f"O'qituvchi {teacher.username} sinxronizatsiyasi yakunlandi.")
 
     @staticmethod
-    def _apply_source_photo(student, photo_url) -> None:
-        """The profile photo comes from the source system. Only an absolute
-        http(s) url is stored; a missing photo leaves the current one alone."""
+    def _apply_source_photo(student, source_data: Dict[str, Any]) -> None:
+        """The profile photo is exactly the source system's: an absolute http(s)
+        url is stored, and a source that has none (`photo_url: null`, or any value
+        that is not such a url) CLEARS the student's photo — students cannot
+        upload their own. A payload without the key at all (an older management)
+        says nothing, so the current photo is kept."""
+        if not isinstance(source_data, dict) or "photo_url" not in source_data:
+            return
+        photo_url = source_data["photo_url"]
         if isinstance(photo_url, str) and re.match(r"^https?://", photo_url.strip(), re.I):
             student.avatar_url = photo_url.strip()[:512]
+        else:
+            student.avatar_url = None
 
     @staticmethod
     def _balance_from(*candidates) -> Optional[int]:
@@ -284,7 +292,7 @@ class GennisService:
         if source_name:
             student.full_name = source_name
             student.surname = user_info.get("surname", "") or student.surname
-        cls._apply_source_photo(student, user_info.get("photo_url"))
+        cls._apply_source_photo(student, user_info)
         # Only overwrite when the source actually sent a balance: a login
         # payload without one used to silently reset a student's balance to 0.
         # `student.combined_debt` is NOT a balance — it is the sum of the group
@@ -682,7 +690,7 @@ class GennisService:
                 student.group_id = container_id
             setattr(student, id_col, s_id)
 
-        cls._apply_source_photo(student, s_data.get("photo_url"))
+        cls._apply_source_photo(student, s_data)
 
         # Bog'liqlikni bazada yangilash (Xato bermasligi uchun ON CONFLICT)
         query = text(f"""
