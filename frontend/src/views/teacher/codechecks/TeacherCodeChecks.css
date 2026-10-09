@@ -21,3 +21,5 @@
 .tcc-danger { background: #c0392b; border-color: #c0392b; color: #fff; }
 .tcc-confirm textarea { width: 100%; min-height: 64px; margin-top: 8px; border-radius: 10px; padding: 8px; box-sizing: border-box; }
 .tcc-err { color: #b42318; }
+
+.tcc-card--low { opacity: .8; border-style: dashed; }

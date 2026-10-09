@@ -195,7 +195,7 @@ async def test_a_second_pace_flag_while_one_is_open_goes_straight_to_the_teacher
     assert second.status == "unavailable" and second.needs_teacher           # not lost, but no second quiz
 
 
-async def test_demo_students_and_github_projects_are_skipped(async_client):
+async def test_demo_students_and_projects_without_any_code_are_skipped(async_client):
     sid, _ = await _student(async_client)
     async with AsyncSessionLocal() as db:
         s = (await db.execute(select(Student).where(Student.id == sid))).scalar_one(); s.is_demo = True
@@ -203,7 +203,7 @@ async def test_demo_students_and_github_projects_are_skipped(async_client):
         await db.commit()
     assert await _create(await _project(sid)) is None
     sid2, _ = await _student(async_client)
-    p = await _project(sid2); p.project_files = None
+    p = await _project(sid2); p.project_files = None          # no ZIP and no repo code to build questions from
     assert await _create(p) is None
 
 
@@ -241,7 +241,19 @@ async def test_passing_the_quiz_closes_it_without_the_teacher(async_client, fake
     assert r.json()["passed"] is True and r.json()["correct"] == 2
     async with AsyncSessionLocal() as db:
         c = (await db.execute(select(ProjectCodeCheck).where(ProjectCodeCheck.id == check.id))).scalar_one()
-    assert c.status == "passed" and not c.needs_teacher
+    # fast AND passed: not lost — the teacher still sees it, below the cases that need them
+    assert c.status == "passed" and c.needs_teacher and c.low_priority
+
+
+async def test_a_randomly_picked_project_that_passes_is_closed(async_client, fake_ai):
+    sid, h = await _student(async_client)
+    check = await _create(await _project(sid, lines=100, minutes_ago=2, prev_minutes_ago=62), roll=0.01)   # slow: random draw
+    assert check.reason == "random"
+    await async_client.post(f"/api/v1/code-checks/{check.id}/start", headers=h)
+    await async_client.post(f"/api/v1/code-checks/{check.id}/submit", headers=h, json={"answers": [0, 1, 2]})
+    async with AsyncSessionLocal() as db:
+        c = (await db.execute(select(ProjectCodeCheck).where(ProjectCodeCheck.id == check.id))).scalar_one()
+    assert c.status == "passed" and not c.needs_teacher and not c.low_priority
 
 
 async def test_right_answers_after_switching_tabs_still_go_to_the_teacher(async_client, fake_ai):
@@ -368,3 +380,97 @@ async def test_demo_accounts_cannot_reach_code_checks(async_client):
     r = await async_client.post("/api/v1/auth/demo", json={"first_name": "Test", "last_name": "Demo"})
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
     assert (await async_client.get("/api/v1/code-checks/mine", headers=h)).status_code == 403
+
+
+# ── GitHub-submitted projects follow the same rules ──────────────────────────
+
+SNAPSHOT = """### index.html
+```
+<html>
+<body>
+</body>
+</html>
+```
+
+### js/app.js
+```
+const a = 1;
+function go() {
+  return a;
+}
+```
+
+### README.md
+```
+# not code
+```
+
+### node_modules/x/i.js
+```
+junk
+```"""
+
+
+def test_a_review_snapshot_is_split_back_into_code_files():
+    files = svc.files_from_snapshot_text(SNAPSHOT)
+    assert set(files) == {"index.html", "js/app.js"}
+    assert files["js/app.js"].startswith("const a = 1;") and svc.count_lines(files) == 8
+    assert svc.files_from_snapshot_text("") == {} and svc.files_from_snapshot_text(None) == {}
+
+
+async def test_a_fast_github_project_gets_a_check_whose_code_is_kept(async_client, monkeypatch):
+    sid, h = await _student(async_client)
+    p = await _project(sid, lines=10)                                    # on-disk ZIP is tiny, irrelevant: the repo code is used
+    big = {f"src/f{i}.js": "\n".join(f"let x{j} = {j};" for j in range(60)) for i in range(5)}      # 300 lines
+    p.project_files, p.github_url = None, "https://github.com/someone/repo"
+    async with AsyncSessionLocal() as db:
+        check = await svc.maybe_create_check(db, p, files=big, rng=Rng(0.99))
+    assert check.status == "pending" and check.reason == "pace" and check.code_lines == 300
+    assert "=== src/f0.js ===" in check.code_excerpt
+
+    seen = {}
+    async def gen(code):
+        seen["code"] = code
+        return json.loads(json.dumps(QUESTIONS))
+    monkeypatch.setattr(svc, "generate_questions", gen)
+    r = await async_client.post(f"/api/v1/code-checks/{check.id}/start", headers=h)
+    assert r.status_code == 200 and seen["code"] == check.code_excerpt          # no second trip to GitHub
+
+
+async def test_a_github_project_with_a_slow_pace_is_left_alone(async_client):
+    sid, _ = await _student(async_client)
+    p = await _project(sid, minutes_ago=2, prev_minutes_ago=62)
+    p.project_files, p.github_url = None, "https://github.com/someone/repo"
+    async with AsyncSessionLocal() as db:
+        assert await svc.maybe_create_check(db, p, files={"a.js": "\n".join("x" for _ in range(100))}, rng=Rng(0.99)) is None
+
+
+# ── the teacher's badge and the order of the queue ───────────────────────────
+
+async def test_the_queue_puts_real_cases_above_fast_but_passed_ones_and_counts_both(async_client, fake_ai):
+    tid, th = await _student(async_client, role=UserRole.teacher)
+    before = (await async_client.get("/api/v1/teacher/code-checks/count", headers=th)).json()
+
+    sid_a, ha, passed = await _pending(async_client)         # fast, passes -> low priority
+    await async_client.post(f"/api/v1/code-checks/{passed.id}/start", headers=ha)
+    await async_client.post(f"/api/v1/code-checks/{passed.id}/submit", headers=ha, json={"answers": [0, 1, 2]})
+    sid_b, hb, failed = await _pending(async_client)         # fast, fails -> needs the teacher
+    await async_client.post(f"/api/v1/code-checks/{failed.id}/start", headers=hb)
+    await async_client.post(f"/api/v1/code-checks/{failed.id}/submit", headers=hb, json={"answers": [3, 3, 3]})
+
+    after = (await async_client.get("/api/v1/teacher/code-checks/count", headers=th)).json()
+    assert after["count"] == before["count"] + 1 and after["low"] == before["low"] + 1
+
+    queue = (await async_client.get("/api/v1/teacher/code-checks", headers=th)).json()
+    ids = [r["id"] for r in queue]
+    assert ids.index(failed.id) < ids.index(passed.id)                           # real case first
+    low = next(r for r in queue if r["id"] == passed.id)
+    assert low["low_priority"] is True and low["status"] == "passed"
+
+    await async_client.post(f"/api/v1/teacher/code-checks/{passed.id}/resolve", headers=th, json={"action": "dismiss"})
+    assert (await async_client.get("/api/v1/teacher/code-checks/count", headers=th)).json()["low"] == before["low"]
+
+
+async def test_students_cannot_read_the_teacher_count(async_client):
+    _, h = await _student(async_client)
+    assert (await async_client.get("/api/v1/teacher/code-checks/count", headers=h)).status_code == 403

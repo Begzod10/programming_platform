@@ -45,6 +45,11 @@ class ProjectCodeCheck(Base):
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # the code the questions are built from (kept: a GitHub repo can change or vanish, a ZIP can be deleted)
+    code_excerpt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # fast but passed the quiz: still shown to the teacher, below the cases that need them
+    low_priority: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
     needs_teacher: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
     resolution: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)   # dismissed | points_revoked
     resolved_by: Mapped[Optional[int]] = mapped_column(

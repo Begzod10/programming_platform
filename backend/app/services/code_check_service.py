@@ -79,6 +79,25 @@ def count_lines(files: dict[str, str]) -> int:
     return sum(1 for text in files.values() for line in text.splitlines() if line.strip())
 
 
+def files_from_snapshot_text(content_text: str) -> dict[str, str]:
+    """A GitHub/ZIP review snapshot is markdown blocks ("### path" + a fenced body); back to name -> text,
+    code files only."""
+    files: dict[str, str] = {}
+    name, body, inside = None, [], False
+    for line in (content_text or "").split("\n"):
+        if not inside and line.startswith("### "):
+            name, body = line[4:].strip(), []
+        elif name is not None and not inside and line == "```":
+            inside = True
+        elif inside and line == "```":
+            if name.lower().endswith(_CODE_EXTENSIONS) and "node_modules/" not in name and not name.startswith("__MACOSX/"):
+                files[name] = "\n".join(body)
+            name, inside = None, False
+        elif inside:
+            body.append(line)
+    return files
+
+
 def code_for_prompt(files: dict[str, str]) -> str:
     """The biggest files first, trimmed to what fits a prompt."""
     parts, used = [], 0
@@ -118,10 +137,12 @@ def decide(code_lines: int, gap_seconds: Optional[float], rng=random) -> Optiona
     return None
 
 
-async def maybe_create_check(db: AsyncSession, project, *, rng=random) -> Optional[ProjectCodeCheck]:
-    """Best-effort, called right after an approved review. Never raises into the caller."""
+async def maybe_create_check(db: AsyncSession, project, *, files: Optional[dict[str, str]] = None,
+                             rng=random) -> Optional[ProjectCodeCheck]:
+    """Best-effort, called right after an approved review. Never raises into the caller.
+    `files` is the code of a GitHub-submitted project (from the review snapshot); a ZIP project is read from disk."""
     try:
-        return await _maybe_create_check(db, project, rng)
+        return await _maybe_create_check(db, project, files, rng)
     except Exception as e:  # noqa: BLE001 — a failed check must never undo a review
         logger.warning("code check skipped for project %s: %s", getattr(project, "id", None), e)
         try:
@@ -131,8 +152,8 @@ async def maybe_create_check(db: AsyncSession, project, *, rng=random) -> Option
         return None
 
 
-async def _maybe_create_check(db: AsyncSession, project, rng) -> Optional[ProjectCodeCheck]:
-    if project.status != "Approved" or (project.points_earned or 0) < 75 or not project.project_files:
+async def _maybe_create_check(db: AsyncSession, project, files, rng) -> Optional[ProjectCodeCheck]:
+    if project.status != "Approved" or (project.points_earned or 0) < 75:
         return None
     from app.models.user import Student
     student = (await db.execute(select(Student).where(Student.id == project.student_id))).scalar_one_or_none()
@@ -141,11 +162,13 @@ async def _maybe_create_check(db: AsyncSession, project, rng) -> Optional[Projec
     if (await db.execute(select(ProjectCodeCheck.id).where(ProjectCodeCheck.project_id == project.id))).first():
         return None
 
-    path = _project_zip_path(project)
-    if not path:
-        return None
-    with open(path, "rb") as f:
-        lines = count_lines(read_code_files(f.read()))
+    if files is None:
+        path = _project_zip_path(project)
+        if not path:
+            return None
+        with open(path, "rb") as f:
+            files = read_code_files(f.read())
+    lines = count_lines(files)
 
     submitted = _aware(project.submitted_at)
     gap = None
@@ -176,7 +199,7 @@ async def _maybe_create_check(db: AsyncSession, project, rng) -> Optional[Projec
         project_id=project.id, student_id=project.student_id, reason=reason, code_lines=lines,
         gap_seconds=None if gap is None else int(gap), pace=pace, total_questions=TOTAL_QUESTIONS,
         status="unavailable" if throttled else "pending", needs_teacher=throttled,
-        expires_at=now + EXPIRES_IN, created_at=now,
+        code_excerpt=code_for_prompt(files), expires_at=now + EXPIRES_IN, created_at=now,
     )
     db.add(check)
     await db.commit()
@@ -305,12 +328,14 @@ async def start_check(db: AsyncSession, check: ProjectCodeCheck, lang: str) -> d
         raise CheckError(410, "Vaqt tugagan. O'qituvchi bilan bog'laning.")
 
     if not check.questions_json:
-        project = (await db.execute(select(Project).where(Project.id == check.project_id))).scalar_one_or_none()
-        path = _project_zip_path(project) if project else None
-        questions = None
-        if path:
-            with open(path, "rb") as f:
-                questions = await generate_questions(code_for_prompt(read_code_files(f.read())))
+        code = check.code_excerpt
+        if not code:      # a check made before the excerpt was kept: fall back to the ZIP on disk
+            project = (await db.execute(select(Project).where(Project.id == check.project_id))).scalar_one_or_none()
+            path = _project_zip_path(project) if project else None
+            if path:
+                with open(path, "rb") as f:
+                    code = code_for_prompt(read_code_files(f.read()))
+        questions = await generate_questions(code) if code else None
         if not questions:
             await _close(db, check, "unavailable")
             raise CheckError(503, "Savollarni tayyorlab bo'lmadi. Tekshiruv o'qituvchiga yuborildi.")
@@ -354,7 +379,9 @@ async def submit_check(db: AsyncSession, check: ProjectCodeCheck, answers: list,
     suspicious = passed and check.blur_count > BLUR_LIMIT
     # a right answer given after switching tabs is still a flag for the teacher's talk
     check.status = "suspicious" if suspicious else ("passed" if passed else "failed")
-    check.needs_teacher = not passed or suspicious
+    # A project that was fast AND passed is not lost: it stays visible to the teacher, below the real cases.
+    check.low_priority = passed and not suspicious and check.reason == "pace"
+    check.needs_teacher = not passed or suspicious or check.low_priority
     await db.commit()
     return {"status": check.status, "correct": correct, "total": len(questions), "passed": passed and not suspicious,
             "on_time": on_time}
@@ -395,6 +422,7 @@ async def resolve_check(db: AsyncSession, check: ProjectCodeCheck, teacher, acti
     else:
         check.resolution = "dismissed"
     check.needs_teacher = False
+    check.low_priority = False
     check.resolved_by, check.resolved_at, check.teacher_note = teacher.id, utcnow(), (note or None)
     await db.commit()
     return check

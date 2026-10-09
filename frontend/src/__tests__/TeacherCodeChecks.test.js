@@ -75,3 +75,14 @@ test('an empty queue and a failed load are both explained', async () => {
     render(<TeacherCodeChecks />);
     expect(await screen.findByRole('alert')).toHaveTextContent("Ruxsat yo'q");
 });
+
+test('a fast-but-passed project is shown softly, below the real cases', async () => {
+    const low = { ...ROW, id: 6, status: 'passed', low_priority: true, blur_count: 0, correct: 3 };
+    mockRequest.mockImplementation((url, method) => Promise.resolve(method === 'POST' ? low : [ROW, low]));
+    render(<TeacherCodeChecks />);
+    await screen.findByText("Tez topshirilgan, lekin testdan o'tgan");
+    const cards = document.querySelectorAll('.tcc-card');
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).not.toHaveClass('tcc-card--low');
+    expect(cards[1]).toHaveClass('tcc-card--low');
+});

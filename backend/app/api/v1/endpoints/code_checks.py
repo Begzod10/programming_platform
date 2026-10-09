@@ -7,7 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_instructor, get_current_student, get_db
@@ -81,7 +81,7 @@ def _teacher_row(c: ProjectCodeCheck, project: Optional[Project], st: Optional[S
     questions = json.loads(c.questions_json) if c.questions_json else []
     answers = json.loads(c.answers_json) if c.answers_json else []
     return {
-        "id": c.id, "status": c.status, "reason": c.reason, "needs_teacher": c.needs_teacher,
+        "id": c.id, "status": c.status, "reason": c.reason, "needs_teacher": c.needs_teacher, "low_priority": c.low_priority,
         "student": {"id": c.student_id, "username": st.username if st else None, "full_name": st.full_name if st else None},
         "project": {"id": c.project_id, "title": project.title if project else None,
                     "points_earned": project.points_earned if project else None, "grade": project.grade if project else None},
@@ -104,11 +104,23 @@ async def teacher_queue(all: bool = Query(False), limit: int = Query(100, ge=1, 
     q = (select(ProjectCodeCheck, Project, Student)
          .join(Project, Project.id == ProjectCodeCheck.project_id)
          .join(Student, Student.id == ProjectCodeCheck.student_id)
-         .order_by(ProjectCodeCheck.created_at.desc()).limit(limit))
+         .order_by(ProjectCodeCheck.low_priority.asc(), ProjectCodeCheck.created_at.desc()).limit(limit))
     if not all:
         q = q.where(ProjectCodeCheck.needs_teacher.is_(True), ProjectCodeCheck.resolution.is_(None))
     rows = (await db.execute(q)).all()
     return [_teacher_row(c, p, s) for c, p, s in rows]
+
+
+@teacher_router.get("/count")
+async def teacher_queue_count(teacher: Student = Depends(get_current_instructor), db: AsyncSession = Depends(get_db)):
+    """For the sidebar badge: how many checks wait for a teacher (`low` = fast but passed the quiz)."""
+    await svc.expire_old_checks(db)
+    rows = (await db.execute(
+        select(ProjectCodeCheck.low_priority, func.count()).where(
+            ProjectCodeCheck.needs_teacher.is_(True), ProjectCodeCheck.resolution.is_(None))
+        .group_by(ProjectCodeCheck.low_priority))).all()
+    counts = {bool(low): n for low, n in rows}
+    return {"count": counts.get(False, 0), "low": counts.get(True, 0)}
 
 
 class ResolveBody(BaseModel):

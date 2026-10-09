@@ -44,6 +44,17 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
     const { request } = useHttp();
     const { equipped, terminalMenuHidden } = useStore();
     const [isOpen, setIsOpen] = useState(false);
+    // how many code-check quizzes wait for this teacher (badge on "Kod tekshiruvi")
+    const [codeChecks, setCodeChecks] = useState(0);
+    useEffect(() => {
+        let alive = true;
+        const load = () => request(`${API_URL}v1/teacher/code-checks/count`, 'GET', null, headers())
+            .then((d) => { if (alive && d) setCodeChecks(d.count || 0); })
+            .catch(() => { /* the badge is a convenience */ });
+        load();
+        const t = setInterval(load, 60000);
+        return () => { alive = false; clearInterval(t); };
+    }, [request]);
     const [isCollapsed, setIsCollapsed] = useState(() => {
         try { return localStorage.getItem(COLLAPSED_KEY) === '1'; }
         catch { return false; }
@@ -169,6 +180,13 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
                                                 <span className="menu-item__rail" aria-hidden="true" />
                                                 <span className="menu-item__icon" aria-hidden="true"><item.Icon size={18} /></span>
                                                 <span className="menu-item__label">{item.label}</span>
+                                                {item.id === 'code-checks' && codeChecks > 0 && (
+                                                    <span aria-label={`${codeChecks} ta kutayotgan tekshiruv`} style={{
+                                                        marginLeft: 'auto', background: '#e5484d', color: '#fff', borderRadius: 999,
+                                                        fontSize: 11, fontWeight: 700, minWidth: 18, height: 18, padding: '0 6px',
+                                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                    }}>{codeChecks > 99 ? '99+' : codeChecks}</span>
+                                                )}
                                             </button>
                                         );
                                     })}

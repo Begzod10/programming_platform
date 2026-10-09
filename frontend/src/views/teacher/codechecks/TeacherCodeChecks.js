@@ -13,6 +13,7 @@ const STATUS = {
     reviewed:    { label: "Ko'rib chiqilgan", tone: 'ok' },
 };
 const REASON = { pace: 'Juda tez topshirilgan', random: 'Tasodifiy tanlov' };
+const LOW = "Tez topshirilgan, lekin testdan o'tgan";
 
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—');
 
@@ -23,7 +24,7 @@ function Row({ c, onResolved }) {
     const [note, setNote] = useState('');
     const [busy, setBusy] = useState(false);
     const [err, setErr] = useState('');
-    const st = STATUS[c.status] || { label: c.status, tone: 'wait' };
+    const st = c.low_priority ? { label: LOW, tone: 'wait' } : (STATUS[c.status] || { label: c.status, tone: 'wait' });
 
     const resolve = async () => {
         setBusy(true); setErr('');
@@ -37,7 +38,7 @@ function Row({ c, onResolved }) {
     };
 
     return (
-        <article className="tcc-card">
+        <article className={`tcc-card ${c.low_priority ? 'tcc-card--low' : ''}`}>
             <header className="tcc-head">
                 <div>
                     <h3>{c.student.full_name || c.student.username} <small>@{c.student.username}</small></h3>
@@ -123,7 +124,7 @@ export default function TeacherCodeChecks() {
                 <label><input type="checkbox" checked={all} onChange={e => setAll(e.target.checked)} /> Hammasini ko'rsatish</label>
             </div>
             <p className="tcc-lead">Juda tez topshirilgan (yoki tasodifiy tanlangan) loyihalar uchun o'quvchi o'z kodidan 3 savollik test topshiradi.
-                Quyidagilar sizning e'tiboringizni kutmoqda. Test isbot emas, faqat kimni suhbatga chaqirishni ko'rsatadi.</p>
+                Quyidagilar sizning e'tiboringizni kutmoqda: avval noto'g'ri/gumonli javoblar, pastda tez topshirilgan, lekin testdan o'tganlar (yengil belgi). Test isbot emas, faqat kimni suhbatga chaqirishni ko'rsatadi.</p>
             {error && <p className="tcc-err" role="alert">{error}</p>}
             {items === null && <p>Yuklanmoqda…</p>}
             {items && items.length === 0 && !error && <p className="tcc-empty">Hozircha e'tibor talab qiladigan tekshiruv yo'q ✅</p>}
