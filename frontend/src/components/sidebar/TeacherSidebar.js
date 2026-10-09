@@ -7,7 +7,7 @@ import CoinChip from './CoinChip';
 import {
     User, Download, Users, BookOpen, Gamepad2,
     Trophy, Construction, Award, Medal, TrendingUp, Star, Activity,
-    ShoppingBag, Building2, Puzzle, Bug, Users2,
+    ShoppingBag, Building2, Puzzle, Bug, Users2, ShieldCheck,
 } from 'lucide-react';
 
 const COLLAPSED_KEY = 'sidebar:teacher:collapsed';
@@ -66,6 +66,7 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
         { id: 'statistics',          label: 'Статистика',      Icon: TrendingUp,   section: 'insights' },
         { id: 'activity-analytics', label: 'Faollik tahlili', Icon: Activity,     section: 'insights' },
         { id: 'feedback',           label: 'Отзывы',          Icon: Star,         section: 'insights' },
+        { id: 'code-checks',        label: 'Kod tekshiruvi',  Icon: ShieldCheck,  section: 'insights' },
         ...(ERROR_LOG_USERNAMES.has(username)
             ? [{ id: 'error-log', label: 'Xato jurnali', Icon: Bug, section: 'insights' }]
             : []),

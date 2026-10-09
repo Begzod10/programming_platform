@@ -6,6 +6,7 @@ import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { ConfirmModal } from '../../teacher/courses/TeacherCourses/ConfirmModal';
 import { Trophy, Search } from 'lucide-react';
 import AppHeader from '../../../components/appheader/AppHeader';
+import CodeCheckBanner from '../codecheck/CodeCheckBanner';
 import { useTranslation } from '../../../i18n/useTranslation';
 
 const DIFFICULTIES = ['Easy', 'Medium', 'Hard'];
@@ -656,6 +657,7 @@ function MyProjects() {
         <div className="mpx-dark">
             <AppHeader />
             <div className="mpx-shell">
+                <CodeCheckBanner />
                 <div className="mpx-header">
                     <h1 className="mpx-title">{ru ? 'Мои проекты' : 'Mening loyihalarim'}</h1>
                     <div className="mpx-tools">

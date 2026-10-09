@@ -75,6 +75,15 @@ TRANSIENT_REVIEW_MARKERS = (
 TRANSIENT_RETRY_WINDOW = timedelta(days=3)
 
 
+async def job_expire_code_checks():
+    """Code-check quizzes nobody took (or abandoned) become 'expired' and join the teacher's queue."""
+    from app.services.code_check_service import expire_old_checks
+    async with AsyncSessionLocal() as db:
+        n = await expire_old_checks(db)
+        if n:
+            logger.info("📝 %d ta kod tekshiruvi muddati o'tdi (o'qituvchiga yuborildi)", n)
+
+
 async def job_purge_expired_demo_accounts():
     """Delete demo accounts (core/demo.py) older than DEMO_RETENTION.
 
@@ -328,6 +337,12 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    scheduler.add_job(
+        job_expire_code_checks,
+        trigger=IntervalTrigger(minutes=30),
+        id="expire_code_checks",
+        replace_existing=True,
+    )
     scheduler.add_job(
         job_purge_expired_demo_accounts,
         trigger=CronTrigger(hour=4, minute=15),
