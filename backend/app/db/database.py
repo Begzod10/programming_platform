@@ -177,6 +177,17 @@ async def _reconcile_indexes(conn) -> None:
             "WHERE avatar_url IS NOT NULL AND role = 'student' "
             "AND (gennis_id IS NOT NULL OR turon_id IS NOT NULL)"
         ),
+        # 2026-10-10: daily-mission enhancements — completion bonus, rest days,
+        # hourly reminder dedupe. create_all only CREATES missing tables, never
+        # ALTERs an existing one, so the quota tables (shipped via create_all)
+        # need these additive columns here. DEFAULT backfills the quota_config
+        # id=1 singleton (get_config never re-seeds it) so the teacher defaults
+        # go live without a redeploy.
+        text("ALTER TABLE quota_config ADD COLUMN IF NOT EXISTS completion_bonus INTEGER NOT NULL DEFAULT 20"),
+        text("ALTER TABLE quota_config ADD COLUMN IF NOT EXISTS rest_days VARCHAR(20) NOT NULL DEFAULT '5,6'"),
+        text("ALTER TABLE student_daily_progress ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ"),
+        text("ALTER TABLE student_daily_progress ADD COLUMN IF NOT EXISTS completion_bonus_awarded BOOLEAN NOT NULL DEFAULT FALSE"),
+        text("ALTER TABLE student_daily_progress ADD COLUMN IF NOT EXISTS completion_bonus_points INTEGER NOT NULL DEFAULT 0"),
     ]
     for stmt in statements:
         await conn.execute(stmt)

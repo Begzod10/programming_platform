@@ -24,14 +24,14 @@ from datetime import datetime, date, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.user import Student
 from app.models.lesson import Lesson, LessonCompletion
-from app.models.course import student_courses
+from app.models.course import Course, student_courses
 from app.models.daily_quota import (
     QuotaConfig, StudentDailyProgress, PenaltyLog, StreakTracker, StreakBonusLog,
 )
@@ -42,10 +42,23 @@ TZ = ZoneInfo(settings.QUOTA_TZ)
 BASE = settings.DAILY_QUOTA_LESSONS
 PENALTY = settings.QUOTA_PENALTY_PER_LESSON
 YIELD_RATE = settings.STREAK_YIELD_RATE
+COMPLETION_BONUS = settings.QUOTA_COMPLETION_BONUS
+REMINDER_DEDUP_MIN = 50   # don't re-remind within this many minutes (hourly cron)
 
 
 def today_local() -> date:
     return datetime.now(TZ).date()
+
+
+def is_rest_day(day: date, cfg: QuotaConfig) -> bool:
+    """A rest day (weekend) is a day off: no lock, no penalty, no debt growth, no
+    reminders — and the streak is never broken by it. Driven by cfg.rest_days
+    (comma-separated weekday ints, Mon=0..Sun=6)."""
+    try:
+        rest = {int(x) for x in (cfg.rest_days or "").split(",") if x.strip() != ""}
+    except (ValueError, AttributeError):
+        rest = set()
+    return day.weekday() in rest
 
 
 def _day_bounds(day: date) -> tuple[datetime, datetime]:
@@ -57,7 +70,8 @@ async def get_config(db: AsyncSession) -> QuotaConfig:
     cfg = (await db.execute(select(QuotaConfig).where(QuotaConfig.id == 1))).scalar_one_or_none()
     if cfg is None:
         cfg = QuotaConfig(id=1, enabled=True, enforce_from=None, base_lessons=BASE,
-                          penalty_per_lesson=PENALTY, unlock_mode=settings.QUOTA_UNLOCK_MODE)
+                          penalty_per_lesson=PENALTY, unlock_mode=settings.QUOTA_UNLOCK_MODE,
+                          completion_bonus=COMPLETION_BONUS, rest_days=settings.QUOTA_REST_DAYS)
         db.add(cfg)
         try:
             await db.flush()
@@ -80,6 +94,8 @@ class QuotaStatus:
     enabled: bool = True
     enforce_from: Optional[date] = None
     penalty_per_lesson: int = 100
+    rest_day: bool = False
+    completion_bonus: int = 0
 
     def as_dict(self) -> dict:
         return {
@@ -94,6 +110,8 @@ class QuotaStatus:
             "enabled": self.enabled,
             "enforce_from": self.enforce_from.isoformat() if self.enforce_from else None,
             "penalty_per_lesson": self.penalty_per_lesson,
+            "rest_day": self.rest_day,
+            "completion_bonus": self.completion_bonus,
         }
 
 
@@ -181,17 +199,48 @@ def _status_from(row: StudentDailyProgress, completed: int, cfg: QuotaConfig) ->
         enabled=cfg.enabled,
         enforce_from=cfg.enforce_from,
         penalty_per_lesson=cfg.penalty_per_lesson,
+        rest_day=False,
+        completion_bonus=cfg.completion_bonus,
     )
 
 
-def _unlocked_status(day: date, cfg: QuotaConfig) -> QuotaStatus:
-    """Synthetic 'open' status used when the feature is disabled (no row writes)."""
+def _unlocked_status(day: date, cfg: QuotaConfig, rest_day: bool = False) -> QuotaStatus:
+    """Synthetic 'open' status used when the feature is disabled or today is a
+    rest day (no row writes)."""
     return QuotaStatus(
         quota_date=day, base_required=cfg.base_lessons, carried_in=0,
         required=cfg.base_lessons, completed=0, remaining=0, unlocked=True,
         unlock_mode=cfg.unlock_mode, enabled=cfg.enabled,
         enforce_from=cfg.enforce_from, penalty_per_lesson=cfg.penalty_per_lesson,
+        rest_day=rest_day, completion_bonus=cfg.completion_bonus,
     )
+
+
+async def first_uncompleted_lesson(db: AsyncSession, student_id: int) -> Optional[dict]:
+    """The student's next lesson to do: first uncompleted active lesson in an
+    active enrolled course, ordered by (course display_order, course id, lesson
+    order, lesson id). Returns None (→ frontend falls back to /student/courses)
+    when nothing qualifies (no enrolled courses, all done, only inactive left)."""
+    enrolled = select(student_courses.c.course_id).where(
+        student_courses.c.student_id == student_id)
+    done = select(LessonCompletion.lesson_id).where(
+        LessonCompletion.student_id == student_id)
+    row = (await db.execute(
+        select(Lesson.course_id, Lesson.id, Lesson.title)
+        .join(Course, Course.id == Lesson.course_id)
+        .where(
+            Lesson.course_id.in_(enrolled),
+            Course.is_active == True,   # noqa: E712 — match the student catalog's active-only set
+            Lesson.is_active == True,   # noqa: E712
+            Lesson.id.notin_(done),
+        )
+        .order_by(Course.display_order.asc(), Course.id.asc(),
+                  Lesson.order.asc(), Lesson.id.asc())
+        .limit(1)
+    )).first()
+    if not row:
+        return None
+    return {"course_id": row[0], "lesson_id": row[1], "title": row[2]}
 
 
 # ── read (API + dependency) ──────────────────────────────────────────────────
@@ -199,7 +248,9 @@ async def get_today(db: AsyncSession, student_id: int) -> QuotaStatus:
     cfg = await get_config(db)
     day = today_local()
     if not cfg.enabled:
-        return _unlocked_status(day, cfg)
+        return _unlocked_status(day, cfg, rest_day=False)
+    if is_rest_day(day, cfg):
+        return _unlocked_status(day, cfg, rest_day=True)   # day off: games open, no stakes
     row = await _get_or_create(db, student_id, day, cfg.base_lessons)
     completed = await count_completed_on(db, student_id, day)
     status = _status_from(row, completed, cfg)
@@ -221,10 +272,12 @@ async def on_lesson_completed(db: AsyncSession, student_id: int, lesson_id: int)
         cfg = await get_config(db)
         if not cfg.enabled:
             return None
+        day = today_local()
+        if is_rest_day(day, cfg):
+            return None   # rest day: no lock tracking, no bonus
         student = (await db.execute(select(Student).where(Student.id == student_id))).scalar_one_or_none()
         if not student or student.is_demo:
             return None
-        day = today_local()
         row = await _get_or_create(db, student_id, day, cfg.base_lessons)
         completed = await count_completed_on(db, student_id, day)
         status = _status_from(row, completed, cfg)
@@ -232,9 +285,31 @@ async def on_lesson_completed(db: AsyncSession, student_id: int, lesson_id: int)
         row.completed = completed
         if just_unlocked:
             row.unlocked, row.unlocked_at = True, datetime.now(TZ)
+
+        # One-time-per-day completion bonus, only on enforcing (non-grace, non-rest)
+        # days. Latch atomically via a conditional UPDATE so two lessons crossing
+        # the quota concurrently can never double-award (Postgres row lock makes the
+        # 2nd UPDATE see awarded=true → rowcount 0). Keyed on its OWN latch, not on
+        # just_unlocked (robust to get_today pre-flipping row.unlocked).
+        enforce = cfg.enforce_from is None or day >= cfg.enforce_from
+        award_bonus = False
+        if status.unlocked and enforce and cfg.completion_bonus > 0:
+            res = await db.execute(
+                update(StudentDailyProgress)
+                .where(StudentDailyProgress.id == row.id,
+                       StudentDailyProgress.completion_bonus_awarded == False)  # noqa: E712
+                .values(completion_bonus_awarded=True, completion_bonus_points=cfg.completion_bonus)
+            )
+            if res.rowcount == 1:
+                award_bonus = True
+                from app.services.ranking_service import RankingService
+                await RankingService(db).add_points_to_student(student_id, cfg.completion_bonus)
+
         await db.commit()
         if just_unlocked:
             await _emit_unlocked(db, student_id)
+        if award_bonus:
+            await _emit_daily_complete(db, student_id, cfg.completion_bonus)
         await _push_quota(student_id, status)
         return status
     except Exception as e:  # noqa: BLE001 — quota tracking must not break lessons
@@ -257,7 +332,9 @@ async def process_eod_for_student(db: AsyncSession, ranking_service, student: St
     cfg = await get_config(db)
     if not cfg.enabled:
         return
-    enforce = cfg.enforce_from is None or day >= cfg.enforce_from
+    rest = is_rest_day(day, cfg)
+    # rest days never penalize or grow debt; penalties also wait for enforce_from
+    enforce = (not rest) and (cfg.enforce_from is None or day >= cfg.enforce_from)
 
     row = await _get_or_create(db, student.id, day, cfg.base_lessons)
     if row.processed:
@@ -285,15 +362,16 @@ async def process_eod_for_student(db: AsyncSession, ranking_service, student: St
         row.penalty_points = missed * cfg.penalty_per_lesson
         row.carried_out = missed
     else:
-        # grace day (or nothing missed) — no penalty, no debt accrues
+        # no penalty. Rest day → debt passes through unchanged; grace/complete → no debt.
         row.penalty_points = 0
-        row.carried_out = 0
+        row.carried_out = row.carried_in if rest else 0
     row.processed = True
 
-    # 2) streak — met the BASE quota today? (accrues even during grace)
+    # 2) streak — met the BASE quota today? A rest day can only HELP the streak
+    #    (extend if they studied), never break it.
     if completed >= cfg.base_lessons:
         await _extend_streak(db, ranking_service, student, day)
-    else:
+    elif not rest:
         await _break_streak(db, student)
 
     # 3) seed tomorrow with the carried debt (0 on grace days)
@@ -308,6 +386,42 @@ async def seed_next_day(db: AsyncSession, student_id: int, day: date, carried_in
     row.required = _effective_required(base + carried_in)
     row.base_required = base
     await db.flush()
+
+
+# ── hourly "finish your quota" reminder (one student) ────────────────────────
+async def send_reminder_for_student(db: AsyncSession, student: Student, day: date,
+                                    cfg: Optional[QuotaConfig] = None) -> bool:
+    """Push a reminder if this student still needs lessons today and hasn't been
+    reminded in the last ~hour. Returns True if a reminder was sent. Skips
+    demo/inactive, disabled feature, rest days, already-met, nothing-left, and
+    recently-reminded. The notification's own commit persists reminder_sent_at."""
+    if student.is_demo or not student.is_active:
+        return False
+    cfg = cfg or await get_config(db)
+    if not cfg.enabled or is_rest_day(day, cfg):
+        return False
+    row = await _get_or_create(db, student.id, day, cfg.base_lessons)
+    if row.reminder_sent_at is not None and \
+            (datetime.now(TZ) - row.reminder_sent_at) < timedelta(minutes=REMINDER_DEDUP_MIN):
+        return False
+    completed = await count_completed_on(db, student.id, day)
+    threshold = _unlock_threshold(row.required, row.base_required, cfg.unlock_mode)
+    remaining = max(0, threshold - completed)
+    if remaining == 0:
+        return False
+    if await uncompleted_available(db, student.id) <= 0:
+        return False   # nothing left to do — don't nag
+    enforcing = cfg.enforce_from is None or day >= cfg.enforce_from
+    row.reminder_sent_at = datetime.now(TZ)
+    try:
+        from app.services import notification_service
+        await notification_service.notify_quota_reminder(
+            db, student.id, remaining=remaining, enforcing=enforcing,
+            penalty_per_lesson=cfg.penalty_per_lesson)
+    except Exception as e:  # noqa: BLE001
+        logger.debug("quota reminder skipped (student=%s): %s", student.id, e)
+        return False
+    return True
 
 
 async def _extend_streak(db, ranking_service, student: Student, day: date) -> None:
@@ -367,3 +481,11 @@ async def _emit_unlocked(db: AsyncSession, student_id: int) -> None:
         await notification_service.notify_games_unlocked(db, student_id)
     except Exception as e:  # noqa: BLE001
         logger.debug("games-unlocked notify skipped (student=%s): %s", student_id, e)
+
+
+async def _emit_daily_complete(db: AsyncSession, student_id: int, bonus: int) -> None:
+    try:
+        from app.services import notification_service
+        await notification_service.notify_daily_complete(db, student_id, bonus)
+    except Exception as e:  # noqa: BLE001
+        logger.debug("daily-complete notify skipped (student=%s): %s", student_id, e)

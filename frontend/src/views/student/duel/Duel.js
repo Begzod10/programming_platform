@@ -615,7 +615,8 @@ export default function Duel({ guest = false }) {
             <AppHeader />
             {locked
                 ? <QuotaLockScreen completed={quota.completed}
-                    baseRequired={quota.baseRequired} remaining={quota.remaining} />
+                    baseRequired={quota.baseRequired} remaining={quota.remaining}
+                    nextLesson={quota.nextLesson} />
                 : <DuelInner guest={false} />}
         </div>
     );

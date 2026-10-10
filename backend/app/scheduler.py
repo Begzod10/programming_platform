@@ -277,6 +277,38 @@ async def job_process_quota_eod():
     logger.info("✅ Kunlik kvota EOD qayta ishlandi: %s ta student (%s)", processed, day)
 
 
+async def job_quota_reminder():
+    """Runs hourly during the day (Asia/Tashkent). Nudges students whose games
+    are still locked today with a "finish your quota" notification. Each student
+    is reminded at most ~once an hour (dedupe inside send_reminder_for_student)."""
+    from app.services import daily_quota_service as dq
+    from app.models.user import Student
+
+    async with AsyncSessionLocal() as db:
+        cfg = await dq.get_config(db)
+        if not cfg.enabled:
+            return
+        day = dq.today_local()
+        if dq.is_rest_day(day, cfg):
+            return
+        sent = 0
+        students = (await db.execute(
+            select(Student).where(Student.is_active.is_(True), Student.is_demo.is_(False))
+        )).scalars().all()
+        for student in students:
+            try:
+                if await dq.send_reminder_for_student(db, student, day, cfg):
+                    sent += 1
+                await db.commit()
+            except Exception as e:  # noqa: BLE001
+                logger.warning("quota reminder failed for student %s: %s", student.id, e)
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+    logger.info("⏰ Kunlik kvota eslatmasi: %s ta student (%s)", sent, day)
+
+
 def start_scheduler():
     """
     main.py da startup_event ichida chaqiring:
@@ -299,6 +331,14 @@ def start_scheduler():
         job_process_quota_eod,
         trigger=CronTrigger(hour=0, minute=5),  # 00:05 — after the 00:00 daily reset
         id="quota_eod",
+        replace_existing=True
+    )
+
+    # Kunlik kvota eslatmasi — har soatda (09:00–21:00 Toshkent), o'yin hali yopiq bo'lsa
+    scheduler.add_job(
+        job_quota_reminder,
+        trigger=CronTrigger(hour="9-21", minute=0),
+        id="quota_reminder",
         replace_existing=True
     )
 

@@ -425,6 +425,10 @@ async def review_project(
                         await ranking_service.add_points_to_student(
                             project.student_id, points_reward)
                     await db.commit()
+                    # manual approval completed a lesson → count toward today's daily quota
+                    from app.services import daily_quota_service
+                    await daily_quota_service.on_lesson_completed(
+                        db, project.student_id, submission.lesson_id)
 
             cert = await achievement_service.award_certificate(
                 db, project.student_id, lesson.course_id

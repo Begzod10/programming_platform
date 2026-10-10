@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     QUOTA_UNLOCK_MODE: str = "base"         # "base" = unlock at 2 | "full" = unlock at 2+debt
     QUOTA_DEBT_CAP: int = 0                 # 0 = uncapped carry-over (per spec)
     QUOTA_TZ: str = "Asia/Tashkent"         # single-tz platform; "today" is this zone's date
+    QUOTA_COMPLETION_BONUS: int = 20        # reward points for meeting the daily quota
+    QUOTA_REST_DAYS: str = "5,6"            # weekday ints Mon=0..Sun=6 with no lock/penalty (Sat,Sun)
 
     # Comma-separated list of allowed origins. Default to local dev only —
     # production MUST override via .env. Wildcard with credentials is unsafe

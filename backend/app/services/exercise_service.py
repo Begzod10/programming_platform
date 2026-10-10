@@ -645,6 +645,11 @@ async def _maybe_auto_complete_lesson(
         # Concurrent request inserted the completion first — fine, rollback the
         # extra points award via the unique constraint hit.
         await db.rollback()
+        return
+    # lesson just auto-completed → count toward today's daily quota (unlock games,
+    # completion bonus). Best-effort — never breaks the submission flow.
+    from app.services import daily_quota_service
+    await daily_quota_service.on_lesson_completed(db, student_id, lesson_id)
 
 
 async def get_my_submissions(db: AsyncSession, student_id: int, exercise_id: int) -> List[ExerciseSubmission]:

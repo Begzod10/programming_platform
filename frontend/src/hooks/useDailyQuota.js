@@ -64,6 +64,13 @@ export function useDailyQuota({ enabled = true } = {}) {
         baseRequired: status?.base_required ?? 2,
         carriedIn: status?.carried_in ?? 0,
         streak: status?.streak ?? null,
+        nextLesson: status?.next_lesson ?? null,
+        enabled: status?.enabled ?? true,
+        enforceFrom: status?.enforce_from ?? null,
+        penaltyPerLesson: status?.penalty_per_lesson ?? 0,
+        quotaDate: status?.quota_date ?? null,
+        restDay: status?.rest_day ?? false,
+        completionBonus: status?.completion_bonus ?? 0,
         refresh,
     };
 }

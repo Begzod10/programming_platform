@@ -11,7 +11,7 @@ import './AppHeader.css';
 import {
     Bell, LayoutGrid, X, LogOut, User, BarChart3,
     LayoutDashboard, BookOpen, Map, Monitor, BookMarked, Gamepad2, Users2,
-    HelpCircle, Zap, Puzzle, Trophy, Construction, GraduationCap, Award, Lock,
+    HelpCircle, Zap, Puzzle, Trophy, Construction, GraduationCap, Award, Lock, Target,
 } from 'lucide-react';
 
 // Localized toast heading per notification type (server stores only entity text).
@@ -22,6 +22,8 @@ const NOTE_HEADING = {
     achievement:       { uz: 'Yangi yutuq!',          ru: 'Новое достижение!' },
     certificate:       { uz: 'Sertifikat olindi',     ru: 'Сертификат получен' },
     games_unlocked:    { uz: "O'yinlar ochildi! 🎮",  ru: 'Игры разблокированы! 🎮' },
+    daily_complete:    { uz: 'Kunlik vazifa bajarildi! 🎯', ru: 'Дневная норма выполнена! 🎯' },
+    quota_reminder:    { uz: 'Kunlik eslatma ⏰',     ru: 'Напоминание о норме ⏰' },
 };
 
 const LEVEL_META = {
@@ -35,6 +37,7 @@ const NAV_GROUPS = (ru, earlyEligible) => [
         title: ru ? 'Обучение' : "Ta'lim",
         items: [
             { id: 'dashboard',     Icon: LayoutDashboard, ru: 'Главная',         uz: 'Bosh sahifa' },
+            { id: 'daily-rules',   Icon: Target,          ru: 'Ежедневное задание', uz: 'Kunlik vazifa' },
             { id: 'courses',       Icon: BookOpen,        ru: 'Курсы',           uz: 'Kurslar' },
             { id: 'roadmap',       Icon: Map,             ru: 'Дорожная карта',  uz: "Yo'l xaritasi" },
             { id: 'projects',      Icon: Monitor,         ru: 'Мои проекты',     uz: 'Mening loyihalarim' },

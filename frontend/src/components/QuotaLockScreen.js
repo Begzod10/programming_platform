@@ -6,10 +6,13 @@ import { Lock, ArrowRight, BookOpen } from 'lucide-react';
 import { useTranslation } from '../i18n/useTranslation';
 import './QuotaLockScreen.css';
 
-export default function QuotaLockScreen({ completed = 0, baseRequired = 2, remaining }) {
+export default function QuotaLockScreen({ completed = 0, baseRequired = 2, remaining, nextLesson = null }) {
     const navigate = useNavigate();
     const { lang } = useTranslation();
     const ru = lang === 'ru';
+    const goNext = () => navigate(nextLesson
+        ? `/student/courses/${nextLesson.course_id}/lessons/${nextLesson.lesson_id}`
+        : '/student/courses');
     const left = remaining != null ? remaining : Math.max(0, baseRequired - completed);
     const pct = Math.min(100, Math.round((completed / Math.max(1, baseRequired)) * 100));
 
@@ -39,9 +42,11 @@ export default function QuotaLockScreen({ completed = 0, baseRequired = 2, remai
                         : (ru ? 'Почти готово!' : 'Deyarli tayyor!')}
                 </div>
 
-                <button className="qls-cta" onClick={() => navigate('/student/courses')}>
+                <button className="qls-cta" onClick={goNext}>
                     <BookOpen size={18} />
-                    {ru ? 'Продолжить обучение' : "Darslarni davom ettirish"}
+                    {nextLesson
+                        ? (ru ? 'Начать следующий урок' : "Keyingi darsni boshlash")
+                        : (ru ? 'Продолжить обучение' : "Darslarni davom ettirish")}
                     <ArrowRight size={18} />
                 </button>
                 <button className="qls-link" onClick={() => navigate('/student/daily-rules')}>

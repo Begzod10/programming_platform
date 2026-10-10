@@ -40,6 +40,10 @@ class QuotaConfig(Base):
     base_lessons: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
     penalty_per_lesson: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
     unlock_mode: Mapped[str] = mapped_column(String(10), nullable=False, default="base")
+    # reward points for meeting the daily quota (0 = disabled)
+    completion_bonus: Mapped[int] = mapped_column(Integer, nullable=False, default=20)
+    # weekday ints Mon=0..Sun=6 with no lock/penalty, comma-separated (e.g. "5,6")
+    rest_days: Mapped[str] = mapped_column(String(20), nullable=False, default="5,6")
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -72,6 +76,12 @@ class StudentDailyProgress(Base):
     processed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     penalty_points: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     carried_out: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # last time a "finish your quota" reminder was pushed today (hourly dedupe)
+    reminder_sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # completion-bonus once-per-day latch + audit of the amount awarded
+    completion_bonus_awarded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    completion_bonus_points: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

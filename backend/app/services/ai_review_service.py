@@ -354,6 +354,7 @@ async def run_ai_review_for_project(
     # Award lesson completion only on a passing score. The LessonCompletion
     # row is the gate that unlocks the next lesson for the student, so it must
     # not be created on mere submission — only on approval (score ≥ 75).
+    quota_completed = None   # (student_id, lesson_id) if a lesson was just completed here
     if new_points >= 75:
         sub_res = await db.execute(
             select(Submission).where(Submission.project_id == project.id)
@@ -376,6 +377,7 @@ async def run_ai_review_for_project(
                     student_id=project.student_id,
                     lesson_id=submission.lesson_id,
                 ))
+                quota_completed = (project.student_id, submission.lesson_id)
                 if lesson:
                     points_reward = getattr(lesson, "points_reward", 0) or 0
                     if points_reward > 0:
@@ -383,6 +385,11 @@ async def run_ai_review_for_project(
                             project.student_id, points_reward)
 
     await db.commit()
+
+    # project approval completed a lesson → count it toward today's daily quota
+    if quota_completed:
+        from app.services import daily_quota_service
+        await daily_quota_service.on_lesson_completed(db, quota_completed[0], quota_completed[1])
 
     # A ZIP project that arrived faster than anyone can write that much code (or a random
     # sample) gets a short quiz on its own code — a signal for the teacher, never a penalty.

@@ -26,6 +26,8 @@ def _cfg_dict(cfg) -> dict:
         "base_lessons": cfg.base_lessons,
         "penalty_per_lesson": cfg.penalty_per_lesson,
         "unlock_mode": cfg.unlock_mode,
+        "completion_bonus": cfg.completion_bonus,
+        "rest_days": cfg.rest_days,
         "yield_rate": daily_quota_service.YIELD_RATE,
     }
 
@@ -37,6 +39,8 @@ class QuotaConfigUpdate(BaseModel):
     base_lessons: Optional[int] = None
     penalty_per_lesson: Optional[int] = None
     unlock_mode: Optional[str] = None
+    completion_bonus: Optional[int] = None
+    rest_days: Optional[str] = None             # comma-separated weekday ints, Mon=0..Sun=6
 
 
 @router.get("/config")
@@ -71,6 +75,13 @@ async def update_quota_config(
         cfg.penalty_per_lesson = max(0, body.penalty_per_lesson)
     if body.unlock_mode in ("base", "full"):
         cfg.unlock_mode = body.unlock_mode
+    if body.completion_bonus is not None:
+        cfg.completion_bonus = max(0, body.completion_bonus)
+    if body.rest_days is not None:
+        # keep only valid weekday ints 0..6, de-duped, comma-joined
+        days = sorted({int(x) for x in body.rest_days.split(",")
+                       if x.strip().isdigit() and 0 <= int(x) <= 6})
+        cfg.rest_days = ",".join(str(d) for d in days)
     cfg.updated_by = teacher.id
     await db.commit()
     return _cfg_dict(cfg)
@@ -92,7 +103,8 @@ async def quota_status(
         "active": bool(st.active) if st else False,
         "yield_rate": daily_quota_service.YIELD_RATE,
     }
-    return {**status_.as_dict(), "streak": streak}
+    next_lesson = await daily_quota_service.first_uncompleted_lesson(db, current_student.id)
+    return {**status_.as_dict(), "streak": streak, "next_lesson": next_lesson}
 
 
 @router.get("/penalties")

@@ -312,7 +312,8 @@ export default function EarlyLearning({ guest = false }) {
                 <Sky />
                 <div style={{ position: 'relative', zIndex: 1 }}>
                     <QuotaLockScreen completed={quota.completed}
-                        baseRequired={quota.baseRequired} remaining={quota.remaining} />
+                        baseRequired={quota.baseRequired} remaining={quota.remaining}
+                        nextLesson={quota.nextLesson} />
                 </div>
             </div>
         );

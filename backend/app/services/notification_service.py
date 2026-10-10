@@ -162,3 +162,26 @@ async def notify_games_unlocked(db: AsyncSession, student_id: int) -> Optional[N
         db, student_id, type="games_unlocked", tone="star", title="",
         icon="🎮", link="/student/duel",
     )
+
+
+async def notify_daily_complete(db: AsyncSession, student_id: int, bonus: int) -> Optional[Notification]:
+    """Reward note when a student meets today's daily quota — "Kunlik vazifa
+    bajarildi! +N ball 🎯"."""
+    return await _emit(
+        db, student_id, type="daily_complete", tone="star", title="",
+        points=bonus, icon="🎯", link="/student/daily-rules",
+    )
+
+
+async def notify_quota_reminder(db: AsyncSession, student_id: int, *, remaining: int,
+                                enforcing: bool, penalty_per_lesson: int) -> Optional[Notification]:
+    """Hourly "finish your quota" nudge. The dynamic count lives in `title` (the
+    toast renders a static heading from NOTE_HEADING plus this title); the body
+    threatens the penalty only on enforcing days."""
+    title = f"Bugun yana {remaining} ta dars qoldi — o'yinlar yopiq"
+    body = (f"Tugamasa −{remaining * penalty_per_lesson} ball yechiladi."
+            if enforcing else "Kunlik normani bajar — o'yinlar ochiladi 🎮")
+    return await _emit(
+        db, student_id, type="quota_reminder", tone="wait", title=title, body=body,
+        icon="⏰", link="/student/daily-rules",
+    )
