@@ -283,7 +283,9 @@ def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "u
 
             correct_norm = [_norm(x) for x in correct_order]
             student_norm = [_norm(x) for x in student_order]
-            is_correct = correct_norm == student_norm
+            is_correct = correct_norm == student_norm or _order_satisfies_rules(
+                exercise.correct_answers, correct_norm, student_norm
+            )
 
             return {
                 "is_correct": is_correct,
@@ -421,6 +423,28 @@ def check_text_answer_by_key(expected: Optional[str], student_answer: str) -> bo
             if not re.search(rf"(?<![{{}}\[\]()<>=!&|+*/%$.:;#@-]){re.escape(t)}(?![{{}}\[\]()<>=!&|+*/%$.:;#@-])", ans):
                 return False
     return True
+
+
+def _order_satisfies_rules(rules_raw: Optional[str], correct_norm: list, student_norm: list) -> bool:
+    """Some ordering exercises have more than one valid sequence (two independent
+    halves of a setup, in either order). Such an exercise stores, in the otherwise
+    unused `correct_answers` column, {"order_constraints": [[a, b], ...]} — pairs of
+    positions in `correct_order` meaning "item a comes before item b". A student's
+    sequence is accepted when it is a permutation of the items and honours every
+    pair. Language-neutral on purpose: items are matched by their position in the
+    (possibly translated) correct_order, never by text in the rules."""
+    try:
+        rules = json.loads(rules_raw or "")
+        pairs = rules["order_constraints"] if isinstance(rules, dict) else None
+    except (ValueError, KeyError, TypeError):
+        return False
+    if not pairs or sorted(student_norm) != sorted(correct_norm) or len(set(correct_norm)) != len(correct_norm):
+        return False
+    position = {item: i for i, item in enumerate(student_norm)}
+    try:
+        return all(position[correct_norm[a]] < position[correct_norm[b]] for a, b in pairs)
+    except (IndexError, KeyError, TypeError, ValueError):
+        return False
 
 
 async def check_answer_with_grok(
