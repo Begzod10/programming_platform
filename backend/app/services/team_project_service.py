@@ -21,6 +21,7 @@ from app.models.team_project import (
 from app.models.user import Student
 from app.schemas.team_project import SkillProfile
 from app.services import skill_profile_service
+from app.services.team_project_skills import build_skill_levels
 from app.services.team_project_constants import THEMES, TECH_STACKS, LEVEL_RANK as _LEVEL_RANK
 from app.services.teacher_students import teacher_student_ids_subquery
 
@@ -64,30 +65,37 @@ def _cycle_sample(pool: list, count: int, avoid_key: Optional[str] = None) -> li
     return picks
 
 
-def stack_fits(stack: dict, summaries: List[str]) -> bool:
-    """Can this team do this stack? A stack with no `needs` (vanilla JS) always
-    fits; a framework stack needs at least half the team to have its framework
-    in their skill summary."""
-    needs = stack.get("needs")
-    if not needs:
-        return True
-    pattern = re.compile(needs, re.I)
-    familiar = sum(1 for s in summaries if pattern.search(s or ""))
-    return familiar * 2 >= len(summaries) and familiar > 0
+class NoFittingStack(Exception):
+    """No tech stack — not even plain JavaScript — fits a team's skills."""
+
+
+def stack_fits(stack: dict, skills: List[dict]) -> bool:
+    """Can this team do this stack? `skills[i]` is member i's {area: AreaSkill}.
+    At least half the team must have the stack's frontend area AND at least one member
+    its backend area (any of `requires.backend`). An area nobody can have (no course
+    exists for it, e.g. Vue) never fits — a stack must never be handed out on a guess."""
+    req = stack.get("requires")
+    if not req or not skills:
+        return False
+    frontend = req["frontend"]
+    have_frontend = sum(1 for m in skills if m.get(frontend) is not None and m[frontend].has)
+    have_backend = any(m.get(a) is not None and m[a].has for m in skills for a in req["backend"])
+    return have_frontend > 0 and have_frontend * 2 >= len(skills) and have_backend
 
 
 def pick_stacks_for_teams(
-        member_summaries: List[List[str]], drawn: List[dict], rng=random,
+        member_skills: List[List[dict]], drawn: List[dict], rng=random,
 ) -> List[dict]:
-    """One stack per team. Keep the random draw (`drawn`) when it fits the team;
-    otherwise take a random fitting stack, avoiding the previous team's stack
-    when another one fits. `member_summaries[i]` are team i's members' skill
-    summaries."""
+    """One stack per team. Keep the random draw (`drawn`) when it fits the team; otherwise
+    take a random fitting stack, avoiding the previous team's stack when another one fits.
+    Raises NoFittingStack when nothing fits (nobody can do even plain JavaScript + a backend)."""
     picks: List[dict] = []
-    for i, summaries in enumerate(member_summaries):
+    for i, skills in enumerate(member_skills):
         choice = drawn[i]
-        if not stack_fits(choice, summaries):
-            fitting = [s for s in TECH_STACKS if stack_fits(s, summaries)]
+        if not stack_fits(choice, skills):
+            fitting = [s for s in TECH_STACKS if stack_fits(s, skills)]
+            if not fitting:
+                raise NoFittingStack()
             varied = [s for s in fitting if not picks or s["key"] != picks[-1]["key"]]
             choice = rng.choice(varied or fitting)
         picks.append(choice)
@@ -150,22 +158,31 @@ async def create_team_project(
         for p in await skill_profile_service.build_profiles_for_student_ids(db, list(requested_ids))
     }
 
+    chunks = _form_balanced_teams(students, team_size, profiles_by_id)
+
+    # Decide every team's stack BEFORE anything is written: when no stack fits a team, the
+    # request fails cleanly instead of leaving a half-created project behind.
+    skills_by_id = await build_skill_levels(db, [s.id for s in students])
+    last_theme, last_stack = await _last_used_theme_and_stack(db, teacher_id)
+    themes = _cycle_sample(THEMES, len(chunks), avoid_key=last_theme)
+    try:
+        stacks = pick_stacks_for_teams(
+            [[skills_by_id[s.id] for s in members] for members in chunks],
+            _cycle_sample(TECH_STACKS, len(chunks), avoid_key=last_stack),
+        )
+    except NoFittingStack:
+        raise HTTPException(
+            status_code=400,
+            detail="Tanlangan o'quvchilar uchun mos texnologiya topilmadi: JavaScript va backend "
+                   "(Flask/Python) kurslari yetarli tugatilmagan",
+        )
+
     team_project = TeamProject(
         group_id=group_id, course_id=course_id, teacher_id=teacher_id,
         team_size=team_size, deadline_days=deadline_days,
     )
     db.add(team_project)
     await db.flush()
-
-    chunks = _form_balanced_teams(students, team_size, profiles_by_id)
-
-    last_theme, last_stack = await _last_used_theme_and_stack(db, teacher_id)
-    themes = _cycle_sample(THEMES, len(chunks), avoid_key=last_theme)
-    stacks = pick_stacks_for_teams(
-        [[(profiles_by_id[s.id].summary if s.id in profiles_by_id else "") for s in members]
-         for members in chunks],
-        _cycle_sample(TECH_STACKS, len(chunks), avoid_key=last_stack),
-    )
 
     teams: List[TeamProjectTeam] = []
     for idx, members in enumerate(chunks):

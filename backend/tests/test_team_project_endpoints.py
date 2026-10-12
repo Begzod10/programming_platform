@@ -30,6 +30,7 @@ import json
 import uuid
 from unittest.mock import AsyncMock, patch
 
+import pytest
 import pytest_asyncio
 from sqlalchemy import select
 
@@ -1143,3 +1144,34 @@ def test_rank_orders_by_grade_then_progress_and_leaves_unfinished_unplaced():
     ])
     assert [s.team.id for s in ordered] == [3, 4, 2, 1]
     assert [s.place for s in ordered] == [1, 2, 3, None]
+
+
+# ── 8. team formation uses the real skill model ────────────────────────────
+
+@pytest.mark.real_skills
+async def test_creating_a_team_project_for_students_without_js_or_backend_courses_is_a_clean_400(
+    async_client, db_session,
+):
+    from app.models.team_project import TeamProject
+    uid = uuid.uuid4().hex[:8]
+    teacher_reg = await async_client.post("/api/v1/auth/register", json={
+        "username": f"tpq_{uid}", "email": f"tpq_{uid}@example.com", "password": "pass12345"})
+    teacher_id = teacher_reg.json()["user"]["id"]
+    student_ids = [(await _register(async_client, f"tpq_s_{uid}_{i}"))[0] for i in range(4)]
+    teacher = (await db_session.execute(select(Student).where(Student.id == teacher_id))).scalar_one()
+    teacher.role = "teacher"
+    group = Group(name="No Skills Group", teacher_id=teacher_id)
+    db_session.add(group)
+    await db_session.flush()
+    for sid in student_ids:
+        await db_session.execute(student_groups.insert().values(student_id=sid, group_id=group.id))
+    await db_session.commit()
+
+    headers = await _login_headers(async_client, f"tpq_{uid}")
+    res = await async_client.post("/api/v1/team-projects", json={
+        "group_id": group.id, "team_size": 2, "deadline_days": 14, "student_ids": student_ids,
+    }, headers=headers)
+    assert res.status_code == 400, res.text
+    assert "mos texnologiya topilmadi" in res.text
+    created = (await db_session.execute(select(TeamProject).where(TeamProject.group_id == group.id))).scalars().all()
+    assert created == []                                           # nothing half-created

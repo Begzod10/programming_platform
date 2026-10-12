@@ -20,12 +20,35 @@ THEMES = [
 # random pick used to hand teams a framework none of them had studied. "vanilla"
 # needs nothing, so every team always has at least one eligible stack.
 TECH_STACKS = [
-    {"key": "react", "label": "React", "frontend": "React", "backend": "FastAPI", "needs": r"\breact\b"},
-    {"key": "vue", "label": "Vue", "frontend": "Vue", "backend": "Flask", "needs": r"\bvue\b"},
-    {"key": "next", "label": "Next.js", "frontend": "Next.js", "backend": "Django", "needs": r"\b(?:next\.?js|react)\b"},
-    {"key": "express", "label": "Node/Express", "frontend": "React", "backend": "Node/Express", "needs": r"\breact\b"},
-    {"key": "vanilla", "label": "Vanilla JS", "frontend": "Vanilla JS", "backend": "Flask", "needs": None},
+    {"key": "react", "label": "React", "frontend": "React", "backend": "FastAPI", "needs": r"\breact\b",
+     "requires": {"frontend": "react", "backend": ["python", "flask"]}},
+    {"key": "vue", "label": "Vue", "frontend": "Vue", "backend": "Flask", "needs": r"\bvue\b",
+     "requires": {"frontend": "vue", "backend": ["python", "flask"]}},   # no Vue area/course exists: never fits
+    {"key": "next", "label": "Next.js", "frontend": "Next.js", "backend": "Django", "needs": r"\b(?:next\.?js|react)\b",
+     "requires": {"frontend": "react", "backend": ["python"]}},
+    {"key": "express", "label": "Node/Express", "frontend": "React", "backend": "Node/Express", "needs": r"\breact\b",
+     "requires": {"frontend": "react", "backend": ["node"]}},
+    {"key": "vanilla", "label": "Vanilla JS", "frontend": "Vanilla JS", "backend": "Flask", "needs": None,
+     "requires": {"frontend": "javascript", "backend": ["flask", "python"]}},
 ]
+
+# ── skill areas (see team_project_skills.py) ───────────────────────────────
+# A student's level in an area comes from how much of the matching COURSES they
+# finished — not from the points-based `current_level`, which says nothing about
+# whether they have ever seen React or Flask. Courses are matched by TITLE so the
+# map survives course ids changing between environments.
+import re as _re
+
+SKILL_AREAS = ("html_css", "javascript", "python", "flask", "node", "react", "sql")
+AREA_COURSE_PATTERNS = {
+    "html_css": _re.compile(r"\b(html|css)\b", _re.I),
+    "javascript": _re.compile(r"\b(javascript|js)\b", _re.I),
+    "python": _re.compile(r"\bpython\b", _re.I),
+    "flask": _re.compile(r"\bflask\b", _re.I),
+    "node": _re.compile(r"\b(node|express)", _re.I),
+    "react": _re.compile(r"\breact\b", _re.I),
+    "sql": _re.compile(r"\b(sql|postgres\w*)\b", _re.I),
+}
 
 THEMES_BY_KEY = {t["key"]: t for t in THEMES}
 TECH_STACKS_BY_KEY = {s["key"]: s for s in TECH_STACKS}
