@@ -1359,3 +1359,15 @@ async def test_planned_tasks_get_staged_deadlines_backend_before_frontend(db_ses
     events = (await db_session.execute(select(TeamProjectEvent).where(
         TeamProjectEvent.team_id == team.id, TeamProjectEvent.event_type == "deadline_below_recommended"))).scalars().all()
     assert len(events) == 1 and json.loads(events[0].payload_json)["recommended_days"] == 19
+
+
+async def test_past_themes_come_from_the_students_earlier_teams(db_session, two_teams_project):
+    from app.services.team_project_service import past_themes_by_student
+    fx = two_teams_project
+    team_a, team_b = fx["teams"]
+    history = await past_themes_by_student(db_session, fx["student_ids"])
+    for team in (team_a, team_b):
+        members = (await db_session.execute(
+            select(TeamProjectMember.student_id).where(TeamProjectMember.team_id == team.id))).scalars().all()
+        assert members and all(team.theme in history[sid] for sid in members)
+    assert await past_themes_by_student(db_session, []) == {}

@@ -65,6 +65,46 @@ def _cycle_sample(pool: list, count: int, avoid_key: Optional[str] = None) -> li
     return picks
 
 
+async def past_themes_by_student(db: AsyncSession, student_ids: List[int]) -> dict[int, set]:
+    """{student_id: themes of every team they were ever on} — so a new team can avoid a theme its
+    members already built (a random draw gave about 1 in 7 students the same theme again)."""
+    if not student_ids:
+        return {}
+    rows = (await db.execute(
+        select(TeamProjectMember.student_id, TeamProjectTeam.theme)
+        .join(TeamProjectTeam, TeamProjectTeam.id == TeamProjectMember.team_id)
+        .where(TeamProjectMember.student_id.in_(student_ids), TeamProjectTeam.theme.isnot(None))
+    )).all()
+    out: dict[int, set] = {}
+    for sid, theme in rows:
+        out.setdefault(sid, set()).add(theme)
+    return out
+
+
+def choose_themes_for_teams(
+        member_ids: List[List[int]], past_themes: dict, rng=random, avoid_key: Optional[str] = None,
+) -> List[dict]:
+    """One theme per team: the one the fewest of its members already built, preferring a theme no
+    other team of this assignment took (while the pool lasts). Ties are random; `avoid_key` (the
+    teacher's previous team) only breaks ties — history matters more than "not the last one"."""
+    picks: List[dict] = []
+    taken: set = set()
+    for members in member_ids:
+        def score(theme: dict):
+            repeats = sum(1 for m in members if theme["key"] in past_themes.get(m, ()))
+            return (theme["key"] in taken, repeats)
+
+        best = min(score(t) for t in THEMES)
+        tied = [t for t in THEMES if score(t) == best]
+        calmer = [t for t in tied if t["key"] != avoid_key]
+        choice = rng.choice(calmer or tied)
+        picks.append(choice)
+        taken.add(choice["key"])
+        if len(taken) >= len(THEMES):
+            taken.clear()             # more teams than themes: start another round
+    return picks
+
+
 class NoFittingStack(Exception):
     """No tech stack — not even plain JavaScript — fits a team's skills."""
 
@@ -164,7 +204,11 @@ async def create_team_project(
     # request fails cleanly instead of leaving a half-created project behind.
     skills_by_id = await build_skill_levels(db, [s.id for s in students])
     last_theme, last_stack = await _last_used_theme_and_stack(db, teacher_id)
-    themes = _cycle_sample(THEMES, len(chunks), avoid_key=last_theme)
+    themes = choose_themes_for_teams(
+        [[s.id for s in members] for members in chunks],
+        await past_themes_by_student(db, [s.id for s in students]),
+        avoid_key=last_theme,
+    )
     try:
         stacks = pick_stacks_for_teams(
             [[skills_by_id[s.id] for s in members] for members in chunks],
