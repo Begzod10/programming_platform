@@ -217,6 +217,7 @@ const StudentTeamProject = () => {
     const [loading, setLoading] = useState(true);
     const [submittingId, setSubmittingId] = useState(null);
     const [finalizing, setFinalizing] = useState(false);
+    const [finalUrl, setFinalUrl] = useState('');
     const [meId, setMeId] = useState(null);
     const [ratingSubmitting, setRatingSubmitting] = useState(false);
     const [ratingSubmitted, setRatingSubmitted] = useState(false);
@@ -355,7 +356,7 @@ const StudentTeamProject = () => {
         try {
             await request(
                 `${API_URL}v1/team-projects/teams/${team.id}/finalize`,
-                'POST', JSON.stringify({}), headers(),
+                'POST', JSON.stringify({ github_url: finalUrl.trim() }), headers(),
             );
             await reload();
         } catch (e) {
@@ -514,9 +515,18 @@ const StudentTeamProject = () => {
 
             {role === 'lead' && team.status !== 'submitted' && team.status !== 'reviewed' && (
                 <div className="stp-finalize">
+                    <div className="stp-submit-row" style={{ width: '100%' }}>
+                        <label className="stp-field-label" htmlFor="stp-final-url"><Link2 size={13} /> {ru ? 'Ссылка на GitHub итогового проекта' : "Yakuniy loyiha GitHub havolasi"}</label>
+                        <input
+                            id="stp-final-url"
+                            placeholder={ru ? 'https://github.com/polzovatel/proekt' : 'https://github.com/foydalanuvchi/loyiha'}
+                            value={finalUrl}
+                            onChange={e => setFinalUrl(e.target.value)}
+                        />
+                    </div>
                     <button
                         className="stp-btn stp-btn--primary stp-btn--finalize"
-                        disabled={!allApproved || finalizing}
+                        disabled={!allApproved || finalizing || !/^https?:\/\//i.test(finalUrl.trim())}
                         onClick={() => finalize(team)}
                     >
                         <Rocket size={16} /> {finalizing ? (ru ? 'Отправка…' : 'Yuborilmoqda…') : (ru ? 'Отправить финальный проект' : "Yakuniy loyihani topshirish")}

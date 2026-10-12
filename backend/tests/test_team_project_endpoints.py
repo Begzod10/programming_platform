@@ -446,6 +446,47 @@ async def test_finalize_twice_returns_409_not_a_duplicate_project(
     )
 
 
+async def test_finalize_without_a_repo_link_is_refused_and_does_not_lock_the_team(
+    async_client, db_session, two_teams_project,
+):
+    """A missing link used to create a Project the AI review rejected outright, and
+    the team ended up `submitted` for good (finalize is one-shot) with no points."""
+    fx = two_teams_project
+    team_a = fx["teams"][0]
+    members_a = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team_a.id)
+    )).scalars().all()
+    lead_id = team_a.lead_student_id
+    lead_username = next(
+        u for sid, u in zip(fx["student_ids"], fx["student_usernames"]) if sid == lead_id
+    )
+    lead_headers = fx["student_headers"][lead_username]
+    db_session.add(TeamProjectTask(
+        team_id=team_a.id, assigned_student_id=members_a[0].student_id, order=1,
+        title="T", title_ru="Т", description="D", description_ru="О",
+        required_level="Beginner", interface_contract_json="{}",
+        acceptance_criteria_json="[]", depends_on_json="[]", estimated_hours=4,
+        status=TaskStatus.approved,
+    ))
+    await db_session.commit()
+
+    from app.models.project import Project
+    mine = lambda: db_session.execute(select(Project).where(Project.student_id == lead_id))
+
+    for body in ({}, {"github_url": ""}, {"github_url": "   "}, {"github_url": "github.com/x/y"}):
+        r = await async_client.post(f"{BASE}/teams/{team_a.id}/finalize", json=body, headers=lead_headers)
+        assert r.status_code == 400, (body, r.text)
+    assert (await mine()).scalars().all() == []
+    await db_session.refresh(team_a)
+    assert team_a.status != TeamStatus.submitted and team_a.final_project_id is None
+
+    ok = await async_client.post(
+        f"{BASE}/teams/{team_a.id}/finalize", json={"github_url": " https://github.com/acme/repo "},
+        headers=lead_headers,
+    )
+    assert ok.status_code == 200, ok.text
+
+
 async def test_finalize_rejects_non_lead(async_client, db_session, two_teams_project):
     fx = two_teams_project
     team_a = fx["teams"][0]

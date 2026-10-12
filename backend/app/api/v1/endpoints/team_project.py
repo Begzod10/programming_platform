@@ -1069,6 +1069,16 @@ async def finalize_team(
         raise HTTPException(status_code=409, detail="Jamoa allaqachon yakunlangan")
     if not team.tasks or any(t.status != TaskStatus.approved for t in team.tasks):
         raise HTTPException(status_code=400, detail="Barcha vazifalar tasdiqlanmagan")
+    # The final Project goes through the AI review, which rejects a project with
+    # no repository outright — and a team that is already `submitted` cannot
+    # finalize again, so a missing link here would lock the team out of its
+    # points for good. Refuse BEFORE anything is created.
+    github_url = (body.github_url or "").strip()
+    if not github_url.lower().startswith(("http://", "https://")):
+        raise HTTPException(
+            status_code=400,
+            detail="Yakuniy loyiha uchun GitHub havolasini kiriting (https://github.com/...)",
+        )
 
     stack = TECH_STACKS_BY_KEY.get(team.tech_stack)
     technologies = [stack["frontend"], stack["backend"]] if stack else []
@@ -1077,7 +1087,7 @@ async def finalize_team(
     project = await project_service.create_project(student.id, ProjectCreate(
         title=team.project_title or "Jamoaviy loyiha",
         description=body.description or team.project_description or "Jamoaviy loyiha yakuniy topshirig'i",
-        github_url=body.github_url,
+        github_url=github_url,
         live_demo_url=body.live_demo_url,
         technologies_used=technologies,
     ))
