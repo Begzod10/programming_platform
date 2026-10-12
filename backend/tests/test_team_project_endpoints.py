@@ -948,7 +948,8 @@ async def test_regenerate_refreshes_the_members_skill_summary(
 
 def _facts(files, blocks="", contract=None):
     from app.services.team_project_task_review import _snapshot_facts
-    return _snapshot_facts(contract or {}, {"files_included": files, "content_text": blocks})
+    problems, has_code, _notes = _snapshot_facts(contract or {}, {"files_included": files, "content_text": blocks})
+    return problems, has_code
 
 
 def test_a_readme_only_submission_has_no_code():
@@ -975,8 +976,11 @@ def test_a_clean_submission_has_no_problems_and_contract_files_are_matched_by_ba
     problems, has_code = _facts(["src/routes/clients.js"], blocks,
                                 contract={"files": ["backend/routes/clients.js"]})
     assert (problems, has_code) == ([], True)
-    problems, _ = _facts(["a.js"], "### a.js\n```\nlet a = 1;\n```", contract={"files": ["routes/clients.js"]})
-    assert any("Kelishilgan fayllar" in p for p in problems)
+    from app.services.team_project_task_review import _snapshot_facts
+    problems, has_code, notes = _snapshot_facts(
+        {"files": ["routes/clients.js"]}, {"files_included": ["a.js"], "content_text": "### a.js\n```\nlet a = 1;\n```"})
+    assert problems == [] and has_code is True                       # freely named files must not block approval
+    assert any("Kelishilgan fayl nomlari" in n for n in notes)
 
 
 async def test_ai_cannot_approve_a_readme_only_repo(db_session, two_teams_project):

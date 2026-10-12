@@ -62,17 +62,18 @@ def _looks_like_script(text: str) -> bool:
     return bool(re.match(r"\s*(const |let |var |function |import |from \w+ import|require\(|def |class \w+|@app\.|module\.exports)", text))
 
 
-def _snapshot_facts(contract: dict, snapshot: dict) -> tuple[list[str], bool]:
+def _snapshot_facts(contract: dict, snapshot: dict) -> tuple[list[str], bool, list[str]]:
     """Deterministic facts about a submission that the AI is bad at noticing: a repo
     with only a README, a file whose content does not match its extension, the files
     the interface contract promised, placeholder API URLs. Returns (problems, has_code).
     `problems` are hard, checkable defects — they block auto-approval."""
     problems: list[str] = []
+    notes: list[str] = []
     included = snapshot.get("files_included")
     known_files = isinstance(included, list) and bool(included)   # real snapshots always carry the list
     if known_files:
         if not any(_ext(f) in _CODE_EXTS for f in included):
-            return ["Topshirilgan repo/ZIP'da kod fayli yo'q (faqat hujjat yoki bo'sh)"], False
+            return ["Topshirilgan repo/ZIP'da kod fayli yo'q (faqat hujjat yoki bo'sh)"], False, []
     included = included or []
 
     promised = [f for f in (contract.get("files") or []) if isinstance(f, str) and f.strip()]
@@ -80,7 +81,7 @@ def _snapshot_facts(contract: dict, snapshot: dict) -> tuple[list[str], bool]:
         have = {f.rsplit("/", 1)[-1].lower() for f in included}
         missing = [f for f in promised if f.rsplit("/", 1)[-1].lower() not in have]
         if len(missing) == len(promised):
-            problems.append("Kelishilgan fayllarning hech biri topilmadi: " + ", ".join(promised[:5]))
+            notes.append("Kelishilgan fayl nomlari topilmadi (" + ", ".join(promised[:5]) + ") — mazmuni bo'yicha baholang")
 
     for name, body in _BLOCK_RE.findall(snapshot.get("content_text") or ""):
         ext = _ext(name)
@@ -92,7 +93,7 @@ def _snapshot_facts(contract: dict, snapshot: dict) -> tuple[list[str], bool]:
         m = _PLACEHOLDER_URLS.search(body)
         if m:
             problems.append(f"{name}: vaqtinchalik (soxta) API manzili qoldirilgan: {m.group(0)}")
-    return problems, True
+    return problems, True, notes
 
 
 def _naive_utc(moment):
@@ -194,12 +195,13 @@ async def review_task_submission(db: AsyncSession, task_id: int) -> dict:
 
     code_unreadable = not snapshot["exists"] or not snapshot["content_text"]
     fact_problems: list[str] = []
+    fact_notes: list[str] = []
     if not code_unreadable:
         try:
             contract_for_facts = json.loads(task.interface_contract_json or "{}")
         except ValueError:
             contract_for_facts = {}
-        fact_problems, has_code = _snapshot_facts(contract_for_facts, snapshot)
+        fact_problems, has_code, fact_notes = _snapshot_facts(contract_for_facts, snapshot)
         if not has_code:
             # README-only / docs-only: the AI used to "review" the README and approve.
             code_unreadable = True
@@ -217,11 +219,14 @@ async def review_task_submission(db: AsyncSession, task_id: int) -> dict:
             f"{snapshot['content_text']}\n</student_input>\n"
         )
 
-    if fact_problems and not code_unreadable:
-        code_block = (
-            "\nTEKSHIRUV FAKTLARI (avtomatik, aniq): " + "; ".join(fact_problems)
-            + ". Bularni inobatga ol — bunday muammolar bor ish yuqori ball olmaydi.\n"
-        ) + code_block
+    if (fact_problems or fact_notes) and not code_unreadable:
+        lines = []
+        if fact_problems:
+            lines.append("TEKSHIRUV FAKTLARI (avtomatik, aniq): " + "; ".join(fact_problems)
+                         + ". Bunday muammolar bor ish yuqori ball olmaydi.")
+        if fact_notes:
+            lines.append("ESLATMA: " + "; ".join(fact_notes))
+        code_block = "\n" + "\n".join(lines) + "\n" + code_block
     prompt = _build_task_review_prompt(task, code_block)
     submitted_at_before = task.submitted_at
 
