@@ -69,7 +69,7 @@ def test_a_ready_theme_beats_an_unbuilt_but_unready_one():
     unmet = {"crm": 3, "booking": 0, "online_shop": 4, "dashboard": 5, "task_tracker": 2, "social_feed": 1}
     for seed in range(40):
         pick = choose_themes_for_teams([[1, 2]], {2: {"booking"}}, rng=random.Random(seed),
-                                       unmet=lambda i, key: unmet[key])[0]
+                                       unmet=lambda i, key: unmet.get(key, 9))[0]
         assert pick["key"] == "booking"       # readiness first — even though a member built it before
 
 

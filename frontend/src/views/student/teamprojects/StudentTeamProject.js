@@ -7,6 +7,7 @@ import { useTranslation } from '../../../i18n/useTranslation';
 import { pickLang, pickLangList } from '../../../utils/pickLang';
 import TeamProjectHistory from './TeamProjectHistory';
 import TeamContractCard from './TeamContractCard';
+import UnmetLessons from '../../../components/teamprojects/UnmetLessons';
 import './StudentTeamProject.css';
 
 // Matches the two shapes api/search/base.js's request() wrapper can reject
@@ -451,6 +452,7 @@ const StudentTeamProject = () => {
             {error && <div className="stp-error-banner" role="alert">{error}</div>}
 
             <TeamContractCard contract={team.shared_contract} ru={ru} />
+            <UnmetLessons lessons={team.unmet_lessons} ru={ru} audience="student" />
 
             <div className="stp-members">
                 {team.members.map(m => (

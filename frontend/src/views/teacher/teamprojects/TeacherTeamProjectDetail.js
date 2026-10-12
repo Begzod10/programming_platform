@@ -1,3 +1,4 @@
+import UnmetLessons from '../../../components/teamprojects/UnmetLessons';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
@@ -521,6 +522,7 @@ const TeacherTeamProjectDetail = () => {
                         </div>
                     )}
                     {team.project_title && <p className="ttp-project-title">{team.project_title}</p>}
+                    <UnmetLessons lessons={team.unmet_lessons} ru={false} audience="teacher" />
                     {team.project_description && <p className="ttd-project-desc">{team.project_description}</p>}
                     <div className="ttd-members">
                         {team.members.map(m => (

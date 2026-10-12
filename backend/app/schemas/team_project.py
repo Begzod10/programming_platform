@@ -124,6 +124,8 @@ class TeamRead(BaseModel):
     generation_attempts: int = 0
     # The fixed API contract the team's pieces are built against (None for older teams).
     shared_contract: Optional[dict] = None
+    # Lessons the team had not studied when the project was assigned (see blueprint `requires`).
+    unmet_lessons: List[str] = []
     members: List[MemberRead] = []
     tasks: List[TaskRead] = []
 

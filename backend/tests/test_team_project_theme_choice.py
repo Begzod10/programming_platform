@@ -17,7 +17,7 @@ def test_a_theme_none_of_the_members_built_is_preferred():
 
 def test_teams_of_one_assignment_get_different_themes_while_the_pool_allows():
     for seed in range(60):
-        picks = choose_themes_for_teams([[i] for i in range(6)], {}, rng=random.Random(seed))
+        picks = choose_themes_for_teams([[i] for i in range(len(KEYS))], {}, rng=random.Random(seed))
         assert sorted(p["key"] for p in picks) == sorted(KEYS)
 
 

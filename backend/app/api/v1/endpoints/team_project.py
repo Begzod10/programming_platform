@@ -108,6 +108,14 @@ def _shared_contract(team: TeamProjectTeam) -> Optional[dict]:
     return data if isinstance(data, dict) else None
 
 
+def _unmet_lessons(team: TeamProjectTeam) -> list:
+    try:
+        data = json.loads(team.unmet_lessons_json) if team.unmet_lessons_json else []
+    except ValueError:
+        return []
+    return [x for x in data if isinstance(x, str)] if isinstance(data, list) else []
+
+
 def _team_read(team: TeamProjectTeam) -> TeamRead:
     theme = THEMES_BY_KEY.get(team.theme)
     stack = TECH_STACKS_BY_KEY.get(team.tech_stack)
@@ -119,6 +127,7 @@ def _team_read(team: TeamProjectTeam) -> TeamRead:
         lead_student_id=team.lead_student_id, final_project_id=team.final_project_id,
         generation_attempts=team.generation_attempts,
         shared_contract=_shared_contract(team),
+        unmet_lessons=_unmet_lessons(team),
         members=[
             MemberRead(
                 student_id=m.student_id,

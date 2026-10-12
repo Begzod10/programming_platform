@@ -1383,3 +1383,30 @@ async def test_team_formed_event_lists_the_lessons_the_team_has_not_studied(db_s
     for e in events:
         unmet = json.loads(e.payload_json)["unmet_lessons"]
         assert unmet and all(isinstance(x, str) for x in unmet)
+
+
+async def test_unmet_lessons_are_saved_on_the_team_and_shown_to_its_own_members_only(
+    async_client, db_session, two_teams_project,
+):
+    fx = two_teams_project
+    team_a, team_b = fx["teams"]
+    team_a.unmet_lessons_json = json.dumps(["JavaScript: fetch va REST API"])
+    team_b.unmet_lessons_json = json.dumps(["Flask: Parol hashing"])
+    await db_session.commit()
+    uname_a = (await _member_usernames_for_team(db_session, team_a.id, fx))[0]
+    entry = (await async_client.get(f"{BASE}/my", headers=fx["student_headers"][uname_a])).json()[0]
+    assert entry["my_team"]["unmet_lessons"] == ["JavaScript: fetch va REST API"]
+    others = [t for t in entry["team_project"]["teams"] if t["id"] != entry["my_team"]["id"]]
+    assert others and all(t["unmet_lessons"] == [] for t in others)          # other teams stay redacted
+    # the teacher sees every team's gaps
+    detail = (await async_client.get(f"{BASE}/{fx['team_project_id']}", headers=fx["teacher_headers"])).json()
+    assert sorted(sum((t["unmet_lessons"] for t in detail["teams"]), [])) == [
+        "Flask: Parol hashing", "JavaScript: fetch va REST API"]
+
+
+async def test_new_teams_store_what_they_have_not_studied(db_session, two_teams_project):
+    fx = two_teams_project
+    for team in fx["teams"]:
+        await db_session.refresh(team)
+        gaps = json.loads(team.unmet_lessons_json)
+        assert gaps and all(isinstance(g, str) for g in gaps)               # no finished lessons -> everything unmet

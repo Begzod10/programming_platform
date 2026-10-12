@@ -253,6 +253,7 @@ async def create_team_project(
             name=f"Team {idx + 1}",
             theme=themes[idx]["key"],
             tech_stack=stacks[idx]["key"],
+            unmet_lessons_json=json.dumps(_gaps(idx, themes[idx]["key"])),
         )
         db.add(team)
         await db.flush()

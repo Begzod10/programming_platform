@@ -186,6 +186,8 @@ class TeamProjectTeam(Base):
     # The fixed API contract (team_project_blueprints.get_blueprint) the team's pieces are
     # built against. NULL on teams planned before the contract existed.
     shared_contract_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # JSON list of lesson labels the team had not studied when the project was assigned.
+    unmet_lessons_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     plan_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     generation_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
