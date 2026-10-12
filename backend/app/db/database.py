@@ -54,12 +54,35 @@ async def init_db():
             await conn.execute(text("SELECT 1"))
             await conn.run_sync(base.Base.metadata.create_all)
             await _reconcile_indexes(conn)
+        await _reconcile_enum_values()
         logger.info("Database ready (%s)", _safe_db_url())
         print(" Database connection successful.")
     except Exception:
         logger.exception("Database connection failed for %s", _safe_db_url())
         print(" Database connection failed (see logs for details).")
         raise
+
+
+# Postgres enum values added to a model AFTER the type shipped to prod. create_all never
+# touches an existing type, so the value is missing and the first INSERT using it fails
+# (team-project points were never awarded for exactly this reason — 2026-10-12).
+_ENUM_VALUES = [
+    ("wallet_ledger_reason", "earn_team_project"),
+]
+
+
+async def _reconcile_enum_values() -> None:
+    """Idempotently add missing enum labels. Best-effort and isolated: it runs on its own
+    autocommit connection so a failure can never take down startup."""
+    if engine.dialect.name != "postgresql":
+        return
+    for type_name, label in _ENUM_VALUES:
+        try:
+            async with engine.connect() as conn:
+                conn = await conn.execution_options(isolation_level="AUTOCOMMIT")
+                await conn.execute(text(f"ALTER TYPE {type_name} ADD VALUE IF NOT EXISTS '{label}'"))
+        except Exception:
+            logger.exception("could not add enum value %s.%s", type_name, label)
 
 
 async def _reconcile_indexes(conn) -> None:
