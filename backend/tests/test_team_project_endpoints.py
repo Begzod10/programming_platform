@@ -1048,3 +1048,16 @@ async def test_integration_unlocks_once_when_the_last_piece_is_approved(db_sessi
                                    Notification.type == "team_integration_ready")
     )).scalars().all()
     assert len(notes) == 1
+
+
+def test_a_third_party_template_dump_is_a_hard_problem_but_a_normal_project_is_not():
+    template = ["tpl/index.html", "tpl/assets/css/bootstrap.min.css", "tpl/assets/css/flex-slider.css",
+                "tpl/assets/css/font-awesome.css", "tpl/assets/js/jquery-2.1.0.min.js", "tpl/assets/js/popper.js",
+                "tpl/assets/js/custom.js"]
+    problems, has_code = _facts(template, "")
+    assert has_code and any("kutubxona yoki sayt shabloni" in p for p in problems)
+
+    own = ["index.html", "style.css", "app.js", "js/bookings.js", "vendor-notes.md"]
+    assert _facts(own, "") == ([], True)
+    # one library next to the student's own files is normal
+    assert _facts(["index.html", "app.js", "css/bootstrap.min.css", "style.css"], "") == ([], True)

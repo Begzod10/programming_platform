@@ -46,6 +46,12 @@ _UNREADABLE_CODE_MAX_SCORE = 30
 
 _CODE_EXTS = {".py", ".js", ".jsx", ".ts", ".tsx", ".html", ".css", ".java", ".go", ".php", ".rb", ".sql", ".c", ".cpp", ".cs", ".kt", ".swift", ".vue"}
 _PLACEHOLDER_URLS = re.compile(r"https?://(?:[\w.-]*\.)?(?:example\.(?:com|org)|typicode\.com|jsonplaceholder\.[\w.]+|your-api[\w.-]*|api\.example[\w.]*)", re.I)
+# Ready-made libraries / site templates dropped into a submission instead of the student's own code.
+_VENDOR_FILE = re.compile(
+    r"(\.min\.(js|css)$|(^|/)(jquery|bootstrap|popper|slick|owl[-.]carousel|lightbox|font-?awesome|flex-?slider|"
+    r"animate|swiper|fancybox|isotope|magnific|normalize|reset)[\w.-]*\.(js|css)$|(^|/)(vendor|vendors|node_modules|third[-_]party|plugins|templatemo[\w-]*)/)",
+    re.I,
+)
 _BLOCK_RE = re.compile(r"^### (.+?)\n```\n(.*?)\n```", re.S | re.M)
 
 
@@ -75,6 +81,14 @@ def _snapshot_facts(contract: dict, snapshot: dict) -> tuple[list[str], bool, li
         if not any(_ext(f) in _CODE_EXTS for f in included):
             return ["Topshirilgan repo/ZIP'da kod fayli yo'q (faqat hujjat yoki bo'sh)"], False, []
     included = included or []
+
+    if known_files:
+        vendor = [f for f in included if _VENDOR_FILE.search(f)]
+        if len(vendor) >= 3 and len(vendor) / len(included) >= 0.4:
+            problems.append(
+                f"Topshirilgan fayllarning katta qismi ({len(vendor)}/{len(included)}) tayyor kutubxona yoki "
+                "sayt shabloni — o'quvchining o'z kodi emas"
+            )
 
     promised = [f for f in (contract.get("files") or []) if isinstance(f, str) and f.strip()]
     if promised and known_files:
