@@ -188,6 +188,14 @@ async def _reconcile_indexes(conn) -> None:
         text("ALTER TABLE student_daily_progress ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ"),
         text("ALTER TABLE student_daily_progress ADD COLUMN IF NOT EXISTS completion_bonus_awarded BOOLEAN NOT NULL DEFAULT FALSE"),
         text("ALTER TABLE student_daily_progress ADD COLUMN IF NOT EXISTS completion_bonus_points INTEGER NOT NULL DEFAULT 0"),
+        # 2026-10-11: teachers can now give a NEGATIVE review score as a penalty.
+        # points_applied tracks the amount actually docked/granted so a re-review
+        # reverts exactly that. Nullable; backfilled once for already-reviewed
+        # projects (Approved → the score was applied; otherwise nothing was).
+        # The UPDATE only touches NULL rows, so it's safe to run every startup.
+        text("ALTER TABLE projects ADD COLUMN IF NOT EXISTS points_applied INTEGER"),
+        text("UPDATE projects SET points_applied = CASE WHEN status = 'Approved' "
+             "THEN COALESCE(points_earned, 0) ELSE 0 END WHERE points_applied IS NULL"),
     ]
     for stmt in statements:
         await conn.execute(stmt)

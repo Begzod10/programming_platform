@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, status, Query, HTTPException, Body
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from app.utils.datetime_utils import utcnow
 from app.models.project import Project
 from app.models.lesson import Lesson, LessonCompletion
@@ -354,7 +354,14 @@ async def unlike_project(
 class ReviewProjectRequest(BaseModel):
     feedback: str
     grade: str
-    points: int = Field(..., ge=0, le=100, description="Ball 0 dan 100 gacha")
+    # negative = teacher penalty (docked from the student, floored at 0)
+    points: int = Field(..., ge=-100, le=100, description="Ball -100 dan 100 gacha")
+    status: str = "Approved"   # "Approved" | "Rejected"
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _valid_status(cls, v):
+        return v if v in ("Approved", "Rejected") else "Approved"
 
 
 @router.post("/{project_id}/review")
@@ -371,20 +378,27 @@ async def review_project(
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
 
     ranking_service = RankingService(db)
-    old_points = project.points_earned or 0
-    old_status = project.status
-    # Only subtract previously-awarded points. Points are only added when a
-    # project is Approved — Rejected projects store the AI score in
-    # points_earned but never add it to total_points, so subtracting it here
-    # would deduct points that were never granted.
-    if old_points > 0 and old_status == "Approved":
-        await ranking_service.add_points_to_student(project.student_id, -old_points)
-    await ranking_service.add_points_to_student(project.student_id, data.points)
+    # What this review previously applied to the student's wallet (negative = a
+    # prior penalty). NULL only for a never-reviewed project → fall back to the
+    # old rule (points were applied only when the project was Approved).
+    prev_applied = project.points_applied
+    if prev_applied is None:
+        prev_applied = (project.points_earned or 0) if project.status == "Approved" else 0
+    # Apply the net change so the student's points reflect this review's score /
+    # penalty. A negative delta is docked via revoke_earned_points → floored at
+    # 0 (no negative balance) and also drops the career total + leaderboard.
+    delta = data.points - prev_applied
+    if delta > 0:
+        await ranking_service.add_points_to_student(project.student_id, delta)
+    elif delta < 0:
+        await ranking_service.revoke_earned_points(project.student_id, -delta)
 
-    project.status = "Approved"
+    new_status = data.status if data.status in ("Approved", "Rejected") else "Approved"
+    project.status = new_status
     project.instructor_feedback = data.feedback
     project.grade = data.grade
     project.points_earned = data.points
+    project.points_applied = data.points
     project.reviewed_at = utcnow()
 
     await db.commit()
@@ -400,7 +414,7 @@ async def review_project(
     certificate_issued = False
     certificate_id = None
 
-    if submission and submission.lesson_id:
+    if new_status == "Approved" and submission and submission.lesson_id:
         lesson_res = await db.execute(
             select(Lesson).where(Lesson.id == submission.lesson_id)
         )
@@ -440,7 +454,10 @@ async def review_project(
     await achievement_service.check_and_award_achievements(db, project.student_id)
 
     return {
-        "message": "Loyiha tasdiqlandi, ballar va proyekt soni yangilandi",
+        "message": ("Loyiha tasdiqlandi, ballar yangilandi" if new_status == "Approved"
+                    else "Loyiha rad etildi"),
+        "status": new_status,
+        "points_applied": data.points,
         "certificate_issued": certificate_issued,
         "certificate_id": certificate_id
     }

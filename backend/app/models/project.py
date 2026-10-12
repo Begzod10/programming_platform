@@ -23,6 +23,10 @@ class Project(Base):
     difficulty_level: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="Draft")
     points_earned: Mapped[int] = mapped_column(Integer, default=0)
+    # how many points this review actually applied to the student's wallet
+    # (can be negative = teacher penalty). Tracks the applied delta so a
+    # re-review reverts exactly what was granted/docked. NULL = never applied.
+    points_applied: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     instructor_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ai_strengths: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     ai_improvements: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
