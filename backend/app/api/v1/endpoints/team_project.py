@@ -29,7 +29,7 @@ from app.schemas.team_project import (
     TeamProjectCreate, TeamProjectRead, TeamRead, TaskRead, MemberRead,
     MyTeamProjectRead, TaskSubmitBody, ReassignBody, FinalizeBody, PeerRatingItem,
     PeerRatingRead, MyPeerRatingRead, TeamEventRead, ManualPlanBody,
-    TeacherReviewBody, ExtendDeadlineBody,
+    TeacherReviewBody, ExtendDeadlineBody, HistoryProjectRead, HistoryTeamRow,
 )
 from app.services.team_project_service import create_team_project
 from app.services.team_project_planner import generate_plan_for_team, validate_plan, MAX_GENERATION_ATTEMPTS
@@ -39,6 +39,7 @@ from app.services.project_service import ProjectService
 from app.services.github_repo_service import parse_github_url, zip_bytes_have_code_file, zip_plain_text_only_names
 from app.services.integrity_check import PLAIN_TEXT_UPLOAD_MESSAGE
 from app.schemas.project import ProjectCreate
+from app.models.project import Project
 from app.utils.datetime_utils import utcnow
 from app.ws.manager import team_ws_manager, team_project_ws_manager
 
@@ -439,6 +440,64 @@ async def my_team_projects(
     return out
 
 
+@router.get("/my/history", response_model=list[HistoryProjectRead])
+async def my_team_project_history(
+        db: AsyncSession = Depends(get_db),
+        student: Student = Depends(get_current_student),
+):
+    """Every team project the student belongs to, newest first, with the standings of
+    all teams (place only for finished teams) and a facts-based summary per team."""
+    from app.services import team_project_history as hist
+
+    ids = (await db.execute(
+        select(TeamProjectTeam.team_project_id)
+        .join(TeamProjectMember, TeamProjectMember.team_id == TeamProjectTeam.id)
+        .where(TeamProjectMember.student_id == student.id)
+        .distinct()
+    )).scalars().all()
+    if not ids:
+        return []
+    projects = (await db.execute(
+        select(TeamProject).where(TeamProject.id.in_(ids)).options(*_team_load_options())
+        .order_by(TeamProject.id.desc())
+    )).unique().scalars().all()
+
+    final_ids = [t.final_project_id for tp in projects for t in tp.teams if t.final_project_id]
+    grades = {}
+    if final_ids:
+        grades = dict((await db.execute(
+            select(Project.id, Project.grade).where(Project.id.in_(final_ids))
+        )).all())
+
+    now = utcnow()
+    out = []
+    for tp in projects:
+        mine, _membership = _find_team_and_membership(tp, student.id)
+        if mine is None:
+            continue
+        standings = hist.rank([
+            hist.build_standing(t, grades.get(t.final_project_id), now) for t in tp.teams
+        ])
+        rows = []
+        for s in standings:
+            uz, ru = hist.summary(s)
+            is_mine = s.team.id == mine.id
+            rows.append(HistoryTeamRow(
+                team_id=s.team.id, name=s.team.name, status=s.team.status.value, place=s.place,
+                is_mine=is_mine, approved_tasks=s.approved, total_tasks=s.total,
+                avg_score=s.avg_score, final_grade=s.final_grade, points=s.points,
+                summary=uz, summary_ru=ru,
+                members=[m.student.full_name or m.student.username for m in s.team.members] if is_mine else [],
+            ))
+        out.append(HistoryProjectRead(
+            team_project_id=tp.id, title=hist.project_title(tp, mine), status=tp.status.value,
+            created_at=tp.created_at, total_teams=len(rows),
+            finished_teams=sum(1 for r in rows if r.place is not None),
+            my_place=next((r.place for r in rows if r.is_mine), None), teams=rows,
+        ))
+    return out
+
+
 # ── Detail (teacher-only — students use /my, which redacts other teams) ────
 @router.get("/{team_project_id}", response_model=TeamProjectRead)
 async def get_assignment(
@@ -646,11 +705,9 @@ async def upload_task_zip(
     _guard_team_not_finalized(team)
     if task.status == TaskStatus.approved:
         raise HTTPException(status_code=400, detail="Bu vazifa allaqachon tasdiqlangan")
-    if _is_past(task.deadline_at):
-        raise HTTPException(
-            status_code=400,
-            detail="Topshirish muddati tugagan. O'qituvchingizdan muddatni uzaytirishni so'rang",
-        )
+    # The deadline is soft: a student must never be locked out of the only place their
+    # team's work is submitted. A late submission is accepted (submitted_at > deadline_at
+    # shows it) — the teacher can still extend the deadline for everyone.
 
     allowed_types = ["application/zip", "application/x-zip-compressed", "application/octet-stream"]
     if file.content_type not in allowed_types:
@@ -721,11 +778,9 @@ async def submit_task(
     _guard_team_not_finalized(team)
     if task.status == TaskStatus.approved:
         raise HTTPException(status_code=400, detail="Bu vazifa allaqachon tasdiqlangan")
-    if _is_past(task.deadline_at):
-        raise HTTPException(
-            status_code=400,
-            detail="Topshirish muddati tugagan. O'qituvchingizdan muddatni uzaytirishni so'rang",
-        )
+    # The deadline is soft: a student must never be locked out of the only place their
+    # team's work is submitted. A late submission is accepted (submitted_at > deadline_at
+    # shows it) — the teacher can still extend the deadline for everyone.
     if body.submission_url and parse_github_url(body.submission_url) is None:
         raise HTTPException(status_code=400, detail="GitHub havolasi noto'g'ri")
 

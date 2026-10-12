@@ -37,7 +37,7 @@ function deadlineLabel(task, ru) {
     if (task.status === 'approved' || task.status === 'blocked') return null;
     if (!task.deadline_at) return null;
     const msLeft = new Date(task.deadline_at) - new Date();
-    if (msLeft <= 0) return { text: ru ? 'Просрочено' : "Muddati o'tgan", warning: true };
+    if (msLeft <= 0) return { text: ru ? 'Срок прошёл — сдать всё равно можно' : "Muddati o'tgan — baribir topshirish mumkin", warning: true };
     const hoursLeft = msLeft / (1000 * 60 * 60);
     if (hoursLeft < 24) return { text: ru ? 'Осталось меньше 24 часов' : '24 soatdan kam qoldi', warning: true };
     const daysLeft = Math.ceil(hoursLeft / 24);

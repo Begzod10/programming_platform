@@ -235,3 +235,31 @@ class ManualPlanBody(BaseModel):
     project_title: str
     project_description: str = ""
     tasks: List[ManualTaskItem]
+
+
+class HistoryTeamRow(BaseModel):
+    team_id: int
+    name: str
+    status: str
+    place: Optional[int] = None          # only teams that finished get a place
+    is_mine: bool = False
+    approved_tasks: int = 0
+    total_tasks: int = 0
+    avg_score: Optional[int] = None
+    final_grade: Optional[str] = None
+    points: int = 0
+    summary: str = ""
+    summary_ru: str = ""
+    # Other teams' members are never listed — only the student's own team.
+    members: List[str] = []
+
+
+class HistoryProjectRead(BaseModel):
+    team_project_id: int
+    title: str
+    status: str
+    created_at: datetime
+    total_teams: int
+    finished_teams: int
+    my_place: Optional[int] = None
+    teams: List[HistoryTeamRow] = []

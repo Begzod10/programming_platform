@@ -762,9 +762,10 @@ async def test_teacher_review_rejects_other_teachers_students_and_bad_states(
     assert (await async_client.post(url, headers=fx["teacher_headers"], json=body)).status_code == 400
 
 
-async def test_submit_after_deadline_is_rejected_until_teacher_extends(
+async def test_submit_after_deadline_is_accepted_as_a_late_submission(
     async_client, db_session, two_teams_project,
 ):
+    """A passed deadline must not lock the student out of submitting (it used to 400)."""
     from datetime import timedelta
     from app.utils.datetime_utils import utcnow
     fx = two_teams_project
@@ -776,14 +777,13 @@ async def test_submit_after_deadline_is_rejected_until_teacher_extends(
 
     with patch("app.api.v1.endpoints.team_project.review_task_submission", new=review):
         late = await async_client.post(submit_url, json=payload, headers=student_headers)
-        assert late.status_code == 400, late.text
+        assert late.status_code == 200, late.text
+        assert late.json()["status"] == "submitted"
 
+        # the teacher can still extend the deadline for the whole team
         ext = await async_client.post(
             f"{BASE}/teams/{team.id}/extend-deadline", json={"days": 3}, headers=fx["teacher_headers"])
-        assert ext.status_code == 200 and ext.json()["extended_tasks"] == 1
-
-        ok = await async_client.post(submit_url, json=payload, headers=student_headers)
-        assert ok.status_code == 200, ok.text
+        assert ext.status_code == 200
 
 
 async def test_extend_deadline_rejects_other_teachers_and_bad_days(
@@ -1061,3 +1061,85 @@ def test_a_third_party_template_dump_is_a_hard_problem_but_a_normal_project_is_n
     assert _facts(own, "") == ([], True)
     # one library next to the student's own files is normal
     assert _facts(["index.html", "app.js", "css/bootstrap.min.css", "style.css"], "") == ([], True)
+
+
+# ── 7. results history: places only for finished teams, no other team's members ──
+
+def _hist_task(team_id, student_id, order, status, score, points=0):
+    return TeamProjectTask(
+        team_id=team_id, assigned_student_id=student_id, order=order,
+        title=f"T{order}", title_ru="Т", description="D", description_ru="О",
+        required_level="Beginner", interface_contract_json="{}", acceptance_criteria_json="[]",
+        depends_on_json="[]", estimated_hours=4, status=status, ai_score=score, points_awarded=points,
+    )
+
+
+async def test_history_places_finished_teams_only_and_hides_other_teams_members(
+    async_client, db_session, two_teams_project,
+):
+    from app.models.project import Project
+    from app.utils.datetime_utils import utcnow
+    fx = two_teams_project
+    team_a, team_b = fx["teams"]
+    a_members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team_a.id))).scalars().all()
+    b_members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team_b.id))).scalars().all()
+
+    proj = Project(student_id=a_members[0].student_id, title="Final", description="d",
+                   difficulty_level="Beginner", status="Approved", grade="B", points_earned=80)
+    db_session.add(proj)
+    await db_session.flush()
+    team_a.final_project_id = proj.id
+    team_a.status = TeamStatus.reviewed
+    team_a.submitted_at = utcnow()
+    db_session.add_all([
+        _hist_task(team_a.id, a_members[0].student_id, 1, TaskStatus.approved, 90, 40),
+        _hist_task(team_a.id, a_members[1].student_id, 2, TaskStatus.approved, 70, 30),
+        _hist_task(team_b.id, b_members[0].student_id, 1, TaskStatus.approved, 95),
+        _hist_task(team_b.id, b_members[1].student_id, 2, TaskStatus.assigned, None),
+    ])
+    await db_session.commit()
+
+    uname_a = (await _member_usernames_for_team(db_session, team_a.id, fx))[0]
+    res = await async_client.get(f"{BASE}/my/history", headers=fx["student_headers"][uname_a])
+    assert res.status_code == 200, res.text
+    (project,) = res.json()
+    assert project["total_teams"] == 2 and project["finished_teams"] == 1 and project["my_place"] == 1
+
+    mine = next(t for t in project["teams"] if t["is_mine"])
+    other = next(t for t in project["teams"] if not t["is_mine"])
+    assert (mine["place"], mine["approved_tasks"], mine["total_tasks"], mine["avg_score"], mine["final_grade"], mine["points"]) \
+        == (1, 2, 2, 80, "B", 70)
+    assert "2/2 vazifa tasdiqlandi" in mine["summary"] and "Jamoa ballari: 70" in mine["summary"]
+    assert len(mine["members"]) == 2
+    assert other["place"] is None and other["members"] == []           # unfinished: no place, no names
+    assert "Tugallanmagan" in other["summary"] and "1/2" in other["summary"]
+
+
+async def test_history_is_empty_for_a_student_without_team_projects(async_client, db_session, two_teams_project):
+    uid = uuid.uuid4().hex[:8]
+    _sid, uname = await _register(async_client, f"tpx_{uid}")
+    res = await async_client.get(f"{BASE}/my/history", headers=await _login_headers(async_client, uname))
+    assert res.status_code == 200 and res.json() == []
+    assert (await async_client.get(f"{BASE}/my/history")).status_code in (401, 403)
+
+
+def test_rank_orders_by_grade_then_progress_and_leaves_unfinished_unplaced():
+    from datetime import datetime, timezone
+    from types import SimpleNamespace
+    from app.services.team_project_history import TeamStanding, rank
+
+    def standing(tid, status, grade, approved, total, avg, minute):
+        team = SimpleNamespace(id=tid, status=status, submitted_at=datetime(2026, 1, 1, 0, minute, tzinfo=timezone.utc))
+        return TeamStanding(team=team, approved=approved, total=total, avg_score=avg, final_grade=grade,
+                            points=0, overdue_open=0, finished=status in (TeamStatus.submitted, TeamStatus.reviewed))
+
+    ordered = rank([
+        standing(1, TeamStatus.working, None, 3, 4, 90, 0),      # unfinished
+        standing(2, TeamStatus.reviewed, "B", 4, 4, 80, 5),
+        standing(3, TeamStatus.reviewed, "A", 3, 4, 70, 9),      # best grade wins despite fewer tasks
+        standing(4, TeamStatus.reviewed, "B", 4, 4, 80, 2),      # tie on everything -> earlier submission
+    ])
+    assert [s.team.id for s in ordered] == [3, 4, 2, 1]
+    assert [s.place for s in ordered] == [1, 2, 3, None]

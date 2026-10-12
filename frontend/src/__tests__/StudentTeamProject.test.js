@@ -168,7 +168,7 @@ describe('StudentTeamProject — deadline chip', () => {
     mockRequest.mockResolvedValueOnce([baseEntry({ tasks })]);
     render(<StudentTeamProject />);
 
-    const chip = await screen.findByText("Muddati o'tgan");
+    const chip = await screen.findByText("Muddati o'tgan — baribir topshirish mumkin");
     expect(chip).toHaveClass('stp-deadline');
     expect(chip).toHaveClass('stp-deadline--warning');
   });
