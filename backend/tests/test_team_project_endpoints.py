@@ -36,7 +36,7 @@ from sqlalchemy import select
 
 from app.models.group import Group, student_groups
 from app.models.team_project import (
-    TeamProject, TeamProjectTeam, TeamProjectMember, TeamProjectTask,
+    TeamProject, TeamProjectTeam, TeamProjectMember, TeamProjectTask, TeamProjectEvent,
     TeamRole, TeamStatus, TaskStatus,
 )
 from app.models.user import Student
@@ -1285,3 +1285,77 @@ async def test_planner_falls_back_to_the_free_form_prompt_without_a_blueprint(db
     assert "JAMOA SHARTNOMASI" not in seen["prompt"]
     await db_session.refresh(team)
     assert team.shared_contract_json is None
+
+
+# ── 11. deadlines follow the work ───────────────────────────────────────────
+
+async def _teacher_group_students(async_client, db_session, prefix):
+    uid = uuid.uuid4().hex[:8]
+    reg = await async_client.post("/api/v1/auth/register", json={
+        "username": f"{prefix}_{uid}", "email": f"{prefix}_{uid}@example.com", "password": "pass12345"})
+    teacher_id = reg.json()["user"]["id"]
+    student_ids = [(await _register(async_client, f"{prefix}_s_{uid}_{i}"))[0] for i in range(4)]
+    teacher = (await db_session.execute(select(Student).where(Student.id == teacher_id))).scalar_one()
+    teacher.role = "teacher"
+    group = Group(name=f"{prefix} group", teacher_id=teacher_id)
+    db_session.add(group)
+    await db_session.flush()
+    for sid in student_ids:
+        await db_session.execute(student_groups.insert().values(student_id=sid, group_id=group.id))
+    await db_session.commit()
+    return await _login_headers(async_client, f"{prefix}_{uid}"), group.id, student_ids
+
+
+async def test_a_deadline_under_seven_days_is_a_400_and_creates_nothing(async_client, db_session):
+    from app.models.team_project import TeamProject
+    headers, group_id, student_ids = await _teacher_group_students(async_client, db_session, "dl1")
+    with patch("app.services.team_project_service.spawn_background_task", side_effect=lambda c: c.close()):
+        res = await async_client.post("/api/v1/team-projects", json={
+            "group_id": group_id, "team_size": 2, "deadline_days": 5, "student_ids": student_ids}, headers=headers)
+    assert res.status_code == 400 and "kamida 7 kun" in res.text
+    assert (await db_session.execute(select(TeamProject).where(TeamProject.group_id == group_id))).scalars().all() == []
+
+
+async def test_a_short_but_allowed_deadline_creates_the_project_with_a_warning(async_client, db_session):
+    headers, group_id, student_ids = await _teacher_group_students(async_client, db_session, "dl2")
+    with patch("app.services.team_project_service.spawn_background_task", side_effect=lambda c: c.close()):
+        res = await async_client.post("/api/v1/team-projects", json={
+            "group_id": group_id, "team_size": 2, "deadline_days": 8, "student_ids": student_ids}, headers=headers)
+    assert res.status_code == 201, res.text
+    assert "Tavsiya etilgan muddat kamida 10 kun" in res.json()["warning"]
+
+
+async def test_a_recommended_deadline_has_no_warning(async_client, db_session):
+    headers, group_id, student_ids = await _teacher_group_students(async_client, db_session, "dl3")
+    with patch("app.services.team_project_service.spawn_background_task", side_effect=lambda c: c.close()):
+        res = await async_client.post("/api/v1/team-projects", json={
+            "group_id": group_id, "team_size": 2, "deadline_days": 14, "student_ids": student_ids}, headers=headers)
+    assert res.status_code == 201 and res.json()["warning"] is None
+
+
+async def test_planned_tasks_get_staged_deadlines_backend_before_frontend(db_session, two_teams_project):
+    from app.services.team_project_blueprints import get_blueprint
+    from app.services.team_project_planner import generate_plan_for_team
+    fx = two_teams_project
+    team = fx["teams"][0]
+    team_project = (await db_session.execute(
+        select(TeamProject).where(TeamProject.id == team.team_project_id))).scalar_one()
+    team_project.deadline_days = 7                       # below the recommendation for a 12-hour chain
+    await db_session.commit()
+    plan = _blueprint_plan(get_blueprint(team.theme, team.tech_stack))
+    for t in plan["tasks"]:
+        t["estimated_hours"] = 20
+    plan["tasks"][1]["depends_on"] = [0]                 # a 40-hour chain -> recommends 19 days
+
+    async def _ai(prompt, max_tokens, validator=None):
+        return json.dumps(plan), plan, "groq", []
+
+    with patch("app.services.team_project_planner.call_chain", new=_ai), \
+            patch("app.services.team_project_skills.build_skill_levels", new=_full_skills):
+        await generate_plan_for_team(db_session, team.id)
+    tasks = {t.order: t for t in (await db_session.execute(
+        select(TeamProjectTask).where(TeamProjectTask.team_id == team.id))).scalars().all()}
+    assert tasks[0].deadline_at < tasks[1].deadline_at          # backend (skeleton owner) due first
+    events = (await db_session.execute(select(TeamProjectEvent).where(
+        TeamProjectEvent.team_id == team.id, TeamProjectEvent.event_type == "deadline_below_recommended"))).scalars().all()
+    assert len(events) == 1 and json.loads(events[0].payload_json)["recommended_days"] == 19

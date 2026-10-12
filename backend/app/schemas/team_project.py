@@ -136,6 +136,8 @@ class TeamProjectRead(BaseModel):
     team_size: int
     deadline_days: int
     created_at: datetime
+    # Set only on the create response: e.g. the chosen deadline is shorter than recommended.
+    warning: Optional[str] = None
     teams: List[TeamRead] = []
 
 

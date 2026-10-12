@@ -468,3 +468,5 @@
 @media (max-width: 560px) {
     .ttp-page { padding: 16px 12px 80px; }
 }
+
+.ttp-hint { display:block; margin-top:4px; font-size:.74rem; color:#fbbf24; line-height:1.35; }

@@ -386,12 +386,27 @@ async def create_assignment(
     if group.teacher_id is not None and group.teacher_id != teacher.id:
         raise HTTPException(status_code=403, detail="Bu guruh sizga tegishli emas")
 
+    from app.services.team_project_deadlines import (
+        MIN_DAYS, TYPICAL_CRITICAL_PATH_HOURS, recommended_days,
+    )
+    if body.deadline_days < MIN_DAYS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Muddat juda qisqa: kamida {MIN_DAYS} kun bo'lishi kerak (vazifalar 6–20 soat, birlashtirish uchun ham vaqt kerak)",
+        )
     tp = await create_team_project(
         db, group_id=body.group_id, course_id=body.course_id, teacher_id=teacher.id,
         team_size=body.team_size, deadline_days=body.deadline_days, student_ids=body.student_ids,
     )
     tp = await _fetch_team_project(db, tp.id)
-    return _team_project_read(tp)
+    read = _team_project_read(tp)
+    recommended = recommended_days(TYPICAL_CRITICAL_PATH_HOURS)
+    if body.deadline_days < recommended:
+        read.warning = (
+            f"Tavsiya etilgan muddat kamida {recommended} kun: backend tayyor bo'lgach frontend ulanadi, "
+            f"oxirida birlashtirish uchun vaqt kerak. Siz {body.deadline_days} kun tanladingiz."
+        )
+    return read
 
 
 # ── Teacher: list ────────────────────────────────────────────────────────────

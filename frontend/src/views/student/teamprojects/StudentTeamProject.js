@@ -6,6 +6,7 @@ import { Users2, Crown, Link2, Upload, Clock, Rocket } from 'lucide-react';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { pickLang, pickLangList } from '../../../utils/pickLang';
 import TeamProjectHistory from './TeamProjectHistory';
+import TeamContractCard from './TeamContractCard';
 import './StudentTeamProject.css';
 
 // Matches the two shapes api/search/base.js's request() wrapper can reject
@@ -448,6 +449,8 @@ const StudentTeamProject = () => {
             </div>
 
             {error && <div className="stp-error-banner" role="alert">{error}</div>}
+
+            <TeamContractCard contract={team.shared_contract} ru={ru} />
 
             <div className="stp-members">
                 {team.members.map(m => (

@@ -11,7 +11,6 @@ HTTP/provider code here.
 import json
 import re
 import logging
-from datetime import timedelta
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -329,7 +328,16 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
         team.plan_generated_at = utcnow()
         team.status = TeamStatus.working
 
-        deadline_at = utcnow() + timedelta(days=_deadline_days_for(team))
+        from app.services.team_project_deadlines import critical_path_hours, recommended_days, stage_deadlines
+        days = _deadline_days_for(team)
+        started = utcnow()
+        due = stage_deadlines(plan["tasks"], started, days)
+        recommended = recommended_days(critical_path_hours(plan["tasks"]))
+        if days < recommended:
+            db.add(TeamProjectEvent(
+                team_project_id=team.team_project_id, team_id=team.id, event_type="deadline_below_recommended",
+                payload_json=json.dumps({"deadline_days": days, "recommended_days": recommended}),
+            ))
         for order, task in enumerate(plan["tasks"]):
             member_idx = task.get("assign_to_member_index", 0)
             member_idx = member_idx if 0 <= member_idx < len(members) else order % len(members)
@@ -346,7 +354,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
                 acceptance_criteria_ru_json=json.dumps(task.get("acceptance_criteria_ru", [])),
                 depends_on_json=json.dumps(task.get("depends_on", [])),
                 estimated_hours=int(task.get("estimated_hours", 4)),
-                deadline_at=deadline_at,
+                deadline_at=due[order],
             ))
 
         db.add(TeamProjectEvent(

@@ -152,8 +152,15 @@ const CreateModal = ({ onClose, onCreated }) => {
                         </label>
                         <label className="ttp-field ttp-field--sm">
                             <span>Muddat (kun)</span>
-                            <input type="number" min={1} max={90} value={deadlineDays}
+                            <input type="number" min={7} max={90} value={deadlineDays}
                                    onChange={e => setDeadlineDays(e.target.value)} />
+                            {Number(deadlineDays) < 10 && (
+                                <small className="ttp-hint" role="note">
+                                    {Number(deadlineDays) < 7
+                                        ? "Kamida 7 kun kerak"
+                                        : "Tavsiya: kamida 10 kun (backend tayyor bo'lgach frontend ulanadi, oxirida birlashtirish)"}
+                                </small>
+                            )}
                         </label>
                     </div>
 
