@@ -5,6 +5,7 @@ import AppHeader from '../../../components/appheader/AppHeader';
 import { Users2, Crown, Link2, Upload, Clock, Rocket } from 'lucide-react';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { pickLang, pickLangList } from '../../../utils/pickLang';
+import TeamProjectHistory from './TeamProjectHistory';
 import './StudentTeamProject.css';
 
 // Matches the two shapes api/search/base.js's request() wrapper can reject
@@ -430,6 +431,7 @@ const StudentTeamProject = () => {
             <div className="stp-pagetitle">
                 <span className="stp-pagetitle-ico"><Users2 size={22} /></span>
                 <span>{ru ? 'Командный проект' : 'Jamoaviy loyiha'}</span>
+                <TeamProjectHistory ru={ru} />
             </div>
 
             <div className="stp-header">
