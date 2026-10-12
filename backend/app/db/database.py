@@ -217,6 +217,8 @@ async def _reconcile_indexes(conn) -> None:
         # projects (Approved → the score was applied; otherwise nothing was).
         # The UPDATE only touches NULL rows, so it's safe to run every startup.
         text("ALTER TABLE projects ADD COLUMN IF NOT EXISTS points_applied INTEGER"),
+        # 2026-10-12: fixed API contract per team project team (planning redesign, stage 2).
+        text("ALTER TABLE team_project_teams ADD COLUMN IF NOT EXISTS shared_contract_json TEXT"),
         text("UPDATE projects SET points_applied = CASE WHEN status = 'Approved' "
              "THEN COALESCE(points_earned, 0) ELSE 0 END WHERE points_applied IS NULL"),
     ]

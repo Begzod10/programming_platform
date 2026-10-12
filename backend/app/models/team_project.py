@@ -183,6 +183,9 @@ class TeamProjectTeam(Base):
     # Per-team plan tracking — see the note on TeamProject above for why
     # these live here rather than on the parent project.
     ai_plan_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # The fixed API contract (team_project_blueprints.get_blueprint) the team's pieces are
+    # built against. NULL on teams planned before the contract existed.
+    shared_contract_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     plan_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     generation_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 

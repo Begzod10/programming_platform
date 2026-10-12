@@ -417,3 +417,40 @@ def test_plain_javascript_tasks_and_manual_plans_are_not_flagged():
     manual = {"tasks": [_task_about(0, "Redux store"), _task(1, "Advanced")]}
     assert not any("uses " in e for e in validate_plan(
         manual, [{"student_id": 0, "level": "Advanced"}, {"student_id": 1, "level": "Advanced"}]))
+
+
+# ── per-technology levels (planning redesign, stage 2) ──────────────────────
+
+def _skilled_members():
+    """Amirshox_web: 'Advanced' by points, but a Beginner in JavaScript/React."""
+    return [
+        {"student_id": 0, "full_name": "S0", "level": "Advanced", "summary": "",
+         "area_levels": {"javascript": "Beginner", "react": "Beginner", "html_css": "Advanced"}},
+        {"student_id": 1, "full_name": "S1", "level": "Advanced", "summary": "",
+         "area_levels": {"javascript": "Advanced", "flask": "Advanced"}},
+    ]
+
+
+def _area_task(member_idx, level, area):
+    t = _task(member_idx, level)
+    t["interface_contract"]["skill_area"] = area
+    return t
+
+
+def test_required_level_follows_the_owners_level_in_the_tasks_skill_area():
+    plan = {"project_title": "p", "project_description": "d",
+            "tasks": [_area_task(0, "Beginner", "javascript"), _area_task(1, "Advanced", "javascript")]}
+    assert validate_plan(plan, _skilled_members(), require_level_match=True) == []
+
+
+def test_a_points_advanced_student_cannot_get_an_advanced_task_in_an_area_they_lack():
+    plan = {"project_title": "p", "project_description": "d",
+            "tasks": [_area_task(0, "Advanced", "javascript"), _area_task(1, "Advanced", "javascript")]}
+    errors = validate_plan(plan, _skilled_members(), require_level_match=True)
+    assert any("Task 0" in e and "exceeds" in e for e in errors)
+
+
+def test_without_area_levels_or_skill_area_the_old_points_level_is_used():
+    members = _members("Advanced", "Advanced")
+    plan = {"project_title": "p", "project_description": "d", "tasks": [_task(0, "Advanced"), _task(1, "Advanced")]}
+    assert validate_plan(plan, members, require_level_match=True) == []

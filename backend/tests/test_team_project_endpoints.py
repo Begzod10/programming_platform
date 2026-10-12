@@ -1175,3 +1175,97 @@ async def test_creating_a_team_project_for_students_without_js_or_backend_course
     assert "mos texnologiya topilmadi" in res.text
     created = (await db_session.execute(select(TeamProject).where(TeamProject.group_id == group.id))).scalars().all()
     assert created == []                                           # nothing half-created
+
+
+# ── 9. shared contract exposure ─────────────────────────────────────────────
+
+async def test_team_read_exposes_the_shared_contract_to_the_own_team_only(async_client, db_session, two_teams_project):
+    from app.services.team_project_blueprints import get_blueprint
+    fx = two_teams_project
+    team_a, team_b = fx["teams"]
+    team_a.shared_contract_json = json.dumps(get_blueprint("booking", "vanilla"))
+    team_b.shared_contract_json = json.dumps(get_blueprint("crm", "express"))
+    await db_session.commit()
+
+    uname_a = (await _member_usernames_for_team(db_session, team_a.id, fx))[0]
+    res = await async_client.get(f"{BASE}/my", headers=fx["student_headers"][uname_a])
+    assert res.status_code == 200, res.text
+    entry = res.json()[0]
+    contract = entry["my_team"]["shared_contract"]
+    assert contract["theme"] == "booking" and any(e["id"] == "bookings.create" for e in contract["endpoints"])
+    others = [t for t in entry["team_project"]["teams"] if t["id"] != entry["my_team"]["id"]]
+    assert others and all(t.get("shared_contract") is None for t in others)   # other teams stay redacted
+
+
+async def test_a_team_without_a_contract_reads_as_none(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    team_a = fx["teams"][0]
+    uname_a = (await _member_usernames_for_team(db_session, team_a.id, fx))[0]
+    res = await async_client.get(f"{BASE}/my", headers=fx["student_headers"][uname_a])
+    assert res.json()[0]["my_team"]["shared_contract"] is None
+
+
+# ── 10. planner uses the blueprint ──────────────────────────────────────────
+
+def _blueprint_plan(bp):
+    ids = [e["id"] for e in bp["endpoints"]]
+    def task(i, files, produces, consumes, area):
+        return {
+            "assign_to_member_index": i, "title": f"Qism {i}", "title_ru": f"Часть {i}",
+            "description": "Aniq vazifa tavsifi: shartnomadagi endpointlarni amalga oshiring.",
+            "description_ru": "Подробное описание задачи: реализуйте эндпоинты контракта.",
+            "required_level": "Beginner",       # these students finished no course: Beginner in every area
+            "interface_contract": {"files": files, "produces": produces, "consumes": consumes, "skill_area": area},
+            "acceptance_criteria": ["Birinchi aniq mezon", "Ikkinchi aniq mezon"],
+            "acceptance_criteria_ru": ["Первый критерий", "Второй критерий"],
+            "depends_on": [], "estimated_hours": 6,
+        }
+    return {"project_title": "Loyiha", "project_description": "Tavsif", "tasks": [
+        task(0, bp["files"]["backend"], ids, [], "flask"),
+        task(1, bp["files"]["frontend"], [], [ids[0]], "javascript"),
+    ]}
+
+
+async def test_planner_gives_the_ai_the_blueprint_and_stores_it_on_the_team(db_session, two_teams_project):
+    from app.services.team_project_blueprints import get_blueprint
+    from app.services.team_project_planner import generate_plan_for_team
+    fx = two_teams_project
+    team = fx["teams"][0]
+    bp = get_blueprint(team.theme, team.tech_stack)
+    plan = _blueprint_plan(bp)
+    seen = {}
+
+    async def _ai(prompt, max_tokens, validator=None):
+        seen["prompt"] = prompt
+        return json.dumps(plan), plan, "groq", []
+
+    with patch("app.services.team_project_planner.call_chain", new=_ai):
+        await generate_plan_for_team(db_session, team.id)
+
+    assert "JAMOA SHARTNOMASI" in seen["prompt"] and "auth.login" in seen["prompt"]
+    assert bp["base_url"] in seen["prompt"] and "RAHBAR" in seen["prompt"]
+    await db_session.refresh(team)
+    assert team.status == TeamStatus.working
+    assert json.loads(team.shared_contract_json)["theme"] == team.theme
+    tasks = (await db_session.execute(select(TeamProjectTask).where(TeamProjectTask.team_id == team.id))).scalars().all()
+    assert len(tasks) == 2
+    assert "skill_area" in json.loads(tasks[0].interface_contract_json)
+
+
+async def test_planner_falls_back_to_the_free_form_prompt_without_a_blueprint(db_session, two_teams_project):
+    from app.services.team_project_planner import generate_plan_for_team
+    fx = two_teams_project
+    team = fx["teams"][1]
+    team.theme = "no_such_theme"
+    await db_session.commit()
+    seen = {}
+
+    async def _ai(prompt, max_tokens, validator=None):
+        seen["prompt"] = prompt
+        raise RuntimeError("stop here")
+
+    with patch("app.services.team_project_planner.call_chain", new=_ai):
+        await generate_plan_for_team(db_session, team.id)
+    assert "JAMOA SHARTNOMASI" not in seen["prompt"]
+    await db_session.refresh(team)
+    assert team.shared_contract_json is None

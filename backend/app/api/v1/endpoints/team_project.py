@@ -100,6 +100,14 @@ def _task_read(task: TeamProjectTask) -> TaskRead:
     )
 
 
+def _shared_contract(team: TeamProjectTeam) -> Optional[dict]:
+    try:
+        data = json.loads(team.shared_contract_json) if team.shared_contract_json else None
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def _team_read(team: TeamProjectTeam) -> TeamRead:
     theme = THEMES_BY_KEY.get(team.theme)
     stack = TECH_STACKS_BY_KEY.get(team.tech_stack)
@@ -110,6 +118,7 @@ def _team_read(team: TeamProjectTeam) -> TeamRead:
         project_title=team.project_title, project_description=team.project_description,
         lead_student_id=team.lead_student_id, final_project_id=team.final_project_id,
         generation_attempts=team.generation_attempts,
+        shared_contract=_shared_contract(team),
         members=[
             MemberRead(
                 student_id=m.student_id,

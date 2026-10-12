@@ -90,16 +90,53 @@ def _is_python_backend_task(task: dict) -> bool:
         re.search(r"\b(django|flask|fastapi)\b", text, re.I))
 
 
-def _build_plan_prompt(theme_label: str, stack: dict, members_summary: list[dict]) -> str:
+def _blueprint_block(blueprint: dict, members_summary: list[dict]) -> str:
+    """The fixed contract the planner may split among members but never change."""
+    endpoints = "\n".join(
+        f"- {e['id']}: {e['method']} {e['path']}" + (" (token kerak)" if e["auth"] else "")
+        + f" | so'rov: {json.dumps(e['request'], ensure_ascii=False)} | javob: {json.dumps(e['response'], ensure_ascii=False)}"
+        for e in blueprint["endpoints"]
+    )
+    files = blueprint["files"]
+    lead = next((i for i, m in enumerate(members_summary) if m.get("is_lead")), 0)
+    return f"""
+JAMOA SHARTNOMASI (TAYYOR — o'zgartirma, faqat vazifalarga bo'l):
+base_url: {blueprint['base_url']} · token kaliti (localStorage): {blueprint['auth']['token_key']} · {blueprint['auth']['header']}
+ENDPOINTLAR (id — usul yo'l):
+{endpoints}
+FAYLLAR: skelet (rahbar, a'zo {lead}): {files['skeleton']} · backend: {files['backend']} · frontend: {files['frontend']}
+
+SHARTNOMA QOIDALARI:
+- Endpoint yo'llari, nomlari va javob shakllarini O'ZGARTIRMA va yangisini O'YLAB TOPMA.
+- `interface_contract.produces` va `consumes` — FAQAT yuqoridagi endpoint `id` lari (aynan shunday yozilgan). Endpointni qaysi vazifa yaratsa (backend) — o'sha `produces`ga, uni chaqirgan vazifa `consumes`ga yozadi. Har endpoint aynan bitta vazifada `produces` bo'ladi.
+- `interface_contract.files` — faqat yuqoridagi fayl ro'yxatlaridan; HAR BIR fayl aynan BITTA vazifada bo'lsin (ikki a'zoga bitta fayl berilmasin). Skelet fayllari rahbarning vazifasida.
+- `interface_contract.skill_area` — vazifa uchun kerak soha: html_css, javascript, python, flask, node, react, sql dan biri. Frontend sahifalar odatda javascript (faqat markup/CSS bo'lsa html_css), Flask backend flask, Express backend node.
+- Frontend vazifalari backend tayyor bo'lishini kutmasin: shartnomadagi javob shaklida lokal soxta ma'lumot bilan ishlasin.
+"""
+
+
+def _build_plan_prompt(theme_label: str, stack: dict, members_summary: list[dict],
+                       blueprint: Optional[dict] = None) -> str:
+    def _levels(m: dict) -> str:
+        al = m.get("area_levels")
+        if not al:
+            return ""
+        return " | sohalar: " + ", ".join(f"{a}={lv[0]}" for a, lv in al.items())
+
     def _experience(m: dict) -> str:
         if "has_python" not in m:
             return ""
         return f" | Python/Django tajribasi: {'bor' if m['has_python'] else 'YOQ'}"
 
     members_block = "\n".join(
-        f"{i}. {m['full_name']} ({m['level']}){_experience(m)} — <student_input>{m['summary']}</student_input>"
+        f"{i}. {m['full_name']} ({m['level']}){_experience(m)}{_levels(m)}{' | RAHBAR' if m.get('is_lead') else ''} — <student_input>{m['summary']}</student_input>"
         for i, m in enumerate(members_summary)
     )
+    if blueprint:
+        example_contract = ('{"files": ["frontend/login.html"], "produces": [], "consumes": ["auth.login"], '
+                            '"skill_area": "javascript"}')
+    else:
+        example_contract = '{"files": ["src/pages/Login.jsx"], "produces": ["auth_token in localStorage"], "consumes": []}'
     return f"""Sen tajribali dasturlash o'qituvchisisiz. {len(members_summary)} nafar o'quvchidan
 iborat jamoa uchun "{theme_label}" mavzusida, {stack['frontend']} (frontend) va
 {stack['backend']} (backend) texnologiyalarida quriladigan kichik, real loyiha
@@ -126,6 +163,7 @@ TALABLAR:
 - `acceptance_criteria_ru` — `acceptance_criteria` ro'yxatining XUDDI SHU TARTIBDAGI va XUDDI SHU SONDAGI tabiiy rus tilidagi tarjimasi (har bir band uchun bitta rus bandi). Bo'sh yoki o'zbekcha qoldirish TAQIQLANADI.
 - `title_ru` va `description_ru` — `title`/`description`ning so'zma-so'z tarjimasi emas, lekin XUDDI SHU ma'noni beruvchi TABIIY, TO'LIQ rus tilidagi matn bo'lishi SHART. Bo'sh qoldirish yoki `title`/`description` bilan bir xil (o'zbekcha) matnni qaytarish QATʼIYAN TAQIQLANADI — ba'zi o'quvchilar faqat rus tilini tushunadi va bu maydonlarsiz ular vazifani tushuna olmaydi.
 
+{_blueprint_block(blueprint, members_summary) if blueprint else ""}
 JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma (quyidagi bitta vazifa TO'LIQ, YETARLI misol — shu darajada aniq yoz, RUSCHA maydonlar ham xuddi shunday to'liq bo'lsin):
 {{
   "project_title": "...",
@@ -137,7 +175,7 @@ JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma (quyidagi bitta v
       "description": "Foydalanuvchi nomi va parol maydonlari bo'lgan login formasi yasang. Muvaffaqiyatli kirishda /dashboard sahifasiga yo'naltiring, xato bo'lsa forma ustida qizil xato xabari chiqsin.",
       "description_ru": "Создайте форму входа с полями имени пользователя и пароля. При успешном входе перенаправляйте на страницу /dashboard, при ошибке показывайте красное сообщение об ошибке над формой.",
       "required_level": "Beginner|Intermediate|Advanced",
-      "interface_contract": {{"files": ["src/pages/Login.jsx"], "produces": ["auth_token in localStorage"], "consumes": []}},
+      "interface_contract": {example_contract},
       "acceptance_criteria": ["To'g'ri login/parolda /dashboard'ga yo'naltiradi", "Noto'g'ri parolda forma ustida xato xabari chiqadi", "Bo'sh maydon bilan yuborib bo'lmaydi"],
       "acceptance_criteria_ru": ["При верном логине и пароле перенаправляет на /dashboard", "При неверном пароле над формой показывается сообщение об ошибке", "Нельзя отправить форму с пустым полем"],
       "depends_on": [],
@@ -191,11 +229,25 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
     # Member snapshots taken at assignment time are the source of truth for
     # planning (see TeamProjectMember.skill_summary_at_assignment docstring)
     # — no need to rebuild live SkillProfiles here.
+    # Per-technology levels from finished courses (the points-based `level` says nothing about
+    # whether someone has ever seen React) and the team's fixed API contract. A theme without
+    # a blueprint falls back to the old free-form planning rather than failing the team.
+    from app.services.team_project_blueprints import BlueprintMissing, get_blueprint
+    from app.services.team_project_skills import build_skill_levels
+    skills = await build_skill_levels(db, [m.student_id for m in members])
+    try:
+        blueprint = get_blueprint(team.theme, team.tech_stack)
+    except BlueprintMissing:
+        logger.warning("[team-planner] team=%d no blueprint for %s/%s", team_id, team.theme, team.tech_stack)
+        blueprint = None
+
     members_summary = [
         {
             "student_id": m.student_id,
             "full_name": _member_label(m),
             "level": m.level_at_assignment,
+            "area_levels": {a: sk.level for a, sk in skills.get(m.student_id, {}).items()},
+            "is_lead": m.student_id == team.lead_student_id,
             "summary": m.skill_summary_at_assignment,
             "has_python": mentions_python(m.skill_summary_at_assignment),
         }
@@ -204,7 +256,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
 
     theme = THEMES_BY_KEY.get(team.theme, {"label": team.theme})
     stack = TECH_STACKS_BY_KEY.get(team.tech_stack, {"frontend": team.tech_stack, "backend": ""})
-    prompt = _build_plan_prompt(theme.get("label", team.theme), stack, members_summary)
+    prompt = _build_plan_prompt(theme.get("label", team.theme), stack, members_summary, blueprint)
 
     # A plan already exists (e.g. the teacher saved a manual plan or another
     # generation finished while this one was queued) — never materialize a
@@ -224,7 +276,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
         plan_tokens = min(8000, 900 * len(members_summary) + 600)
         _, parsed, provider, attempts = await call_chain(prompt, max_tokens=plan_tokens, validator=parse_ai_json)
         plan = _normalize_plan(parsed, len(members_summary))
-        plan_errors = validate_plan(plan, members_summary, require_level_match=True)
+        plan_errors = validate_plan(plan, members_summary, require_level_match=True, blueprint=blueprint)
         if plan_errors:
             # One automatic repair round: show the model exactly what failed.
             # Previously a single invalid response burned one of the teacher's
@@ -233,7 +285,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
             _, parsed, provider, attempts = await call_chain(
                 repair_prompt, max_tokens=plan_tokens, validator=parse_ai_json)
             plan = _normalize_plan(parsed, len(members_summary))
-            plan_errors = validate_plan(plan, members_summary, require_level_match=True)
+            plan_errors = validate_plan(plan, members_summary, require_level_match=True, blueprint=blueprint)
         if plan_errors:
             raise ValueError("; ".join(plan_errors))
     except Exception as e:
@@ -271,6 +323,7 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
         team.project_title = plan["project_title"]
         team.project_description = plan["project_description"]
         team.ai_plan_json = json.dumps(plan)
+        team.shared_contract_json = json.dumps(blueprint) if blueprint else None
         team.plan_generated_at = utcnow()
         team.status = TeamStatus.working
 
@@ -325,7 +378,22 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
     await broadcast_project(db, team_project_id)
 
 
-def validate_plan(plan: dict, members_summary: list[dict], *, require_level_match: bool = False) -> list[str]:
+def _task_skill_area(task: dict) -> Optional[str]:
+    contract = task.get("interface_contract")
+    area = contract.get("skill_area") if isinstance(contract, dict) else None
+    return area if isinstance(area, str) else None
+
+
+def _member_level_for(member: dict, task: dict) -> str:
+    """The assignee's level IN THE AREA THIS TASK NEEDS (e.g. 'flask'), falling back to the
+    points-based `level` for plans/teams without per-area levels. A points-"Advanced" student
+    who only finished HTML/CSS is a Beginner for a JavaScript task."""
+    area_level = (member.get("area_levels") or {}).get(_task_skill_area(task) or "")
+    return area_level or member["level"]
+
+
+def validate_plan(plan: dict, members_summary: list[dict], *, require_level_match: bool = False,
+                  blueprint: Optional[dict] = None) -> list[str]:
     """Returns a list of human-readable problems; empty list = valid.
 
     This is the guardrail the original spec asked for and the first AI
@@ -379,7 +447,7 @@ def validate_plan(plan: dict, members_summary: list[dict], *, require_level_matc
         else:
             member_idx = task.get("assign_to_member_index")
             if isinstance(member_idx, int) and 0 <= member_idx < member_count:
-                assigned_level = members_summary[member_idx]["level"]
+                assigned_level = _member_level_for(members_summary[member_idx], task)
                 if LEVEL_RANK[required_level] > LEVEL_RANK.get(assigned_level, 0):
                     errors.append(
                         f"Task {idx}: required_level {required_level} exceeds "

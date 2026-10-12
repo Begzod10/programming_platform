@@ -122,6 +122,8 @@ class TeamRead(BaseModel):
     lead_student_id: Optional[int] = None
     final_project_id: Optional[int] = None
     generation_attempts: int = 0
+    # The fixed API contract the team's pieces are built against (None for older teams).
+    shared_contract: Optional[dict] = None
     members: List[MemberRead] = []
     tasks: List[TaskRead] = []
 
