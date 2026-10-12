@@ -82,3 +82,51 @@ async def build_skill_levels(db: AsyncSession, student_ids: List[int]) -> Dict[i
             skills[area] = AreaSkill(level_for(best, sid in verified), round(best, 3))
         out[sid] = skills
     return out
+
+
+# ── lesson-level requirements (blueprint `requires`) ────────────────────────
+
+import re  # noqa: E402  (kept next to its only users below)
+
+_PATTERNS: dict[str, "re.Pattern"] = {}
+
+
+def _rx(pattern: str) -> "re.Pattern":
+    if pattern not in _PATTERNS:
+        _PATTERNS[pattern] = re.compile(pattern, re.I)
+    return _PATTERNS[pattern]
+
+
+async def completed_lessons_by_student(db: AsyncSession, student_ids: List[int]) -> Dict[int, List[tuple]]:
+    """{student_id: [(course title, lesson title), ...]} of every lesson they finished."""
+    if not student_ids:
+        return {}
+    out: Dict[int, List[tuple]] = defaultdict(list)
+    for sid, course_title, lesson_title in (await db.execute(
+        select(LessonCompletion.student_id, Course.title, Lesson.title)
+        .join(Lesson, Lesson.id == LessonCompletion.lesson_id)
+        .join(Course, Course.id == Lesson.course_id)
+        .where(LessonCompletion.student_id.in_(student_ids))
+    )).all():
+        out[sid].append((course_title or "", lesson_title or ""))
+    return out
+
+
+def need_met(completed: List[tuple], need: dict) -> bool:
+    course, lesson = _rx(need["course"]), _rx(need["lesson"])
+    return any(course.search(ct) and lesson.search(lt) for ct, lt in completed)
+
+
+def unmet_needs(requires: dict, member_completed: List[List[tuple]]) -> List[str]:
+    """Labels of the needs the team does not cover: a frontend need must be met by at least half of
+    the members, a backend need by at least one."""
+    unmet: List[str] = []
+    size = len(member_completed)
+    for need in requires.get("frontend", []):
+        met = sum(1 for c in member_completed if need_met(c, need))
+        if met == 0 or met * 2 < size:
+            unmet.append(need["label"])
+    for need in requires.get("backend", []):
+        if not any(need_met(c, need) for c in member_completed):
+            unmet.append(need["label"])
+    return unmet

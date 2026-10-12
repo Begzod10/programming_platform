@@ -83,16 +83,19 @@ async def past_themes_by_student(db: AsyncSession, student_ids: List[int]) -> di
 
 def choose_themes_for_teams(
         member_ids: List[List[int]], past_themes: dict, rng=random, avoid_key: Optional[str] = None,
+        unmet=None,
 ) -> List[dict]:
-    """One theme per team: the one the fewest of its members already built, preferring a theme no
-    other team of this assignment took (while the pool lasts). Ties are random; `avoid_key` (the
-    teacher's previous team) only breaks ties — history matters more than "not the last one"."""
+    """One theme per team, best first by: (1) fewest lessons the team has not studied
+    (`unmet(team_index, theme_key) -> int`, see the blueprints' `requires`), (2) fewest members who
+    already built it, (3) not taken by another team of this assignment (while the pool lasts).
+    Ties are random; `avoid_key` (the teacher's previous team) only breaks ties."""
     picks: List[dict] = []
     taken: set = set()
-    for members in member_ids:
-        def score(theme: dict):
+    for team_idx, members in enumerate(member_ids):
+        def score(theme: dict, team_idx=team_idx, members=members):
             repeats = sum(1 for m in members if theme["key"] in past_themes.get(m, ()))
-            return (theme["key"] in taken, repeats)
+            gaps = unmet(team_idx, theme["key"]) if unmet else 0
+            return (gaps, repeats, theme["key"] in taken)
 
         best = min(score(t) for t in THEMES)
         tied = [t for t in THEMES if score(t) == best]
@@ -204,11 +207,6 @@ async def create_team_project(
     # request fails cleanly instead of leaving a half-created project behind.
     skills_by_id = await build_skill_levels(db, [s.id for s in students])
     last_theme, last_stack = await _last_used_theme_and_stack(db, teacher_id)
-    themes = choose_themes_for_teams(
-        [[s.id for s in members] for members in chunks],
-        await past_themes_by_student(db, [s.id for s in students]),
-        avoid_key=last_theme,
-    )
     try:
         stacks = pick_stacks_for_teams(
             [[skills_by_id[s.id] for s in members] for members in chunks],
@@ -220,6 +218,26 @@ async def create_team_project(
             detail="Tanlangan o'quvchilar uchun mos texnologiya topilmadi: JavaScript va backend "
                    "(Flask/Python) kurslari yetarli tugatilmagan",
         )
+
+    # Themes AFTER stacks: what a team must have studied depends on the backend family.
+    from app.services.team_project_blueprints import BlueprintMissing, backend_family, lesson_needs
+    from app.services.team_project_skills import completed_lessons_by_student, unmet_needs
+    done_by_student = await completed_lessons_by_student(db, [s.id for s in students])
+    member_done = [[done_by_student.get(s.id, []) for s in members] for members in chunks]
+
+    def _gaps(team_idx: int, theme_key: str) -> list:
+        try:
+            requires = lesson_needs(theme_key, backend_family(stacks[team_idx]["key"]))
+        except (KeyError, BlueprintMissing):
+            return []
+        return unmet_needs(requires, member_done[team_idx])
+
+    themes = choose_themes_for_teams(
+        [[s.id for s in members] for members in chunks],
+        await past_themes_by_student(db, [s.id for s in students]),
+        avoid_key=last_theme,
+        unmet=lambda i, key: len(_gaps(i, key)),
+    )
 
     team_project = TeamProject(
         group_id=group_id, course_id=course_id, teacher_id=teacher_id,
@@ -257,6 +275,7 @@ async def create_team_project(
                 "member_ids": [s.id for s in members],
                 "lead_student_id": lead_student_id,
                 "theme": team.theme, "tech_stack": team.tech_stack,
+                "unmet_lessons": _gaps(idx, team.theme),
             }),
         ))
         teams.append(team)

@@ -17,6 +17,61 @@ TOKEN_KEY = "auth_token"
 _AUTH = {"header": "Authorization: Bearer <token>", "token_key": TOKEN_KEY}
 
 
+# ── lesson requirements ─────────────────────────────────────────────────────
+# What a team must have STUDIED for the project to be fair. A need is satisfied by a student who
+# finished a lesson whose title matches `lesson` in a course whose title matches `course` (regexes,
+# case-insensitive, so they survive renumbering). The frontend needs hold for at least half of the
+# team, the backend needs for at least one member (same split as the stack rule).
+def _need(course: str, lesson: str, label: str) -> dict:
+    return {"course": course, "lesson": lesson, "label": label}
+
+
+_JS = r"javascript"
+_FLASK = r"flask"
+_NODE = r"node|express"
+_DOM = _need(_JS, r"DOM bilan ishlash", "JavaScript: DOM bilan ishlash")
+_FETCH = _need(_JS, r"fetch va REST API", "JavaScript: fetch va REST API")
+_DYNAMIC = _need(_JS, r"dinamik", "JavaScript: HTML elementlarini dinamik yaratish")
+_STORAGE = _need(_JS, r"LocalStorage", "JavaScript: LocalStorage")
+_ITER = _need(_JS, r"Massiv iteratorlari", "JavaScript: massiv iteratorlari (map, filter)")
+_TABLE = _need(r"html|css", r"Table", "HTML/CSS: Table")
+_FLEX = _need(r"html|css", r"Display Flex", "HTML/CSS: Display Flex")
+
+_FLASK_BASE = [
+    _need(_FLASK, r"Routing va URL", "Flask: Routing va URL"),
+    _need(_FLASK, r"JSON API", "Flask: JSON API"),
+    _need(_FLASK, r"Database \(SQLAlchemy\)", "Flask: Database (SQLAlchemy)"),
+    _need(_FLASK, r"CRUD operatsiyalar", "Flask: CRUD operatsiyalar"),
+    _need(_FLASK, r"Parol hashing", "Flask: Parol hashing"),
+]
+_RELATIONS = _need(_FLASK, r"Modellar orasidagi munosabatlar", "Flask: modellar orasidagi munosabatlar")
+_EXPRESS_BASE = [
+    _need(_NODE, r"Routing va middleware", "Node/Express: Routing va middleware"),
+    _need(_NODE, r"PostgreSQL ulanish", "Node/Express: PostgreSQL ulanish"),
+    _need(_NODE, r"CRUD operatsiyalar", "Node/Express: CRUD operatsiyalar"),
+    _need(_NODE, r"JWT autentifikatsiya", "Node/Express: JWT autentifikatsiya"),
+    _need(_NODE, r"CORS va React", "Node/Express: CORS va frontend bilan ulash"),
+]
+
+_THEME_NEEDS = {
+    "online_shop":  {"frontend": [_DOM, _FETCH, _STORAGE, _FLEX], "flask": [_RELATIONS], "express": []},
+    "social_feed":  {"frontend": [_DOM, _FETCH, _DYNAMIC],         "flask": [_RELATIONS], "express": []},
+    "crm":          {"frontend": [_DOM, _FETCH, _DYNAMIC, _TABLE], "flask": [_RELATIONS], "express": []},
+    "booking":      {"frontend": [_DOM, _FETCH, _DYNAMIC, _STORAGE], "flask": [_RELATIONS], "express": []},
+    "dashboard":    {"frontend": [_DOM, _FETCH, _DYNAMIC, _TABLE, _ITER],
+                     "flask": [_need(_FLASK, r"So'rovlar, filterlar", "Flask: so'rovlar, filterlar, sahifalash")],
+                     "express": []},
+    "task_tracker": {"frontend": [_DOM, _FETCH, _DYNAMIC, _ITER], "flask": [], "express": []},
+}
+
+
+def lesson_needs(theme: str, family: str) -> dict:
+    """{"frontend": [needs], "backend": [needs]} for a theme and backend family."""
+    t = _THEME_NEEDS[theme]
+    base = _FLASK_BASE if family == "flask" else _EXPRESS_BASE
+    return {"frontend": list(t["frontend"]), "backend": list(base) + list(t[family])}
+
+
 class BlueprintMissing(Exception):
     """No blueprint for this (theme, backend family)."""
 
@@ -158,6 +213,7 @@ def _build(theme: str, family: str) -> dict:
         "endpoints": auth_eps + copy.deepcopy(t["endpoints"]),
         "files": {"skeleton": list(f["skeleton"]), "backend": list(f["backend"]), "frontend": list(t["frontend"])},
         "run": dict(f["run"]),
+        "requires": lesson_needs(theme, family),
     }
 
 

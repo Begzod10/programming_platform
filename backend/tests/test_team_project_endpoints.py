@@ -1371,3 +1371,15 @@ async def test_past_themes_come_from_the_students_earlier_teams(db_session, two_
             select(TeamProjectMember.student_id).where(TeamProjectMember.team_id == team.id))).scalars().all()
         assert members and all(team.theme in history[sid] for sid in members)
     assert await past_themes_by_student(db_session, []) == {}
+
+
+async def test_team_formed_event_lists_the_lessons_the_team_has_not_studied(db_session, two_teams_project):
+    """Students without any finished lesson: every need is unmet and the teacher can see which."""
+    fx = two_teams_project
+    events = (await db_session.execute(select(TeamProjectEvent).where(
+        TeamProjectEvent.team_project_id == fx["team_project_id"], TeamProjectEvent.event_type == "team_formed"
+    ))).scalars().all()
+    assert len(events) == 2
+    for e in events:
+        unmet = json.loads(e.payload_json)["unmet_lessons"]
+        assert unmet and all(isinstance(x, str) for x in unmet)
