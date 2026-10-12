@@ -44,6 +44,57 @@ _INJECTION_GUARD = (
 _UNREADABLE_CODE_MAX_SCORE = 30
 
 
+_CODE_EXTS = {".py", ".js", ".jsx", ".ts", ".tsx", ".html", ".css", ".java", ".go", ".php", ".rb", ".sql", ".c", ".cpp", ".cs", ".kt", ".swift", ".vue"}
+_PLACEHOLDER_URLS = re.compile(r"https?://(?:[\w.-]*\.)?(?:example\.(?:com|org)|typicode\.com|jsonplaceholder\.[\w.]+|your-api[\w.-]*|api\.example[\w.]*)", re.I)
+_BLOCK_RE = re.compile(r"^### (.+?)\n```\n(.*?)\n```", re.S | re.M)
+
+
+def _ext(name: str) -> str:
+    base = name.rsplit("/", 1)[-1]
+    return ("." + base.rsplit(".", 1)[-1].lower()) if "." in base else ""
+
+
+def _looks_like_html(text: str) -> bool:
+    return bool(re.match(r"\s*(<!doctype html|<html[\s>])", text, re.I))
+
+
+def _looks_like_script(text: str) -> bool:
+    return bool(re.match(r"\s*(const |let |var |function |import |from \w+ import|require\(|def |class \w+|@app\.|module\.exports)", text))
+
+
+def _snapshot_facts(contract: dict, snapshot: dict) -> tuple[list[str], bool]:
+    """Deterministic facts about a submission that the AI is bad at noticing: a repo
+    with only a README, a file whose content does not match its extension, the files
+    the interface contract promised, placeholder API URLs. Returns (problems, has_code).
+    `problems` are hard, checkable defects — they block auto-approval."""
+    problems: list[str] = []
+    included = snapshot.get("files_included")
+    known_files = isinstance(included, list) and bool(included)   # real snapshots always carry the list
+    if known_files:
+        if not any(_ext(f) in _CODE_EXTS for f in included):
+            return ["Topshirilgan repo/ZIP'da kod fayli yo'q (faqat hujjat yoki bo'sh)"], False
+    included = included or []
+
+    promised = [f for f in (contract.get("files") or []) if isinstance(f, str) and f.strip()]
+    if promised and known_files:
+        have = {f.rsplit("/", 1)[-1].lower() for f in included}
+        missing = [f for f in promised if f.rsplit("/", 1)[-1].lower() not in have]
+        if len(missing) == len(promised):
+            problems.append("Kelishilgan fayllarning hech biri topilmadi: " + ", ".join(promised[:5]))
+
+    for name, body in _BLOCK_RE.findall(snapshot.get("content_text") or ""):
+        ext = _ext(name)
+        head = body[:600]
+        if ext in (".js", ".jsx", ".ts", ".tsx", ".css", ".py", ".json") and _looks_like_html(head):
+            problems.append(f"{name}: kengaytmasi {ext}, lekin ichida HTML sahifa")
+        elif ext in (".html", ".htm") and _looks_like_script(head):
+            problems.append(f"{name}: kengaytmasi {ext}, lekin ichida dastur kodi")
+        m = _PLACEHOLDER_URLS.search(body)
+        if m:
+            problems.append(f"{name}: vaqtinchalik (soxta) API manzili qoldirilgan: {m.group(0)}")
+    return problems, True
+
+
 def _naive_utc(moment):
     """Comparable form: SQLite returns naive datetimes where Postgres returns
     aware ones, and a just-set Python value is aware."""
@@ -142,6 +193,17 @@ async def review_task_submission(db: AsyncSession, task_id: int) -> dict:
         return {"success": False, "reason": "No submission_url or submission_files set"}
 
     code_unreadable = not snapshot["exists"] or not snapshot["content_text"]
+    fact_problems: list[str] = []
+    if not code_unreadable:
+        try:
+            contract_for_facts = json.loads(task.interface_contract_json or "{}")
+        except ValueError:
+            contract_for_facts = {}
+        fact_problems, has_code = _snapshot_facts(contract_for_facts, snapshot)
+        if not has_code:
+            # README-only / docs-only: the AI used to "review" the README and approve.
+            code_unreadable = True
+            snapshot = {**snapshot, "error": fact_problems[0]}
     if code_unreadable:
         error_detail = snapshot.get("error") or "bo'sh yoki mavjud emas"
         code_block = (
@@ -155,6 +217,11 @@ async def review_task_submission(db: AsyncSession, task_id: int) -> dict:
             f"{snapshot['content_text']}\n</student_input>\n"
         )
 
+    if fact_problems and not code_unreadable:
+        code_block = (
+            "\nTEKSHIRUV FAKTLARI (avtomatik, aniq): " + "; ".join(fact_problems)
+            + ". Bularni inobatga ol — bunday muammolar bor ish yuqori ball olmaydi.\n"
+        ) + code_block
     prompt = _build_task_review_prompt(task, code_block)
     submitted_at_before = task.submitted_at
 
@@ -204,6 +271,13 @@ async def review_task_submission(db: AsyncSession, task_id: int) -> dict:
         approved = False
     # A self-contradictory review (approved, yet the AI's own checklist has an
     # unmet criterion or a contract violation) must not auto-approve.
+    # Hard, checkable defects found by code (not by the model) block auto-approval and
+    # are shown to the student as violations; the AI may not wave them through.
+    for problem in fact_problems:
+        if problem not in contract_violations:
+            contract_violations.append(problem)
+    if fact_problems:
+        score = min(score, 59)
     if any(not r["met"] for r in criteria_results) or contract_violations:
         approved = False
 
@@ -229,4 +303,7 @@ async def review_task_submission(db: AsyncSession, task_id: int) -> dict:
         payload_json=json.dumps({"score": score, "approved": approved}),
     ))
     await db.commit()
+    if approved:
+        from app.services.team_project_integration import unlock_integration_if_ready
+        await unlock_integration_if_ready(db, task.team_id)
     return {"success": True, "score": score, "approved": approved}

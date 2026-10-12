@@ -942,3 +942,105 @@ async def test_regenerate_refreshes_the_members_skill_summary(
     await db_session.refresh(members[0])
     assert members[0].skill_summary_at_assignment != "STALE snapshot"
     assert "STALE snapshot" not in ai.await_args.args[0]       # the model saw the fresh one
+
+
+# ── 6. deterministic submission facts (README-only repo, wrong extension, placeholder API) ──
+
+def _facts(files, blocks="", contract=None):
+    from app.services.team_project_task_review import _snapshot_facts
+    return _snapshot_facts(contract or {}, {"files_included": files, "content_text": blocks})
+
+
+def test_a_readme_only_submission_has_no_code():
+    problems, has_code = _facts(["README.md", "LICENSE", ".gitignore"])
+    assert has_code is False and problems
+
+
+def test_wrong_extension_and_placeholder_api_are_hard_problems():
+    blocks = (
+        "### styles.js\n```\n<!DOCTYPE html>\n<html><head></head></html>\n```\n\n"
+        "### mijoz.html\n```\nconst fs = require('fs');\nmodule.exports = {};\n```\n\n"
+        "### cart.js\n```\nconst API_URL = 'https://typicode.com';\n```"
+    )
+    problems, has_code = _facts(["styles.js", "mijoz.html", "cart.js"], blocks)
+    assert has_code is True
+    text = " | ".join(problems)
+    assert "styles.js" in text and "HTML" in text
+    assert "mijoz.html" in text and "dastur kodi" in text
+    assert "cart.js" in text and "typicode.com" in text
+
+
+def test_a_clean_submission_has_no_problems_and_contract_files_are_matched_by_basename():
+    blocks = "### src/routes/clients.js\n```\nconst r = require('express').Router();\n```"
+    problems, has_code = _facts(["src/routes/clients.js"], blocks,
+                                contract={"files": ["backend/routes/clients.js"]})
+    assert (problems, has_code) == ([], True)
+    problems, _ = _facts(["a.js"], "### a.js\n```\nlet a = 1;\n```", contract={"files": ["routes/clients.js"]})
+    assert any("Kelishilgan fayllar" in p for p in problems)
+
+
+async def test_ai_cannot_approve_a_readme_only_repo(db_session, two_teams_project):
+    fx = two_teams_project
+    team_a = fx["teams"][0]
+    members_a = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team_a.id)
+    )).scalars().all()
+    task = TeamProjectTask(
+        team_id=team_a.id, assigned_student_id=members_a[0].student_id, order=1,
+        title="Backend", title_ru="Бэк", description="D", description_ru="О",
+        required_level="Beginner", interface_contract_json="{}",
+        acceptance_criteria_json='["Login ishlaydi"]', depends_on_json="[]", estimated_hours=4,
+        status=TaskStatus.submitted, submission_url="https://github.com/acme/empty",
+    )
+    db_session.add(task)
+    await db_session.commit()
+    await db_session.refresh(task)
+
+    readme_only = {"exists": True, "content_text": "### README.md\n```\n# store\nteam jasur\nkod\n```",
+                   "error": None, "files_included": ["README.md"]}
+    gullible = {"score": 95, "approved": True, "criteria_results": [{"criterion": "Login ishlaydi", "met": True}],
+                "contract_violations": [], "feedback": "yaxshi", "feedback_ru": "хорошо"}
+    with patch("app.services.team_project_task_review.fetch_github_snapshot",
+               new=AsyncMock(return_value=readme_only)), \
+         patch("app.services.team_project_task_review.call_chain",
+               new=AsyncMock(return_value=(json.dumps(gullible), gullible, "groq", []))):
+        result = await review_task_submission(db_session, task.id)
+
+    assert result["success"] is True and result["approved"] is False and result["score"] <= 30
+    await db_session.refresh(task)
+    assert task.status == TaskStatus.changes_requested
+    assert "kod fayli yo'q" in task.ai_feedback_json
+
+
+async def test_integration_unlocks_once_when_the_last_piece_is_approved(db_session, two_teams_project):
+    from app.services.team_project_integration import unlock_integration_if_ready
+    from app.models.notification import Notification
+    fx = two_teams_project
+    team_a = fx["teams"][0]
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team_a.id)
+    )).scalars().all()
+    tasks = []
+    for i, m in enumerate(members[:2]):
+        t = TeamProjectTask(
+            team_id=team_a.id, assigned_student_id=m.student_id, order=i + 1,
+            title=f"T{i}", title_ru="Т", description="D", description_ru="О",
+            required_level="Beginner", interface_contract_json="{}",
+            acceptance_criteria_json="[]", depends_on_json="[]", estimated_hours=4,
+            status=TaskStatus.approved if i == 0 else TaskStatus.submitted,
+        )
+        db_session.add(t); tasks.append(t)
+    await db_session.commit()
+
+    assert await unlock_integration_if_ready(db_session, team_a.id) is False     # one piece still open
+    tasks[1].status = TaskStatus.approved
+    await db_session.commit()
+    assert await unlock_integration_if_ready(db_session, team_a.id) is True
+    assert await unlock_integration_if_ready(db_session, team_a.id) is False     # idempotent
+    await db_session.refresh(team_a)
+    assert team_a.integration_unlocked_at is not None
+    notes = (await db_session.execute(
+        select(Notification).where(Notification.student_id == team_a.lead_student_id,
+                                   Notification.type == "team_integration_ready")
+    )).scalars().all()
+    assert len(notes) == 1

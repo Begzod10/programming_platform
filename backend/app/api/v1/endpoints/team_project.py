@@ -825,6 +825,9 @@ async def teacher_review_task(
         payload_json=json.dumps({"task_id": task_id, "decision": body.decision}),
     ))
     await db.commit()
+    if task.status == TaskStatus.approved:
+        from app.services.team_project_integration import unlock_integration_if_ready
+        await unlock_integration_if_ready(db, team_id)
     await db.refresh(task, attribute_names=["assigned_student"])
 
     await broadcast_team(db, team_id)
