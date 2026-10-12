@@ -98,7 +98,7 @@ def _blueprint_block(blueprint: dict, members_summary: list[dict]) -> str:
         for e in blueprint["endpoints"]
     )
     files = blueprint["files"]
-    lead = next((i for i, m in enumerate(members_summary) if m.get("is_lead")), 0)
+    lead = skeleton_owner_index(members_summary, blueprint)
     return f"""
 JAMOA SHARTNOMASI (TAYYOR — o'zgartirma, faqat vazifalarga bo'l):
 base_url: {blueprint['base_url']} · token kaliti (localStorage): {blueprint['auth']['token_key']} · {blueprint['auth']['header']}
@@ -109,7 +109,7 @@ FAYLLAR: skelet (rahbar, a'zo {lead}): {files['skeleton']} · backend: {files['b
 SHARTNOMA QOIDALARI:
 - Endpoint yo'llari, nomlari va javob shakllarini O'ZGARTIRMA va yangisini O'YLAB TOPMA.
 - `interface_contract.produces` va `consumes` — FAQAT yuqoridagi endpoint `id` lari (aynan shunday yozilgan). Endpointni qaysi vazifa yaratsa (backend) — o'sha `produces`ga, uni chaqirgan vazifa `consumes`ga yozadi. Har endpoint aynan bitta vazifada `produces` bo'ladi.
-- `interface_contract.files` — faqat yuqoridagi fayl ro'yxatlaridan; HAR BIR fayl aynan BITTA vazifada bo'lsin (ikki a'zoga bitta fayl berilmasin). Skelet fayllari rahbarning vazifasida.
+- `interface_contract.files` — faqat yuqoridagi fayl ro'yxatlaridan; HAR BIR fayl aynan BITTA vazifada bo'lsin (ikki a'zoga bitta fayl berilmasin). Skelet fayllari faqat skelet egasining (yuqorida ko'rsatilgan a'zo) vazifasida bo'lsin.
 - `interface_contract.skill_area` — vazifa uchun kerak soha: html_css, javascript, python, flask, node, react, sql dan biri. Frontend sahifalar odatda javascript (faqat markup/CSS bo'lsa html_css), Flask backend flask, Express backend node.
 - Frontend vazifalari backend tayyor bo'lishini kutmasin: shartnomadagi javob shaklida lokal soxta ma'lumot bilan ishlasin.
 """
@@ -320,6 +320,8 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
 
     team_project_id = team.team_project_id
     try:
+        if blueprint:
+            augment_plan(plan, members_summary, blueprint)
         team.project_title = plan["project_title"]
         team.project_description = plan["project_description"]
         team.ai_plan_json = json.dumps(plan)
@@ -390,6 +392,148 @@ def _member_level_for(member: dict, task: dict) -> str:
     who only finished HTML/CSS is a Beginner for a JavaScript task."""
     area_level = (member.get("area_levels") or {}).get(_task_skill_area(task) or "")
     return area_level or member["level"]
+
+
+_BACKEND_AREAS = {"flask": ["flask", "python"], "express": ["node"]}
+_CODE_FILE_EXT = {
+    ".js": {"javascript", "node", "react"}, ".jsx": {"javascript", "react"}, ".ts": {"javascript", "node", "react"},
+    ".tsx": {"javascript", "react"}, ".py": {"python", "flask"},
+}
+_SKILL_AREAS = ("html_css", "javascript", "python", "flask", "node", "react", "sql")
+
+
+def _has_area(member: dict, area: str) -> bool:
+    return (member.get("area_levels") or {}).get(area, "Beginner") != "Beginner"
+
+
+def skeleton_owner_index(members_summary: list[dict], blueprint: dict) -> int:
+    """Who owns the skeleton files (README, dependency file, server entry) and therefore the
+    integration: the team lead — unless the lead has not finished a course for the blueprint's
+    backend, in which case the strongest member who has (someone must own the server entry)."""
+    areas = _BACKEND_AREAS.get(blueprint.get("backend_family"), [])
+    lead = next((i for i, m in enumerate(members_summary) if m.get("is_lead")), 0)
+    if any(_has_area(members_summary[lead], a) for a in areas):
+        return lead
+    order = {"Beginner": 0, "Intermediate": 1, "Advanced": 2}
+    capable = [(max(order.get((m.get("area_levels") or {}).get(a, "Beginner"), 0) for a in areas), -i, i)
+               for i, m in enumerate(members_summary) if any(_has_area(m, a) for a in areas)]
+    return max(capable)[2] if capable else lead
+
+
+def _norm_file(path) -> str:
+    return str(path).strip().lstrip("./").lower() if isinstance(path, str) else ""
+
+
+def _validate_blueprint_rules(tasks: list, members_summary: list[dict], blueprint: dict) -> list[str]:
+    """Integrability rules (planning redesign §4.5) — only for plans built on a blueprint."""
+    errors: list[str] = []
+    groups = blueprint["files"]
+    allowed = {_norm_file(f): f for g in groups.values() for f in g}
+    endpoint_ids = {e["id"] for e in blueprint["endpoints"]}
+    owners_of_file: dict[str, list[int]] = {}
+    producers: dict[str, list[int]] = {}
+
+    for idx, task in enumerate(tasks):
+        if not isinstance(task, dict):
+            continue
+        contract = task.get("interface_contract") or {}
+        files = [f for f in (contract.get("files") or []) if isinstance(f, str)]
+        for f in files:
+            key = _norm_file(f)
+            if key not in allowed:
+                errors.append(f"Task {idx}: file {f!r} is not in the blueprint's file lists — use only those files.")
+            else:
+                owners_of_file.setdefault(key, []).append(idx)
+        for produced in (contract.get("produces") or []):
+            if produced not in endpoint_ids:
+                errors.append(f"Task {idx}: produces {produced!r}, which is not a blueprint endpoint id.")
+            else:
+                producers.setdefault(produced, []).append(idx)
+        for consumed in (contract.get("consumes") or []):
+            if consumed not in endpoint_ids:
+                errors.append(f"Task {idx}: consumes {consumed!r}, which is not a blueprint endpoint id.")
+
+        area = contract.get("skill_area")
+        if area not in _SKILL_AREAS:
+            errors.append(f"Task {idx}: interface_contract.skill_area must be one of {', '.join(_SKILL_AREAS)}.")
+            continue
+        member_idx = task.get("assign_to_member_index")
+        if isinstance(member_idx, int) and 0 <= member_idx < len(members_summary):
+            member = members_summary[member_idx]
+            if (member.get("area_levels")) and not _has_area(member, area):
+                errors.append(
+                    f"Task {idx}: area {area} is assigned to {member.get('full_name')}, who has not finished "
+                    f"a course in it — give this piece to a member who has."
+                )
+        for f in files:
+            needed = _CODE_FILE_EXT.get("." + f.rsplit(".", 1)[-1].lower()) if "." in f else None
+            if needed and area not in needed:
+                errors.append(
+                    f"Task {idx}: it owns code files ({f}) but declares skill_area {area}; "
+                    f"code files need one of {', '.join(sorted(needed))}."
+                )
+                break
+
+    for key, owners in owners_of_file.items():
+        if len(set(owners)) > 1:
+            errors.append(f"File {allowed[key]!r} is assigned to tasks {sorted(set(owners))} — each file must belong to exactly one task.")
+    for key, original in allowed.items():
+        if key not in owners_of_file:
+            errors.append(f"Blueprint file {original!r} is assigned to no task.")
+    for ep in sorted(endpoint_ids):
+        if ep not in producers:
+            errors.append(f"Endpoint {ep!r} — no task produces it.")
+        elif len(set(producers[ep])) > 1:
+            errors.append(f"Endpoint {ep!r} is produced by more than one task {sorted(set(producers[ep]))}.")
+
+    skeleton = [_norm_file(f) for f in groups["skeleton"]]
+    owner = skeleton_owner_index(members_summary, blueprint)
+    for key in skeleton:
+        holders = set(owners_of_file.get(key, []))
+        if holders and any(
+            isinstance(tasks[i], dict) and tasks[i].get("assign_to_member_index") != owner for i in holders
+        ):
+            errors.append(
+                f"Skeleton file {allowed[key]!r} must be in the task of member {owner} (the skeleton owner / integrator), not elsewhere."
+            )
+    return errors
+
+
+_SKELETON_CRITERIA = (
+    "README.md da loyihani ishga tushirish qadamlari (o'rnatish va ishga tushirish buyruqlari) yozilgan",
+    "В README.md описаны шаги запуска проекта (установка и команды запуска)",
+)
+_MOCK_CRITERIA = (
+    "Backend tayyor bo'lguncha shartnomadagi javob shaklida lokal soxta ma'lumot bilan ishlaydi; base_url bitta konstantada",
+    "Пока backend не готов, работает с локальными фиктивными данными формата из контракта; base_url — в одной константе",
+)
+
+
+def augment_plan(plan: dict, members_summary: list[dict], blueprint: dict) -> None:
+    """Add the criteria the AI cannot be trusted to remember, in place and idempotently:
+    the skeleton owner must leave run instructions; frontend pieces must work against the
+    contract's response shape without waiting for the backend (the reason students wrote
+    `example.com` URLs)."""
+    tasks = plan.get("tasks") or []
+    owner_member = skeleton_owner_index(members_summary, blueprint)
+
+    def add(task: dict, uz: str, ru: str) -> None:
+        crit = task.setdefault("acceptance_criteria", [])
+        crit_ru = task.setdefault("acceptance_criteria_ru", [])
+        if uz not in crit:
+            crit.append(uz)
+            while len(crit_ru) < len(crit) - 1:
+                crit_ru.append(crit[len(crit_ru)])
+            crit_ru.append(ru)
+
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        files = [f for f in ((task.get("interface_contract") or {}).get("files") or []) if isinstance(f, str)]
+        if task.get("assign_to_member_index") == owner_member:
+            add(task, *_SKELETON_CRITERIA)
+        if any(f.startswith("frontend/") for f in files) and not any(f.startswith("backend/") for f in files):
+            add(task, *_MOCK_CRITERIA)
 
 
 def validate_plan(plan: dict, members_summary: list[dict], *, require_level_match: bool = False,
@@ -604,6 +748,9 @@ def validate_plan(plan: dict, members_summary: list[dict], *, require_level_matc
     cycle = _find_cycle(graph)
     if cycle:
         errors.append(f"depends_on has a cycle: {cycle}.")
+
+    if blueprint:
+        errors.extend(_validate_blueprint_rules(tasks, members_summary, blueprint))
 
     return errors
 

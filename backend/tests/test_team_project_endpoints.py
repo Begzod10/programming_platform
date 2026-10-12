@@ -336,6 +336,8 @@ async def test_concurrent_regenerate_does_not_duplicate_tasks(
     """
     fx = two_teams_project
     team = fx["teams"][0]
+    team.theme = "free_form_for_flow_tests"          # flow test, not a blueprint test
+    await db_session.commit()
     members = (await db_session.execute(
         select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
     )).scalars().all()
@@ -870,6 +872,10 @@ def _generated_plan(member_count, *, broken=False):
 
 async def _fresh_team(db_session, fx):
     team = fx["teams"][0]
+    # These tests are about the generate/repair/attempt flow, not about blueprints: a theme
+    # without a blueprint plans free-form, as before the contract existed.
+    team.theme = "free_form_for_flow_tests"
+    await db_session.commit()
     members = (await db_session.execute(
         select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
     )).scalars().all()
@@ -1214,16 +1220,23 @@ def _blueprint_plan(bp):
             "assign_to_member_index": i, "title": f"Qism {i}", "title_ru": f"Часть {i}",
             "description": "Aniq vazifa tavsifi: shartnomadagi endpointlarni amalga oshiring.",
             "description_ru": "Подробное описание задачи: реализуйте эндпоинты контракта.",
-            "required_level": "Beginner",       # these students finished no course: Beginner in every area
+            "required_level": "Advanced",
             "interface_contract": {"files": files, "produces": produces, "consumes": consumes, "skill_area": area},
             "acceptance_criteria": ["Birinchi aniq mezon", "Ikkinchi aniq mezon"],
             "acceptance_criteria_ru": ["Первый критерий", "Второй критерий"],
             "depends_on": [], "estimated_hours": 6,
         }
+    f = bp["files"]
     return {"project_title": "Loyiha", "project_description": "Tavsif", "tasks": [
-        task(0, bp["files"]["backend"], ids, [], "flask"),
-        task(1, bp["files"]["frontend"], [], [ids[0]], "javascript"),
+        task(0, f["skeleton"] + f["backend"], ids, [], "flask" if bp["backend_family"] == "flask" else "node"),
+        task(1, f["frontend"], [], [ids[0]], "javascript"),
     ]}
+
+
+async def _full_skills(db, student_ids):
+    from app.services.team_project_constants import SKILL_AREAS
+    from app.services.team_project_skills import AreaSkill
+    return {sid: {a: AreaSkill("Advanced", 1.0) for a in SKILL_AREAS} for sid in student_ids}
 
 
 async def test_planner_gives_the_ai_the_blueprint_and_stores_it_on_the_team(db_session, two_teams_project):
@@ -1239,7 +1252,8 @@ async def test_planner_gives_the_ai_the_blueprint_and_stores_it_on_the_team(db_s
         seen["prompt"] = prompt
         return json.dumps(plan), plan, "groq", []
 
-    with patch("app.services.team_project_planner.call_chain", new=_ai):
+    with patch("app.services.team_project_planner.call_chain", new=_ai), \
+            patch("app.services.team_project_skills.build_skill_levels", new=_full_skills):
         await generate_plan_for_team(db_session, team.id)
 
     assert "JAMOA SHARTNOMASI" in seen["prompt"] and "auth.login" in seen["prompt"]
@@ -1250,6 +1264,8 @@ async def test_planner_gives_the_ai_the_blueprint_and_stores_it_on_the_team(db_s
     tasks = (await db_session.execute(select(TeamProjectTask).where(TeamProjectTask.team_id == team.id))).scalars().all()
     assert len(tasks) == 2
     assert "skill_area" in json.loads(tasks[0].interface_contract_json)
+    # the deterministic additions: run instructions on the skeleton owner's task
+    assert any("README" in c for t in tasks for c in json.loads(t.acceptance_criteria_json))
 
 
 async def test_planner_falls_back_to_the_free_form_prompt_without_a_blueprint(db_session, two_teams_project):
