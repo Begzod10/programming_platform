@@ -44,12 +44,20 @@ _FLASK_BASE = [
     _need(_FLASK, r"Database \(SQLAlchemy\)", "Flask: Database (SQLAlchemy)"),
     _need(_FLASK, r"CRUD operatsiyalar", "Flask: CRUD operatsiyalar"),
     _need(_FLASK, r"Parol hashing", "Flask: Parol hashing"),
+    # The contract is token auth (register/login -> Bearer token). The older Flask courses only teach
+    # session auth (Flask-Login), so these two lessons come from "Flask: Token autentifikatsiya va CORS".
+    _need(_FLASK, r"register va login", "Flask: JWT bilan register va login"),
+    _need(_FLASK, r"Himoyalangan route", "Flask: himoyalangan route'lar va rollar"),
 ]
 _DJANGO_BASE = [
     _need(_DJANGO, r"URL routing va views", "Django: URL routing va views"),
     _need(_DJANGO, r"Models va ORM asoslari", "Django: Models va ORM asoslari"),
     _need(_DJANGO, r"ORM chuqurroq", "Django: ORM chuqurroq (querysets, bog'lanishlar)"),
     _need(_DJANGO, r"Autentifikatsiya", "Django: Autentifikatsiya"),
+    # JSON + token API and CORS come from "Django: JSON API (DRF asoslari)"; the older courses are HTML/session based.
+    _need(_DJANGO, r"JsonResponse", "Django: JSON API (JsonResponse)"),
+    _need(_DJANGO, r"JWT autentifikatsiya", "Django: JWT autentifikatsiya"),
+    _need(_DJANGO, r"CORS", "Django: CORS (django-cors-headers)"),
 ]
 _RELATIONS = _need(_FLASK, r"Modellar orasidagi munosabatlar", "Flask: modellar orasidagi munosabatlar")
 _EXPRESS_BASE = [

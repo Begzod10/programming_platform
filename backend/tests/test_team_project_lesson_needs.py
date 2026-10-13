@@ -25,7 +25,13 @@ CATALOG = {
                                 "8-Autentifikatsiya"],
     "Node.js/Express Asoslari": ["2-Routing va middleware", "5-PostgreSQL ulanish (pg)", "6-CRUD operatsiyalar",
                                  "8-JWT autentifikatsiya", "10-CORS va React bilan ulash"],
+    # the new API courses (published 2026-10-13)
+    "Flask: Token autentifikatsiya va CORS (API)": ["1-Token nima va nega kerak", "2-Flask-JWT-Extended: register va login",
+                                                    "3-Himoyalangan route'lar va rollar", "4-CORS: frontend bilan ulash"],
+    "Django: JSON API (DRF asoslari)": ["1-JsonResponse bilan oddiy API", "2-DRF: serializer va @api_view",
+                                        "4-JWT autentifikatsiya va faqat o'z yozuvlari", "5-CORS, API testlari va Postman"],
 }
+OLD_CATALOG_ONLY = {c: ls for c, ls in CATALOG.items() if "Token" not in c and "JSON API (DRF" not in c}
 EVERYTHING = [(c, l) for c, ls in CATALOG.items() for l in ls]
 THEME_KEYS = [t["key"] for t in THEMES]
 
@@ -100,3 +106,15 @@ async def test_completed_lessons_by_student_returns_course_and_lesson_titles(asy
     got = await completed_lessons_by_student(db_session, [sid])
     assert got[sid] == [(f"Javascript {uid}", "8-Dars: DOM bilan ishlash")]
     assert await completed_lessons_by_student(db_session, []) == {}
+
+
+def test_token_lessons_of_the_new_courses_are_required_for_flask_and_django_backends():
+    old_lessons = [(c, l) for c, ls in OLD_CATALOG_ONLY.items() for l in ls]
+    flask_gaps = unmet_needs(lesson_needs("task_tracker", "flask"), [old_lessons])
+    assert "Flask: JWT bilan register va login" in flask_gaps and "Flask: himoyalangan route'lar va rollar" in flask_gaps
+    django_gaps = unmet_needs(lesson_needs("task_tracker", "django"), [old_lessons])
+    assert {"Django: JSON API (JsonResponse)", "Django: JWT autentifikatsiya", "Django: CORS (django-cors-headers)"} <= set(django_gaps)
+    # the session-auth lessons of the old courses do not satisfy the token needs, and Express is unchanged
+    assert not need_met([("Python Flask — O'rta daraja", "8-Flask-Login bilan autentifikatsiya")],
+                        {"course": "flask", "lesson": r"register va login", "label": "x"})
+    assert unmet_needs(lesson_needs("task_tracker", "express"), [old_lessons]) == []
