@@ -58,7 +58,7 @@ TECH_STACKS = [
 # and mixed capstones are deliberately absent. tests/test_team_project_skills.py checks every title
 # below against the real course list.
 SKILL_AREAS = ("html_css", "css_frameworks", "javascript", "typescript", "python", "flask", "django", "fastapi",
-               "node", "react", "sql", "telegram", "ai", "git", "docker")
+               "node", "react", "sql", "telegram", "ai", "git", "docker", "linux", "api")
 
 # Flask/Django courses (and the API short courses built on them) count for the python area too;
 # the mixed capstones do not.
@@ -89,8 +89,12 @@ AREA_COURSES = {
     "ai": ("AI API'larni Loyihalarga Ulash", "RAG va Vektor Qidiruv: Hujjatlar Asosida AI"),
     "git": ("Git va GitHub", "Git: Ichki Tuzilishi va Ilg'or Workflow", "GitHub Actions va CI/CD Chuqur",
             "Jamoaviy Ish Madaniyati: Code Review va Versiyalash"),
-    # Tracked like git/sql/telegram: no stack or blueprint need uses it yet (team projects run without Docker).
+    # docker / linux / api are tracked like git/sql/telegram: no stack or blueprint need uses them yet
+    # (team projects run without Docker, and their API contract is not described in OpenAPI).
     "docker": ("Docker asoslari",),
+    "linux": ("Linux va terminal asoslari",),
+    # HTTP, Postman, OpenAPI: language-independent, so it does not count for python/flask/node.
+    "api": ("API asoslari: Postman va OpenAPI",),
 }
 
 

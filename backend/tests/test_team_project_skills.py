@@ -79,7 +79,7 @@ async def test_empty_input_and_unknown_student_are_safe(async_client, db_session
 
 from app.services.team_project_constants import AREA_COURSES, SKILL_AREAS, course_in_area
 
-# All 67 active course titles on production (2026-10-13, incl. the 5 new courses: 4 API courses and Docker). Every mapped title must exist here, so a
+# All 69 active course titles on production (2026-10-13, incl. the 7 new courses: 4 API courses, Docker, Linux, Postman/OpenAPI). Every mapped title must exist here, so a
 # typo or a renamed course cannot silently drop students out of an area.
 PRODUCTION_TITLES = {
     "HTML CSS", "Python Flask", "Javascript", "Python Flask — O'rta daraja", "Python Asoslari", "Dasturlash dunyosiga kirish",
@@ -104,6 +104,7 @@ PRODUCTION_TITLES = {
     "Raqamli xavfsizlik va internet odobi (bolalar uchun)", "Kompyuter qanday ishlaydi (bolalar uchun)",
     "Flask: Token autentifikatsiya va CORS (API)", "Django: JSON API (DRF asoslari)",
     "Express: API testlash (Jest va supertest)", "FastAPI Asoslari", "Docker asoslari",
+    "Linux va terminal asoslari", "API asoslari: Postman va OpenAPI",
 }
 
 
@@ -151,4 +152,11 @@ def test_docker_course_has_its_own_area_and_counts_nowhere_else():
     assert "docker" in SKILL_AREAS and course_in_area("Docker asoslari", "docker")
     assert not any(course_in_area("Docker asoslari", a) for a in SKILL_AREAS if a != "docker")
     assert not course_in_area("Git va GitHub", "docker")
+
+
+def test_linux_and_api_courses_have_their_own_areas_and_count_nowhere_else():
+    for title, area in (("Linux va terminal asoslari", "linux"), ("API asoslari: Postman va OpenAPI", "api")):
+        assert area in SKILL_AREAS and course_in_area(title, area)
+        assert not any(course_in_area(title, a) for a in SKILL_AREAS if a != area), title
+    assert not course_in_area("Docker asoslari", "linux") and not course_in_area("FastAPI Asoslari", "api")
 
