@@ -187,6 +187,16 @@ def lint_spec(course: dict, lessons: list[dict]) -> LintResult:
         for e_idx, ex in enumerate(exercises):
             _lint_exercise(ex or {}, f"{where} exercise #{e_idx}", out)
 
+        sample = les.get("sample")
+        if sample:
+            if not (sample.get("title") or "").strip():
+                out.errors.append(f"{where}: sample 'title' is missing")
+            for key in ("title", "description"):
+                if (msg := _ru_problem(sample.get(key), sample.get(f"{key}_ru"), f"{where}.sample.{key}_ru")):
+                    out.errors.append(msg)
+            if not (sample.get("code_files") or sample.get("html_code") or sample.get("js_code")):
+                out.errors.append(f"{where}: sample needs code_files (or html_code/js_code)")
+
         if task:
             for key in TASK_FIELDS:
                 if not (task.get(key) or "").strip():

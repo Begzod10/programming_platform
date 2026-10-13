@@ -249,3 +249,24 @@ def test_the_example_spec_passes_lint_with_no_errors():
     module = load_spec(str(Path(__file__).resolve().parents[1] / "scripts" / "course_specs" / "_example.py"))
     result = lint_spec(module.COURSE, module.LESSONS)
     assert result.errors == [], result.errors
+
+
+# ── sample project (namuna) bilingual rule ──────────────────────────────────
+
+def _sample(**over):
+    s = {"title": "Namuna: JWT", "title_ru": "Пример: JWT", "description": "Token yaratish va tekshirish namunasi.",
+         "description_ru": "Пример создания и проверки токена.", "sample_type": "code",
+         "code_files": [{"filename": "jwt_demo.py", "language": "python", "code": "import jwt"}]}
+    s.update(over)
+    return s
+
+
+def test_a_sample_needs_ru_title_and_description():
+    ok = lint([lesson(sample=_sample())])
+    assert ok.ok
+    bad = lint([lesson(sample=_sample(title_ru="", description_ru=None))])
+    assert any("sample.title_ru" in e for e in bad.errors) and any("sample.description_ru" in e for e in bad.errors)
+
+
+def test_a_sample_needs_code_files_or_html():
+    assert any("code_files" in e for e in lint([lesson(sample=_sample(code_files=[]))]).errors)

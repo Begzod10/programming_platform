@@ -96,6 +96,21 @@ async def translate_lesson_from_spec(db: AsyncSession, lesson: Lesson, lesson_sp
     return len(flat_fields) + len(section_translations)
 
 
+async def translate_sample_from_spec(db: AsyncSession, sample, sample_spec: Optional[dict]) -> int:
+    """Write the RU title/description of a lesson's namuna (entity 'lesson_sample' — the only fields the
+    sample endpoint translates; source code is never translated). Returns the number of fields written."""
+    written = 0
+    if not sample_spec:
+        return 0
+    for field in ("title", "description"):
+        ru = sample_spec.get(f"{field}_ru")
+        source = getattr(sample, field, None)
+        if ru and source:
+            await _write(db, "lesson_sample", sample.id, field, source, ru)
+            written += 1
+    return written
+
+
 async def translate_exercises_from_spec(
     db: AsyncSession, exercises: list[Exercise], exercise_specs: list[dict]
 ) -> int:

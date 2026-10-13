@@ -39,6 +39,7 @@ from course_builder.db_helpers import (  # noqa: E402
 )
 from course_builder.translations import (  # noqa: E402
     translate_course_from_spec, translate_lesson_from_spec, translate_exercises_from_spec,
+    translate_sample_from_spec,
 )
 from check_exercise_integrity import check_course as check_exercises  # noqa: E402
 from check_ru_coverage import check_course as check_ru  # noqa: E402
@@ -93,8 +94,10 @@ async def main(spec_path: str, dry_run: bool, skip_lint: bool = False) -> int:
 
             sample_spec = lesson_spec.get("sample")
             if sample_spec:
-                await sync_lesson_sample(db, lesson.id, sample_spec)
+                sample_row = await sync_lesson_sample(db, lesson.id, sample_spec)
                 print(f"    sample: {sample_spec['title']!r}")
+                if sample_row is not None:
+                    print(f"    sample RU fields: {await translate_sample_from_spec(db, sample_row, sample_spec)}")
 
         if dry_run:
             await db.rollback()

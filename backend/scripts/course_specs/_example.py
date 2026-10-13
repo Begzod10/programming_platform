@@ -35,7 +35,9 @@ LESSONS = [
         "video_url": None,
         "sample": {
             "title": "Namuna: Salom dunyo",
+            "title_ru": "Пример: Привет, мир",
             "description": "Oddiy chiqish namunasi",
+            "description_ru": "Простой пример вывода",
             "sample_type": "code",
             "code_files": [{"filename": "main.py", "language": "python", "code": "print('salom')"}],
         },
