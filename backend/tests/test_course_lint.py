@@ -241,3 +241,11 @@ def test_glossary_is_not_applied_to_code_blocks():
     les = lesson()
     les["text_content_ru"] = les["text_content_ru"].replace("print(token)", "print(бекенд)")
     assert not any("бекенд" in e.lower() for e in lint([les]).errors)
+
+
+def test_the_example_spec_passes_lint_with_no_errors():
+    """The documented example must itself obey the rules it documents."""
+    from course_builder.spec_loader import load_spec
+    module = load_spec(str(Path(__file__).resolve().parents[1] / "scripts" / "course_specs" / "_example.py"))
+    result = lint_spec(module.COURSE, module.LESSONS)
+    assert result.errors == [], result.errors
