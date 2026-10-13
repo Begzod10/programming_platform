@@ -17,6 +17,12 @@ THEMES = [
     {"key": "library", "label": "Kutubxona tizimi", "label_ru": "Система библиотеки"},
     {"key": "finance", "label": "Shaxsiy moliya hisobi", "label_ru": "Учёт личных финансов"},
     {"key": "bot_panel", "label": "Telegram bot boshqaruv paneli", "label_ru": "Панель управления Telegram-ботом"},
+    {"key": "recipes", "label": "Retsept kitobi", "label_ru": "Книга рецептов"},
+    {"key": "events", "label": "Tadbirlar va ro'yxatdan o'tish", "label_ru": "События и регистрация"},
+    {"key": "jobs", "label": "Vakansiyalar taxtasi", "label_ru": "Доска вакансий"},
+    {"key": "attendance", "label": "Davomat tizimi", "label_ru": "Система посещаемости"},
+    {"key": "habits", "label": "Odatlar kuzatuvchisi", "label_ru": "Трекер привычек"},
+    {"key": "classifieds", "label": "E'lonlar taxtasi", "label_ru": "Доска объявлений"},
 ]
 
 # `needs`: a regex over a member's skill summary (course titles, lesson
