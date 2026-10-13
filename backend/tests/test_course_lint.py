@@ -208,3 +208,36 @@ def test_backticked_and_product_names_are_compared():
             "task_requirements_ru": "Используйте `create_token` и подключите `flask_cors`.", "task_technologies": "Python", "task_deadline_days": 3}
     r = lint([lesson(0), lesson(1, exercises=[], task=task)])
     assert any("flask_cors" in w for w in r.warnings) and not any("create_token" in w for w in r.warnings)
+
+
+# ── glossary ────────────────────────────────────────────────────────────────
+
+from course_builder.glossary import RU_GLOSSARY, forbidden_ru_terms  # noqa: E402
+
+
+def test_glossary_flags_a_forbidden_ru_variant_and_names_the_preferred_one():
+    found = forbidden_ru_terms("Каждый конечная точка API возвращает JSON, а бекенд проверяет токен.")
+    pairs = {(bad, good) for bad, good in found}
+    assert ("конечная точка", "эндпоинт") in pairs and ("бекенд", "бэкенд") in pairs
+
+
+def test_glossary_accepts_the_preferred_terms():
+    assert forbidden_ru_terms("Эндпоинт возвращает ответ, бэкенд проверяет токен, фронтенд показывает результат.") == []
+
+
+def test_glossary_covers_the_core_terms():
+    assert {"endpoint", "token", "middleware", "deploy", "frontend", "backend", "request", "response", "route", "database",
+            "framework", "library", "commit", "branch", "repository", "bug", "API"} <= set(RU_GLOSSARY)
+
+
+def test_lint_reports_glossary_violations_as_errors():
+    les = lesson()
+    les["text_content_ru"] = les["text_content_ru"].replace("Сервер", "Бекенд")
+    r = lint([les])
+    assert any("бекенд" in e.lower() and "бэкенд" in e for e in r.errors)
+
+
+def test_glossary_is_not_applied_to_code_blocks():
+    les = lesson()
+    les["text_content_ru"] = les["text_content_ru"].replace("print(token)", "print(бекенд)")
+    assert not any("бекенд" in e.lower() for e in lint([les]).errors)

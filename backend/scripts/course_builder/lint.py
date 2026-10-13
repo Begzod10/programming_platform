@@ -15,6 +15,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+from course_builder.glossary import forbidden_ru_terms
+
 CYRILLIC = re.compile(r"[а-яёА-ЯЁ]")
 TAGS = re.compile(r"<[^>]+>")
 PRE = re.compile(r"<pre(?![^>]*mermaid)[^>]*>(.*?)</pre>", re.S | re.I)
@@ -49,6 +51,10 @@ def _ru_problem(uz: Optional[str], ru: Optional[str], label: str) -> Optional[st
         return None
     if not (ru or "").strip():
         return f"{label}: RU counterpart is missing"
+    bad = forbidden_ru_terms(ru)
+    if bad:
+        wrong, right = bad[0]
+        return f"{label}: use the glossary term '{right}' instead of '{wrong}'"
     if not _natural(uz):
         return None
     if _plain(ru) == _plain(uz):
