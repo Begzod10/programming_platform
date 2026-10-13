@@ -40,13 +40,15 @@ THEMES = [
 TECH_STACKS = [
     # Every stack has a blueprint family (flask / express / django) and plain-JS pages — what is
     # written here is what a team is actually given. (React/Vue/Next/FastAPI stacks were removed: no
-    # blueprint exists for them; the FastAPI course exists now, but a FastAPI stack needs its own blueprint family first.)
+    # blueprint exists for them; FastAPI is back since "FastAPI Asoslari" and its blueprint family exist.)
     {"key": "vanilla", "label": "Vanilla JS + Flask", "frontend": "Vanilla JS", "backend": "Flask",
      "requires": {"frontend": "javascript", "backend": ["flask", "python"]}},
     {"key": "express", "label": "Vanilla JS + Node/Express", "frontend": "Vanilla JS", "backend": "Node/Express",
      "requires": {"frontend": "javascript", "backend": ["node"]}},
     {"key": "django", "label": "Vanilla JS + Django", "frontend": "Vanilla JS", "backend": "Django",
      "requires": {"frontend": "javascript", "backend": ["django"]}},
+    {"key": "fastapi", "label": "Vanilla JS + FastAPI", "frontend": "Vanilla JS", "backend": "FastAPI",
+     "requires": {"frontend": "javascript", "backend": ["fastapi"]}},
 ]
 
 # ── skill areas (see team_project_skills.py) ───────────────────────────────
@@ -55,7 +57,7 @@ TECH_STACKS = [
 # titles: a regex mapped "Next.js" to JavaScript and kids' courses to the adult areas. Kids' courses
 # and mixed capstones are deliberately absent. tests/test_team_project_skills.py checks every title
 # below against the real course list.
-SKILL_AREAS = ("html_css", "css_frameworks", "javascript", "typescript", "python", "flask", "django",
+SKILL_AREAS = ("html_css", "css_frameworks", "javascript", "typescript", "python", "flask", "django", "fastapi",
                "node", "react", "sql", "telegram", "ai", "git")
 
 # Flask/Django courses (and the API short courses built on them) count for the python area too;
@@ -71,12 +73,12 @@ AREA_COURSES = {
     "javascript": ("Javascript", "JavaScript: Keyingi Bosqich", "JavaScript Mini-Projects", "JavaScript: Ilg'or Mavzular",
                    "JavaScript: Brauzer API va Web", "JavaScript: Algoritmlar va Ma'lumotlar Tuzilmasi", "JavaScript: Testlash"),
     "typescript": ("TypeScript Asoslari", "Capstone 4: TypeScript Full-Stack"),
-    # Flask and Django are Python: finishing them counts for the python area too. FastAPI has no skill
-    # area of its own yet (no stack/blueprint family), so it counts here.
+    # Flask, Django and FastAPI are Python: finishing them counts for the python area too.
     "python": ("Python Asoslari", "Python: Keyingi Bosqich", "Python: Testlash", "Python: Algoritmlar va Ma'lumotlar Tuzilmasi",
                "Python: Ilg'or Mavzular", "FastAPI Asoslari") + _FLASK_PYTHON_COURSES + _DJANGO_PYTHON_COURSES,
     "flask": _FLASK_COURSES,
     "django": _DJANGO_COURSES,
+    "fastapi": ("FastAPI Asoslari",),
     "node": ("Node.js/Express Asoslari", "Express: API testlash (Jest va supertest)"),
     "react": ("React Asoslari", "React: Redux Toolkit, TypeScript va Testlash", "React: Next.js va Server-Side Rendering",
               "React: Performance va Optimizatsiya"),

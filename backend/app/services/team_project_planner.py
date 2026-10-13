@@ -109,7 +109,7 @@ SHARTNOMA QOIDALARI:
 - Endpoint yo'llari, nomlari va javob shakllarini O'ZGARTIRMA va yangisini O'YLAB TOPMA.
 - `interface_contract.produces` va `consumes` — FAQAT yuqoridagi endpoint `id` lari (aynan shunday yozilgan). Endpointni qaysi vazifa yaratsa (backend) — o'sha `produces`ga, uni chaqirgan vazifa `consumes`ga yozadi. Har endpoint aynan bitta vazifada `produces` bo'ladi.
 - `interface_contract.files` — faqat yuqoridagi fayl ro'yxatlaridan; HAR BIR fayl aynan BITTA vazifada bo'lsin (ikki a'zoga bitta fayl berilmasin). Skelet fayllari faqat skelet egasining (yuqorida ko'rsatilgan a'zo) vazifasida bo'lsin.
-- `interface_contract.skill_area` — vazifa uchun kerak soha: html_css, javascript, python, flask, django, node, sql dan biri. Frontend sahifalar odatda javascript (faqat markup/CSS bo'lsa html_css), Flask backend flask, Django backend django, Express backend node.
+- `interface_contract.skill_area` — vazifa uchun kerak soha: html_css, javascript, python, flask, django, fastapi, node, sql dan biri. Frontend sahifalar odatda javascript (faqat markup/CSS bo'lsa html_css), Flask backend flask, Django backend django, FastAPI backend fastapi, Express backend node.
 - Frontend vazifalari backend tayyor bo'lishini kutmasin: shartnomadagi javob shaklida lokal soxta ma'lumot bilan ishlasin.
 """
 
@@ -402,10 +402,10 @@ def _member_level_for(member: dict, task: dict) -> str:
     return area_level or member["level"]
 
 
-_BACKEND_AREAS = {"flask": ["flask", "python"], "express": ["node"], "django": ["django"]}
+_BACKEND_AREAS = {"flask": ["flask", "python"], "express": ["node"], "django": ["django"], "fastapi": ["fastapi"]}
 _CODE_FILE_EXT = {
     ".js": {"javascript", "node", "react"}, ".jsx": {"javascript", "react"}, ".ts": {"javascript", "node", "react"},
-    ".tsx": {"javascript", "react"}, ".py": {"python", "flask", "django"},
+    ".tsx": {"javascript", "react"}, ".py": {"python", "flask", "django", "fastapi"},
 }
 from app.services.team_project_constants import SKILL_AREAS as _SKILL_AREAS  # noqa: E402
 

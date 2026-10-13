@@ -156,3 +156,13 @@ def test_augment_adds_skeleton_and_mock_data_criteria_once_and_keeps_languages_a
     snapshot = copy.deepcopy(plan)
     augment_plan(plan, MEMBERS, BP)
     assert plan == snapshot                                                  # idempotent
+
+
+def test_fastapi_skeleton_goes_to_a_member_who_finished_the_fastapi_course():
+    fastapi_bp = {"backend_family": "fastapi", "files": BP["files"], "endpoints": BP["endpoints"]}
+    team = [member(0, lead=True, javascript="Advanced", python="Advanced", flask="Advanced"),
+            member(1, javascript="Intermediate", fastapi="Intermediate", python="Intermediate"),
+            member(2, javascript="Intermediate"), member(3, html_css="Intermediate")]
+    assert skeleton_owner_index(team, fastapi_bp) == 1        # Python/Flask is not FastAPI
+    assert skeleton_owner_index(team, BP) == 0                # the Flask blueprint still goes to the lead
+

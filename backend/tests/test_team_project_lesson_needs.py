@@ -28,16 +28,18 @@ CATALOG = {
     # the new API courses (published 2026-10-13)
     "Flask: Token autentifikatsiya va CORS (API)": ["1-Token nima va nega kerak", "2-Flask-JWT-Extended: register va login",
                                                     "3-Himoyalangan route'lar va rollar", "4-CORS: frontend bilan ulash"],
+    "FastAPI Asoslari": ["1-FastAPI va birinchi endpoint", "2-Pydantic: so'rov tanasi va validatsiya", "3-SQLAlchemy va Depends",
+                         "4-JWT autentifikatsiya va faqat o'z yozuvlari", "5-CORS, pytest testlari va Postman"],
     "Django: JSON API (DRF asoslari)": ["1-JsonResponse bilan oddiy API", "2-DRF: serializer va @api_view",
                                         "4-JWT autentifikatsiya va faqat o'z yozuvlari", "5-CORS, API testlari va Postman"],
 }
-OLD_CATALOG_ONLY = {c: ls for c, ls in CATALOG.items() if "Token" not in c and "JSON API (DRF" not in c}
+OLD_CATALOG_ONLY = {c: ls for c, ls in CATALOG.items() if "Token" not in c and "JSON API (DRF" not in c and c != "FastAPI Asoslari"}
 EVERYTHING = [(c, l) for c, ls in CATALOG.items() for l in ls]
 THEME_KEYS = [t["key"] for t in THEMES]
 
 
 @pytest.mark.parametrize("theme", THEME_KEYS)
-@pytest.mark.parametrize("family", ["flask", "express", "django"])
+@pytest.mark.parametrize("family", ["flask", "express", "django", "fastapi"])
 def test_every_need_matches_a_real_lesson(theme, family):
     needs = lesson_needs(theme, family)
     assert needs["frontend"] and needs["backend"]
@@ -118,3 +120,13 @@ def test_token_lessons_of_the_new_courses_are_required_for_flask_and_django_back
     assert not need_met([("Python Flask — O'rta daraja", "8-Flask-Login bilan autentifikatsiya")],
                         {"course": "flask", "lesson": r"register va login", "label": "x"})
     assert unmet_needs(lesson_needs("task_tracker", "express"), [old_lessons]) == []
+
+
+def test_fastapi_backend_needs_only_the_fastapi_course_lessons():
+    needs = lesson_needs("task_tracker", "fastapi")
+    assert [n["course"] for n in needs["backend"]] == ["fastapi"] * 5
+    old_lessons = [(c, l) for c, ls in OLD_CATALOG_ONLY.items() for l in ls]
+    assert len(unmet_needs(needs, [old_lessons])) == 5                  # nothing in the older courses covers them
+    fastapi = [("FastAPI Asoslari", l) for l in CATALOG["FastAPI Asoslari"]]
+    assert unmet_needs(needs, [old_lessons + fastapi]) == []
+    assert get_blueprint("crm", "fastapi")["backend_family"] == "fastapi"

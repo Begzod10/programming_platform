@@ -143,5 +143,5 @@ def test_the_new_api_courses_are_mapped_to_their_areas():
     assert course_in_area("Django: JSON API (DRF asoslari)", "python")
     assert course_in_area("Express: API testlash (Jest va supertest)", "node")
     assert not course_in_area("Express: API testlash (Jest va supertest)", "javascript")
-    assert course_in_area("FastAPI Asoslari", "python")
+    assert course_in_area("FastAPI Asoslari", "python") and course_in_area("FastAPI Asoslari", "fastapi")
     assert not course_in_area("FastAPI Asoslari", "flask") and not course_in_area("FastAPI Asoslari", "django")

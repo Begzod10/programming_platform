@@ -6,7 +6,7 @@ fixed, hand-written data — endpoints, JSON shapes, token key, file layout, run
 that the planner may SPLIT among members but never change. See
 docs/superpowers/specs/2026-10-12-team-project-planning-design.md §4.3.
 
-Themes are described once (`_THEMES`) and expanded per backend family (`flask`, `express`) so the
+Themes are described once (`_THEMES`) and expanded per backend family (`flask`, `express`, `django`, `fastapi`) so the
 two stay in step; only file names and run commands differ between families.
 """
 import copy
@@ -30,6 +30,7 @@ _JS = "javascript"          # `course` of a need is a skill AREA (team_project_c
 _FLASK = "flask"
 _NODE = "node"
 _DJANGO = "django"
+_FASTAPI = "fastapi"
 _DOM = _need(_JS, r"DOM bilan ishlash", "JavaScript: DOM bilan ishlash")
 _FETCH = _need(_JS, r"fetch va REST API", "JavaScript: fetch va REST API")
 _DYNAMIC = _need(_JS, r"dinamik", "JavaScript: HTML elementlarini dinamik yaratish")
@@ -58,6 +59,14 @@ _DJANGO_BASE = [
     _need(_DJANGO, r"JsonResponse", "Django: JSON API (JsonResponse)"),
     _need(_DJANGO, r"JWT autentifikatsiya", "Django: JWT autentifikatsiya"),
     _need(_DJANGO, r"CORS", "Django: CORS (django-cors-headers)"),
+]
+# FastAPI: the contract is JSON + token auth + CORS; every need is a lesson of "FastAPI Asoslari".
+_FASTAPI_BASE = [
+    _need(_FASTAPI, r"birinchi endpoint", "FastAPI: birinchi endpoint (path va query parametrlari)"),
+    _need(_FASTAPI, r"Pydantic", "FastAPI: Pydantic modellari va validatsiya"),
+    _need(_FASTAPI, r"SQLAlchemy va Depends", "FastAPI: SQLAlchemy va Depends"),
+    _need(_FASTAPI, r"JWT autentifikatsiya", "FastAPI: JWT autentifikatsiya"),
+    _need(_FASTAPI, r"CORS", "FastAPI: CORS (CORSMiddleware)"),
 ]
 _RELATIONS = _need(_FLASK, r"Modellar orasidagi munosabatlar", "Flask: modellar orasidagi munosabatlar")
 _EXPRESS_BASE = [
@@ -105,7 +114,7 @@ _THEME_NEEDS = {
 def lesson_needs(theme: str, family: str) -> dict:
     """{"frontend": [needs], "backend": [needs]} for a theme and backend family."""
     t = _THEME_NEEDS[theme]
-    base = {"flask": _FLASK_BASE, "express": _EXPRESS_BASE, "django": _DJANGO_BASE}[family]
+    base = {"flask": _FLASK_BASE, "express": _EXPRESS_BASE, "django": _DJANGO_BASE, "fastapi": _FASTAPI_BASE}[family]
     return {"frontend": list(t["frontend"]), "backend": list(base) + list(t.get(family, []))}
 
 
@@ -489,6 +498,12 @@ _FAMILIES = {
         "run": {"backend": "cd backend && pip install -r requirements.txt && python manage.py migrate && python manage.py runserver 5000",
                 "frontend": "cd frontend && python -m http.server 8080  (backend: django-cors-headers allows it)"},
     },
+    "fastapi": {
+        "backend": ["backend/models.py", "backend/schemas.py", "backend/routes.py", "backend/security.py"],
+        "skeleton": ["README.md", "backend/requirements.txt", "backend/main.py", "backend/database.py"],
+        "run": {"backend": "cd backend && pip install -r requirements.txt && uvicorn main:app --port 5000",
+                "frontend": "cd frontend && python -m http.server 8080  (backend: CORSMiddleware allows it)"},
+    },
     "flask": {
         "backend": ["backend/models.py", "backend/routes.py"],
         "skeleton": ["README.md", "backend/requirements.txt", "backend/app.py"],
@@ -505,7 +520,7 @@ _FAMILIES = {
 
 
 def backend_family(stack_key: str) -> str:
-    return stack_key if stack_key in ("express", "django") else "flask"
+    return stack_key if stack_key in ("express", "django", "fastapi") else "flask"
 
 
 def _build(theme: str, family: str) -> dict:

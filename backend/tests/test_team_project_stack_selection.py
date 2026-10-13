@@ -17,12 +17,13 @@ JS_ONLY = member(javascript="Intermediate")
 JS_FLASK = member(javascript="Advanced", flask="Intermediate", python="Intermediate")
 JS_NODE = member(javascript="Advanced", node="Advanced")
 JS_DJANGO = member(javascript="Advanced", django="Intermediate", python="Intermediate")
+JS_FASTAPI = member(javascript="Advanced", fastapi="Intermediate", python="Intermediate")
 HTML_ONLY = member(html_css="Advanced")
 
 
 def test_the_stacks_are_exactly_the_ones_with_a_blueprint_family():
-    assert [s["key"] for s in TECH_STACKS] == ["vanilla", "express", "django"]
-    assert all("React" not in s["label"] and "FastAPI" not in s["label"] for s in TECH_STACKS)
+    assert [s["key"] for s in TECH_STACKS] == ["vanilla", "express", "django", "fastapi"]
+    assert all("React" not in s["label"] and "Vue" not in s["label"] for s in TECH_STACKS)
 
 
 def test_flask_stack_needs_javascript_and_a_flask_or_python_member():
@@ -37,6 +38,16 @@ def test_each_backend_stack_needs_its_own_course():
     express, django = TECH_STACKS_BY_KEY["express"], TECH_STACKS_BY_KEY["django"]
     assert stack_fits(express, [JS_NODE, JS_ONLY]) and not stack_fits(express, [JS_FLASK, JS_ONLY])
     assert stack_fits(django, [JS_DJANGO, JS_ONLY]) and not stack_fits(django, [JS_FLASK, JS_NODE])
+
+
+def test_fastapi_stack_needs_the_fastapi_course_not_just_python():
+    fastapi = TECH_STACKS_BY_KEY["fastapi"]
+    assert stack_fits(fastapi, [JS_FASTAPI, JS_ONLY])
+    assert not stack_fits(fastapi, [JS_FLASK, JS_DJANGO])       # Python alone is not FastAPI
+    assert not stack_fits(fastapi, [JS_ONLY, JS_ONLY]) and not stack_fits(fastapi, [HTML_ONLY, JS_FASTAPI, HTML_ONLY])
+    assert stack_fits(TECH_STACKS_BY_KEY["vanilla"], [JS_FASTAPI, JS_ONLY]) is True   # python area also fits the Flask stack
+    # a team that only has a FastAPI member is steered to the FastAPI stack when it draws another one
+    assert pick_stacks_for_teams([[JS_FASTAPI, JS_ONLY]], [TECH_STACKS_BY_KEY["express"]], rng=random.Random(1))[0]["key"] in {"vanilla", "fastapi"}
 
 
 def test_node_trained_students_are_no_longer_locked_out_of_express():
@@ -76,7 +87,7 @@ def test_a_team_that_fits_several_backends_gets_a_spread_of_them():
     assert seen == {"vanilla"}                       # a fitting draw is kept...
     from app.services.team_project_service import _cycle_sample
     draws = {_cycle_sample(TECH_STACKS, 1, avoid_key=None)[0]["key"] for _ in range(60)}
-    assert draws == {"vanilla", "express", "django"}  # ...and the random draw covers every backend
+    assert draws == {"vanilla", "express", "django", "fastapi"}  # ...and the random draw covers every backend
 
 
 def test_pick_raises_when_nothing_fits():
