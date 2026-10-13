@@ -26,7 +26,7 @@ Kurs avtomatik nashr qilinmaydi: o'qituvchi sifatida UZ va RU ni ko'rib chiqing,
 |---|---|
 | `multiple_choice` | 2+ variant, `correct_answers` harf ("A" yoki "A,C"), `options_ru` uzunligi `options` bilan teng |
 | `drag_and_drop` | `correct_order` — `drag_items` ning o'rin almashtirishi, `drag_items_ru` uzunligi teng |
-| `fill_in_blank` | tavsifda aynan bitta `___`, `correct_answers` bo'sh emas |
+| `fill_in_blank` | tavsifda aynan bitta `___`, `correct_answers` bo'sh emas. Javob tire bilan boshlansa (`-a`, `-v`, `--from`), builder uni tabiiy til deb hisoblaydi: `correct_answers_ru` ni xuddi shu qiymat bilan bering (lint buni tekshiradi) |
 | `text_input` | `expected_answer` — AI baholash mezoni (qat'iy mos kelish emas) |
 
 ## RU yozish qoidalari

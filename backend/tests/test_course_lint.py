@@ -270,3 +270,24 @@ def test_a_sample_needs_ru_title_and_description():
 
 def test_a_sample_needs_code_files_or_html():
     assert any("code_files" in e for e in lint([lesson(sample=_sample(code_files=[]))]).errors)
+
+
+def test_a_flag_answer_needs_an_explicit_ru_answer_like_the_builder_demands():
+    les = lesson()
+    les["exercises"][3]["correct_answers"] = "-a"
+    assert any("correct_answers_ru" in e for e in lint([les]).errors)
+    les["exercises"][3]["correct_answers_ru"] = "-a"
+    assert lint([les]).ok
+    # code-like tokens never need a translation
+    for token in ("Authorization", "create_access_token", "OPTIONS", "201", "uvicorn"):
+        les["exercises"][3].pop("correct_answers_ru", None)
+        les["exercises"][3]["correct_answers"] = token
+        assert not any("correct_answers_ru" in e for e in lint([les]).errors), token
+
+
+def test_the_builder_and_the_lint_share_one_answer_heuristic():
+    import course_builder.db_helpers as db_helpers
+    from course_builder import answers
+    assert db_helpers.is_natural_language_answer is answers.is_natural_language_answer
+    assert answers.is_natural_language_answer("-a") and not answers.is_natural_language_answer("jwt_required")
+

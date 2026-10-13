@@ -15,6 +15,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+from course_builder.answers import is_natural_language_answer
 from course_builder.glossary import forbidden_ru_terms
 
 CYRILLIC = re.compile(r"[а-яёА-ЯЁ]")
@@ -143,6 +144,14 @@ def _lint_exercise(ex: dict, where: str, out: LintResult) -> None:
             out.errors.append(f"{where}: correct_answers is missing")
     elif kind == "text_input" and not (ex.get("expected_answer") or "").strip():
         out.errors.append(f"{where}: expected_answer is missing (the AI grading rubric)")
+
+    answer = ex.get("correct_answers")
+    if kind in ("fill_in_blank", "text_input") and isinstance(answer, str) and is_natural_language_answer(answer) \
+            and not ex.get("correct_answers_ru"):
+        out.errors.append(
+            f"{where}: correct_answers {answer!r} looks like natural language to the builder, so it needs correct_answers_ru "
+            f"(a flag or command-line token such as '-a' stays the same: set correct_answers_ru to the same value)"
+        )
 
 
 def lint_spec(course: dict, lessons: list[dict]) -> LintResult:
