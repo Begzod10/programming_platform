@@ -1228,7 +1228,7 @@ def _blueprint_plan(bp):
         }
     f = bp["files"]
     return {"project_title": "Loyiha", "project_description": "Tavsif", "tasks": [
-        task(0, f["skeleton"] + f["backend"], ids, [], "flask" if bp["backend_family"] == "flask" else "node"),
+        task(0, f["skeleton"] + f["backend"], ids, [], {"flask": "flask", "express": "node", "django": "django"}[bp["backend_family"]]),
         task(1, f["frontend"], [], [ids[0]], "javascript"),
     ]}
 

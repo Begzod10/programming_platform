@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.course import Course
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.project import Project
-from app.services.team_project_constants import AREA_COURSE_PATTERNS, SKILL_AREAS
+from app.services.team_project_constants import SKILL_AREAS, course_in_area
 
 INTERMEDIATE_FROM = 0.3
 ADVANCED_FROM = 0.8
@@ -49,7 +49,7 @@ async def build_skill_levels(db: AsyncSession, student_ids: List[int]) -> Dict[i
 
     courses = (await db.execute(select(Course.id, Course.title))).all()
     area_courses: Dict[str, List[int]] = {
-        area: [cid for cid, title in courses if AREA_COURSE_PATTERNS[area].search(title or "")]
+        area: [cid for cid, title in courses if course_in_area(title, area)]
         for area in SKILL_AREAS
     }
     lesson_totals = dict((await db.execute(
@@ -113,8 +113,10 @@ async def completed_lessons_by_student(db: AsyncSession, student_ids: List[int])
 
 
 def need_met(completed: List[tuple], need: dict) -> bool:
-    course, lesson = _rx(need["course"]), _rx(need["lesson"])
-    return any(course.search(ct) and lesson.search(lt) for ct, lt in completed)
+    """`need["course"]` is a skill AREA (the courses of that area, see AREA_COURSES), `need["lesson"]`
+    a regex over the lesson title."""
+    lesson = _rx(need["lesson"])
+    return any(course_in_area(ct, need["course"]) and lesson.search(lt) for ct, lt in completed)
 
 
 def unmet_needs(requires: dict, member_completed: List[List[tuple]]) -> List[str]:

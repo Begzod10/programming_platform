@@ -26,16 +26,17 @@ def _need(course: str, lesson: str, label: str) -> dict:
     return {"course": course, "lesson": lesson, "label": label}
 
 
-_JS = r"javascript"
-_FLASK = r"flask"
-_NODE = r"node|express"
+_JS = "javascript"          # `course` of a need is a skill AREA (team_project_constants.AREA_COURSES)
+_FLASK = "flask"
+_NODE = "node"
+_DJANGO = "django"
 _DOM = _need(_JS, r"DOM bilan ishlash", "JavaScript: DOM bilan ishlash")
 _FETCH = _need(_JS, r"fetch va REST API", "JavaScript: fetch va REST API")
 _DYNAMIC = _need(_JS, r"dinamik", "JavaScript: HTML elementlarini dinamik yaratish")
 _STORAGE = _need(_JS, r"LocalStorage", "JavaScript: LocalStorage")
 _ITER = _need(_JS, r"Massiv iteratorlari", "JavaScript: massiv iteratorlari (map, filter)")
-_TABLE = _need(r"html|css", r"Table", "HTML/CSS: Table")
-_FLEX = _need(r"html|css", r"Display Flex", "HTML/CSS: Display Flex")
+_TABLE = _need("html_css", r"Table", "HTML/CSS: Table")
+_FLEX = _need("html_css", r"Display Flex", "HTML/CSS: Display Flex")
 
 _FLASK_BASE = [
     _need(_FLASK, r"Routing va URL", "Flask: Routing va URL"),
@@ -43,6 +44,12 @@ _FLASK_BASE = [
     _need(_FLASK, r"Database \(SQLAlchemy\)", "Flask: Database (SQLAlchemy)"),
     _need(_FLASK, r"CRUD operatsiyalar", "Flask: CRUD operatsiyalar"),
     _need(_FLASK, r"Parol hashing", "Flask: Parol hashing"),
+]
+_DJANGO_BASE = [
+    _need(_DJANGO, r"URL routing va views", "Django: URL routing va views"),
+    _need(_DJANGO, r"Models va ORM asoslari", "Django: Models va ORM asoslari"),
+    _need(_DJANGO, r"ORM chuqurroq", "Django: ORM chuqurroq (querysets, bog'lanishlar)"),
+    _need(_DJANGO, r"Autentifikatsiya", "Django: Autentifikatsiya"),
 ]
 _RELATIONS = _need(_FLASK, r"Modellar orasidagi munosabatlar", "Flask: modellar orasidagi munosabatlar")
 _EXPRESS_BASE = [
@@ -90,8 +97,8 @@ _THEME_NEEDS = {
 def lesson_needs(theme: str, family: str) -> dict:
     """{"frontend": [needs], "backend": [needs]} for a theme and backend family."""
     t = _THEME_NEEDS[theme]
-    base = _FLASK_BASE if family == "flask" else _EXPRESS_BASE
-    return {"frontend": list(t["frontend"]), "backend": list(base) + list(t[family])}
+    base = {"flask": _FLASK_BASE, "express": _EXPRESS_BASE, "django": _DJANGO_BASE}[family]
+    return {"frontend": list(t["frontend"]), "backend": list(base) + list(t.get(family, []))}
 
 
 class BlueprintMissing(Exception):
@@ -468,6 +475,12 @@ _THEMES = {
 
 # backend family -> (backend files, skeleton files, run commands)
 _FAMILIES = {
+    "django": {
+        "backend": ["backend/api/models.py", "backend/api/views.py", "backend/api/urls.py"],
+        "skeleton": ["README.md", "backend/requirements.txt", "backend/manage.py", "backend/config/settings.py"],
+        "run": {"backend": "cd backend && pip install -r requirements.txt && python manage.py migrate && python manage.py runserver 5000",
+                "frontend": "cd frontend && python -m http.server 8080  (backend: django-cors-headers allows it)"},
+    },
     "flask": {
         "backend": ["backend/models.py", "backend/routes.py"],
         "skeleton": ["README.md", "backend/requirements.txt", "backend/app.py"],
@@ -484,7 +497,7 @@ _FAMILIES = {
 
 
 def backend_family(stack_key: str) -> str:
-    return "express" if stack_key == "express" else "flask"
+    return stack_key if stack_key in ("express", "django") else "flask"
 
 
 def _build(theme: str, family: str) -> dict:

@@ -38,35 +38,63 @@ THEMES = [
 # random pick used to hand teams a framework none of them had studied. "vanilla"
 # needs nothing, so every team always has at least one eligible stack.
 TECH_STACKS = [
-    {"key": "react", "label": "React", "frontend": "React", "backend": "FastAPI", "needs": r"\breact\b",
-     "requires": {"frontend": "react", "backend": ["python", "flask"]}},
-    {"key": "vue", "label": "Vue", "frontend": "Vue", "backend": "Flask", "needs": r"\bvue\b",
-     "requires": {"frontend": "vue", "backend": ["python", "flask"]}},   # no Vue area/course exists: never fits
-    {"key": "next", "label": "Next.js", "frontend": "Next.js", "backend": "Django", "needs": r"\b(?:next\.?js|react)\b",
-     "requires": {"frontend": "react", "backend": ["python"]}},
-    {"key": "express", "label": "Node/Express", "frontend": "React", "backend": "Node/Express", "needs": r"\breact\b",
-     "requires": {"frontend": "react", "backend": ["node"]}},
-    {"key": "vanilla", "label": "Vanilla JS", "frontend": "Vanilla JS", "backend": "Flask", "needs": None,
+    # Every stack has a blueprint family (flask / express / django) and plain-JS pages — what is
+    # written here is what a team is actually given. (React/Vue/Next/FastAPI stacks were removed: no
+    # blueprint exists for them and there is no FastAPI course.)
+    {"key": "vanilla", "label": "Vanilla JS + Flask", "frontend": "Vanilla JS", "backend": "Flask",
      "requires": {"frontend": "javascript", "backend": ["flask", "python"]}},
+    {"key": "express", "label": "Vanilla JS + Node/Express", "frontend": "Vanilla JS", "backend": "Node/Express",
+     "requires": {"frontend": "javascript", "backend": ["node"]}},
+    {"key": "django", "label": "Vanilla JS + Django", "frontend": "Vanilla JS", "backend": "Django",
+     "requires": {"frontend": "javascript", "backend": ["django"]}},
 ]
 
 # ── skill areas (see team_project_skills.py) ───────────────────────────────
-# A student's level in an area comes from how much of the matching COURSES they
-# finished — not from the points-based `current_level`, which says nothing about
-# whether they have ever seen React or Flask. Courses are matched by TITLE so the
-# map survives course ids changing between environments.
-import re as _re
+# A student's level in an area comes from how much of the matching COURSES they finished — not
+# from the points-based `current_level`. The map is EXPLICIT (exact course titles), not a regex over
+# titles: a regex mapped "Next.js" to JavaScript and kids' courses to the adult areas. Kids' courses
+# and mixed capstones are deliberately absent. tests/test_team_project_skills.py checks every title
+# below against the real course list.
+SKILL_AREAS = ("html_css", "css_frameworks", "javascript", "typescript", "python", "flask", "django",
+               "node", "react", "sql", "telegram", "ai", "git")
 
-SKILL_AREAS = ("html_css", "javascript", "python", "flask", "node", "react", "sql")
-AREA_COURSE_PATTERNS = {
-    "html_css": _re.compile(r"\b(html|css)\b", _re.I),
-    "javascript": _re.compile(r"\b(javascript|js)\b", _re.I),
-    "python": _re.compile(r"\bpython\b", _re.I),
-    "flask": _re.compile(r"\bflask\b", _re.I),
-    "node": _re.compile(r"\b(node|express)", _re.I),
-    "react": _re.compile(r"\breact\b", _re.I),
-    "sql": _re.compile(r"\b(sql|postgres\w*)\b", _re.I),
+_FLASK_COURSES = ("Python Flask", "Python Flask — O'rta daraja", "Capstone 3: Flask + JavaScript + Telegram Bot")
+_DJANGO_COURSES = ("Python: Django Asoslari", "Capstone 2: Django + React + Telegram Bot")
+AREA_COURSES = {
+    "html_css": ("HTML CSS", "HTML/CSS Mini-Projects", "HTML/CSS: Keyingi Bosqich", "HTML/CSS: Professional Bosqich",
+                 "HTML/CSS: Real Loyihalar", "HTML/CSS: Intervyu Tayyorgarligi"),
+    "css_frameworks": ("SASS/SCSS Asoslari", "Bootstrap 5 Asoslari", "Tailwind CSS Asoslari"),
+    "javascript": ("Javascript", "JavaScript: Keyingi Bosqich", "JavaScript Mini-Projects", "JavaScript: Ilg'or Mavzular",
+                   "JavaScript: Brauzer API va Web", "JavaScript: Algoritmlar va Ma'lumotlar Tuzilmasi", "JavaScript: Testlash"),
+    "typescript": ("TypeScript Asoslari", "Capstone 4: TypeScript Full-Stack"),
+    # Flask and Django are Python: finishing them counts for the python area too.
+    "python": ("Python Asoslari", "Python: Keyingi Bosqich", "Python: Testlash", "Python: Algoritmlar va Ma'lumotlar Tuzilmasi",
+               "Python: Ilg'or Mavzular") + _FLASK_COURSES[:2] + _DJANGO_COURSES[:1],
+    "flask": _FLASK_COURSES,
+    "django": _DJANGO_COURSES,
+    "node": ("Node.js/Express Asoslari",),
+    "react": ("React Asoslari", "React: Redux Toolkit, TypeScript va Testlash", "React: Next.js va Server-Side Rendering",
+              "React: Performance va Optimizatsiya"),
+    "sql": ("SQL va PostgreSQL Asoslari", "SQL: Ma'lumotlar Bazasi Dizayni", "SQL: Ilg'or So'rovlar va Performance",
+            "SQL + Python ORM va Migratsiyalar"),
+    "telegram": ("Telegram Bot aiogram", "Telegram Bot: Ilg'or Mavzular", "Telethon: Telegram Userbot va MTProto",
+                 "Pyrogram: Zamonaviy Telegram Client Kutubxonasi"),
+    "ai": ("AI API'larni Loyihalarga Ulash", "RAG va Vektor Qidiruv: Hujjatlar Asosida AI"),
+    "git": ("Git va GitHub", "Git: Ichki Tuzilishi va Ilg'or Workflow", "GitHub Actions va CI/CD Chuqur",
+            "Jamoaviy Ish Madaniyati: Code Review va Versiyalash"),
 }
+
+
+def normalize_title(title: str) -> str:
+    return (title or "").replace("\u2019", "'").replace("\u02bb", "'").replace("`", "'").strip().casefold()
+
+
+_AREA_TITLE_SETS = {a: frozenset(normalize_title(t) for t in titles) for a, titles in AREA_COURSES.items()}
+
+
+def course_in_area(course_title: str, area: str) -> bool:
+    return normalize_title(course_title) in _AREA_TITLE_SETS.get(area, frozenset())
+
 
 THEMES_BY_KEY = {t["key"]: t for t in THEMES}
 TECH_STACKS_BY_KEY = {s["key"]: s for s in TECH_STACKS}

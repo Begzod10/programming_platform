@@ -21,6 +21,8 @@ CATALOG = {
     "Python Flask": ["2-Routing va URL", "7-Database (SQLAlchemy)", "8-CRUD operatsiyalar", "10-JSON API"],
     "Python Flask — O'rta daraja": ["4-Modellar orasidagi munosabatlar", "5-So'rovlar, filterlar, sahifalash",
                                     "7-Parol hashing (werkzeug.security)"],
+    "Python: Django Asoslari": ["2-URL routing va views", "4-Models va ORM asoslari", "7-ORM chuqurroq: querysets va bog'lanishlar",
+                                "8-Autentifikatsiya"],
     "Node.js/Express Asoslari": ["2-Routing va middleware", "5-PostgreSQL ulanish (pg)", "6-CRUD operatsiyalar",
                                  "8-JWT autentifikatsiya", "10-CORS va React bilan ulash"],
 }
@@ -29,7 +31,7 @@ THEME_KEYS = [t["key"] for t in THEMES]
 
 
 @pytest.mark.parametrize("theme", THEME_KEYS)
-@pytest.mark.parametrize("family", ["flask", "express"])
+@pytest.mark.parametrize("family", ["flask", "express", "django"])
 def test_every_need_matches_a_real_lesson(theme, family):
     needs = lesson_needs(theme, family)
     assert needs["frontend"] and needs["backend"]

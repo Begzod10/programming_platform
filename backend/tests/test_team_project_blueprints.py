@@ -6,7 +6,7 @@ from app.services.team_project_blueprints import (
 )
 from app.services.team_project_constants import TECH_STACKS, THEMES
 
-CASES = [(t["key"], s) for t in THEMES for s in ("vanilla", "express")]
+CASES = [(t["key"], s) for t in THEMES for s in ("vanilla", "express", "django")]
 
 
 @pytest.mark.parametrize("theme,stack", CASES)
@@ -16,7 +16,7 @@ def test_every_theme_and_family_has_a_blueprint(theme, stack):
 
 
 def test_every_stack_maps_to_a_known_family():
-    assert {backend_family(s["key"]) for s in TECH_STACKS} <= {"flask", "express"}
+    assert {backend_family(s["key"]) for s in TECH_STACKS} == {"flask", "express", "django"}
 
 
 @pytest.mark.parametrize("theme,stack", CASES)
@@ -40,7 +40,7 @@ def test_files_are_owned_once_and_the_skeleton_is_complete(theme, stack):
     skeleton = bp["files"]["skeleton"]
     assert "README.md" in skeleton
     assert any(f.endswith(("requirements.txt", "package.json")) for f in skeleton)
-    assert any(f.endswith(("app.py", "server.js")) for f in skeleton)
+    assert any(f.endswith(("app.py", "server.js", "manage.py")) for f in skeleton)
     assert bp["run"]["backend"] and bp["auth"]["token_key"] == "auth_token"
 
 
@@ -48,7 +48,8 @@ def test_flask_and_express_share_the_same_endpoints_but_not_files():
     flask, express = get_blueprint("crm", "vanilla"), get_blueprint("crm", "express")
     assert endpoint_ids(flask) == endpoint_ids(express)
     assert flask["files"]["backend"] != express["files"]["backend"]
-    assert get_blueprint("crm", "react")["backend_family"] == "flask"
+    assert get_blueprint("crm", "django")["backend_family"] == "django"
+    assert get_blueprint("crm", "vanilla")["backend_family"] == "flask"
 
 
 def test_blueprint_names_are_consistent_across_the_contract():
