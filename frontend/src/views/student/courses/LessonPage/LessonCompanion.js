@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
+import { sectionLabel } from '../../../../utils/sectionLabels';
 import './LessonCompanion.css';
 
 const TYPE_ICON = {
@@ -109,7 +110,7 @@ export default function LessonCompanion({ lesson, currentIndex, allLessons, isDo
                                 onClick={() => jump(s.id)}>
                                 <span className="slp-cmp-ico">{TYPE_ICON[s.type] || '•'}</span>
                                 <span className="slp-cmp-label">
-                                    {s.label || (ru ? `Раздел ${i + 1}` : `${i + 1}-bo'lim`)}
+                                    {sectionLabel(s.label, ru) || (ru ? `Раздел ${i + 1}` : `${i + 1}-bo'lim`)}
                                 </span>
                             </button>
                         ))}
