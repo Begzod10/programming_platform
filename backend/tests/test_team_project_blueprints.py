@@ -63,3 +63,15 @@ def test_get_blueprint_returns_a_copy_and_unknown_theme_raises():
     assert get_blueprint("booking", "vanilla")["endpoints"], "mutating a returned copy must not leak"
     with pytest.raises(BlueprintMissing):
         get_blueprint("no_such_theme", "vanilla")
+
+
+@pytest.mark.parametrize("theme,stack", CASES)
+def test_no_static_path_collides_with_an_id_path_of_the_same_method(theme, stack):
+    """`GET /api/items/low` next to `GET /api/items/<id>` makes routing order-dependent — a trap
+    for students (Express matches `/:id` first). Blueprints must use distinct paths."""
+    bp = get_blueprint(theme, stack)
+    paths = {(e["method"], e["path"]) for e in bp["endpoints"]}
+    for method, path in paths:
+        head, _, last = path.rpartition("/")
+        if last and not last.startswith("<"):
+            assert (method, f"{head}/<id>") not in paths, f"{method} {path} collides with {head}/<id>"

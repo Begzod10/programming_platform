@@ -23,6 +23,12 @@ THEMES = [
     {"key": "attendance", "label": "Davomat tizimi", "label_ru": "Система посещаемости"},
     {"key": "habits", "label": "Odatlar kuzatuvchisi", "label_ru": "Трекер привычек"},
     {"key": "classifieds", "label": "E'lonlar taxtasi", "label_ru": "Доска объявлений"},
+    {"key": "flashcards", "label": "So'z kartochkalari", "label_ru": "Карточки для слов"},
+    {"key": "inventory", "label": "Ombor hisobi", "label_ru": "Складской учёт"},
+    {"key": "tickets", "label": "Yordam so'rovlari tizimi", "label_ru": "Система заявок в поддержку"},
+    {"key": "clinic_queue", "label": "Poliklinika navbati", "label_ru": "Очередь в поликлинику"},
+    {"key": "tournament", "label": "Turnir jadvali", "label_ru": "Турнирная таблица"},
+    {"key": "rental", "label": "Ijara tizimi", "label_ru": "Система аренды"},
 ]
 
 # `needs`: a regex over a member's skill summary (course titles, lesson
