@@ -1213,6 +1213,13 @@ async def test_a_team_without_a_contract_reads_as_none(async_client, db_session,
 
 # ── 10. planner uses the blueprint ──────────────────────────────────────────
 
+def _backend_area(bp):
+    """The skill area of a blueprint's backend, from the planner's own map so a new backend family cannot break these tests
+    (the fixture draws its stack at random: it once raised KeyError 'fastapi' in about one run out of three)."""
+    from app.services.team_project_planner import _BACKEND_AREAS
+    return _BACKEND_AREAS[bp["backend_family"]][0]
+
+
 def _blueprint_plan(bp):
     ids = [e["id"] for e in bp["endpoints"]]
     def task(i, files, produces, consumes, area):
@@ -1228,7 +1235,7 @@ def _blueprint_plan(bp):
         }
     f = bp["files"]
     return {"project_title": "Loyiha", "project_description": "Tavsif", "tasks": [
-        task(0, f["skeleton"] + f["backend"], ids, [], {"flask": "flask", "express": "node", "django": "django"}[bp["backend_family"]]),
+        task(0, f["skeleton"] + f["backend"], ids, [], _backend_area(bp)),
         task(1, f["frontend"], [], [ids[0]], "javascript"),
     ]}
 
@@ -1410,3 +1417,13 @@ async def test_new_teams_store_what_they_have_not_studied(db_session, two_teams_
         await db_session.refresh(team)
         gaps = json.loads(team.unmet_lessons_json)
         assert gaps and all(isinstance(g, str) for g in gaps)               # no finished lessons -> everything unmet
+
+
+@pytest.mark.parametrize("stack", ["vanilla", "express", "django", "fastapi"])
+def test_the_blueprint_plan_helper_covers_every_backend_family(stack):
+    """Deterministic twin of the random-stack fixture: every stack's blueprint must yield a valid backend skill area."""
+    from app.services.team_project_blueprints import get_blueprint
+    from app.services.team_project_constants import SKILL_AREAS
+    plan = _blueprint_plan(get_blueprint("crm", stack))
+    assert plan["tasks"][0]["interface_contract"]["skill_area"] in SKILL_AREAS
+
