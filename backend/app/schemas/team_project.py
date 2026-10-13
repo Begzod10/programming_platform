@@ -138,6 +138,9 @@ class TeamProjectRead(BaseModel):
     team_size: int
     deadline_days: int
     created_at: datetime
+    # Teacher list only: archived_at is set once archived; can_archive is True when the project is over.
+    archived_at: Optional[datetime] = None
+    can_archive: bool = False
     # Set only on the create response: e.g. the chosen deadline is shorter than recommended.
     warning: Optional[str] = None
     teams: List[TeamRead] = []

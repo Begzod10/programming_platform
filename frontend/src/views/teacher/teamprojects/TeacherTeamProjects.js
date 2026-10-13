@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { isStuckWithNoManualPlan } from './isStuckWithNoManualPlan';
+import { archivable, projectsForTab, bulkArchiveLabel, bulkArchiveConfirm } from './archive';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { pickLang } from '../../../utils/pickLang';
 import './TeacherTeamProjects.css';
@@ -317,20 +318,46 @@ const TeacherTeamProjects = () => {
     const { request } = useHttp();
     const { lang } = useTranslation();
     const [assignments, setAssignments] = useState([]);
+    const [archivedList, setArchivedList] = useState([]);
+    const [tab, setTab] = useState('active');
+    const [archiveError, setArchiveError] = useState('');
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
 
     const reload = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await request(`${API_URL}v1/team-projects`, 'GET', null, headers());
-            setAssignments(Array.isArray(data) ? data : []);
+            const [active, archived] = await Promise.all([
+                request(`${API_URL}v1/team-projects`, 'GET', null, headers()),
+                request(`${API_URL}v1/team-projects?archived=true`, 'GET', null, headers()),
+            ]);
+            setAssignments(Array.isArray(active) ? active : []);
+            setArchivedList(Array.isArray(archived) ? archived : []);
         } catch {
             setAssignments([]);
+            setArchivedList([]);
         } finally {
             setLoading(false);
         }
     }, [request]);
+
+    const setArchived = async (projectIds, archive) => {
+        setArchiveError('');
+        try {
+            for (const id of projectIds) {
+                await request(`${API_URL}v1/team-projects/${id}/${archive ? 'archive' : 'unarchive'}`, 'POST', null, headers());
+            }
+        } catch (e) {
+            setArchiveError(e?.response?.data?.error?.message || e?.response?.data?.detail
+                || "Arxivlab bo'lmadi. Keyinroq qayta urinib ko'ring.");
+        }
+        await reload();
+    };
+
+    const archiveAllPast = () => {
+        const ids = archivable(assignments).map(p => p.id);
+        if (ids.length && window.confirm(bulkArchiveConfirm(ids.length))) setArchived(ids, true);
+    };
 
     useEffect(() => { reload(); }, [reload]);
 
@@ -341,6 +368,8 @@ const TeacherTeamProjects = () => {
         } catch {}
     };
 
+    const shownProjects = projectsForTab(assignments, archivedList, tab);
+
     return (
         <div className="ttp-page">
             <div className="ttp-page-head">
@@ -350,17 +379,44 @@ const TeacherTeamProjects = () => {
                 </button>
             </div>
 
+            <div className="ttp-tabs" role="tablist">
+                <button role="tab" aria-selected={tab === 'active'} className={`ttp-tab${tab === 'active' ? ' ttp-tab--on' : ''}`}
+                    onClick={() => setTab('active')}>Faol ({assignments.length})</button>
+                <button role="tab" aria-selected={tab === 'archive'} className={`ttp-tab${tab === 'archive' ? ' ttp-tab--on' : ''}`}
+                    onClick={() => setTab('archive')}>Arxiv ({archivedList.length})</button>
+                {tab === 'active' && archivable(assignments).length >= 2 && (
+                    <button className="ttp-btn ttp-btn--ghost ttp-tabs-bulk" onClick={archiveAllPast}>
+                        {bulkArchiveLabel(archivable(assignments).length)}
+                    </button>
+                )}
+            </div>
+            {archiveError && <p className="ttp-error" role="alert">{archiveError}</p>}
+
             {loading && <p className="ttp-muted">Yuklanmoqda…</p>}
-            {!loading && assignments.length === 0 && (
-                <p className="ttp-muted">Hali topshiriq yaratilmagan.</p>
+            {!loading && shownProjects.length === 0 && (
+                <p className="ttp-muted">
+                    {tab === 'archive' ? "Arxiv bo'sh." : 'Hali topshiriq yaratilmagan.'}
+                </p>
             )}
 
             <div className="ttp-assignments-row">
-                {assignments.map(tp => (
+                {shownProjects.map(tp => (
                     <div key={tp.id} className="ttp-assignment">
                         <div className="ttp-assignment-head">
                             <span>#{tp.id} · {STATUS_LABELS[tp.status] || tp.status}</span>
-                            <span className="ttp-muted">{tp.teams.length} ta jamoa</span>
+                            <span className="ttp-assignment-side">
+                                <span className="ttp-muted">{tp.teams.length} ta jamoa</span>
+                                {tab === 'active' && tp.can_archive && (
+                                    <button className="ttp-btn ttp-btn--ghost ttp-btn--inline" onClick={() => setArchived([tp.id], true)}>
+                                        Arxivlash
+                                    </button>
+                                )}
+                                {tab === 'archive' && (
+                                    <button className="ttp-btn ttp-btn--ghost ttp-btn--inline" onClick={() => setArchived([tp.id], false)}>
+                                        Arxivdan chiqarish
+                                    </button>
+                                )}
+                            </span>
                         </div>
                         <div className="ttp-team-grid">
                             {tp.teams.map(team => (

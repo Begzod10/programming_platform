@@ -1427,3 +1427,67 @@ def test_the_blueprint_plan_helper_covers_every_backend_family(stack):
     plan = _blueprint_plan(get_blueprint("crm", stack))
     assert plan["tasks"][0]["interface_contract"]["skill_area"] in SKILL_AREAS
 
+
+# ── archive (teacher list hygiene) ──────────────────────────────────────────
+
+ARCHIVE_BASE = "/api/v1/team-projects"
+
+
+async def _finish_every_team(db_session, team_project_id):
+    from app.models.team_project import TeamProjectTeam, TeamStatus
+    for team in (await db_session.execute(
+            select(TeamProjectTeam).where(TeamProjectTeam.team_project_id == team_project_id))).scalars().all():
+        team.status = TeamStatus.reviewed
+    await db_session.commit()
+
+
+async def test_the_list_hides_archived_projects_and_flags_what_can_be_archived(async_client, two_teams_project):
+    fx = two_teams_project
+    h = fx["teacher_headers"]
+    listed = (await async_client.get(ARCHIVE_BASE, headers=h)).json()
+    assert [p["id"] for p in listed] == [fx["team_project_id"]]
+    assert listed[0]["can_archive"] is False and listed[0]["archived_at"] is None
+    assert (await async_client.get(f"{ARCHIVE_BASE}?archived=true", headers=h)).json() == []
+
+
+async def test_a_running_project_cannot_be_archived(async_client, two_teams_project):
+    fx = two_teams_project
+    res = await async_client.post(f"{ARCHIVE_BASE}/{fx['team_project_id']}/archive", headers=fx["teacher_headers"])
+    assert res.status_code == 400 and "muddati" in res.json()["error"]["message"]
+
+
+async def test_a_finished_project_is_archived_listed_in_the_archive_and_restored(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    h, pid = fx["teacher_headers"], fx["team_project_id"]
+    await _finish_every_team(db_session, pid)
+
+    assert (await async_client.get(ARCHIVE_BASE, headers=h)).json()[0]["can_archive"] is True
+    done = await async_client.post(f"{ARCHIVE_BASE}/{pid}/archive", headers=h)
+    assert done.status_code == 200 and done.json()["archived_at"] is not None
+    assert (await async_client.post(f"{ARCHIVE_BASE}/{pid}/archive", headers=h)).status_code == 200      # idempotent
+    assert (await async_client.get(ARCHIVE_BASE, headers=h)).json() == []
+    assert [p["id"] for p in (await async_client.get(f"{ARCHIVE_BASE}?archived=true", headers=h)).json()] == [pid]
+
+    back = await async_client.post(f"{ARCHIVE_BASE}/{pid}/unarchive", headers=h)
+    assert back.status_code == 200 and back.json()["archived_at"] is None
+    assert [p["id"] for p in (await async_client.get(ARCHIVE_BASE, headers=h)).json()] == [pid]
+
+
+async def test_only_the_owning_teacher_can_archive(async_client, two_teams_project):
+    fx = two_teams_project
+    pid = fx["team_project_id"]
+    student_headers = next(iter(fx["student_headers"].values()))
+    assert (await async_client.post(f"{ARCHIVE_BASE}/{pid}/archive", headers=student_headers)).status_code == 403
+    assert (await async_client.post(f"{ARCHIVE_BASE}/{pid}/unarchive", headers=student_headers)).status_code == 403
+    assert (await async_client.post(f"{ARCHIVE_BASE}/999999/archive", headers=fx["teacher_headers"])).status_code == 404
+
+
+async def test_archiving_does_not_hide_the_project_from_its_students(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    await _finish_every_team(db_session, fx["team_project_id"])
+    await async_client.post(f"{ARCHIVE_BASE}/{fx['team_project_id']}/archive", headers=fx["teacher_headers"])
+    student = next(iter(fx["student_headers"].values()))
+    mine = await async_client.get(f"{ARCHIVE_BASE}/my", headers=student)
+    history = await async_client.get(f"{ARCHIVE_BASE}/my/history", headers=student)
+    assert mine.status_code == 200 and mine.json() and history.status_code == 200 and history.json()
+

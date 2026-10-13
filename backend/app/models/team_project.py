@@ -106,6 +106,8 @@ class TeamProject(Base):
     auto_activate_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     activated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The teacher moved the project out of the active list (see services/team_project_archive.py).
+    archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # ai_plan_json / plan_generated_at / generation_attempts are on
     # TeamProjectTeam below, NOT here, despite the feature spec's schema

@@ -31,6 +31,7 @@ from app.schemas.team_project import (
     PeerRatingRead, MyPeerRatingRead, TeamEventRead, ManualPlanBody,
     TeacherReviewBody, ExtendDeadlineBody, HistoryProjectRead, HistoryTeamRow,
 )
+from app.services.team_project_archive import is_past
 from app.services.team_project_service import create_team_project
 from app.services.team_project_planner import generate_plan_for_team, validate_plan, MAX_GENERATION_ATTEMPTS
 from app.services.team_project_task_review import review_task_submission
@@ -176,6 +177,7 @@ def _team_project_read(tp: TeamProject) -> TeamProjectRead:
     return TeamProjectRead(
         id=tp.id, group_id=tp.group_id, course_id=tp.course_id, status=tp.status.value,
         team_size=tp.team_size, deadline_days=tp.deadline_days, created_at=tp.created_at,
+        archived_at=tp.archived_at, can_archive=is_past(tp, utcnow()),
         teams=[_team_read(t) for t in tp.teams],
     )
 
@@ -422,12 +424,15 @@ async def create_assignment(
 @router.get("", response_model=list[TeamProjectRead])
 @router.get("/", response_model=list[TeamProjectRead], include_in_schema=False)
 async def list_assignments(
+        archived: bool = False,
         db: AsyncSession = Depends(get_db),
         teacher: Student = Depends(get_current_teacher),
 ):
+    """The teacher's projects; `archived=true` lists the archive instead of the active ones."""
     rows = (await db.execute(
         select(TeamProject)
         .where(TeamProject.teacher_id == teacher.id)
+        .where(TeamProject.archived_at.isnot(None) if archived else TeamProject.archived_at.is_(None))
         .options(*_team_load_options())
         .order_by(TeamProject.created_at.desc())
     )).unique().scalars().all()
@@ -541,6 +546,42 @@ async def get_assignment(
     tp = await _fetch_team_project(db, team_project_id)
     if tp.teacher_id != teacher.id:
         raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    return _team_project_read(tp)
+
+
+# ── Teacher: archive / restore a finished project ──────────────────────────
+@router.post("/{team_project_id}/archive", response_model=TeamProjectRead)
+async def archive_assignment(
+        team_project_id: int,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    tp = await _fetch_team_project(db, team_project_id)
+    if tp.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    if tp.archived_at is None:
+        if not is_past(tp, utcnow()):
+            raise HTTPException(
+                status_code=400,
+                detail="Loyihaning muddati hali o'tmagan: ishlayotgan loyihani arxivlab bo'lmaydi",
+            )
+        tp.archived_at = utcnow()
+        await db.commit()
+    return _team_project_read(tp)
+
+
+@router.post("/{team_project_id}/unarchive", response_model=TeamProjectRead)
+async def unarchive_assignment(
+        team_project_id: int,
+        db: AsyncSession = Depends(get_db),
+        teacher: Student = Depends(get_current_teacher),
+):
+    tp = await _fetch_team_project(db, team_project_id)
+    if tp.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Ruxsat yo'q")
+    if tp.archived_at is not None:
+        tp.archived_at = None
+        await db.commit()
     return _team_project_read(tp)
 
 

@@ -220,6 +220,8 @@ async def _reconcile_indexes(conn) -> None:
         # 2026-10-12: fixed API contract per team project team (planning redesign, stage 2).
         text("ALTER TABLE team_project_teams ADD COLUMN IF NOT EXISTS shared_contract_json TEXT"),
         text("ALTER TABLE team_project_teams ADD COLUMN IF NOT EXISTS unmet_lessons_json TEXT"),
+        # 2026-10-13: teachers archive team projects that are over.
+        text("ALTER TABLE team_projects ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ"),
         text("UPDATE projects SET points_applied = CASE WHEN status = 'Approved' "
              "THEN COALESCE(points_earned, 0) ELSE 0 END WHERE points_applied IS NULL"),
     ]
