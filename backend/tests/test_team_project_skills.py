@@ -79,7 +79,7 @@ async def test_empty_input_and_unknown_student_are_safe(async_client, db_session
 
 from app.services.team_project_constants import AREA_COURSES, SKILL_AREAS, course_in_area
 
-# All 66 active course titles on production (2026-10-13, incl. the 4 new API courses). Every mapped title must exist here, so a
+# All 67 active course titles on production (2026-10-13, incl. the 5 new courses: 4 API courses and Docker). Every mapped title must exist here, so a
 # typo or a renamed course cannot silently drop students out of an area.
 PRODUCTION_TITLES = {
     "HTML CSS", "Python Flask", "Javascript", "Python Flask — O'rta daraja", "Python Asoslari", "Dasturlash dunyosiga kirish",
@@ -103,7 +103,7 @@ PRODUCTION_TITLES = {
     "JavaScript bilan interaktivlik (bolalar uchun)", "Scratch 3: Ilg'or Scratch (bolalar uchun)",
     "Raqamli xavfsizlik va internet odobi (bolalar uchun)", "Kompyuter qanday ishlaydi (bolalar uchun)",
     "Flask: Token autentifikatsiya va CORS (API)", "Django: JSON API (DRF asoslari)",
-    "Express: API testlash (Jest va supertest)", "FastAPI Asoslari",
+    "Express: API testlash (Jest va supertest)", "FastAPI Asoslari", "Docker asoslari",
 }
 
 
@@ -145,3 +145,10 @@ def test_the_new_api_courses_are_mapped_to_their_areas():
     assert not course_in_area("Express: API testlash (Jest va supertest)", "javascript")
     assert course_in_area("FastAPI Asoslari", "python") and course_in_area("FastAPI Asoslari", "fastapi")
     assert not course_in_area("FastAPI Asoslari", "flask") and not course_in_area("FastAPI Asoslari", "django")
+
+
+def test_docker_course_has_its_own_area_and_counts_nowhere_else():
+    assert "docker" in SKILL_AREAS and course_in_area("Docker asoslari", "docker")
+    assert not any(course_in_area("Docker asoslari", a) for a in SKILL_AREAS if a != "docker")
+    assert not course_in_area("Git va GitHub", "docker")
+
