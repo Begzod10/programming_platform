@@ -160,3 +160,11 @@ def test_linux_and_api_courses_have_their_own_areas_and_count_nowhere_else():
         assert not any(course_in_area(title, a) for a in SKILL_AREAS if a != area), title
     assert not course_in_area("Docker asoslari", "linux") and not course_in_area("FastAPI Asoslari", "api")
 
+
+def test_aiogram_area_has_only_the_two_aiogram_courses_and_not_the_userbot_ones():
+    assert "aiogram" in SKILL_AREAS
+    for title in ("Telegram Bot aiogram", "Telegram Bot: Ilg'or Mavzular"):
+        assert course_in_area(title, "aiogram") and course_in_area(title, "telegram")
+    for title in ("Telethon: Telegram Userbot va MTProto", "Pyrogram: Zamonaviy Telegram Client Kutubxonasi"):
+        assert course_in_area(title, "telegram") and not course_in_area(title, "aiogram")
+

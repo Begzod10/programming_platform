@@ -5,31 +5,53 @@ list yet (see team_project_service.py for how these get sampled per team).
 """
 
 THEMES = [
-    {"key": "crm", "label": "CRM tizimi", "label_ru": "Система CRM"},
-    {"key": "dashboard", "label": "Admin dashboard", "label_ru": "Админ-панель"},
-    {"key": "task_tracker", "label": "Vazifalarni boshqarish tizimi", "label_ru": "Трекер задач"},
-    {"key": "online_shop", "label": "Onlayn do'kon", "label_ru": "Интернет-магазин"},
-    {"key": "social_feed", "label": "Ijtimoiy tarmoq lentasi", "label_ru": "Лента соцсети"},
-    {"key": "booking", "label": "Bandlash tizimi", "label_ru": "Система бронирования"},
-    {"key": "blog", "label": "Blog platformasi", "label_ru": "Блог-платформа"},
-    {"key": "survey", "label": "So'rovnoma tizimi", "label_ru": "Система опросов"},
-    {"key": "quiz", "label": "Test (viktorina) platformasi", "label_ru": "Платформа тестов (викторин)"},
-    {"key": "library", "label": "Kutubxona tizimi", "label_ru": "Система библиотеки"},
-    {"key": "finance", "label": "Shaxsiy moliya hisobi", "label_ru": "Учёт личных финансов"},
-    {"key": "bot_panel", "label": "Telegram bot boshqaruv paneli", "label_ru": "Панель управления Telegram-ботом"},
-    {"key": "recipes", "label": "Retsept kitobi", "label_ru": "Книга рецептов"},
-    {"key": "events", "label": "Tadbirlar va ro'yxatdan o'tish", "label_ru": "События и регистрация"},
-    {"key": "jobs", "label": "Vakansiyalar taxtasi", "label_ru": "Доска вакансий"},
-    {"key": "attendance", "label": "Davomat tizimi", "label_ru": "Система посещаемости"},
-    {"key": "habits", "label": "Odatlar kuzatuvchisi", "label_ru": "Трекер привычек"},
-    {"key": "classifieds", "label": "E'lonlar taxtasi", "label_ru": "Доска объявлений"},
-    {"key": "flashcards", "label": "So'z kartochkalari", "label_ru": "Карточки для слов"},
-    {"key": "inventory", "label": "Ombor hisobi", "label_ru": "Складской учёт"},
-    {"key": "tickets", "label": "Yordam so'rovlari tizimi", "label_ru": "Система заявок в поддержку"},
-    {"key": "clinic_queue", "label": "Poliklinika navbati", "label_ru": "Очередь в поликлинику"},
-    {"key": "tournament", "label": "Turnir jadvali", "label_ru": "Турнирная таблица"},
-    {"key": "rental", "label": "Ijara tizimi", "label_ru": "Система аренды"},
+    {"key": "crm", "label": "CRM tizimi", "label_ru": "Система CRM", "kind": "web"},
+    {"key": "dashboard", "label": "Admin dashboard", "label_ru": "Админ-панель", "kind": "web"},
+    {"key": "task_tracker", "label": "Vazifalarni boshqarish tizimi", "label_ru": "Трекер задач", "kind": "web"},
+    {"key": "online_shop", "label": "Onlayn do'kon", "label_ru": "Интернет-магазин", "kind": "web"},
+    {"key": "social_feed", "label": "Ijtimoiy tarmoq lentasi", "label_ru": "Лента соцсети", "kind": "web"},
+    {"key": "booking", "label": "Bandlash tizimi", "label_ru": "Система бронирования", "kind": "web"},
+    {"key": "blog", "label": "Blog platformasi", "label_ru": "Блог-платформа", "kind": "web"},
+    {"key": "survey", "label": "So'rovnoma tizimi", "label_ru": "Система опросов", "kind": "web"},
+    {"key": "quiz", "label": "Test (viktorina) platformasi", "label_ru": "Платформа тестов (викторин)", "kind": "web"},
+    {"key": "library", "label": "Kutubxona tizimi", "label_ru": "Система библиотеки", "kind": "web"},
+    {"key": "finance", "label": "Shaxsiy moliya hisobi", "label_ru": "Учёт личных финансов", "kind": "web"},
+    {"key": "bot_panel", "label": "Telegram bot boshqaruv paneli", "label_ru": "Панель управления Telegram-ботом", "kind": "web"},
+    {"key": "recipes", "label": "Retsept kitobi", "label_ru": "Книга рецептов", "kind": "web"},
+    {"key": "events", "label": "Tadbirlar va ro'yxatdan o'tish", "label_ru": "События и регистрация", "kind": "web"},
+    {"key": "jobs", "label": "Vakansiyalar taxtasi", "label_ru": "Доска вакансий", "kind": "web"},
+    {"key": "attendance", "label": "Davomat tizimi", "label_ru": "Система посещаемости", "kind": "web"},
+    {"key": "habits", "label": "Odatlar kuzatuvchisi", "label_ru": "Трекер привычек", "kind": "web"},
+    {"key": "classifieds", "label": "E'lonlar taxtasi", "label_ru": "Доска объявлений", "kind": "web"},
+    {"key": "flashcards", "label": "So'z kartochkalari", "label_ru": "Карточки для слов", "kind": "web"},
+    {"key": "inventory", "label": "Ombor hisobi", "label_ru": "Складской учёт", "kind": "web"},
+    {"key": "tickets", "label": "Yordam so'rovlari tizimi", "label_ru": "Система заявок в поддержку", "kind": "web"},
+    {"key": "clinic_queue", "label": "Poliklinika navbati", "label_ru": "Очередь в поликлинику", "kind": "web"},
+    {"key": "tournament", "label": "Turnir jadvali", "label_ru": "Турнирная таблица", "kind": "web"},
+    {"key": "rental", "label": "Ijara tizimi", "label_ru": "Система аренды", "kind": "web"},
+    # Telegram bots (aiogram): no frontend, no HTTP endpoints — the contract is commands, buttons and FSM flows.
+    {"key": "delivery_bot", "label": "Yetkazib berish boti", "label_ru": "Бот доставки", "kind": "bot"},
+    {"key": "quiz_bot", "label": "Viktorina boti", "label_ru": "Бот-викторина", "kind": "bot"},
+    {"key": "queue_bot", "label": "Navbat boti", "label_ru": "Бот очереди", "kind": "bot"},
+    {"key": "expense_bot", "label": "Xarajat hisobi boti", "label_ru": "Бот учёта расходов", "kind": "bot"},
+    {"key": "flashcards_bot", "label": "So'z kartochkalari boti", "label_ru": "Бот карточек для слов", "kind": "bot"},
+    {"key": "events_bot", "label": "Tadbirlar boti", "label_ru": "Бот мероприятий", "kind": "bot"},
+    {"key": "support_bot", "label": "Yordam so'rovlari boti", "label_ru": "Бот заявок в поддержку", "kind": "bot"},
+    {"key": "habits_bot", "label": "Odatlar kuzatuvchi boti", "label_ru": "Бот-трекер привычек", "kind": "bot"},
+    {"key": "library_bot", "label": "Kutubxona boti", "label_ru": "Бот библиотеки", "kind": "bot"},
+    {"key": "survey_bot", "label": "So'rovnoma boti", "label_ru": "Бот опросов", "kind": "bot"},
+    {"key": "booking_bot", "label": "Bandlash boti", "label_ru": "Бот бронирования", "kind": "bot"},
+    {"key": "notes_bot", "label": "Eslatmalar boti", "label_ru": "Бот заметок", "kind": "bot"},
 ]
+
+WEB_THEMES = [t for t in THEMES if t["kind"] == "web"]
+BOT_THEMES = [t for t in THEMES if t["kind"] == "bot"]
+
+
+def themes_for_kind(kind: str) -> list:
+    """The theme pool of a stack kind: 'web' (frontend + backend) or 'bot' (Telegram bot)."""
+    return BOT_THEMES if kind == "bot" else WEB_THEMES
+
 
 # `needs`: a regex over a member's skill summary (course titles, lesson
 # languages, project technologies). A stack with a frontend framework is only
@@ -38,17 +60,21 @@ THEMES = [
 # random pick used to hand teams a framework none of them had studied. "vanilla"
 # needs nothing, so every team always has at least one eligible stack.
 TECH_STACKS = [
-    # Every stack has a blueprint family (flask / express / django) and plain-JS pages — what is
+    # Every stack has a blueprint family (flask / express / django / fastapi / aiogram) and plain-JS pages (bot: none) — what is
     # written here is what a team is actually given. (React/Vue/Next/FastAPI stacks were removed: no
     # blueprint exists for them; FastAPI is back since "FastAPI Asoslari" and its blueprint family exist.)
-    {"key": "vanilla", "label": "Vanilla JS + Flask", "frontend": "Vanilla JS", "backend": "Flask",
+    {"key": "vanilla", "kind": "web", "label": "Vanilla JS + Flask", "frontend": "Vanilla JS", "backend": "Flask",
      "requires": {"frontend": "javascript", "backend": ["flask", "python"]}},
-    {"key": "express", "label": "Vanilla JS + Node/Express", "frontend": "Vanilla JS", "backend": "Node/Express",
+    {"key": "express", "kind": "web", "label": "Vanilla JS + Node/Express", "frontend": "Vanilla JS", "backend": "Node/Express",
      "requires": {"frontend": "javascript", "backend": ["node"]}},
-    {"key": "django", "label": "Vanilla JS + Django", "frontend": "Vanilla JS", "backend": "Django",
+    {"key": "django", "kind": "web", "label": "Vanilla JS + Django", "frontend": "Vanilla JS", "backend": "Django",
      "requires": {"frontend": "javascript", "backend": ["django"]}},
-    {"key": "fastapi", "label": "Vanilla JS + FastAPI", "frontend": "Vanilla JS", "backend": "FastAPI",
+    {"key": "fastapi", "kind": "web", "label": "Vanilla JS + FastAPI", "frontend": "Vanilla JS", "backend": "FastAPI",
      "requires": {"frontend": "javascript", "backend": ["fastapi"]}},
+    # A Telegram bot has no frontend: `requires.frontend` is None, the backend skill is the aiogram course
+    # (not the whole `telegram` area, which also holds the Telethon/Pyrogram userbot courses).
+    {"key": "aiogram", "kind": "bot", "label": "Telegram bot (aiogram)", "frontend": "—", "backend": "aiogram",
+     "requires": {"frontend": None, "backend": ["aiogram"]}},
 ]
 
 # ── skill areas (see team_project_skills.py) ───────────────────────────────
@@ -57,7 +83,7 @@ TECH_STACKS = [
 # titles: a regex mapped "Next.js" to JavaScript and kids' courses to the adult areas. Kids' courses
 # and mixed capstones are deliberately absent. tests/test_team_project_skills.py checks every title
 # below against the real course list.
-SKILL_AREAS = ("html_css", "css_frameworks", "javascript", "typescript", "python", "flask", "django", "fastapi",
+SKILL_AREAS = ("html_css", "css_frameworks", "javascript", "typescript", "python", "flask", "django", "fastapi", "aiogram",
                "node", "react", "sql", "telegram", "ai", "git", "docker", "linux", "api")
 
 # Flask/Django courses (and the API short courses built on them) count for the python area too;
@@ -79,6 +105,7 @@ AREA_COURSES = {
     "flask": _FLASK_COURSES,
     "django": _DJANGO_COURSES,
     "fastapi": ("FastAPI Asoslari",),
+    "aiogram": ("Telegram Bot aiogram", "Telegram Bot: Ilg'or Mavzular"),
     "node": ("Node.js/Express Asoslari", "Express: API testlash (Jest va supertest)"),
     "react": ("React Asoslari", "React: Redux Toolkit, TypeScript va Testlash", "React: Next.js va Server-Side Rendering",
               "React: Performance va Optimizatsiya"),

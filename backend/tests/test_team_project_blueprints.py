@@ -4,9 +4,9 @@ import pytest
 from app.services.team_project_blueprints import (
     BlueprintMissing, all_files, backend_family, endpoint_ids, get_blueprint,
 )
-from app.services.team_project_constants import TECH_STACKS, THEMES
+from app.services.team_project_constants import TECH_STACKS, WEB_THEMES
 
-CASES = [(t["key"], s) for t in THEMES for s in ("vanilla", "express", "django", "fastapi")]
+CASES = [(t["key"], s) for t in WEB_THEMES for s in ("vanilla", "express", "django", "fastapi")]
 
 
 @pytest.mark.parametrize("theme,stack", CASES)

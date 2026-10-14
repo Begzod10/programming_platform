@@ -22,7 +22,7 @@ from app.models.user import Student
 from app.schemas.team_project import SkillProfile
 from app.services import skill_profile_service
 from app.services.team_project_skills import build_skill_levels
-from app.services.team_project_constants import THEMES, TECH_STACKS, LEVEL_RANK as _LEVEL_RANK
+from app.services.team_project_constants import WEB_THEMES, TECH_STACKS, LEVEL_RANK as _LEVEL_RANK
 from app.services.teacher_students import teacher_student_ids_subquery
 
 # _LEVEL_RANK ranks current_level for auto-picking the strongest member as
@@ -97,13 +97,13 @@ def choose_themes_for_teams(
             gaps = unmet(team_idx, theme["key"]) if unmet else 0
             return (gaps, repeats, theme["key"] in taken)
 
-        best = min(score(t) for t in THEMES)
-        tied = [t for t in THEMES if score(t) == best]
+        best = min(score(t) for t in WEB_THEMES)
+        tied = [t for t in WEB_THEMES if score(t) == best]
         calmer = [t for t in tied if t["key"] != avoid_key]
         choice = rng.choice(calmer or tied)
         picks.append(choice)
         taken.add(choice["key"])
-        if len(taken) >= len(THEMES):
+        if len(taken) >= len(WEB_THEMES):
             taken.clear()             # more teams than themes: start another round
     return picks
 
@@ -120,9 +120,11 @@ def stack_fits(stack: dict, skills: List[dict]) -> bool:
     req = stack.get("requires")
     if not req or not skills:
         return False
-    frontend = req["frontend"]
-    have_frontend = sum(1 for m in skills if m.get(frontend) is not None and m[frontend].has)
     have_backend = any(m.get(a) is not None and m[a].has for m in skills for a in req["backend"])
+    frontend = req["frontend"]
+    if frontend is None:                      # a bot has no frontend
+        return have_backend
+    have_frontend = sum(1 for m in skills if m.get(frontend) is not None and m[frontend].has)
     return have_frontend > 0 and have_frontend * 2 >= len(skills) and have_backend
 
 

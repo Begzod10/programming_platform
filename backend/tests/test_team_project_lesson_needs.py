@@ -7,7 +7,7 @@ import pytest
 from app.models.course import Course
 from app.models.lesson import Lesson, LessonCompletion
 from app.services.team_project_blueprints import get_blueprint, lesson_needs
-from app.services.team_project_constants import THEMES
+from app.services.team_project_constants import WEB_THEMES
 from app.services.team_project_service import choose_themes_for_teams
 from app.services.team_project_skills import completed_lessons_by_student, need_met, unmet_needs
 
@@ -35,7 +35,7 @@ CATALOG = {
 }
 OLD_CATALOG_ONLY = {c: ls for c, ls in CATALOG.items() if "Token" not in c and "JSON API (DRF" not in c and c != "FastAPI Asoslari"}
 EVERYTHING = [(c, l) for c, ls in CATALOG.items() for l in ls]
-THEME_KEYS = [t["key"] for t in THEMES]
+THEME_KEYS = [t["key"] for t in WEB_THEMES]
 
 
 @pytest.mark.parametrize("theme", THEME_KEYS)
