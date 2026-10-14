@@ -24,6 +24,19 @@ LEAD_MESSAGE = (
     "ulanishini tekshiring va shu repo havolasini yuborib yakuniy topshiring."
 )
 
+BOT_LEAD_MESSAGE = (
+    "Barcha vazifalar tasdiqlandi. Endi bot kodini BITTA repoga birlashtiring "
+    "(README'da ishga tushirish yo'l-yo'rig'i va .env.example bilan), botni "
+    "`python -m bot.main` bilan ishga tushirib, barcha oqimlar ishlashini tekshiring "
+    "va shu repo havolasini yuborib yakuniy topshiring."
+)
+
+
+def lead_message(tech_stack: str | None) -> str:
+    from app.services.team_project_constants import TECH_STACKS
+    stack = next((x for x in TECH_STACKS if x["key"] == tech_stack), None)
+    return BOT_LEAD_MESSAGE if stack and stack.get("kind") == "bot" else LEAD_MESSAGE
+
 
 async def unlock_integration_if_ready(db: AsyncSession, team_id: int) -> bool:
     """Idempotent, best-effort: never raises. Returns True only on the call that unlocks."""
@@ -48,7 +61,7 @@ async def unlock_integration_if_ready(db: AsyncSession, team_id: int) -> bool:
             from app.services.notification_service import _emit
             await _emit(
                 db, team.lead_student_id, type="team_integration_ready", tone="ok",
-                title="Jamoaviy loyiha: birlashtirish vaqti 🧩", body=LEAD_MESSAGE,
+                title="Jamoaviy loyiha: birlashtirish vaqti 🧩", body=lead_message(team.tech_stack),
                 link="/student/team-projects",
             )
         return True

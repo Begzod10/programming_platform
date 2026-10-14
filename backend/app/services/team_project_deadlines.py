@@ -44,7 +44,7 @@ def recommended_days(critical_hours: float) -> int:
 
 def _is_backend(task: dict) -> bool:
     files = (task.get("interface_contract") or {}).get("files") or []
-    return any(isinstance(f, str) and f.startswith("backend/") for f in files)
+    return any(isinstance(f, str) and f.startswith(("backend/", "bot/core/")) for f in files)
 
 
 def stage_deadlines(tasks: list[dict], start: datetime, days: int) -> dict[int, datetime]:

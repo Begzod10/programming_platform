@@ -147,3 +147,18 @@ def test_the_python_experience_rule_does_not_reject_a_bot_plan_for_aiogram_membe
         m["has_python"] = True
     assert validate_plan(plan, members, require_level_match=True, blueprint=BOT) == []
 
+
+def test_bot_core_tasks_get_the_early_backend_deadline():
+    from datetime import datetime
+    from app.services.team_project_deadlines import stage_deadlines
+    tasks = [{"interface_contract": {"files": ["bot/core/db.py"]}},
+             {"interface_contract": {"files": ["bot/handlers/start.py"]}}]
+    d = stage_deadlines(tasks, datetime(2026, 1, 1), 20)
+    assert d[0] < d[1]
+
+
+def test_lead_message_mentions_the_bot_launch_only_for_bot_stacks():
+    from app.services.team_project_integration import lead_message, LEAD_MESSAGE
+    assert "python -m bot.main" in lead_message("aiogram")
+    assert lead_message("django") == LEAD_MESSAGE == lead_message(None)
+
