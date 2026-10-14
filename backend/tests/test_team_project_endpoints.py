@@ -916,7 +916,7 @@ async def test_valid_first_response_makes_a_single_ai_call(db_session, two_teams
     assert ai.await_count == 1
 
 
-async def test_still_invalid_after_the_repair_round_fails_and_returns_team_to_forming(
+async def test_still_invalid_after_the_repair_rounds_fails_and_returns_team_to_forming(
     db_session, two_teams_project,
 ):
     from app.services.team_project_planner import generate_plan_for_team
@@ -925,7 +925,7 @@ async def test_still_invalid_after_the_repair_round_fails_and_returns_team_to_fo
     ai = AsyncMock(return_value=("raw", _generated_plan(n, broken=True), "mock", 1))
     with patch("app.services.team_project_planner.call_chain", new=ai):
         await generate_plan_for_team(db_session, team.id)
-    assert ai.await_count == 2
+    assert ai.await_count == 3  # the plan + two repair rounds
     await db_session.refresh(team)
     assert team.status == TeamStatus.forming and team.generation_attempts == 1
 

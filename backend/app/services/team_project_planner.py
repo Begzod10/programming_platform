@@ -28,6 +28,7 @@ from app.utils.datetime_utils import utcnow
 logger = logging.getLogger(__name__)
 
 MAX_GENERATION_ATTEMPTS = 3
+MAX_REPAIR_ROUNDS = 2
 
 # Content-quality floor for validate_plan — see its docstring. These exist
 # because the schema alone lets a task through with an empty
@@ -173,7 +174,7 @@ def _member_area_table(members_summary: list[dict]) -> str:
         areas = {a: lv for a, lv in (m.get("area_levels") or {}).items() if lv != "Beginner"}
         if not m.get("area_levels"):
             continue
-        listed = ", ".join(f"{a}={lv}" for a, lv in areas.items()) or "hech qaysi soha"
+        listed = ", ".join(f"{a}={lv}" for a, lv in areas.items()) or "hech qaysi soha (unga FAQAT html_css, required_level Beginner: sahifa markup'i yoki stil fayli)"
         rows.append(f"- a'zo {i} ({m['full_name']}): {listed}")
     if not rows:
         return ""
@@ -380,10 +381,12 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
         _, parsed, provider, attempts = await call_chain(prompt, max_tokens=plan_tokens, validator=parse_ai_json)
         plan = _normalize_plan(parsed, len(members_summary))
         plan_errors = validate_plan(plan, members_summary, require_level_match=True, blueprint=blueprint)
-        if plan_errors:
-            # One automatic repair round: show the model exactly what failed.
-            # Previously a single invalid response burned one of the teacher's
-            # 3 attempts, and the same kind of mistake tends to repeat.
+        # Up to two automatic repair rounds: show the model exactly what failed.
+        # A single invalid response used to burn one of the teacher's 3 attempts, and the
+        # first repair often fixes some errors and leaves others.
+        for _ in range(MAX_REPAIR_ROUNDS):
+            if not plan_errors:
+                break
             repair_prompt = _build_repair_prompt(prompt, parsed, plan_errors)
             _, parsed, provider, attempts = await call_chain(
                 repair_prompt, max_tokens=plan_tokens, validator=parse_ai_json)
@@ -515,6 +518,13 @@ _CODE_FILE_EXT = {
 from app.services.team_project_constants import SKILL_AREAS as _SKILL_AREAS  # noqa: E402
 
 
+def _beginner_markup_task(member: dict, area: str) -> bool:
+    """Someone who has not finished ANY course still takes part: a small HTML/CSS piece at Beginner level.
+    (Otherwise a team with such a member can never get a valid plan.)"""
+    levels = member.get("area_levels") or {}
+    return area == "html_css" and all(lv == "Beginner" for lv in levels.values())
+
+
 def _has_area(member: dict, area: str) -> bool:
     return (member.get("area_levels") or {}).get(area, "Beginner") != "Beginner"
 
@@ -573,7 +583,7 @@ def _validate_blueprint_rules(tasks: list, members_summary: list[dict], blueprin
         member_idx = task.get("assign_to_member_index")
         if isinstance(member_idx, int) and 0 <= member_idx < len(members_summary):
             member = members_summary[member_idx]
-            if (member.get("area_levels")) and not _has_area(member, area):
+            if (member.get("area_levels")) and not _has_area(member, area) and not _beginner_markup_task(member, area):
                 errors.append(
                     f"Task {idx}: area {area} is assigned to {member.get('full_name')}, who has not finished "
                     f"a course in it — give this piece to a member who has."

@@ -197,3 +197,11 @@ def test_repair_prompt_lists_unowned_files_and_unproduced_endpoints_and_the_leve
 def test_repair_prompt_without_known_error_kinds_has_no_hint_block():
     from app.services.team_project_planner import _build_repair_prompt
     assert "TUZATISH KO'RSATMALARI" not in _build_repair_prompt("P", None, ["Task 0 is not a JSON object"])
+
+
+def test_a_member_with_no_finished_course_may_take_a_beginner_html_css_piece_but_not_javascript():
+    from app.services.team_project_planner import _beginner_markup_task
+    nothing = {"area_levels": {"html_css": "Beginner", "javascript": "Beginner"}}
+    assert _beginner_markup_task(nothing, "html_css") and not _beginner_markup_task(nothing, "javascript")
+    some = {"area_levels": {"html_css": "Advanced", "javascript": "Beginner"}}
+    assert not _beginner_markup_task(some, "html_css")
