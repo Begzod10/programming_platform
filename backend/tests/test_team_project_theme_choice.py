@@ -60,3 +60,36 @@ def test_the_default_theme_pool_stays_web_only():
     for seed in range(40):
         assert choose_themes_for_teams([[1, 2]], {}, rng=random.Random(seed))[0]["kind"] == "web"
 
+
+def test_a_bot_team_is_only_given_a_bot_theme():
+    for seed in range(60):
+        pick = choose_themes_for_teams([[1, 2]], {}, rng=random.Random(seed), kinds=["bot"])[0]
+        assert pick["kind"] == "bot"
+
+
+def test_a_web_team_is_never_given_a_bot_theme_whether_kinds_is_missing_or_web():
+    for seed in range(60):
+        assert choose_themes_for_teams([[1]], {}, rng=random.Random(seed), kinds=["web"])[0]["kind"] == "web"
+        assert choose_themes_for_teams([[1]], {}, rng=random.Random(seed), kinds=None)[0]["kind"] == "web"
+
+
+def test_a_mixed_assignment_keeps_every_team_in_its_own_pool_and_bot_teams_differ():
+    for seed in range(40):
+        picks = choose_themes_for_teams([[1], [2], [3], [4]], {}, rng=random.Random(seed), kinds=["bot", "web", "bot", "web"])
+        assert [p["kind"] for p in picks] == ["bot", "web", "bot", "web"]
+        assert picks[0]["key"] != picks[2]["key"] and picks[1]["key"] != picks[3]["key"]
+
+
+def test_when_there_are_more_bot_teams_than_bot_themes_the_round_restarts():
+    picks = choose_themes_for_teams([[i] for i in range(13)], {}, rng=random.Random(1), kinds=["bot"] * 13)
+    assert len(picks) == 13 and all(p["kind"] == "bot" for p in picks)
+    assert len({p["key"] for p in picks[:12]}) == 12            # a full round of distinct themes first
+
+
+def test_readiness_and_history_still_rank_themes_inside_the_bot_pool():
+    unmet = {"quiz_bot": 0}
+    for seed in range(30):
+        pick = choose_themes_for_teams([[1]], {1: {"delivery_bot"}}, rng=random.Random(seed), kinds=["bot"],
+                                       unmet=lambda i, key: unmet.get(key, 5))[0]
+        assert pick["key"] == "quiz_bot"
+

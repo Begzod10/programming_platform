@@ -22,7 +22,7 @@ from app.models.user import Student
 from app.schemas.team_project import SkillProfile
 from app.services import skill_profile_service
 from app.services.team_project_skills import build_skill_levels
-from app.services.team_project_constants import WEB_THEMES, TECH_STACKS, LEVEL_RANK as _LEVEL_RANK
+from app.services.team_project_constants import TECH_STACKS, themes_for_kind, LEVEL_RANK as _LEVEL_RANK
 from app.services.teacher_students import teacher_student_ids_subquery
 
 # _LEVEL_RANK ranks current_level for auto-picking the strongest member as
@@ -83,28 +83,35 @@ async def past_themes_by_student(db: AsyncSession, student_ids: List[int]) -> di
 
 def choose_themes_for_teams(
         member_ids: List[List[int]], past_themes: dict, rng=random, avoid_key: Optional[str] = None,
-        unmet=None,
+        unmet=None, kinds: Optional[List[str]] = None,
 ) -> List[dict]:
     """One theme per team, best first by: (1) fewest lessons the team has not studied
     (`unmet(team_index, theme_key) -> int`, see the blueprints' `requires`), (2) fewest members who
     already built it, (3) not taken by another team of this assignment (while the pool lasts).
-    Ties are random; `avoid_key` (the teacher's previous team) only breaks ties."""
+    Ties are random; `avoid_key` (the teacher's previous team) only breaks ties.
+
+    `kinds[i]` is the stack kind of team i ("web" or "bot"): a team only draws from the themes of its
+    kind, and each kind keeps its own "taken" round. Without `kinds` every team is a web team."""
     picks: List[dict] = []
-    taken: set = set()
+    taken: dict[str, set] = {}
     for team_idx, members in enumerate(member_ids):
-        def score(theme: dict, team_idx=team_idx, members=members):
+        kind = kinds[team_idx] if kinds and team_idx < len(kinds) else "web"
+        pool = themes_for_kind(kind)
+        taken_in_kind = taken.setdefault(kind, set())
+
+        def score(theme: dict, team_idx=team_idx, members=members, taken_in_kind=taken_in_kind):
             repeats = sum(1 for m in members if theme["key"] in past_themes.get(m, ()))
             gaps = unmet(team_idx, theme["key"]) if unmet else 0
-            return (gaps, repeats, theme["key"] in taken)
+            return (gaps, repeats, theme["key"] in taken_in_kind)
 
-        best = min(score(t) for t in WEB_THEMES)
-        tied = [t for t in WEB_THEMES if score(t) == best]
+        best = min(score(t) for t in pool)
+        tied = [t for t in pool if score(t) == best]
         calmer = [t for t in tied if t["key"] != avoid_key]
         choice = rng.choice(calmer or tied)
         picks.append(choice)
-        taken.add(choice["key"])
-        if len(taken) >= len(WEB_THEMES):
-            taken.clear()             # more teams than themes: start another round
+        taken_in_kind.add(choice["key"])
+        if len(taken_in_kind) >= len(pool):
+            taken_in_kind.clear()     # more teams than themes: start another round
     return picks
 
 
@@ -239,6 +246,7 @@ async def create_team_project(
         await past_themes_by_student(db, [s.id for s in students]),
         avoid_key=last_theme,
         unmet=lambda i, key: len(_gaps(i, key)),
+        kinds=[stack["kind"] for stack in stacks],
     )
 
     team_project = TeamProject(
