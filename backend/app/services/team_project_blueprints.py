@@ -6,11 +6,14 @@ fixed, hand-written data — endpoints, JSON shapes, token key, file layout, run
 that the planner may SPLIT among members but never change. See
 docs/superpowers/specs/2026-10-12-team-project-planning-design.md §4.3.
 
-Themes are described once (`_THEMES`) and expanded per backend family (`flask`, `express`, `django`, `fastapi`) so the
+Themes are described once (`_THEMES`) and expanded per backend family (`flask`, `express`, `django`, `fastapi`; Telegram bots have their own `aiogram` family) so the
 two stay in step; only file names and run commands differ between families.
 """
 import copy
 from typing import Optional
+
+from app.services import team_project_bot_themes as _bots
+from app.services.team_project_bot_themes import BOT_THEME_DATA
 
 BASE_URL = "http://127.0.0.1:5000"
 TOKEN_KEY = "auth_token"
@@ -68,6 +71,18 @@ _FASTAPI_BASE = [
     _need(_FASTAPI, r"JWT autentifikatsiya", "FastAPI: JWT autentifikatsiya"),
     _need(_FASTAPI, r"CORS", "FastAPI: CORS (CORSMiddleware)"),
 ]
+# Telegram bots: every bot theme has commands, reply + inline keyboards, FSM forms, an admin check and a
+# database, so every need is a lesson of "Telegram Bot aiogram" (or its advanced sequel, same titles).
+_AIOGRAM = "aiogram"
+_AIOGRAM_BASE = [
+    _need(_AIOGRAM, r"BotFather", "aiogram: BotFather va token"),
+    _need(_AIOGRAM, r"Message handler", "aiogram: message handler'lar"),
+    _need(_AIOGRAM, r"Reply keyboard", "aiogram: reply keyboard"),
+    _need(_AIOGRAM, r"Inline keyboard", "aiogram: inline keyboard va callback_data"),
+    _need(_AIOGRAM, r"FSM", "aiogram: FSM (ko'p bosqichli formalar)"),
+    _need(_AIOGRAM, r"Filter'lar va middleware", "aiogram: filter va middleware (admin tekshiruvi)"),
+    _need(_AIOGRAM, r"SQLAlchemy async", "aiogram: SQLAlchemy async"),
+]
 _RELATIONS = _need(_FLASK, r"Modellar orasidagi munosabatlar", "Flask: modellar orasidagi munosabatlar")
 _EXPRESS_BASE = [
     _need(_NODE, r"Routing va middleware", "Node/Express: Routing va middleware"),
@@ -113,6 +128,8 @@ _THEME_NEEDS = {
 
 def lesson_needs(theme: str, family: str) -> dict:
     """{"frontend": [needs], "backend": [needs]} for a theme and backend family."""
+    if family == "aiogram":
+        return {"frontend": [], "backend": list(_AIOGRAM_BASE) + list(BOT_THEME_DATA[theme]["needs"])}
     t = _THEME_NEEDS[theme]
     base = {"flask": _FLASK_BASE, "express": _EXPRESS_BASE, "django": _DJANGO_BASE, "fastapi": _FASTAPI_BASE}[family]
     return {"frontend": list(t["frontend"]), "backend": list(base) + list(t.get(family, []))}
@@ -520,7 +537,7 @@ _FAMILIES = {
 
 
 def backend_family(stack_key: str) -> str:
-    return stack_key if stack_key in ("express", "django", "fastapi") else "flask"
+    return stack_key if stack_key in ("express", "django", "fastapi", "aiogram") else "flask"
 
 
 def _build(theme: str, family: str) -> dict:
@@ -537,7 +554,22 @@ def _build(theme: str, family: str) -> dict:
     }
 
 
+def _build_bot(theme: str) -> dict:
+    """A Telegram-bot blueprint: flows instead of HTTP endpoints, no base_url / token / frontend (see the bot themes module)."""
+    data = BOT_THEME_DATA[theme]
+    return {
+        "theme": theme, "backend_family": "aiogram", "kind": "bot",
+        "base_url": None, "cors": False, "auth": {"admin_only": "ADMIN_IDS"},
+        "entities": copy.deepcopy(data["entities"]),
+        "endpoints": copy.deepcopy(_bots.COMMON_FLOWS + data["flows"]),
+        "files": {"skeleton": list(_bots.SKELETON_FILES), "backend": list(_bots.CORE_FILES) + list(data["handlers"]), "frontend": []},
+        "run": dict(_bots.RUN),
+        "requires": lesson_needs(theme, "aiogram"),
+    }
+
+
 BLUEPRINTS = {(theme, fam): _build(theme, fam) for theme in _THEMES for fam in _FAMILIES}
+BLUEPRINTS.update({(theme, "aiogram"): _build_bot(theme) for theme in BOT_THEME_DATA})
 
 
 def get_blueprint(theme: str, stack_key: str) -> dict:

@@ -16,7 +16,7 @@ def test_every_theme_and_family_has_a_blueprint(theme, stack):
 
 
 def test_every_stack_maps_to_a_known_family():
-    assert {backend_family(s["key"]) for s in TECH_STACKS} == {"flask", "express", "django", "fastapi"}
+    assert {backend_family(s["key"]) for s in TECH_STACKS} == {"flask", "express", "django", "fastapi", "aiogram"}
 
 
 @pytest.mark.parametrize("theme,stack", CASES)
