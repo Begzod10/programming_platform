@@ -111,7 +111,7 @@ SHARTNOMA QOIDALARI:
 - `interface_contract.skill_area` — bot vazifalari uchun `aiogram` (handler ham, baza qatlami ham). Boshqa sohani yozma.
 - Bot tokeni `.env` da (BOT_TOKEN) saqlanadi, kodga yozilmaydi; har a'zo BotFather orqali o'zining test botini yaratadi.
 - Baza qatlami (`bot/core/`) boshqa vazifalardan oldin tayyor bo'lsin: handler vazifalari unga tayanadi (`depends_on`).
-"""
+{_member_area_table(members_summary)}"""
 
 
 def _adapt_prompt_for_bot(prompt: str, stack: dict) -> str:
@@ -164,6 +164,30 @@ _BOT_ANSWER_FORMAT = """JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa
 """
 
 
+def _member_area_table(members_summary: list[dict]) -> str:
+    """Who may be given work in which skill area, and at what `required_level`. The validator
+    checks the member's level IN THE TASK'S AREA (finishing only HTML/CSS makes someone a Beginner
+    in JavaScript), so the model gets that table instead of guessing from the overall level."""
+    rows = []
+    for i, m in enumerate(members_summary):
+        areas = {a: lv for a, lv in (m.get("area_levels") or {}).items() if lv != "Beginner"}
+        if not m.get("area_levels"):
+            continue
+        listed = ", ".join(f"{a}={lv}" for a, lv in areas.items()) or "hech qaysi soha"
+        rows.append(f"- a'zo {i} ({m['full_name']}): {listed}")
+    if not rows:
+        return ""
+    return (
+        "\nA'ZOLAR VA ULAR OLA OLADIGAN SOHALAR (faqat kursi TUGATILGAN sohalar; vazifaning `skill_area` si shu ro'yxatdagi sohalardan bo'lsin):\n"
+        + "\n".join(rows) + "\n"
+        "- `required_level` = a'zoning VAZIFA `skill_area` sidagi darajasi (yuqoridagi ro'yxatdan), umumiy darajasi EMAS. "
+        "Masalan, a'zo html_css=Advanced va javascript=Intermediate bo'lsa: HTML/CSS vazifasi Advanced, JavaScript vazifasi Intermediate.\n"
+        "- Faqat html_css kursini tugatgan a'zoga HTML/CSS fayllari (sahifa markup'i, stillar) ber; `.js`/`.py` fayllarni u olmasin.\n"
+        "- Kuchsiz a'zoga ham hech bo'lmaganda bitta kichik fayl ber (masalan stil fayli yoki bitta sahifa) — vazifasiz a'zo qolmasin.\n"
+        "- Qaysi a'zo biror kerakli sohani bilmasa, o'sha qismni boshqa a'zoga ber; o'ylab topilgan soha yozma.\n"
+    )
+
+
 def _blueprint_block(blueprint: dict, members_summary: list[dict]) -> str:
     """The fixed contract the planner may split among members but never change."""
     if blueprint.get("kind") == "bot":
@@ -188,7 +212,7 @@ SHARTNOMA QOIDALARI:
 - `interface_contract.files` — faqat yuqoridagi fayl ro'yxatlaridan; HAR BIR fayl aynan BITTA vazifada bo'lsin (ikki a'zoga bitta fayl berilmasin). Skelet fayllari faqat skelet egasining (yuqorida ko'rsatilgan a'zo) vazifasida bo'lsin.
 - `interface_contract.skill_area` — vazifa uchun kerak soha: html_css, javascript, python, flask, django, fastapi, node, sql dan biri. Frontend sahifalar odatda javascript (faqat markup/CSS bo'lsa html_css), Flask backend flask, Django backend django, FastAPI backend fastapi, Express backend node.
 - Frontend vazifalari backend tayyor bo'lishini kutmasin: shartnomadagi javob shaklida lokal soxta ma'lumot bilan ishlasin.
-"""
+{_member_area_table(members_summary)}"""
 
 
 def _build_plan_prompt(theme_label: str, stack: dict, members_summary: list[dict],
@@ -230,7 +254,7 @@ TALABLAR:
 - Har bir a'zoning HOZIRGI yo'nalishiga mos qism ber: a'zo xulosasida "CURRENT FOCUS" yoki "Current technologies" yozilgan bo'lsa, vazifa shu texnologiyada bo'lsin (masalan JavaScript o'rganayotgan a'zoga frontend/JS qismi). "Earlier (not recently practiced)" ro'yxatidagi texnologiyalar bo'yicha murakkab vazifa BERMA — a'zo ularni yaqinda mashq qilmagan.
 - Vazifaga a'zo o'rganmagan framework yoki kutubxonani (Redux, Pinia, TypeScript, Tailwind, Bootstrap, SASS va h.k.) QO'SHMA. Faqat a'zoning xulosasida (kurs yoki texnologiya sifatida) uchraydigan texnologiyalardan foydalan; ular bo'lmasa oddiy HTML/CSS/JavaScript bilan yoz.
 - A'zo yonida "Python/Django tajribasi: YOQ" yozilgan bo'lsa, unga Django/Python/Flask backend vazifasini BERMA — uni faqat tajribasi "bor" a'zoga ber. Agar jamoada hech kimda Python tajribasi bo'lmasa, backend qismini eng yuqori darajali a'zoga ber va uni sodda qil. Frontend/JavaScript o'rgangan a'zoga frontend qismini ber.
-- `required_level` har doim shu vazifaga tayinlangan a'zoning darajasiga TENG bo'lsin — oshmasin ham, pastroq ham bo'lmasin (Beginner a'zoga Advanced vazifa berilmaydi, Advanced a'zoga esa Intermediate vazifa BERILMAYDI). Vazifaning murakkabligi ham shu darajaga mos bo'lsin: Advanced a'zoga eng murakkab ishlar (backend/arxitektura, holat boshqaruvi, xatolarni boshqarish, validatsiya), Beginner a'zoga sodda, aniq qadamli ishlar. Kuchli a'zoga yengil vazifa berma.
+- `required_level` har doim shu vazifaga tayinlangan a'zoning vazifa sohasidagi (`skill_area`) darajasiga TENG bo'lsin (a'zolar jadvali bo'lsa — o'sha jadvaldagi daraja) — oshmasin ham, pastroq ham bo'lmasin (Beginner a'zoga Advanced vazifa berilmaydi, Advanced a'zoga esa Intermediate vazifa BERILMAYDI). Vazifaning murakkabligi ham shu darajaga mos bo'lsin: Advanced a'zoga eng murakkab ishlar (backend/arxitektura, holat boshqaruvi, xatolarni boshqarish, validatsiya), Beginner a'zoga sodda, aniq qadamli ishlar. Kuchli a'zoga yengil vazifa berma.
 - `depends_on` — bu vazifa ro'yxatidagi BOSHQA vazifalarning 0-dan boshlanuvchi INDEKSLARI (ro'yxatdagi o'rni), boshqa hech narsa emas. O'z-o'ziga bog'liqlik va aylanma bog'liqlik (A→B→A) bo'lmasin.
 - `interface_contract.consumes` dagi har bir yozuv boshqa BIRON BIR vazifaning `interface_contract.produces` yozuvi bilan SO'ZMA-SO'Z (aynan) bir xil bo'lishi SHART — shu matnni aynan ko'chirib yoz, qayta ifodalab yozma.
 - `description` bir jumlali umumiy gap bo'lmasin — o'quvchi hech kimdan so'ramasdan ishni boshlay oladigan darajada aniq yoz (kamida {MIN_DESCRIPTION_LEN} belgi).
@@ -929,6 +953,23 @@ def _repair_task_fields(tasks: list) -> None:
         contract["consumes"] = kept
 
 
+def _repair_hints(errors: list[str]) -> str:
+    """Plain instructions for the error kinds that repeat in practice (the model otherwise fixes one
+    and breaks another). Lists every unowned file and unproduced endpoint in one place."""
+    hints = []
+    unowned = [m.group(1) for e in errors if (m := re.match(r"Blueprint file '([^']+)' is assigned to no task", e))]
+    unproduced = [m.group(1) for e in errors if (m := re.match(r"Endpoint '([^']+)' — no task produces it", e))]
+    if unowned:
+        hints.append("Hech kimga berilmagan fayllarni mos vazifaning `files` ro'yxatiga qo'shing: " + ", ".join(unowned) + ".")
+    if unproduced:
+        hints.append("Hech bir vazifa `produces` ga yozmagan oqim/endpointlarni mos vazifaga yozing: " + ", ".join(unproduced) + ".")
+    if any("required_level" in e for e in errors):
+        hints.append("`required_level` ni a'zoning shu vazifa sohasidagi (a'zolar jadvalidagi) darajasiga tenglang.")
+    if any("has not finished a course" in e for e in errors):
+        hints.append("Kursi tugatilmagan sohadagi vazifani o'sha sohani bilgan a'zoga bering; unga esa u bilgan sohadan fayl bering.")
+    return ("TUZATISH KO'RSATMALARI:\n" + "\n".join(f"- {h}" for h in hints) + "\n\n") if hints else ""
+
+
 def _build_repair_prompt(original_prompt: str, previous: Optional[dict], errors: list[str]) -> str:
     shown = json.dumps(previous, ensure_ascii=False)[:6000] if previous else "(yo'q)"
     problems = "\n".join(f"- {e}" for e in errors[:15])
@@ -937,6 +978,7 @@ def _build_repair_prompt(original_prompt: str, previous: Optional[dict], errors:
         "DIQQAT: avvalgi javobingizda quyidagi XATOLAR topildi:\n"
         f"{problems}\n\n"
         f"Avvalgi javobingiz:\n{shown}\n\n"
+        f"{_repair_hints(errors)}"
         "Shu xatolarni tuzatib, TO'LIQ va to'g'ri JSONni qaytaring (faqat JSON). "
         "`required_level` faqat bitta so'z bo'lsin: Beginner, Intermediate yoki Advanced. "
         "`consumes` ga faqat boshqa vazifaning `produces` ida aynan shunday yozilgan matnni qo'ying "

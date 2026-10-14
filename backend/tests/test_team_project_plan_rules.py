@@ -166,3 +166,34 @@ def test_fastapi_skeleton_goes_to_a_member_who_finished_the_fastapi_course():
     assert skeleton_owner_index(team, fastapi_bp) == 1        # Python/Flask is not FastAPI
     assert skeleton_owner_index(team, BP) == 0                # the Flask blueprint still goes to the lead
 
+
+
+def test_the_prompt_tells_the_model_each_member_s_finished_areas_and_that_required_level_follows_the_area():
+    from app.services.team_project_blueprints import get_blueprint
+    from app.services.team_project_planner import _build_plan_prompt
+    from app.services.team_project_constants import TECH_STACKS_BY_KEY
+    members = [
+        {"student_id": 1, "full_name": "Ali", "level": "Advanced", "summary": "", "is_lead": True,
+         "area_levels": {"html_css": "Advanced", "javascript": "Intermediate", "node": "Beginner"}},
+        {"student_id": 2, "full_name": "Vali", "level": "Advanced", "summary": "", "is_lead": False,
+         "area_levels": {"html_css": "Beginner", "javascript": "Beginner"}},
+    ]
+    prompt = _build_plan_prompt("Tadbirlar", TECH_STACKS_BY_KEY["express"], members, get_blueprint("quiz", "express"))
+    assert "a'zo 0 (Ali): html_css=Advanced, javascript=Intermediate" in prompt
+    assert "a'zo 1 (Vali): hech qaysi soha" in prompt
+    assert "umumiy darajasi EMAS" in prompt
+
+
+def test_repair_prompt_lists_unowned_files_and_unproduced_endpoints_and_the_level_rule():
+    from app.services.team_project_planner import _build_repair_prompt
+    errors = ["Blueprint file 'README.md' is assigned to no task.", "Blueprint file 'frontend/js/api.js' is assigned to no task.",
+              "Endpoint 'auth.login' — no task produces it.", "Task 2: required_level Advanced exceeds member 2's level Beginner.",
+              "Task 3: area javascript is assigned to X, who has not finished a course in it — give this piece to a member who has."]
+    text = _build_repair_prompt("PROMPT", {"tasks": []}, errors)
+    assert "README.md, frontend/js/api.js" in text and "auth.login" in text
+    assert "darajasiga tenglang" in text and "kursi tugatilmagan" in text
+
+
+def test_repair_prompt_without_known_error_kinds_has_no_hint_block():
+    from app.services.team_project_planner import _build_repair_prompt
+    assert "TUZATISH KO'RSATMALARI" not in _build_repair_prompt("P", None, ["Task 0 is not a JSON object"])
