@@ -149,8 +149,14 @@ def assign_blueprint(blueprint: dict, members: list[dict]) -> list[dict]:
         for prefix, ids in groups.items():
             produces[by_stem.get(prefix, by_stem.get("start", owner))] += ids
     else:
+        script_owner = {f.rsplit("/", 1)[-1].rsplit(".", 1)[0]: i for i in range(n) for f in held[i]
+                        if f.startswith("frontend/") and _ext(f) == ".js"}
         for prefix, ids in sorted(groups.items(), key=lambda kv: -len(kv[1])):
-            target = min(holders, key=lambda i: (len(produces[i]), i))
+            # the member who writes the page that calls these endpoints writes them too, when they can
+            same_page = next((i for stem, i in script_owner.items()
+                              if i in holders and (stem.startswith(prefix) or prefix.startswith(stem))), None)
+            target = same_page if same_page is not None and len(produces[same_page]) <= min(
+                len(produces[h]) for h in holders) + len(ids) else min(holders, key=lambda i: (len(produces[i]), i))
             produces[target] += ids
 
     # What each frontend script calls (a different task must produce it), and bot handlers waiting for the core.
