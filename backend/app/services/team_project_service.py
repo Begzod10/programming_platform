@@ -224,8 +224,10 @@ async def create_team_project(
     except NoFittingStack:
         raise HTTPException(
             status_code=400,
-            detail="Tanlangan o'quvchilar uchun mos texnologiya topilmadi: JavaScript va backend "
-                   "(Flask/Python) kurslari yetarli tugatilmagan",
+            detail="Tanlangan o'quvchilar uchun mos texnologiya topilmadi: jamoada JavaScript va backend "
+                   "(Flask, Django, FastAPI, Express) yoki Telegram bot (aiogram) kurslarini yetarli "
+                   "tugatgan o'quvchilar bo'lishi kerak. Jamoa hajmini kattalashtirib ko'ring: "
+                   "qismlar jamoa a'zolari orasida bo'linadi",
         )
 
     # Themes AFTER stacks: what a team must have studied depends on the backend family.
