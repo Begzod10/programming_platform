@@ -1251,6 +1251,9 @@ async def test_planner_gives_the_ai_the_blueprint_and_stores_it_on_the_team(db_s
     from app.services.team_project_planner import generate_plan_for_team
     fx = two_teams_project
     team = fx["teams"][0]
+    if team.tech_stack == "aiogram":  # this test is about the web contract; the bot one has its own tests
+        team.tech_stack, team.theme = "vanilla", "booking"
+        await db_session.commit()
     bp = get_blueprint(team.theme, team.tech_stack)
     plan = _blueprint_plan(bp)
     seen = {}
@@ -1348,6 +1351,8 @@ async def test_planned_tasks_get_staged_deadlines_backend_before_frontend(db_ses
     team_project = (await db_session.execute(
         select(TeamProject).where(TeamProject.id == team.team_project_id))).scalar_one()
     team_project.deadline_days = 7                       # below the recommendation for a 12-hour chain
+    if team.tech_stack == "aiogram":                     # the staging contrast needs a frontend task
+        team.tech_stack, team.theme = "vanilla", "booking"
     await db_session.commit()
     plan = _blueprint_plan(get_blueprint(team.theme, team.tech_stack))
     for t in plan["tasks"]:
