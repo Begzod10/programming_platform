@@ -99,7 +99,10 @@ def test_a_python_file_needs_the_aiogram_area_for_a_bot_task():
     assert {"aiogram", "python"} <= _CODE_FILE_EXT[".py"]
     plan = valid_bot_plan()
     plan["tasks"][2]["interface_contract"]["skill_area"] = "javascript"
-    assert any("skill_area" in e and "bot/handlers" in e for e in errors_of(plan))
+    members = copy.deepcopy(MEMBERS)
+    members[2]["area_levels"]["aiogram"] = "Beginner"          # the owner of task 2 never finished aiogram
+    members[2]["area_levels"]["python"] = "Beginner"
+    assert any("skill_area" in e and "bot/handlers" in e for e in errors_of(plan, members))
 
 
 def test_a_task_for_a_member_who_did_not_study_the_area_is_rejected():

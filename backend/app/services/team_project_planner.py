@@ -378,8 +378,24 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
         # tokenizes expensively) need ~1k tokens each — 2000 total truncated
         # the JSON for larger teams, failing every attempt deterministically.
         plan_tokens = min(8000, 900 * len(members_summary) + 600)
+        skeleton = None
+        if blueprint:
+            # Files, endpoints, areas and levels are split by code (the model kept breaking those rules);
+            # the model only writes the text. A team the split cannot cover falls back to free-form planning.
+            from app.services import team_project_assignment as A
+            try:
+                skeleton = A.assign_blueprint(blueprint, members_summary)
+            except A.AssignmentImpossible as why:
+                logger.warning("[team-planner] team=%d no deterministic split (%s); free-form planning", team_id, why)
+        if skeleton is not None:
+            prompt = A.build_text_prompt(theme.get("label", team.theme), stack, members_summary, blueprint, skeleton)
+            build_repair = A.build_text_repair_prompt
+            to_plan = lambda parsed_: A.merge_texts(skeleton, parsed_)  # noqa: E731
+        else:
+            build_repair = _build_repair_prompt
+            to_plan = lambda parsed_: _normalize_plan(parsed_, len(members_summary))  # noqa: E731
         _, parsed, provider, attempts = await call_chain(prompt, max_tokens=plan_tokens, validator=parse_ai_json)
-        plan = _normalize_plan(parsed, len(members_summary))
+        plan = to_plan(parsed)
         plan_errors = validate_plan(plan, members_summary, require_level_match=True, blueprint=blueprint)
         # Up to two automatic repair rounds: show the model exactly what failed.
         # A single invalid response used to burn one of the teacher's 3 attempts, and the
@@ -387,10 +403,10 @@ async def generate_plan_for_team(db: AsyncSession, team_id: int, *, refresh_skil
         for _ in range(MAX_REPAIR_ROUNDS):
             if not plan_errors:
                 break
-            repair_prompt = _build_repair_prompt(prompt, parsed, plan_errors)
+            repair_prompt = build_repair(prompt, parsed, plan_errors)
             _, parsed, provider, attempts = await call_chain(
                 repair_prompt, max_tokens=plan_tokens, validator=parse_ai_json)
-            plan = _normalize_plan(parsed, len(members_summary))
+            plan = to_plan(parsed)
             plan_errors = validate_plan(plan, members_summary, require_level_match=True, blueprint=blueprint)
         if plan_errors:
             raise ValueError("; ".join(plan_errors))
@@ -590,7 +606,12 @@ def _validate_blueprint_rules(tasks: list, members_summary: list[dict], blueprin
                 )
         for f in files:
             needed = _CODE_FILE_EXT.get("." + f.rsplit(".", 1)[-1].lower()) if "." in f else None
-            if needed and area not in needed:
+            # A full-stack member may own code of two areas in one task (flask + javascript): the declared
+            # area then names the main one, and the other must be an area the assignee has finished.
+            covered = not needed or area in needed or (
+                isinstance(member_idx, int) and 0 <= member_idx < len(members_summary)
+                and any(_has_area(members_summary[member_idx], a) for a in needed))
+            if needed and not covered:
                 errors.append(
                     f"Task {idx}: it owns code files ({f}) but declares skill_area {area}; "
                     f"code files need one of {', '.join(sorted(needed))}."
