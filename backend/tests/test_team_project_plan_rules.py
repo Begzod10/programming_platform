@@ -205,3 +205,19 @@ def test_a_member_with_no_finished_course_may_take_a_beginner_html_css_piece_but
     assert _beginner_markup_task(nothing, "html_css") and not _beginner_markup_task(nothing, "javascript")
     some = {"area_levels": {"html_css": "Advanced", "javascript": "Beginner"}}
     assert not _beginner_markup_task(some, "html_css")
+
+
+def test_a_criterion_that_is_only_code_may_be_identical_in_both_languages():
+    from app.services.team_project_planner import validate_plan
+    from tests.test_team_project_assignment import member, with_text
+    from app.services.team_project_assignment import assign_blueprint
+    from app.services.team_project_blueprints import get_blueprint
+    bp = get_blueprint("quiz", "express")
+    members = [member(0, node="Advanced", javascript="Advanced", html_css="Advanced"), member(1, html_css="Intermediate")]
+    plan = with_text(assign_blueprint(bp, members))
+    plan["tasks"][0]["acceptance_criteria"] = ["GET /api/quizzes", "Ro'yxat sahifada ko'rinadi"]
+    plan["tasks"][0]["acceptance_criteria_ru"] = ["GET /api/quizzes", "Список виден на странице"]
+    assert validate_plan(plan, members, require_level_match=True, blueprint=bp) == []
+    plan["tasks"][0]["acceptance_criteria"] = ["Sahifa foydalanuvchiga ro'yxatni ko'rsatadi", "b c"]
+    plan["tasks"][0]["acceptance_criteria_ru"] = ["Sahifa foydalanuvchiga ro'yxatni ko'rsatadi", "б в"]
+    assert any("identical" in e for e in validate_plan(plan, members, require_level_match=True, blueprint=bp))

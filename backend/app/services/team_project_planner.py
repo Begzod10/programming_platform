@@ -813,7 +813,7 @@ def validate_plan(plan: dict, members_summary: list[dict], *, require_level_matc
                 f"acceptance_criteria ({len(acceptance_criteria)}), got {len(criteria_ru)}."
             )
         elif isinstance(acceptance_criteria, list) and any(
-            ru.strip().lower() == uz.strip().lower()
+            ru.strip().lower() == uz.strip().lower() and len(uz.split()) >= 3   # "GET /api/quizzes" is the same in any language
             for ru, uz in zip(criteria_ru, acceptance_criteria) if isinstance(uz, str)
         ):
             errors.append(f"Task {idx}: acceptance_criteria_ru has entries identical to the uz text (not translated).")
