@@ -1496,3 +1496,54 @@ async def test_archiving_does_not_hide_the_project_from_its_students(async_clien
     history = await async_client.get(f"{ARCHIVE_BASE}/my/history", headers=student)
     assert mine.status_code == 200 and mine.json() and history.status_code == 200 and history.json()
 
+
+def _two_task_bot_plan(bp):
+    flows = [e["id"] for e in bp["endpoints"]]
+    handlers = [f for f in bp["files"]["backend"] if f.startswith("bot/handlers/")]
+    core = [f for f in bp["files"]["backend"] if not f.startswith("bot/handlers/")]
+    def t(i, files, produces, consumes):
+        return {
+            "assign_to_member_index": i, "title": f"Qism {i}", "title_ru": f"Часть {i}",
+            "description": "Aniq vazifa tavsifi: shartnomadagi oqimlarni amalga oshiring.",
+            "description_ru": "Подробное описание задачи: реализуйте сценарии контракта.",
+            "required_level": "Advanced",
+            "interface_contract": {"files": files, "produces": produces, "consumes": consumes, "skill_area": "aiogram"},
+            "acceptance_criteria": ["Birinchi aniq mezon", "Ikkinchi aniq mezon"],
+            "acceptance_criteria_ru": ["Первый критерий", "Второй критерий"],
+            "depends_on": [], "estimated_hours": 6,
+        }
+    half = len(flows) // 2
+    return {"project_title": "Bot", "project_description": "Tavsif", "tasks": [
+        t(0, bp["files"]["skeleton"] + core + handlers[:2], flows[:half], []),
+        t(1, handlers[2:], flows[half:], [flows[0]]),
+    ]}
+
+
+@pytest.mark.parametrize("theme", [t["key"] for t in __import__("app.services.team_project_constants", fromlist=["x"]).BOT_THEMES])
+async def test_every_bot_theme_plans_end_to_end_into_stored_tasks_and_a_bot_contract(db_session, two_teams_project, theme):
+    from app.services.team_project_blueprints import get_blueprint
+    from app.services.team_project_planner import generate_plan_for_team
+    team = two_teams_project["teams"][0]
+    team.tech_stack, team.theme = "aiogram", theme
+    await db_session.commit()
+    bp = get_blueprint(theme, "aiogram")
+    plan = _two_task_bot_plan(bp)
+    seen = {}
+
+    async def _ai(prompt, max_tokens, validator=None):
+        seen["prompt"] = prompt
+        return json.dumps(plan), plan, "groq", []
+
+    with patch("app.services.team_project_planner.call_chain", new=_ai), \
+            patch("app.services.team_project_skills.build_skill_levels", new=_full_skills):
+        await generate_plan_for_team(db_session, team.id)
+
+    assert "base_url" not in seen["prompt"] and "bot/handlers/" in seen["prompt"]
+    await db_session.refresh(team)
+    assert team.status == TeamStatus.working
+    contract = json.loads(team.shared_contract_json)
+    assert contract["kind"] == "bot" and contract["theme"] == theme and contract["files"]["frontend"] == []
+    tasks = (await db_session.execute(select(TeamProjectTask).where(TeamProjectTask.team_id == team.id))).scalars().all()
+    assert len(tasks) == 2 and all(t.deadline_at for t in tasks)
+    assert any(".env.example" in c for t in tasks for c in json.loads(t.acceptance_criteria_json))
+
