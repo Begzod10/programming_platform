@@ -45,7 +45,7 @@ _INJECTION_GUARD = (
 )
 
 
-_PYTHON_WORDS = re.compile(r"\b(python|django|flask|fastapi)\b", re.I)
+_PYTHON_WORDS = re.compile(r"\b(python|django|flask|fastapi|aiogram)\b", re.I)
 
 
 def mentions_python(summary: Optional[str]) -> bool:
@@ -86,11 +86,88 @@ def _is_python_backend_task(task: dict) -> bool:
     files = [f for f in (contract.get("files") or []) if isinstance(f, str)]
     text = f"{task.get('title', '')} {task.get('description', '')}"
     return any(f.lower().endswith(".py") for f in files) or bool(
-        re.search(r"\b(django|flask|fastapi)\b", text, re.I))
+        re.search(r"\b(django|flask|fastapi|aiogram)\b", text, re.I))
+
+
+def _bot_blueprint_block(blueprint: dict, members_summary: list[dict]) -> str:
+    """The same idea for a Telegram bot: its flows (commands, callbacks, FSM forms, jobs) and files."""
+    flows = "\n".join(
+        f"- {e['id']}: {e['method']} {e['path']}" + (" (faqat admin)" if e["auth"] else "")
+        + f" | kirish: {json.dumps(e['request'], ensure_ascii=False)} | bot javobi: {json.dumps(e['response'], ensure_ascii=False)}"
+        for e in blueprint["endpoints"]
+    )
+    files = blueprint["files"]
+    lead = skeleton_owner_index(members_summary, blueprint)
+    return f"""
+JAMOA SHARTNOMASI (TAYYOR — o'zgartirma, faqat vazifalarga bo'l): Telegram bot (aiogram, long polling). Adminlar — `.env` dagi ADMIN_IDS ro'yxati.
+OQIMLAR (id — turi trigger):
+{flows}
+FAYLLAR: skelet (rahbar, a'zo {lead}): {files['skeleton']} · bot kodi: {files['backend']}
+
+SHARTNOMA QOIDALARI:
+- Oqim nomlari, triggerlari (buyruq, callback_data, FSM nomi) va bot javoblarini O'ZGARTIRMA va yangi oqim O'YLAB TOPMA.
+- `interface_contract.produces` va `consumes` — FAQAT yuqoridagi oqim `id` lari (aynan shunday yozilgan). Oqimni qaysi vazifa amalga oshirsa (handler), o'sha `produces`ga, unga tayangan vazifa (masalan, buyurtma savatga tayanadi) `consumes`ga yozadi. Har oqim aynan bitta vazifada `produces` bo'ladi.
+- `interface_contract.files` — faqat yuqoridagi fayl ro'yxatlaridan; HAR BIR fayl aynan BITTA vazifada bo'lsin. Skelet fayllari faqat skelet egasining vazifasida bo'lsin.
+- `interface_contract.skill_area` — bot vazifalari uchun `aiogram` (handler ham, baza qatlami ham). Boshqa sohani yozma.
+- Bot tokeni `.env` da (BOT_TOKEN) saqlanadi, kodga yozilmaydi; har a'zo BotFather orqali o'zining test botini yaratadi.
+- Baza qatlami (`bot/core/`) boshqa vazifalardan oldin tayyor bo'lsin: handler vazifalari unga tayanadi (`depends_on`).
+"""
+
+
+def _adapt_prompt_for_bot(prompt: str, stack: dict) -> str:
+    """The shared prompt talks about a frontend and a Python backend; for a bot team drop those parts and
+    say what a bot team needs. The web prompt is untouched (this is only called for kind == "bot")."""
+    prompt = prompt.replace(
+        f"{stack['frontend']} (frontend) va\n{stack['backend']} (backend) texnologiyalarida",
+        f"{stack['label']} texnologiyasida (frontendsiz, faqat Telegram bot)", 1)
+    prompt = re.sub(r" \| Python/Django tajribasi: (?:bor|YOQ)", "", prompt)
+    lines = prompt.split("\n")
+    out = []
+    for line in lines:
+        if line.startswith("- Har bir a'zoning HOZIRGI yo'nalishiga mos qism ber"):
+            out.append("- Har bir a'zoning HOZIRGI yo'nalishiga mos qism ber: a'zo xulosasida \"CURRENT FOCUS\" yoki \"Current technologies\" yozilgan bo'lsa, vazifa shu texnologiyada bo'lsin. \"Earlier (not recently practiced)\" ro'yxatidagi texnologiyalar bo'yicha murakkab vazifa BERMA.")
+        elif line.startswith("- A'zo yonida \"Python/Django tajribasi"):
+            out.append("- Skelet va baza qatlamini (`bot/main.py`, `bot/core/`) a'zolar orasida aiogram kursini tugatgan (sohalar: aiogram=I yoki A) a'zoga ber; kursni tugatmagan a'zoga murakkab handler (FSM, middleware) BERMA.")
+        elif line.startswith("- Har bir vazifa aniq bir fayl/sahifa/komponentga tegishli"):
+            out.append("- Har bir vazifa aniq bir handler fayli yoki oqimlar guruhiga tegishli bo'lsin (masalan \"savat handlerlari\", \"buyurtma FSM formasi\", \"admin buyruqlari\"), shunda a'zolar bir-birining ishiga deyarli tegmasdan parallel ishlay oladi.")
+        elif line.startswith("- `acceptance_criteria` kamida"):
+            out.append("- `acceptance_criteria` kamida 2 ta ANIQ, tekshirib bo'ladigan band bo'lsin (masalan \"/cart buyrug'i jami summa bilan savat tarkibini ko'rsatadi\" — \"Yaxshi ishlaydi\" kabi umumiy gap emas).")
+        elif line.startswith("- `interface_contract.files` bo'sh bo'lmasin"):
+            out.append("- `interface_contract.files` bo'sh bo'lmasin — vazifa natijasida yaratiladigan/o'zgartiriladigan haqiqiy fayl(lar) nomini yoz (masalan \"bot/handlers/cart.py\").")
+        elif line.startswith("JAVOB FORMATI"):
+            break
+        else:
+            out.append(line)
+    out.append(_BOT_ANSWER_FORMAT)
+    return "\n".join(out)
+
+
+_BOT_ANSWER_FORMAT = """JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma (quyidagi bitta vazifa TO'LIQ, YETARLI misol — shu darajada aniq yoz, RUSCHA maydonlar ham xuddi shunday to'liq bo'lsin):
+{
+  "project_title": "...",
+  "project_description": "...",
+  "tasks": [
+    {
+      "assign_to_member_index": 0,
+      "title": "Savat handler'lari", "title_ru": "Обработчики корзины",
+      "description": "Foydalanuvchi mahsulotni inline tugma bilan savatga qo'shadi va /cart buyrug'i bilan savat tarkibini ko'radi. Savat bazada saqlansin, jami summa hisoblansin, bo'sh savat uchun alohida xabar chiqsin.",
+      "description_ru": "Пользователь добавляет товар в корзину inline-кнопкой и смотрит содержимое командой /cart. Корзина хранится в базе, считается итоговая сумма, для пустой корзины показывается отдельное сообщение.",
+      "required_level": "Beginner|Intermediate|Advanced",
+      "interface_contract": {"files": ["bot/handlers/cart.py"], "produces": ["cart.add", "cart.view"], "consumes": ["catalog.item"], "skill_area": "aiogram"},
+      "acceptance_criteria": ["'Savatga' tugmasi mahsulotni savatga qo'shadi", "/cart jami summa bilan savat tarkibini ko'rsatadi", "Bo'sh savatda tushunarli xabar chiqadi"],
+      "acceptance_criteria_ru": ["Кнопка «В корзину» добавляет товар в корзину", "/cart показывает содержимое корзины с итоговой суммой", "Для пустой корзины выводится понятное сообщение"],
+      "depends_on": [],
+      "estimated_hours": 4
+    }
+  ]
+}
+"""
 
 
 def _blueprint_block(blueprint: dict, members_summary: list[dict]) -> str:
     """The fixed contract the planner may split among members but never change."""
+    if blueprint.get("kind") == "bot":
+        return _bot_blueprint_block(blueprint, members_summary)
     endpoints = "\n".join(
         f"- {e['id']}: {e['method']} {e['path']}" + (" (token kerak)" if e["auth"] else "")
         + f" | so'rov: {json.dumps(e['request'], ensure_ascii=False)} | javob: {json.dumps(e['response'], ensure_ascii=False)}"
@@ -136,7 +213,7 @@ def _build_plan_prompt(theme_label: str, stack: dict, members_summary: list[dict
                             '"skill_area": "javascript"}')
     else:
         example_contract = '{"files": ["src/pages/Login.jsx"], "produces": ["auth_token in localStorage"], "consumes": []}'
-    return f"""Sen tajribali dasturlash o'qituvchisisiz. {len(members_summary)} nafar o'quvchidan
+    prompt = f"""Sen tajribali dasturlash o'qituvchisisiz. {len(members_summary)} nafar o'quvchidan
 iborat jamoa uchun "{theme_label}" mavzusida, {stack['frontend']} (frontend) va
 {stack['backend']} (backend) texnologiyalarida quriladigan kichik, real loyiha
 g'oyasini o'ylab top va uni jamoa a'zolari orasida teng bo'lib ber.
@@ -183,6 +260,9 @@ JAVOB FORMATI — faqat quyidagi JSON, boshqa hech narsa yozma (quyidagi bitta v
   ]
 }}
 """
+    if blueprint and blueprint.get("kind") == "bot":
+        return _adapt_prompt_for_bot(prompt, stack)
+    return prompt
 
 
 async def generate_plan_for_team_standalone(team_id: int) -> None:
@@ -402,10 +482,11 @@ def _member_level_for(member: dict, task: dict) -> str:
     return area_level or member["level"]
 
 
-_BACKEND_AREAS = {"flask": ["flask", "python"], "express": ["node"], "django": ["django"], "fastapi": ["fastapi"]}
+_BACKEND_AREAS = {"flask": ["flask", "python"], "express": ["node"], "django": ["django"], "fastapi": ["fastapi"],
+                  "aiogram": ["aiogram"]}
 _CODE_FILE_EXT = {
     ".js": {"javascript", "node", "react"}, ".jsx": {"javascript", "react"}, ".ts": {"javascript", "node", "react"},
-    ".tsx": {"javascript", "react"}, ".py": {"python", "flask", "django", "fastapi"},
+    ".tsx": {"javascript", "react"}, ".py": {"python", "flask", "django", "fastapi", "aiogram"},
 }
 from app.services.team_project_constants import SKILL_AREAS as _SKILL_AREAS  # noqa: E402
 
@@ -511,6 +592,10 @@ _SKELETON_CRITERIA = (
     "README.md da loyihani ishga tushirish qadamlari (o'rnatish va ishga tushirish buyruqlari) yozilgan",
     "В README.md описаны шаги запуска проекта (установка и команды запуска)",
 )
+_BOT_SKELETON_CRITERIA = (
+    ".env.example da BOT_TOKEN va ADMIN_IDS ko'rsatilgan, haqiqiy token repoga tushmaydi (.env .gitignore da)",
+    "В .env.example указаны BOT_TOKEN и ADMIN_IDS, настоящий токен не попадает в репозиторий (.env в .gitignore)",
+)
 _MOCK_CRITERIA = (
     "Backend tayyor bo'lguncha shartnomadagi javob shaklida lokal soxta ma'lumot bilan ishlaydi; base_url bitta konstantada",
     "Пока backend не готов, работает с локальными фиктивными данными формата из контракта; base_url — в одной константе",
@@ -540,6 +625,8 @@ def augment_plan(plan: dict, members_summary: list[dict], blueprint: dict) -> No
         files = [f for f in ((task.get("interface_contract") or {}).get("files") or []) if isinstance(f, str)]
         if task.get("assign_to_member_index") == owner_member:
             add(task, *_SKELETON_CRITERIA)
+            if blueprint.get("kind") == "bot":
+                add(task, *_BOT_SKELETON_CRITERIA)
         if any(f.startswith("frontend/") for f in files) and not any(f.startswith("backend/") for f in files):
             add(task, *_MOCK_CRITERIA)
 
