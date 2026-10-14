@@ -52,6 +52,7 @@ import ActivityAnalytics        from './views/teacher/activityanalytics/Activity
 import ErrorLogPage             from './views/teacher/errorlog/ErrorLogPage';
 import TeacherCodeChecks        from './views/teacher/codechecks/TeacherCodeChecks';
 import TeacherNotifications    from './views/teacher/notifications/TeacherNotifications';
+import TeacherPenalties        from './views/teacher/penalties/TeacherPenalties';
 
 /* ─── helpers ─── */
 function RootRedirect() {
@@ -161,6 +162,7 @@ function AppRouter() {
                 <Route index                                              element={<Navigate to="profile" replace />} />
                 <Route path="profile"                                     element={<TeacherProfilePage />} />
                 <Route path="review"                                      element={<TeacherReview />} />
+                <Route path="penalties"                                   element={<TeacherPenalties />} />
                 <Route path="students"                                    element={<MyStudents />} />
                 <Route path="students/:studentId"                         element={<StudentProfilePage />} />
                 <Route path="groups"                                      element={<MyGroups />} />

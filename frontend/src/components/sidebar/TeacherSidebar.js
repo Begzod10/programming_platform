@@ -8,7 +8,7 @@ import CoinChip from './CoinChip';
 import {
     User, Download, Users, BookOpen, Gamepad2,
     Trophy, Construction, Award, Medal, TrendingUp, Star, Activity,
-    ShoppingBag, Building2, Puzzle, Bug, Users2, ShieldCheck, Bell,
+    ShoppingBag, Building2, Puzzle, Bug, Users2, ShieldCheck, Bell, Gavel,
 } from 'lucide-react';
 
 const COLLAPSED_KEY = 'sidebar:teacher:collapsed';
@@ -78,6 +78,7 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
         { id: 'profile',        label: 'Профиль',         Icon: User,         section: 'main' },
         { id: 'notifications',  label: 'Bildirishnomalar', Icon: Bell,        section: 'main' },
         { id: 'review',         label: 'Проверка работ',  Icon: Download,     section: 'main' },
+        { id: 'penalties',      label: 'Штрафы',          Icon: Gavel,        section: 'main' },
         { id: 'students',       label: 'Мои Студенты',    Icon: Users,        section: 'main' },
         { id: 'groups',         label: 'Мои Группы',      Icon: Building2,    section: 'main' },
         { id: 'courses',        label: 'Курсы',           Icon: BookOpen,     section: 'main' },

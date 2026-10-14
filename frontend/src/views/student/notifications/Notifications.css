@@ -85,6 +85,7 @@
 .nt-card-pts { display:inline-flex; align-items:center; gap:3px; font-size:.72rem; font-weight:700;
     color:var(--nt-amber); background:rgba(251,191,36,.12); border:1px solid rgba(251,191,36,.22);
     padding:2px 8px; border-radius:8px; }
+.nt-card-pts-neg { color:#fca5a5; background:rgba(239,68,68,.14); border-color:rgba(239,68,68,.28); }
 .nt-card-text { font-size:.85rem; color:var(--nt-muted); line-height:1.45; word-break:break-word; }
 .nt-card-time { font-size:.72rem; color:var(--nt-faint); margin-top:2px; }
 

@@ -574,8 +574,8 @@ function TeacherReview() {
                                     </div>
                                 </div>
                                 <div className="tr-field">
-                                    <label>Очки <span style={{ opacity: .6, fontWeight: 400 }}>(минус = штраф)</span></label>
-                                    <input type="number" min="-100" max="100" placeholder="например, 100 или -50"
+                                    <label>Очки <span style={{ opacity: .6, fontWeight: 400 }}>(0–100)</span></label>
+                                    <input type="number" min="0" max="100" placeholder="например, 100"
                                         value={points} onChange={e => setPoints(e.target.value)} />
                                 </div>
                             </div>

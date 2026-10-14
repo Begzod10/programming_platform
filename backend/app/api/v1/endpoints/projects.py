@@ -354,8 +354,10 @@ async def unlike_project(
 class ReviewProjectRequest(BaseModel):
     feedback: str
     grade: str
-    # negative = teacher penalty (docked from the student, floored at 0)
-    points: int = Field(..., ge=-100, le=100, description="Ball -100 dan 100 gacha")
+    # A project score is a grade, 0..100. Penalties are NOT done here anymore —
+    # they live on the dedicated teacher "Penalties" page (TeacherPenalty), which
+    # docks the student's profile points directly without touching any project.
+    points: int = Field(..., ge=0, le=100, description="Ball 0 dan 100 gacha")
     status: str = "Approved"   # "Approved" | "Rejected"
 
     @field_validator("status", mode="before")
@@ -378,27 +380,27 @@ async def review_project(
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
 
     ranking_service = RankingService(db)
-    # What this review previously applied to the student's wallet (negative = a
-    # prior penalty). NULL only for a never-reviewed project → fall back to the
-    # old rule (points were applied only when the project was Approved).
+    new_status = data.status if data.status in ("Approved", "Rejected") else "Approved"
+    # Points are awarded only for an Approved project; a Rejected one grants 0.
+    # points_applied tracks the exact amount this review put in the student's
+    # wallet, so a re-review (Approved→Rejected, or a lower re-grade) backs out
+    # precisely what was granted — a negative delta is docked via
+    # revoke_earned_points (floored at 0, also drops career total + leaderboard).
+    new_applied = data.points if new_status == "Approved" else 0
     prev_applied = project.points_applied
     if prev_applied is None:
         prev_applied = (project.points_earned or 0) if project.status == "Approved" else 0
-    # Apply the net change so the student's points reflect this review's score /
-    # penalty. A negative delta is docked via revoke_earned_points → floored at
-    # 0 (no negative balance) and also drops the career total + leaderboard.
-    delta = data.points - prev_applied
+    delta = new_applied - prev_applied
     if delta > 0:
         await ranking_service.add_points_to_student(project.student_id, delta)
     elif delta < 0:
         await ranking_service.revoke_earned_points(project.student_id, -delta)
 
-    new_status = data.status if data.status in ("Approved", "Rejected") else "Approved"
     project.status = new_status
     project.instructor_feedback = data.feedback
     project.grade = data.grade
     project.points_earned = data.points
-    project.points_applied = data.points
+    project.points_applied = new_applied
     project.reviewed_at = utcnow()
 
     await db.commit()
@@ -457,7 +459,7 @@ async def review_project(
         "message": ("Loyiha tasdiqlandi, ballar yangilandi" if new_status == "Approved"
                     else "Loyiha rad etildi"),
         "status": new_status,
-        "points_applied": data.points,
+        "points_applied": new_applied,
         "certificate_issued": certificate_issued,
         "certificate_id": certificate_id
     }

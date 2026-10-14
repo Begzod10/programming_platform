@@ -7,8 +7,9 @@ import AppHeader from '../../../components/appheader/AppHeader';
 import './Notifications.css';
 import {
     Bell, CheckCircle2, XCircle, Clock, Award, GraduationCap,
-    CheckCheck, Inbox, ChevronRight, Sparkles,
+    CheckCheck, Inbox, ChevronRight, Sparkles, AlertTriangle,
 } from 'lucide-react';
+import { penaltyLabel } from '../../../constants/penaltyTypes';
 
 const UNREAD_KEY = 'notif:unread';
 const POLL_MS = 25000;
@@ -48,6 +49,14 @@ function present(n, ru) {
                 heading: ru ? 'Сертификат получен' : 'Sertifikat olindi',
                 text: ru ? `Курс «${title}» завершён.` : `«${title}» kursi yakunlandi.`,
             };
+        case 'teacher_penalty': {
+            const reason = penaltyLabel(n.extra, ru);
+            return {
+                icon: AlertTriangle, tone: n.tone || 'bad',
+                heading: ru ? 'Штраф от учителя' : "O'qituvchidan jarima",
+                text: n.body ? `${reason} — ${n.body}` : reason,
+            };
+        }
         default:
             return { icon: Bell, tone: n.tone || 'ok', heading: title, text: n.body || '' };
     }
@@ -234,6 +243,9 @@ export default function Notifications() {
                                                     <span className="nt-card-title">{p.heading}</span>
                                                     {n.points > 0 && (
                                                         <span className="nt-card-pts"><Sparkles size={12} /> +{n.points}</span>
+                                                    )}
+                                                    {n.points < 0 && (
+                                                        <span className="nt-card-pts nt-card-pts-neg">−{Math.abs(n.points)}</span>
                                                     )}
                                                 </span>
                                                 <span className="nt-card-text">{p.text}</span>

@@ -24,6 +24,7 @@ const NOTE_HEADING = {
     games_unlocked:    { uz: "O'yinlar ochildi! 🎮",  ru: 'Игры разблокированы! 🎮' },
     daily_complete:    { uz: 'Kunlik vazifa bajarildi! 🎯', ru: 'Дневная норма выполнена! 🎯' },
     quota_reminder:    { uz: 'Kunlik eslatma ⏰',     ru: 'Напоминание о норме ⏰' },
+    teacher_penalty:   { uz: "O'qituvchidan jarima ⚠️", ru: 'Штраф от учителя ⚠️' },
 };
 
 const LEVEL_META = {

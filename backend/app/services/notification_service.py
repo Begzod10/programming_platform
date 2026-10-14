@@ -173,6 +173,27 @@ async def notify_daily_complete(db: AsyncSession, student_id: int, bonus: int) -
     )
 
 
+async def notify_teacher_penalty(
+    db: AsyncSession, student_id: int, *, amount: int, penalty_type: str,
+    comment: Optional[str], points_after: int,
+) -> Optional[Notification]:
+    """Tell the student a teacher docked their profile points as a penalty.
+
+    Carries every detail so the student knows exactly what happened and why:
+    the docked amount (as negative ``points``), the reason category (``extra`` =
+    one of PENALTY_TYPES, localized on the client), the teacher's free-text note
+    (``body``), and where their new balance landed. Deep-links to the rankings
+    page where the drop is visible.
+    """
+    return await _emit(
+        db, student_id, type="teacher_penalty", tone="bad", title="",
+        body=(comment[:500] if comment else None),
+        extra=(penalty_type or "other")[:60],
+        points=-abs(amount or 0),
+        icon="⚠️", link="/student/rankings",
+    )
+
+
 async def notify_quota_reminder(db: AsyncSession, student_id: int, *, remaining: int,
                                 enforcing: bool, penalty_per_lesson: int) -> Optional[Notification]:
     """Hourly "finish your quota" nudge. The dynamic count lives in `title` (the
