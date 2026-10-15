@@ -77,7 +77,7 @@ async def main(src_login: str, dst_login: str, apply: bool) -> None:
                 try:
                     async with db.begin_nested():
                         await db.execute(
-                            text(f'UPDATE "{table}" SET "{col}" = :d WHERE ctid = CAST(:c AS tid)'),
+                            text(f'UPDATE "{table}" SET "{col}" = :d WHERE ctid::text = :c'),
                             {"d": dst["id"], "c": ctid})
                     moved += 1
                 except IntegrityError:
