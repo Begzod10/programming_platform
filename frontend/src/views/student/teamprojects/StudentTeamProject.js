@@ -1,6 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
+import AppHeader from '../../../components/appheader/AppHeader';
+import { Users2, Crown, Link2, Upload, Clock, Rocket } from 'lucide-react';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { pickLang, pickLangList } from '../../../utils/pickLang';
+import TeamProjectHistory from './TeamProjectHistory';
+import TeamContractCard from './TeamContractCard';
+import UnmetLessons from '../../../components/teamprojects/UnmetLessons';
 import './StudentTeamProject.css';
 
 // Matches the two shapes api/search/base.js's request() wrapper can reject
@@ -9,11 +16,14 @@ function getBackendErrorMessage(e, fallback) {
     return e?.response?.data?.error?.message || e?.response?.data?.detail || fallback;
 }
 
-const STATUS_LABELS = {
-    assigned: 'Boshlanmagan', submitted: 'Tekshirilmoqda',
-    changes_requested: "O'zgartirish kerak", approved: 'Tasdiqlandi',
-    blocked: 'Muddati o\'tgan', reassigned: 'Qayta tayinlandi',
-};
+const STATUS_LABELS = (ru) => ({
+    assigned: ru ? 'Не начато' : 'Boshlanmagan',
+    submitted: ru ? 'На проверке' : 'Tekshirilmoqda',
+    changes_requested: ru ? 'Нужны изменения' : "O'zgartirish kerak",
+    approved: ru ? 'Подтверждено' : 'Tasdiqlandi',
+    blocked: ru ? 'Просрочено' : 'Muddati o\'tgan',
+    reassigned: ru ? 'Переназначено' : 'Qayta tayinlandi',
+});
 
 // Returns { text, warning } for a small proactive deadline chip, or null when
 // the task is already resolved (approved/blocked already has its own status
@@ -26,76 +36,115 @@ const STATUS_LABELS = {
 // yet, this still shows something rather than silently going blank in that
 // window (the whole reason this chip exists is to be proactive, not just
 // mirror the status chip after the fact).
-function deadlineLabel(task) {
+function deadlineLabel(task, ru) {
     if (task.status === 'approved' || task.status === 'blocked') return null;
     if (!task.deadline_at) return null;
     const msLeft = new Date(task.deadline_at) - new Date();
-    if (msLeft <= 0) return { text: "Muddati o'tgan", warning: true };
+    if (msLeft <= 0) return { text: ru ? 'Срок прошёл — сдать всё равно можно' : "Muddati o'tgan — baribir topshirish mumkin", warning: true };
     const hoursLeft = msLeft / (1000 * 60 * 60);
-    if (hoursLeft < 24) return { text: '24 soatdan kam qoldi', warning: true };
+    if (hoursLeft < 24) return { text: ru ? 'Осталось меньше 24 часов' : '24 soatdan kam qoldi', warning: true };
     const daysLeft = Math.ceil(hoursLeft / 24);
-    return { text: `${daysLeft} kun qoldi`, warning: daysLeft <= 2 };
+    return { text: ru ? `Осталось ${daysLeft} дн.` : `${daysLeft} kun qoldi`, warning: daysLeft <= 2 };
 }
 
-const TaskCard = ({ task, isMine, onSubmit, submitting }) => {
+const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting, lang }) => {
+    const ru = lang === 'ru';
     const [url, setUrl] = useState('');
+    const [file, setFile] = useState(null);
+    const [fileError, setFileError] = useState('');
     const feedback = task.ai_feedback;
-    const deadline = deadlineLabel(task);
+    const deadline = deadlineLabel(task, ru);
+
+    const handleFileChange = (e) => {
+        const picked = e.target.files?.[0] || null;
+        setFileError('');
+        if (picked && picked.size > 15 * 1024 * 1024) {
+            setFile(null);
+            setFileError(ru ? 'Файл не должен быть больше 15 МБ' : "Fayl 15MB dan katta bo'lmasligi kerak");
+            e.target.value = '';
+            return;
+        }
+        setFile(picked);
+    };
+
+    const submit = () => {
+        if (url) onSubmit(task.id, url);
+        else if (file) onSubmitFile(task.id, file);
+    };
 
     return (
         <div className={`stp-task${isMine ? ' stp-task--mine' : ''}`}>
             <div className="stp-task-head">
-                <strong>{task.title}</strong>
+                <strong>{pickLang(task, 'title', lang)}</strong>
                 <span className={`stp-chip stp-chip--${task.status}`}>
-                    {STATUS_LABELS[task.status] || task.status}
+                    {STATUS_LABELS(ru)[task.status] || task.status}
                 </span>
             </div>
-            <p className="stp-task-desc">{task.description}</p>
+            <p className="stp-task-desc">{pickLang(task, 'description', lang)}</p>
             {task.acceptance_criteria?.length > 0 && (
                 <ul className="stp-criteria">
-                    {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
+                    {pickLangList(task, 'acceptance_criteria', lang).map((c, i) => <li key={i}>{c}</li>)}
                 </ul>
             )}
             {deadline && (
                 <span className={`stp-deadline${deadline.warning ? ' stp-deadline--warning' : ''}`}>
-                    {deadline.text}
+                    <Clock size={12} aria-hidden="true" /> {deadline.text}
                 </span>
             )}
             {!isMine && (
-                <p className="stp-muted">Bajaruvchi: {task.assigned_student_name}</p>
+                <p className="stp-muted">{ru ? 'Исполнитель:' : 'Bajaruvchi:'} {task.assigned_student_name}</p>
             )}
             {isMine && task.status !== 'approved' && (
                 <div className="stp-submit-row">
-                    <label className="stp-field-label" htmlFor={`stp-url-${task.id}`}>GitHub havolasi</label>
+                    <label className="stp-field-label" htmlFor={`stp-url-${task.id}`}><Link2 size={13} /> {ru ? 'Ссылка на GitHub' : 'GitHub havolasi'}</label>
                     <input
                         id={`stp-url-${task.id}`}
-                        placeholder="https://github.com/foydalanuvchi/loyiha"
+                        placeholder={ru ? 'https://github.com/polzovatel/proekt' : 'https://github.com/foydalanuvchi/loyiha'}
                         value={url}
-                        onChange={e => setUrl(e.target.value)}
+                        onChange={e => { setUrl(e.target.value); if (e.target.value) { setFile(null); setFileError(''); } }}
                     />
+                    <div className="stp-submit-divider"><span>{ru ? 'или' : 'yoki'}</span></div>
+                    <label className="stp-field-label" htmlFor={`stp-file-${task.id}`}><Upload size={13} /> {ru ? 'Загрузить ZIP-файл' : 'ZIP fayl yuklash'}</label>
+                    <input
+                        id={`stp-file-${task.id}`}
+                        type="file"
+                        accept=".zip"
+                        onChange={e => { handleFileChange(e); if (e.target.files?.[0]) setUrl(''); }}
+                    />
+                    {fileError && <p className="stp-file-error">{fileError}</p>}
                     <button
                         className="stp-btn stp-btn--primary"
-                        disabled={!url || submitting}
-                        onClick={() => onSubmit(task.id, url)}
+                        disabled={(!url && !file) || submitting}
+                        onClick={submit}
                     >
-                        {submitting ? 'Yuborilmoqda…' : 'Topshirish'}
+                        {submitting ? (ru ? 'Отправка…' : 'Yuborilmoqda…') : (ru ? 'Отправить' : 'Topshirish')}
                     </button>
                 </div>
             )}
             {feedback && (
                 <div className={`stp-feedback${task.status === 'approved' ? ' stp-feedback--ok' : ''}`}>
                     <strong>{task.ai_score != null ? `${task.ai_score}/100` : ''}</strong>
-                    <p>{feedback.feedback}</p>
+                    <p>{lang === 'ru' && feedback.feedback_ru ? feedback.feedback_ru : feedback.feedback}</p>
+                </div>
+            )}
+            {task.lead_comment && (
+                <div className="stp-feedback">
+                    <strong>{lang === 'ru' ? 'Комментарий учителя' : "O'qituvchi izohi"}</strong>
+                    <p>{task.lead_comment}</p>
                 </div>
             )}
         </div>
     );
 };
 
-const PeerRatings = ({ team, meId, onSubmit, submitting, submitted }) => {
+const PeerRatings = ({ team, meId, onSubmit, submitting, submitted, initialRatings }) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const teammates = team.members.filter(m => m.student_id !== meId);
     const [ratings, setRatings] = useState(
-        () => Object.fromEntries(teammates.map(m => [m.student_id, { score: 0, comment: '' }]))
+        () => Object.fromEntries(teammates.map(m => [
+            m.student_id, initialRatings?.[m.student_id] || { score: 0, comment: '' },
+        ]))
     );
 
     if (teammates.length === 0) return null;
@@ -109,17 +158,19 @@ const PeerRatings = ({ team, meId, onSubmit, submitting, submitted }) => {
     if (submitted) {
         return (
             <div className="stp-peer-ratings">
-                <h3>Jamoadoshlarni baholash</h3>
-                <p className="stp-muted">Rahmat! Baholaringiz qabul qilindi.</p>
+                <h3>{ru ? 'Оценка товарищей по команде' : 'Jamoadoshlarni baholash'}</h3>
+                <p className="stp-muted">{ru ? 'Спасибо! Ваши оценки приняты.' : 'Rahmat! Baholaringiz qabul qilindi.'}</p>
             </div>
         );
     }
 
     return (
         <div className="stp-peer-ratings">
-            <h3>Jamoadoshlarni baholash</h3>
+            <h3>{ru ? 'Оценка товарищей по команде' : 'Jamoadoshlarni baholash'}</h3>
             <p className="stp-muted">
-                Jamoadoshlaringiz loyihaga qanchalik hissa qo'shganini 1–5 baho bilan belgilang.
+                {ru
+                    ? 'Оцените от 1 до 5, какой вклад каждый товарищ по команде внёс в проект.'
+                    : "Jamoadoshlaringiz loyihaga qanchalik hissa qo'shganini 1–5 baho bilan belgilang."}
             </p>
             {teammates.map(m => (
                 <div key={m.student_id} className="stp-peer-row">
@@ -131,13 +182,13 @@ const PeerRatings = ({ team, meId, onSubmit, submitting, submitted }) => {
                                 type="button"
                                 className={`stp-star${(ratings[m.student_id]?.score || 0) >= n ? ' stp-star--on' : ''}`}
                                 onClick={() => setScore(m.student_id, n)}
-                                aria-label={`${n} ball`}
+                                aria-label={ru ? `${n} балл.` : `${n} ball`}
                             >★</button>
                         ))}
                     </div>
                     <input
                         className="stp-peer-comment"
-                        placeholder="Izoh (ixtiyoriy)"
+                        placeholder={ru ? 'Комментарий (необязательно)' : 'Izoh (ixtiyoriy)'}
                         value={ratings[m.student_id]?.comment || ''}
                         onChange={e => setComment(m.student_id, e.target.value)}
                     />
@@ -154,37 +205,46 @@ const PeerRatings = ({ team, meId, onSubmit, submitting, submitted }) => {
                     }))
                 )}
             >
-                {submitting ? 'Yuborilmoqda…' : 'Baholarni yuborish'}
+                {submitting ? (ru ? 'Отправка…' : 'Yuborilmoqda…') : (ru ? 'Отправить оценки' : 'Baholarni yuborish')}
             </button>
-            {!allScored && <p className="stp-muted">Yuborishdan oldin har bir a'zoga baho qo'ying.</p>}
+            {!allScored && <p className="stp-muted">{ru ? 'Перед отправкой поставьте оценку каждому участнику.' : "Yuborishdan oldin har bir a'zoga baho qo'ying."}</p>}
         </div>
     );
 };
 
 const StudentTeamProject = () => {
     const { request } = useHttp();
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const [entries, setEntries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submittingId, setSubmittingId] = useState(null);
     const [finalizing, setFinalizing] = useState(false);
+    const [finalUrl, setFinalUrl] = useState('');
     const [meId, setMeId] = useState(null);
     const [ratingSubmitting, setRatingSubmitting] = useState(false);
     const [ratingSubmitted, setRatingSubmitted] = useState(false);
+    const [myRatings, setMyRatings] = useState({});
+    const [myRatingsLoaded, setMyRatingsLoaded] = useState(false);
     const [error, setError] = useState(null);
 
+    const loadedOnce = useRef(false);
     const reload = useCallback(async () => {
-        setLoading(true);
+        // Only the first load replaces the page with a spinner — a submit or
+        // finalize reloads in place so typed URLs / peer-rating stars survive.
+        if (!loadedOnce.current) setLoading(true);
         setError(null);
         try {
             const data = await request(`${API_URL}v1/team-projects/my`, 'GET', null, headers());
             setEntries(Array.isArray(data) ? data : []);
         } catch (e) {
-            setEntries([]);
-            setError(getBackendErrorMessage(e, "Ma'lumotlarni yuklab bo'lmadi. Sahifani yangilang."));
+            if (!loadedOnce.current) setEntries([]);
+            setError(getBackendErrorMessage(e, ru ? 'Не удалось загрузить данные. Обновите страницу.' : "Ma'lumotlarni yuklab bo'lmadi. Sahifani yangilang."));
         } finally {
+            loadedOnce.current = true;
             setLoading(false);
         }
-    }, [request]);
+    }, [request, ru]);
 
     useEffect(() => { reload(); }, [reload]);
 
@@ -205,6 +265,40 @@ const StudentTeamProject = () => {
     }, []);
     useSessionSocket(myTeamId, null, null, handleTeamWsMessage, 'team-projects/teams');
 
+    // Hydrates the peer-rating form from what THIS student already
+    // submitted, so a reload after rating doesn't reset to blank stars
+    // with no signal ratings exist (see PeerRatings' initialRatings).
+    // ratingSubmitted flips true only once every teammate is covered,
+    // matching submitRatings' own all-or-nothing submit.
+    const myTeamStatus = entries[0]?.my_team?.status;
+    useEffect(() => {
+        if (!myTeamId || !(myTeamStatus === 'submitted' || myTeamStatus === 'reviewed')) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const data = await request(
+                    `${API_URL}v1/team-projects/teams/${myTeamId}/peer-ratings/mine`, 'GET', null, headers(),
+                );
+                if (cancelled) return;
+                const map = Object.fromEntries(
+                    (Array.isArray(data) ? data : []).map(r => [r.rated_student_id, { score: r.score, comment: r.comment || '' }])
+                );
+                setMyRatings(map);
+                setMyRatingsLoaded(true);
+                const team = entries[0]?.my_team;
+                const teammateIds = (team?.members || []).filter(m => m.student_id !== meId).map(m => m.student_id);
+                if (teammateIds.length > 0 && teammateIds.every(id => map[id])) {
+                    setRatingSubmitted(true);
+                }
+            } catch {
+                // Best-effort hydration only — on failure the form just stays
+                // blank/resubmittable, same as before this fix existed.
+                if (!cancelled) setMyRatingsLoaded(true);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [myTeamId, myTeamStatus, meId, request]);
+
     useEffect(() => {
         try {
             const user = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}');
@@ -224,7 +318,36 @@ const StudentTeamProject = () => {
             );
             await reload();
         } catch (e) {
-            setError(getBackendErrorMessage(e, "Vazifani topshirib bo'lmadi"));
+            setError(getBackendErrorMessage(e, ru ? 'Не удалось отправить задание' : "Vazifani topshirib bo'lmadi"));
+        } finally {
+            setSubmittingId(null);
+        }
+    };
+
+    // Two-step, mirroring the backend split (upload-zip validates+saves and
+    // hands back a submission_files reference; /submit is the one place
+    // that actually flips task status and triggers AI review — see
+    // upload_task_zip's docstring on why that logic isn't duplicated here
+    // either). A student without a GitHub repo can attach a ZIP instead.
+    const submitTaskFile = async (taskId, file) => {
+        const entry = entries[0];
+        if (!entry) return;
+        setSubmittingId(taskId);
+        setError(null);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const uploadResult = await request(
+                `${API_URL}v1/team-projects/teams/${entry.my_team.id}/tasks/${taskId}/upload-zip`,
+                'POST', formData,
+            );
+            await request(
+                `${API_URL}v1/team-projects/teams/${entry.my_team.id}/tasks/${taskId}/submit`,
+                'POST', JSON.stringify({ submission_files: uploadResult.submission_files }), headers(),
+            );
+            await reload();
+        } catch (e) {
+            setError(getBackendErrorMessage(e, ru ? 'Не удалось отправить задание' : "Vazifani topshirib bo'lmadi"));
         } finally {
             setSubmittingId(null);
         }
@@ -236,11 +359,11 @@ const StudentTeamProject = () => {
         try {
             await request(
                 `${API_URL}v1/team-projects/teams/${team.id}/finalize`,
-                'POST', JSON.stringify({}), headers(),
+                'POST', JSON.stringify({ github_url: finalUrl.trim() }), headers(),
             );
             await reload();
         } catch (e) {
-            setError(getBackendErrorMessage(e, "Loyihani yakunlab bo'lmadi"));
+            setError(getBackendErrorMessage(e, ru ? 'Не удалось завершить проект' : "Loyihani yakunlab bo'lmadi"));
         } finally {
             setFinalizing(false);
         }
@@ -256,13 +379,23 @@ const StudentTeamProject = () => {
             );
             setRatingSubmitted(true);
         } catch (e) {
-            setError(getBackendErrorMessage(e, "Baholarni yuborib bo'lmadi"));
+            setError(getBackendErrorMessage(e, ru ? 'Не удалось отправить оценки' : "Baholarni yuborib bo'lmadi"));
         } finally {
             setRatingSubmitting(false);
         }
     };
 
-    if (loading) return <div className="stp-page"><p className="stp-muted">Yuklanmoqda…</p></div>;
+    if (loading) return (
+        <div className="stp-page">
+            <AppHeader />
+            <div className="stp-shell">
+                <div className="stp-skel-head" />
+                <div className="stp-skel-grid">
+                    {[0, 1, 2].map(i => <div key={i} className="stp-skel-card" style={{ animationDelay: `${i * 0.08}s` }} />)}
+                </div>
+            </div>
+        </div>
+    );
     if (entries.length === 0) {
         // A failed reload() also lands here (its catch sets entries to []) —
         // without checking `error` first, the very first load failing (the
@@ -272,9 +405,18 @@ const StudentTeamProject = () => {
         // real problem instead of surfacing it via the error banner below.
         return (
             <div className="stp-page">
-                {error
-                    ? <div className="stp-error-banner" role="alert">{error}</div>
-                    : <p className="stp-muted">Sizga hali jamoaviy loyiha topshirilmagan.</p>}
+                <AppHeader />
+                <div className="stp-shell">
+                    {error
+                        ? <div className="stp-error-banner" role="alert">{error}</div>
+                        : (
+                            <div className="stp-empty">
+                                <span className="stp-empty-ico"><Users2 size={46} /></span>
+                                <p className="stp-empty-title">{ru ? 'Вам ещё не назначен командный проект.' : 'Sizga hali jamoaviy loyiha topshirilmagan.'}</p>
+                                <p className="stp-empty-sub">{ru ? 'Когда преподаватель сформирует команду, ваш проект появится здесь.' : "O'qituvchingiz jamoa tuzganda loyihangiz shu yerda paydo bo'ladi."}</p>
+                            </div>
+                        )}
+                </div>
             </div>
         );
     }
@@ -282,28 +424,45 @@ const StudentTeamProject = () => {
     const { my_team: team, my_role: role } = entries[0];
     const allApproved = team.tasks.length > 0 && team.tasks.every(t => t.status === 'approved');
 
+    const initials = (n) => (n || '?').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
     return (
         <div className="stp-page">
+            <AppHeader />
+            <div className="stp-shell">
+            <div className="stp-pagetitle">
+                <span className="stp-pagetitle-ico"><Users2 size={22} /></span>
+                <span>{ru ? 'Командный проект' : 'Jamoaviy loyiha'}</span>
+                <TeamProjectHistory ru={ru} />
+            </div>
+
             <div className="stp-header">
-                <h2>{team.name}</h2>
-                <div className="stp-badges">
-                    {team.theme_label && <span className="stp-badge">{team.theme_label}</span>}
-                    {team.tech_stack_label && <span className="stp-badge stp-badge--tech">{team.tech_stack_label}</span>}
+                <span className="stp-header-glow" aria-hidden="true" />
+                <div className="stp-header-main">
+                    <h2>{team.name}</h2>
+                    <div className="stp-badges">
+                        {team.theme_label && <span className="stp-badge">{team.theme_label}</span>}
+                        {team.tech_stack_label && <span className="stp-badge stp-badge--tech">{team.tech_stack_label}</span>}
+                    </div>
+                    {team.project_title && <p className="stp-project-title">{team.project_title}</p>}
+                    {team.project_description && <p className="stp-project-desc">{team.project_description}</p>}
                 </div>
-                {team.project_title && <p className="stp-project-title">{team.project_title}</p>}
-                {team.project_description && <p className="stp-project-desc">{team.project_description}</p>}
             </div>
 
             {error && <div className="stp-error-banner" role="alert">{error}</div>}
 
+            <TeamContractCard contract={team.shared_contract} ru={ru} />
+            <UnmetLessons lessons={team.unmet_lessons} ru={ru} audience="student" />
+
             <div className="stp-members">
                 {team.members.map(m => (
                     <span key={m.student_id} className={`stp-member${m.role === 'lead' ? ' stp-member--lead' : ''}`}>
+                        <span className="stp-member-av">{initials(m.full_name)}</span>
                         {m.full_name}
                         {m.role === 'lead' && (
                             <>
-                                <span aria-hidden="true"> 👑</span>
-                                <span className="stp-sr-only"> (jamoa boshlig'i)</span>
+                                <span aria-hidden="true"><Crown size={14} className="stp-crown" /></span>
+                                <span className="stp-sr-only">{ru ? ' (глава команды)' : " (jamoa boshlig'i)"}</span>
                             </>
                         )}
                     </span>
@@ -322,17 +481,29 @@ const StudentTeamProject = () => {
                             aria-valuenow={approvedCount}
                             aria-valuemin={0}
                             aria-valuemax={total}
-                            aria-label="Vazifalar bajarilishi"
+                            aria-label={ru ? 'Выполнение заданий' : 'Vazifalar bajarilishi'}
                         >
                             <div className="stp-progress-fill" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="stp-progress-label">{approvedCount}/{total} vazifa tasdiqlandi</span>
+                        <span className="stp-progress-label">{ru ? `Подтверждено заданий: ${approvedCount}/${total}` : `${approvedCount}/${total} vazifa tasdiqlandi`}</span>
                     </div>
                 );
             })()}
 
             {team.tasks.length === 0 && (
-                <p className="stp-muted">Loyiha rejasi tayyorlanmoqda, biroz kuting…</p>
+                team.status === 'forming' && team.generation_attempts >= 3 ? (
+                    <p className="stp-muted stp-muted--error">
+                        {ru
+                            ? 'Не удалось автоматически создать план проекта. Сообщите об этом своему учителю.'
+                            : "Loyiha rejasini avtomatik yaratib bo'lmadi. Iltimos, o'qituvchingizga xabar bering."}
+                    </p>
+                ) : (
+                    <p className="stp-muted">
+                        {ru
+                            ? 'План проекта ещё готовится — подождите или дождитесь, пока учитель его создаст…'
+                            : "Loyiha rejasi tayyorlanmoqda yoki o'qituvchi tomonidan yaratilishi kutilmoqda…"}
+                    </p>
+                )
             )}
 
             <div className="stp-tasks-grid">
@@ -343,32 +514,50 @@ const StudentTeamProject = () => {
                         isMine={task.assigned_student_id === meId}
                         submitting={submittingId === task.id}
                         onSubmit={submitTask}
+                        onSubmitFile={submitTaskFile}
+                        lang={lang}
                     />
                 ))}
             </div>
 
-            {role === 'lead' && (
+            {role === 'lead' && team.status !== 'submitted' && team.status !== 'reviewed' && (
                 <div className="stp-finalize">
+                    <div className="stp-submit-row" style={{ width: '100%' }}>
+                        <label className="stp-field-label" htmlFor="stp-final-url"><Link2 size={13} /> {ru ? 'Ссылка на GitHub итогового проекта' : "Yakuniy loyiha GitHub havolasi"}</label>
+                        <input
+                            id="stp-final-url"
+                            placeholder={ru ? 'https://github.com/polzovatel/proekt' : 'https://github.com/foydalanuvchi/loyiha'}
+                            value={finalUrl}
+                            onChange={e => setFinalUrl(e.target.value)}
+                        />
+                    </div>
                     <button
-                        className="stp-btn stp-btn--primary"
-                        disabled={!allApproved || finalizing}
+                        className="stp-btn stp-btn--primary stp-btn--finalize"
+                        disabled={!allApproved || finalizing || !/^https?:\/\//i.test(finalUrl.trim())}
                         onClick={() => finalize(team)}
                     >
-                        {finalizing ? 'Yuborilmoqda…' : "Yakuniy loyihani topshirish"}
+                        <Rocket size={16} /> {finalizing ? (ru ? 'Отправка…' : 'Yuborilmoqda…') : (ru ? 'Отправить финальный проект' : "Yakuniy loyihani topshirish")}
                     </button>
-                    {!allApproved && <p className="stp-muted">Barcha vazifalar tasdiqlangach yakunlashingiz mumkin.</p>}
+                    {!allApproved && <p className="stp-muted">{ru ? 'Завершить можно после того, как все задания будут подтверждены.' : 'Barcha vazifalar tasdiqlangach yakunlashingiz mumkin.'}</p>}
                 </div>
+            )}
+
+            {role === 'lead' && (team.status === 'submitted' || team.status === 'reviewed') && (
+                <p className="stp-muted">{ru ? 'Проект уже отправлен как финальный.' : 'Loyiha allaqachon yakuniy topshirildi.'}</p>
             )}
 
             {(team.status === 'submitted' || team.status === 'reviewed') && (
                 <PeerRatings
+                    key={myRatingsLoaded ? 'hydrated' : 'loading'}
                     team={team}
                     meId={meId}
                     submitting={ratingSubmitting}
                     submitted={ratingSubmitted}
+                    initialRatings={myRatings}
                     onSubmit={items => submitRatings(team, items)}
                 />
             )}
+            </div>
         </div>
     );
 };

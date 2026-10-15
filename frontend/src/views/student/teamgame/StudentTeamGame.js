@@ -4,7 +4,12 @@ import { useTranslation } from '../../../i18n/useTranslation';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import { BugSnippet, BugExplanation } from './BugHuntArena';
 import './StudentTeamGame.css';
-import { Trophy, Timer, Star, Check, X, CircleCheckBig, XCircle } from 'lucide-react';
+import './TeamGameLanding.css';
+import AppHeader from '../../../components/appheader/AppHeader';
+import {
+    Trophy, Timer, Star, Check, X, CircleCheckBig, XCircle,
+    Gamepad2, Users, BookOpen, Play, RefreshCw, Bug, HelpCircle, Zap,
+} from 'lucide-react';
 
 export const OPTION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F'];
 // Bug-hunt explanations are the whole pedagogical payload — hold the reveal
@@ -756,7 +761,9 @@ function SessionDetail({ initialSession, onBack }) {
     const sortedTeams = [...(session.teams || [])].sort((a, b) => b.score - a.score);
 
     return (
-        <div className="stg-detail">
+        <div className="jog-detail-dark">
+            <AppHeader />
+            <div className="stg-detail">
             {/* Auto mode: each student works independently through their shuffled question list.
                 If they've already answered every question, show a notice instead of
                 letting them restart from question 1 on re-entry. */}
@@ -866,6 +873,7 @@ function SessionDetail({ initialSession, onBack }) {
                     <Trophy size={16} aria-hidden="true" /> {t('game.completedBanner')} {sortedTeams[0] && `${t('game.winnerLabel')} ${sortedTeams[0].name} (${sortedTeams[0].score} ${t('game.pointsSuffix')})`}
                 </div>
             )}
+            </div>
         </div>
     );
 }
@@ -925,59 +933,103 @@ export default function StudentTeamGame() {
         return <SessionDetail initialSession={selected} onBack={goBack} />;
     }
 
-    return (
-        <div className="stg-page">
-            <div className="stg-page-header">
-                <h1>{t('team_game')}</h1>
-                <p className="stg-subtitle">{t('game.pageSubtitle')}</p>
-            </div>
+    const activeCount = sessions.filter(s => s.status === 'active').length;
+    const gameTypeIcon = (type) => type === 'bug_hunt' ? Bug : type === 'individual' ? Zap : HelpCircle;
+    // Most-actionable first: live games you can join, then upcoming, then done.
+    const statusRank = { active: 0, pending: 1, completed: 2 };
+    const orderedSessions = [...sessions].sort(
+        (a, b) => (statusRank[a.status] ?? 3) - (statusRank[b.status] ?? 3)
+    );
 
-            {loading ? (
-                <div className="stg-loading">{t('loading')}</div>
-            ) : sessions.length === 0 ? (
-                <div className="stg-empty">
-                    <div className="stg-empty-icon">🎮</div>
-                    <h3>{t('game.emptyTitle')}</h3>
-                    <p>{t('game.emptyDesc')}</p>
-                    <button className="stg-refresh-btn" onClick={() => load()}>{t('game.refresh')}</button>
+    return (
+        <div className="jog-page">
+            <AppHeader />
+
+            <div className="jog-shell">
+                <div className="jog-head">
+                    <span className="jog-head-ico"><Gamepad2 size={24} /></span>
+                    <div>
+                        <h1>{t('team_game')}</h1>
+                        <p>{t('game.pageSubtitle')}</p>
+                    </div>
+                    {!loading && sessions.length > 0 && (
+                        <button className="jog-refresh" onClick={() => load()} aria-label={t('game.refresh')}>
+                            <RefreshCw size={16} /> {t('game.refresh')}
+                        </button>
+                    )}
                 </div>
-            ) : (
-                <div className="stg-list">
-                    {sessions.map(s => {
-                        const myTeam = s.teams?.find(team => team.id === s.my_team_id);
-                        return (
-                            <div key={s.id} className={`stg-card stg-card--${s.status}`} onClick={() => openSession(s.id)}>
-                                <div className="stg-card-top">
-                                    <div>
-                                        <h3>{s.title}</h3>
-                                        {s.description && <p>{s.description}</p>}
-                                    </div>
-                                    <div className="stg-badges">
-                                        <span className={`stg-badge stg-badge--${s.status}`}>{t(`game.status.${s.status}`)}</span>
-                                        <span className="stg-badge stg-badge--type">{t(`game.type.${s.game_type}`)}</span>
-                                    </div>
-                                </div>
-                                <div className="stg-card-bottom">
-                                    <div className="stg-card-meta">
-                                        <span>👥 {s.team_count} {t('game.teamsCountSuffix')}</span>
-                                        {s.course_title && <span>📚 {s.course_title}</span>}
-                                        {myTeam && (
-                                            <span className="stg-my-team-pill" style={{ borderColor: myTeam.color, color: myTeam.color }}>
-                                                {t('game.youPrefix')} {myTeam.name}
-                                            </span>
-                                        )}
-                                    </div>
-                                    {s.status === 'active' && (
-                                        <button className="stg-join-btn" onClick={e => { e.stopPropagation(); openSession(s.id); }}>
-                                            {t('game.joinBtn')}
-                                        </button>
-                                    )}
-                                </div>
+
+                {loading ? (
+                    <div className="jog-grid">
+                        {[0, 1, 2, 3].map(i => <div key={i} className="jog-skel" style={{ animationDelay: `${i * 0.07}s` }} />)}
+                    </div>
+                ) : sessions.length === 0 ? (
+                    <div className="jog-empty">
+                        <span className="jog-empty-ico"><Gamepad2 size={46} /></span>
+                        <h3>{t('game.emptyTitle')}</h3>
+                        <p>{t('game.emptyDesc')}</p>
+                        <button className="jog-refresh jog-refresh--solo" onClick={() => load()}>
+                            <RefreshCw size={16} /> {t('game.refresh')}
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        {activeCount > 0 && (
+                            <div className="jog-live-banner">
+                                <span className="jog-live-dot" aria-hidden="true" />
+                                <b>{activeCount}</b> · {t('game.status.active')}
                             </div>
-                        );
-                    })}
-                </div>
-            )}
+                        )}
+                        <div className="jog-grid">
+                            {orderedSessions.map((s, idx) => {
+                                const myTeam = s.teams?.find(team => team.id === s.my_team_id);
+                                const TypeIcon = gameTypeIcon(s.game_type);
+                                const isActive = s.status === 'active';
+                                return (
+                                    <div key={s.id} className={`jog-card jog-card--${s.status} ${isActive ? 'jog-card--live' : ''}`}
+                                        onClick={() => openSession(s.id)} role="button" tabIndex={0}
+                                        onKeyDown={e => e.key === 'Enter' && openSession(s.id)}
+                                        style={{ animationDelay: `${Math.min(idx, 10) * 0.05}s` }}>
+                                        <div className="jog-card-glow" aria-hidden="true" />
+                                        <div className="jog-card-top">
+                                            <span className="jog-card-ico"><TypeIcon size={22} /></span>
+                                            <div className="jog-card-badges">
+                                                <span className={`jog-badge jog-badge--${s.status}`}>
+                                                    {isActive && <span className="jog-badge-dot" />}
+                                                    {t(`game.status.${s.status}`)}
+                                                </span>
+                                                <span className="jog-badge jog-badge--type">{t(`game.type.${s.game_type}`)}</span>
+                                            </div>
+                                        </div>
+
+                                        <h3 className="jog-card-title">{s.title}</h3>
+                                        {s.description && <p className="jog-card-desc">{s.description}</p>}
+
+                                        <div className="jog-card-meta">
+                                            <span className="jog-meta-item"><Users size={14} /> {s.team_count} {t('game.teamsCountSuffix')}</span>
+                                            {s.course_title && <span className="jog-meta-item"><BookOpen size={14} /> {s.course_title}</span>}
+                                        </div>
+
+                                        <div className="jog-card-foot">
+                                            {myTeam ? (
+                                                <span className="jog-team-pill" style={{ borderColor: myTeam.color, color: myTeam.color }}>
+                                                    <span className="jog-team-dot" style={{ background: myTeam.color }} />
+                                                    {t('game.youPrefix')} {myTeam.name}
+                                                </span>
+                                            ) : <span />}
+                                            {isActive && (
+                                                <button className="jog-join" onClick={e => { e.stopPropagation(); openSession(s.id); }}>
+                                                    <Play size={14} /> {t('game.joinBtn')}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
+            </div>
         </div>
     );
 }

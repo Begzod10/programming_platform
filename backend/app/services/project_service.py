@@ -340,6 +340,13 @@ class ProjectService:
             logger.warning("[ai-auto] project=%d unhandled error: %s",
                            project.id, e)
 
+        # Real-time: notify the student of the AI verdict (approved/rejected).
+        # Skipped for a still-"Submitted" project (AI unavailable) — the
+        # student just submitted and would only get noise.
+        if (project.status or "").lower() in ("approved", "reviewed", "rejected"):
+            from app.services import notification_service
+            await notification_service.notify_project_reviewed(self.db, project)
+
         return project
 
     async def review_project(self, project_id: int, feedback: str, grade: str, points: int) -> Project:
@@ -378,6 +385,10 @@ class ProjectService:
 
         await self.db.commit()
         await self.db.refresh(project)
+
+        # Real-time: notify the student their project was approved.
+        from app.services import notification_service
+        await notification_service.notify_project_reviewed(self.db, project)
         return project
 
     async def update_status(self, project_id: int, status: str) -> Project:

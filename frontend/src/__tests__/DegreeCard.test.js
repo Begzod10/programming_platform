@@ -32,6 +32,7 @@ import Degrees from '../views/student/degrees/DegreeCard';
 
 describe('DegreeCard (Degrees) — initial load failure handling', () => {
   beforeEach(() => {
+    localStorage.setItem('lang', 'ru');
     mockRequest.mockReset();
     mockAxiosGet.mockReset();
   });
@@ -41,11 +42,11 @@ describe('DegreeCard (Degrees) — initial load failure handling', () => {
 
     render(<Degrees />);
 
-    // Loading state first.
-    expect(screen.getByText(/Загрузка сертификатов/i)).toBeInTheDocument();
+    // Loading state first (skeleton cards — the page no longer prints a loading sentence).
+    expect(document.querySelector('.dg-skel')).toBeInTheDocument();
 
     // An error + retry control appears once the load settles.
-    await screen.findByText(/Failed to load certificates/i);
+    await screen.findByText(/Не удалось загрузить сертификаты/i);
     const retryBtn = screen.getByRole('button', { name: /Qayta urinish|Повторить/i });
     expect(retryBtn).toBeInTheDocument();
 
@@ -58,7 +59,7 @@ describe('DegreeCard (Degrees) — initial load failure handling', () => {
     mockRequest.mockRejectedValue(new Error('fail'));
     render(<Degrees />);
 
-    await screen.findByText(/Failed to load certificates/i);
+    await screen.findByText(/Не удалось загрузить сертификаты/i);
     const retryBtn = screen.getByRole('button', { name: /Qayta urinish|Повторить/i });
     expect(mockRequest).toHaveBeenCalledTimes(2); // my-progress + my
 
@@ -87,6 +88,7 @@ describe('DegreeCard (Degrees) — initial load failure handling', () => {
 
 describe('DegreeCard (Degrees) — PDF download goes through the axios interceptor', () => {
   beforeEach(() => {
+    localStorage.setItem('lang', 'ru');
     mockRequest.mockReset();
     mockAxiosGet.mockReset();
     global.URL.createObjectURL = jest.fn(() => 'blob:mock-url');

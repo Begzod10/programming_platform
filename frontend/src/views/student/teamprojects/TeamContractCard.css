@@ -1,0 +1,17 @@
+.tcc { background:var(--stp-glass, rgba(255,255,255,.045)); border:1px solid var(--stp-stroke, rgba(255,255,255,.09));
+    border-radius:16px; padding:14px 18px; margin:14px 0; color:var(--stp-ink, #eef1ff); }
+.tcc summary { cursor:pointer; font-weight:800; font-size:.95rem; display:flex; align-items:center; gap:8px; list-style:none; }
+.tcc summary::-webkit-details-marker { display:none; }
+.tcc-lead { margin:10px 0 6px; font-size:.84rem; color:var(--stp-muted, #9aa3c7); }
+.tcc-meta { display:flex; flex-wrap:wrap; gap:6px 18px; font-size:.82rem; margin:6px 0 10px; }
+.tcc code, .tcc pre { font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.76rem; }
+.tcc-table-wrap { overflow-x:auto; border-radius:10px; border:1px solid rgba(255,255,255,.07); }
+.tcc-table { border-collapse:collapse; width:100%; min-width:560px; }
+.tcc-table th { text-align:left; font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; color:var(--stp-muted, #9aa3c7); padding:8px 10px; background:rgba(255,255,255,.04); }
+.tcc-table td { padding:7px 10px; vertical-align:top; border-top:1px solid rgba(255,255,255,.06); word-break:break-word; }
+.tcc-method { display:inline-block; min-width:44px; text-align:center; padding:1px 6px; border-radius:6px; font-size:.68rem; font-weight:800; background:rgba(255,255,255,.1); }
+.tcc-method--get { color:#36e06b; } .tcc-method--post { color:#22d3ee; } .tcc-method--put { color:#fbbf24; } .tcc-method--delete { color:#f0556b; }
+.tcc-files { margin:10px 0 0; font-size:.8rem; color:var(--stp-muted, #9aa3c7); line-height:1.5; }
+.tcc-run { margin-top:12px; }
+.tcc-run p { margin:0 0 4px; font-size:.82rem; display:flex; align-items:center; gap:6px; }
+.tcc-run pre { margin:4px 0; padding:8px 10px; border-radius:8px; background:rgba(0,0,0,.28); overflow-x:auto; white-space:pre-wrap; }

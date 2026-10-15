@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { API_URL, headers } from '../../../../api/search/base';
+import { useTranslation } from '../../../../i18n/useTranslation';
 import './LessonVocabCard.css';
 
 export default function LessonVocabCard({ courseId, lessonId }) {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const [words, setWords] = useState([]);
     const [known, setKnown] = useState({});   // vocab_id -> true/false
     const [added, setAdded] = useState({});   // vocab_id -> true (added to dict)
@@ -43,10 +46,10 @@ export default function LessonVocabCard({ courseId, lessonId }) {
             <div className="lvc-header">
                 <span className="lvc-icon">📚</span>
                 <div>
-                    <div className="lvc-title">Tayyorgarlik — Asosiy atamalar</div>
-                    <div className="lvc-subtitle">{doneCount}/{words.length} tekshirildi</div>
+                    <div className="lvc-title">{ru ? 'Подготовка — Основные термины' : 'Tayyorgarlik — Asosiy atamalar'}</div>
+                    <div className="lvc-subtitle">{doneCount}/{words.length} {ru ? 'проверено' : 'tekshirildi'}</div>
                 </div>
-                {allDone && <span className="lvc-badge-done">✓ Tayyor</span>}
+                {allDone && <span className="lvc-badge-done">{ru ? '✓ Готово' : '✓ Tayyor'}</span>}
             </div>
 
             <div className="lvc-progress">
@@ -63,17 +66,17 @@ export default function LessonVocabCard({ courseId, lessonId }) {
                                 {status === undefined && (
                                     <div className="lvc-actions">
                                         <button className="lvc-btn lvc-btn--know" onClick={() => handleKnown(w.id)}>
-                                            ✓ Bilaman
+                                            {ru ? '✓ Знаю' : '✓ Bilaman'}
                                         </button>
                                         <button className="lvc-btn lvc-btn--unknown" onClick={() => handleUnknown(w)}>
-                                            + Lug'atga qo'sh
+                                            {ru ? '+ В словарь' : "+ Lug'atga qo'sh"}
                                         </button>
                                     </div>
                                 )}
                                 {status === true && <span className="lvc-status-icon">✓</span>}
                                 {status === false && (
                                     <span className="lvc-status-icon lvc-status-icon--added">
-                                        {added[w.id] ? '📖 Lug\'atga qo\'shildi' : '✗'}
+                                        {added[w.id] ? (ru ? '📖 Добавлено в словарь' : '📖 Lug\'atga qo\'shildi') : '✗'}
                                     </span>
                                 )}
                             </div>

@@ -512,6 +512,24 @@ def zip_bytes_have_code_file(contents: bytes) -> bool:
         return False
 
 
+def zip_plain_text_only_names(contents: bytes) -> list[str]:
+    """Names of the code entries when EVERY non-skipped entry is a .txt file
+    (typically "index.html.txt" — Windows hides known extensions), else [].
+    Used to reject such an upload immediately with an actionable message."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(contents)) as zf:
+            names = [
+                zi.filename for zi in zf.infolist()
+                if not zi.is_dir() and not _is_zip_path_unsafe(zi.filename)
+                and not _should_skip(zi.filename)
+            ]
+    except zipfile.BadZipFile:
+        return []
+    if names and all(n.lower().endswith(".txt") for n in names):
+        return names
+    return []
+
+
 def fetch_zip_snapshot(project_files_url: str, *, capstone: bool = False) -> dict:
     """Read a byte-capped snapshot from a student-uploaded ZIP.
 

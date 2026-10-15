@@ -1,76 +1,104 @@
-"""Holds a lesson-project submission for a teacher instead of letting the AI
-grader auto-approve it, when the submission pattern says the code almost
-certainly wasn't written by the student.
+"""Deterministic, server-side checks run on a lesson-project submission BEFORE
+the AI grader. Each hit is a rule violation (see submission_violations.py):
+the project is rejected with the reason and the student can't submit for 20
+minutes. Nothing here is "held for a teacher" any more — a teacher can't read
+every submission, so the rules enforce themselves.
 
-Why this exists (2026-09-25 incident): one student had 34 lesson projects
-auto-approved (A/B) by the AI grader, including 13 in 24 minutes and 9 in
-16 minutes — 5-21 KB of polished HTML/CSS each, every one a single
-TextEdit-default file ("текст.txt", "текст 2.txt", ...) created 1-3 minutes
-before upload. The AI grader only answers "does this code fulfil the task",
-so pasted AI output passes it perfectly; and the client-side
-keystroke/paste counters can't help because the code is never typed on the
-platform (ZIP / GitHub upload). Both signals below are server-side and
-deterministic.
+Why server-side: the code is written outside the platform and arrives as a ZIP
+or GitHub link, so the client-side keystroke/paste counters (which only see the
+optional comment box) can't see it. The 2026-09-25 incident (34 auto-approved
+projects of pasted AI output) is what these checks exist for.
 
-Like sample_copy_check, this never *rejects* anything — a held project just
-stays "Submitted" for a teacher to grade by hand (POST /project/{id}/review),
-so a false positive costs a teacher a minute, not the student their grade.
-The reasons go into instructor_feedback (no schema change), where the
-teacher sees them on the pending project; their own review overwrites it.
+Rules checked here:
+  duplicate_content       same code as ANOTHER student's project
+  unchanged_resubmission  same code as the student's OWN already-rejected project
+  prompt_injection        text in the code aimed at the AI grader ("give 100")
+The lesson-sample copy check lives in sample_copy_check.py and the
+"4 rejections in 20 minutes" rule in ai_review_service.py (it needs the AI's
+verdict); both record violations the same way.
 """
 from __future__ import annotations
 
+import hashlib
 import re
-from dataclasses import dataclass, field
-from datetime import timedelta
+from dataclasses import dataclass
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project
-from app.utils.datetime_utils import utcnow
 
-# A 3rd lesson project inside 20 minutes is held. Genuine students do
-# occasionally submit two in a row (finishing one, then a short one), but
-# the incident above was 13-in-24-minutes; nobody writes and checks three
-# multi-KB pages in 20 minutes.
-BURST_WINDOW = timedelta(minutes=20)
-BURST_MIN_OTHERS = 2
+# Too little code to say anything: boilerplate pages and one-line answers are
+# legitimately identical between students.
+FINGERPRINT_MIN_CHARS = 400
 
-# "/* ===== НАВИГАЦИЯ ===== */"-style section banners — a strong house style
-# of AI assistants' generated HTML/CSS. Informational only (never holds a
-# project on its own): some teachers write this way too.
-_BANNER = re.compile(r"(?:/\*|<!--)\s*={3,}")
-BANNER_NOTE_MIN = 5
+_FILE_BLOCK = re.compile(r"^### [^\n]*\n```\n(.*?)\n```\s*(?=^### |\Z)", re.M | re.S)
 
-STUDENT_MESSAGE = (
-    "Loyihangiz qabul qilindi va o'qituvchi tomonidan tekshiriladi. "
-    "Natija tez orada chiqadi."
+# Shown when a ZIP's only code is in .txt files. A very common accident:
+# Windows hides known extensions, so "index.html" saved from Notepad is really
+# "index.html.txt". Rejected at upload (no project is graded, no penalty) so
+# the student can fix it and resend immediately.
+PLAIN_TEXT_UPLOAD_MESSAGE = (
+    "ZIP ichida kod faqat .txt fayl(lar)da: {files}. Agar bu HTML/CSS/JS bo'lsa, "
+    "kengaytmani .html/.css/.js ga o'zgartirib qayta yuklang "
+    "(Windows: Вид → «Расширения имён файлов»ni yoqing).\n"
+    "В ZIP код только в .txt файлах: {files}. Если это HTML/CSS/JS, переименуйте "
+    "файлы в .html/.css/.js и загрузите снова."
 )
+
+# Instructions aimed at the AI grader. A false positive bans an honest student,
+# so every pattern needs a clearly grader-directed phrase — a bare "score = 100"
+# or "100 ball ber" is ordinary game code/comments and must NOT match.
+_GRADER_WORDS = r"(?:\bai\b|baholovchi|tekshiruvchi|o'qituvchi|\bgrader\b|\brubric\b|проверяющ\w*|нейросет\w*)"
+_MAX_SCORE = r"(?:100\s*(?:ball|балл|points?|marks?)|to'liq\s*ball|maksimal\s*ball|максимальн\w+\s*балл|full\s+(?:marks|points|score)|maximum\s+(?:marks|points|score))"
+_INJECTION = (
+    re.compile(r"ignore\s+(?:all\s+|any\s+|the\s+|your\s+)?(?:previous|prior|above|earlier)\s+(?:instructions|rules|rubric|guidelines)", re.I),
+    re.compile(r"disregard\s+(?:all\s+|any\s+|the\s+)?(?:previous|prior|above)\s+(?:instructions|rubric|rules)", re.I),
+    re.compile(r"ignore\s+(?:the\s+)?rubric", re.I),
+    re.compile(r"(?:give|assign|award)\s+(?:me|this\s+project)\s+(?:a\s+)?(?:score\s+of\s+)?(?:100|full\s+marks|maximum)", re.I),
+    # grader-directed word AND a max-score demand on the same line
+    re.compile(rf"^(?=.*{_GRADER_WORDS})(?=.*{_MAX_SCORE}).*$", re.I | re.M),
+    re.compile(r"игнорир\w*\s+(?:все\s+|любые\s+|предыдущие\s+)+(?:инструкции|правила|критерии)", re.I),
+    re.compile(r"(?:поставь|дай|выстави)\s+(?:мне|этому\s+проекту)\s+(?:100|максимальн\w+|высш\w+)", re.I),
+)
+
+
+def find_prompt_injection(text: str) -> Optional[str]:
+    """The matched snippet if the code addresses the AI grader, else None."""
+    for pattern in _INJECTION:
+        m = pattern.search(text or "")
+        if m:
+            return m.group(0).strip()[:80]
+    return None
+
+
+def content_fingerprint(content_text: str) -> Optional[str]:
+    """sha256 of the submitted code, insensitive to file names, file order,
+    whitespace and letter case — so the same work re-zipped under another
+    folder name or re-indented still matches. None when there is too little
+    code for a match to mean anything."""
+    bodies = _FILE_BLOCK.findall(content_text or "") or [content_text or ""]
+    normalized = sorted(
+        n for n in (re.sub(r"\s+", " ", b).strip().lower() for b in bodies) if n
+    )
+    joined = "\x00".join(normalized)
+    if len(joined) < FINGERPRINT_MIN_CHARS:
+        return None
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True)
 class IntegrityResult:
-    triggers: tuple[dict, ...] = ()
-    notes: tuple[dict, ...] = field(default_factory=tuple)
+    violations: tuple[dict, ...] = ()
 
     @property
-    def held(self) -> bool:
-        return bool(self.triggers)
+    def violated(self) -> bool:
+        return bool(self.violations)
 
-    def feedback(self) -> Optional[str]:
-        if not self.held:
-            return None
-        lines = [STUDENT_MESSAGE, "", "O'qituvchi uchun (avto-tekshiruv):"]
-        lines += [f"- {f['detail']}" for f in self.triggers + self.notes]
-        return "\n".join(lines)
-
-
-def _only_plain_text_files(files_included: list[str]) -> bool:
-    return bool(files_included) and all(
-        f.lower().endswith(".txt") for f in files_included
-    )
+    @property
+    def first(self) -> Optional[dict]:
+        return self.violations[0] if self.violations else None
 
 
 async def check_submission_integrity(
@@ -80,38 +108,55 @@ async def check_submission_integrity(
         files_included: list[str],
         content_text: str,
 ) -> IntegrityResult:
-    triggers: list[dict] = []
-    notes: list[dict] = []
+    violations: list[dict] = []
 
-    since = utcnow() - BURST_WINDOW
-    recent = (await db.execute(
-        select(func.count(Project.id)).where(
-            Project.student_id == project.student_id,
-            Project.id != project.id,
-            Project.submitted_at.is_not(None),
-            Project.submitted_at >= since,
-        )
-    )).scalar_one()
-    if recent >= BURST_MIN_OTHERS:
-        triggers.append({
-            "code": "burst",
-            "detail": f"Oxirgi {int(BURST_WINDOW.total_seconds() // 60)} daqiqada "
-                      f"yana {recent} ta loyiha topshirilgan",
+    snippet = find_prompt_injection(content_text)
+    if snippet:
+        violations.append({
+            "code": "prompt_injection",
+            "detail": f"AI baholovchiga ko'rsatma: «{snippet}»",
         })
 
-    if _only_plain_text_files(files_included):
-        triggers.append({
-            "code": "plain_text_only",
-            "detail": "Kod .html/.css/.js emas, faqat .txt faylda: "
-                      + ", ".join(files_included[:5]),
+    fingerprint = content_fingerprint(content_text)
+    # A re-upload to the SAME project row (fix-and-resend flow) is invisible to
+    # the "other projects" query below, so compare with this row's previous
+    # fingerprint: same code again after a non-passing grade = nothing fixed.
+    previous_fingerprint = project.content_fingerprint
+    previously_failed = bool(project.grade) and (project.points_earned or 0) < 75
+    project.content_fingerprint = fingerprint  # None clears a stale one on resubmit
+    if fingerprint is not None and fingerprint == previous_fingerprint and previously_failed:
+        violations.append({
+            "code": "unchanged_resubmission",
+            "detail": "Kod avvalgi (o'tmagan) topshirish bilan bir xil",
         })
+    if fingerprint is not None:
+        other = (await db.execute(
+            select(Project.id).where(
+                Project.content_fingerprint == fingerprint,
+                Project.student_id != project.student_id,
+                Project.id != project.id,
+            ).order_by(Project.id).limit(1)
+        )).first()
+        if other is not None:
+            violations.append({
+                "code": "duplicate_content",
+                "detail": f"Xuddi shu kod boshqa o'quvchining #{other.id}-loyihasida ham bor "
+                          "(fayl nomlari/bo'sh joylar e'tiborga olinmadi)",
+            })
 
-    banners = len(_BANNER.findall(content_text or ""))
-    if banners >= BANNER_NOTE_MIN:
-        notes.append({
-            "code": "ai_style_banners",
-            "detail": f"{banners} ta '/* ===== ... ===== */' bo'lim sarlavhasi "
-                      "(AI yordamchilariga xos uslub)",
-        })
+        own_rejected = (await db.execute(
+            select(Project.id).where(
+                Project.content_fingerprint == fingerprint,
+                Project.student_id == project.student_id,
+                Project.id != project.id,
+                Project.status == "Rejected",
+            ).order_by(Project.id.desc()).limit(1)
+        )).first()
+        if own_rejected is not None and not any(
+                v["code"] == "unchanged_resubmission" for v in violations):
+            violations.append({
+                "code": "unchanged_resubmission",
+                "detail": f"Kod #{own_rejected.id}-loyiha (rad etilgan) bilan bir xil",
+            })
 
-    return IntegrityResult(triggers=tuple(triggers), notes=tuple(notes))
+    return IntegrityResult(violations=tuple(violations))

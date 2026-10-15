@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import List, Optional, Dict
+from typing import List, Literal, Optional, Dict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -54,8 +54,27 @@ class SkillProfile(BaseModel):
 class TeamProjectCreate(BaseModel):
     group_id: int
     course_id: Optional[int] = None
-    team_size: int = 4
-    deadline_days: int = 14
+    team_size: int = Field(default=4, ge=1, le=10)
+    deadline_days: int = Field(default=14, ge=1, le=365)
+    # Explicit roster the teacher picked, NOT necessarily group_id's full
+    # membership — lets a teacher exclude a student who won't be
+    # participating, or pull students in from another of their groups.
+    # group_id stays required (the FK, and the "one active assignment per
+    # group" collision check use it) but no longer determines who's on a
+    # team; every id here must belong to one of the teacher's own groups
+    # or flows (validated in create_team_project), not just this one.
+    student_ids: List[int] = Field(min_length=2)
+
+
+class TeacherReviewBody(BaseModel):
+    """A teacher's own verdict on a submitted task, overriding/standing in for
+    the AI review (e.g. when the AI is off, down, or got it wrong)."""
+    decision: Literal["approve", "request_changes"]
+    comment: Optional[str] = Field(default=None, max_length=2000)
+
+
+class ExtendDeadlineBody(BaseModel):
+    days: int = Field(ge=1, le=90)
 
 
 class TaskRead(BaseModel):
@@ -68,6 +87,7 @@ class TaskRead(BaseModel):
     required_level: str
     interface_contract: dict
     acceptance_criteria: List[str]
+    acceptance_criteria_ru: List[str] = []
     depends_on: List[int]
     estimated_hours: int
     status: str
@@ -76,6 +96,7 @@ class TaskRead(BaseModel):
     submission_url: Optional[str] = None
     ai_score: Optional[int] = None
     ai_feedback: Optional[dict] = None
+    lead_comment: Optional[str] = None
     deadline_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -101,6 +122,10 @@ class TeamRead(BaseModel):
     lead_student_id: Optional[int] = None
     final_project_id: Optional[int] = None
     generation_attempts: int = 0
+    # The fixed API contract the team's pieces are built against (None for older teams).
+    shared_contract: Optional[dict] = None
+    # Lessons the team had not studied when the project was assigned (see blueprint `requires`).
+    unmet_lessons: List[str] = []
     members: List[MemberRead] = []
     tasks: List[TaskRead] = []
 
@@ -113,6 +138,11 @@ class TeamProjectRead(BaseModel):
     team_size: int
     deadline_days: int
     created_at: datetime
+    # Teacher list only: archived_at is set once archived; can_archive is True when the project is over.
+    archived_at: Optional[datetime] = None
+    can_archive: bool = False
+    # Set only on the create response: e.g. the chosen deadline is shorter than recommended.
+    warning: Optional[str] = None
     teams: List[TeamRead] = []
 
 
@@ -160,6 +190,19 @@ class PeerRatingRead(BaseModel):
     created_at: datetime
 
 
+class MyPeerRatingRead(BaseModel):
+    """A student's own view of ratings THEY gave — see GET
+    /teams/{team_id}/peer-ratings/mine. Unlike PeerRatingRead this is safe
+    for the rating student themselves (no "who rated me what" leak, since
+    rater is always the caller) — it exists so the peer-rating form can
+    hydrate to an already-submitted state after a reload instead of
+    silently resetting to blank, inviting an accidental overwrite of a
+    rating the student already gave."""
+    rated_student_id: int
+    score: int
+    comment: Optional[str] = None
+
+
 class TeamEventRead(BaseModel):
     """Teacher-only view of TeamProjectEvent rows — see GET
     /teams/{team_id}/events. TeamProjectEvent is an append-only audit log
@@ -190,6 +233,7 @@ class ManualTaskItem(BaseModel):
     required_level: str
     interface_contract: dict = {}
     acceptance_criteria: List[str] = []
+    acceptance_criteria_ru: List[str] = []
     # 0-based indices into THIS tasks list — same contract as the AI
     # planner's depends_on (see TeamProjectTask.depends_on_json).
     depends_on: List[int] = []
@@ -200,3 +244,31 @@ class ManualPlanBody(BaseModel):
     project_title: str
     project_description: str = ""
     tasks: List[ManualTaskItem]
+
+
+class HistoryTeamRow(BaseModel):
+    team_id: int
+    name: str
+    status: str
+    place: Optional[int] = None          # only teams that finished get a place
+    is_mine: bool = False
+    approved_tasks: int = 0
+    total_tasks: int = 0
+    avg_score: Optional[int] = None
+    final_grade: Optional[str] = None
+    points: int = 0
+    summary: str = ""
+    summary_ru: str = ""
+    # Other teams' members are never listed — only the student's own team.
+    members: List[str] = []
+
+
+class HistoryProjectRead(BaseModel):
+    team_project_id: int
+    title: str
+    status: str
+    created_at: datetime
+    total_teams: int
+    finished_teams: int
+    my_place: Optional[int] = None
+    teams: List[HistoryTeamRow] = []

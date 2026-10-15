@@ -42,6 +42,7 @@ import axiosInstance from '../api/axiosInstance';
 import StudentLessonPage from '../views/student/courses/LessonPage/StudentLessonPage';
 
 describe('StudentLessonPage — network calls go through axiosInstance, not fetch', () => {
+  beforeEach(() => localStorage.setItem('lang', 'ru'));
   let originalFetch;
 
   beforeEach(() => {

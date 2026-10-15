@@ -1,3 +1,5 @@
+import { ensureSectionIds } from '../../../../utils/lessonSections';
+
 // ФИКС: сравниваем id через String() — бэкенд может вернуть number, useParams всегда string
 export const sameId = (a, b) => String(a) === String(b);
 
@@ -43,6 +45,7 @@ export const apiToLesson = (l) => {
     if (l.sections_json) {
         try {
             const sections = JSON.parse(l.sections_json);
+            ensureSectionIds(l.id, sections);        // saved back with the lesson, so the ids stick
             // sections_json may not include the project block — append from task fields if missing
             if (!sections.find(s => s.type === 'project') &&
                 (l.task_title || l.task_description || l.task_requirements || l.task_technologies || l.task_deadline_days)) {

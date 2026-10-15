@@ -618,6 +618,12 @@
 .stg-bug-code {
     width: 100%;
     max-width: 780px;
+    /* The overlay is a scrolling flex column and overflow-x:auto below drops
+       this item's min-height to 0, so without this a long snippet was
+       squeezed to fit the screen — hiding the tappable lines (e.g. 11-20 of
+       a 22-line snippet) in an easy-to-miss inner scroll area. Let the
+       overlay scroll instead. */
+    flex-shrink: 0;
     background: rgba(0, 0, 0, 0.22);
     border: 1.5px solid rgba(255, 255, 255, 0.11);
     border-radius: 14px;
@@ -768,4 +774,34 @@
     .stg-bug-gutter--wrongPick {
         animation: none !important;
     }
+}
+
+/* ── Slim themed scrollbars inside the quiz / bug-hunt arena ──────────
+   The overlay (and any scrollable child like the code block) otherwise
+   shows the chunky default OS scrollbar, which clashes with the dark
+   immersive arena. Thin, translucent, rounded — matches the surface. */
+.stg-quiz-overlay,
+.stg-quiz-overlay * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.22) transparent; }
+.stg-quiz-overlay::-webkit-scrollbar,
+.stg-quiz-overlay *::-webkit-scrollbar { width: 8px; height: 8px; }
+.stg-quiz-overlay::-webkit-scrollbar-track,
+.stg-quiz-overlay *::-webkit-scrollbar-track { background: transparent; margin: 6px; }
+.stg-quiz-overlay::-webkit-scrollbar-thumb,
+.stg-quiz-overlay *::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,.16); border-radius: 8px;
+    border: 2px solid transparent; background-clip: padding-box;
+}
+.stg-quiz-overlay::-webkit-scrollbar-thumb:hover,
+.stg-quiz-overlay *::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.3); background-clip: padding-box; }
+.stg-quiz-overlay::-webkit-scrollbar-corner,
+.stg-quiz-overlay *::-webkit-scrollbar-corner { background: transparent; }
+
+/* Shown only when none of a bug-hunt question's candidate lines exist in its
+   snippet (malformed data) — keeps the question answerable instead of a dead end. */
+.stg-bug-fallback {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
 }

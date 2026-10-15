@@ -168,7 +168,7 @@ describe('StudentTeamProject — deadline chip', () => {
     mockRequest.mockResolvedValueOnce([baseEntry({ tasks })]);
     render(<StudentTeamProject />);
 
-    const chip = await screen.findByText("Muddati o'tgan");
+    const chip = await screen.findByText("Muddati o'tgan — baribir topshirish mumkin");
     expect(chip).toHaveClass('stp-deadline');
     expect(chip).toHaveClass('stp-deadline--warning');
   });
@@ -196,5 +196,37 @@ describe('StudentTeamProject — accessible lead indicator', () => {
 
     await waitFor(() => expect(screen.getByText('Aziz Aliyev')).toBeInTheDocument());
     expect(screen.getByText("(jamoa boshlig'i)")).toBeInTheDocument();
+  });
+});
+
+describe('StudentTeamProject — finalize needs the repo link', () => {
+  const leadEntry = () => ({
+    ...baseEntry({ tasks: [baseTask({ status: 'approved' })] }),
+    my_role: 'lead',
+  });
+
+  test('the final-submit button stays disabled until a GitHub link is typed, then sends it', async () => {
+    mockRequest.mockResolvedValueOnce([leadEntry()]);
+    render(<StudentTeamProject />);
+
+    const btn = await screen.findByRole('button', { name: /Yakuniy loyihani topshirish/ });
+    expect(btn).toBeDisabled();
+
+    const input = screen.getByLabelText('Yakuniy loyiha GitHub havolasi');
+    fireEvent.change(input, { target: { value: 'github.com/foo/bar' } });   // no scheme
+    expect(btn).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: ' https://github.com/foo/bar ' } });
+    expect(btn).toBeEnabled();
+
+    mockRequest.mockResolvedValueOnce({});            // finalize
+    mockRequest.mockResolvedValueOnce([leadEntry()]); // reload
+    fireEvent.click(btn);
+
+    await waitFor(() => expect(mockRequest).toHaveBeenCalledTimes(3));
+    const [url, method, body] = mockRequest.mock.calls[1];
+    expect(url).toMatch(/teams\/5\/finalize$/);
+    expect(method).toBe('POST');
+    expect(JSON.parse(body)).toEqual({ github_url: 'https://github.com/foo/bar' });
   });
 });

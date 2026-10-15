@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { API_URL, useHttp, headers } from '../../../../api/search/base';
+import { useTranslation } from '../../../../i18n/useTranslation';
 import './StudentProjectPreview.css';
 
 /* ─────────────────────────────────────────────
@@ -16,7 +17,7 @@ const getCode     = (f) => f.code_content  || f.code     || f.content || '';
    Device presets
 ───────────────────────────────────────────── */
 const DEVICES = [
-    { id: 'responsive', label: 'Авто',   icon: '⬛', w: null, h: 640 },
+    { id: 'responsive', label: 'Avto',   icon: '⬛', w: null, h: 640 },
     { id: 'desktop',    label: '1280px', icon: '🖥',  w: 1280, h: 720 },
     { id: 'laptop',     label: '1024px', icon: '💻',  w: 1024, h: 640 },
     { id: 'tablet',     label: '768px',  icon: '📱',  w: 768,  h: 600 },
@@ -29,6 +30,8 @@ const DEVICES = [
    so it never breaks parent layout (slp-lesson-hero etc.)
 ═══════════════════════════════════════════════════════════ */
 const FullscreenPreview = ({ code, filename, onClose }) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const [device,   setDevice]  = useState('responsive');
     const [customW,  setCustomW] = useState(1024);
     const [customH,  setCustomH] = useState(640);
@@ -147,7 +150,7 @@ const FullscreenPreview = ({ code, filename, onClose }) => {
                                 className={`spp-devtab${device === d.id ? ' spp-devtab--on' : ''}`}
                                 onClick={() => setDevice(d.id)}
                             >
-                                <span>{d.icon}</span><span>{d.label}</span>
+                                <span>{d.icon}</span><span>{d.id === 'responsive' ? (ru ? 'Авто' : 'Avto') : d.label}</span>
                             </button>
                         ))}
                     </div>

@@ -19,7 +19,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from app.db.session import AsyncSessionLocal
 from app.services.ranking_service import RankingService
 from app.services.translation_backfill import backfill_course_translations
@@ -67,6 +67,51 @@ async def job_reset_monthly():
         logger.info("✅ Oylik ballar reset qilindi")
 
 
+# Feedback texts that mean "no real review happened yet" (see the sweep below).
+TRANSIENT_REVIEW_MARKERS = (
+    "AI baholash vaqtincha ishlamayapti",
+    "o'qituvchi tomonidan tekshiriladi",
+)
+TRANSIENT_RETRY_WINDOW = timedelta(days=3)
+
+
+async def job_expire_code_checks():
+    """Code-check quizzes nobody took (or abandoned) become 'expired' and join the teacher's queue."""
+    from app.services.code_check_service import expire_old_checks
+    async with AsyncSessionLocal() as db:
+        n = await expire_old_checks(db)
+        if n:
+            logger.info("📝 %d ta kod tekshiruvi muddati o'tdi (o'qituvchiga yuborildi)", n)
+
+
+async def job_purge_expired_demo_accounts():
+    """Delete demo accounts (core/demo.py) older than DEMO_RETENTION.
+
+    They are flagged, excluded from every statistic and never enrolled, so
+    removing them changes no admin number — and a visitor who never became a
+    student never leaves a "deleted student" behind.
+    """
+    from app.models.user import Student
+    from app.core.demo import DEMO_RETENTION
+
+    cutoff = datetime.now(timezone.utc) - DEMO_RETENTION
+    async with AsyncSessionLocal() as db:
+        rows = (await db.execute(
+            select(Student).where(Student.is_demo.is_(True), Student.created_at < cutoff)
+        )).scalars().all()
+        removed = 0
+        for student in rows:
+            try:
+                await db.delete(student)
+                await db.commit()
+                removed += 1
+            except Exception as e:      # one stubborn row must not stop the rest
+                await db.rollback()
+                logger.warning("[demo-purge] student=%s not deleted: %s", student.id, e)
+        if removed:
+            logger.info("🧹 %d ta muddati o'tgan demo akkaunt o'chirildi", removed)
+
+
 async def job_retry_stuck_project_reviews():
     """Safety net for a real incident found live: a student's ZIP upload
     (project id 4926, 2026-09-11) got permanently stuck at status
@@ -97,14 +142,31 @@ async def job_retry_stuck_project_reviews():
     from app.models.project import Project
     from app.api.v1.endpoints.projects import _run_ai_review_and_persist_failure
 
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=20)
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=20)
+    # A project parked with a *transient* placeholder ("AI is down, teacher will
+    # grade", or the old "held for teacher" notice) is also waiting on a review
+    # that never came: on 2026-09-25 two such projects sat unreviewed for 12
+    # days, since the AI came back but nothing re-ran them. Retried only inside
+    # a window, so one that keeps failing isn't hammered forever; a project that
+    # failed for a real reason (unreadable ZIP, rule violation) has different
+    # feedback text and is left alone.
+    transient_feedback = or_(*(
+        Project.instructor_feedback.ilike(f"%{marker}%")
+        for marker in TRANSIENT_REVIEW_MARKERS
+    ))
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(Project).where(
                 Project.status == "Submitted",
                 Project.reviewed_at.is_(None),
-                (Project.instructor_feedback.is_(None)) | (Project.instructor_feedback == ""),
                 Project.submitted_at < cutoff,
+                or_(
+                    Project.instructor_feedback.is_(None),
+                    Project.instructor_feedback == "",
+                    and_(transient_feedback,
+                         Project.submitted_at > now - TRANSIENT_RETRY_WINDOW),
+                ),
             )
         )
         stuck = result.scalars().all()
@@ -179,6 +241,74 @@ async def job_retry_stuck_team_task_reviews():
 # SCHEDULER ISHGA TUSHIRISH
 # ============================================================
 
+async def job_process_quota_eod():
+    """00:05 Asia/Tashkent — process the day that just ended for the daily
+    learning quota: penalize missed lessons (floored at 0), carry the debt
+    forward, update the quota streak + 0.1% yield, and seed tomorrow's row.
+
+    Commits PER STUDENT so one student's failure can't roll back the rest, and
+    so the job is safe to re-run after a restart (each day-row is idempotent
+    via its `processed` flag).
+    """
+    from zoneinfo import ZoneInfo
+    from app.services import daily_quota_service as dq
+    from app.services.ranking_service import RankingService
+    from app.models.user import Student
+
+    tz = ZoneInfo("Asia/Tashkent")
+    day = (datetime.now(tz) - timedelta(minutes=10)).date()  # the day that just closed
+    processed = 0
+    async with AsyncSessionLocal() as db:
+        rs = RankingService(db)
+        students = (await db.execute(
+            select(Student).where(Student.is_active.is_(True), Student.is_demo.is_(False))
+        )).scalars().all()
+        for student in students:
+            try:
+                await dq.process_eod_for_student(db, rs, student, day)
+                await db.commit()
+                processed += 1
+            except Exception as e:  # noqa: BLE001
+                logger.warning("quota EOD failed for student %s: %s", student.id, e)
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+    logger.info("✅ Kunlik kvota EOD qayta ishlandi: %s ta student (%s)", processed, day)
+
+
+async def job_quota_reminder():
+    """Runs hourly during the day (Asia/Tashkent). Nudges students whose games
+    are still locked today with a "finish your quota" notification. Each student
+    is reminded at most ~once an hour (dedupe inside send_reminder_for_student)."""
+    from app.services import daily_quota_service as dq
+    from app.models.user import Student
+
+    async with AsyncSessionLocal() as db:
+        cfg = await dq.get_config(db)
+        if not cfg.enabled:
+            return
+        day = dq.today_local()
+        if dq.is_rest_day(day, cfg):
+            return
+        sent = 0
+        students = (await db.execute(
+            select(Student).where(Student.is_active.is_(True), Student.is_demo.is_(False))
+        )).scalars().all()
+        for student in students:
+            try:
+                if await dq.send_reminder_for_student(db, student, day, cfg):
+                    sent += 1
+                await db.commit()
+            except Exception as e:  # noqa: BLE001
+                logger.warning("quota reminder failed for student %s: %s", student.id, e)
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
+    logger.info("⏰ Kunlik kvota eslatmasi: %s ta student (%s)", sent, day)
+
+
 def start_scheduler():
     """
     main.py da startup_event ichida chaqiring:
@@ -193,6 +323,22 @@ def start_scheduler():
         job_reset_daily,
         trigger=CronTrigger(hour=0, minute=0),  # 00:00 har kuni
         id="reset_daily",
+        replace_existing=True
+    )
+
+    # Har kecha 00:05 da kunlik kvota EOD (kunlik reset'dan keyin)
+    scheduler.add_job(
+        job_process_quota_eod,
+        trigger=CronTrigger(hour=0, minute=5),  # 00:05 — after the 00:00 daily reset
+        id="quota_eod",
+        replace_existing=True
+    )
+
+    # Kunlik kvota eslatmasi — har soatda (09:00–21:00 Toshkent), o'yin hali yopiq bo'lsa
+    scheduler.add_job(
+        job_quota_reminder,
+        trigger=CronTrigger(hour="9-21", minute=0),
+        id="quota_reminder",
         replace_existing=True
     )
 
@@ -228,6 +374,19 @@ def start_scheduler():
         backfill_course_translations,
         trigger=CronTrigger(hour=3, minute=0),
         id="translation_backfill_daily",
+        replace_existing=True,
+    )
+
+    scheduler.add_job(
+        job_expire_code_checks,
+        trigger=IntervalTrigger(minutes=30),
+        id="expire_code_checks",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        job_purge_expired_demo_accounts,
+        trigger=CronTrigger(hour=4, minute=15),
+        id="purge_expired_demo_accounts",
         replace_existing=True,
     )
 

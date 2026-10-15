@@ -14,33 +14,10 @@ from app.models.course import Course
 from app.models.lesson import Lesson
 from app.models.exercise import Exercise
 from app.models.lesson_sample import LessonSample
+from course_builder.answers import is_natural_language_answer  # noqa: F401  (re-exported; lives in answers.py so the lint stays DB-free)
 
 _VALID_DIFFICULTY = {"Easy", "Medium", "Hard"}
 _VALID_EXERCISE_TYPES = {"fill_in_blank", "drag_and_drop", "multiple_choice", "text_input"}
-
-_CODE_LIKE_PATTERN = re.compile(
-    r"^[A-Za-z_][A-Za-z0-9_.]*$"
-    r"|^[A-Za-z0-9_\-]+\(.*\)$"
-    r"|[<>{}();=]"
-)
-
-
-def is_natural_language_answer(answer: Optional[str]) -> bool:
-    """True if `answer` looks like a real word/phrase worth a RU
-    translation, False if it looks like a code/technical token that must
-    stay literal in every language. Same heuristic check_ru_coverage.py
-    uses to decide whether a missing correct_answers translation is a real
-    gap — kept here too so spec authors can call it while writing content,
-    not just discover a mismatch after the fact."""
-    a = (answer or "").strip()
-    if not a or len(a) > 40:
-        return False
-    if _CODE_LIKE_PATTERN.search(a):
-        return False
-    if a.isupper() or a.isdigit():
-        return False
-    return any(c.isalpha() for c in a)
-
 
 def derive_correct_order_ru(
     drag_items: list[str], drag_items_ru: list[str], correct_order: list[str]

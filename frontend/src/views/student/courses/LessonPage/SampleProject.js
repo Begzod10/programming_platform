@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Code2, Eye, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
 import axiosInstance from '../../../../api/axiosInstance';
+import { useTranslation } from '../../../../i18n/useTranslation';
 import './SampleProject.css';
 
 const WEB_TABS = [
@@ -10,6 +11,8 @@ const WEB_TABS = [
 ];
 
 const SampleProject = ({ lessonId }) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const [sample,  setSample]  = useState(null);
     const [loading, setLoading] = useState(true);
     const [tab,     setTab]     = useState('html');
@@ -65,7 +68,7 @@ const SampleProject = ({ lessonId }) => {
         <div className="sp-wrap">
             <button className="sp-toggle" onClick={() => setOpen(o => !o)}>
                 <Code2 size={16} />
-                <span>Namuna: {sample.title}</span>
+                <span>{ru ? 'Пример' : 'Namuna'}: {sample.title}</span>
                 {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
 
@@ -76,7 +79,7 @@ const SampleProject = ({ lessonId }) => {
                     <div className={`sp-panes ${!isWeb ? 'sp-panes--full' : ''}`}>
                         {isWeb && (
                             <div className="sp-preview">
-                                <div className="sp-pane-hd"><Eye size={13} /> Ko'rinish</div>
+                                <div className="sp-pane-hd"><Eye size={13} /> {ru ? 'Просмотр' : "Ko'rinish"}</div>
                                 <iframe
                                     className="sp-iframe"
                                     srcDoc={srcdoc}
@@ -89,7 +92,10 @@ const SampleProject = ({ lessonId }) => {
                         {(isPy || isSql) && (
                             <div className="sp-terminal-hint">
                                 <Terminal size={20} />
-                                <span>Bu kodni <strong>{isPy ? 'Python' : 'SQL'} muhitida</strong> ishga tushiring</span>
+                                <span>{ru
+                                    ? <>Запустите этот код в <strong>среде {isPy ? 'Python' : 'SQL'}</strong></>
+                                    : <>Bu kodni <strong>{isPy ? 'Python' : 'SQL'} muhitida</strong> ishga tushiring</>
+                                }</span>
                             </div>
                         )}
 

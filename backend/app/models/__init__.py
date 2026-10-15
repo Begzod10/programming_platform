@@ -15,6 +15,7 @@ from app.models.video_watch import VideoWatch
 from app.models.lesson_feedback import LessonFeedback
 from app.models.lesson_sample import LessonSample
 from app.models.game_session_snapshot import GameSessionSnapshot
+from app.models.notification import Notification
 from app.models.team_project import (
     TeamProject, TeamProjectTeam, TeamProjectMember, TeamProjectTask,
     TeamProjectPeerRating, TeamProjectEvent,

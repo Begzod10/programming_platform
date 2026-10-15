@@ -14,7 +14,7 @@ import React from 'react';
 import { render, screen, within, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
-jest.mock('lucide-react', () => ({ Trophy: () => null }));
+jest.mock('lucide-react', () => new Proxy({ __esModule: true }, { get: (t, p) => (p in t || typeof p === 'symbol' ? t[p] : () => null) }));
 
 jest.mock('../api/axiosInstance', () => ({
   __esModule: true,
@@ -38,6 +38,7 @@ const mockProject = {
 };
 
 beforeEach(() => {
+  localStorage.setItem('lang', 'ru');
   axiosInstance.request.mockReset();
   window.fetch = jest.fn(() => {
     throw new Error('raw fetch() must not be used — use useHttp().request() instead');
@@ -116,7 +117,7 @@ describe('MyProjects — delete confirmation', () => {
     // The project list should now be empty — confirming the delete succeeded
     // through the mocked axios path, and the raw fetch() spy (which throws)
     // was never hit.
-    await screen.findByText('У вас пока нет проектов');
+    await screen.findByText(/У вас пока нет проектов/);
     expect(window.fetch).not.toHaveBeenCalled();
   });
 });

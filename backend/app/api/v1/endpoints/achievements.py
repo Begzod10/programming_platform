@@ -6,6 +6,7 @@ import io
 
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.services import achievement_service
+from app.models.user import UserRole
 from app.utils.certificate import generate_certificate
 from app.schemas.achievement import (
     AchievementCreate,
@@ -195,6 +196,25 @@ async def get_not_earned_students(
     return await achievement_service.get_students_without_achievement(db, achievement_id)
 
 
+def _ensure_no_debt(student) -> None:
+    """A student whose balance is negative (owes tuition) cannot download a
+    certificate. The client picks the Uzbek or Russian text for the student's
+    chosen language, so both are sent, plus the amount owed."""
+    balance = student.balance or 0
+    if student.role == UserRole.student and balance < 0:
+        debt = abs(int(balance))
+        pretty = f"{debt:,}".replace(",", " ")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "negative_balance",
+                "debt": debt,
+                "message_uz": f"Hisobingizda {pretty} so'm qarz bor. Sertifikatni yuklab olish uchun avval to'lovni amalga oshiring.",
+                "message_ru": f"На вашем счёте задолженность {pretty} сум. Чтобы скачать сертификат, сначала оплатите обучение.",
+            },
+        )
+
+
 @router.get("/{achievement_id}/download")
 async def download_achievement_pdf(
         achievement_id: int,
@@ -202,6 +222,7 @@ async def download_achievement_pdf(
         db: AsyncSession = Depends(get_db)
 ):
     """Yutuqni (Badge) PDF shaklida yuklab olish"""
+    _ensure_no_debt(current_student)
     pdf_buffer = await achievement_service.generate_certificate_pdf(db, current_student.id, achievement_id)
 
     if not pdf_buffer or pdf_buffer in ["error", "template_missing"]:
@@ -222,6 +243,7 @@ async def download_course_certificate(
         current_student=Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
+    _ensure_no_debt(current_student)
     cert = await achievement_service.get_course_certificate(db, current_student.id, course_id)
     if not cert:
         # Tekshiramiz: kurs tugatilganmi?
@@ -257,6 +279,7 @@ async def download_category_certificate(
         current_student=Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
+    _ensure_no_debt(current_student)
     cert = await achievement_service.get_category_certificate(db, current_student.id, category_id)
     if not cert:
         is_complete = await achievement_service.check_category_completion(db, current_student.id, category_id)

@@ -1,0 +1,15 @@
+.tn-page { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+.tn-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tn-head h1 { margin: 0; font-size: 26px; }
+.tn-sub { opacity: .65; margin: 4px 0 16px; }
+.tn-btn { padding: 8px 14px; border-radius: 10px; border: 1px solid rgba(128,128,128,.5); background: transparent; color: inherit; cursor: pointer; font-weight: 600; }
+.tn-empty { padding: 32px; text-align: center; opacity: .7; }
+.tn-err { color: #b42318; }
+.tn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.tn-item { display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(128,128,128,.28); background: rgba(128,128,128,.05); color: inherit; cursor: pointer; }
+.tn-item--unread { border-color: #6c5ce7; background: rgba(108,92,231,.1); }
+.tn-ico { font-size: 22px; flex: none; }
+.tn-main { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.tn-title { font-weight: 700; }
+.tn-body { opacity: .8; font-size: 14px; line-height: 1.45; white-space: pre-line; }
+.tn-time { flex: none; font-size: 12px; opacity: .6; }

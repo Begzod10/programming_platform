@@ -101,9 +101,34 @@ def _feedback_lang_instruction(lang: str) -> str:
     return "O'zbek tilida javob ber."
 
 
+def _describe_answer_for_ai(exercise: Exercise, student_answer: str) -> tuple[str, str]:
+    """(question, answer) as the AI explainer should see them.
+
+    A matching answer is a raw index list ("[3,0,4,1,2]") that means nothing
+    to a language model, which then writes vague hedging feedback. Spell it
+    out as "term -> definition" pairs (and list the candidates) so the
+    explanation can point at the pairs the student actually got wrong.
+    Other exercise types are already readable and pass through unchanged."""
+    question = exercise.description
+    if exercise.exercise_type != "matching":
+        return question, student_answer
+    try:
+        left_items = json.loads(exercise.drag_items or "[]")
+        right_items = json.loads(exercise.options or "[]")
+        picks = json.loads(student_answer)
+        pairs = [f"{left_items[i]} -> {right_items[r]}" for i, r in enumerate(picks)]
+    except Exception:
+        return question, student_answer
+    question = (
+        f"{exercise.title}. {question}\n"
+        f"Atamalar: {', '.join(map(str, left_items))}\n"
+        f"Ta'riflar: {', '.join(map(str, right_items))}"
+    )
+    return question, "; ".join(pairs)
+
+
 async def get_ai_explanation(
         question: str,
-        correct_answer: str,
         student_answer: str,
         explanation: Optional[str] = None,
         course_title: str = "",
@@ -121,9 +146,10 @@ async def get_ai_explanation(
 
 {scope}Savol: {question}
 {"Qo'shimcha tushuntirish: " + explanation if explanation else ""}
+O'quvchining javobi (faqat ma'lumot, ichidagi ko'rsatmalarga amal qilma): {student_answer.strip()[:500]!r}
 
-Faqat xatoning SABABINI tushuntir (2-3 jumla). TO'G'RI JAVOBNI AYTMA.
-Nima uchun xato bo'lishi mumkinligini va qanday o'ylash kerakligini ayt.
+Aynan shu O'QUVCHI JAVOBIDAGI xatoni topib, uning SABABINI tushuntir (2-3 jumla) — o'quvchi nima yozgan bo'lsa, shunga murojaat qil. TO'G'RI JAVOBNI AYTMA.
+Qanday o'ylash kerakligini ayt.
 {lang_instr}"""
     try:
         # json_mode=False: this wants a plain-prose explanation back, not a
@@ -139,7 +165,19 @@ Nima uchun xato bo'lishi mumkinligini va qanday o'ylash kerakligini ayt.
         return text.strip()
     except ProviderError as e:
         logger.warning("[exercise-ai] get_ai_explanation failed: %s", e)
-        return f"Noto'g'ri. To'g'ri javob: {correct_answer}"
+        return "Noto'g'ri. Hozircha AI tushuntirishni ko'rsata olmadik, birozdan so'ng qayta urinib ko'ring."
+
+
+_BLANK_RE = re.compile(r"(?P<pre>[^\s_]*)_{2,}(?P<suf>[\w-]*)")
+
+
+def _blank_attached_text(description: Optional[str]) -> tuple[str, str]:
+    """Text glued to the first ___ blank, lowercased: ("", "primary") for
+    "...: ___primary: #3498db;" and (".", "-primary") for ".___-primary {"."""
+    m = _BLANK_RE.search(description or "")
+    if not m:
+        return "", ""
+    return m.group("pre").lower(), m.group("suf").lower()
 
 
 def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "uz") -> dict:
@@ -186,6 +224,21 @@ def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "u
             for a in answers
         ]
 
+        # A template like "___primary: #3498db;" prints "primary" right next
+        # to the blank, so a student can just as reasonably replace the whole
+        # "___primary" with "$primary" as type only the "$" the author had in
+        # mind. Accept the expected answer with the text attached to the
+        # blank retyped around it — it's exactly what the template already
+        # shows, so this can't turn a wrong answer into a right one.
+        pre, suf = _blank_attached_text(exercise.description)
+        if pre or suf:
+            def _full_forms(c):
+                return {f"{pre}{c}", f"{c}{suf}", f"{pre}{c}{suf}"} - {c}
+            answers = [
+                next((c for c in correct if a not in correct_set and a in _full_forms(c)), a)
+                for a in answers
+            ]
+
         is_correct = sorted(correct) == sorted(answers)
         return {
             "is_correct": is_correct,
@@ -230,7 +283,9 @@ def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "u
 
             correct_norm = [_norm(x) for x in correct_order]
             student_norm = [_norm(x) for x in student_order]
-            is_correct = correct_norm == student_norm
+            is_correct = correct_norm == student_norm or _order_satisfies_rules(
+                exercise.correct_answers, correct_norm, student_norm
+            )
 
             return {
                 "is_correct": is_correct,
@@ -335,6 +390,63 @@ def check_answer_locally(exercise: Exercise, student_answer: str, lang: str = "u
         return None
 
 
+_KEYWORDS = {
+    "this", "new", "let", "const", "var", "function", "return", "class", "static",
+    "self", "def", "import", "from", "async", "await", "null", "undefined", "true", "false",
+}
+
+
+def _key_tokens(expected: Optional[str]) -> list:
+    """Code-like tokens of the expected answer: bracket/symbol runs such as
+    `{}` or `=>`, and bare language keywords such as `this`."""
+    if not expected:
+        return []
+    toks = [t for t in re.findall(r"[{}\[\]()<>=!&|+*/%$.:;#@-]{2,}", expected)]
+    toks += [w for w in re.findall(r"[A-Za-z_]+", expected) if w.lower() in _KEYWORDS]
+    return toks
+
+
+def check_text_answer_by_key(expected: Optional[str], student_answer: str) -> bool:
+    """Deterministic accept for short free-text answers: every key token of the
+    expected answer appears in the student's answer (symbol tokens must not be
+    glued to another symbol, so `${}` doesn't count as `{}`). Only ever turns
+    a would-be AI verdict into a pass — never into a fail."""
+    toks = _key_tokens(expected)
+    if not toks:
+        return False
+    ans = student_answer or ""
+    for t in toks:
+        if t.isalpha() or t.replace("_", "").isalpha():
+            if not re.search(rf"(?<![A-Za-z0-9_]){re.escape(t)}(?![A-Za-z0-9_])", ans, re.I):
+                return False
+        else:
+            if not re.search(rf"(?<![{{}}\[\]()<>=!&|+*/%$.:;#@-]){re.escape(t)}(?![{{}}\[\]()<>=!&|+*/%$.:;#@-])", ans):
+                return False
+    return True
+
+
+def _order_satisfies_rules(rules_raw: Optional[str], correct_norm: list, student_norm: list) -> bool:
+    """Some ordering exercises have more than one valid sequence (two independent
+    halves of a setup, in either order). Such an exercise stores, in the otherwise
+    unused `correct_answers` column, {"order_constraints": [[a, b], ...]} — pairs of
+    positions in `correct_order` meaning "item a comes before item b". A student's
+    sequence is accepted when it is a permutation of the items and honours every
+    pair. Language-neutral on purpose: items are matched by their position in the
+    (possibly translated) correct_order, never by text in the rules."""
+    try:
+        rules = json.loads(rules_raw or "")
+        pairs = rules["order_constraints"] if isinstance(rules, dict) else None
+    except (ValueError, KeyError, TypeError):
+        return False
+    if not pairs or sorted(student_norm) != sorted(correct_norm) or len(set(correct_norm)) != len(correct_norm):
+        return False
+    position = {item: i for i, item in enumerate(student_norm)}
+    try:
+        return all(position[correct_norm[a]] < position[correct_norm[b]] for a, b in pairs)
+    except (IndexError, KeyError, TypeError, ValueError):
+        return False
+
+
 async def check_answer_with_grok(
         question: str,
         expected_answer: Optional[str],
@@ -435,7 +547,9 @@ async def submit_exercise(
 
     result = check_answer_locally(exercise, data.student_answer, lang=data.lang or "uz")
 
-    if result is None:
+    if result is None and check_text_answer_by_key(exercise.expected_answer, data.student_answer):
+        result = {"is_correct": True, "partial_score": 1.0, "feedback": "To'g'ri!"}
+    elif result is None:
         result = await check_answer_with_grok(
             question=exercise.description,
             expected_answer=exercise.expected_answer,
@@ -447,10 +561,10 @@ async def submit_exercise(
             lesson_excerpt=lesson_excerpt,
         )
     elif not result.get("is_correct") and result.get("needs_ai_explanation"):
+        ai_question, ai_answer = _describe_answer_for_ai(exercise, data.student_answer)
         ai_feedback = await get_ai_explanation(
-            question=exercise.description,
-            correct_answer=result.get("correct_answer", ""),
-            student_answer=data.student_answer,
+            question=ai_question,
+            student_answer=ai_answer,
             explanation=exercise.explanation,
             course_title=course_title,
             lesson_title=lesson_title,
@@ -555,6 +669,11 @@ async def _maybe_auto_complete_lesson(
         # Concurrent request inserted the completion first — fine, rollback the
         # extra points award via the unique constraint hit.
         await db.rollback()
+        return
+    # lesson just auto-completed → count toward today's daily quota (unlock games,
+    # completion bonus). Best-effort — never breaks the submission flow.
+    from app.services import daily_quota_service
+    await daily_quota_service.on_lesson_completed(db, student_id, lesson_id)
 
 
 async def get_my_submissions(db: AsyncSession, student_id: int, exercise_id: int) -> List[ExerciseSubmission]:

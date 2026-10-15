@@ -35,6 +35,9 @@ from app.models.store import (
 from app.models.early_learning import EarlyModule, EarlyActivity, EarlyActivityCompletion
 from app.models.error_log import AppErrorLog
 from app.models.duel_stat import DuelStat
+from app.models.teacher_penalty import TeacherPenalty  # noqa: F401  registers the table for create_all
+from app.models.project import ProjectViolation  # noqa: F401  registers the table for create_all
+from app.models.code_check import ProjectCodeCheck  # noqa: F401  registers the table for create_all
 from app.models.team_project import (
     TeamProject,
     TeamProjectTeam,
@@ -42,6 +45,13 @@ from app.models.team_project import (
     TeamProjectTask,
     TeamProjectPeerRating,
     TeamProjectEvent,
+)
+from app.models.daily_quota import (  # noqa: F401  registers tables for create_all
+    QuotaConfig,
+    StudentDailyProgress,
+    PenaltyLog,
+    StreakTracker,
+    StreakBonusLog,
 )
 
 __all__ = [
@@ -92,4 +102,9 @@ __all__ = [
     "TeamProjectTask",
     "TeamProjectPeerRating",
     "TeamProjectEvent",
+    "QuotaConfig",
+    "StudentDailyProgress",
+    "PenaltyLog",
+    "StreakTracker",
+    "StreakBonusLog",
 ]

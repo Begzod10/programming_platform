@@ -1,137 +1,191 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_URL, headers, resolveImageUrl } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
+import AppHeader from '../../../components/appheader/AppHeader';
 import './CourseRoadmap.css';
-import { Check, Lock, Trophy } from 'lucide-react';
+import { BookOpen, Check, Lock, Clock, Users, Rocket, ArrowRight, Loader2, ChevronLeft, ChevronRight, PlayCircle } from 'lucide-react';
 
 const DIFF_META = {
-    Beginner:     { ru: 'Начальный',   uz: 'Boshlang\'ich', color: '#6366f1' },
-    Intermediate: { ru: 'Средний',     uz: 'O\'rta',        color: '#d97706' },
-    Advanced:     { ru: 'Продвинутый', uz: 'Ilg\'or',       color: '#dc2626' },
-    Expert:       { ru: 'Эксперт',     uz: 'Ekspert',       color: '#7c3aed' },
+    Beginner:     { ru: 'НАЧИНАЮЩИЙ', uz: "BOSHLANG'ICH" },
+    Intermediate: { ru: 'СРЕДНИЙ',    uz: "O'RTA" },
+    Advanced:     { ru: 'ПРОДВИНУТЫЙ', uz: "ILG'OR" },
 };
 
-const STATUS_META = {
-    completed:   { color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0', dotBg: '#16a34a', icon: '✓' },
-    in_progress: { color: '#6c5ce7', bg: '#f5f3ff', border: '#ddd6fe', dotBg: '#6c5ce7', icon: '▶' },
-    available:   { color: '#0ea5e9', bg: '#f0f9ff', border: '#bae6fd', dotBg: '#0ea5e9', icon: '○' },
-    locked:      { color: '#94a3b8', bg: '#f8fafc', border: '#e2e8f0', dotBg: '#cbd5e1', icon: '🔒' },
-};
+const DIFF_RANK = { Beginner: 0, Intermediate: 1, Advanced: 2 };
+const byLearningOrder = (a, b) =>
+    ((DIFF_RANK[a.difficulty_level] ?? 3) - (DIFF_RANK[b.difficulty_level] ?? 3))
+    || ((a.order || 0) - (b.order || 0))
+    || String(a.title || '').localeCompare(String(b.title || ''));
 
-function getStatus(course) {
-    if (course.is_enrolled === false || course.is_locked === true) return 'locked';
-    const pct = Math.round(course.progress_percentage || 0);
-    if (pct >= 100) return 'completed';
-    if (pct > 0) return 'in_progress';
+const TRACK_ICON = { 'html-css': '🌐', javascript: '⚡', python: '🐍', react: '⚛️', sql: '🗄️', git: '🔀', 'telegram-bot': '🤖' };
+const trackIcon = (slug) => TRACK_ICON[slug] || '📦';
+
+const hasProject = (l) =>
+    !!(l.task_title || l.task_description || l.task_requirements || l.task_technologies || l.task_deadline_days);
+const lessonDone = (l) =>
+    l.is_completed === true || l.completed === true || (!hasProject(l) && l.progress_percentage === 100);
+const blokCount = (l) => {
+    if (l.sections_json) { try { const s = JSON.parse(l.sections_json); if (Array.isArray(s)) return s.length; } catch { /* ignore */ } }
+    let n = 0;
+    ['text_content', 'code_content', 'video_url', 'image_url', 'file_url'].forEach((k) => { if (l[k]) n++; });
+    if (hasProject(l)) n++;
+    return n;
+};
+const courseStatus = (c) => {
+    if (c.is_enrolled === false || c.is_locked === true) return 'locked';
+    const p = c.progress_percentage || 0;
+    if (p >= 100) return 'done';
+    if (p > 0) return 'current';
     return 'available';
+};
+
+/* ── reusable horizontal scroller: drag + wheel + arrows + edge fade ── */
+function useHScroll(dep, enableWheel = false) {
+    const ref = useRef(null);
+    const [canLeft, setCanLeft] = useState(false);
+    const [canRight, setCanRight] = useState(false);
+    const drag = useRef({ down: false, startX: 0, startScroll: 0, moved: false });
+
+    const update = useCallback(() => {
+        const el = ref.current; if (!el) return;
+        setCanLeft(el.scrollLeft > 20);
+        setCanRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8);
+    }, []);
+
+    useEffect(() => {
+        const id = setTimeout(update, 60);
+        window.addEventListener('resize', update);
+        return () => { clearTimeout(id); window.removeEventListener('resize', update); };
+    }, [dep, update]);
+
+    useEffect(() => {
+        if (!enableWheel) return; // only the single lesson timeline opts in
+        const el = ref.current; if (!el) return;
+        const onWheel = (e) => {
+            const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+            if (!d) return;
+            const atStart = el.scrollLeft <= 0;
+            const atEnd = el.scrollLeft >= el.scrollWidth - el.clientWidth - 1;
+            // Only capture the wheel when the strip can still scroll that way;
+            // at either end the page scrolls normally.
+            if ((d > 0 && !atEnd) || (d < 0 && !atStart)) { el.scrollLeft += d; e.preventDefault(); }
+        };
+        el.addEventListener('wheel', onWheel, { passive: false });
+        return () => el.removeEventListener('wheel', onWheel);
+    }, [dep, enableWheel]);
+
+    const scrollByDir = (dir) => {
+        const el = ref.current; if (!el) return;
+        el.scrollBy({ left: dir * Math.max(320, el.clientWidth * 0.75), behavior: 'smooth' });
+    };
+    const onMouseDown = (e) => {
+        const el = ref.current; if (!el) return;
+        drag.current = { down: true, startX: e.clientX, startScroll: el.scrollLeft, moved: false };
+    };
+    const onMouseMove = (e) => {
+        const el = ref.current; if (!el || !drag.current.down) return;
+        const dx = e.clientX - drag.current.startX;
+        if (Math.abs(dx) > 5) drag.current.moved = true;
+        el.scrollLeft = drag.current.startScroll - dx;
+    };
+    const onMouseUp = () => { drag.current.down = false; };
+    const consumedDrag = () => { if (drag.current.moved) { drag.current.moved = false; return true; } return false; };
+
+    const m = canLeft && canRight
+        ? 'linear-gradient(to right, transparent, #000 56px, #000 calc(100% - 56px), transparent)'
+        : canRight ? 'linear-gradient(to right, #000 calc(100% - 64px), transparent)'
+        : canLeft ? 'linear-gradient(to right, transparent, #000 56px)'
+        : 'none';
+    const maskStyle = { WebkitMaskImage: m, maskImage: m };
+
+    return { ref, canLeft, canRight, update, scrollByDir, onMouseDown, onMouseMove, onMouseUp, consumedDrag, maskStyle };
 }
 
-function ProgressBar({ pct, color }) {
+/* ── animated hero ring ── */
+function HeroRing({ pct, ru }) {
+    const size = 150, stroke = 10, r = (size - stroke) / 2, circ = 2 * Math.PI * r;
+    const [off, setOff] = useState(circ);
+    useEffect(() => {
+        const id = setTimeout(() => setOff(circ - circ * (pct || 0) / 100), 250);
+        return () => clearTimeout(id);
+    }, [pct, circ]);
     return (
-        <div className="rm-prog-track">
-            <div
-                className="rm-prog-fill"
-                style={{ width: `${pct}%`, background: color }}
-            />
+        <div className="rd-hero-ring">
+            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                <defs>
+                    <linearGradient id="rdRing" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stopColor="#22d3ee" /><stop offset="1" stopColor="#36e06b" />
+                    </linearGradient>
+                </defs>
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth={stroke} />
+                <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="url(#rdRing)" strokeWidth={stroke}
+                    strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={off}
+                    transform={`rotate(-90 ${size / 2} ${size / 2})`}
+                    style={{ transition: 'stroke-dashoffset 1.3s cubic-bezier(.2,.75,.25,1)', filter: 'drop-shadow(0 0 8px rgba(34,211,238,.5))' }} />
+            </svg>
+            <div className="rd-hero-ring-center">
+                <div className="rd-hero-ring-pct">{Math.round(pct)}%</div>
+                <div className="rd-hero-ring-lbl">{pct >= 100 ? (ru ? 'Пройдено' : "O'tildi") : (ru ? 'Прогресс' : 'Progress')}</div>
+            </div>
         </div>
     );
 }
 
-function CourseNode({ course, index, ru, onClick }) {
-    const status = getStatus(course);
-    const meta = STATUS_META[status];
-    const diff = DIFF_META[course.difficulty_level] || { ru: course.difficulty_level, uz: course.difficulty_level, color: '#64748b' };
-    const pct = Math.round(course.progress_percentage || 0);
-    const imgSrc = resolveImageUrl(course.image_url);
-    const isEven = index % 2 === 1;
-
-    const statusLabel = {
-        completed:   { ru: 'Завершён',    uz: 'Tugatildi' },
-        in_progress: { ru: 'В процессе',  uz: 'Davom etmoqda' },
-        available:   { ru: 'Доступен',    uz: 'Mavjud' },
-        locked:      { ru: 'Заблокирован',uz: 'Bloklangan' },
-    }[status];
-
+/* ── one track (category) = a connected roadmap row of its courses ── */
+function TrackRow({ cat, courses, ru, onOpen }) {
+    const hs = useHScroll(courses.length, true);
+    const done = courses.filter((c) => (c.progress_percentage || 0) >= 100).length;
+    const statusLabel = { done: ru ? 'Пройден' : 'Tugatildi', current: ru ? 'В процессе' : 'Jarayonda', available: ru ? 'Открыт' : 'Ochiq', locked: ru ? 'Закрыт' : 'Yopiq' };
     return (
-        <div className={`rm-node ${isEven ? 'rm-node--reverse' : ''}`}>
-            {/* Card side */}
-            <div
-                className={`rm-card rm-card--${status}`}
-                style={{ borderColor: meta.border, background: meta.bg }}
-                onClick={status !== 'locked' ? onClick : undefined}
-                role={status !== 'locked' ? 'button' : undefined}
-                tabIndex={status !== 'locked' ? 0 : undefined}
-                onKeyDown={e => status !== 'locked' && e.key === 'Enter' && onClick()}
-                aria-label={course.title}
-            >
-                <div className="rm-card-header">
-                    {imgSrc ? (
-                        <img src={imgSrc} alt="" className="rm-card-img" />
-                    ) : (
-                        <div className="rm-card-img-placeholder" style={{ background: course.color_accent || meta.color }} />
-                    )}
-                    <div className="rm-card-info">
-                        <div className="rm-card-num" style={{ color: meta.color }}>
-                            {ru ? 'Курс' : 'Kurs'} {index + 1}
-                        </div>
-                        <div className="rm-card-title">{course.title}</div>
-                        <div className="rm-card-tags">
-                            {course.difficulty_level && (
-                                <span className="rm-tag" style={{ color: diff.color, background: diff.color + '18' }}>
-                                    {ru ? diff.ru : diff.uz}
-                                </span>
-                            )}
-                            <span className="rm-tag rm-tag--neutral">
-                                {course.lessons_count || 0} {ru ? 'уроков' : 'dars'}
-                            </span>
-                        </div>
-                    </div>
+        <div className="rd-track-section rd-rise">
+            <div className="rd-track-head">
+                <div className="rd-track-id">
+                    <span className="rd-track-icon">{trackIcon(cat.slug)}</span>
+                    <span className="rd-track-name">{cat.name}</span>
+                    <span className="rd-track-count">{done}/{courses.length} {ru ? 'курсов' : 'kurs'}</span>
                 </div>
-
-                {status === 'in_progress' && (
-                    <div className="rm-card-progress">
-                        <ProgressBar pct={pct} color={meta.color} />
-                        <span className="rm-card-pct" style={{ color: meta.color }}>{pct}%</span>
+                {(hs.canLeft || hs.canRight) && (
+                    <div className="rd-nav">
+                        <button className="rd-nav-btn" disabled={!hs.canLeft} onClick={() => hs.scrollByDir(-1)} aria-label="Prev"><ChevronLeft size={18} /></button>
+                        <button className="rd-nav-btn" disabled={!hs.canRight} onClick={() => hs.scrollByDir(1)} aria-label="Next"><ChevronRight size={18} /></button>
                     </div>
                 )}
-
-                <div className="rm-card-footer">
-                    <span className="rm-status-chip" style={{ color: meta.color, background: meta.color + '18' }}>
-                        {meta.icon} {ru ? statusLabel.ru : statusLabel.uz}
-                    </span>
-                    {status === 'in_progress' && (
-                        <span className="rm-card-action" style={{ color: meta.color }}>
-                            {ru ? 'Продолжить →' : 'Davom →'}
-                        </span>
-                    )}
-                    {status === 'available' && (
-                        <span className="rm-card-action" style={{ color: meta.color }}>
-                            {ru ? 'Начать →' : 'Boshlash →'}
-                        </span>
-                    )}
-                    {status === 'completed' && (
-                        <span className="rm-card-action" style={{ color: meta.color }}>
-                            {ru ? 'Повторить →' : "Ko'rish →"}
-                        </span>
-                    )}
+            </div>
+            <div className="rd-track-wrap">
+                <div className="rd-track" ref={hs.ref} onScroll={hs.update}
+                    onMouseDown={hs.onMouseDown} onMouseMove={hs.onMouseMove} onMouseUp={hs.onMouseUp} onMouseLeave={hs.onMouseUp}
+                    style={hs.maskStyle}>
+                    {courses.map((c, i) => {
+                        const status = courseStatus(c);
+                        const pct = Math.round(c.progress_percentage || 0);
+                        const img = resolveImageUrl(c.image_url);
+                        const prevDone = i > 0 && (courses[i - 1].progress_percentage || 0) >= 100;
+                        return (
+                            <div className="rd-node-wrap" key={c.id}>
+                                {i > 0 && <span className={`rd-connector ${prevDone && status === 'done' ? 'lit' : ''}`} />}
+                                <button className={`rd-cnode rd-node--${status}`} onClick={() => { if (!hs.consumedDrag()) onOpen(c); }}>
+                                    <div className="rd-cnode-top">
+                                        <span className="rd-cnode-icon">
+                                            {img ? <img src={img} alt="" /> : <span>{(c.title || '?')[0]}</span>}
+                                            {status === 'locked' && <span className="rd-cnode-lock"><Lock size={11} /></span>}
+                                        </span>
+                                        <span className={`rd-node-status rd-node-status--${status}`}>
+                                            {status === 'done' && <Check size={12} />} {statusLabel[status]}
+                                        </span>
+                                    </div>
+                                    <div className="rd-cnode-title">{c.title}</div>
+                                    <div className="rd-cnode-bar"><div className="rd-cnode-fill" style={{ width: `${pct}%` }} /></div>
+                                    <div className="rd-cnode-foot">
+                                        <span>{c.lessons_count || 0} {ru ? 'уроков' : 'dars'}</span>
+                                        <span className="rd-cnode-pct">{pct}%</span>
+                                    </div>
+                                </button>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
-
-            {/* Center connector */}
-            <div className="rm-connector">
-                <div
-                    className={`rm-dot rm-dot--${status}`}
-                    style={{ background: meta.dotBg }}
-                >
-                    <span className="rm-dot-icon">
-                        {status === 'completed' ? <Check size={14} aria-hidden="true" /> : status === 'locked' ? <Lock size={14} aria-hidden="true" /> : index + 1}
-                    </span>
-                </div>
-            </div>
-
-            {/* Empty spacer on other side */}
-            <div className="rm-spacer" />
         </div>
     );
 }
@@ -139,134 +193,191 @@ function CourseNode({ course, index, ru, onClick }) {
 export default function CourseRoadmap() {
     const navigate = useNavigate();
     const { lang } = useTranslation();
-    const [courses, setCourses] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
     const ru = lang === 'ru';
 
+    const [courses, setCourses] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [activeId, setActiveId] = useState(null);
+    const [lessons, setLessons] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [lessonsLoading, setLessonsLoading] = useState(false);
+
+    const lessonScroll = useHScroll(lessons.length, true); // wheel-scroll enabled
+
     useEffect(() => {
-        fetch(`${API_URL}v1/courses/?limit=100`, { headers: headers() })
-            .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-            .then(data => {
-                const sorted = [...data]
-                    .filter(c => c.is_published !== false && c.is_active !== false)
-                    .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
-                setCourses(sorted);
-            })
-            .catch(e => setError(e.message))
-            .finally(() => setLoading(false));
+        Promise.all([
+            fetch(`${API_URL}v1/courses/?limit=100`, { headers: headers() }).then((r) => (r.ok ? r.json() : [])),
+            fetch(`${API_URL}v1/categories/`, { headers: headers() }).then((r) => (r.ok ? r.json() : [])),
+        ]).then(([cData, catData]) => {
+            const list = (Array.isArray(cData) ? cData : []).filter((c) => c.is_published !== false);
+            setCourses(list);
+            setCategories(Array.isArray(catData) ? catData : []);
+            const active =
+                [...list].filter((c) => { const p = c.progress_percentage || 0; return p > 0 && p < 100; })
+                    .sort((a, b) => (b.progress_percentage || 0) - (a.progress_percentage || 0))[0]
+                || [...list].filter((c) => (c.progress_percentage || 0) > 0)[0]
+                || null;
+            setActiveId(active ? active.id : null);
+        }).catch(() => {}).finally(() => setLoading(false));
     }, []);
 
-    const completed  = courses.filter(c => getStatus(c) === 'completed').length;
-    const inProgress = courses.filter(c => getStatus(c) === 'in_progress').length;
-    const available  = courses.filter(c => getStatus(c) === 'available').length;
-    const locked     = courses.filter(c => getStatus(c) === 'locked').length;
+    useEffect(() => {
+        if (!activeId) { setLessons([]); return; }
+        setLessonsLoading(true);
+        const langParam = lang && lang !== 'uz' ? `&lang=${lang}` : '';
+        fetch(`${API_URL}v1/courses/${activeId}/lessons?t=${Date.now()}${langParam}`, { headers: headers() })
+            .then((r) => (r.ok ? r.json() : []))
+            .then((raw) => setLessons((Array.isArray(raw) ? raw : []).filter((l) => l.is_published !== false).sort((a, b) => (a.order || 0) - (b.order || 0))))
+            .catch(() => setLessons([]))
+            .finally(() => setLessonsLoading(false));
+    }, [activeId, lang]);
 
-    if (loading) return (
-        <div className="rm-page">
-            <div className="rm-loading">
-                <div className="rm-loading-spinner" />
-                <p>{ru ? 'Загрузка маршрута...' : "Yo'l yuklanmoqda..."}</p>
-            </div>
-        </div>
-    );
+    const activeCourse = courses.find((c) => String(c.id) === String(activeId)) || null;
 
-    if (error) return (
-        <div className="rm-page">
-            <div className="rm-error">⚠️ {ru ? 'Не удалось загрузить курсы' : "Kurslarni yuklab bo'lmadi"}</div>
-        </div>
-    );
+    const lessonNodes = useMemo(() => {
+        let locked = false;
+        return lessons.map((l) => {
+            const d = lessonDone(l);
+            let status;
+            if (d) status = 'done';
+            else if (!locked) { status = 'current'; locked = true; }
+            else status = 'locked';
+            return { lesson: l, status };
+        });
+    }, [lessons]);
+    const currentLesson = lessonNodes.find((n) => n.status === 'current');
+    const doneLessons = lessonNodes.filter((n) => n.status === 'done').length;
+
+    // Group courses into tracks (categories with ≥1 course), ordered inside by level.
+    const tracks = useMemo(() => {
+        const out = categories
+            .map((cat) => ({ cat, list: courses.filter((c) => c.category_id === cat.id).sort(byLearningOrder) }))
+            .filter((t) => t.list.length > 0);
+        const uncategorized = courses.filter((c) => !c.category_id).sort(byLearningOrder);
+        if (uncategorized.length) out.push({ cat: { id: 'none', name: ru ? 'Другое' : 'Boshqa', slug: '' }, list: uncategorized });
+        return out;
+    }, [categories, courses, ru]);
+
+    const openCourse = (c) => navigate(`/student/courses/${c.id}`);
+    const openLesson = (lesson, status) => {
+        if (lessonScroll.consumedDrag()) return;
+        if (status === 'locked') return;
+        navigate(`/student/courses/${activeId}/lessons/${lesson.id}`);
+    };
+
+    if (loading) {
+        return (<div className="rd-dark"><AppHeader /><div className="rd-state"><Loader2 className="rd-spin" size={26} /> {ru ? 'Загрузка…' : 'Yuklanmoqda…'}</div></div>);
+    }
 
     return (
-        <div className="rm-page">
+        <div className="rd-dark">
+            <AppHeader />
+            <div className="rd-shell">
 
-            {/* ── Header ── */}
-            <div className="rm-header">
-                <div>
-                    <h1 className="rm-title">{ru ? 'Карта обучения' : "O'quv yo'lxaritasi"}</h1>
-                    <p className="rm-subtitle">
-                        {ru
-                            ? 'Ваш путь от основ до экспертного уровня'
-                            : "Boshlang'ichdan ekspert darajasiga yo'lingiz"}
-                    </p>
-                </div>
-                <button className="rm-courses-link" onClick={() => navigate('/student/courses')}>
-                    {ru ? '⊞ Список курсов' : '⊞ Kurslar ro\'yhati'}
-                </button>
-            </div>
+                {/* ── hero: current course ── */}
+                {activeCourse && (() => {
+                    const pct = Math.round(activeCourse.progress_percentage || 0);
+                    const diff = DIFF_META[activeCourse.difficulty_level];
+                    const diffLabel = diff ? (ru ? diff.ru : diff.uz) : activeCourse.difficulty_level;
+                    const lessonsCount = activeCourse.lessons_count || lessons.length;
+                    const completed = pct >= 100;
+                    return (
+                        <div className="rd-hero rd-rise">
+                            <div className="rd-hero-main">
+                                {diffLabel && <span className="rd-hero-diff">{diffLabel}</span>}
+                                <h1 className="rd-hero-title">{activeCourse.title}</h1>
+                                <div className="rd-hero-meta">
+                                    {activeCourse.instructor_name && (
+                                        <span className="rd-hero-meta-item">
+                                            <span className="rd-hero-teacher-ava">{activeCourse.instructor_name[0]?.toUpperCase()}</span>
+                                            {activeCourse.instructor_name}
+                                        </span>
+                                    )}
+                                    <span className="rd-hero-meta-item"><Clock size={15} /> {lessonsCount} {ru ? 'уроков' : 'dars'}</span>
+                                    {activeCourse.students_count > 0 && (
+                                        <span className="rd-hero-meta-item"><Users size={15} /> {activeCourse.students_count} {ru ? 'студентов' : 'talaba'}</span>
+                                    )}
+                                </div>
+                                <div className="rd-hero-actions">
+                                    {completed ? (
+                                        <span className="rd-hero-badge"><Check size={16} /> {ru ? 'Курс завершён!' : 'Kurs tugatildi!'}</span>
+                                    ) : currentLesson ? (
+                                        <button className="rd-hero-continue" onClick={() => openLesson(currentLesson.lesson, 'current')}>
+                                            <Rocket size={16} /> {ru ? 'Продолжить' : 'Davom etish'} <ArrowRight size={15} />
+                                        </button>
+                                    ) : (
+                                        <button className="rd-hero-continue" onClick={() => openCourse(activeCourse)}>
+                                            <PlayCircle size={16} /> {ru ? 'Начать' : 'Boshlash'}
+                                        </button>
+                                    )}
+                                    {lessonsCount > 0 && <span className="rd-hero-progress-txt">{doneLessons}/{lessonsCount} {ru ? 'пройдено' : 'tugatildi'}</span>}
+                                </div>
+                            </div>
+                            <HeroRing pct={pct} ru={ru} />
+                        </div>
+                    );
+                })()}
 
-            {/* ── Summary chips ── */}
-            <div className="rm-summary">
-                <div className="rm-summary-chip rm-summary-chip--completed">
-                    <span className="rm-summary-val">{completed}</span>
-                    <span className="rm-summary-label">{ru ? 'завершено' : 'tugatildi'}</span>
-                </div>
-                <div className="rm-summary-chip rm-summary-chip--progress">
-                    <span className="rm-summary-val">{inProgress}</span>
-                    <span className="rm-summary-label">{ru ? 'в процессе' : 'davom etmoqda'}</span>
-                </div>
-                <div className="rm-summary-chip rm-summary-chip--available">
-                    <span className="rm-summary-val">{available}</span>
-                    <span className="rm-summary-label">{ru ? 'доступно' : 'mavjud'}</span>
-                </div>
-                <div className="rm-summary-chip rm-summary-chip--locked">
-                    <span className="rm-summary-val">{locked}</span>
-                    <span className="rm-summary-label">{ru ? 'заблокировано' : 'bloklangan'}</span>
-                </div>
-            </div>
+                {/* ── active course lesson timeline ── */}
+                {activeCourse && (
+                    <>
+                        <div className="rd-section-head">
+                            <div className="rd-section-title">{ru ? 'Путь обучения' : "O'quv yo'li"}</div>
+                            {!lessonsLoading && lessonNodes.length > 0 && (lessonScroll.canLeft || lessonScroll.canRight) && (
+                                <div className="rd-nav">
+                                    <button className="rd-nav-btn" disabled={!lessonScroll.canLeft} onClick={() => lessonScroll.scrollByDir(-1)} aria-label="Prev"><ChevronLeft size={18} /></button>
+                                    <button className="rd-nav-btn" disabled={!lessonScroll.canRight} onClick={() => lessonScroll.scrollByDir(1)} aria-label="Next"><ChevronRight size={18} /></button>
+                                </div>
+                            )}
+                        </div>
+                        {lessonsLoading ? (
+                            <div className="rd-state"><Loader2 className="rd-spin" size={22} /> {ru ? 'Загрузка уроков…' : 'Darslar yuklanmoqda…'}</div>
+                        ) : lessonNodes.length === 0 ? (
+                            <div className="rd-state">{ru ? 'В этом курсе пока нет уроков' : "Bu kursda hali darslar yo'q"}</div>
+                        ) : (
+                            <div className="rd-track-wrap">
+                                <div className="rd-track" ref={lessonScroll.ref} onScroll={lessonScroll.update}
+                                    onMouseDown={lessonScroll.onMouseDown} onMouseMove={lessonScroll.onMouseMove}
+                                    onMouseUp={lessonScroll.onMouseUp} onMouseLeave={lessonScroll.onMouseUp}
+                                    style={lessonScroll.maskStyle}>
+                                    {lessonNodes.map(({ lesson, status }, i) => {
+                                        const blocks = blokCount(lesson);
+                                        const project = hasProject(lesson);
+                                        const prevDone = i > 0 && lessonNodes[i - 1].status === 'done';
+                                        return (
+                                            <div className="rd-node-wrap" key={lesson.id}>
+                                                {i > 0 && <span className={`rd-connector ${prevDone && status === 'done' ? 'lit' : ''}`} />}
+                                                <button className={`rd-node rd-node--${status}`} onClick={() => openLesson(lesson, status)} disabled={status === 'locked'}>
+                                                    <div className="rd-node-head">
+                                                        <span className={`rd-node-icon rd-node-icon--${status}`}>
+                                                            {status === 'locked' ? <Lock size={18} /> : <BookOpen size={18} />}
+                                                        </span>
+                                                        <span className={`rd-node-status rd-node-status--${status}`}>
+                                                            {status === 'done' ? <><Check size={13} /> {ru ? 'Пройдено' : "O'tildi"}</>
+                                                                : status === 'current' ? (ru ? 'Текущий' : 'Joriy') : (ru ? 'Закрыто' : 'Yopiq')}
+                                                        </span>
+                                                    </div>
+                                                    <div className="rd-node-title">{lesson.title}</div>
+                                                    <div className="rd-node-foot">
+                                                        <span className="rd-node-blocks">{blocks} {ru ? 'блок' : 'blok'}</span>
+                                                        {project && <span className="rd-node-tag">{ru ? 'Проект' : 'Loyiha'}</span>}
+                                                    </div>
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
 
-            {/* ── Overall progress bar ── */}
-            {courses.length > 0 && (
-                <div className="rm-overall">
-                    <div className="rm-overall-bar">
-                        <div
-                            className="rm-overall-fill"
-                            style={{ width: `${Math.round((completed / courses.length) * 100)}%` }}
-                        />
-                    </div>
-                    <span className="rm-overall-label">
-                        {completed}/{courses.length} {ru ? 'курсов завершено' : 'kurs tugatildi'}
-                        {' — '}{Math.round((completed / courses.length) * 100)}%
-                    </span>
-                </div>
-            )}
-
-            {/* ── Start cap ── */}
-            {courses.length > 0 && (
-                <div className="rm-cap rm-cap--start">
-                    <span>{ru ? '🚀 Старт' : '🚀 Boshlash'}</span>
-                </div>
-            )}
-
-            {/* ── Zigzag path ── */}
-            <div className="rm-path">
-                {courses.map((course, i) => (
-                    <CourseNode
-                        key={course.id}
-                        course={course}
-                        index={i}
-                        ru={ru}
-                        onClick={() => navigate(`/student/courses/${course.id}`)}
-                    />
+                {/* ── all courses grouped by track ── */}
+                <div className="rd-section-title rd-tracks-title">{ru ? 'Все направления' : "Barcha yo'nalishlar"}</div>
+                {tracks.map((t) => (
+                    <TrackRow key={t.cat.id} cat={t.cat} courses={t.list} ru={ru} onOpen={openCourse} />
                 ))}
             </div>
-
-            {/* ── Finish cap ── */}
-            {courses.length > 0 && (
-                <div className={`rm-cap rm-cap--finish ${completed === courses.length ? 'rm-cap--done' : ''}`}>
-                    <span>{completed === courses.length ? <><Trophy size={16} aria-hidden="true" />{' '}</> : ''}
-                        {ru ? 'Финиш' : 'Finish'}
-                        {completed === courses.length ? (ru ? ' — Молодец!' : ' — Barakalla!') : ''}
-                    </span>
-                </div>
-            )}
-
-            {courses.length === 0 && (
-                <div className="rm-empty">
-                    <span className="rm-empty-icon">📚</span>
-                    <p>{ru ? 'Курсы пока не добавлены' : "Kurslar hali qo'shilmagan"}</p>
-                </div>
-            )}
         </div>
     );
 }

@@ -89,6 +89,9 @@ const TeacherCourses = () => {
                     ...c, image: c.image_url || '', studentsCount: c.students_count || 0,
                     lessonsCount: c.lessons_count || 0, lessons: [],
                 })));
+                // Lessons can arrive before this list (direct URL / F5) and would be dropped
+                // by loadLessons' map over an empty list, so load them again now.
+                if (courseId) loadLessons(courseId);
             })
             .catch(() => setCourses([]))
             .finally(() => setLoading(false));

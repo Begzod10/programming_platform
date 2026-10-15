@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import { useTranslation } from '../../../i18n/useTranslation';
+import AppHeader from '../../../components/appheader/AppHeader';
+import QuotaLockScreen from '../../../components/QuotaLockScreen';
+import { useDailyQuota } from '../../../hooks/useDailyQuota';
 import { playSynth } from '../../../utils/soundSynth';
 
 const TEXT = {
@@ -597,6 +600,8 @@ function DuelInner({ guest }) {
 
 /** /student/duel (logged-in) and /play/duel (guest, no account). */
 export default function Duel({ guest = false }) {
+    // Hook runs unconditionally (rules of hooks); it's a no-op for guests.
+    const quota = useDailyQuota({ enabled: !guest });
     if (guest) {
         return (
             <div className="duel-guest-shell">
@@ -604,5 +609,15 @@ export default function Duel({ guest = false }) {
             </div>
         );
     }
-    return <DuelInner guest={false} />;
+    const locked = !quota.loading && !quota.unlocked;
+    return (
+        <div className="duel-app-shell">
+            <AppHeader />
+            {locked
+                ? <QuotaLockScreen completed={quota.completed}
+                    baseRequired={quota.baseRequired} remaining={quota.remaining}
+                    nextLesson={quota.nextLesson} />
+                : <DuelInner guest={false} />}
+        </div>
+    );
 }

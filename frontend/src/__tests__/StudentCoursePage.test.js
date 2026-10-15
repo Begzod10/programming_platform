@@ -1,70 +1,51 @@
 // Mock external dependencies so Jest can load the module without real imports.
 // jest.mock() calls are hoisted by babel-jest before any imports are resolved.
-jest.mock('lucide-react', () => ({ Lock: () => null }));
+jest.mock('lucide-react', () => new Proxy({ __esModule: true }, { get: (t, p) => (p in t || typeof p === 'symbol' ? t[p] : () => null) }));
 
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import StudentCoursePage from '../views/student/courses/CoursePage/StudentCoursePage';
 
-// Regression test for: chapter groups were keyed by their array index
-// (`key={gi}`) instead of a stable identity. When lessons reorder such that
-// chapters change position, index-based keys cause React to reuse each
-// ChapterBlock's local `open` (expanded/collapsed) state for whatever
-// chapter now occupies that slot, silently expanding/collapsing the wrong
-// chapter. Keying by the chapter's own identity (`g.key`, derived from the
-// lesson's `chapter` field) keeps each chapter's UI state attached to that
-// chapter, regardless of position.
-describe('StudentCoursePage chapter list keys', () => {
-    const lessonA1 = {
-        id: 1,
-        chapter: 'Chapter A',
-        title: 'A1',
-        completed: false,
-        is_published: true,
-        sections: [],
-    };
-    const lessonB1 = {
-        id: 2,
-        chapter: 'Chapter B',
-        title: 'B1',
-        completed: false,
-        is_published: true,
-        sections: [],
-    };
-
+// The course page used to group lessons into collapsible chapters; after the
+// redesign it is a flat grid of lesson cards, each keyed by its lesson id.
+// Index-based keys would let React reuse one card's state for whichever lesson
+// now sits in that slot, so this guards the equivalent risk: after the lessons
+// reorder, every card must still show ITS lesson (and the sequential unlock —
+// first unfinished lesson open, later ones locked — must follow the new order).
+describe('StudentCoursePage lesson list', () => {
+    const lessonA = { id: 1, title: 'Lesson A', completed: false, is_published: true, sections: [] };
+    const lessonB = { id: 2, title: 'Lesson B', completed: false, is_published: true, sections: [] };
     const noop = () => {};
 
-    test('preserves each chapter\'s collapsed/expanded state when chapters reorder', () => {
+    const titlesInOrder = () =>
+        Array.from(document.querySelectorAll('.scd-grid > *'))
+            .map((card) => (card.textContent.match(/Lesson [AB]/) || [''])[0]);
+
+    test('renders each lesson once and follows the new order when lessons reorder', () => {
         const { rerender } = render(
-            <StudentCoursePage
-                course={{ lessons: [lessonA1, lessonB1] }}
-                onBack={noop}
-                onOpenLesson={noop}
-            />
+            <StudentCoursePage course={{ lessons: [lessonA, lessonB] }} onBack={noop} onOpenLesson={noop} />
         );
+        expect(screen.getAllByText('Lesson A')).toHaveLength(1);
+        expect(screen.getAllByText('Lesson B')).toHaveLength(1);
+        expect(titlesInOrder()).toEqual(['Lesson A', 'Lesson B']);
 
-        // Both chapters start open — both lesson titles are visible.
-        expect(screen.getByText('A1')).toBeInTheDocument();
-        expect(screen.getByText('B1')).toBeInTheDocument();
-
-        // Collapse "Chapter A" only.
-        fireEvent.click(screen.getByText('Chapter A').closest('button'));
-        expect(screen.queryByText('A1')).not.toBeInTheDocument();
-        expect(screen.getByText('B1')).toBeInTheDocument();
-
-        // Simulate the chapters reordering (Chapter B's lesson now appears
-        // first in the underlying lesson list, so its group is built first).
         rerender(
+            <StudentCoursePage course={{ lessons: [lessonB, lessonA] }} onBack={noop} onOpenLesson={noop} />
+        );
+        expect(screen.getAllByText('Lesson A')).toHaveLength(1);
+        expect(screen.getAllByText('Lesson B')).toHaveLength(1);
+        expect(titlesInOrder()).toEqual(['Lesson B', 'Lesson A']);
+    });
+
+    test('unpublished lessons are not listed', () => {
+        render(
             <StudentCoursePage
-                course={{ lessons: [lessonB1, lessonA1] }}
+                course={{ lessons: [lessonA, { ...lessonB, is_published: false }] }}
                 onBack={noop}
                 onOpenLesson={noop}
             />
         );
-
-        // Chapter A must still be collapsed (state follows the chapter, not
-        // the slot), and Chapter B must still be open.
-        expect(screen.queryByText('A1')).not.toBeInTheDocument();
-        expect(screen.getByText('B1')).toBeInTheDocument();
+        expect(screen.getByText('Lesson A')).toBeInTheDocument();
+        expect(screen.queryByText('Lesson B')).not.toBeInTheDocument();
     });
 });

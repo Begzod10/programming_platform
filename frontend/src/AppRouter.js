@@ -20,10 +20,13 @@ import Dictionary        from './views/student/dictionary/Dictionary';
 import StudentTeamGame   from './views/student/teamgame/StudentTeamGame';
 import StudentTeamProject from './views/student/teamprojects/StudentTeamProject';
 import StudentCourseStats from './views/student/stats/StudentCourseStats';
+import Notifications from './views/student/notifications/Notifications';
+import DailyRules from './views/student/dailyrules/DailyRules';
 import Store              from './views/student/store/Store';
 import EarlyLearning      from './views/student/early-learning/EarlyLearning';
 import Quiz               from './views/student/quiz/Quiz';
 import Duel               from './views/student/duel/Duel';
+import CodeCheck          from './views/student/codecheck/CodeCheck';
 import DailyChallenge     from './views/student/early-learning/DailyChallenge';
 
 // ── Teacher views ──
@@ -43,9 +46,13 @@ import TeacherTeamProjectDetail from './views/teacher/teamprojects/TeacherTeamPr
 import TeacherTeamGameSession   from './views/teacher/teamgame/TeacherTeamGameSession';
 import TeacherAchievements      from './views/teacher/TeacherAchievements/TeacherAchievements';
 import ProjectLeaderboard       from './views/shared/ProjectLeaderboard/ProjectLeaderboard';
+import ProjectRating            from './views/student/projectrating/ProjectRating';
 import PublicProfile            from './views/public/PublicProfile/PublicProfile';
 import ActivityAnalytics        from './views/teacher/activityanalytics/ActivityAnalytics';
 import ErrorLogPage             from './views/teacher/errorlog/ErrorLogPage';
+import TeacherCodeChecks        from './views/teacher/codechecks/TeacherCodeChecks';
+import TeacherNotifications    from './views/teacher/notifications/TeacherNotifications';
+import TeacherPenalties        from './views/teacher/penalties/TeacherPenalties';
 
 /* ─── helpers ─── */
 function RootRedirect() {
@@ -119,7 +126,7 @@ function AppRouter() {
                 <Route path="profile"                                     element={<StudentProfilePageWrapper />} />
                 <Route path="projects"                                    element={<MyProjects />} />
                 <Route path="rankings"                                    element={<Leaderboard />} />
-                <Route path="project-rating"                              element={<ProjectLeaderboard role="student" />} />
+                <Route path="project-rating"                              element={<ProjectRating />} />
                 <Route path="degrees"                                     element={<Degrees />} />
                 <Route path="achievements"                               element={<Achievements />} />
                 <Route path="dictionary"                                  element={<Dictionary />} />
@@ -132,6 +139,9 @@ function AppRouter() {
                 <Route path="early-learning"                              element={<EarlyLearning />} />
                 <Route path="early-learning/:moduleId"                    element={<EarlyLearning />} />
                 <Route path="statistics"                                  element={<StudentCourseStats />} />
+                <Route path="code-check/:id"                              element={<CodeCheck />} />
+                <Route path="notifications"                                element={<Notifications />} />
+                <Route path="daily-rules"                                  element={<DailyRules />} />
 
                 {/* Курсы */}
                 <Route path="roadmap"                                      element={<CourseRoadmap />} />
@@ -152,6 +162,7 @@ function AppRouter() {
                 <Route index                                              element={<Navigate to="profile" replace />} />
                 <Route path="profile"                                     element={<TeacherProfilePage />} />
                 <Route path="review"                                      element={<TeacherReview />} />
+                <Route path="penalties"                                   element={<TeacherPenalties />} />
                 <Route path="students"                                    element={<MyStudents />} />
                 <Route path="students/:studentId"                         element={<StudentProfilePage />} />
                 <Route path="groups"                                      element={<MyGroups />} />
@@ -159,6 +170,7 @@ function AppRouter() {
                 <Route path="achievements"                                element={<TeacherAchievements />} />
                 <Route path="statistics"                                  element={<TeacherStatistics />} />
                 <Route path="feedback"                                    element={<TeacherFeedback />} />
+                <Route path="daily-rules"                                 element={<DailyRules chrome={false} />} />
                 <Route path="rankings"                                    element={<TeacherStudentsRankings />} /> {/* ← NEW */}
                 <Route path="project-rating"                              element={<ProjectLeaderboard role="teacher" />} />
                 <Route path="team-game"                                   element={<TeacherTeamGame />} />
@@ -167,6 +179,8 @@ function AppRouter() {
                 <Route path="team-projects/:id"                           element={<TeacherTeamProjectDetail />} />
                 <Route path="activity-analytics"                          element={<ActivityAnalytics />} />
                 <Route path="error-log"                                   element={<ErrorLogPage />} />
+                <Route path="code-checks"                                 element={<TeacherCodeChecks />} />
+                <Route path="notifications"                               element={<TeacherNotifications />} />
                 <Route path="store"                                       element={<Store />} />
                 <Route path="early-learning"                              element={<EarlyLearning />} />
                 <Route path="early-learning/:moduleId"                    element={<EarlyLearning />} />

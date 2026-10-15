@@ -104,7 +104,7 @@ async def test_sweep_ignores_recently_submitted_project(async_client, db_session
     assert project.id not in retried_ids
 
 
-async def test_sweep_ignores_project_with_persisted_failure_reason(async_client, db_session):
+async def test_sweep_ignores_project_that_failed_for_a_real_reason(async_client, db_session):
     """A project that already failed for a real, known reason (persisted
     instructor_feedback) is working as intended — not the "zero trace"
     incident this sweep guards against. Leave it for the teacher/student to
@@ -112,7 +112,38 @@ async def test_sweep_ignores_project_with_persisted_failure_reason(async_client,
     student_id = await _make_student(async_client, "knownfail")
     project = await _make_project(
         db_session, student_id,
+        instructor_feedback="ZIP faylda o'qiladigan kod topilmadi.",
+    )
+
+    retried_ids = await _run_sweep_and_collect_retried_ids()
+
+    assert project.id not in retried_ids
+
+
+async def test_sweep_retries_a_recent_project_parked_with_a_transient_notice(async_client, db_session):
+    """"AI is down, the teacher will grade" is not a verdict — once the AI is
+    back the project must be reviewed (two sat unreviewed for 12 days)."""
+    student_id = await _make_student(async_client, "parkedA")
+    down = await _make_project(
+        db_session, student_id,
+        instructor_feedback="AI baholash vaqtincha ishlamayapti. O'qituvchi loyihangizni tez orada baholaydi.",
+    )
+    held = await _make_project(
+        db_session, student_id,
+        instructor_feedback="Loyihangiz qabul qilindi va o'qituvchi tomonidan tekshiriladi.\n\nO'qituvchi uchun",
+    )
+
+    retried_ids = await _run_sweep_and_collect_retried_ids()
+
+    assert {down.id, held.id} <= retried_ids
+
+
+async def test_sweep_stops_retrying_a_transient_notice_after_the_window(async_client, db_session):
+    student_id = await _make_student(async_client, "parkedOld")
+    project = await _make_project(
+        db_session, student_id,
         instructor_feedback="AI baholash vaqtincha ishlamayapti.",
+        submitted_at=datetime.now(timezone.utc) - timedelta(days=5),
     )
 
     retried_ids = await _run_sweep_and_collect_retried_ids()

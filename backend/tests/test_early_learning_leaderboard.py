@@ -15,6 +15,16 @@ from app.models.early_learning import EarlyActivity, EarlyActivityCompletion, Ea
 from app.models.group import Group, student_groups
 from app.models.user import Student, UserRole
 
+@pytest.fixture(autouse=True)
+def _games_unlocked():
+    """These tests exercise early-learning itself, not the daily-quota gate."""
+    from app.main import app
+    from app.dependencies import require_games_unlocked
+    app.dependency_overrides[require_games_unlocked] = lambda: None
+    yield
+    app.dependency_overrides.pop(require_games_unlocked, None)
+
+
 
 def _select_content(character: str) -> dict:
     return {

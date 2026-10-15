@@ -10,6 +10,7 @@ Usage:
     cd backend
     python scripts/build_course.py course_specs/my_course.py
     # add --dry-run to create/translate nothing, just validate the spec shape
+    # add --no-lint to ignore lint errors (legacy specs only)
 
 Does NOT publish the course — is_published stays whatever COURSE says
 (default False). A human should review before flipping it.
@@ -31,22 +32,36 @@ from app.models.lesson import Lesson  # noqa: E402
 from app.models.exercise import Exercise  # noqa: E402
 
 from course_builder.spec_loader import load_spec, require  # noqa: E402
+from course_builder.lint import lint_spec  # noqa: E402
 from course_builder.db_helpers import (  # noqa: E402
     get_or_create_course, get_or_create_lesson, sync_lesson_exercises,
     sync_lesson_sample, apply_submission_task,
 )
 from course_builder.translations import (  # noqa: E402
     translate_course_from_spec, translate_lesson_from_spec, translate_exercises_from_spec,
+    translate_sample_from_spec,
 )
 from check_exercise_integrity import check_course as check_exercises  # noqa: E402
 from check_ru_coverage import check_course as check_ru  # noqa: E402
 from check_diagram_coverage import diagram_coverage  # noqa: E402
 
 
-async def main(spec_path: str, dry_run: bool) -> int:
+async def main(spec_path: str, dry_run: bool, skip_lint: bool = False) -> int:
     module = load_spec(spec_path)
     course_spec = require(module, "COURSE")
     lessons_spec = require(module, "LESSONS")
+
+    # Reject an incomplete spec BEFORE it touches the database (UZ+RU gaps, missing hints/explanations,
+    # wrong exercise shapes, glossary terms). --no-lint is the escape hatch for re-running a legacy spec.
+    lint = lint_spec(course_spec, lessons_spec)
+    for warning in lint.warnings:
+        print(f"lint warning: {warning}")
+    if lint.errors and not skip_lint:
+        print(f"\nSPEC REJECTED — {len(lint.errors)} problem(s):")
+        for error in lint.errors:
+            print(f"  - {error}")
+        return 2
+    print(f"lint: OK ({len(lint.warnings)} warning(s))" if not lint.errors else f"lint: {len(lint.errors)} error(s) IGNORED (--no-lint)")
 
     async with AsyncSessionLocal() as db:
         course, created = await get_or_create_course(db, course_spec)
@@ -79,8 +94,10 @@ async def main(spec_path: str, dry_run: bool) -> int:
 
             sample_spec = lesson_spec.get("sample")
             if sample_spec:
-                await sync_lesson_sample(db, lesson.id, sample_spec)
+                sample_row = await sync_lesson_sample(db, lesson.id, sample_spec)
                 print(f"    sample: {sample_spec['title']!r}")
+                if sample_row is not None:
+                    print(f"    sample RU fields: {await translate_sample_from_spec(db, sample_row, sample_spec)}")
 
         if dry_run:
             await db.rollback()
@@ -116,6 +133,8 @@ async def main(spec_path: str, dry_run: bool) -> int:
         print(f"\n{await diagram_coverage(db, course.id)}")
         print("(informational only — see course_builder/__init__.py 'Diagrams (Mermaid)')")
 
+    print("\nRU translations are read from an in-memory cache loaded at startup: after a real build, either restart the "
+          "service or call POST /api/v1/admin/translations/reload (teacher token) so students see the new RU text.")
     print(f"\nDon't forget: python scripts/check_course_images.py {course.id}")
     print(f"Course is_published={course.is_published} — flip explicitly when reviewed.")
 
@@ -124,8 +143,8 @@ async def main(spec_path: str, dry_run: bool) -> int:
 
 
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:] if a != "--dry-run"]
+    args = [a for a in sys.argv[1:] if a not in ("--dry-run", "--no-lint")]
     if not args:
         print(__doc__)
         sys.exit(2)
-    sys.exit(asyncio.run(main(args[0], "--dry-run" in sys.argv)))
+    sys.exit(asyncio.run(main(args[0], "--dry-run" in sys.argv, "--no-lint" in sys.argv)))

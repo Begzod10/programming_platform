@@ -1,7 +1,27 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import './StudentCoursePage.css';
 import { useTranslation } from '../../../../i18n/useTranslation';
-import { Lock } from 'lucide-react';
+import AppHeader from '../../../../components/appheader/AppHeader';
+import { Lock, Check, Play, ChevronLeft, Rocket, Clock, Users, CheckCircle2, Loader, Unlock, LockKeyhole } from 'lucide-react';
+
+const prefersReduced = () =>
+  typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function CountUp({ value, duration = 900 }) {
+  const [v, setV] = useState(prefersReduced() ? value : 0);
+  useEffect(() => {
+    if (prefersReduced()) { setV(value); return; }
+    let raf; const t0 = performance.now();
+    const loop = (now) => {
+      const t = Math.min(1, (now - t0) / duration);
+      setV(Math.round(value * (1 - Math.pow(1 - t, 3))));
+      if (t < 1) raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration]);
+  return <>{v}</>;
+}
 
 const THUMB_COLORS = [
   'linear-gradient(135deg, #1a0b3e 0%, #2d1b69 100%)',
@@ -14,326 +34,186 @@ const THUMB_COLORS = [
   'linear-gradient(135deg, #1a1a0b 0%, #3a3a1a 100%)',
 ];
 
-/* ═══════════════════════════════════════════
-   LESSON CARD
-═══════════════════════════════════════════ */
-const LessonCard = ({ lesson, index, isLocked, onOpen, accentColor, t, lang }) => {
-  const hasVideo   = lesson.sections?.some((s) => s.type === 'video');
-  const hasProject = lesson.sections?.some((s) => s.type === 'project');
-  const blockCount = lesson.sections?.length || 0;
+const DIFF_LABEL = {
+  Beginner: { ru: 'НАЧИНАЮЩИЙ', uz: "BOSHLANG'ICH" },
+  Intermediate: { ru: 'СРЕДНИЙ', uz: "O'RTA" },
+  Advanced: { ru: 'ПРОДВИНУТЫЙ', uz: "ILG'OR" },
+};
 
-  const accentGrad = accentColor
-    ? `linear-gradient(135deg, ${accentColor}cc 0%, ${accentColor}55 100%)`
-    : null;
-  const thumbStyle = lesson.image
-    ? {}
-    : { background: lesson.color || accentGrad || THUMB_COLORS[(index - 1) % THUMB_COLORS.length] };
+/* ── one lesson card ── */
+function LessonCard({ node, ru, onOpen }) {
+  const { l, status, index } = node;
+  const hasVideo = l.sections?.some((s) => s.type === 'video');
+  const hasProject = l.sections?.some((s) => s.type === 'project');
+  const blocks = l.sections?.length || 0;
+  const locked = status === 'locked';
+  const pct = l.completed ? 100 : (l.progress_pct || 0);
+  const thumb = l.image
+    ? { backgroundImage: `url(${l.image})` }
+    : { background: l.color || THUMB_COLORS[(index - 1) % THUMB_COLORS.length] };
 
-  const lockedLabel = isLocked ? t('locked_msg') : undefined;
-
-  const blockLabel = (n) => {
-    if (lang === 'uz') return `${n} blok`;
-    if (n === 1) return `${n} блок`;
-    if (n < 5)   return `${n} блока`;
-    return `${n} блоков`;
-  };
+  const statusChip =
+    status === 'done' ? { cls: 'done', icon: <Check size={13} />, label: ru ? 'Пройдено' : "O'tildi" }
+      : status === 'in_progress' ? { cls: 'prog', icon: <Loader size={13} />, label: ru ? 'В процессе' : 'Davom etmoqda' }
+        : status === 'available' ? { cls: 'avail', icon: <Unlock size={13} />, label: ru ? 'Доступно' : 'Mavjud' }
+          : { cls: 'locked', icon: <Lock size={13} />, label: ru ? 'Закрыто' : 'Bloklangan' };
 
   return (
-    <div
-      className={`scp-lesson-card${lesson.completed ? ' is-done' : ''}${isLocked ? ' is-locked' : ''}`}
-      onClick={isLocked ? undefined : onOpen}
-      role="button"
-      tabIndex={0}
-      aria-disabled={isLocked || undefined}
-      aria-label={lockedLabel}
-      title={lockedLabel}
-      onKeyDown={isLocked ? undefined : (e) => e.key === 'Enter' && onOpen()}
-    >
-      <div className="scp-card-thumb" style={thumbStyle}>
-        {lesson.image ? (
-          <img src={lesson.image} alt="" className="scp-card-thumb-img" />
+    <button
+      className={`scd-card scd-card--${status} scd-rise`}
+      style={{ animationDelay: `${Math.min(index, 12) * 0.03}s` }}
+      onClick={() => !locked && onOpen(l)}
+      disabled={locked}>
+      <div className="scd-card-thumb" style={thumb}>
+        <div className="scd-card-thumb-dim" />
+        <span className="scd-card-num">{index}</span>
+        <span className={`scd-card-status scd-card-status--${statusChip.cls}`}>{statusChip.icon} {statusChip.label}</span>
+        {locked ? (
+          <span className="scd-card-lock"><Lock size={22} /></span>
         ) : (
-          <div className="scp-card-thumb-placeholder">
-            {lesson.icon || '📖'}
-          </div>
-        )}
-        <div className="scp-card-thumb-overlay" />
-        <div className="scp-card-num">{index}</div>
-        {lesson.completed && (
-          <div className="scp-card-done-badge">{t('done_badge')}</div>
-        )}
-        {isLocked && (
-          <div className="scp-card-lock-overlay" aria-hidden="true"><Lock size={20} /></div>
-        )}
-        {hasVideo && !isLocked && (
-          <div className="scp-card-play" aria-hidden="true">
-            <svg width="11" height="13" viewBox="0 0 11 13" fill="white">
-              <path d="M0.5 1.13397C0.5 0.514903 1.18918 0.140562 1.7 0.5L10.3 6.36603C10.7804 6.70557 10.7804 7.42443 10.3 7.76397L1.7 13.5C1.18918 13.8594 0.5 13.4851 0.5 12.866V1.13397Z"/>
-            </svg>
-          </div>
+          <span className="scd-card-play"><Play size={18} fill="currentColor" /></span>
         )}
       </div>
-
-      <div className="scp-card-body">
-        <h4 className="scp-card-title">{lesson.title}</h4>
-        <div className="scp-card-tags">
-          {blockCount > 0 && (
-            <span className="scp-ctag">{blockLabel(blockCount)}</span>
-          )}
-          {hasVideo   && <span className="scp-ctag tag-video">{t('tag_video')}</span>}
-          {hasProject && <span className="scp-ctag tag-project">{t('tag_project')}</span>}
+      <div className="scd-card-body">
+        <div className="scd-card-title">{l.title}</div>
+        <div className="scd-card-tags">
+          <span className="scd-tag">{blocks} {ru ? 'блок' : 'blok'}</span>
+          {hasVideo && <span className="scd-tag scd-tag--video"><Play size={10} fill="currentColor" /> {ru ? 'Видео' : 'Video'}</span>}
+          {hasProject && <span className="scd-tag scd-tag--project"><Rocket size={10} /> {ru ? 'Проект' : 'Loyiha'}</span>}
         </div>
-        <div className="scp-card-prog">
-          <div
-            className={`scp-card-prog-fill${lesson.completed ? ' done' : ''}`}
-            style={{ width: lesson.completed ? '100%' : `${lesson.progress_pct || 0}%` }}
-          />
-        </div>
+        <div className="scd-card-bar"><div className="scd-card-fill" style={{ width: `${pct}%` }} /></div>
       </div>
-    </div>
+    </button>
   );
-};
+}
 
-/* ═══════════════════════════════════════════
-   CHAPTER BLOCK
-═══════════════════════════════════════════ */
-const ChapterBlock = ({ title, lessons, startIndex, allLessons, onOpenLesson, accentColor, t, lang }) => {
-  const [open, setOpen] = useState(true);
-  const done  = lessons.filter((l) => l.completed).length;
-  const total = lessons.length;
-  const pct   = total > 0 ? Math.round((done / total) * 100) : 0;
-
-  const lessonsCountLabel = lang === 'uz'
-    ? `${total} dars`
-    : total === 1 ? `${total} урок` : total < 5 ? `${total} урока` : `${total} уроков`;
-
-  return (
-    <div className="scp-chapter">
-      <button className="scp-chapter-head" onClick={() => setOpen((o) => !o)}>
-        <div className="scp-chapter-left">
-          <div className="scp-chapter-icon">{open ? '▾' : '▸'}</div>
-          <span className="scp-chapter-name">{title || t('lessons_label')}</span>
-          <span className="scp-chapter-count">{lessonsCountLabel}</span>
-        </div>
-        <div className="scp-chapter-prog-wrap">
-          <div className="scp-chapter-prog-track">
-            <div className="scp-chapter-prog-fill" style={{ width: `${pct}%` }} />
-          </div>
-          <span className="scp-chapter-prog-label">{done}/{total}</span>
-        </div>
-      </button>
-
-      {open && (
-        <div className="scp-lessons-grid">
-          {lessons.map((lesson, i) => {
-            const globalIdx  = startIndex + i;
-            const prevLesson = allLessons[globalIdx - 1];
-            const isLocked   = !!prevLesson && !prevLesson.completed && !lesson.completed;
-            return (
-              <LessonCard
-                key={lesson.id}
-                lesson={lesson}
-                index={globalIdx + 1}
-                isLocked={isLocked}
-                onOpen={() => onOpenLesson(lesson)}
-                accentColor={accentColor}
-                t={t}
-                lang={lang}
-              />
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-};
-
-/* ═══════════════════════════════════════════
-   MAIN
-═══════════════════════════════════════════ */
 const StudentCoursePage = ({ course, onBack, onOpenLesson }) => {
-  const { t, lang } = useTranslation();
+  const { lang } = useTranslation();
+  const ru = lang === 'ru';
 
   const lessons = useMemo(
     () => (course.lessons || []).filter((l) => l.is_published !== false),
     [course.lessons]
   );
 
-  const total     = lessons.length;
-  const completed = lessons.filter((l) => l.completed).length;
-  const progress  = total > 0
-    ? Math.round((completed / total) * 100)
-    : Math.round(course.progress_percentage || 0);
+  // Sequential status: done → first-open → locked.
+  const nodes = useMemo(() => lessons.map((l, i) => {
+    const prev = i > 0 ? lessons[i - 1] : null;
+    const locked = prev && !prev.completed && !l.completed;
+    let status;
+    if (l.completed) status = 'done';
+    else if (locked) status = 'locked';
+    else status = (l.progress_pct || 0) > 0 ? 'in_progress' : 'available';
+    return { l, status, index: i + 1 };
+  }), [lessons]);
 
-  const { groups } = useMemo(() => {
-    const map = new Map();
-    lessons.forEach((l) => {
-      const key = l.chapter || '__none__';
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(l);
-    });
-    const groups = [];
-    let offset = 0;
-    map.forEach((ls, key) => {
-      groups.push({ key, title: key === '__none__' ? '' : key, lessons: ls, startIndex: offset });
-      offset += ls.length;
-    });
-    return { groups };
-  }, [lessons]);
-
-  const R    = 44;
-  const CIRC = 2 * Math.PI * R;
-  const off  = CIRC * (1 - progress / 100);
-
+  const total = lessons.length;
+  const counts = {
+    done: nodes.filter((n) => n.status === 'done').length,
+    in_progress: nodes.filter((n) => n.status === 'in_progress').length,
+    available: nodes.filter((n) => n.status === 'available').length,
+    locked: nodes.filter((n) => n.status === 'locked').length,
+  };
+  const progress = total > 0 ? Math.round((counts.done / total) * 100) : Math.round(course.progress_percentage || 0);
   const nextLesson = lessons.find((l) => !l.completed);
+  const diffLabel = DIFF_LABEL[course.difficulty_level] ? (ru ? DIFF_LABEL[course.difficulty_level].ru : DIFF_LABEL[course.difficulty_level].uz) : course.difficulty_level;
 
-  const totalLessonsLabel = lang === 'uz'
-    ? `${total} dars`
-    : total === 1 ? `${total} урок` : total < 5 ? `${total} урока` : `${total} уроков`;
+  const R = 46, CIRC = 2 * Math.PI * R, off = CIRC * (1 - progress / 100);
 
-  const progressSummary = lang === 'uz'
-    ? `${completed} / ${total} dan o'tildi`
-    : `${completed} ${t('of')} ${total} ${t('passed')}`;
+  const stats = [
+    { key: 'done', icon: <CheckCircle2 size={18} />, n: counts.done, label: ru ? 'завершено' : 'tugatildi', cls: 'done' },
+    { key: 'prog', icon: <Loader size={18} />, n: counts.in_progress, label: ru ? 'в процессе' : 'davom etmoqda', cls: 'prog' },
+    { key: 'avail', icon: <LockKeyhole size={18} />, n: counts.available, label: ru ? 'доступно' : 'mavjud', cls: 'avail' },
+    { key: 'locked', icon: <Lock size={18} />, n: counts.locked, label: ru ? 'закрыто' : 'bloklangan', cls: 'locked' },
+  ];
 
   return (
-    <div className="scp-root">
+    <div className="scd-dark">
+      <AppHeader />
+      <div className="scd-shell">
 
-      <button className="scp-back" onClick={onBack}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <polyline points="15 18 9 12 15 6"/>
-        </svg>
-        {t('all_courses')}
-      </button>
+        <button className="scd-back" onClick={onBack}>
+          <ChevronLeft size={17} /> {ru ? 'Все курсы' : 'Barcha kurslar'}
+        </button>
 
-      <div className="scp-hero">
-        <div
-          className="scp-hero-bg"
-          style={course.color_accent ? {
-            background: `linear-gradient(135deg, #0d0d2b 0%, ${course.color_accent}44 100%)`
-          } : undefined}
-        >
-          {course.image && <img src={course.image} alt="" className="scp-hero-bg-img" />}
-          {/* strong dark overlay on the left (text side) — always opaque regardless of accent */}
-          <div
-            className="scp-hero-bg-dim"
-            style={course.color_accent ? {
-              background: `linear-gradient(to right, rgba(10,8,30,0.96) 0%, rgba(10,8,30,0.75) 55%, rgba(10,8,30,0.2) 100%)`
-            } : undefined}
-          />
-          {course.color_accent && (
-            <div style={{
-              position: 'absolute', inset: 0,
-              background: `radial-gradient(ellipse at 85% 50%, ${course.color_accent}30 0%, transparent 60%)`,
-              pointerEvents: 'none',
-            }} />
-          )}
-        </div>
-
-        <div className="scp-hero-body">
-          <div className="scp-hero-left">
-            {course.difficulty_level && (
-              <span className="scp-hero-diff">{course.difficulty_level}</span>
-            )}
-            <h1 className="scp-hero-title">{course.title}</h1>
-            {course.description && (
-              <p className="scp-hero-desc">{course.description}</p>
-            )}
-
-            <div className="scp-hero-meta">
-              {course.instructor_name && (
-                <div className="scp-hero-teacher">
-                  <div className="scp-hero-teacher-av">
-                    {course.instructor_name.charAt(0).toUpperCase()}
-                  </div>
-                  <span>{course.instructor_name}</span>
-                </div>
-              )}
-              <div className="scp-hero-pill">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-                </svg>
-                {totalLessonsLabel}
+        {/* ── hero ── */}
+        <div className="scd-hero scd-rise">
+          {course.image && <img src={course.image} alt="" className="scd-hero-bg" />}
+          <div className="scd-hero-dim" />
+          <div className="scd-hero-body">
+            <div className="scd-hero-left">
+              {diffLabel && <span className="scd-hero-diff">{diffLabel}</span>}
+              <h1 className="scd-hero-title">{course.title}</h1>
+              {course.description && <p className="scd-hero-desc">{course.description}</p>}
+              <div className="scd-hero-meta">
+                {course.instructor_name && (
+                  <span className="scd-hero-meta-item">
+                    <span className="scd-hero-ava">{course.instructor_name.charAt(0).toUpperCase()}</span>
+                    {course.instructor_name}
+                  </span>
+                )}
+                <span className="scd-hero-meta-item"><Clock size={15} /> {total} {ru ? 'уроков' : 'dars'}</span>
+                {course.students_count > 0 && <span className="scd-hero-meta-item"><Users size={15} /> {course.students_count} {ru ? 'студентов' : 'talaba'}</span>}
               </div>
-              <div className="scp-hero-pill">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                  <circle cx="9" cy="7" r="4"/>
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-                {course.students_count || 0} {t('students_count')}
-              </div>
+              {nextLesson ? (
+                <button className="scd-hero-cta" onClick={() => onOpenLesson(nextLesson)}>
+                  <Rocket size={16} /> {counts.done > 0 ? (ru ? 'Продолжить' : 'Davom etish') : (ru ? 'Начать курс' : 'Kursni boshlash')}
+                </button>
+              ) : total > 0 ? (
+                <span className="scd-hero-badge"><Check size={16} /> {ru ? 'Курс завершён!' : 'Kurs tugatildi!'}</span>
+              ) : null}
             </div>
-
-            {nextLesson && (
-              <button className="scp-hero-cta" onClick={() => onOpenLesson(nextLesson)}>
-                {completed > 0 ? t('continue_learning') : t('start_course')}
-              </button>
-            )}
-            {!nextLesson && total > 0 && (
-              <div className="scp-hero-done-badge">{t('course_done')}</div>
-            )}
-          </div>
-
-          <div className="scp-hero-ring-wrap">
-            <svg viewBox="0 0 100 100" className="scp-hero-ring">
-              <circle cx="50" cy="50" r={R} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="7" />
-              <circle
-                cx="50" cy="50" r={R}
-                fill="none"
-                stroke={progress === 100 ? '#00d49e' : 'white'}
-                strokeWidth="7"
-                strokeLinecap="round"
-                strokeDasharray={CIRC}
-                strokeDashoffset={off}
-                transform="rotate(-90 50 50)"
-                style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)' }}
-              />
-            </svg>
-            <div className="scp-hero-ring-text">
-              <span className="scp-ring-pct">{progress}%</span>
-              <span className="scp-ring-sub">{t('passed')}</span>
+            <div className="scd-hero-ring">
+              <svg viewBox="0 0 110 110" width="128" height="128">
+                <defs>
+                  <linearGradient id="scdRing" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stopColor="#7ef0a3" /><stop offset="1" stopColor="#22d3ee" />
+                  </linearGradient>
+                </defs>
+                <circle cx="55" cy="55" r={R} fill="none" stroke="rgba(255,255,255,.12)" strokeWidth="8" />
+                <circle cx="55" cy="55" r={R} fill="none" stroke="url(#scdRing)" strokeWidth="8" strokeLinecap="round"
+                  strokeDasharray={CIRC} strokeDashoffset={off} transform="rotate(-90 55 55)"
+                  style={{ transition: 'stroke-dashoffset 1.3s cubic-bezier(.2,.75,.25,1)', filter: 'drop-shadow(0 0 7px rgba(34,211,238,.5))' }} />
+              </svg>
+              <div className="scd-hero-ring-txt">
+                <span className="scd-hero-ring-pct">{progress}%</span>
+                <span className="scd-hero-ring-sub">{ru ? 'пройдено' : "o'tildi"}</span>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="scp-hero-prog">
-          <div
-            className={`scp-hero-prog-fill${progress === 100 ? ' done' : ''}`}
-            style={{ width: `${progress}%` }}
-          />
+        {/* ── stats pills ── */}
+        <div className="scd-stats">
+          {stats.map((s, i) => (
+            <div className={`scd-stat scd-stat--${s.cls} scd-rise`} style={{ animationDelay: `${0.05 + i * 0.07}s` }} key={s.key}>
+              <span className="scd-stat-ic">{s.icon}</span>
+              <span className="scd-stat-n"><CountUp value={s.n} /></span>
+              <span className="scd-stat-lbl">{s.label}</span>
+            </div>
+          ))}
+          <div className="scd-stat scd-stat--bar scd-rise" style={{ animationDelay: '.33s' }}>
+            <div className="scd-stat-bar-track"><div className="scd-stat-bar-fill" style={{ width: `${progress}%` }} /></div>
+            <span className="scd-stat-bar-pct"><CountUp value={progress} />%</span>
+          </div>
         </div>
-      </div>
 
-      <div className="scp-section-header">
-        <h2 className="scp-section-title">{t('course_programme')}</h2>
-        {total > 0 && (
-          <span className="scp-section-summary">{progressSummary}</span>
+        {/* ── lessons ── */}
+        <div className="scd-section-head">
+          <h2 className="scd-section-title">{ru ? 'Программа курса' : 'Kurs dasturi'}</h2>
+          {total > 0 && <span className="scd-section-sum">{counts.done}/{total} {ru ? 'пройдено' : "o'tildi"}</span>}
+        </div>
+
+        {total === 0 ? (
+          <div className="scd-empty">📭 {ru ? 'Уроков пока нет' : "Darslar yo'q"}</div>
+        ) : (
+          <div className="scd-grid">
+            {nodes.map((node) => (
+              <LessonCard key={node.l.id} node={node} ru={ru} onOpen={onOpenLesson} />
+            ))}
+          </div>
         )}
       </div>
-
-      {total === 0 ? (
-        <div className="scp-no-lessons">
-          <span className="scp-no-lessons-icon">📭</span>
-          <p>{t('no_lessons')}</p>
-        </div>
-      ) : (
-        <div className="scp-chapters">
-          {groups.map((g) => (
-            <ChapterBlock
-              key={g.key}
-              title={g.title}
-              lessons={g.lessons}
-              startIndex={g.startIndex}
-              allLessons={lessons}
-              onOpenLesson={onOpenLesson}
-              accentColor={course.color_accent}
-              t={t}
-              lang={lang}
-            />
-          ))}
-        </div>
-      )}
     </div>
   );
 };

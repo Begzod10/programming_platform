@@ -39,7 +39,7 @@
 }
 
 /* ── Cards grid ── */
-.spp-cards     { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px,1fr)); gap: 16px; }
+.spp-cards     { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 16px; }
 .spp-cards--one{ grid-template-columns: 1fr; }
 
 /* ══════════════════════════════════════════════
@@ -433,7 +433,7 @@
 ══════════════════════════════════════════════ */
 /* Laptop / tablet landscape (≤1024px) — tighten card grid */
 @media (max-width: 1024px) {
-    .spp-cards        { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .spp-cards        { grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 14px; }
     .spp-card-preview { height: 340px; }
 }
 

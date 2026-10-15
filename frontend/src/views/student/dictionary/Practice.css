@@ -1761,3 +1761,223 @@
     .pr-sess-score { grid-area: score; text-align: right; }
     .pr-sess-dur   { grid-area: dur; text-align: left; }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   DARK THEME — practice (Mashq) rendered inside the dark Lug'at page.
+   Flips the light panels to dark glass and fixes low-contrast text
+   (invisible queue words, empty-looking resume banner, etc.).
+   ══════════════════════════════════════════════════════════════ */
+.dx-dark .pr-root { color:#eef1ff; }
+.dx-dark .pr-root--pick { max-width:1000px; margin:0 auto; }
+
+/* subtabs */
+.dx-dark .pr-subtab { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:#9aa3c7; }
+.dx-dark .pr-subtab:hover { color:#eef1ff; }
+.dx-dark .pr-subtab.active { background:rgba(139,123,242,.16); border-color:rgba(139,123,242,.5); color:#b7adfb; }
+
+/* generic panels / sections */
+.dx-dark .pr-section, .dx-dark .pr-queue, .dx-dark .pr-buckets, .dx-dark .pr-history {
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); }
+.dx-dark .pr-section-title { color:#eef1ff; }
+.dx-dark .pr-filter-hint, .dx-dark .pr-scope-lbl, .dx-dark .pr-buckets-lg, .dx-dark .pr-buckets-legend { color:#9aa3c7; }
+
+/* mode cards */
+.dx-dark .pr-mode { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); color:#eef1ff; }
+.dx-dark .pr-mode:hover { border-color:rgba(255,255,255,.2); }
+.dx-dark .pr-mode.active { background:rgba(139,123,242,.12); border-color:rgba(139,123,242,.55); box-shadow:0 0 0 1px rgba(139,123,242,.3); }
+.dx-dark .pr-mode-label { color:#eef1ff; }
+.dx-dark .pr-mode-desc { color:#9aa3c7; }
+.dx-dark .pr-mode-icon { background:rgba(255,255,255,.06); }
+.dx-dark .pr-mode-check { color:#b7adfb; }
+
+/* word-set filters */
+.dx-dark .pr-filter { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); color:#9aa3c7; }
+.dx-dark .pr-filter:hover { color:#eef1ff; border-color:rgba(255,255,255,.2); }
+.dx-dark .pr-filter.active { background:rgba(139,123,242,.16); border-color:rgba(139,123,242,.55); color:#b7adfb; }
+.dx-dark .pr-filter--due.active { background:rgba(34,211,238,.14); border-color:rgba(34,211,238,.5); color:#22d3ee; }
+.dx-dark .pr-filter--weak.active { background:rgba(240,85,107,.12); border-color:rgba(240,85,107,.5); color:#ff9db0; }
+.dx-dark .pr-filter-count { background:rgba(255,255,255,.1); color:inherit; }
+
+/* scope selects */
+.dx-dark .pr-scope-select, .dx-dark .pr-scope-field select {
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); color:#eef1ff; }
+.dx-dark .pr-scope-select option { background:#0d1230; color:#eef1ff; }
+.dx-dark .pr-scope-select:disabled { opacity:.5; }
+
+/* queue preview (NAVBATDAGI SO'ZLAR) — fix invisible words */
+.dx-dark .pr-queue-label { color:#b7adfb; }
+.dx-dark .pr-queue-word { color:#eef1ff; }
+.dx-dark .pr-queue-row { border-bottom-color:rgba(255,255,255,.06); }
+
+/* buckets / history text */
+.dx-dark .pr-history-label, .dx-dark .pr-history-mode, .dx-dark .pr-history-score { color:#eef1ff; }
+.dx-dark .pr-history-row { border-bottom-color:rgba(255,255,255,.06); }
+
+/* resume banner (DAVOM ETISH) — fix empty/dark look */
+.dx-dark .pr-resume { background:rgba(139,123,242,.1); border:1px solid rgba(139,123,242,.35); }
+.dx-dark .pr-resume-tag { color:#b7adfb; background:rgba(139,123,242,.2); }
+.dx-dark .pr-resume-mode, .dx-dark .pr-resume-body { color:#eef1ff; }
+
+/* leech alert */
+.dx-dark .pr-leech { background:rgba(240,85,107,.1); border:1px solid rgba(240,85,107,.3); }
+.dx-dark .pr-leech-head, .dx-dark .pr-leech-hint, .dx-dark .pr-leech-meta, .dx-dark .pr-leech-row { color:#eef1ff; }
+
+/* ghost buttons + error */
+.dx-dark .pr-btn--ghost { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); color:#eef1ff; }
+.dx-dark .pr-btn--ghost:hover { background:rgba(255,255,255,.1); }
+.dx-dark .pr-error { background:rgba(240,85,107,.12); border:1px solid rgba(240,85,107,.3); color:#ff9db0; }
+
+/* drill / recap screens */
+.dx-dark .pr-drill-head, .dx-dark .pr-progress-text, .dx-dark .pr-score,
+.dx-dark .pr-recap, .dx-dark .pr-recap-title, .dx-dark .pr-recap-num, .dx-dark .pr-recap-lbl { color:#eef1ff; }
+.dx-dark .pr-back { color:#9aa3c7; }
+.dx-dark .pr-back:hover { color:#eef1ff; }
+.dx-dark .pr-recap { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); }
+
+/* ── two-column pick layout (config left · preview+stats right) ── */
+.dx-dark .pr-pick-cols { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
+.dx-dark .pr-pick-left, .dx-dark .pr-pick-right { display:flex; flex-direction:column; gap:18px; min-width:0; }
+@media (max-width:860px) {
+    .dx-dark .pr-pick-cols { grid-template-columns:1fr; }
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DARK THEME — drill (game) screens + statistics/history.
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── drill question card + modes ── */
+.dx-dark .pr-card { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); color:#eef1ff;
+    backdrop-filter:blur(14px); }
+.dx-dark .pr-card * { color:inherit; }
+
+/* flashcard */
+.dx-dark .pr-flash-front, .dx-dark .pr-flash-back { background:transparent; }
+.dx-dark .pr-flash-word { color:#eef1ff; }
+.dx-dark .pr-flash-ctx, .dx-dark .pr-flash-hint, .dx-dark .pr-flash-tap { color:#9aa3c7; }
+.dx-dark .pr-flash-face { color:#eef1ff; }
+
+/* quiz / MCQ */
+.dx-dark .pr-quiz-prompt { color:#9aa3c7; }
+.dx-dark .pr-quiz-word { background:rgba(139,123,242,.16); border:1px solid rgba(139,123,242,.35); color:#eef1ff; }
+.dx-dark .pr-quiz-modeline { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); }
+.dx-dark .pr-quiz-modeline > * { color:#9aa3c7; }
+.dx-dark .pr-opt { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); color:#eef1ff; }
+.dx-dark .pr-opt:hover { border-color:rgba(139,123,242,.5); background:rgba(139,123,242,.08); }
+.dx-dark .pr-opt--ok { background:rgba(54,224,107,.14) !important; border-color:rgba(54,224,107,.6) !important; color:#9af0c4 !important; }
+.dx-dark .pr-opt--bad { background:rgba(240,85,107,.14) !important; border-color:rgba(240,85,107,.6) !important; color:#ff9db0 !important; }
+.dx-dark .pr-opt--dim { opacity:.45; }
+
+/* typed / cloze / spelling / listening inputs */
+.dx-dark .pr-typed-ctx, .dx-dark .pr-typed-hint, .dx-dark .pr-cloze-ctx { color:#c4cae0; }
+.dx-dark .pr-cloze-ctx { background:rgba(139,123,242,.08); border-left:3px solid #8b7bf2; }
+.dx-dark .pr-typed-input { background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14); color:#eef1ff; }
+.dx-dark .pr-typed-input::placeholder { color:#6b7399; }
+.dx-dark .pr-typed-input.ok { border-color:rgba(54,224,107,.6); background:rgba(54,224,107,.06); }
+.dx-dark .pr-typed-input.bad { border-color:rgba(240,85,107,.6); background:rgba(240,85,107,.06); }
+.dx-dark .pr-listen-btn { background:linear-gradient(135deg,#8b7bf2,#6c5ce7); color:#fff; }
+.dx-dark .pr-ai-tag { background:rgba(255,255,255,.08); color:#9aa3c7; }
+
+/* ── statistics ── */
+.dx-dark .pr-stats { color:#eef1ff; }
+.dx-dark .pr-stats .pr-section,
+.dx-dark .pr-week, .dx-dark .pr-modebars, .dx-dark .pr-totals, .dx-dark .pr-breakdown,
+.dx-dark .pr-needs, .dx-dark .pr-sess-list, .dx-dark .pr-period, .dx-dark .pr-hist {
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); }
+.dx-dark .pr-stats .pr-section-title, .dx-dark .pr-section-head { color:#eef1ff; }
+.dx-dark .pr-section-more, .dx-dark .pr-section-more--btn { color:#b7adfb; }
+
+/* streak banner stays purple; ensure text light */
+.dx-dark .pr-streak-num, .dx-dark .pr-streak-lbl, .dx-dark .pr-streak-meta-num, .dx-dark .pr-streak-meta-lbl { color:#fff; }
+
+/* week chart + totals + avg + modebars + breakdown + needs + sessions */
+.dx-dark .pr-week-num, .dx-dark .pr-week-label { color:#9aa3c7; }
+.dx-dark .pr-total-num, .dx-dark .pr-avg-num, .dx-dark .pr-breakdown-name, .dx-dark .pr-breakdown-count,
+.dx-dark .pr-modebar-name, .dx-dark .pr-modebar-pct, .dx-dark .pr-needs-word,
+.dx-dark .pr-sess-mode-name, .dx-dark .pr-sess-score, .dx-dark .pr-period-val-num { color:#eef1ff; }
+.dx-dark .pr-total-lbl, .dx-dark .pr-total-sub, .dx-dark .pr-avg-lbl, .dx-dark .pr-avg-unit,
+.dx-dark .pr-breakdown-label, .dx-dark .pr-breakdown-pct, .dx-dark .pr-modebar-foot,
+.dx-dark .pr-needs-ctx, .dx-dark .pr-sess-when, .dx-dark .pr-sess-dur, .dx-dark .pr-period-label,
+.dx-dark .pr-period-val-sub, .dx-dark .pr-spark-foot, .dx-dark .pr-breakdown-empty { color:#9aa3c7; }
+.dx-dark .pr-total, .dx-dark .pr-avg { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); }
+.dx-dark .pr-breakdown-track, .dx-dark .pr-modebar-track, .dx-dark .pr-period-track, .dx-dark .pr-spark-line { background:rgba(255,255,255,.08); }
+.dx-dark .pr-needs-row, .dx-dark .pr-sess-row, .dx-dark .pr-period-row, .dx-dark .pr-breakdown-row { border-bottom-color:rgba(255,255,255,.06); }
+.dx-dark .pr-stats-loading { color:#9aa3c7; }
+.dx-dark .pr-sess-mode-icon { background:rgba(255,255,255,.06); }
+
+/* ── statistics layout fixes (spacing / readability) ── */
+.dx-dark .pr-stats .pr-section { padding:20px 22px; margin-bottom:18px; }
+.dx-dark .pr-stats .pr-section-title { margin:0 0 16px; font-size:1rem; }
+.dx-dark .pr-section-head { margin-bottom:16px; }
+
+/* UMUMIY totals cards */
+.dx-dark .pr-totals { display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:12px; }
+.dx-dark .pr-total { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+    padding:18px 12px; min-height:92px; border-radius:14px;
+    background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); text-align:center; }
+.dx-dark .pr-total-num { font-size:1.7rem; font-weight:800; line-height:1; }
+.dx-dark .pr-total-lbl { font-size:.7rem; text-transform:uppercase; letter-spacing:.4px; }
+.dx-dark .pr-total-sub { font-size:.72rem; font-weight:700; color:#7ef0a3; padding:1px 8px; border-radius:7px; background:rgba(54,224,107,.12); }
+
+/* MASHQ QILINGANI YAXSHI (needs-review) rows */
+.dx-dark .pr-needs { display:flex; flex-direction:column; gap:2px; }
+.dx-dark .pr-needs-row { display:flex; align-items:center; gap:14px; padding:12px 14px; border-radius:11px; transition:.15s; border-bottom:none; }
+.dx-dark .pr-needs-row:hover { background:rgba(255,255,255,.04); }
+.dx-dark .pr-needs-word { flex-shrink:0; min-width:150px; max-width:230px; font-weight:700; color:#eef1ff;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.dx-dark .pr-needs-ctx { flex:1; min-width:0; font-size:.85rem; color:#9aa3c7; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* ── statistics: tighter dashboard layout ── */
+.dx-dark .pr-stats { max-width:1060px; margin:0 auto; display:flex; flex-direction:column; gap:18px; }
+.dx-dark .pr-stats > .pr-section, .dx-dark .pr-stats > .pr-streak { margin-bottom:0; }
+.dx-dark .pr-row2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
+.dx-dark .pr-row2 > section { margin-bottom:0; height:100%; }
+/* when only the 7-day chart is present (no mode breakdown), let it span full width */
+.dx-dark .pr-row2:has(> section:only-child) { grid-template-columns:1fr; }
+/* shrink the empty 7-day chart so it isn't a big void */
+.dx-dark .pr-week { height:150px; }
+.dx-dark .pr-week-bar { background:linear-gradient(180deg,#8b7bf2,#6c5ce7); border-radius:6px 6px 0 0; }
+.dx-dark .pr-week-bar--empty { background:rgba(255,255,255,.07); }
+@media (max-width:820px) { .dx-dark .pr-row2 { grid-template-columns:1fr; } }
+
+/* ── remove redundant inner boxes (box-in-box) inside stat sections ── */
+.dx-dark .pr-week, .dx-dark .pr-modebars, .dx-dark .pr-totals,
+.dx-dark .pr-breakdown, .dx-dark .pr-needs, .dx-dark .pr-sess-list,
+.dx-dark .pr-period, .dx-dark .pr-hist {
+    background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important;
+}
+/* keep the individual UMUMIY stat cards as cards */
+.dx-dark .pr-total { background:rgba(255,255,255,.04) !important; border:1px solid rgba(255,255,255,.08) !important; }
+
+/* ── buckets ("Sizning vaziyatingiz") — fix title overlap + cramped legend ── */
+.dx-dark .pr-section-title { margin:0 0 14px; }
+.dx-dark .pr-buckets { gap:14px; margin-top:2px; }
+.dx-dark .pr-buckets-bar { height:12px; background:rgba(255,255,255,.08); }
+.dx-dark .pr-buckets-legend { grid-template-columns:1fr 1fr; gap:9px 14px; }
+.dx-dark .pr-buckets-lg { font-size:.8rem; color:#9aa3c7; }
+.dx-dark .pr-buckets-lg strong { color:#eef1ff; }
+
+/* ── buckets bar: remove stray track square (transparent track) ── */
+.dx-dark .pr-buckets-bar { background:transparent; }
+
+/* ── right-column branding card (fills the empty space) ── */
+.dx-dark .pr-brand-card {
+    display:flex; align-items:center; gap:14px; padding:18px; border-radius:16px; margin-top:auto;
+    background:linear-gradient(120deg, rgba(139,123,242,.14), rgba(34,211,238,.08));
+    border:1px solid rgba(139,123,242,.25);
+}
+.dx-dark .pr-brand-logo { width:48px; height:48px; border-radius:13px; object-fit:cover; flex-shrink:0; background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.3); }
+.dx-dark .pr-brand-title { font-size:1rem; font-weight:800; color:#eef1ff; }
+.dx-dark .pr-brand-sub { font-size:.82rem; color:#9aa3c7; margin-top:3px; line-height:1.4; }
+/* let the right column stretch so the brand card can sit at the bottom */
+.dx-dark .pr-pick-right { min-height:100%; }
+
+.dx-dark .pr-pick-cols { align-items:stretch; }
+
+/* ── .pr-buckets sits INSIDE a .pr-section → kill its inner box (box-in-box) ── */
+.dx-dark .pr-buckets { background:transparent !important; border:none !important; box-shadow:none !important; padding:0 !important; }
+
+/* ── brand card: make it as substantial as the left column's bottom box ── */
+.dx-dark .pr-brand-card { padding:24px; min-height:118px; gap:16px; }
+.dx-dark .pr-brand-logo { width:56px; height:56px; }
+.dx-dark .pr-brand-title { font-size:1.08rem; }
+.dx-dark .pr-brand-sub { font-size:.86rem; }

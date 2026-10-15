@@ -71,7 +71,7 @@ async def rated_team(async_client, db_session):
     ):
         tp = await create_team_project(
             db_session, group_id=group.id, course_id=None, teacher_id=owner_id,
-            team_size=2, deadline_days=14,
+            team_size=2, deadline_days=14, student_ids=[student_a_id, student_b_id],
         )
     await db_session.commit()
 

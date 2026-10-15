@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import './CelebrationOverlay.css';
 import { Trophy } from 'lucide-react';
+import { useTranslation } from '../../../../i18n/useTranslation';
 
 // 40 confetti pieces with randomised colour / position / delay / duration
 const COLORS = ['#7c3aed','#10b981','#f59e0b','#ef4444','#3b82f6','#ec4899','#14b8a6'];
@@ -17,6 +18,8 @@ const PIECES = Array.from({ length: 40 }, (_, i) => ({
 }));
 
 const CelebrationOverlay = ({ score, onDone }) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const [visible, setVisible] = useState(true);
 
     useEffect(() => {
@@ -28,10 +31,10 @@ const CelebrationOverlay = ({ score, onDone }) => {
     }, [onDone]);
 
     const messages = score >= 90
-        ? ['Mukammal!', '🌟 Ajoyib natija!']
+        ? (ru ? ['Превосходно!', '🌟 Отличный результат!'] : ['Mukammal!', '🌟 Ajoyib natija!'])
         : score >= 75
-        ? ['Barakalla!', '🎉 Loyiha qabul qilindi!']
-        : ['Zo\'r!', '✅ Qabul qilindi!'];
+        ? (ru ? ['Молодец!', '🎉 Проект принят!'] : ['Barakalla!', '🎉 Loyiha qabul qilindi!'])
+        : (ru ? ['Здорово!', '✅ Принято!'] : ['Zo\'r!', '✅ Qabul qilindi!']);
 
     return ReactDOM.createPortal(
         <div className={`cel-overlay ${visible ? 'cel-visible' : 'cel-hidden'}`}
@@ -61,7 +64,7 @@ const CelebrationOverlay = ({ score, onDone }) => {
                 <div className="cel-headline">{messages[0]}</div>
                 <div className="cel-sub">{messages[1]}</div>
                 <button className="cel-btn" onClick={() => { setVisible(false); setTimeout(onDone, 400); }}>
-                    Davom etish →
+                    {ru ? 'Продолжить →' : 'Davom etish →'}
                 </button>
             </div>
         </div>,

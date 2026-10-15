@@ -199,7 +199,7 @@ async def get_achievement_statistics(db: AsyncSession, achievement_id: int) -> d
     )
     earned_count = earned_count_res.scalar() or 0
 
-    total_students_res = await db.execute(select(func.count(Student.id)))
+    total_students_res = await db.execute(select(func.count(Student.id)).where(Student.is_demo.is_(False)))
     total_students = total_students_res.scalar() or 0
 
     percentage = round((earned_count / total_students * 100), 2) if total_students > 0 else 0

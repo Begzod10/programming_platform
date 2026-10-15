@@ -37,6 +37,8 @@ FRAGILE_LAPSES = 2          # at or above this lapse count, "fragile"
 LEARNING_MAX_INT = 7        # days — upper bound of "learning" bucket
 SOLID_MAX_INT = 21          # days — upper bound of "solid" bucket
 LEECH_LAPSES = 5            # surface as a leech after this many lapses
+EASE_GOOD_BONUS = 0.05      # added on a clean "good" pass (capped at DEFAULT_EASE)
+LAPSE_FORGIVE_INTERVAL = 21 # days: a good pass at/after this interval forgives one lapse
 
 
 # ─── Core scheduler ──────────────────────────────────────────────────────────
@@ -95,6 +97,12 @@ def schedule_after_review(
 
     if grade == 1:
         ef = max(MIN_EASE, ef - EASE_HARD_PENALTY)
+    elif reps >= 2:
+        # Ease only ever fell, so a word forgotten twice stayed "fragile"
+        # forever. A clean pass on an already-learned word gives it back a bit.
+        ef = min(DEFAULT_EASE, ef + EASE_GOOD_BONUS)
+        if new_interval >= LAPSE_FORGIVE_INTERVAL and lapses > 0:
+            lapses -= 1
 
     reps += 1
     new_interval = _fuzz(new_interval)

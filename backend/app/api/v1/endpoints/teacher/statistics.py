@@ -52,7 +52,7 @@ async def get_teacher_statistics(
     # Students in teacher's groups only
     total_students = await db.scalar(
         select(func.count()).select_from(Student).where(
-            Student.role == UserRole.student,
+            Student.role == UserRole.student, Student.is_demo.is_(False),
             Student.id.in_(student_ids_sq),
         )
     )
@@ -65,7 +65,7 @@ async def get_teacher_statistics(
     # Average points — teacher's students only
     avg_points = await db.scalar(
         select(func.avg(Student.total_points)).where(
-            Student.role == UserRole.student,
+            Student.role == UserRole.student, Student.is_demo.is_(False),
             Student.id.in_(student_ids_sq),
         )
     )
@@ -73,7 +73,7 @@ async def get_teacher_statistics(
     # Advanced students — teacher's students only
     advanced_count = await db.scalar(
         select(func.count()).select_from(Student).where(
-            Student.role == UserRole.student,
+            Student.role == UserRole.student, Student.is_demo.is_(False),
             Student.total_points >= 5000,
             Student.id.in_(student_ids_sq),
         )
@@ -157,14 +157,14 @@ async def get_teacher_statistics(
     # Level breakdown — teacher's students only
     beginner_count = await db.scalar(
         select(func.count()).select_from(Student).where(
-            Student.role == UserRole.student,
+            Student.role == UserRole.student, Student.is_demo.is_(False),
             Student.current_level == StudentLevel.Beginner,
             Student.id.in_(student_ids_sq),
         )
     )
     intermediate_count = await db.scalar(
         select(func.count()).select_from(Student).where(
-            Student.role == UserRole.student,
+            Student.role == UserRole.student, Student.is_demo.is_(False),
             Student.current_level == StudentLevel.Intermediate,
             Student.id.in_(student_ids_sq),
         )
@@ -174,7 +174,7 @@ async def get_teacher_statistics(
     top_students_rows = (await db.execute(
         select(Student.id, Student.full_name, Student.username, Student.total_points, Student.current_level)
         .where(
-            Student.role == UserRole.student,
+            Student.role == UserRole.student, Student.is_demo.is_(False),
             Student.is_active == True,
             Student.id.in_(student_ids_sq),
         )

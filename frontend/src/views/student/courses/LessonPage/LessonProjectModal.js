@@ -1,11 +1,15 @@
 import React, { useState, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { Link } from 'lucide-react';
+import { useTranslation } from '../../../../i18n/useTranslation';
 
 /* ─────────────────────────────────────────────────────────────
    Upload Method Selector
 ───────────────────────────────────────────────────────────── */
-const UploadMethodSelector = ({ method, onChange }) => (
+const UploadMethodSelector = ({ method, onChange }) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
+    return (
     <div className="slp-method-selector">
         <button
             type="button"
@@ -19,12 +23,12 @@ const UploadMethodSelector = ({ method, onChange }) => (
             </span>
             <span className="slp-method-label">
                 <span className="slp-method-title">GitHub</span>
-                <span className="slp-method-sub">Ссылка на репозиторий</span>
+                <span className="slp-method-sub">{ru ? 'Ссылка на репозиторий' : 'Repozitoriyga havola'}</span>
             </span>
             {method === 'github' && <span className="slp-method-check">✓</span>}
         </button>
 
-        <div className="slp-method-divider"><span>или</span></div>
+        <div className="slp-method-divider"><span>{ru ? 'или' : 'yoki'}</span></div>
 
         <button
             type="button"
@@ -39,18 +43,21 @@ const UploadMethodSelector = ({ method, onChange }) => (
                 </svg>
             </span>
             <span className="slp-method-label">
-                <span className="slp-method-title">ZIP-архив</span>
-                <span className="slp-method-sub">Загрузить файл до 15MB</span>
+                <span className="slp-method-title">{ru ? 'ZIP-архив' : 'ZIP-arxiv'}</span>
+                <span className="slp-method-sub">{ru ? 'Загрузить файл до 15MB' : '15MB gacha fayl yuklash'}</span>
             </span>
             {method === 'zip' && <span className="slp-method-check">✓</span>}
         </button>
     </div>
-);
+    );
+};
 
 /* ─────────────────────────────────────────────────────────────
    ZIP Drop Zone
 ───────────────────────────────────────────────────────────── */
 const ZipDropZone = ({selectedFile, onFileSelect, uploading}) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     const fileInputRef = useRef(null);
     const [dragging, setDragging] = useState(false);
 
@@ -90,8 +97,8 @@ const ZipDropZone = ({selectedFile, onFileSelect, uploading}) => {
                             <span className="slp-dropzone-name">{selectedFile.name}</span>
                             <span className={`slp-dropzone-size ${isOverLimit || isEmpty ? 'over' : ''}`}>
                                 {isEmpty
-                                    ? '⚠️ Файл пустой — выберите другой'
-                                    : `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB${isOverLimit ? ' · ⚠️ Превышает 15MB' : ''}`
+                                    ? (ru ? '⚠️ Файл пустой — выберите другой' : '⚠️ Fayl bo\'sh — boshqasini tanlang')
+                                    : `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB${isOverLimit ? (ru ? ' · ⚠️ Превышает 15MB' : ' · ⚠️ 15MB dan oshadi') : ''}`
                                 }
                             </span>
                         </div>
@@ -115,9 +122,11 @@ const ZipDropZone = ({selectedFile, onFileSelect, uploading}) => {
                         {dragging ? '🎯' : '📁'}
                     </div>
                     <span className="slp-dropzone-text">
-                        {dragging ? 'Отпустите файл здесь' : 'Перетащите .zip или нажмите для выбора'}
+                        {dragging
+                            ? (ru ? 'Отпустите файл здесь' : 'Faylni shu yerga qo\'yib yuboring')
+                            : (ru ? 'Перетащите .zip или нажмите для выбора' : '.zip faylni tashlang yoki tanlash uchun bosing')}
                     </span>
-                    <span className="slp-dropzone-hint">Максимум 15 MB · только .zip</span>
+                    <span className="slp-dropzone-hint">{ru ? 'Максимум 15 MB · только .zip' : 'Maksimal 15 MB · faqat .zip'}</span>
                 </div>
             )}
         </div>
@@ -150,6 +159,8 @@ export const LessonProjectModal = ({
     keystrokeCountRef,
     pasteCountRef,
 }) => {
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
     if (!isOpen) return null;
 
     return ReactDOM.createPortal(
@@ -159,8 +170,8 @@ export const LessonProjectModal = ({
                     <div className="slp-modal-header-inner">
                         <div className="slp-modal-header-icon">🚀</div>
                         <div>
-                            <h3>Загрузить проект</h3>
-                            <p className="slp-modal-header-sub">Отправьте ссылку и дождитесь проверки</p>
+                            <h3>{ru ? 'Загрузить проект' : 'Loyihani yuklash'}</h3>
+                            <p className="slp-modal-header-sub">{ru ? 'Отправьте ссылку и дождитесь проверки' : 'Havolani yuboring va tekshiruvni kuting'}</p>
                         </div>
                     </div>
                     <button className="slp-modal-close" onClick={onClose}>✕</button>
@@ -169,11 +180,11 @@ export const LessonProjectModal = ({
                 <div className="slp-modal-body">
                     <div className="slp-modal-task-banner">
                         <span className="slp-modal-task-icon">📌</span>
-                        <span>{projectSection?.label || 'Практическое задание'}</span>
+                        <span>{projectSection?.label || (ru ? 'Практическое задание' : 'Amaliy topshiriq')}</span>
                     </div>
 
                     <div className="slp-modal-field">
-                        <label>Способ загрузки кода <span className="slp-field-required">*</span></label>
+                        <label>{ru ? 'Способ загрузки кода' : 'Kodni yuklash usuli'} <span className="slp-field-required">*</span></label>
                         <UploadMethodSelector method={uploadMethod} onChange={onMethodChange}/>
                     </div>
 
@@ -197,7 +208,7 @@ export const LessonProjectModal = ({
 
                     <div className={`slp-source-panel ${uploadMethod === 'zip' ? 'slp-source-panel-visible' : ''}`}>
                         <div className="slp-modal-field">
-                            <label>ZIP-архив</label>
+                            <label>{ru ? 'ZIP-архив' : 'ZIP-arxiv'}</label>
                             <ZipDropZone
                                 selectedFile={zipFile}
                                 onFileSelect={f => { setZipFile(f); setFormErrors(e => ({...e, zip: ''})); }}
@@ -210,7 +221,7 @@ export const LessonProjectModal = ({
                     <div className="slp-modal-field">
                         <label>
                             Live Demo URL
-                            <span className="slp-label-opt">необязательно</span>
+                            <span className="slp-label-opt">{ru ? 'необязательно' : 'ixtiyoriy'}</span>
                         </label>
                         <div className="slp-input-wrap">
                             <span className="slp-input-prefix">🌐</span>
@@ -224,11 +235,11 @@ export const LessonProjectModal = ({
 
                     <div className="slp-modal-field">
                         <label>
-                            Комментарий
-                            <span className="slp-label-opt">необязательно</span>
+                            {ru ? 'Комментарий' : 'Izoh'}
+                            <span className="slp-label-opt">{ru ? 'необязательно' : 'ixtiyoriy'}</span>
                         </label>
                         <textarea
-                            placeholder="Расскажите что реализовали, какие технологии использовали..."
+                            placeholder={ru ? 'Расскажите что реализовали, какие технологии использовали...' : 'Nimani amalga oshirganingizni, qanday texnologiyalardan foydalanganingizni yozing...'}
                             rows={3}
                             value={projectForm.description}
                             onChange={e => setProjectForm(f => ({...f, description: e.target.value}))}
@@ -251,15 +262,15 @@ export const LessonProjectModal = ({
                 </div>
 
                 <div className="slp-modal-footer">
-                    <button className="slp-modal-cancel" onClick={onClose}>Отмена</button>
+                    <button className="slp-modal-cancel" onClick={onClose}>{ru ? 'Отмена' : 'Bekor qilish'}</button>
                     <button
                         className="slp-modal-submit"
                         onClick={onSubmit}
                         disabled={isSubmitDisabled()}
                     >
                         {projectSaving
-                            ? <><span className="slp-btn-spin"/>{zipUploading ? 'Загрузка ZIP...' : 'Отправка...'}</>
-                            : '🚀 Отправить проект'
+                            ? <><span className="slp-btn-spin"/>{zipUploading ? (ru ? 'Загрузка ZIP...' : 'ZIP yuklanmoqda...') : (ru ? 'Отправка...' : 'Yuborilmoqda...')}</>
+                            : (ru ? '🚀 Отправить проект' : '🚀 Loyihani yuborish')
                         }
                     </button>
                 </div>

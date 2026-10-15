@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import mermaid from 'mermaid';
 import './StudentLessonPage.css';
 import {API_URL, useHttp, headers} from '../../../../api/search/base';
+import {ensureSectionIds} from '../../../../utils/lessonSections';
 import {useTranslation} from '../../../../i18n/useTranslation';
 import DictSelectionPopup from '../LessonPage/Dictselectionpopup';
 import LessonDictionaryDrawer from './LessonDictionaryDrawer';
@@ -12,6 +13,10 @@ import { Lock } from 'lucide-react';
 import { LessonFeedbackWidget } from './LessonFeedback';
 import { LessonProjectModal } from './LessonProjectModal';
 import { LessonContentBlocks } from './LessonContentBlocks';
+import LessonCompanion from './LessonCompanion';
+import LessonVocabPanel from './LessonVocabPanel';
+import DemoBanner from '../../../../components/DemoBanner';
+import { useIsDemo } from '../../../../context/AuthContext';
 
 // One-time Mermaid init at module load. startOnLoad:false because we trigger
 // run() manually after each lesson's text section mounts.
@@ -42,7 +47,17 @@ mermaid.initialize({
 ═══════════════════════════════════════════════════════════ */
 const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onComplete}) => {
     const {request} = useHttp();
-    const {t, lang} = useTranslation();
+    const {t, lang, toggleLang} = useTranslation();
+    const ru = lang === 'ru';
+    // Back-fill stable section ids (bulk-imported lessons had sections sharing
+    // `undefined`, so the TOC jump links, scroll-spy and data-section-id never
+    // matched). Idempotent + mutates in place, so the companion and the content
+    // blocks — which both read lesson.sections — always agree.
+    if (lesson?.sections) ensureSectionIds(lesson.id, lesson.sections);
+    // Demo visitors read the lesson and do its exercises, but cannot submit a
+    // project, ask the AI, or touch the dictionary (the backend refuses those too).
+    const isDemo = useIsDemo();
+    const [demoNotice, setDemoNotice] = useState(false);
 
     // AI review feedback is authored in Uzbek; the backend translates it on
     // read when we say which language the student is reading in.
@@ -154,6 +169,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
 
     // Record when the project modal opens
     const handleProjectModalOpen = () => {
+        if (isDemo) { setDemoNotice(true); return; }
         // Daily AI-review cap reached → don't even open the modal; the
         // submit would be skipped and the project stranded in "pending".
         if (quotaExhausted) return;
@@ -352,7 +368,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             a.remove();
             window.URL.revokeObjectURL(blobUrl);
         } catch {
-            setFileDownloadError('Не удалось скачать файл. Попробуйте ещё раз.');
+            setFileDownloadError(ru ? 'Не удалось скачать файл. Попробуйте ещё раз.' : "Faylni yuklab bo'lmadi. Qayta urinib ko'ring.");
             // Auto-clear so a transient error doesn't stick around forever.
             setTimeout(() => setFileDownloadError(''), 5000);
         } finally {
@@ -402,19 +418,19 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
         if (uploadMethod === 'github') {
             const url = projectForm.github_url.trim();
             if (!url) {
-                e.github_url = 'Введите GitHub ссылку';
+                e.github_url = ru ? 'Введите GitHub ссылку' : 'GitHub havolasini kiriting';
             } else if (!/^https:\/\/github\.com\/[^/]+\/[^/]+/.test(url)) {
-                e.github_url = 'Введите корректную ссылку GitHub: https://github.com/ваш_логин/репозиторий';
+                e.github_url = ru ? 'Введите корректную ссылку GitHub: https://github.com/ваш_логин/репозиторий' : "To'g'ri GitHub havolasini kiriting: https://github.com/sizning_login/repozitoriy";
             } else if (/\/(username|your.?username|user|owner|имя_пользователя|ваш_логин|sizning_username|foydalanuvchi_nomi)\//i.test(url)) {
-                e.github_url = 'Пожалуйста, введите вашу реальную GitHub ссылку, а не пример';
+                e.github_url = ru ? 'Пожалуйста, введите вашу реальную GitHub ссылку, а не пример' : "Iltimos, namunani emas, o'zingizning haqiqiy GitHub havolangizni kiriting";
             }
         } else {
             if (!zipFile) {
-                e.zip = 'Выберите ZIP-файл';
+                e.zip = ru ? 'Выберите ZIP-файл' : 'ZIP-faylni tanlang';
             } else if (zipFile.size === 0) {
-                e.zip = 'ZIP-файл пустой — выберите другой файл';
+                e.zip = ru ? 'ZIP-файл пустой — выберите другой файл' : 'ZIP-fayl bo\'sh — boshqa fayl tanlang';
             } else if (zipFile.size > 15 * 1024 * 1024) {
-                e.zip = 'Файл превышает 15MB';
+                e.zip = ru ? 'Файл превышает 15MB' : 'Fayl 15MB dan oshib ketdi';
             }
         }
         setFormErrors(e);
@@ -462,7 +478,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 setZipUploading(true);
                 try {
                     await uploadZip(created.id, zipFile);
-                    setZipMsg('✅ ZIP загружен успешно');
+                    setZipMsg(ru ? '✅ ZIP загружен успешно' : '✅ ZIP muvaffaqiyatli yuklandi');
                 } catch (err) {
                     // The project row already exists (status stays "Draft" —
                     // create_project() only flips to "Submitted" on the
@@ -474,9 +490,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                     // instead (get_lesson_submission already treats a
                     // Draft-status project as "not submitted").
                     setZipMsg(err.message === 'EMPTY_FILE'
-                        ? '❌ ZIP-файл пустой — загрузка отменена'
-                        : '⚠️ Проект создан, но ZIP не загрузился');
-                    setProjectError('ZIP fayl yuklanmadi. Qayta urinib ko\'ring.');
+                        ? (ru ? '❌ ZIP-файл пустой — загрузка отменена' : "❌ ZIP-fayl bo'sh — yuklash bekor qilindi")
+                        : (ru ? '⚠️ Проект создан, но ZIP не загрузился' : '⚠️ Loyiha yaratildi, lekin ZIP yuklanmadi'));
+                    setProjectError(ru ? 'ZIP-файл не загрузился. Попробуйте ещё раз.' : "ZIP fayl yuklanmadi. Qayta urinib ko'ring.");
                     return;
                 } finally {
                     setZipUploading(false);
@@ -534,8 +550,8 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             // server's "wait N minutes" text instead of the generic error.
             const data = err?.response?.data;
             setProjectError(err?.status === 429
-                ? (data?.error?.message || data?.detail || 'Keyingi loyihani 10 daqiqadan keyin topshiring.')
-                : 'Ошибка при отправке. Проверьте данные и попробуйте ещё раз.');
+                ? (data?.error?.message || data?.detail || (ru ? 'Следующий проект можно отправить через 10 минут.' : 'Keyingi loyihani 10 daqiqadan keyin topshiring.'))
+                : (ru ? 'Ошибка при отправке. Проверьте данные и попробуйте ещё раз.' : "Yuborishda xatolik. Ma'lumotlarni tekshirib, qayta urinib ko'ring."));
         } finally {
             setProjectSaving(false);
         }
@@ -568,12 +584,13 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
     };
 
     return (
+        <div className="slp-page">
         <div className="slp-container">
 
             {/* ──────────── TOP BAR ──────────── */}
             <div className="slp-top-bar">
                 <div className="slp-breadcrumb">
-                    <button className="slp-bc-btn" onClick={() => onBack('courses')}>🏠 Курсы</button>
+                    <button className="slp-bc-btn" onClick={() => onBack('courses')}>{ru ? '🏠 Курсы' : '🏠 Kurslar'}</button>
                     <span className="slp-bc-sep">›</span>
                     <button className="slp-bc-btn" onClick={() => onBack('course')}>{course.title}</button>
                     <span className="slp-bc-sep">›</span>
@@ -582,23 +599,40 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 <div className="slp-top-actions">
                     <div className="slp-nav-btns">
                         <button className="slp-nav-btn" onClick={() => prevLesson && onNavigate(prevLesson)} disabled={!prevLesson}>
-                            ← Пред.
+                            {ru ? '← Пред.' : '← Oldingi'}
                         </button>
                         <button className="slp-nav-btn"
                                 onClick={() => !nextBlocked && nextLesson && onNavigate(nextLesson)}
                                 disabled={!nextLesson || nextBlocked}
                                 title={
                                     !nextBlocked ? ''
-                                    : projectPending ? 'Ожидание проверки проекта'
-                                    : projectFailed ? `Нужно ${passThreshold}/100 (сейчас ${projectScore})`
-                                    : 'Сначала сдайте проект'
+                                    : projectPending ? (ru ? 'Ожидание проверки проекта' : 'Loyiha tekshiruvi kutilmoqda')
+                                    : projectFailed ? (ru ? `Нужно ${passThreshold}/100 (сейчас ${projectScore})` : `${passThreshold}/100 kerak (hozir ${projectScore})`)
+                                    : (ru ? 'Сначала сдайте проект' : 'Avval loyihani topshiring')
                                 }>
-                            След. →
+                            {ru ? 'След. →' : 'Keyingi →'}
                         </button>
                     </div>
-                    <button className="slp-exit-btn" onClick={() => setExitModal(true)}>✕ Выйти</button>
+                    <div className="slp-lang" role="group" aria-label="Til / Язык">
+                        <button type="button" className={`slp-lang-btn ${!ru ? 'is-active' : ''}`} onClick={() => { if (ru) toggleLang(); }}>UZ</button>
+                        <button type="button" className={`slp-lang-btn ${ru ? 'is-active' : ''}`} onClick={() => { if (!ru) toggleLang(); }}>RU</button>
+                    </div>
+                    <button className="slp-exit-btn" onClick={() => setExitModal(true)}>{ru ? '✕ Выйти' : '✕ Chiqish'}</button>
                 </div>
             </div>
+
+            {/* ──────────── SIDE RAILS: vocab (left) + reading navigator (right) ──────────── */}
+            {isDemo && <DemoBanner />}
+            {!isDemo && <LessonVocabPanel lessonId={lesson.id} ru={ru} />}
+            {!isDemo && (
+                <LessonCompanion
+                    lesson={lesson}
+                    currentIndex={currentIndex}
+                    allLessons={allLessons}
+                    isDone={isDone}
+                    ru={ru}
+                />
+            )}
 
             {/* ──────────── LESSON HEADER ──────────── */}
             <div className="slp-lesson-hero">
@@ -606,9 +640,9 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                     {lesson.chapter && <span className="slp-chapter-badge">{lesson.chapter}</span>}
                     <h1>{lesson.title}</h1>
                     <div className="slp-hero-meta">
-                        <span className="slp-lesson-progress-text">Урок {currentIndex + 1} из {allLessons.length}</span>
-                        {totalSections > 0 && <span className="slp-sections-count">· {totalSections} раздела</span>}
-                        {isDone && <span className="slp-hero-done-badge">✓ Пройден</span>}
+                        <span className="slp-lesson-progress-text">{ru ? `Урок ${currentIndex + 1} из ${allLessons.length}` : `${currentIndex + 1}-dars / ${allLessons.length}`}</span>
+                        {totalSections > 0 && <span className="slp-sections-count">· {totalSections} {ru ? 'раздела' : "bo'lim"}</span>}
+                        {isDone && <span className="slp-hero-done-badge">{ru ? '✓ Пройден' : "✓ O'tilgan"}</span>}
                     </div>
                     <div className="slp-lesson-progress-bar-wrap">
                         <div className="slp-lesson-progress-bar"
@@ -622,7 +656,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                             onClick={handleComplete}
                             disabled={completing}
                         >
-                            {completing ? 'Сохранение…' : 'Отметить как пройденный'}
+                            {completing ? (ru ? 'Сохранение…' : 'Saqlanmoqda…') : (ru ? 'Отметить как пройденный' : "O'tilgan deb belgilash")}
                         </button>
                     </div>
                 )}
@@ -661,24 +695,24 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             />
 
             {/* ──────────── LESSON FEEDBACK ──────────── */}
-            {lesson?.id && <LessonFeedbackWidget lessonId={lesson.id}/>}
+            {lesson?.id && !isDemo && <LessonFeedbackWidget lessonId={lesson.id}/>}
 
             {/* ──────────── BOTTOM NAV ──────────── */}
             <div className="slp-bottom-nav">
                 <button className="slp-bottom-btn prev" onClick={() => prevLesson && onNavigate(prevLesson)} disabled={!prevLesson}>
-                    ← Предыдущий урок
+                    {ru ? '← Предыдущий урок' : '← Oldingi dars'}
                 </button>
                 {nextBlocked ? (
                     <div className="slp-next-locked">
                         {projectPending
-                            ? <><Lock size={14} aria-hidden="true" /> Ожидание проверки проекта</>
+                            ? <><Lock size={14} aria-hidden="true" /> {ru ? 'Ожидание проверки проекта' : 'Loyiha tekshiruvi kutilmoqda'}</>
                             : projectFailed
-                                ? <><Lock size={14} aria-hidden="true" /> Нужно набрать {passThreshold}/100 — текущий {projectScore}</>
-                                : <><Lock size={14} aria-hidden="true" /> Сначала сдайте проект</>}
+                                ? <><Lock size={14} aria-hidden="true" /> {ru ? `Нужно набрать ${passThreshold}/100 — текущий ${projectScore}` : `${passThreshold}/100 to'plash kerak — hozir ${projectScore}`}</>
+                                : <><Lock size={14} aria-hidden="true" /> {ru ? 'Сначала сдайте проект' : 'Avval loyihani topshiring'}</>}
                     </div>
                 ) : isDone && nextLesson ? (
                     <button className="slp-bottom-btn next primary" onClick={() => onNavigate(nextLesson)}>
-                        Следующий урок →
+                        {ru ? 'Следующий урок →' : 'Keyingi dars →'}
                     </button>
                 ) : !isDone && !projectSection ? (
                     <button
@@ -686,10 +720,10 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                         onClick={handleComplete}
                         disabled={completing}
                     >
-                        {completing ? '⏳ Сохранение…' : '✓ Отметить и продолжить'}
+                        {completing ? (ru ? '⏳ Сохранение…' : '⏳ Saqlanmoqda…') : (ru ? '✓ Отметить и продолжить' : '✓ Belgilash va davom etish')}
                     </button>
                 ) : isDone && !nextLesson ? (
-                    <button className="slp-bottom-btn done-label" disabled>🎉 Курс завершён!</button>
+                    <button className="slp-bottom-btn done-label" disabled>{ru ? '🎉 Курс завершён!' : '🎉 Kurs tugadi!'}</button>
                 ) : null}
             </div>
 
@@ -698,17 +732,17 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 <div className="slp-overlay" onClick={() => setExitModal(false)}>
                     <div className="slp-exit-modal" onClick={e => e.stopPropagation()}>
                         <div className="slp-exit-icon">📖</div>
-                        <h4>Выйти из урока?</h4>
-                        <p>Куда вы хотите перейти?</p>
+                        <h4>{ru ? 'Выйти из урока?' : 'Darsdan chiqasizmi?'}</h4>
+                        <p>{ru ? 'Куда вы хотите перейти?' : 'Qayerga oʻtmoqchisiz?'}</p>
                         <div className="slp-exit-actions">
                             <button className="slp-exit-opt course" onClick={() => { setExitModal(false); onBack('course'); }}>
-                                📚 К курсу «{course.title}»
+                                {ru ? `📚 К курсу «${course.title}»` : `📚 «${course.title}» kursiga`}
                             </button>
                             <button className="slp-exit-opt courses" onClick={() => { setExitModal(false); onBack('courses'); }}>
-                                🏠 Ко всем курсам
+                                {ru ? '🏠 Ко всем курсам' : '🏠 Barcha kurslarga'}
                             </button>
                             <button className="slp-exit-cancel" onClick={() => setExitModal(false)}>
-                                Остаться в уроке
+                                {ru ? 'Остаться в уроке' : 'Darsda qolish'}
                             </button>
                         </div>
                     </div>
@@ -746,27 +780,31 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 <div className="slp-modal-overlay" onClick={() => setExplanationModal(false)}>
                     <div className="slp-modal-box" onClick={e => e.stopPropagation()} style={{maxWidth: 520}}>
                         <div className="slp-modal-header">
-                            <h3>Kodni tushuntiring</h3>
+                            <h3>{ru ? 'Объясните код' : 'Kodni tushuntiring'}</h3>
                             <button className="slp-modal-close" onClick={() => setExplanationModal(false)}>✕</button>
                         </div>
                         <div className="slp-modal-body">
                             <p style={{marginBottom: 12, color: '#555', fontSize: 14}}>
-                                Loyihangizni muvaffaqiyatli topshirdingiz! O'qituvchiga kodni yaxshiroq tushunishi uchun — nima qilganingizni va qanday ishlashini qisqacha tushuntiring.
+                                {ru
+                                    ? 'Вы успешно сдали проект! Чтобы преподаватель лучше понял ваш код — коротко объясните, что вы сделали и как это работает.'
+                                    : "Loyihangizni muvaffaqiyatli topshirdingiz! O'qituvchiga kodni yaxshiroq tushunishi uchun — nima qilganingizni va qanday ishlashini qisqacha tushuntiring."}
                             </p>
                             <label style={{fontWeight: 600, fontSize: 13, display: 'block', marginBottom: 6}}>
-                                Kodingizni o'z so'zlaringiz bilan tushuntiring:
+                                {ru ? 'Объясните свой код своими словами:' : "Kodingizni o'z so'zlaringiz bilan tushuntiring:"}
                             </label>
                             <textarea
                                 rows={6}
                                 style={{width:'100%', padding:'10px', borderRadius: 8, border:'1px solid #ddd', fontSize: 14, resize: 'vertical'}}
-                                placeholder="Masalan: Men counter.js faylida click hodisasini ushlash uchun addEventListener ishlatdim. Har safar tugma bosilganda count o'zgaruvchisi 1 ga ortadi va innerHTML orqali ekranga chiqaradi..."
+                                placeholder={ru
+                                    ? 'Например: В файле counter.js я использовал addEventListener, чтобы поймать событие click. Каждый раз при нажатии кнопки переменная count увеличивается на 1 и выводится на экран через innerHTML...'
+                                    : "Masalan: Men counter.js faylida click hodisasini ushlash uchun addEventListener ishlatdim. Har safar tugma bosilganda count o'zgaruvchisi 1 ga ortadi va innerHTML orqali ekranga chiqaradi..."}
                                 value={explanationText}
                                 onChange={e => setExplanationText(e.target.value)}
                             />
                         </div>
                         <div className="slp-modal-footer">
                             <button className="slp-modal-cancel" onClick={() => setExplanationModal(false)}>
-                                O'tkazib yuborish
+                                {ru ? 'Пропустить' : "O'tkazib yuborish"}
                             </button>
                             <button
                                 className="slp-modal-submit"
@@ -786,7 +824,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                                     setExplanationModal(false);
                                 }}
                             >
-                                {explanationSaving ? 'Saqlanmoqda...' : 'Yuborish'}
+                                {explanationSaving ? (ru ? 'Сохранение...' : 'Saqlanmoqda...') : (ru ? 'Отправить' : 'Yuborish')}
                             </button>
                         </div>
                     </div>
@@ -794,8 +832,29 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                 document.body
             )}
 
-            <DictSelectionPopup lessonId={lesson.id}/>
-            <LessonDictionaryDrawer lessonId={lesson.id}/>
+            {!isDemo && <DictSelectionPopup lessonId={lesson.id}/>}
+            {!isDemo && <LessonDictionaryDrawer lessonId={lesson.id}/>}
+
+            {demoNotice && (
+                <div role="dialog" aria-modal="true" onClick={() => setDemoNotice(false)} style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 2000,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+                }}>
+                    <div onClick={(e) => e.stopPropagation()} style={{
+                        background: '#fff', color: '#1b1b2f', borderRadius: 16, padding: '24px 22px',
+                        maxWidth: 420, width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,.3)',
+                    }}>
+                        <div style={{ fontSize: 38 }}>🔒</div>
+                        <h3 style={{ margin: '8px 0' }}>{ru ? 'Недоступно в демо-режиме' : "Demo rejimida yopiq"}</h3>
+                        <p style={{ margin: '0 0 16px', lineHeight: 1.5 }}>
+                            {ru
+                                ? 'Отправка проектов доступна только ученикам курса. Чтобы начать учиться, обратитесь к администратору.'
+                                : "Loyiha topshirish faqat kursga yozilgan o'quvchilar uchun. O'qishni boshlash uchun administratorga murojaat qiling."}
+                        </p>
+                        <button className="slp-exit-btn" onClick={() => setDemoNotice(false)}>{ru ? 'Понятно' : 'Tushunarli'}</button>
+                    </div>
+                </div>
+            )}
 
             {showCelebration && (
                 <CelebrationOverlay
@@ -803,6 +862,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
                     onDone={() => setShowCelebration(false)}
                 />
             )}
+        </div>
         </div>
     );
 };

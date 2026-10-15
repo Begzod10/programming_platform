@@ -18,11 +18,21 @@ def _task(member_idx, required_level="Beginner", produces=None, consumes=None,
           depends_on=None, estimated_hours=4):
     return {
         "assign_to_member_index": member_idx,
-        "title": "t", "title_ru": "t",
-        "description": "d", "description_ru": "d",
+        "title": "t", "title_ru": "т",
+        # Long/detailed enough to clear validate_plan's content-quality
+        # floor (MIN_DESCRIPTION_LEN/MIN_ACCEPTANCE_CRITERIA/bilingual
+        # checks) — these tests exercise the structural checks, so the
+        # content fields just need to be "valid enough" to not also trip
+        # the content checks and muddy an assertion that's testing
+        # something else entirely.
+        "description": "This is a sufficiently detailed task description for tests.",
+        "description_ru": "Это достаточно подробное описание задачи для тестов.",
         "required_level": required_level,
-        "interface_contract": {"produces": produces or [], "consumes": consumes or []},
-        "acceptance_criteria": ["ok"],
+        "interface_contract": {
+            "files": ["src/Task.jsx"], "produces": produces or [], "consumes": consumes or [],
+        },
+        "acceptance_criteria": ["First concrete criterion", "Second concrete criterion"],
+        "acceptance_criteria_ru": ["Первый конкретный критерий", "Второй конкретный критерий"],
         "depends_on": depends_on or [],
         "estimated_hours": estimated_hours,
     }
@@ -133,6 +143,78 @@ def test_depends_on_cycle_is_rejected():
     assert any("depends_on has a cycle" in e for e in errors)
 
 
+def test_short_description_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["description"] = "too short"
+    errors = validate_plan(plan, members)
+    assert any("description too short" in e for e in errors)
+
+
+def test_missing_title_ru_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["title_ru"] = ""
+    errors = validate_plan(plan, members)
+    assert any("title_ru is missing/empty" in e for e in errors)
+
+
+def test_title_ru_identical_to_title_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["title_ru"] = plan["tasks"][0]["title"]
+    errors = validate_plan(plan, members)
+    assert any("title_ru is identical to title" in e for e in errors)
+
+
+def test_short_description_ru_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["description_ru"] = "too short"
+    errors = validate_plan(plan, members)
+    assert any("description_ru too short or missing" in e for e in errors)
+
+
+def test_description_ru_identical_to_description_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["description_ru"] = plan["tasks"][0]["description"]
+    errors = validate_plan(plan, members)
+    assert any("description_ru is identical to description" in e for e in errors)
+
+
+def test_empty_acceptance_criteria_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["acceptance_criteria"] = []
+    errors = validate_plan(plan, members)
+    assert any("acceptance_criteria must have at least" in e for e in errors)
+
+
+def test_single_acceptance_criterion_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["acceptance_criteria"] = ["only one"]
+    errors = validate_plan(plan, members)
+    assert any("acceptance_criteria must have at least" in e for e in errors)
+
+
+def test_blank_acceptance_criteria_entries_dont_count():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["acceptance_criteria"] = ["real one", "   ", ""]
+    errors = validate_plan(plan, members)
+    assert any("acceptance_criteria must have at least" in e for e in errors)
+
+
+def test_empty_interface_contract_files_is_rejected():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["interface_contract"]["files"] = []
+    errors = validate_plan(plan, members)
+    assert any("interface_contract.files must name at least one real file" in e for e in errors)
+
+
 def test_find_cycle_returns_none_for_acyclic_graph():
     assert _find_cycle({0: [1], 1: [2], 2: []}) is None
 
@@ -142,3 +224,233 @@ def test_find_cycle_detects_three_node_cycle():
     assert cycle is not None
     # the cycle should revisit its own start
     assert cycle[0] == cycle[-1]
+
+
+def test_missing_acceptance_criteria_ru_is_rejected():
+    plan = {"tasks": [_task(0)]}
+    del plan["tasks"][0]["acceptance_criteria_ru"]
+    errors = validate_plan(plan, _members("Beginner"))
+    assert any("acceptance_criteria_ru must be a list" in e for e in errors)
+
+
+def test_acceptance_criteria_ru_length_mismatch_is_rejected():
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["acceptance_criteria_ru"] = ["Только один пункт"]
+    errors = validate_plan(plan, _members("Beginner"))
+    assert any("exactly as many entries" in e for e in errors)
+
+
+def test_acceptance_criteria_ru_copied_from_uz_is_rejected():
+    plan = {"tasks": [_task(0)]}
+    plan["tasks"][0]["acceptance_criteria_ru"] = list(plan["tasks"][0]["acceptance_criteria"])
+    errors = validate_plan(plan, _members("Beginner"))
+    assert any("identical to the uz text" in e for e in errors)
+
+
+# ── deterministic repair of common AI slips (so a good plan isn't thrown away) ──
+
+from app.services.team_project_planner import _normalize_plan, _repair_task_fields  # noqa: E402
+
+
+def test_template_level_is_repaired_to_the_lowest_listed_valid_level():
+    task = _task(0)
+    task["required_level"] = "Advanced|Intermediate"
+    _repair_task_fields([task])
+    assert task["required_level"] == "Intermediate"
+
+
+def test_unrepairable_level_is_left_for_validation_to_reject():
+    task = _task(0)
+    task["required_level"] = "Expert"
+    _repair_task_fields([task])
+    assert task["required_level"] == "Expert"
+
+
+def test_invented_consumes_are_dropped_and_real_ones_kept_even_with_different_case():
+    a = _task(0, produces=["POST /api/login -> {token}"])
+    b = _task(1, consumes=["post /api/login  -> {token}", "user_id", "post_id"])
+    _repair_task_fields([a, b])
+    assert b["interface_contract"]["consumes"] == ["POST /api/login -> {token}"]
+
+
+def test_ai_plan_with_invented_consumes_and_template_level_now_validates():
+    members = _members("Beginner", "Intermediate", "Intermediate")
+    t0 = _task(0, "Beginner", produces=["feed list"])
+    t1 = _task(1, "Intermediate", consumes=["feed list", "user_id"])
+    t2 = _task(2, "Intermediate", consumes=["comment_text", "post_id"])
+    t2["required_level"] = "Advanced|Intermediate"
+    plan = _normalize_plan({"project_title": "X", "tasks": [t0, t1, t2]}, 3)
+    assert validate_plan(plan, members) == []
+
+
+# ── Django/Python backend work must go to someone who has Python experience ──
+
+from app.services.team_project_planner import _build_plan_prompt, mentions_python  # noqa: E402
+
+
+def _py_members(*has_python):
+    return [{"student_id": i, "full_name": f"S{i}", "level": "Advanced", "summary": "",
+             "has_python": hp} for i, hp in enumerate(has_python)]
+
+
+def _django_task(member_idx):
+    t = _task(member_idx, "Advanced")
+    t["title"] = "Backend API"
+    t["description"] = "Django backendda foydalanuvchilar uchun REST endpoint yarating va tekshiring."
+    t["interface_contract"]["files"] = ["backend/users/views.py"]
+    return t
+
+
+def test_django_task_for_a_member_without_python_is_rejected_when_a_teammate_has_it():
+    members = _py_members(False, True)
+    plan = {"tasks": [_django_task(0), _task(1, "Advanced")]}      # member 0 has no Python
+    errors = validate_plan(plan, members)
+    assert any("no Python/Django experience" in e for e in errors)
+
+
+def test_django_task_for_a_member_with_python_is_fine():
+    members = _py_members(False, True)
+    plan = {"tasks": [_task(0, "Advanced"), _django_task(1)]}
+    assert not any("Python/Django" in e for e in validate_plan(plan, members))
+
+
+def test_backend_task_is_allowed_when_nobody_on_the_team_has_python():
+    members = _py_members(False, False)
+    plan = {"tasks": [_django_task(0), _task(1, "Advanced")]}
+    assert not any("Python/Django" in e for e in validate_plan(plan, members))
+
+
+def test_members_without_the_hint_such_as_manual_plans_are_not_checked():
+    members = _members("Advanced", "Advanced")
+    plan = {"tasks": [_django_task(0), _task(1, "Advanced")]}
+    assert not any("Python/Django" in e for e in validate_plan(plan, members))
+
+
+def test_mentions_python_and_the_prompt_shows_each_members_experience():
+    assert mentions_python("Completed Python Asoslari (5/5 lessons). Technologies: html.")
+    assert mentions_python("Django Asoslari")
+    assert not mentions_python("Completed Javascript (15/15 lessons). Technologies: css, html.")
+    prompt = _build_plan_prompt("Booking", {"frontend": "Next.js", "backend": "Django"}, _py_members(False, True))
+    assert "Python/Django tajribasi: YOQ" in prompt and "Python/Django tajribasi: bor" in prompt
+
+
+# ── AI plans: the task level must match the member's level (not lower) ──
+
+def test_ai_plan_rejects_a_task_below_the_members_level():
+    members = _members("Advanced", "Intermediate")
+    plan = {"tasks": [_task(0, "Intermediate"), _task(1, "Intermediate")]}   # Advanced member got Intermediate
+    errors = validate_plan(plan, members, require_level_match=True)
+    assert any("below member 0's level Advanced" in e for e in errors)
+
+
+def test_ai_plan_accepts_levels_equal_to_the_members():
+    members = _members("Advanced", "Intermediate")
+    plan = {"tasks": [_task(0, "Advanced"), _task(1, "Intermediate")]}
+    assert validate_plan(plan, members, require_level_match=True) == []
+
+
+def test_lower_level_tasks_are_still_allowed_for_manual_plans():
+    members = _members("Advanced", "Intermediate")
+    plan = {"tasks": [_task(0, "Intermediate"), _task(1, "Beginner")]}
+    assert validate_plan(plan, members) == []           # default: only "not above" is enforced
+
+
+def test_a_task_above_the_members_level_is_rejected_either_way():
+    members = _members("Beginner")
+    plan = {"tasks": [_task(0, "Advanced")]}
+    assert validate_plan(plan, members)
+    assert validate_plan(plan, members, require_level_match=True)
+
+
+# ── tasks must not lean on frameworks the assignee never studied ──
+
+def _skilled(*summaries):
+    return [{"student_id": i, "full_name": f"S{i}", "level": "Advanced", "summary": s}
+            for i, s in enumerate(summaries)]
+
+
+def _task_about(member_idx, text):
+    t = _task(member_idx, "Advanced")
+    t["title"] = text
+    t["description"] = text
+    return t
+
+
+JS_ONLY = "Completed Javascript (15/15 lessons). Current technologies: javascript, dom, fetch."
+REDUX = "Completed React: Redux Toolkit, TypeScript va Testlash. Current technologies: react, redux."
+
+
+def test_extra_library_for_a_member_who_never_studied_it_is_rejected():
+    members = _skilled(JS_ONLY, REDUX)
+    plan = {"tasks": [_task_about(0, "Redux bilan savat holatini boshqaring"), _task(1, "Advanced")]}
+    errors = validate_plan(plan, members)
+    assert any("uses Redux" in e and "S0" in e for e in errors)
+
+
+def test_extra_library_for_a_member_who_studied_it_is_fine():
+    members = _skilled(JS_ONLY, REDUX)
+    plan = {"tasks": [_task(0, "Advanced"), _task_about(1, "Redux bilan savat holatini boshqaring")]}
+    assert not any("uses " in e for e in validate_plan(plan, members))
+
+
+def test_extra_library_is_rejected_even_if_nobody_has_it():
+    members = _skilled(JS_ONLY, JS_ONLY)
+    plan = {"tasks": [_task_about(0, "Pinia store yarating"), _task(1, "Advanced")]}
+    assert any("uses Pinia/Vuex" in e for e in validate_plan(plan, members))
+
+
+def test_stack_framework_goes_to_a_member_who_has_it_when_a_teammate_does():
+    members = _skilled(JS_ONLY, REDUX)
+    plan = {"tasks": [_task_about(0, "React komponentlarini yozing"), _task(1, "Advanced")]}
+    assert any("uses React" in e and "give it to a member who has" in e for e in validate_plan(plan, members))
+
+
+def test_stack_framework_is_allowed_when_nobody_has_it():
+    members = _skilled(JS_ONLY, JS_ONLY)
+    plan = {"tasks": [_task_about(0, "React komponentlarini yozing"), _task(1, "Advanced")]}
+    assert not any("uses React" in e for e in validate_plan(plan, members))
+
+
+def test_plain_javascript_tasks_and_manual_plans_are_not_flagged():
+    plan = {"tasks": [_task_about(0, "Vanilla JS bilan modal oyna"), _task(1, "Advanced")]}
+    assert not any("uses " in e for e in validate_plan(plan, _skilled(JS_ONLY, JS_ONLY)))
+    manual = {"tasks": [_task_about(0, "Redux store"), _task(1, "Advanced")]}
+    assert not any("uses " in e for e in validate_plan(
+        manual, [{"student_id": 0, "level": "Advanced"}, {"student_id": 1, "level": "Advanced"}]))
+
+
+# ── per-technology levels (planning redesign, stage 2) ──────────────────────
+
+def _skilled_members():
+    """Amirshox_web: 'Advanced' by points, but a Beginner in JavaScript/React."""
+    return [
+        {"student_id": 0, "full_name": "S0", "level": "Advanced", "summary": "",
+         "area_levels": {"javascript": "Beginner", "react": "Beginner", "html_css": "Advanced"}},
+        {"student_id": 1, "full_name": "S1", "level": "Advanced", "summary": "",
+         "area_levels": {"javascript": "Advanced", "flask": "Advanced"}},
+    ]
+
+
+def _area_task(member_idx, level, area):
+    t = _task(member_idx, level)
+    t["interface_contract"]["skill_area"] = area
+    return t
+
+
+def test_required_level_follows_the_owners_level_in_the_tasks_skill_area():
+    plan = {"project_title": "p", "project_description": "d",
+            "tasks": [_area_task(0, "Beginner", "javascript"), _area_task(1, "Advanced", "javascript")]}
+    assert validate_plan(plan, _skilled_members(), require_level_match=True) == []
+
+
+def test_a_points_advanced_student_cannot_get_an_advanced_task_in_an_area_they_lack():
+    plan = {"project_title": "p", "project_description": "d",
+            "tasks": [_area_task(0, "Advanced", "javascript"), _area_task(1, "Advanced", "javascript")]}
+    errors = validate_plan(plan, _skilled_members(), require_level_match=True)
+    assert any("Task 0" in e and "exceeds" in e for e in errors)
+
+
+def test_without_area_levels_or_skill_area_the_old_points_level_is_used():
+    members = _members("Advanced", "Advanced")
+    plan = {"project_title": "p", "project_description": "d", "tasks": [_task(0, "Advanced"), _task(1, "Advanced")]}
+    assert validate_plan(plan, members, require_level_match=True) == []

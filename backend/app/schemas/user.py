@@ -77,9 +77,10 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
+    phone: Optional[str] = None
 
 
-    @field_validator("username", "full_name", "bio")
+    @field_validator("username", "full_name", "bio", "phone")
     @classmethod
     def strip_strings(cls, v: Optional[str]) -> Optional[str]:
         return v.strip() if v else v
@@ -101,6 +102,11 @@ class UserUpdate(BaseModel):
                 "to'g'ridan-to'g'ri emas, /student/avatar endpoint orqali yuklang."
             )
         return v
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=6, max_length=72)
 
 
 class UserRead(BaseModel):
@@ -134,6 +140,11 @@ class UserRead(BaseModel):
     @classmethod
     def empty_avatar_to_none(cls, v):
         return v if v else None
+
+    # True for a demo visitor — the client limits its UI to the demo course.
+    is_demo: bool = False
+    # True when name and photo come from gennis-v2 / turon-v2 and are read-only here.
+    identity_managed: bool = False
 
     # Role: Agar bazada kutilmagan rol yoki bo'sh (NULL) bo'lsa xato bermasligi uchun
     role: UserRole
@@ -247,3 +258,19 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserRead
+
+class DemoStart(BaseModel):
+    """A demo visitor types just a first and last name."""
+    first_name: str
+    last_name: str
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def clean_name(cls, v: str) -> str:
+        v = " ".join((v or "").split())
+        if not (2 <= len(v) <= 40):
+            raise ValueError("Ism va familiya 2–40 ta belgi bo'lishi kerak")
+        # letters (any alphabet), apostrophes, hyphen, spaces — no digits/links/markup
+        if not all(c.isalpha() or c in " -'’ʻʼ`" for c in v):
+            raise ValueError("Ism va familiyada faqat harflar bo'lishi mumkin")
+        return v

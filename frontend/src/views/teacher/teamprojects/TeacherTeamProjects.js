@@ -3,14 +3,39 @@ import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { isStuckWithNoManualPlan } from './isStuckWithNoManualPlan';
+import { archivable, projectsForTab, bulkArchiveLabel, bulkArchiveConfirm } from './archive';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { pickLang } from '../../../utils/pickLang';
 import './TeacherTeamProjects.css';
+
+// Deterministic pastel-on-dark avatar color, picked from the name so the
+// same student always gets the same color across renders/reloads rather
+// than a random one that would flicker on every re-render.
+const AVATAR_PALETTE = [
+    ['#ede9fe', '#6d28d9'], ['#fef3c7', '#b45309'], ['#dbeafe', '#1d4ed8'],
+    ['#dcfce7', '#15803d'], ['#fce7f3', '#be185d'], ['#e0f2fe', '#0369a1'],
+];
+const avatarColors = (name) => {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+    return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+};
+const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
 const CreateModal = ({ onClose, onCreated }) => {
     const { request } = useHttp();
     const [groups, setGroups] = useState([]);
+    // groupId is a FILTER/quick-select convenience only — picking one just
+    // bulk-checks its students, it is NOT required to submit and does not
+    // have to match who ends up selected. The actual group_id sent to the
+    // backend (still a required FK there — see create_team_project) is
+    // derived from the selection itself at submit time (whichever group
+    // most of the picked students belong to), never from this dropdown.
     const [groupId, setGroupId] = useState('');
     const [teamSize, setTeamSize] = useState(4);
     const [deadlineDays, setDeadlineDays] = useState(14);
+    const [selected, setSelected] = useState({});
+    const [search, setSearch] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState(null);
 
@@ -20,15 +45,70 @@ const CreateModal = ({ onClose, onCreated }) => {
             .catch(() => {});
     }, [request]);
 
+    // Quick-select: bulk-check a group's students. Leaves any other
+    // group's checkboxes (from a previous pick) exactly as they were.
+    const chooseGroup = (id) => {
+        setGroupId(id);
+        const group = groups.find(g => String(g.id) === String(id));
+        if (!group) return;
+        setSelected(prev => {
+            const next = { ...prev };
+            for (const s of group.students || []) next[s.id] = true;
+            return next;
+        });
+    };
+
+    const toggleStudent = (studentId) => {
+        setSelected(prev => ({ ...prev, [studentId]: !prev[studentId] }));
+    };
+
+    const setGroupAll = (group, value) => {
+        setSelected(prev => {
+            const next = { ...prev };
+            for (const s of group.students || []) next[s.id] = value;
+            return next;
+        });
+    };
+
+    const selectedIds = Object.keys(selected).filter(id => selected[id]).map(Number);
+    const selectedCount = selectedIds.length;
+    const query = search.trim().toLowerCase();
+    const matches = (s) => !query || (s.full_name || s.username || '').toLowerCase().includes(query);
+
+    // The backend still needs ONE group_id (its FK, and the "one active
+    // assignment per group" collision check) — but the teacher is picking
+    // people, not a group, so derive it instead of asking for it: whichever
+    // of the teacher's groups has the most students in common with the
+    // current selection wins. Ties go to whichever group comes first in
+    // `groups` (stable, not random) — with real rosters a tie across two
+    // full groups is vanishingly rare, and this only decides bookkeeping,
+    // never who's on the team.
+    const inferGroupId = () => {
+        let bestId = null;
+        let bestCount = -1;
+        for (const g of groups) {
+            const count = (g.students || []).filter(s => selected[s.id]).length;
+            if (count > bestCount) { bestCount = count; bestId = g.id; }
+        }
+        return bestId;
+    };
+
     const submit = async () => {
-        if (!groupId) { setError("Guruhni tanlang"); return; }
+        if (selectedCount < 2) { setError("Kamida 2 ta o'quvchi tanlang"); return; }
+        // Always derived fresh from the final selection — the dropdown is
+        // just a filter to bulk-check a group, so a teacher who quick-picked
+        // one group and then hand-edited the selection afterward should not
+        // have that first click silently win over what they actually chose.
+        const derivedGroupId = inferGroupId();
+        if (!derivedGroupId) { setError("Kamida bitta o'quvchi biror guruhga tegishli bo'lishi kerak"); return; }
         setBusy(true);
         setError(null);
         try {
             await request(`${API_URL}v1/team-projects`, 'POST', JSON.stringify({
-                group_id: Number(groupId),
+                group_id: Number(derivedGroupId),
                 team_size: Number(teamSize),
                 deadline_days: Number(deadlineDays),
+                student_ids: selectedIds,
             }), headers());
             onCreated();
             onClose();
@@ -45,33 +125,125 @@ const CreateModal = ({ onClose, onCreated }) => {
 
     return ReactDOM.createPortal(
         <div className="ttp-overlay" onClick={onClose}>
-            <div className="ttp-modal" onClick={e => e.stopPropagation()}>
-                <header className="ttp-modal-head">
-                    <h3>Jamoaviy loyiha topshirig'i</h3>
+            <div className="ttp-modal ttp-modal--wide ttp-modal--create" onClick={e => e.stopPropagation()}>
+                <header className="ttp-modal-head ttp-modal-head--accent">
+                    <div>
+                        <h3>Jamoaviy loyiha topshirig'i</h3>
+                        <p className="ttp-modal-subtitle">Pastda ishtirokchilarni o'zingiz belgilang</p>
+                    </div>
                     <button className="ttp-close" onClick={onClose}>✕</button>
                 </header>
                 <div className="ttp-modal-body">
-                    <label className="ttp-field">
-                        <span>Guruh</span>
-                        <select value={groupId} onChange={e => setGroupId(e.target.value)}>
-                            <option value="">— tanlang —</option>
-                            {groups.map(g => (
-                                <option key={g.id} value={g.id}>
-                                    {g.name} ({g.students?.length ?? 0} ta o'quvchi)
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                    <label className="ttp-field">
-                        <span>Jamoa hajmi</span>
-                        <input type="number" min={2} max={10} value={teamSize}
-                               onChange={e => setTeamSize(e.target.value)} />
-                    </label>
-                    <label className="ttp-field">
-                        <span>Muddat (kun)</span>
-                        <input type="number" min={1} max={90} value={deadlineDays}
-                               onChange={e => setDeadlineDays(e.target.value)} />
-                    </label>
+                    <div className="ttp-form-row">
+                        <label className="ttp-field">
+                            <span>Guruh bo'yicha tezkor tanlash (ixtiyoriy)</span>
+                            <select value={groupId} onChange={e => chooseGroup(e.target.value)}>
+                                <option value="">— guruh tanlab, hammasini belgilash —</option>
+                                {groups.map(g => (
+                                    <option key={g.id} value={g.id}>
+                                        {g.name} ({g.students?.length ?? 0} ta o'quvchi)
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="ttp-field ttp-field--sm">
+                            <span>Jamoa hajmi</span>
+                            <input type="number" min={2} max={10} value={teamSize}
+                                   onChange={e => setTeamSize(e.target.value)} />
+                        </label>
+                        <label className="ttp-field ttp-field--sm">
+                            <span>Muddat (kun)</span>
+                            <input type="number" min={7} max={90} value={deadlineDays}
+                                   onChange={e => setDeadlineDays(e.target.value)} />
+                            {Number(deadlineDays) < 10 && (
+                                <small className="ttp-hint" role="note">
+                                    {Number(deadlineDays) < 7
+                                        ? "Kamida 7 kun kerak"
+                                        : "Tavsiya: kamida 10 kun (backend tayyor bo'lgach frontend ulanadi, oxirida birlashtirish)"}
+                                </small>
+                            )}
+                        </label>
+                    </div>
+
+                    {groups.length > 0 && (
+                        <div className="ttp-field">
+                            <div className="ttp-picker-label-row">
+                                <span>O'quvchilarni tanlang</span>
+                                <span className={`ttp-selected-pill${selectedCount < 2 ? ' ttp-selected-pill--warn' : ''}`}>
+                                    {selectedCount} ta tanlandi
+                                </span>
+                            </div>
+                            <p className="ttp-picker-hint">
+                                Ishtirok etmaydiganlarni belgidan chiqaring, kerak bo'lsa boshqa guruhdan ham qo'shing.
+                            </p>
+                            <input
+                                className="ttp-search"
+                                placeholder="🔍 Ism bo'yicha qidirish…"
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                            />
+                            <div className="ttp-student-picker">
+                                {groups.map(g => {
+                                    const visible = (g.students || []).filter(matches);
+                                    if (query && visible.length === 0) return null;
+                                    const allChecked = (g.students || []).length > 0
+                                        && (g.students || []).every(s => selected[s.id]);
+                                    return (
+                                        <div key={g.id} className="ttp-student-picker-group">
+                                            <div className="ttp-student-picker-group-head">
+                                                <span className="ttp-student-picker-group-name">{g.name}</span>
+                                                {(g.students || []).length > 0 && (
+                                                    <button
+                                                        type="button"
+                                                        className="ttp-select-all-btn"
+                                                        onClick={() => setGroupAll(g, !allChecked)}
+                                                    >
+                                                        {allChecked ? 'Hammasini bekor qilish' : 'Hammasini tanlash'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                            {(g.students || []).length === 0 && (
+                                                <p className="ttp-muted">O'quvchilar yo'q</p>
+                                            )}
+                                            <div className="ttp-student-grid">
+                                                {visible.map(s => {
+                                                    const name = s.full_name || s.username;
+                                                    const [bg, fg] = avatarColors(name);
+                                                    const checked = !!selected[s.id];
+                                                    return (
+                                                        <label
+                                                            key={s.id}
+                                                            className={`ttp-student-chip${checked ? ' ttp-student-chip--on' : ''}`}
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={checked}
+                                                                onChange={() => toggleStudent(s.id)}
+                                                            />
+                                                            <span
+                                                                className="ttp-student-avatar"
+                                                                style={{ background: bg, color: fg }}
+                                                            >
+                                                                {initials(name)}
+                                                            </span>
+                                                            <span className="ttp-student-chip-name">{name}</span>
+                                                            <span className="ttp-student-chip-check" aria-hidden="true">✓</span>
+                                                        </label>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {query && groups.every(g => (g.students || []).filter(matches).length === 0) && (
+                                    <p className="ttp-muted ttp-no-results">
+                                        "{search}" bo'yicha hech kim topilmadi
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {error && <div className="ttp-error">{error}</div>}
                 </div>
                 <footer className="ttp-modal-foot">
@@ -91,7 +263,7 @@ const STATUS_LABELS = {
     submitted: 'Topshirilgan', reviewed: 'Baholangan', active: 'Faol',
 };
 
-const TeamCard = ({ team, onRegenerate, onOpen, showName = true }) => (
+const TeamCard = ({ team, onRegenerate, onOpen, showName = true, lang }) => (
     <div className="ttp-team-card" onClick={() => onOpen()}>
         <div className="ttp-team-head">
             {/* A project with only one team has nothing to distinguish it
@@ -125,7 +297,7 @@ const TeamCard = ({ team, onRegenerate, onOpen, showName = true }) => (
                 {team.tasks.map(t => (
                     <li key={t.id}>
                         <span className={`ttp-task-dot ttp-task-dot--${t.status}`} />
-                        {t.title} — <em>{t.assigned_student_name}</em>
+                        {pickLang(t, 'title', lang)} — <em>{t.assigned_student_name}</em>
                     </li>
                 ))}
             </ul>
@@ -144,21 +316,48 @@ const TeamCard = ({ team, onRegenerate, onOpen, showName = true }) => (
 const TeacherTeamProjects = () => {
     const navigate = useNavigate();
     const { request } = useHttp();
+    const { lang } = useTranslation();
     const [assignments, setAssignments] = useState([]);
+    const [archivedList, setArchivedList] = useState([]);
+    const [tab, setTab] = useState('active');
+    const [archiveError, setArchiveError] = useState('');
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
 
     const reload = useCallback(async () => {
         setLoading(true);
         try {
-            const data = await request(`${API_URL}v1/team-projects`, 'GET', null, headers());
-            setAssignments(Array.isArray(data) ? data : []);
+            const [active, archived] = await Promise.all([
+                request(`${API_URL}v1/team-projects`, 'GET', null, headers()),
+                request(`${API_URL}v1/team-projects?archived=true`, 'GET', null, headers()),
+            ]);
+            setAssignments(Array.isArray(active) ? active : []);
+            setArchivedList(Array.isArray(archived) ? archived : []);
         } catch {
             setAssignments([]);
+            setArchivedList([]);
         } finally {
             setLoading(false);
         }
     }, [request]);
+
+    const setArchived = async (projectIds, archive) => {
+        setArchiveError('');
+        try {
+            for (const id of projectIds) {
+                await request(`${API_URL}v1/team-projects/${id}/${archive ? 'archive' : 'unarchive'}`, 'POST', null, headers());
+            }
+        } catch (e) {
+            setArchiveError(e?.response?.data?.error?.message || e?.response?.data?.detail
+                || "Arxivlab bo'lmadi. Keyinroq qayta urinib ko'ring.");
+        }
+        await reload();
+    };
+
+    const archiveAllPast = () => {
+        const ids = archivable(assignments).map(p => p.id);
+        if (ids.length && window.confirm(bulkArchiveConfirm(ids.length))) setArchived(ids, true);
+    };
 
     useEffect(() => { reload(); }, [reload]);
 
@@ -169,6 +368,8 @@ const TeacherTeamProjects = () => {
         } catch {}
     };
 
+    const shownProjects = projectsForTab(assignments, archivedList, tab);
+
     return (
         <div className="ttp-page">
             <div className="ttp-page-head">
@@ -178,24 +379,52 @@ const TeacherTeamProjects = () => {
                 </button>
             </div>
 
+            <div className="ttp-tabs" role="tablist">
+                <button role="tab" aria-selected={tab === 'active'} className={`ttp-tab${tab === 'active' ? ' ttp-tab--on' : ''}`}
+                    onClick={() => setTab('active')}>Faol ({assignments.length})</button>
+                <button role="tab" aria-selected={tab === 'archive'} className={`ttp-tab${tab === 'archive' ? ' ttp-tab--on' : ''}`}
+                    onClick={() => setTab('archive')}>Arxiv ({archivedList.length})</button>
+                {tab === 'active' && archivable(assignments).length >= 2 && (
+                    <button className="ttp-btn ttp-btn--ghost ttp-tabs-bulk" onClick={archiveAllPast}>
+                        {bulkArchiveLabel(archivable(assignments).length)}
+                    </button>
+                )}
+            </div>
+            {archiveError && <p className="ttp-error" role="alert">{archiveError}</p>}
+
             {loading && <p className="ttp-muted">Yuklanmoqda…</p>}
-            {!loading && assignments.length === 0 && (
-                <p className="ttp-muted">Hali topshiriq yaratilmagan.</p>
+            {!loading && shownProjects.length === 0 && (
+                <p className="ttp-muted">
+                    {tab === 'archive' ? "Arxiv bo'sh." : 'Hali topshiriq yaratilmagan.'}
+                </p>
             )}
 
             <div className="ttp-assignments-row">
-                {assignments.map(tp => (
+                {shownProjects.map(tp => (
                     <div key={tp.id} className="ttp-assignment">
                         <div className="ttp-assignment-head">
                             <span>#{tp.id} · {STATUS_LABELS[tp.status] || tp.status}</span>
-                            <span className="ttp-muted">{tp.teams.length} ta jamoa</span>
+                            <span className="ttp-assignment-side">
+                                <span className="ttp-muted">{tp.teams.length} ta jamoa</span>
+                                {tab === 'active' && tp.can_archive && (
+                                    <button className="ttp-btn ttp-btn--ghost ttp-btn--inline" onClick={() => setArchived([tp.id], true)}>
+                                        Arxivlash
+                                    </button>
+                                )}
+                                {tab === 'archive' && (
+                                    <button className="ttp-btn ttp-btn--ghost ttp-btn--inline" onClick={() => setArchived([tp.id], false)}>
+                                        Arxivdan chiqarish
+                                    </button>
+                                )}
+                            </span>
                         </div>
                         <div className="ttp-team-grid">
                             {tp.teams.map(team => (
                                 <TeamCard
                                     key={team.id} team={team} onRegenerate={regenerate}
-                                    onOpen={() => navigate(`/teacher/team-projects/${tp.id}`)}
+                                    onOpen={() => navigate(`/teacher/team-projects/${tp.id}?team=${team.id}`)}
                                     showName={tp.teams.length > 1}
+                                    lang={lang}
                                 />
                             ))}
                         </div>

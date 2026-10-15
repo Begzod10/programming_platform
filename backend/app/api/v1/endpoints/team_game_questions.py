@@ -723,7 +723,12 @@ async def import_questions_from_lesson(
     # Bug-hunt rows are single-row (question_text + optional bug_explanation_ru,
     # no UZ/RU pairing like quiz) — same shuffle helper add_bug_question uses.
     for lq in bug_source:
+        line_count = len((lq.code_snippet or "").split("\n"))
         candidates = [lq.bug_line, *(lq.distractor_lines or [])]
+        # A candidate line outside the snippet can't be tapped, so a question
+        # with none inside it is unanswerable — don't hand it to students.
+        if not any(isinstance(n, int) and 1 <= n <= line_count for n in candidates):
+            continue
         order, shuffled_correct = _shuffle_permutation(len(candidates), 0)
         shuffled = _apply_permutation(candidates, order)
 

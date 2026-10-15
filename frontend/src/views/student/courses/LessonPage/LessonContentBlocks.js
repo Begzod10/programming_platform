@@ -6,6 +6,7 @@ import SampleProject from './SampleProject';
 import { ExerciseSection } from './LessonExercise';
 import { useTranslation } from '../../../../i18n/useTranslation';
 import { sanitizeHtml } from '../../../../utils/sanitize';
+import { isGenericLabel, sectionLabel } from '../../../../utils/sectionLabels';
 
 const sectionMeta = (t) => ({
     text:     {icon: '📝', label: t('lcb.section.text'),     color: '#6c5ce7'},
@@ -48,7 +49,8 @@ export const LessonContentBlocks = ({
     projectStatus,
     onProjectOpen,
 }) => {
-    const { t } = useTranslation();
+    const { t, lang } = useTranslation();
+    const ru = lang === 'ru';
     const {
         done: projectDone,
         pending: projectPending,
@@ -78,7 +80,7 @@ export const LessonContentBlocks = ({
                 const isActive = activeSection === section.id;
 
                 return (
-                    <div key={section.id} className={`slp-block slp-block-${section.type}`}
+                    <div key={section.id} data-section-id={section.id} className={`slp-block slp-block-${section.type}`}
                          style={{animationDelay: `${sIdx * 0.06}s`}}>
                         <div className="slp-block-header"
                              onClick={() => setActiveSection(isActive ? null : section.id)}
@@ -90,7 +92,7 @@ export const LessonContentBlocks = ({
                                 </span>
                                 <div className="slp-block-labels">
                                     <span className="slp-block-type">{blockMeta?.label}</span>
-                                    {section.label && section.type !== 'exercise' && (
+                                    {section.label && section.type !== 'exercise' && !isGenericLabel(section.label) && (
                                         <span className="slp-block-title">{section.label}</span>
                                     )}
                                 </div>
@@ -123,7 +125,7 @@ export const LessonContentBlocks = ({
                                     <div className="slp-video-wrap">
                                         {ytId
                                             ? <iframe src={`https://www.youtube.com/embed/${ytId}`}
-                                                      allowFullScreen title={section.label || 'Video'}
+                                                      allowFullScreen title={sectionLabel(section.label, ru) || 'Video'}
                                                       onLoad={() => recordVideoWatch(section.id)}/>
                                             : <div className="slp-video-empty">{t('lcb.videoEmpty')}</div>}
                                     </div>
@@ -205,7 +207,7 @@ export const LessonContentBlocks = ({
                                     <div className="slp-project-top">
                                         <div className="slp-project-icon-wrap">🚀</div>
                                         <div className="slp-project-info">
-                                            <h4>{section.label || t('lcb.projectDefaultLabel')}</h4>
+                                            <h4>{sectionLabel(section.label, ru) || t('lcb.projectDefaultLabel')}</h4>
                                             {section.description &&
                                                 <p className="slp-project-desc">{section.description}</p>}
                                         </div>

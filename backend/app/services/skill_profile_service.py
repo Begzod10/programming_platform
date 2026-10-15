@@ -17,7 +17,7 @@ collision between a category name and an exercise_type string, the
 exercise_type entry wins (computed second) — noted here since it's a
 judgment call, not a discovered convention.
 """
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from sqlalchemy import case, func, select
@@ -37,6 +37,24 @@ from app.schemas.team_project import (
 from app.utils.constants import GRADE_MULTIPLIERS
 
 MIN_ATTEMPTS_FOR_ACCURACY = 5
+# What a student is studying NOW matters more than what they did months ago:
+# someone who finished Django long ago and is now on JavaScript should get
+# JavaScript work. Anything done inside this window counts as "current focus".
+RECENT_WINDOW = timedelta(days=30)
+
+# Project.technologies_used is free text and in practice holds whole sentences
+# and code fragments ("... }; mashina.rang = ...", "html · css · :focus · ..."),
+# which flooded the technology list and the planner prompt. A technology is a
+# short plain token.
+_TECH_BAD_CHARS = set('{}();="<>·\n')
+MAX_TECH_LEN = 24
+
+
+def _clean_tech(raw) -> Optional[str]:
+    tech = " ".join(str(raw).lower().split())
+    if not tech or len(tech) > MAX_TECH_LEN or any(c in _TECH_BAD_CHARS for c in tech):
+        return None
+    return tech
 MAX_PAST_PROJECTS = 5
 PAST_PROJECT_TEXT_LIMIT = 300
 
@@ -46,6 +64,22 @@ async def build_group_skill_profiles(db: AsyncSession, group_id: int) -> List[Sk
         select(Student)
         .join(student_groups, student_groups.c.student_id == Student.id)
         .where(student_groups.c.group_id == group_id)
+    )).scalars().all()
+    if not students:
+        return []
+    return await _build_profiles(db, students)
+
+
+async def build_profiles_for_student_ids(db: AsyncSession, student_ids: List[int]) -> List[SkillProfile]:
+    """Same as build_group_skill_profiles, but for an explicit id list —
+    the team-projects create flow no longer assumes "the roster" is one
+    Group's full membership (a teacher can hand-pick students across
+    several of their groups), so team formation needs a profile builder
+    that isn't tied to a single group_id."""
+    if not student_ids:
+        return []
+    students = (await db.execute(
+        select(Student).where(Student.id.in_(student_ids))
     )).scalars().all()
     if not students:
         return []
@@ -81,10 +115,17 @@ async def _build_profiles(db: AsyncSession, students: List[Student]) -> List[Ski
 
         completed_lessons_by_course: Dict[int, int] = {}
         code_languages: set = set()
-        for course_id, code_language in lesson_rows:
+        recent_since = datetime.now(timezone.utc) - RECENT_WINDOW
+        recent_lessons_by_title: Dict[str, int] = {}
+        recent_languages: set = set()
+        for course_id, code_language, completed_at, course_title in lesson_rows:
             completed_lessons_by_course[course_id] = completed_lessons_by_course.get(course_id, 0) + 1
             if code_language:
                 code_languages.add(code_language.strip().lower())
+            if _is_recent(completed_at, recent_since):
+                recent_lessons_by_title[course_title] = recent_lessons_by_title.get(course_title, 0) + 1
+                if code_language:
+                    recent_languages.add(code_language.strip().lower())
 
         completed_courses = await _resolve_completed_courses(
             db, certified, completed_lessons_by_course,
@@ -108,14 +149,24 @@ async def _build_profiles(db: AsyncSession, students: List[Student]) -> List[Ski
         ]
 
         technologies_seen = sorted({
-            t.strip().lower()
-            for p in projects if p.technologies_used
-            for t in p.technologies_used.split(",") if t.strip()
-        } | code_languages)
+            t for t in (_clean_tech(x) for p in projects if p.technologies_used
+                        for x in p.technologies_used.split(","))
+            if t
+        } | {t for t in (_clean_tech(x) for x in code_languages) if t})
+
+        recent_technologies = sorted({t for t in (_clean_tech(x) for x in recent_languages) if t} | {
+            t for t in (
+                _clean_tech(x) for p in projects
+                if p.technologies_used and _is_recent(p.submitted_at or p.reviewed_at, recent_since)
+                for x in p.technologies_used.split(",")
+            ) if t
+        })
 
         summary = _build_summary(
             student, completed_courses, completed_lessons_by_course,
             accuracy, past_projects, technologies_seen,
+            recent_courses=recent_lessons_by_title,
+            recent_technologies=recent_technologies,
         )
 
         profiles.append(SkillProfile(
@@ -150,14 +201,17 @@ async def _fetch_group_signals(db: AsyncSession, student_ids: List[int]):
     # 2. Lesson completions, joined for course_id + code_language (used for
     #    both completed_lessons_by_course and technologies_seen).
     completion_rows = (await db.execute(
-        select(LessonCompletion.student_id, Lesson.course_id, Lesson.code_language)
+        select(LessonCompletion.student_id, Lesson.course_id, Lesson.code_language,
+               LessonCompletion.completed_at, Course.title)
         .select_from(LessonCompletion)
         .join(Lesson, LessonCompletion.lesson_id == Lesson.id)
+        .join(Course, Course.id == Lesson.course_id)
         .where(LessonCompletion.student_id.in_(student_ids))
     )).all()
     lesson_completions_by_student: Dict[int, list] = {}
-    for sid, course_id, code_language in completion_rows:
-        lesson_completions_by_student.setdefault(sid, []).append((course_id, code_language))
+    for sid, course_id, code_language, completed_at, course_title in completion_rows:
+        lesson_completions_by_student.setdefault(sid, []).append(
+            (course_id, code_language, completed_at, course_title))
 
     # 3a. Exercise accuracy grouped by course category name.
     correct_expr = func.sum(case((ExerciseSubmission.is_correct == True, 1), else_=0))
@@ -249,6 +303,14 @@ async def _resolve_completed_courses(
     ]
 
 
+def _is_recent(moment: Optional[datetime], since: datetime) -> bool:
+    if moment is None:
+        return False
+    if moment.tzinfo is None:  # SQLite hands back naive datetimes
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment >= since
+
+
 def _average_grade(projects: List[SkillProfilePastProject]) -> Optional[str]:
     graded = [GRADE_MULTIPLIERS[p.grade] for p in projects if p.grade in GRADE_MULTIPLIERS]
     if not graded:
@@ -266,6 +328,8 @@ def _build_summary(
     accuracy: Dict[str, float],
     past_projects: List[SkillProfilePastProject],
     technologies_seen: List[str],
+    recent_courses: Optional[Dict[str, int]] = None,
+    recent_technologies: Optional[List[str]] = None,
 ) -> str:
     """Deterministic (no AI) 2-3 sentence summary — this is what actually
     goes into the team-project planner's prompt in Phase 3."""
@@ -295,7 +359,22 @@ def _build_summary(
         grade_bit = f", avg grade {avg_grade}" if avg_grade else ""
         parts.append(f"{len(past_projects)} past project{'s' if len(past_projects) != 1 else ''}{grade_bit}.")
 
+    if recent_courses:
+        studying = ", ".join(
+            f"{title} ({n} lesson{'s' if n != 1 else ''})"
+            for title, n in sorted(recent_courses.items(), key=lambda kv: -kv[1])[:3]
+        )
+        parts.append(f"CURRENT FOCUS (last 30 days): {studying}.")
+
     if technologies_seen:
-        parts.append(f"Technologies: {', '.join(technologies_seen)}.")
+        recent = [t for t in (recent_technologies or []) if t in technologies_seen]
+        earlier = [t for t in technologies_seen if t not in recent]
+        if recent and earlier:
+            parts.append(
+                f"Current technologies: {', '.join(recent)}. "
+                f"Earlier (not recently practiced): {', '.join(earlier)}."
+            )
+        else:
+            parts.append(f"Technologies: {', '.join(technologies_seen)}.")
 
     return " ".join(parts)

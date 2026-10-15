@@ -1,5 +1,6 @@
 import os
 import uuid
+from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, status, UploadFile, File
 from sqlalchemy import select, func, text as sa_text, case
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,7 +9,8 @@ from pathlib import Path
 
 from app.config import settings
 from app.dependencies import get_db, get_current_student, get_current_instructor
-from app.schemas.user import UserRead, UserUpdate
+from app.schemas.user import UserRead, UserUpdate, PasswordChange
+from app.core.security import verify_password, get_password_hash
 from app.schemas.project import ProjectRead
 from app.schemas.public_profile import (
     PublicProfile,
@@ -16,6 +18,8 @@ from app.schemas.public_profile import (
     PublicCertificate,
     PublicTeamProject,
 )
+from app.services import profile_sync
+from app.services.gennis_service import GennisService
 from app.services.project_service import ProjectService
 from app.services.student_service import StudentService
 from app.models.user import Student
@@ -155,7 +159,45 @@ async def update_my_profile(
         db: AsyncSession = Depends(get_db)
 ):
     service = StudentService(db)
-    return await service.update_student(current_student.id, data)
+    return await service.update_own_profile(current_student, data)
+
+
+@router.put("/me/password")
+async def change_my_password(
+        data: PasswordChange,
+        current_student: Student = Depends(get_current_student),
+        db: AsyncSession = Depends(get_db)
+):
+    """Change the logged-in student's password. Requires the current
+    password to match before setting the new one."""
+    if data.current_password == data.new_password:
+        raise HTTPException(status_code=400, detail="Yangi parol joriy paroldan farq qilishi kerak")
+
+    # A gennis/turon student's password lives in management (the DB gennis-v2 and
+    # turon-v2 authenticate against); here only a placeholder is kept. So the
+    # current password is checked by logging in there, and the new one is written
+    # there — a failure leaves both sides unchanged.
+    if profile_sync.external_identities(current_student) and not current_student.is_demo:
+        if not await GennisService.login(current_student.username, data.current_password):
+            raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
+        if not await profile_sync.push_profile(current_student, password=data.new_password):
+            raise HTTPException(status_code=502, detail=profile_sync.UNREACHABLE)
+        return {"message": "Parol muvaffaqiyatli yangilandi"}
+
+    if not verify_password(data.current_password, current_student.hashed_password):
+        raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
+    current_student.hashed_password = get_password_hash(data.new_password)
+    await db.commit()
+    return {"message": "Parol muvaffaqiyatli yangilandi"}
+
+
+def _ensure_photo_editable(student: Student) -> None:
+    """A gennis/turon student's photo comes from turon-v2 / gennis-v2 and cannot be changed here."""
+    if student.identity_managed:
+        raise HTTPException(
+            status_code=403,
+            detail="Profil rasmi Gennis/Turon tizimidan olinadi va bu yerda o'zgartirilmaydi.",
+        )
 
 
 @router.patch("/me/avatar")
@@ -164,6 +206,7 @@ async def upload_my_avatar(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
+    _ensure_photo_editable(current_student)
     allowed_types = ["image/jpeg", "image/png", "image/webp"]
     if file.content_type not in allowed_types:
         raise HTTPException(status_code=400, detail="Faqat JPEG, PNG, WEBP!")
@@ -205,6 +248,7 @@ async def delete_my_avatar(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
+    _ensure_photo_editable(current_student)
     if not current_student.avatar_url:
         raise HTTPException(status_code=404, detail="Avatar mavjud emas!")
 
@@ -439,6 +483,7 @@ async def get_my_course_stats(
                 COUNT(*)                                                                AS total,
                 COUNT(CASE WHEN status IN ('Approved','Reviewed') THEN 1 END)          AS approved,
                 COUNT(CASE WHEN status = 'Submitted' THEN 1 END)                       AS submitted,
+                COUNT(CASE WHEN status = 'Rejected' THEN 1 END)                        AS rejected,
                 COALESCE(SUM(CASE WHEN status IN ('Approved','Reviewed')
                                    THEN points_earned ELSE 0 END), 0)                  AS points
             FROM projects
@@ -473,7 +518,88 @@ async def get_my_course_stats(
             "projects_total": ov_proj.total or 0,
             "projects_approved": ov_proj.approved or 0,
             "projects_submitted": ov_proj.submitted or 0,
+            "projects_rejected": ov_proj.rejected or 0,
             "total_points_from_projects": ov_proj.points or 0,
         },
         "courses": courses_out,
+    }
+
+
+@router.get("/me/activity")
+async def get_my_activity(
+        db: AsyncSession = Depends(get_db),
+        weeks: int = Query(26, ge=1, le=53),
+        current_student: Student = Depends(get_current_student),
+):
+    """Daily activity heatmap (GitHub-style contribution matrix).
+
+    Counts, per calendar day, every learning action the student took:
+    exercise submissions, project-submission reviews, and project creations.
+    The three sources are merged with UNION ALL and bucketed by day so the
+    frontend just renders a fixed grid. Returns a dense array covering the
+    whole window (days with no activity included as count 0) so the client
+    doesn't have to fill gaps itself.
+    """
+    sid = current_student.id
+    # Grid is week-aligned: start on the Monday on/before (today - weeks*7).
+    today = date.today()
+    raw_start = today - timedelta(days=weeks * 7 - 1)
+    start = raw_start - timedelta(days=raw_start.weekday())  # back up to Monday
+
+    rows = (await db.execute(
+        sa_text("""
+            SELECT d::date AS day, COUNT(*) AS cnt
+            FROM (
+                SELECT submitted_at AS ts FROM exercise_submissions
+                    WHERE student_id = :sid AND submitted_at >= :start
+                UNION ALL
+                SELECT submitted_at AS ts FROM submissions
+                    WHERE student_id = :sid AND submitted_at >= :start
+                UNION ALL
+                SELECT created_at AS ts FROM projects
+                    WHERE student_id = :sid AND created_at >= :start
+            ) t
+            CROSS JOIN LATERAL (SELECT date_trunc('day', t.ts) AS d) x
+            GROUP BY d
+            ORDER BY d
+        """),
+        {"sid": sid, "start": start},
+    )).all()
+
+    counts: dict[date, int] = {r.day: int(r.cnt or 0) for r in rows}
+
+    days = []
+    total = 0
+    active_days = 0
+    streak = 0
+    longest_streak = 0
+    cur = start
+    while cur <= today:
+        c = counts.get(cur, 0)
+        days.append({"date": cur.isoformat(), "count": c})
+        total += c
+        if c > 0:
+            active_days += 1
+            streak += 1
+            longest_streak = max(longest_streak, streak)
+        else:
+            streak = 0
+        cur += timedelta(days=1)
+
+    # current streak = trailing run of active days ending today
+    current_streak = 0
+    for d in reversed(days):
+        if d["count"] > 0:
+            current_streak += 1
+        else:
+            break
+
+    return {
+        "start": start.isoformat(),
+        "end": today.isoformat(),
+        "days": days,
+        "total": total,
+        "active_days": active_days,
+        "longest_streak": longest_streak,
+        "current_streak": current_streak,
     }

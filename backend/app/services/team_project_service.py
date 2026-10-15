@@ -5,6 +5,7 @@ app/services/team_project_planner.py for what happens next, per-team).
 """
 import json
 import random
+import re
 from typing import List, Optional
 
 from fastapi import HTTPException
@@ -17,9 +18,12 @@ from app.models.team_project import (
     TeamProject, TeamProjectTeam, TeamProjectMember, TeamProjectEvent, TeamRole,
     TeamProjectStatus,
 )
+from app.models.user import Student
 from app.schemas.team_project import SkillProfile
 from app.services import skill_profile_service
-from app.services.team_project_constants import THEMES, TECH_STACKS, LEVEL_RANK as _LEVEL_RANK
+from app.services.team_project_skills import build_skill_levels
+from app.services.team_project_constants import TECH_STACKS, themes_for_kind, LEVEL_RANK as _LEVEL_RANK
+from app.services.teacher_students import teacher_student_ids_subquery
 
 # _LEVEL_RANK ranks current_level for auto-picking the strongest member as
 # lead — matches the level progression in app/models/user.py::StudentLevel.
@@ -61,9 +65,98 @@ def _cycle_sample(pool: list, count: int, avoid_key: Optional[str] = None) -> li
     return picks
 
 
+async def past_themes_by_student(db: AsyncSession, student_ids: List[int]) -> dict[int, set]:
+    """{student_id: themes of every team they were ever on} — so a new team can avoid a theme its
+    members already built (a random draw gave about 1 in 7 students the same theme again)."""
+    if not student_ids:
+        return {}
+    rows = (await db.execute(
+        select(TeamProjectMember.student_id, TeamProjectTeam.theme)
+        .join(TeamProjectTeam, TeamProjectTeam.id == TeamProjectMember.team_id)
+        .where(TeamProjectMember.student_id.in_(student_ids), TeamProjectTeam.theme.isnot(None))
+    )).all()
+    out: dict[int, set] = {}
+    for sid, theme in rows:
+        out.setdefault(sid, set()).add(theme)
+    return out
+
+
+def choose_themes_for_teams(
+        member_ids: List[List[int]], past_themes: dict, rng=random, avoid_key: Optional[str] = None,
+        unmet=None, kinds: Optional[List[str]] = None,
+) -> List[dict]:
+    """One theme per team, best first by: (1) fewest lessons the team has not studied
+    (`unmet(team_index, theme_key) -> int`, see the blueprints' `requires`), (2) fewest members who
+    already built it, (3) not taken by another team of this assignment (while the pool lasts).
+    Ties are random; `avoid_key` (the teacher's previous team) only breaks ties.
+
+    `kinds[i]` is the stack kind of team i ("web" or "bot"): a team only draws from the themes of its
+    kind, and each kind keeps its own "taken" round. Without `kinds` every team is a web team."""
+    picks: List[dict] = []
+    taken: dict[str, set] = {}
+    for team_idx, members in enumerate(member_ids):
+        kind = kinds[team_idx] if kinds and team_idx < len(kinds) else "web"
+        pool = themes_for_kind(kind)
+        taken_in_kind = taken.setdefault(kind, set())
+
+        def score(theme: dict, team_idx=team_idx, members=members, taken_in_kind=taken_in_kind):
+            repeats = sum(1 for m in members if theme["key"] in past_themes.get(m, ()))
+            gaps = unmet(team_idx, theme["key"]) if unmet else 0
+            return (gaps, repeats, theme["key"] in taken_in_kind)
+
+        best = min(score(t) for t in pool)
+        tied = [t for t in pool if score(t) == best]
+        calmer = [t for t in tied if t["key"] != avoid_key]
+        choice = rng.choice(calmer or tied)
+        picks.append(choice)
+        taken_in_kind.add(choice["key"])
+        if len(taken_in_kind) >= len(pool):
+            taken_in_kind.clear()     # more teams than themes: start another round
+    return picks
+
+
+class NoFittingStack(Exception):
+    """No tech stack — not even plain JavaScript — fits a team's skills."""
+
+
+def stack_fits(stack: dict, skills: List[dict]) -> bool:
+    """Can this team do this stack? `skills[i]` is member i's {area: AreaSkill}.
+    At least half the team must have the stack's frontend area AND at least one member
+    its backend area (any of `requires.backend`). An area nobody can have (no course
+    exists for it, e.g. Vue) never fits — a stack must never be handed out on a guess."""
+    req = stack.get("requires")
+    if not req or not skills:
+        return False
+    have_backend = any(m.get(a) is not None and m[a].has for m in skills for a in req["backend"])
+    frontend = req["frontend"]
+    if frontend is None:                      # a bot has no frontend
+        return have_backend
+    have_frontend = sum(1 for m in skills if m.get(frontend) is not None and m[frontend].has)
+    return have_frontend > 0 and have_frontend * 2 >= len(skills) and have_backend
+
+
+def pick_stacks_for_teams(
+        member_skills: List[List[dict]], drawn: List[dict], rng=random,
+) -> List[dict]:
+    """One stack per team. Keep the random draw (`drawn`) when it fits the team; otherwise
+    take a random fitting stack, avoiding the previous team's stack when another one fits.
+    Raises NoFittingStack when nothing fits (nobody can do even plain JavaScript + a backend)."""
+    picks: List[dict] = []
+    for i, skills in enumerate(member_skills):
+        choice = drawn[i]
+        if not stack_fits(choice, skills):
+            fitting = [s for s in TECH_STACKS if stack_fits(s, skills)]
+            if not fitting:
+                raise NoFittingStack()
+            varied = [s for s in fitting if not picks or s["key"] != picks[-1]["key"]]
+            choice = rng.choice(varied or fitting)
+        picks.append(choice)
+    return picks
+
+
 async def create_team_project(
         db: AsyncSession, *, group_id: int, course_id: Optional[int],
-        teacher_id: int, team_size: int, deadline_days: int,
+        teacher_id: int, team_size: int, deadline_days: int, student_ids: List[int],
 ) -> TeamProject:
     group = (await db.execute(
         select(Group).where(Group.id == group_id)
@@ -71,11 +164,33 @@ async def create_team_project(
     if group is None:
         raise HTTPException(status_code=404, detail="Guruh topilmadi")
 
-    students = list(group.students)
+    # student_ids is the teacher's explicit pick — NOT necessarily
+    # group.students. It can include students from the teacher's other
+    # groups/flows (see teacher_student_ids_subquery) and can leave out
+    # students in `group` who won't be participating this round. Every id
+    # still has to belong to a group/flow this teacher actually owns —
+    # otherwise a teacher could staff another teacher's student onto a
+    # team without them ever being reachable/notified through their own
+    # roster.
+    requested_ids = set(student_ids)
+    reachable = teacher_student_ids_subquery(teacher_id)
+    allowed_ids = set((await db.execute(
+        select(reachable.c.student_id).where(reachable.c.student_id.in_(requested_ids))
+    )).scalars().all())
+    invalid_ids = requested_ids - allowed_ids
+    if invalid_ids:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Studentlar sizning guruhlaringizga tegishli emas: {sorted(invalid_ids)}",
+        )
+
+    students = (await db.execute(
+        select(Student).where(Student.id.in_(requested_ids))
+    )).scalars().all()
     if len(students) < 2:
         raise HTTPException(
             status_code=400,
-            detail="Jamoa tuzish uchun guruhda kamida 2 ta o'quvchi bo'lishi kerak",
+            detail="Jamoa tuzish uchun kamida 2 ta o'quvchi tanlanishi kerak",
         )
 
     existing = (await db.execute(
@@ -92,8 +207,49 @@ async def create_team_project(
 
     profiles_by_id = {
         p.student_id: p
-        for p in await skill_profile_service.build_group_skill_profiles(db, group_id)
+        for p in await skill_profile_service.build_profiles_for_student_ids(db, list(requested_ids))
     }
+
+    chunks = _form_balanced_teams(students, team_size, profiles_by_id)
+
+    # Decide every team's stack BEFORE anything is written: when no stack fits a team, the
+    # request fails cleanly instead of leaving a half-created project behind.
+    skills_by_id = await build_skill_levels(db, [s.id for s in students])
+    last_theme, last_stack = await _last_used_theme_and_stack(db, teacher_id)
+    try:
+        stacks = pick_stacks_for_teams(
+            [[skills_by_id[s.id] for s in members] for members in chunks],
+            _cycle_sample(TECH_STACKS, len(chunks), avoid_key=last_stack),
+        )
+    except NoFittingStack:
+        raise HTTPException(
+            status_code=400,
+            detail="Tanlangan o'quvchilar uchun mos texnologiya topilmadi: jamoada JavaScript va backend "
+                   "(Flask, Django, FastAPI, Express) yoki Telegram bot (aiogram) kurslarini yetarli "
+                   "tugatgan o'quvchilar bo'lishi kerak. Jamoa hajmini kattalashtirib ko'ring: "
+                   "qismlar jamoa a'zolari orasida bo'linadi",
+        )
+
+    # Themes AFTER stacks: what a team must have studied depends on the backend family.
+    from app.services.team_project_blueprints import BlueprintMissing, backend_family, lesson_needs
+    from app.services.team_project_skills import completed_lessons_by_student, unmet_needs
+    done_by_student = await completed_lessons_by_student(db, [s.id for s in students])
+    member_done = [[done_by_student.get(s.id, []) for s in members] for members in chunks]
+
+    def _gaps(team_idx: int, theme_key: str) -> list:
+        try:
+            requires = lesson_needs(theme_key, backend_family(stacks[team_idx]["key"]))
+        except (KeyError, BlueprintMissing):
+            return []
+        return unmet_needs(requires, member_done[team_idx])
+
+    themes = choose_themes_for_teams(
+        [[s.id for s in members] for members in chunks],
+        await past_themes_by_student(db, [s.id for s in students]),
+        avoid_key=last_theme,
+        unmet=lambda i, key: len(_gaps(i, key)),
+        kinds=[stack["kind"] for stack in stacks],
+    )
 
     team_project = TeamProject(
         group_id=group_id, course_id=course_id, teacher_id=teacher_id,
@@ -102,12 +258,6 @@ async def create_team_project(
     db.add(team_project)
     await db.flush()
 
-    chunks = _form_balanced_teams(students, team_size, profiles_by_id)
-
-    last_theme, last_stack = await _last_used_theme_and_stack(db, teacher_id)
-    themes = _cycle_sample(THEMES, len(chunks), avoid_key=last_theme)
-    stacks = _cycle_sample(TECH_STACKS, len(chunks), avoid_key=last_stack)
-
     teams: List[TeamProjectTeam] = []
     for idx, members in enumerate(chunks):
         team = TeamProjectTeam(
@@ -115,6 +265,7 @@ async def create_team_project(
             name=f"Team {idx + 1}",
             theme=themes[idx]["key"],
             tech_stack=stacks[idx]["key"],
+            unmet_lessons_json=json.dumps(_gaps(idx, themes[idx]["key"])),
         )
         db.add(team)
         await db.flush()
@@ -137,6 +288,7 @@ async def create_team_project(
                 "member_ids": [s.id for s in members],
                 "lead_student_id": lead_student_id,
                 "theme": team.theme, "tech_stack": team.tech_stack,
+                "unmet_lessons": _gaps(idx, team.theme),
             }),
         ))
         teams.append(team)

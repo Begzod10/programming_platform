@@ -1,0 +1,129 @@
+"""Stack choice follows what the team has actually finished (not a regex over a summary)."""
+import random
+
+import pytest
+
+from app.services.team_project_constants import SKILL_AREAS, TECH_STACKS, TECH_STACKS_BY_KEY
+from app.services.team_project_service import NoFittingStack, pick_stacks_for_teams, stack_fits
+from app.services.team_project_skills import AreaSkill
+
+
+def member(**areas):
+    """member(javascript="Advanced", flask="Intermediate") -> {area: AreaSkill} (rest Beginner)."""
+    return {a: AreaSkill(areas.get(a, "Beginner"), 0.0) for a in SKILL_AREAS}
+
+
+JS_ONLY = member(javascript="Intermediate")
+JS_FLASK = member(javascript="Advanced", flask="Intermediate", python="Intermediate")
+JS_NODE = member(javascript="Advanced", node="Advanced")
+JS_DJANGO = member(javascript="Advanced", django="Intermediate", python="Intermediate")
+JS_FASTAPI = member(javascript="Advanced", fastapi="Intermediate", python="Intermediate")
+BOT_ONLY = member(aiogram="Intermediate", python="Intermediate")
+HTML_ONLY = member(html_css="Advanced")
+
+
+def test_the_stacks_are_exactly_the_ones_with_a_blueprint_family():
+    assert [s["key"] for s in TECH_STACKS] == ["vanilla", "express", "django", "fastapi", "aiogram"]
+    assert all("React" not in s["label"] and "Vue" not in s["label"] for s in TECH_STACKS)
+
+
+def test_flask_stack_needs_javascript_and_a_flask_or_python_member():
+    vanilla = TECH_STACKS_BY_KEY["vanilla"]
+    assert stack_fits(vanilla, [JS_FLASK, JS_ONLY])
+    assert not stack_fits(vanilla, [JS_ONLY, JS_ONLY])          # nobody can do the backend
+    assert not stack_fits(vanilla, [HTML_ONLY, HTML_ONLY])      # nobody knows JavaScript
+    assert not stack_fits(vanilla, [])
+
+
+def test_each_backend_stack_needs_its_own_course():
+    express, django = TECH_STACKS_BY_KEY["express"], TECH_STACKS_BY_KEY["django"]
+    assert stack_fits(express, [JS_NODE, JS_ONLY]) and not stack_fits(express, [JS_FLASK, JS_ONLY])
+    assert stack_fits(django, [JS_DJANGO, JS_ONLY]) and not stack_fits(django, [JS_FLASK, JS_NODE])
+
+
+def test_fastapi_stack_needs_the_fastapi_course_not_just_python():
+    fastapi = TECH_STACKS_BY_KEY["fastapi"]
+    assert stack_fits(fastapi, [JS_FASTAPI, JS_ONLY])
+    assert not stack_fits(fastapi, [JS_FLASK, JS_DJANGO])       # Python alone is not FastAPI
+    assert not stack_fits(fastapi, [JS_ONLY, JS_ONLY]) and not stack_fits(fastapi, [HTML_ONLY, JS_FASTAPI, HTML_ONLY])
+    assert stack_fits(TECH_STACKS_BY_KEY["vanilla"], [JS_FASTAPI, JS_ONLY]) is True   # python area also fits the Flask stack
+    # a team that only has a FastAPI member is steered to the FastAPI stack when it draws another one
+    assert pick_stacks_for_teams([[JS_FASTAPI, JS_ONLY]], [TECH_STACKS_BY_KEY["express"]], rng=random.Random(1))[0]["key"] in {"vanilla", "fastapi"}
+
+
+def test_node_trained_students_are_no_longer_locked_out_of_express():
+    """Before: express demanded a React course nobody had, so every team got Flask."""
+    assert stack_fits(TECH_STACKS_BY_KEY["express"], [JS_NODE, JS_NODE, JS_ONLY])
+
+
+def test_half_of_the_team_is_enough_for_the_frontend():
+    express = TECH_STACKS_BY_KEY["express"]
+    assert stack_fits(express, [JS_NODE, member(html_css="Advanced")])                  # exactly half
+    assert not stack_fits(express, [JS_NODE, HTML_ONLY, HTML_ONLY])                    # 1 of 3
+
+
+def test_points_based_level_is_irrelevant():
+    """An 'Advanced' by points who finished only HTML/CSS cannot carry a JS stack."""
+    assert not stack_fits(TECH_STACKS_BY_KEY["vanilla"], [HTML_ONLY])
+
+
+def test_pick_keeps_a_fitting_draw():
+    assert pick_stacks_for_teams([[JS_NODE, JS_NODE]], [TECH_STACKS_BY_KEY["express"]])[0]["key"] == "express"
+
+
+def test_pick_falls_back_to_the_only_fitting_stack():
+    django_only = member(javascript="Advanced", django="Intermediate")          # no python area: Flask stack cannot fit
+    for seed in range(20):
+        picks = pick_stacks_for_teams([[django_only, django_only]], [TECH_STACKS_BY_KEY["express"]], rng=random.Random(seed))
+        assert picks[0]["key"] == "django"
+
+
+def test_a_django_team_with_python_also_fits_the_flask_stack():
+    assert stack_fits(TECH_STACKS_BY_KEY["vanilla"], [JS_DJANGO, JS_ONLY])         # Python is Python
+
+
+def test_a_team_that_fits_several_backends_gets_a_spread_of_them():
+    team = [JS_FLASK, JS_NODE, JS_DJANGO, JS_ONLY]
+    seen = {pick_stacks_for_teams([team], [TECH_STACKS_BY_KEY["vanilla"]], rng=random.Random(s))[0]["key"] for s in range(5)}
+    assert seen == {"vanilla"}                       # a fitting draw is kept...
+    from app.services.team_project_service import _cycle_sample
+    draws = {_cycle_sample(TECH_STACKS, 1, avoid_key=None)[0]["key"] for _ in range(60)}
+    assert draws == {"vanilla", "express", "django", "fastapi", "aiogram"}  # ...and the random draw covers every backend
+
+
+def test_pick_raises_when_nothing_fits():
+    with pytest.raises(NoFittingStack):
+        pick_stacks_for_teams([[HTML_ONLY, HTML_ONLY]], [TECH_STACKS_BY_KEY["vanilla"]])
+
+
+def test_every_stack_declares_requirements_and_a_kind():
+    assert all(s["requires"]["backend"] and s["kind"] in ("web", "bot") for s in TECH_STACKS)
+    # only the bot stack has no frontend, and the web stacks all demand JavaScript
+    assert [s["key"] for s in TECH_STACKS if s["requires"]["frontend"] is None] == ["aiogram"]
+    assert all(s["requires"]["frontend"] == "javascript" for s in TECH_STACKS if s["kind"] == "web")
+
+
+def test_aiogram_stack_fits_a_team_with_an_aiogram_member_and_nobody_knows_javascript():
+    aiogram = TECH_STACKS_BY_KEY["aiogram"]
+    assert aiogram["kind"] == "bot" and aiogram["label"] == "Telegram bot (aiogram)"
+    assert stack_fits(aiogram, [BOT_ONLY, HTML_ONLY])
+    assert stack_fits(aiogram, [BOT_ONLY])
+
+
+def test_aiogram_stack_does_not_fit_a_team_that_only_knows_telethon_python_or_other_backends():
+    aiogram = TECH_STACKS_BY_KEY["aiogram"]
+    userbot_only = member(telegram="Advanced", python="Advanced")                 # Telethon/Pyrogram, not aiogram
+    assert not stack_fits(aiogram, [userbot_only, JS_ONLY])
+    assert not stack_fits(aiogram, [JS_FLASK, JS_NODE, JS_DJANGO, JS_FASTAPI])
+    assert not stack_fits(aiogram, [])
+
+
+def test_web_stacks_still_need_javascript_even_for_a_team_with_a_bot_member():
+    assert not stack_fits(TECH_STACKS_BY_KEY["vanilla"], [member(flask="Advanced", python="Advanced", aiogram="Advanced")])
+    assert stack_fits(TECH_STACKS_BY_KEY["vanilla"], [JS_FLASK, BOT_ONLY])
+
+
+def test_a_bot_member_alone_is_steered_to_the_bot_stack():
+    for seed in range(20):
+        picks = pick_stacks_for_teams([[BOT_ONLY, HTML_ONLY]], [TECH_STACKS_BY_KEY["express"]], rng=random.Random(seed))
+        assert picks[0]["key"] == "aiogram"

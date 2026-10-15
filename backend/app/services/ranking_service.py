@@ -19,7 +19,7 @@ class RankingService:
             return None
 
         student_res = await self.db.execute(
-            select(Student).where(Student.id == student_id, Student.role == UserRole.student)
+            select(Student).where(Student.id == student_id, Student.role == UserRole.student, Student.is_demo.is_(False))
         )
         student = student_res.scalar_one_or_none()
         if not student:
@@ -144,7 +144,7 @@ class RankingService:
             )
             .select_from(Student)
             .outerjoin(Ranking, Ranking.student_id == Student.id)
-            .where(Student.is_active == True, Student.role == UserRole.student)
+            .where(Student.is_active == True, Student.role == UserRole.student, Student.is_demo.is_(False))
         )
 
         if level:
@@ -201,6 +201,9 @@ class RankingService:
         if not student:
             return None
 
+        if student.is_demo:
+            return student      # a demo visitor earns nothing
+
         student.total_points += points
         student.lifetime_points += points
 
@@ -230,6 +233,28 @@ class RankingService:
         await self.db.flush()
         await self.calculate_and_update_rankings()
         await self.db.refresh(student)
+        return student
+
+    async def credit_yield(self, student_id: int, points: int) -> Optional[Student]:
+        """Credit a passive reward (the daily streak yield) to the SPENDABLE
+        wallet only.
+
+        Unlike `add_points_to_student`, this deliberately does NOT touch
+        `lifetime_points` or the leaderboard (`Ranking.total_points`) — a
+        streak bonus is "interest" on the balance, not earned career progress,
+        so it must never silently inflate a student's rank or level. Demo
+        accounts earn nothing; non-positive amounts are a no-op.
+        """
+        if points <= 0:
+            return None
+        res = await self.db.execute(
+            select(Student).where(Student.id == student_id).with_for_update()
+        )
+        student = res.scalar_one_or_none()
+        if not student or student.is_demo:
+            return student
+        student.total_points += points
+        await self.db.flush()
         return student
 
     async def subtract_points_from_student(self, student_id: int, points: int) -> Optional[Student]:
@@ -330,7 +355,7 @@ class RankingService:
         """Barcha studentlar ballarini Ranking jadvali bilan sinxronizatsiya qilish"""
         # Barcha studentlarni olamiz
         student_res = await self.db.execute(
-            select(Student).where(Student.role == UserRole.student)
+            select(Student).where(Student.role == UserRole.student, Student.is_demo.is_(False))
         )
         students = student_res.scalars().all()
 
@@ -385,7 +410,7 @@ class RankingService:
         active_rankings_subq = (
             select(Ranking.id)
             .join(Student, Student.id == Ranking.student_id)
-            .where(Student.is_active == True, Student.role == UserRole.student)
+            .where(Student.is_active == True, Student.role == UserRole.student, Student.is_demo.is_(False))
         )
 
         # Reassert Ranking.total_points == Student.lifetime_points (the
@@ -422,7 +447,7 @@ class RankingService:
                 )
                 .select_from(Ranking)
                 .join(Student, Student.id == Ranking.student_id)
-                .where(Student.is_active == True, Student.role == UserRole.student)
+                .where(Student.is_active == True, Student.role == UserRole.student, Student.is_demo.is_(False))
                 .subquery()
             )
 
@@ -444,7 +469,7 @@ class RankingService:
             update(Student)
             .where(
                 Student.is_active == True,
-                Student.role == UserRole.student,
+                Student.role == UserRole.student, Student.is_demo.is_(False),
                 Student.id.in_(select(Ranking.student_id)),
             )
             .values(

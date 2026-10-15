@@ -106,6 +106,8 @@ class TeamProject(Base):
     auto_activate_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     activated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # The teacher moved the project out of the active list (see services/team_project_archive.py).
+    archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # ai_plan_json / plan_generated_at / generation_attempts are on
     # TeamProjectTeam below, NOT here, despite the feature spec's schema
@@ -127,6 +129,13 @@ class TeamProject(Base):
     teacher: Mapped[Optional["Student"]] = relationship("Student", foreign_keys=[teacher_id])
     teams: Mapped[List["TeamProjectTeam"]] = relationship(
         "TeamProjectTeam", back_populates="team_project", cascade="all, delete-orphan",
+        # No order_by here used to mean "whatever order Postgres feels like"
+        # — stable right after INSERT, but an UPDATE (e.g. a regenerate
+        # bumping generation_attempts) can shift a row's physical location
+        # under MVCC, silently reshuffling "Team 1, Team 2, Team 3..." into
+        # "Team 1, Team 5, Team 4...". id order == creation order, which is
+        # also the numbering in each team's `name` ("Team N").
+        order_by="TeamProjectTeam.id",
     )
     events: Mapped[List["TeamProjectEvent"]] = relationship(
         "TeamProjectEvent", back_populates="team_project", cascade="all, delete-orphan",
@@ -176,6 +185,11 @@ class TeamProjectTeam(Base):
     # Per-team plan tracking — see the note on TeamProject above for why
     # these live here rather than on the parent project.
     ai_plan_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # The fixed API contract (team_project_blueprints.get_blueprint) the team's pieces are
+    # built against. NULL on teams planned before the contract existed.
+    shared_contract_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # JSON list of lesson labels the team had not studied when the project was assigned.
+    unmet_lessons_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     plan_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     generation_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
@@ -261,6 +275,9 @@ class TeamProjectTask(Base):
     interface_contract_json: Mapped[str] = mapped_column(Text, nullable=False)
     # list[str]
     acceptance_criteria_json: Mapped[str] = mapped_column(Text, nullable=False)
+    # list[str], index-aligned with acceptance_criteria_json; NULL on tasks
+    # created before Russian criteria existed (readers fall back to uz).
+    acceptance_criteria_ru_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # list[int] — other tasks' `order` values this one depends on.
     depends_on_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
 

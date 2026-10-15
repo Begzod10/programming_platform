@@ -1,201 +1,20 @@
-import { useCallback, useEffect, useState } from 'react';
-import ReactDOM from 'react-dom';
-import { useNavigate, useParams } from 'react-router-dom';
+import UnmetLessons from '../../../components/teamprojects/UnmetLessons';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import { formatTeamEvent } from './formatTeamEvent';
+import { isStuckWithNoManualPlan } from './isStuckWithNoManualPlan';
+import { useTranslation } from '../../../i18n/useTranslation';
+import { visibleTeams } from './visibleTeams';
+import { Avatar, TaskCard, fmtDate } from './TeacherTaskCard';
 import './TeacherTeamProjects.css';
 
 const STATUS_LABELS = {
     planning: 'Rejalashtirilmoqda', forming: 'Shakillanmoqda', working: 'Ishlanmoqda',
     submitted: 'Topshirilgan', reviewed: 'Baholangan', active: 'Faol',
 };
-const TASK_STATUS_LABELS = {
-    assigned: 'Boshlanmagan', submitted: 'Tekshirilmoqda',
-    changes_requested: "O'zgartirish kerak", approved: 'Tasdiqlandi',
-    blocked: "Muddati o'tgan", reassigned: 'Qayta tayinlandi',
-};
 
-const fmtDate = (iso) => {
-    if (!iso) return null;
-    try {
-        return new Date(iso).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch {
-        return iso;
-    }
-};
-
-// Full-detail view for one task — everything TaskRow's compact card
-// leaves out: the interface contract (which files to produce, what they
-// consume/produce — the "qayerda bo'lishi kerak, qanday qilinishi kerak"
-// spec a teacher/student actually needs), resolved dependency titles
-// (depends_on is a list of other tasks' `order`, not names, on the wire),
-// deadline, hours estimate, and the AI review's full breakdown (not just
-// the one-line feedback TaskRow shows inline).
-const TaskDetailModal = ({ task, allTasks, onClose }) => {
-    const contract = task.interface_contract || {};
-    const dependsOnTasks = (task.depends_on || [])
-        .map(order => allTasks.find(t => t.order === order))
-        .filter(Boolean);
-    const feedback = task.ai_feedback;
-
-    return ReactDOM.createPortal(
-        <div className="ttp-overlay" onClick={onClose}>
-            <div className="ttp-modal ttp-modal--wide" onClick={e => e.stopPropagation()}>
-                <div className="ttp-modal-head">
-                    <h3>{task.title}</h3>
-                    <button className="ttp-close" onClick={onClose}>✕</button>
-                </div>
-                <div className="ttp-modal-body">
-                    <div className="ttd-detail-row">
-                        <span className={`ttp-status ttp-status--${task.status}`}>
-                            {TASK_STATUS_LABELS[task.status] || task.status}
-                        </span>
-                        <span className="ttp-muted">Bajaruvchi: {task.assigned_student_name || '—'}</span>
-                        <span className="ttp-muted">{task.estimated_hours} soat</span>
-                        {task.deadline_at && <span className="ttp-muted">Muddat: {fmtDate(task.deadline_at)}</span>}
-                    </div>
-
-                    <p className="ttd-task-desc">{task.description}</p>
-
-                    {task.acceptance_criteria?.length > 0 && (
-                        <div className="ttd-detail-section">
-                            <h5>Qabul mezonlari</h5>
-                            <ul className="ttd-criteria">
-                                {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
-                            </ul>
-                        </div>
-                    )}
-
-                    {(contract.files?.length > 0 || contract.produces?.length > 0 || contract.consumes?.length > 0) && (
-                        <div className="ttd-detail-section">
-                            <h5>Interfeys shartnomasi</h5>
-                            {contract.files?.length > 0 && (
-                                <p><strong>Fayllar:</strong> {contract.files.join(', ')}</p>
-                            )}
-                            {contract.produces?.length > 0 && (
-                                <p><strong>Bu vazifa yaratadi:</strong> {contract.produces.join(', ')}</p>
-                            )}
-                            {contract.consumes?.length > 0 && (
-                                <p><strong>Bu vazifa foydalanadi:</strong> {contract.consumes.join(', ')}</p>
-                            )}
-                        </div>
-                    )}
-
-                    {dependsOnTasks.length > 0 && (
-                        <div className="ttd-detail-section">
-                            <h5>Bog'liq vazifalar (avval tugashi kerak)</h5>
-                            <ul className="ttd-criteria">
-                                {dependsOnTasks.map(t => (
-                                    <li key={t.id}>{t.title} — <em>{t.assigned_student_name || '—'}</em></li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-
-                    {(task.submission_url || task.submitted_at) && (
-                        <div className="ttd-detail-section">
-                            <h5>Topshirilgan ish</h5>
-                            {task.submission_url && (
-                                <a href={task.submission_url} target="_blank" rel="noreferrer" className="ttd-link">
-                                    {task.submission_url}
-                                </a>
-                            )}
-                            {task.submitted_at && <p className="ttp-muted">Topshirilgan: {fmtDate(task.submitted_at)}</p>}
-                        </div>
-                    )}
-
-                    {feedback && (
-                        <div className="ttd-detail-section">
-                            <h5>AI baholashi {task.ai_score != null ? `— ${task.ai_score}/100` : ''}</h5>
-                            <div className={`ttd-feedback${task.status === 'approved' ? ' ttd-feedback--ok' : ''}`}>
-                                <p>{feedback.feedback}</p>
-                            </div>
-                            {feedback.criteria_results?.length > 0 && (
-                                <ul className="ttd-criteria">
-                                    {feedback.criteria_results.map((c, i) => (
-                                        <li key={i}>
-                                            {c.met ? '✅' : '❌'} {c.criterion || c.text || JSON.stringify(c)}
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                            {feedback.contract_violations?.length > 0 && (
-                                <div className="ttd-feedback">
-                                    <strong>Shartnoma buzilishlari:</strong>
-                                    <ul className="ttd-criteria">
-                                        {feedback.contract_violations.map((v, i) => <li key={i}>{v}</li>)}
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>,
-        document.body,
-    );
-};
-
-const TaskRow = ({ task, members, allTasks, onReassign }) => {
-    const [reassignTo, setReassignTo] = useState('');
-    const [showDetail, setShowDetail] = useState(false);
-    const feedback = task.ai_feedback;
-
-    return (
-        <div className="ttd-task">
-            <div className="ttd-task-head">
-                <strong>{task.title}</strong>
-                <span className={`ttp-status ttp-status--${task.status}`}>
-                    {TASK_STATUS_LABELS[task.status] || task.status}
-                </span>
-            </div>
-            <p className="ttd-task-desc">{task.description}</p>
-            {task.acceptance_criteria?.length > 0 && (
-                <ul className="ttd-criteria">
-                    {task.acceptance_criteria.map((c, i) => <li key={i}>{c}</li>)}
-                </ul>
-            )}
-            <p className="ttp-muted">Bajaruvchi: {task.assigned_student_name || '—'}</p>
-            {task.submission_url && (
-                <p>
-                    <a href={task.submission_url} target="_blank" rel="noreferrer" className="ttd-link">
-                        {task.submission_url}
-                    </a>
-                </p>
-            )}
-            {feedback && (
-                <div className={`ttd-feedback${task.status === 'approved' ? ' ttd-feedback--ok' : ''}`}>
-                    <strong>{task.ai_score != null ? `${task.ai_score}/100` : ''}</strong>
-                    <p>{feedback.feedback}</p>
-                </div>
-            )}
-            <div className="ttd-task-actions">
-                <button className="ttd-detail-btn" onClick={() => setShowDetail(true)}>
-                    <span aria-hidden="true">ℹ️</span> Batafsil
-                </button>
-                <div className="ttd-reassign">
-                    <select value={reassignTo} onChange={e => setReassignTo(e.target.value)}>
-                        <option value="">Boshqa a'zoga topshirish…</option>
-                        {members
-                            .filter(m => m.student_id !== task.assigned_student_id)
-                            .map(m => <option key={m.student_id} value={m.student_id}>{m.full_name}</option>)}
-                    </select>
-                    <button
-                        className="ttp-btn ttp-btn--ghost ttp-btn--sm"
-                        disabled={!reassignTo}
-                        onClick={() => { onReassign(task.id, Number(reassignTo)); setReassignTo(''); }}
-                    >
-                        Qayta tayinlash
-                    </button>
-                </div>
-            </div>
-            {showDetail && (
-                <TaskDetailModal task={task} allTasks={allTasks} onClose={() => setShowDetail(false)} />
-            )}
-        </div>
-    );
-};
 
 // Closes a real gap: peer ratings were collected and already feed
 // team_project_points_service's bonus modifier, but nothing let a teacher
@@ -328,7 +147,7 @@ const extractErrorMessage = (e) => {
 const emptyManualTask = () => ({
     title: '', title_ru: '', description: '', description_ru: '',
     required_level: 'Beginner', estimated_hours: 4,
-    acceptance_criteria_text: '', depends_on: [],
+    acceptance_criteria_text: '', acceptance_criteria_ru_text: '', files_text: '', depends_on: [],
 });
 
 // AI-disabled / /regenerate-exhausted fallback: lets the teacher author a
@@ -363,7 +182,9 @@ const ManualPlanForm = ({ team, onSubmit, onCancel, submitting, error }) => {
             title: t.title, title_ru: t.title_ru,
             description: t.description, description_ru: t.description_ru,
             required_level: t.required_level,
+            interface_contract: { files: t.files_text.split('\n').map(s => s.trim()).filter(Boolean) },
             acceptance_criteria: t.acceptance_criteria_text.split('\n').map(s => s.trim()).filter(Boolean),
+            acceptance_criteria_ru: t.acceptance_criteria_ru_text.split('\n').map(s => s.trim()).filter(Boolean),
             depends_on: t.depends_on,
             estimated_hours: Number(t.estimated_hours) || 4,
         })),
@@ -419,9 +240,19 @@ const ManualPlanForm = ({ team, onSubmit, onCancel, submitting, error }) => {
                                    onChange={e => updateTask(idx, { estimated_hours: e.target.value })} />
                         </label>
                         <label className="ttp-field">
+                            <span>Fayllar — vazifa yaratadigan/o'zgartiradigan fayl(lar) (har birini yangi qatordan, masalan src/pages/Login.jsx)</span>
+                            <textarea value={task.files_text}
+                                      onChange={e => updateTask(idx, { files_text: e.target.value })} />
+                        </label>
+                        <label className="ttp-field">
                             <span>Qabul mezonlari (har birini yangi qatordan)</span>
                             <textarea value={task.acceptance_criteria_text}
                                       onChange={e => updateTask(idx, { acceptance_criteria_text: e.target.value })} />
+                        </label>
+                        <label className="ttp-field">
+                            <span>Qabul mezonlari — rus tilida (har birini yangi qatordan, o'zbekchadagi tartibda)</span>
+                            <textarea value={task.acceptance_criteria_ru_text}
+                                      onChange={e => updateTask(idx, { acceptance_criteria_ru_text: e.target.value })} />
                         </label>
                         {team.members.length > 1 && (
                             <div className="ttd-depends-on">
@@ -461,22 +292,29 @@ const ManualPlanForm = ({ team, onSubmit, onCancel, submitting, error }) => {
 const TeacherTeamProjectDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
     const { request } = useHttp();
+    const { lang } = useTranslation();
     const [tp, setTp] = useState(null);
     const [loading, setLoading] = useState(true);
     const [manualPlanTeamId, setManualPlanTeamId] = useState(null);
     const [manualPlanSubmitting, setManualPlanSubmitting] = useState(false);
     const [manualPlanError, setManualPlanError] = useState('');
     const [peerRatingsByTeam, setPeerRatingsByTeam] = useState({});
+    const [deleteError, setDeleteError] = useState('');
 
+    const loadedOnce = useRef(false);
     const reload = useCallback(async () => {
-        setLoading(true);
+        // Only the first load replaces the page with a spinner — later
+        // reloads refresh in place so an open form / typed text isn't lost.
+        if (!loadedOnce.current) setLoading(true);
         try {
             const data = await request(`${API_URL}v1/team-projects/${id}`, 'GET', null, headers());
             setTp(data);
         } catch {
-            setTp(null);
+            if (!loadedOnce.current) setTp(null);
         } finally {
+            loadedOnce.current = true;
             setLoading(false);
         }
     }, [request, id]);
@@ -533,10 +371,13 @@ const TeacherTeamProjectDetail = () => {
     useSessionSocket(id, null, null, handleProjectWsMessage, 'team-projects');
 
     const regenerate = async (teamId) => {
+        setDeleteError('');
         try {
             await request(`${API_URL}v1/team-projects/teams/${teamId}/regenerate`, 'POST', null, headers());
             await reload();
-        } catch {}
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e) || "Rejani qayta yaratib bo'lmadi");
+        }
     };
 
     const reassign = async (teamId, taskId, studentId) => {
@@ -546,7 +387,74 @@ const TeacherTeamProjectDetail = () => {
                 'POST', JSON.stringify({ student_id: studentId }), headers(),
             );
             await reload();
-        } catch {}
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e) || "Vazifani qayta tayinlab bo'lmadi");
+        }
+    };
+
+    const reviewTask = async (teamId, taskId, decision) => {
+        let comment = null;
+        if (decision === 'request_changes') {
+            comment = window.prompt("Talabaga izoh (nimani o'zgartirish kerak?):");
+            if (!comment || !comment.trim()) return;
+        } else if (!window.confirm('Bu vazifani tasdiqlaysizmi?')) {
+            return;
+        }
+        setDeleteError('');
+        try {
+            await request(
+                `${API_URL}v1/team-projects/teams/${teamId}/tasks/${taskId}/teacher-review`,
+                'POST', JSON.stringify({ decision, comment }), headers(),
+            );
+            await reload();
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e) || "Baholab bo'lmadi");
+        }
+    };
+
+    const extendDeadline = async (teamId) => {
+        const raw = window.prompt('Necha kunga uzaytiramiz? (1–90)', '3');
+        if (raw === null) return;
+        const days = parseInt(raw, 10);
+        if (!days || days < 1 || days > 90) {
+            setDeleteError('Kun soni 1 dan 90 gacha bo\'lishi kerak');
+            return;
+        }
+        setDeleteError('');
+        try {
+            await request(
+                `${API_URL}v1/team-projects/teams/${teamId}/extend-deadline`,
+                'POST', JSON.stringify({ days }), headers(),
+            );
+            await reload();
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e) || "Muddatni uzaytirib bo'lmadi");
+        }
+    };
+
+    const deleteTask = async (teamId, taskId) => {
+        if (!window.confirm("Bu vazifani o'chirishni tasdiqlaysizmi?")) return;
+        setDeleteError('');
+        try {
+            await request(
+                `${API_URL}v1/team-projects/teams/${teamId}/tasks/${taskId}`,
+                'DELETE', null, headers(),
+            );
+            await reload();
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e));
+        }
+    };
+
+    const deleteAllTasks = async (teamId) => {
+        if (!window.confirm("Bu jamoaning BARCHA vazifalarini o'chirishni tasdiqlaysizmi? Bu amalni qaytarib bo'lmaydi.")) return;
+        setDeleteError('');
+        try {
+            await request(`${API_URL}v1/team-projects/teams/${teamId}/tasks`, 'DELETE', null, headers());
+            await reload();
+        } catch (e) {
+            setDeleteError(extractErrorMessage(e));
+        }
     };
 
     const submitManualPlan = async (teamId, body) => {
@@ -569,6 +477,9 @@ const TeacherTeamProjectDetail = () => {
     if (loading) return <div className="ttp-page"><p className="ttp-muted">Yuklanmoqda…</p></div>;
     if (!tp) return <div className="ttp-page"><p className="ttp-muted">Topshiriq topilmadi.</p></div>;
 
+    const shownTeams = visibleTeams(tp.teams, searchParams.get('team'));
+    const showingOneTeam = shownTeams.length === 1 && tp.teams.length > 1;
+
     return (
         <div className="ttp-page">
             <div className="ttp-page-head">
@@ -576,48 +487,108 @@ const TeacherTeamProjectDetail = () => {
                     <button className="ttp-btn ttp-btn--ghost" onClick={() => navigate('/teacher/team-projects')}>
                         ← Orqaga
                     </button>
-                    <h2>Topshiriq #{tp.id}</h2>
+                    <h2>Topshiriq #{tp.id}{showingOneTeam ? ` · ${shownTeams[0].name}` : ''}</h2>
                 </div>
                 <span className="ttp-muted">{STATUS_LABELS[tp.status] || tp.status}</span>
             </div>
 
-            {tp.teams.map(team => (
+            {showingOneTeam && (
+                <div style={{ marginBottom: 14 }}>
+                    <button className="ttd-btn ttd-btn--outline" onClick={() => setSearchParams({})}>
+                        ← Barcha jamoalarni ko'rsatish ({tp.teams.length})
+                    </button>
+                </div>
+            )}
+
+            {deleteError && <div className="ttp-error">{deleteError}</div>}
+
+            {shownTeams.map(team => (
                 <div key={team.id} className="ttd-team-section">
                     <div className="ttd-team-header">
-                        <h3>{team.name}</h3>
-                        <span className={`ttp-status ttp-status--${team.status}`}>
-                            {STATUS_LABELS[team.status] || team.status}
-                        </span>
+                        <div className="ttd-team-title">
+                            <h3>{team.name}</h3>
+                            <span className={`ttp-status ttp-status--${team.status}`}>
+                                {STATUS_LABELS[team.status] || team.status}
+                            </span>
+                        </div>
+                        <div className="ttp-team-badges">
+                            {team.theme_label && <span className="ttp-badge">{team.theme_label}</span>}
+                            {team.tech_stack_label && <span className="ttp-badge ttp-badge--tech">{team.tech_stack_label}</span>}
+                        </div>
                     </div>
-                    <div className="ttp-team-badges">
-                        {team.theme_label && <span className="ttp-badge">{team.theme_label}</span>}
-                        {team.tech_stack_label && <span className="ttp-badge ttp-badge--tech">{team.tech_stack_label}</span>}
-                    </div>
+                    {isStuckWithNoManualPlan(team) && (
+                        <div className="ttp-stuck-banner">
+                            <span aria-hidden="true">⚠️</span> Reja yaratilmadi — qo'lda reja tuzish kerak
+                        </div>
+                    )}
                     {team.project_title && <p className="ttp-project-title">{team.project_title}</p>}
+                    <UnmetLessons lessons={team.unmet_lessons} ru={false} audience="teacher" />
                     {team.project_description && <p className="ttd-project-desc">{team.project_description}</p>}
-                    <div className="ttp-members">
+                    <div className="ttd-members">
                         {team.members.map(m => (
-                            <span key={m.student_id} className={`ttp-member${m.role === 'lead' ? ' ttp-member--lead' : ''}`}>
-                                {m.full_name}{m.role === 'lead' ? ' 👑' : ''}
+                            <span key={m.student_id} className={`ttd-member${m.role === 'lead' ? ' ttd-member--lead' : ''}`}>
+                                <Avatar name={m.full_name} size={24} />
+                                <span>{m.full_name}</span>
+                                {m.role === 'lead' && <span className="ttd-member-tag">Boshliq</span>}
                             </span>
                         ))}
                     </div>
 
-                    <div className="ttd-plan-actions">
+                    {team.tasks.length > 0 && (() => {
+                        const total = team.tasks.length;
+                        const count = (...statuses) => team.tasks.filter(t => statuses.includes(t.status)).length;
+                        const parts = [
+                            { key: 'approved', n: count('approved'), label: 'tasdiqlangan' },
+                            { key: 'submitted', n: count('submitted'), label: 'tekshirilmoqda' },
+                            { key: 'changes', n: count('changes_requested'), label: "o'zgartirish kerak" },
+                            { key: 'todo', n: count('assigned', 'blocked', 'reassigned'), label: 'boshlanmagan' },
+                        ];
+                        return (
+                            <div className="ttd-progress">
+                                <div
+                                    className="ttd-seg-bar"
+                                    role="progressbar"
+                                    aria-valuenow={parts[0].n}
+                                    aria-valuemin={0}
+                                    aria-valuemax={total}
+                                    aria-label="Vazifalar bajarilishi"
+                                >
+                                    {parts.filter(x => x.n > 0).map(x => (
+                                        <span key={x.key} className={`ttd-seg ttd-seg--${x.key}`} style={{ flex: x.n }} />
+                                    ))}
+                                </div>
+                                <div className="ttd-seg-legend">
+                                    <strong>{parts[0].n}/{total} vazifa tasdiqlandi</strong>
+                                    {parts.filter(x => x.n > 0 && x.key !== 'approved').map(x => (
+                                        <span key={x.key}><i className={`ttd-dot ttd-dot--${x.key}`} />{x.n} {x.label}</span>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    <div className="ttd-toolbar">
                         {team.generation_attempts < 3 && (
-                            <button
-                                className="ttp-btn ttp-btn--ghost ttp-btn--sm"
-                                onClick={() => regenerate(team.id)}
-                            >
+                            <button className="ttd-btn ttd-btn--outline" onClick={() => regenerate(team.id)}>
                                 Rejani qayta yaratish ({team.generation_attempts}/3)
                             </button>
                         )}
                         {team.status === 'forming' && team.tasks.length === 0 && manualPlanTeamId !== team.id && (
                             <button
-                                className="ttp-btn ttp-btn--ghost ttp-btn--sm"
+                                className="ttd-btn ttd-btn--outline"
                                 onClick={() => { setManualPlanTeamId(team.id); setManualPlanError(''); }}
                             >
                                 Qo'lda reja tuzish
+                            </button>
+                        )}
+                        {team.tasks.length > 0 && team.status !== 'submitted' && team.status !== 'reviewed' && (
+                            <button className="ttd-btn ttd-btn--outline" onClick={() => extendDeadline(team.id)}>
+                                Muddatni uzaytirish
+                            </button>
+                        )}
+                        {team.tasks.length > 0 && (
+                            <button className="ttd-btn ttd-btn--danger ttd-toolbar-end" onClick={() => deleteAllTasks(team.id)}>
+                                Barcha vazifalarni o'chirish
                             </button>
                         )}
                     </div>
@@ -632,11 +603,20 @@ const TeacherTeamProjectDetail = () => {
                         />
                     )}
 
+                    {team.tasks.length === 0 && !isStuckWithNoManualPlan(team) && manualPlanTeamId !== team.id && (
+                        <p className="ttp-muted">
+                            Bu jamoa uchun hali vazifalar yo'q — reja yaratilishi kutilmoqda.
+                        </p>
+                    )}
+
                     <div className="ttd-tasks-grid">
                         {team.tasks.map(task => (
-                            <TaskRow
+                            <TaskCard
                                 key={task.id} task={task} members={team.members} allTasks={team.tasks}
                                 onReassign={(taskId, studentId) => reassign(team.id, taskId, studentId)}
+                                onDelete={taskId => deleteTask(team.id, taskId)}
+                                onReview={(taskId, decision) => reviewTask(team.id, taskId, decision)}
+                                lang={lang}
                             />
                         ))}
                     </div>

@@ -97,7 +97,7 @@ export const LessonFeedbackWidget = ({lessonId}) => {
                     </div>
                 </div>
 
-                <div className="slp-feedback-stars slp-feedback-stars--readonly" aria-label={`Sizning bahoyingiz: ${rating} yulduz`}>
+                <div className="slp-feedback-stars slp-feedback-stars--readonly" aria-label={isRu ? `Ваша оценка: ${rating} звёзд` : `Sizning bahoyingiz: ${rating} yulduz`}>
                     {[1, 2, 3, 4, 5].map(n => (
                         <span key={n} className={`slp-feedback-star is-static ${n <= rating ? 'is-on' : ''}`} aria-hidden="true">★</span>
                     ))}
@@ -126,14 +126,14 @@ export const LessonFeedbackWidget = ({lessonId}) => {
                 </div>
             </div>
 
-            <div className="slp-feedback-stars" role="radiogroup" aria-label="Dars bahosi">
+            <div className="slp-feedback-stars" role="radiogroup" aria-label={isRu ? 'Оценка урока' : 'Dars bahosi'}>
                 {[1, 2, 3, 4, 5].map(n => (
                     <button
                         key={n}
                         type="button"
                         role="radio"
                         aria-checked={rating === n}
-                        aria-label={`${n} yulduz`}
+                        aria-label={isRu ? `${n} звёзд` : `${n} yulduz`}
                         className={`slp-feedback-star ${n <= display ? 'is-on' : ''}`}
                         onMouseEnter={() => setHover(n)}
                         onMouseLeave={() => setHover(0)}

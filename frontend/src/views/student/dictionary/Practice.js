@@ -14,14 +14,31 @@ import {
 import { FlashcardMode, QuizMode, SpellingMode, ListeningMode, ClozeMode } from './PracticeModes';
 import { BucketsBar, LeechAlert, HistoryStrip, QueuePreview, ScopePicker } from './PracticeWidgets';
 import { Statistika, History } from './PracticeStats';
+import { useTranslation } from '../../../i18n/useTranslation';
 
 
 /* ═══════════════════════════════════════════════════════════════════════
    ORCHESTRATOR — phases, chunked rounds, replay-missed pass
    ═══════════════════════════════════════════════════════════════════════ */
 
+/* POST one SRS result; one retry, because a dropped request silently lost the
+   answer (the word then looked untouched in the next session). */
+async function postResult(request, payload) {
+    const body = JSON.stringify(payload);
+    for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+            await request(`${BASE}/result`, 'POST', body, headers());
+            return;
+        } catch {
+            await new Promise((r) => setTimeout(r, 1500));
+        }
+    }
+}
+
 export default function Practice() {
     const { request } = useHttp();
+    const { lang } = useTranslation();
+    const ru = lang === 'ru';
 
     /* Top tab — 'drill' shows the pick/drill/recap phase machinery, 'stats'
        shows the read-only Statistika dashboard. The toggle is only visible
@@ -73,6 +90,7 @@ export default function Practice() {
         if (scope.category_id) p.set('category_id', String(scope.category_id));
         if (scope.course_id)   p.set('course_id',   String(scope.course_id));
         if (scope.lesson_id)   p.set('lesson_id',   String(scope.lesson_id));
+        p.set('lang', lang);
         return p;
     };
 
@@ -110,18 +128,18 @@ export default function Practice() {
                     const cid = 0;
                     let cat = cats.get(cid);
                     if (!cat) {
-                        cat = { id: null, name: 'Hammasi', courses: new Map() };
+                        cat = { id: null, name: ru ? 'Все' : 'Hammasi', courses: new Map() };
                         cats.set(cid, cat);
                     }
                     let course = cat.courses.get(w.course_id);
                     if (!course) {
-                        course = { id: w.course_id, title: w.course_title || `Kurs #${w.course_id}`, lessons: new Map() };
+                        course = { id: w.course_id, title: w.course_title || (ru ? `Курс #${w.course_id}` : `Kurs #${w.course_id}`), lessons: new Map() };
                         cat.courses.set(w.course_id, course);
                     }
                     if (w.lesson_id && !course.lessons.has(w.lesson_id)) {
                         course.lessons.set(w.lesson_id, {
                             id: w.lesson_id,
-                            title: w.lesson_title || `${w.lesson_id}-dars`,
+                            title: w.lesson_title || (ru ? `Урок ${w.lesson_id}` : `${w.lesson_id}-dars`),
                         });
                     }
                 }
@@ -135,7 +153,7 @@ export default function Practice() {
                 setScopeTree(out);
             })
             .catch(() => setScopeTree([]));
-    }, [request]);
+    }, [request, ru]);
 
     /* ── preview the queue when the filter / scope changes ── */
     useEffect(() => {
@@ -161,14 +179,22 @@ export default function Practice() {
             const data = await request(
                 `${BASE}/words?${params.toString()}`, 'GET', null, headers(),
             );
-            if (!Array.isArray(data) || data.length === 0) {
-                setError("Bu filtr bilan mashq qilish uchun so'z yo'q");
+            // Spelling, Cloze and Quiz+ round 2 show the definition as the only
+            // clue; a word saved without one would be an unanswerable card.
+            const needsContext = mode === 'spelling' || mode === 'cloze' || mode === 'quiz';
+            const usable = Array.isArray(data)
+                ? data.filter((w) => !needsContext || (w.context || '').trim())
+                : [];
+            if (usable.length < (needsContext ? 2 : 1)) {
+                setError(Array.isArray(data) && data.length > 0 && needsContext
+                    ? (ru ? 'У этих слов нет сохранённых значений — выберите другой режим' : "Bu so'zlarning ma'nosi saqlanmagan — boshqa rejimni tanlang")
+                    : (ru ? 'Нет слов для практики с этим фильтром' : "Bu filtr bilan mashq qilish uchun so'z yo'q"));
                 return;
             }
             const s = await request(
                 `${BASE}/session`, 'POST', JSON.stringify({ mode }), headers(),
             );
-            setQueue(data.map((w) => ({ word: w, replay: false })));
+            setQueue(usable.map((w) => ({ word: w, replay: false })));
             setPos(0);
             setCorrect(0);
             setMissed([]);
@@ -179,8 +205,11 @@ export default function Practice() {
             setFireStreak(0);
             setSessionId(s.id);
             setPhase('drill');
-        } catch {
-            setError("Yuklab bo'lmadi — keyinroq urinib ko'ring");
+        } catch (e) {
+            const detail = String(e?.response?.data?.detail || e?.message || '');
+            setError(/yetarlicha/.test(detail)
+                ? (ru ? 'Недостаточно слов для практики (нужно минимум 2)' : "Mashq uchun so'z yetarli emas (kamida 2 ta kerak)")
+                : (ru ? 'Не удалось загрузить — попробуйте позже' : "Yuklab bo'lmadi — keyinroq urinib ko'ring"));
         } finally {
             setBusy(false);
         }
@@ -212,11 +241,11 @@ export default function Practice() {
             setMode(active.mode);
             setPhase('drill');
         } catch {
-            setError("Sessiyani tiklab bo'lmadi");
+            setError(ru ? 'Не удалось восстановить сессию' : "Sessiyani tiklab bo'lmadi");
         } finally {
             setBusy(false);
         }
-    }, [active, request]);
+    }, [active, request, ru]);
 
     const discardActive = useCallback(async () => {
         if (!active?.id) return;
@@ -253,20 +282,28 @@ export default function Practice() {
        Quiz+ branches here: instead of finalising on the first answer, we
        track per-pass correctness sets and finalise the word only after both
        passes have run over it. */
-    const onAnswer = useCallback(async ({ grade, was_correct }) => {
+    const onAnswer = useCallback(async ({ grade, was_correct, skip }) => {
         const item = queue[pos];
         if (!item) return;
 
-        // Fire streak — consecutive correct counter. Resets on any wrong.
-        setFireStreak((s) => was_correct ? s + 1 : 0);
+        // A skipped card (no usable text) records nothing: no score, no streak,
+        // no SRS change — it just moves on and is not replayed.
+        if (!skip) {
+            // Fire streak — consecutive correct counter. Resets on any wrong.
+            setFireStreak((s) => was_correct ? s + 1 : 0);
 
-        // Submit SRS update (fire-and-forget; the UI keeps moving). Quiz+
-        // submits twice per word (once per pass) so the SRS sees both signals.
-        request(
-            `${BASE}/result`, 'POST',
-            JSON.stringify({ word_id: item.word.id, grade, was_correct }),
-            headers(),
-        ).catch(() => {});
+            // SRS update (fire-and-forget; the UI keeps moving). Quiz+ writes
+            // ONCE per word, after the recall pass: it used to write after each
+            // pass, so a word moved two reps (a 3-day interval on first sight)
+            // or took two lapses in one sitting. Failing either pass is a lapse.
+            let srsGrade = grade, srsCorrect = was_correct;
+            if (mode === 'quiz' && qpPass === 'spelling' && !qpMcqOk.includes(item.word.id)) {
+                srsGrade = 0; srsCorrect = false;
+            }
+            if (!(mode === 'quiz' && qpPass === 'mcq')) {
+                postResult(request, { word_id: item.word.id, grade: srsGrade, was_correct: srsCorrect });
+            }
+        }
 
         /* ════ Quiz+ two-pass branch ════════════════════════════════════ */
         if (mode === 'quiz') {
@@ -309,10 +346,10 @@ export default function Practice() {
 
         /* ════ Other modes: chunked rounds + replay-missed ═══════════════ */
         const isReplayItem = item.replay;
-        if (!isReplayItem && was_correct) setCorrect((c) => c + 1);
+        if (!isReplayItem && was_correct && !skip) setCorrect((c) => c + 1);
 
         let newMissed = missed;
-        if (!isReplayItem && !was_correct) {
+        if (!isReplayItem && !was_correct && !skip) {
             newMissed = [...missed, item.word.id];
             setMissed(newMissed);
         }
@@ -344,7 +381,7 @@ export default function Practice() {
                     'PUT',
                     JSON.stringify({
                         total_words: queue.filter((q) => !q.replay).length,
-                        correct: correct + (was_correct && !isReplayItem ? 1 : 0),
+                        correct: correct + (was_correct && !isReplayItem && !skip ? 1 : 0),
                     }),
                     headers(),
                 );
@@ -380,22 +417,27 @@ export default function Practice() {
             return (
                 <div className="pr-state pr-state--error" style={{ display:'flex', flexDirection:'column', gap:14, alignItems:'center', padding:'48px 24px', textAlign:'center' }}>
                     <span style={{ fontSize: 40 }}>🧭</span>
-                    <h3 style={{ margin: 0 }}>Сессия прервана</h3>
+                    <h3 style={{ margin: 0 }}>{ru ? 'Сессия прервана' : 'Sessiya uzildi'}</h3>
                     <p style={{ margin: 0, color: 'rgba(0,0,0,0.55)' }}>
-                        Что-то пошло не так с очередью практики. Вернитесь к выбору
-                        режима и начните заново — ваш прогресс сохранён.
+                        {ru
+                            ? 'Что-то пошло не так с очередью практики. Вернитесь к выбору режима и начните заново — ваш прогресс сохранён.'
+                            : "Mashq navbatida nimadir xato ketdi. Rejim tanlashga qaytib, qaytadan boshlang — yutuqlaringiz saqlangan."}
                     </p>
                     <button
                         className="pr-btn pr-btn--primary"
                         onClick={goPick}
                         style={{ marginTop: 6 }}
                     >
-                        ← К выбору режима
+                        {ru ? '← К выбору режима' : '← Rejim tanlashga'}
                     </button>
                 </div>
             );
         }
         const word = item.word;
+        // The same word can come twice in a row (a missed last word is replayed
+        // at once); the position + replay flag make React remount the card
+        // instead of keeping the old, already-answered state.
+        const cardKey = `${pos}-${word.id}-${item.replay ? 'r' : 'n'}`;
 
         const isQuizPlus = mode === 'quiz';
         const total = isQuizPlus
@@ -410,17 +452,17 @@ export default function Practice() {
                 <FireBadge streak={fireStreak} />
 
                 <header className="pr-drill-head">
-                    <button className="pr-back" onClick={goPick}>← Chiqish</button>
+                    <button className="pr-back" onClick={goPick}>{ru ? '← Выход' : '← Chiqish'}</button>
                     <div className="pr-progress">
                         <div className="pr-progress-text">
                             {done + 1} / {total}
                             {isQuizPlus && (
                                 <span className={`pr-pass-tag pr-pass-tag--${qpPass}`}>
-                                    {' · '}{qpPass === 'mcq' ? 'Raund 1: MCQ' : 'Raund 2: Yozish'}
+                                    {' · '}{qpPass === 'mcq' ? (ru ? 'Раунд 1: MCQ' : 'Raund 1: MCQ') : (ru ? 'Раунд 2: Письмо' : 'Raund 2: Yozish')}
                                 </span>
                             )}
-                            {!isQuizPlus && item.replay && <span className="pr-replay-tag"> · qaytarish</span>}
-                            {!isQuizPlus && round > 1 && !item.replay && <span className="pr-round-tag"> · raund {round}</span>}
+                            {!isQuizPlus && item.replay && <span className="pr-replay-tag">{ru ? ' · повтор' : ' · qaytarish'}</span>}
+                            {!isQuizPlus && round > 1 && !item.replay && <span className="pr-round-tag">{ru ? ` · раунд ${round}` : ` · raund ${round}`}</span>}
                         </div>
                         <div className="pr-progress-bar">
                             <div
@@ -430,15 +472,17 @@ export default function Practice() {
                         </div>
                     </div>
                     <div className="pr-score">
-                        <Icon.Check /> {correct}
+                        <Icon.Check /> {isQuizPlus
+                            ? (qpPass === 'mcq' ? qpMcqOk.length : qpMcqOk.filter((id) => qpSpellOk.includes(id)).length)
+                            : correct}
                     </div>
                 </header>
 
-                {mode === 'flashcard' && <FlashcardMode key={word.id} word={word} onAnswer={onAnswer} />}
-                {mode === 'quiz'      && <QuizMode      key={`${word.id}-${qpPass}`} word={word} qpPass={qpPass} onAnswer={onAnswer} request={request} />}
-                {mode === 'spelling'  && <SpellingMode  key={word.id} word={word} onAnswer={onAnswer} request={request} />}
-                {mode === 'listening' && <ListeningMode key={word.id} word={word} onAnswer={onAnswer} request={request} />}
-                {mode === 'cloze'     && <ClozeMode     key={word.id} word={word} onAnswer={onAnswer} request={request} />}
+                {mode === 'flashcard' && <FlashcardMode key={cardKey} word={word} onAnswer={onAnswer} />}
+                {mode === 'quiz'      && <QuizMode      key={`${cardKey}-${qpPass}`} word={word} qpPass={qpPass} onAnswer={onAnswer} request={request} />}
+                {mode === 'spelling'  && <SpellingMode  key={cardKey} word={word} onAnswer={onAnswer} request={request} />}
+                {mode === 'listening' && <ListeningMode key={cardKey} word={word} onAnswer={onAnswer} request={request} />}
+                {mode === 'cloze'     && <ClozeMode     key={cardKey} word={word} onAnswer={onAnswer} request={request} />}
             </div>
         );
     }
@@ -453,30 +497,30 @@ export default function Practice() {
                         {pct >= 80 ? '🎉' : pct >= 50 ? '👍' : '📚'}
                     </div>
                     <div className="pr-recap-title">
-                        {pct >= 80 ? "Zo'r natija!" : pct >= 50 ? 'Yaxshi!' : 'Yana mashq qilamiz'}
+                        {pct >= 80 ? (ru ? 'Отличный результат!' : "Zo'r natija!") : pct >= 50 ? (ru ? 'Хорошо!' : 'Yaxshi!') : (ru ? 'Потренируемся ещё' : 'Yana mashq qilamiz')}
                     </div>
                     <div className="pr-recap-stats">
                         <div className="pr-recap-stat">
                             <span className="pr-recap-num">{correct}</span>
-                            <span className="pr-recap-lbl">to'g'ri</span>
+                            <span className="pr-recap-lbl">{ru ? 'верно' : "to'g'ri"}</span>
                         </div>
                         <div className="pr-recap-divider" />
                         <div className="pr-recap-stat">
                             <span className="pr-recap-num">{firstPassTotal - correct}</span>
-                            <span className="pr-recap-lbl">noto'g'ri</span>
+                            <span className="pr-recap-lbl">{ru ? 'неверно' : "noto'g'ri"}</span>
                         </div>
                         <div className="pr-recap-divider" />
                         <div className="pr-recap-stat">
                             <span className="pr-recap-num">{pct}%</span>
-                            <span className="pr-recap-lbl">aniqlik</span>
+                            <span className="pr-recap-lbl">{ru ? 'точность' : 'aniqlik'}</span>
                         </div>
                     </div>
                     <div className="pr-recap-actions">
                         <button className="pr-btn pr-btn--ghost" onClick={goPick}>
-                            Yana boshlash
+                            {ru ? 'Начать заново' : 'Yana boshlash'}
                         </button>
                         <button className="pr-btn pr-btn--primary" onClick={() => { goPick(); setTimeout(start, 100); }}>
-                            Davom etish
+                            {ru ? 'Продолжить' : 'Davom etish'}
                         </button>
                     </div>
                 </div>
@@ -492,19 +536,19 @@ export default function Practice() {
                     className={`pr-subtab ${tab === 'drill' ? 'active' : ''}`}
                     onClick={() => setTab('drill')}
                 >
-                    🎯 Boshlash
+                    🎯 {ru ? 'Начать' : 'Boshlash'}
                 </button>
                 <button
                     className={`pr-subtab ${tab === 'stats' ? 'active' : ''}`}
                     onClick={() => setTab('stats')}
                 >
-                    📊 Statistika
+                    📊 {ru ? 'Статистика' : 'Statistika'}
                 </button>
                 <button
                     className={`pr-subtab ${tab === 'hist' ? 'active' : ''}`}
                     onClick={() => setTab('hist')}
                 >
-                    📜 Tarix
+                    📜 {ru ? 'История' : 'Tarix'}
                 </button>
             </div>
 
@@ -523,21 +567,21 @@ export default function Practice() {
             {active && (
                 <div className="pr-resume">
                     <div className="pr-resume-head">
-                        <span className="pr-resume-tag">Davom etish</span>
+                        <span className="pr-resume-tag">{ru ? 'Продолжить' : 'Davom etish'}</span>
                         <span className="pr-resume-mode">{MODES.find(m => m.key === active.mode)?.label || active.mode}</span>
                     </div>
                     <div className="pr-resume-body">
-                        Boshlagan mashqingiz bor —
+                        {ru ? 'У вас есть начатая практика —' : 'Boshlagan mashqingiz bor —'}
                         {' '}{active.progress?.pos ?? active.progress?.idx ?? 0}
                         {' / '}
                         {(active.progress?.queue?.length) || (active.progress?.word_ids?.length) || 0}
                     </div>
                     <div className="pr-resume-actions">
                         <button className="pr-btn pr-btn--ghost" onClick={discardActive}>
-                            Bekor qilish
+                            {ru ? 'Отмена' : 'Bekor qilish'}
                         </button>
                         <button className="pr-btn pr-btn--primary" onClick={resume}>
-                            Davom etish →
+                            {ru ? 'Продолжить →' : 'Davom etish →'}
                         </button>
                     </div>
                 </div>
@@ -545,8 +589,11 @@ export default function Practice() {
 
             <LeechAlert leeches={leeches} />
 
+            <div className="pr-pick-cols">
+            <div className="pr-pick-left">
+
             <section className="pr-section">
-                <h3 className="pr-section-title">1. Rejim tanlang</h3>
+                <h3 className="pr-section-title">{ru ? '1. Выберите режим' : '1. Rejim tanlang'}</h3>
                 <div className="pr-modes">
                     {MODES.map((m) => (
                         <button
@@ -557,7 +604,7 @@ export default function Practice() {
                             <span className="pr-mode-icon" aria-hidden>{m.icon}</span>
                             <span className="pr-mode-text">
                                 <span className="pr-mode-label">{m.label}</span>
-                                <span className="pr-mode-desc">{m.desc}</span>
+                                <span className="pr-mode-desc">{ru ? (m.desc_ru || m.desc) : m.desc}</span>
                             </span>
                             {mode === m.key && <span className="pr-mode-check"><Icon.Check /></span>}
                         </button>
@@ -566,47 +613,61 @@ export default function Practice() {
             </section>
 
             <section className="pr-section">
-                <h3 className="pr-section-title">2. So'zlar to'plamini tanlang</h3>
+                <h3 className="pr-section-title">{ru ? '2. Выберите набор слов' : "2. So'zlar to'plamini tanlang"}</h3>
                 <div className="pr-filters">
                     <button
                         className={`pr-filter ${filter === 'all' ? 'active' : ''}`}
                         onClick={() => setFilter('all')}
                     >
-                        Barchasi
+                        {ru ? 'Все' : 'Barchasi'}
                         {counts.total > 0 && <span className="pr-filter-count">{counts.total}</span>}
                     </button>
                     <button
                         className={`pr-filter pr-filter--due ${filter === 'due' ? 'active' : ''}`}
                         onClick={() => setFilter('due')}
                     >
-                        <Icon.Clock /> Takrorlash vaqti
+                        <Icon.Clock /> {ru ? 'Пора повторить' : 'Takrorlash vaqti'}
                         {counts.due > 0 && <span className="pr-filter-count">{counts.due}</span>}
                     </button>
                     <button
                         className={`pr-filter pr-filter--weak ${filter === 'weak' ? 'active' : ''}`}
                         onClick={() => setFilter('weak')}
                     >
-                        <Icon.Warn /> Qiyin so'zlar
+                        <Icon.Warn /> {ru ? 'Трудные слова' : "Qiyin so'zlar"}
                         {counts.fragile > 0 && <span className="pr-filter-count">{counts.fragile}</span>}
                     </button>
                 </div>
                 <p className="pr-filter-hint">
-                    {filter === 'due' && 'Takrorlash vaqti kelgan yoki yangi so\'zlar.'}
-                    {filter === 'weak' && 'Bir necha marta unutgan yoki qiyin keladigan so\'zlar.'}
-                    {filter === 'all' && 'Saqlangan barcha so\'zlardan random tanlanadi.'}
+                    {filter === 'due' && (ru ? 'Слова, которые пора повторить, или новые.' : 'Takrorlash vaqti kelgan yoki yangi so\'zlar.')}
+                    {filter === 'weak' && (ru ? 'Слова, которые вы несколько раз забывали или которые даются трудно.' : 'Bir necha marta unutgan yoki qiyin keladigan so\'zlar.')}
+                    {filter === 'all' && (ru ? 'Случайный выбор из всех сохранённых слов.' : 'Saqlangan barcha so\'zlardan random tanlanadi.')}
                 </p>
             </section>
 
             <ScopePicker tree={scopeTree} scope={scope} onChange={setScope} />
 
+            </div>
+            <div className="pr-pick-right">
+
             <QueuePreview words={preview} />
 
             <section className="pr-section">
-                <h3 className="pr-section-title">Sizning vaziyatingiz</h3>
+                <h3 className="pr-section-title">{ru ? 'Ваша ситуация' : 'Sizning vaziyatingiz'}</h3>
                 <BucketsBar buckets={buckets} />
             </section>
 
             <HistoryStrip history={history} />
+
+            <div className="pr-brand-card">
+                <img className="pr-brand-logo" src="https://play-lh.googleusercontent.com/xiJhv9DqAZaOq6htMaZSAQ5DBoH_v7fripUMYx04Kv-5iQnfWAFopqZIED6Sr7Q7wN0" alt="GENNIS" />
+                <div className="pr-brand-text">
+                    <div className="pr-brand-title">{ru ? '5 минут каждый день' : 'Har kuni 5 daqiqa'}</div>
+                    <div className="pr-brand-sub">{ru ? 'Регулярная практика — и словарный запас закрепится 🚀' : "Muntazam mashq — lug'at mustahkam bo'ladi 🚀"}</div>
+                </div>
+            </div>
+
+            </div>
+            </div>
 
             <div className="pr-start-wrap">
                 <button
@@ -615,10 +676,10 @@ export default function Practice() {
                     disabled={busy || counts.total < 2}
                 >
                     {counts.total < 2
-                        ? "Mashq uchun kamida 2 ta so'z kerak"
+                        ? (ru ? 'Для практики нужно минимум 2 слова' : "Mashq uchun kamida 2 ta so'z kerak")
                         : busy
-                            ? 'Yuklanmoqda…'
-                            : "Mashqni boshlash"}
+                            ? (ru ? 'Загрузка…' : 'Yuklanmoqda…')
+                            : (ru ? 'Начать практику' : "Mashqni boshlash")}
                 </button>
             </div>
 

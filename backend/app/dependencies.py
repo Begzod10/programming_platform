@@ -8,12 +8,23 @@ from sqlalchemy.future import select
 from app.db.session import get_db
 from app.config import settings
 from app.models.user import Student, UserRole
+from app.core.demo import demo_allows, DEMO_RESTRICTED_DETAIL
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 from app.core.security import decode_access_token
+
+
+def _enforce_demo_scope(user: Student, request: Request) -> None:
+    """A demo account may only call the allow-listed lesson endpoints."""
+    if user.is_demo and not demo_allows(request.method, request.url.path):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=DEMO_RESTRICTED_DETAIL,
+            headers={"X-Demo-Restricted": "1"},
+        )
 
 
 async def get_current_student_optional(
@@ -38,10 +49,14 @@ async def get_current_student_optional(
         return None
 
     result = await db.execute(select(Student).where(Student.id == user_id))
-    return result.scalars().first()
+    user = result.scalars().first()
+    if user is not None:
+        _enforce_demo_scope(user, request)
+    return user
 
 
 async def get_current_student(
+        request: Request,
         token: str = Depends(oauth2_scheme),
         db: AsyncSession = Depends(get_db)
 ) -> Student:
@@ -69,6 +84,7 @@ async def get_current_student(
             detail="Foydalanuvchi faol emas"
         )
 
+    _enforce_demo_scope(user, request)
     return user
 
 
@@ -82,6 +98,34 @@ async def get_current_instructor(
             detail="Bu amal faqat teacher uchun"
         )
     return current_user
+
+
+async def require_games_unlocked(
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+) -> Student:
+    """Gate the leisure sections (early-learning, duel) behind today's quota.
+
+    Returns 423 Locked with the current progress so the frontend can render a
+    "complete N more lessons" screen. Demo accounts bypass the lock.
+    """
+    # Only real, non-demo students are gated — teachers/admins previewing the
+    # leisure sections and demo visitors bypass the lock.
+    if getattr(student, "is_demo", False) or getattr(student, "role", None) != UserRole.student:
+        return student
+    from app.services import daily_quota_service
+    status_ = await daily_quota_service.get_today(db, student.id)
+    if not status_.unlocked:
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail={
+                "code": "QUOTA_LOCKED",
+                "completed": status_.completed,
+                "required": status_.remaining + status_.completed,
+                "remaining": status_.remaining,
+            },
+        )
+    return student
 
 
 # Aliases for compatibility

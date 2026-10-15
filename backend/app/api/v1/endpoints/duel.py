@@ -35,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rate_limit import rate_limit
 from app.core.security import decode_access_token
-from app.dependencies import get_current_student, get_db
+from app.dependencies import get_current_student, get_db, require_games_unlocked
 from app.db.database import AsyncSessionLocal
 from app.models.duel_stat import DuelStat
 from app.models.user import Student
@@ -362,6 +362,7 @@ async def duel_leaderboard(
 @router.post("/")
 async def create_duel(
         current_student: Student = Depends(get_current_student),
+        _quota: Student = Depends(require_games_unlocked),   # 423 until daily quota met
         _rl: None = Depends(rate_limit(max_calls=10, window_seconds=60)),
 ):
     """Reserve a fresh 4-digit code; the creator becomes the host when they

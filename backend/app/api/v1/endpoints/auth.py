@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, get_current_student
-from app.schemas.user import UserCreate, UserRead, TokenResponse, UserUpdate, UserLogin, SSOLogin
+from app.schemas.user import UserCreate, UserRead, TokenResponse, UserUpdate, UserLogin, SSOLogin, DemoStart
 from app.services import auth_service, sso_service
 from app.models.user import Student
 from app.core.rate_limit import rate_limit
+from app.services.student_service import StudentService
 
 router = APIRouter()
 
@@ -25,6 +26,17 @@ async def login(
         _rl: None = Depends(rate_limit(max_calls=20, window_seconds=60)),
 ):
     return await auth_service.login(db, user_in.username, user_in.password)
+
+
+@router.post("/demo", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def demo_login(
+        body: DemoStart,
+        db: AsyncSession = Depends(get_db),
+        _rl: None = Depends(rate_limit(max_calls=5, window_seconds=3600)),
+):
+    """Try the platform with just a name — a restricted, self-expiring demo account
+    (first two lessons of one course, no submissions; see app/core/demo.py)."""
+    return await auth_service.create_demo_student(db, body.first_name, body.last_name)
 
 
 @router.post("/sso", response_model=TokenResponse, status_code=status.HTTP_200_OK)
@@ -84,4 +96,4 @@ async def update_me(
         current_student: Student = Depends(get_current_student),
         db: AsyncSession = Depends(get_db)
 ):
-    return await auth_service.update_user(current_student.id, user_data, db)
+    return await StudentService(db).update_own_profile(current_student, user_data, ignore_none=True)

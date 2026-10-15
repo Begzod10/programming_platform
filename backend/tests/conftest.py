@@ -87,6 +87,28 @@ async def mock_gennis_login():
         yield
 
 
+# ── 4c. Team projects: give every student the skills a team project needs ─────
+
+@pytest.fixture(autouse=True)
+def full_team_project_skills(request):
+    """Team formation now refuses students who finished no JavaScript/backend course
+    (see team_project_service.stack_fits). Most team-project tests are about everything
+    AFTER formation and register students with no course history, so they get a full
+    skill set here. A test that exercises the real skill model opts out with
+    `@pytest.mark.real_skills`."""
+    if request.node.get_closest_marker("real_skills"):
+        yield
+        return
+    from app.services.team_project_constants import SKILL_AREAS
+    from app.services.team_project_skills import AreaSkill
+
+    async def _everyone_can_do_everything(db, student_ids):
+        return {sid: {a: AreaSkill("Advanced", 1.0) for a in SKILL_AREAS} for sid in student_ids}
+
+    with patch("app.services.team_project_service.build_skill_levels", new=_everyone_can_do_everything):
+        yield
+
+
 # ── 5. Per-test fixtures ───────────────────────────────────────────────────────
 
 @pytest_asyncio.fixture

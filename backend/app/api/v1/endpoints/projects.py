@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, status, Query, HTTPException, Body
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from app.utils.datetime_utils import utcnow
 from app.models.project import Project
 from app.models.lesson import Lesson, LessonCompletion
@@ -15,6 +15,7 @@ from app.models.course import Course
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.services.project_service import ProjectService
 from app.services import achievement_service
+from app.services import notification_service
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectRead, ProjectReadWithStudent
 from app.models.user import Student
 from app.services.ranking_service import RankingService
@@ -22,7 +23,8 @@ from fastapi.responses import FileResponse
 from app.services.grok_service import analyze_project_with_grok
 from app.services.lesson_context_resolver import load_lesson_context_for_project
 from app.services.ai_review_service import run_ai_review_for_project
-from app.services.github_repo_service import zip_bytes_have_code_file
+from app.services.github_repo_service import zip_bytes_have_code_file, zip_plain_text_only_names
+from app.services.integrity_check import PLAIN_TEXT_UPLOAD_MESSAGE
 from app.services.submission_cooldown import enforce_submission_cooldown
 
 import uuid
@@ -197,6 +199,12 @@ async def upload_project_zip(
     # that just wraps a nested .rar/.png). Without this, the project gets
     # created as "Submitted" and stays stuck there forever, since the AI
     # pipeline runs with raise_on_error=False and never surfaces why.
+    txt_only = zip_plain_text_only_names(contents)
+    if txt_only:
+        raise HTTPException(
+            status_code=400,
+            detail=PLAIN_TEXT_UPLOAD_MESSAGE.format(files=", ".join(txt_only[:5])),
+        )
     if not zip_bytes_have_code_file(contents):
         raise HTTPException(
             status_code=400,
@@ -346,7 +354,16 @@ async def unlike_project(
 class ReviewProjectRequest(BaseModel):
     feedback: str
     grade: str
+    # A project score is a grade, 0..100. Penalties are NOT done here anymore —
+    # they live on the dedicated teacher "Penalties" page (TeacherPenalty), which
+    # docks the student's profile points directly without touching any project.
     points: int = Field(..., ge=0, le=100, description="Ball 0 dan 100 gacha")
+    status: str = "Approved"   # "Approved" | "Rejected"
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _valid_status(cls, v):
+        return v if v in ("Approved", "Rejected") else "Approved"
 
 
 @router.post("/{project_id}/review")
@@ -363,23 +380,33 @@ async def review_project(
         raise HTTPException(status_code=404, detail="Loyiha topilmadi")
 
     ranking_service = RankingService(db)
-    old_points = project.points_earned or 0
-    old_status = project.status
-    # Only subtract previously-awarded points. Points are only added when a
-    # project is Approved — Rejected projects store the AI score in
-    # points_earned but never add it to total_points, so subtracting it here
-    # would deduct points that were never granted.
-    if old_points > 0 and old_status == "Approved":
-        await ranking_service.add_points_to_student(project.student_id, -old_points)
-    await ranking_service.add_points_to_student(project.student_id, data.points)
+    new_status = data.status if data.status in ("Approved", "Rejected") else "Approved"
+    # Points are awarded only for an Approved project; a Rejected one grants 0.
+    # points_applied tracks the exact amount this review put in the student's
+    # wallet, so a re-review (Approved→Rejected, or a lower re-grade) backs out
+    # precisely what was granted — a negative delta is docked via
+    # revoke_earned_points (floored at 0, also drops career total + leaderboard).
+    new_applied = data.points if new_status == "Approved" else 0
+    prev_applied = project.points_applied
+    if prev_applied is None:
+        prev_applied = (project.points_earned or 0) if project.status == "Approved" else 0
+    delta = new_applied - prev_applied
+    if delta > 0:
+        await ranking_service.add_points_to_student(project.student_id, delta)
+    elif delta < 0:
+        await ranking_service.revoke_earned_points(project.student_id, -delta)
 
-    project.status = "Approved"
+    project.status = new_status
     project.instructor_feedback = data.feedback
     project.grade = data.grade
     project.points_earned = data.points
+    project.points_applied = new_applied
     project.reviewed_at = utcnow()
 
     await db.commit()
+
+    # Real-time: tell the student their project was approved.
+    await notification_service.notify_project_reviewed(db, project)
 
     sub_result = await db.execute(
         select(Submission).where(Submission.project_id == project_id)
@@ -389,7 +416,7 @@ async def review_project(
     certificate_issued = False
     certificate_id = None
 
-    if submission and submission.lesson_id:
+    if new_status == "Approved" and submission and submission.lesson_id:
         lesson_res = await db.execute(
             select(Lesson).where(Lesson.id == submission.lesson_id)
         )
@@ -414,6 +441,10 @@ async def review_project(
                         await ranking_service.add_points_to_student(
                             project.student_id, points_reward)
                     await db.commit()
+                    # manual approval completed a lesson → count toward today's daily quota
+                    from app.services import daily_quota_service
+                    await daily_quota_service.on_lesson_completed(
+                        db, project.student_id, submission.lesson_id)
 
             cert = await achievement_service.award_certificate(
                 db, project.student_id, lesson.course_id
@@ -425,7 +456,10 @@ async def review_project(
     await achievement_service.check_and_award_achievements(db, project.student_id)
 
     return {
-        "message": "Loyiha tasdiqlandi, ballar va proyekt soni yangilandi",
+        "message": ("Loyiha tasdiqlandi, ballar yangilandi" if new_status == "Approved"
+                    else "Loyiha rad etildi"),
+        "status": new_status,
+        "points_applied": new_applied,
         "certificate_issued": certificate_issued,
         "certificate_id": certificate_id
     }
@@ -649,6 +683,12 @@ async def upload_project_zip_by_id(
     # Same fail-fast gate as upload_project_zip — reject a ZIP with no
     # readable code file immediately instead of letting it get stuck in
     # "Submitted" after a silent AI-review failure.
+    txt_only = zip_plain_text_only_names(contents)
+    if txt_only:
+        raise HTTPException(
+            status_code=400,
+            detail=PLAIN_TEXT_UPLOAD_MESSAGE.format(files=", ".join(txt_only[:5])),
+        )
     if not zip_bytes_have_code_file(contents):
         raise HTTPException(
             status_code=400,

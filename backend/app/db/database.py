@@ -54,12 +54,35 @@ async def init_db():
             await conn.execute(text("SELECT 1"))
             await conn.run_sync(base.Base.metadata.create_all)
             await _reconcile_indexes(conn)
+        await _reconcile_enum_values()
         logger.info("Database ready (%s)", _safe_db_url())
         print(" Database connection successful.")
     except Exception:
         logger.exception("Database connection failed for %s", _safe_db_url())
         print(" Database connection failed (see logs for details).")
         raise
+
+
+# Postgres enum values added to a model AFTER the type shipped to prod. create_all never
+# touches an existing type, so the value is missing and the first INSERT using it fails
+# (team-project points were never awarded for exactly this reason — 2026-10-12).
+_ENUM_VALUES = [
+    ("wallet_ledger_reason", "earn_team_project"),
+]
+
+
+async def _reconcile_enum_values() -> None:
+    """Idempotently add missing enum labels. Best-effort and isolated: it runs on its own
+    autocommit connection so a failure can never take down startup."""
+    if engine.dialect.name != "postgresql":
+        return
+    for type_name, label in _ENUM_VALUES:
+        try:
+            async with engine.connect() as conn:
+                conn = await conn.execution_options(isolation_level="AUTOCOMMIT")
+                await conn.execute(text(f"ALTER TYPE {type_name} ADD VALUE IF NOT EXISTS '{label}'"))
+        except Exception:
+            logger.exception("could not add enum value %s.%s", type_name, label)
 
 
 async def _reconcile_indexes(conn) -> None:
@@ -136,6 +159,9 @@ async def _reconcile_indexes(conn) -> None:
         # gennis_service.py) — student_platform never collected this
         # itself, so it's purely a mirror of upstream data, nullable.
         text("ALTER TABLE students ADD COLUMN IF NOT EXISTS birth_date DATE"),
+        # 2026-10-08: demo accounts (see app/core/demo.py).
+        text("ALTER TABLE students ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT FALSE"),
+        text("CREATE INDEX IF NOT EXISTS ix_students_is_demo ON students (is_demo)"),
         # 2026-09-06: ru renderings of early-learning content, picked by the
         # API when ?lang=ru is requested — see EarlyModule.title_ru's
         # docstring. Nullable; a missing translation falls back to uz.
@@ -143,6 +169,11 @@ async def _reconcile_indexes(conn) -> None:
         text("ALTER TABLE early_modules ADD COLUMN IF NOT EXISTS description_ru TEXT"),
         text("ALTER TABLE early_activities ADD COLUMN IF NOT EXISTS title_ru VARCHAR(150)"),
         text("ALTER TABLE early_activities ADD COLUMN IF NOT EXISTS instruction_text_ru TEXT"),
+        # 2026-10-02: Russian acceptance criteria on team-project tasks.
+        text("ALTER TABLE team_project_tasks ADD COLUMN IF NOT EXISTS acceptance_criteria_ru_json TEXT"),
+        # 2026-10-05: content fingerprint for cross-student duplicate detection.
+        text("ALTER TABLE projects ADD COLUMN IF NOT EXISTS content_fingerprint VARCHAR(64)"),
+        text("CREATE INDEX IF NOT EXISTS ix_projects_content_fingerprint ON projects (content_fingerprint)"),
         # 2026-09-14: close the gennis/turon sync duplicate-row class of bug
         # (confirmed live: two Student rows both with turon_id=19042, one
         # synthetic-username, one real — corrupted a teacher's whole roster
@@ -162,6 +193,37 @@ async def _reconcile_indexes(conn) -> None:
             "CREATE UNIQUE INDEX IF NOT EXISTS ux_students_gennis_id "
             "ON students (gennis_id) WHERE gennis_id IS NOT NULL"
         ),
+        # 2026-10-09: gennis/turon students have no profile photo (no uploads, none
+        # taken from the source) — drop the ones they had. The files stay on disk.
+        text(
+            "UPDATE students SET avatar_url = NULL "
+            "WHERE avatar_url IS NOT NULL AND role = 'student' "
+            "AND (gennis_id IS NOT NULL OR turon_id IS NOT NULL)"
+        ),
+        # 2026-10-10: daily-mission enhancements — completion bonus, rest days,
+        # hourly reminder dedupe. create_all only CREATES missing tables, never
+        # ALTERs an existing one, so the quota tables (shipped via create_all)
+        # need these additive columns here. DEFAULT backfills the quota_config
+        # id=1 singleton (get_config never re-seeds it) so the teacher defaults
+        # go live without a redeploy.
+        text("ALTER TABLE quota_config ADD COLUMN IF NOT EXISTS completion_bonus INTEGER NOT NULL DEFAULT 20"),
+        text("ALTER TABLE quota_config ADD COLUMN IF NOT EXISTS rest_days VARCHAR(20) NOT NULL DEFAULT '5,6'"),
+        text("ALTER TABLE student_daily_progress ADD COLUMN IF NOT EXISTS reminder_sent_at TIMESTAMPTZ"),
+        text("ALTER TABLE student_daily_progress ADD COLUMN IF NOT EXISTS completion_bonus_awarded BOOLEAN NOT NULL DEFAULT FALSE"),
+        text("ALTER TABLE student_daily_progress ADD COLUMN IF NOT EXISTS completion_bonus_points INTEGER NOT NULL DEFAULT 0"),
+        # 2026-10-11: teachers can now give a NEGATIVE review score as a penalty.
+        # points_applied tracks the amount actually docked/granted so a re-review
+        # reverts exactly that. Nullable; backfilled once for already-reviewed
+        # projects (Approved → the score was applied; otherwise nothing was).
+        # The UPDATE only touches NULL rows, so it's safe to run every startup.
+        text("ALTER TABLE projects ADD COLUMN IF NOT EXISTS points_applied INTEGER"),
+        # 2026-10-12: fixed API contract per team project team (planning redesign, stage 2).
+        text("ALTER TABLE team_project_teams ADD COLUMN IF NOT EXISTS shared_contract_json TEXT"),
+        text("ALTER TABLE team_project_teams ADD COLUMN IF NOT EXISTS unmet_lessons_json TEXT"),
+        # 2026-10-13: teachers archive team projects that are over.
+        text("ALTER TABLE team_projects ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ"),
+        text("UPDATE projects SET points_applied = CASE WHEN status = 'Approved' "
+             "THEN COALESCE(points_earned, 0) ELSE 0 END WHERE points_applied IS NULL"),
     ]
     for stmt in statements:
         await conn.execute(stmt)

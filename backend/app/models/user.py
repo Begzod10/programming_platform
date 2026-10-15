@@ -91,6 +91,13 @@ class Student(Base):
     longest_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_activity_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
+    # Demo visitor: signed up with just a name, may only look at the first two
+    # lessons of the demo course, never submits, earns nothing and is invisible
+    # to rankings and teacher/admin statistics. See app/core/demo.py.
+    is_demo: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False, index=True
+    )
+
     # Status fields
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
@@ -120,6 +127,12 @@ class Student(Base):
     # gennis_id, never a shared "external_id". See auth_service.login's
     # `source` branch.
     turon_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True, unique=True)
+
+    @property
+    def identity_managed(self) -> bool:
+        """True when name and photo come from gennis-v2 / turon-v2 (the student
+        cannot edit them here); a local-only or demo account owns its own."""
+        return bool(self.gennis_id or self.turon_id) and not self.is_demo
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(

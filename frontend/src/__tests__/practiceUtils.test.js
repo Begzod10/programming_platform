@@ -114,14 +114,19 @@ describe('judgeTyped', () => {
     expect(judgeTyped('helllo', 'hello')).toEqual({ ok: true, exact: false });
   });
 
-  test('off-by-2 on a word with >= 4 chars returns {ok:true, exact:false}', () => {
-    // "hellloo" vs "hello": dist 2, b.length 5 >= 4
-    expect(judgeTyped('hellloo', 'hello')).toEqual({ ok: true, exact: false });
+  test('off-by-2 on a 5-letter word is rejected (too loose: while/write)', () => {
+    expect(judgeTyped('hellloo', 'hello')).toEqual({ ok: false, exact: false });
+    expect(judgeTyped('while', 'write')).toEqual({ ok: false, exact: false });
+    expect(judgeTyped('else', 'elif')).toEqual({ ok: false, exact: false });
   });
 
-  test('off-by-3 on a word with >= 4 chars returns {ok:false, exact:false}', () => {
-    // "helllooo" vs "hello": dist 3, exceeds threshold
-    expect(judgeTyped('helllooo', 'hello')).toEqual({ ok: false, exact: false });
+  test('off-by-2 on a word with >= 7 chars is accepted as close', () => {
+    expect(judgeTyped('functoin', 'function')).toEqual({ ok: true, exact: false });
+    expect(judgeTyped('funtcion', 'function')).toEqual({ ok: true, exact: false });
+  });
+
+  test('off-by-3 on a long word is rejected', () => {
+    expect(judgeTyped('fnctnn', 'function')).toEqual({ ok: false, exact: false });
   });
 
   test('short target (< 4 chars) only accepts exact match', () => {
