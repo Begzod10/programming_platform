@@ -37,7 +37,7 @@ from app.services.team_project_planner import generate_plan_for_team, validate_p
 from app.services.team_project_task_review import review_task_submission
 from app.services.team_project_constants import THEMES_BY_KEY, TECH_STACKS_BY_KEY
 from app.services.project_service import ProjectService
-from app.services.github_repo_service import parse_github_url, zip_bytes_have_code_file, zip_plain_text_only_names
+from app.services.github_repo_service import github_repo_is_missing, parse_github_url, zip_bytes_have_code_file, zip_plain_text_only_names
 from app.services.integrity_check import PLAIN_TEXT_UPLOAD_MESSAGE
 from app.schemas.project import ProjectCreate
 from app.models.project import Project
@@ -857,6 +857,14 @@ async def submit_task(
     # shows it) — the teacher can still extend the deadline for everyone.
     if body.submission_url and parse_github_url(body.submission_url) is None:
         raise HTTPException(status_code=400, detail="GitHub havolasi noto'g'ri")
+    if body.submission_url and await github_repo_is_missing(body.submission_url):
+        # Without this the AI is told "code unreadable" and scores at most 30, and the student only finds out
+        # after the review (one student sent ~20 submissions before noticing).
+        raise HTTPException(
+            status_code=400,
+            detail="Repo topilmadi yoki private. GitHub'da repo sozlamalarida uni Public qiling "
+                   "va havolani qayta yuboring",
+        )
 
     task.submission_url = body.submission_url
     task.submission_files = body.submission_files

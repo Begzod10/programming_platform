@@ -71,6 +71,14 @@ def reset_rate_limiter():
     _counters.clear()
 
 
+@pytest.fixture(autouse=True)
+def no_github_repo_lookup():
+    """Task submission asks GitHub whether the repo exists; tests must not reach the network
+    (tests that care patch github_repo_is_missing themselves)."""
+    with patch("app.api.v1.endpoints.team_project.github_repo_is_missing", new=AsyncMock(return_value=False)):
+        yield
+
+
 # ── 4b. Mock GennisService so every test is fast (no 10-second network wait) ──
 
 @pytest_asyncio.fixture(autouse=True)

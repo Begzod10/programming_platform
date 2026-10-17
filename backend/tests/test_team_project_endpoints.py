@@ -1548,3 +1548,30 @@ async def test_every_bot_theme_plans_end_to_end_into_stored_tasks_and_a_bot_cont
     assert len(tasks) == 2 and all(t.deadline_at for t in tasks)
     assert any(".env.example" in c for t in tasks for c in json.loads(t.acceptance_criteria_json))
 
+
+async def test_submitting_a_missing_or_private_repo_is_a_clear_400_before_any_review(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    team_a = fx["teams"][0]
+    members_a = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team_a.id))).scalars().all()
+    task = TeamProjectTask(
+        team_id=team_a.id, assigned_student_id=members_a[0].student_id, order=1,
+        title="T", title_ru="Т", description="D", description_ru="О",
+        required_level="Beginner", interface_contract_json="{}",
+        acceptance_criteria_json="[]", depends_on_json="[]", estimated_hours=4,
+    )
+    db_session.add(task)
+    await db_session.commit()
+    await db_session.refresh(task)
+    username = next(u for sid, u in zip(fx["student_ids"], fx["student_usernames"]) if sid == members_a[0].student_id)
+    review = AsyncMock()
+    with patch("app.api.v1.endpoints.team_project.github_repo_is_missing", new=AsyncMock(return_value=True)), \
+            patch("app.api.v1.endpoints.team_project.review_task_submission", new=review):
+        resp = await async_client.post(
+            f"{BASE}/teams/{team_a.id}/tasks/{task.id}/submit",
+            json={"submission_url": "https://github.com/acme/private"}, headers=fx["student_headers"][username])
+    assert resp.status_code == 400 and "Public" in resp.text
+    review.assert_not_awaited()
+    await db_session.refresh(task)
+    assert task.status != TaskStatus.submitted and task.submission_url is None
+
