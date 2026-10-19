@@ -120,3 +120,18 @@ def test_the_text_prompt_names_each_piece_but_hands_no_decisions_to_the_model():
     prompt = build_text_prompt("Viktorina", TECH_STACKS_BY_KEY["express"], members, bp, skeleton)
     assert "QISMLAR" in prompt and "backend/server.js" in prompt and "TAYYOR va O'ZGARMAYDI" in prompt
     assert "assign_to_member_index" not in prompt
+
+
+def test_express_server_files_go_only_to_members_who_finished_node_not_to_javascript_only_members():
+    bp = get_blueprint("tournament", "express")
+    members = [member(0, node="Advanced", javascript="Advanced", html_css="Advanced"),
+               member(1, javascript="Advanced", html_css="Advanced"),
+               member(2, javascript="Advanced", html_css="Advanced"),
+               member(3, html_css="Beginner")]
+    tasks = assign_blueprint(bp, members)
+    for i in (1, 2, 3):
+        files = tasks[i]["interface_contract"]["files"]
+        assert files and not any(f.startswith("backend/") for f in files), (i, files)
+        assert tasks[i]["interface_contract"]["produces"] == []
+    assert tasks[0]["interface_contract"]["produces"]
+    assert validate_plan(with_text(tasks), members, require_level_match=True, blueprint=bp) == []
