@@ -139,10 +139,8 @@ async def test_calculate_and_update_rankings_ranks_are_dense_and_ordered(
         student_ids.append(student_id)
         await service.add_points_to_student(student_id, points)
 
-    # add_points_to_student already calls calculate_and_update_rankings
-    # internally, but call it again explicitly so this test exercises (and
-    # asserts against) the rewritten method directly and deterministically,
-    # independent of that internal call.
+    # add_points_to_student no longer recomputes ranks (the scheduler does, see
+    # refresh_rankings); call it explicitly so this test exercises the method directly.
     await service.calculate_and_update_rankings()
 
     # Look at every active student's Ranking row, not just our 5 — other
@@ -186,3 +184,32 @@ async def test_calculate_and_update_rankings_ranks_are_dense_and_ordered(
     assert [pts for _sid, (pts, _rank) in by_points_desc] == sorted(
         point_totals, reverse=True
     )
+
+
+async def test_awarding_points_does_not_recompute_every_rank_but_refresh_rankings_does(
+    async_client: AsyncClient, db_session
+):
+    """The full rank recompute rewrote every Ranking/Student row inside each award and made concurrent
+    exercise submissions deadlock in production. An award now credits points at once and leaves ranks to
+    the scheduled refresh_rankings()."""
+    service = RankingService(db_session)
+    ids = []
+    for points in (10, 40):
+        uid = uuid.uuid4().hex[:8]
+        reg = await async_client.post("/api/v1/auth/register", json={
+            "username": f"refresh_{uid}", "email": f"refresh_{uid}@example.com", "password": "securepass123"})
+        assert reg.status_code == 201, reg.text
+        ids.append(reg.json()["user"]["id"])
+        await service.add_points_to_student(ids[-1], points)
+
+    async def rank_of(student_id):
+        return (await db_session.execute(
+            select(Ranking.total_points, Ranking.global_rank).where(Ranking.student_id == student_id))).one()
+
+    low, high = await rank_of(ids[0]), await rank_of(ids[1])
+    assert (low.total_points, high.total_points) == (10, 40)       # points are there immediately
+
+    assert await service.refresh_rankings() is True
+    low, high = await rank_of(ids[0]), await rank_of(ids[1])
+    assert high.global_rank < low.global_rank                      # now the higher score ranks higher
+

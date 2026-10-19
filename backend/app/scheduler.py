@@ -277,6 +277,17 @@ async def job_process_quota_eod():
     logger.info("✅ Kunlik kvota EOD qayta ishlandi: %s ta student (%s)", processed, day)
 
 
+async def job_refresh_rankings():
+    """Every minute: recompute daily/weekly/monthly/global ranks for everyone. Points are credited at once when
+    awarded (add_points_to_student); only the leaderboard position lags by up to a minute. It used to run inside
+    every award and made concurrent exercise submissions deadlock on the rankings rows."""
+    try:
+        async with AsyncSessionLocal() as db:
+            await RankingService(db).refresh_rankings()
+    except Exception as e:  # noqa: BLE001 — never take the scheduler down
+        logger.warning("rank refresh failed: %s", e)
+
+
 async def job_team_task_deadline_reminders():
     """Every morning (Asia/Tashkent): tell students with an open team-project task how many days are left —
     only on milestone days (7, 3, 1, 0 days, then once overdue and 3 days later) so it does not turn into noise."""
@@ -352,6 +363,16 @@ def start_scheduler():
         trigger=CronTrigger(hour="9-21", minute=0),
         id="quota_reminder",
         replace_existing=True
+    )
+
+    # Reyting o'rinlarini qayta hisoblash — har daqiqada (ball berishda emas, deadlock bo'lmasligi uchun)
+    scheduler.add_job(
+        job_refresh_rankings,
+        trigger=IntervalTrigger(minutes=1),
+        id="refresh_rankings",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
 
     # Jamoaviy loyiha: vazifani topshirishga necha kun qolgani haqida eslatma — har kuni 09:00

@@ -7,6 +7,9 @@ from app.utils.datetime_utils import utcnow
 from typing import List, Literal, Optional
 from sqlalchemy import over
 
+# pg_try_advisory_xact_lock key of the scheduled rank refresh (one run at a time)
+_RANK_REFRESH_LOCK = 7_300_001
+
 class RankingService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -230,8 +233,10 @@ class RankingService:
             )
             self.db.add(ranking)
 
-        await self.db.flush()
-        await self.calculate_and_update_rankings()
+        # Persist this student's points and release the row locks now. The full rank recompute is NOT run
+        # here (it rewrote every Ranking/Student row inside the request and made concurrent submissions
+        # deadlock — see refresh_rankings, run by the scheduler every minute).
+        await self.db.commit()
         await self.db.refresh(student)
         return student
 
@@ -308,8 +313,16 @@ class RankingService:
         student.total_points = max(0, student.total_points - points)
         student.lifetime_points = max(0, student.lifetime_points - points)
 
-        await self.db.flush()
-        await self.calculate_and_update_rankings()
+        # This student's own leaderboard row follows at once (same Student -> Ranking lock order as an award);
+        # everyone's positions catch up in refresh_rankings.
+        ranking = (await self.db.execute(
+            select(Ranking).where(Ranking.student_id == student_id).with_for_update()
+        )).scalar_one_or_none()
+        if ranking is not None:
+            ranking.total_points = student.lifetime_points
+            ranking.last_calculated_at = utcnow()
+
+        await self.db.commit()
         await self.db.refresh(student)
         return student
 
@@ -463,6 +476,10 @@ class RankingService:
                 .values(**{rank_attr: rank_scalar, "last_calculated_at": now})
             )
 
+        # Commit the Ranking rows first, THEN mirror onto Student rows in a second transaction: an award locks
+        # Student then Ranking, so one transaction holding both tables here could deadlock against it.
+        await self.db.commit()
+
         # Mirror the freshly computed global_rank onto Student.global_rank
         # (the denormalized copy read elsewhere on the Student row itself).
         await self.db.execute(
@@ -482,6 +499,17 @@ class RankingService:
         )
 
         await self.db.commit()
+
+    async def refresh_rankings(self) -> bool:
+        """The scheduled full rank recompute (every minute). One run at a time: on PostgreSQL a transaction-level
+        advisory lock makes an overlapping run skip instead of piling up behind the previous one. Returns whether it ran."""
+        if self.db.bind is not None and self.db.bind.dialect.name == "postgresql":
+            got = (await self.db.execute(select(func.pg_try_advisory_xact_lock(_RANK_REFRESH_LOCK)))).scalar_one()
+            if not got:
+                await self.db.rollback()
+                return False
+        await self.calculate_and_update_rankings()
+        return True
 
     # ========== DELETE & UPDATE ==========
 
