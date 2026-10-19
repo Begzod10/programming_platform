@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import './StudentProfile.css';
+import StudentDictionary from './StudentDictionary';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { Star, Trophy } from 'lucide-react';
 
@@ -356,6 +357,7 @@ const StudentProfilePage = () => {
               { id:'overview',     label:'Umumiy',   icon:'📊', count: null },
               { id:'courses',      label:'Kurslar',  icon:'📚', count: courses.length },
               { id:'achievements', label:'Yutuqlar', Icon: Trophy, count: achievements.length },
+              { id:'dictionary',   label:"Lug'at",   icon:'📖', count: null },
             ].map(({ id, label, icon, Icon, count }) => (
               <button key={id}
                 className={`spp-tab ${tab === id ? 'active' : ''}`}
@@ -419,6 +421,13 @@ const StudentProfilePage = () => {
                     {courses.map((c,i) => <CourseCard key={c.course_id} course={c} idx={i}/>)}
                   </div>
               }
+            </div>
+          )}
+
+          {/* ── Dictionary (lug'at): the words the student saved, to ask them out loud ── */}
+          {tab === 'dictionary' && (
+            <div className="spp-tab-body">
+              <StudentDictionary studentId={studentId} />
             </div>
           )}
 

@@ -20,6 +20,7 @@ from app.services.student_service import StudentService
 from app.services.teacher_students import teacher_student_ids_subquery
 from app.services.skill_profile_service import build_skill_profile
 from app.schemas.team_project import SkillProfile
+from app.schemas.dictionary import TeacherDictionaryWord, TeacherStudentDictionary
 
 router = APIRouter()
 
@@ -136,6 +137,42 @@ async def get_student_skill_profile(
     if profile is None:
         raise HTTPException(status_code=404, detail="Student not found")
     return profile
+
+
+@router.get("/{student_id}/dictionary", response_model=TeacherStudentDictionary)
+async def get_student_dictionary(
+        student_id: int,
+        lang: Optional[str] = Query(None, description="uz | ru — only words saved in this language"),
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """The words a student saved to their dictionary (lug'at), so the teacher can ask them out loud.
+    Read-only; only for students the teacher reaches through a group or flow of their own."""
+    from app.models.course import Course
+    from app.models.dictionary import UserDictionary
+    from app.models.lesson import Lesson
+
+    if not await _student_belongs_to_teacher(db, student_id, current_teacher.id):
+        raise HTTPException(status_code=404, detail="Student not found")
+    q = (
+        select(UserDictionary, Lesson.title, Course.id, Course.title)
+        .outerjoin(Lesson, Lesson.id == UserDictionary.lesson_id)
+        .outerjoin(Course, Course.id == Lesson.course_id)
+        .where(UserDictionary.student_id == student_id)
+    )
+    if lang:
+        q = q.where(UserDictionary.lang == lang.strip().lower())
+    rows = (await db.execute(q.order_by(UserDictionary.created_at.desc(), UserDictionary.id.desc()))).all()
+    words = [
+        TeacherDictionaryWord(
+            id=w.id, word=w.word, context=w.context, lang=w.lang or "uz", lesson_id=w.lesson_id,
+            lesson_title=lesson_title, course_id=course_id, course_title=course_title,
+            review_count=w.review_count or 0, correct_count=w.correct_count or 0,
+            incorrect_count=w.incorrect_count or 0, last_reviewed_at=w.last_reviewed_at, created_at=w.created_at,
+        )
+        for w, lesson_title, course_id, course_title in rows
+    ]
+    return TeacherStudentDictionary(student_id=student_id, total=len(words), words=words)
 
 
 @router.delete("/{student_id}")

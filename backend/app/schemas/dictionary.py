@@ -32,6 +32,29 @@ class DictionaryOut(BaseModel):
         from_attributes = True
 
 
+class TeacherDictionaryWord(BaseModel):
+    """One saved word as the teacher sees it (read-only): enough to ask the student the word out loud."""
+    id: int
+    word: str
+    context: Optional[str] = None
+    lang: str = "uz"
+    lesson_id: Optional[int] = None
+    lesson_title: Optional[str] = None
+    course_id: Optional[int] = None
+    course_title: Optional[str] = None
+    review_count: int = 0
+    correct_count: int = 0
+    incorrect_count: int = 0
+    last_reviewed_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+
+
+class TeacherStudentDictionary(BaseModel):
+    student_id: int
+    total: int
+    words: List[TeacherDictionaryWord]
+
+
 # ─── QUIZ (DRAG AND DROP) SHÉMALARI ───────────────────
 
 class QuizWordItem(BaseModel):
