@@ -1575,3 +1575,62 @@ async def test_submitting_a_missing_or_private_repo_is_a_clear_400_before_any_re
     await db_session.refresh(task)
     assert task.status != TaskStatus.submitted and task.submission_url is None
 
+
+async def test_deadline_reminders_go_to_open_tasks_only_on_milestones_and_never_twice_a_day(db_session, two_teams_project):
+    from datetime import timedelta
+    from app.utils.datetime_utils import utcnow
+    from app.models.notification import Notification
+    from app.services.team_project_deadline_reminders import send_deadline_reminders
+    fx = two_teams_project
+    team = fx["teams"][0]
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id))).scalars().all()
+    now = utcnow()
+    plan = [(TaskStatus.assigned, 3), (TaskStatus.assigned, 5), (TaskStatus.approved, 3)]   # days from now
+    tasks = []
+    for order, (status, days) in enumerate(plan):
+        task = TeamProjectTask(
+            team_id=team.id, assigned_student_id=members[order % len(members)].student_id, order=order,
+            title=f"T{order}", title_ru="Т", description="D", description_ru="О", required_level="Beginner",
+            interface_contract_json="{}", acceptance_criteria_json="[]", depends_on_json="[]", estimated_hours=4,
+            status=status, deadline_at=now + timedelta(days=days, hours=-1))
+        db_session.add(task)
+        tasks.append(task)
+    team.status = TeamStatus.working
+    await db_session.commit()
+
+    only_milestones = await send_deadline_reminders(db_session, apply=True, milestones_only=True, now=now)
+    mine = [r for r in only_milestones if r["task_id"] in {t.id for t in tasks}]
+    assert [r["left"] for r in mine] == [3]                      # the 5-day task is not a milestone, the approved one is not open
+    again = await send_deadline_reminders(db_session, apply=True, milestones_only=True, now=now)
+    assert all(r["skipped"] for r in again if r["task_id"] in {t.id for t in tasks})
+    stored = (await db_session.execute(
+        select(Notification).where(Notification.type == "team_task_deadline", Notification.student_id == tasks[0].assigned_student_id)
+    )).scalars().all()
+    assert len(stored) == 1 and "3 kun" in stored[0].title
+
+    everyone = await send_deadline_reminders(db_session, apply=False, milestones_only=False, now=now)
+    assert {r["left"] for r in everyone if r["task_id"] in {t.id for t in tasks}} == {3, 5}
+
+
+async def test_deadline_reminders_skip_archived_projects(db_session, two_teams_project):
+    from datetime import timedelta
+    from app.utils.datetime_utils import utcnow
+    from app.services.team_project_deadline_reminders import open_tasks
+    fx = two_teams_project
+    team = fx["teams"][1]
+    member = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id))).scalars().first()
+    task = TeamProjectTask(
+        team_id=team.id, assigned_student_id=member.student_id, order=0, title="T", title_ru="Т", description="D",
+        description_ru="О", required_level="Beginner", interface_contract_json="{}", acceptance_criteria_json="[]",
+        depends_on_json="[]", estimated_hours=4, status=TaskStatus.assigned, deadline_at=utcnow() + timedelta(days=2))
+    db_session.add(task)
+    team.status = TeamStatus.working
+    await db_session.commit()
+    assert task.id in {t.id for t, _ in await open_tasks(db_session)}
+    tp = (await db_session.execute(select(TeamProject).where(TeamProject.id == team.team_project_id))).scalar_one()
+    tp.archived_at = utcnow()
+    await db_session.commit()
+    assert task.id not in {t.id for t, _ in await open_tasks(db_session)}
+

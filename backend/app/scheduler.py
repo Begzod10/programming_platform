@@ -277,6 +277,18 @@ async def job_process_quota_eod():
     logger.info("✅ Kunlik kvota EOD qayta ishlandi: %s ta student (%s)", processed, day)
 
 
+async def job_team_task_deadline_reminders():
+    """Every morning (Asia/Tashkent): tell students with an open team-project task how many days are left —
+    only on milestone days (7, 3, 1, 0 days, then once overdue and 3 days later) so it does not turn into noise."""
+    from app.services.team_project_deadline_reminders import send_deadline_reminders
+    try:
+        async with AsyncSessionLocal() as db:
+            sent = await send_deadline_reminders(db, apply=True, milestones_only=True)
+        logger.info("⏰ Jamoaviy loyiha muddat eslatmasi: %s ta", sum(1 for r in sent if not r["skipped"]))
+    except Exception as e:  # noqa: BLE001 — a reminder must never take the scheduler down
+        logger.warning("team task deadline reminders failed: %s", e)
+
+
 async def job_quota_reminder():
     """Runs hourly during the day (Asia/Tashkent). Nudges students whose games
     are still locked today with a "finish your quota" notification. Each student
@@ -340,6 +352,14 @@ def start_scheduler():
         trigger=CronTrigger(hour="9-21", minute=0),
         id="quota_reminder",
         replace_existing=True
+    )
+
+    # Jamoaviy loyiha: vazifani topshirishga necha kun qolgani haqida eslatma — har kuni 09:00
+    scheduler.add_job(
+        job_team_task_deadline_reminders,
+        trigger=CronTrigger(hour=9, minute=0),
+        id="team_task_deadline_reminders",
+        replace_existing=True,
     )
 
     # Har dushanba 00:00 da haftalik reset
