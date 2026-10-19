@@ -22,6 +22,7 @@ import { CategoriesModal } from './CategoriesModal';
 import { SortableCourseCard } from './SortableCourseCard';
 import { CategoryPicker } from './CategoryPicker';
 import { Loader } from './Loader';
+import { canEditLessons } from '../lessonEditAccess';
 
 // Category state is loaded from the backend (categories table). The previous
 // hardcoded `INITIAL_CHAPTERS` list was removed in favor of real categories
@@ -43,13 +44,16 @@ const TeacherCourses = () => {
     // /teacher/courses/:courseId/lessons/new             → 'new'
     // /teacher/courses/:courseId/lessons/:id/edit        → 'edit'
     // /teacher/courses/:courseId/lessons/:id             → 'lesson'
+    const canEdit = canEditLessons(user);
     const path = location.pathname;
-    const isNew  = path.endsWith('/lessons/new');
-    const isEdit = !isNew && path.endsWith('/edit');
+    // Teachers who may not change lessons never reach the editor, even by typing its URL.
+    const isNewPath = path.endsWith('/lessons/new');
+    const isNew  = canEdit && isNewPath;
+    const isEdit = canEdit && !isNewPath && path.endsWith('/edit');
     const view   = !courseId ? 'list'
         : isNew              ? 'new'
         : isEdit             ? 'edit'
-        : lessonId           ? 'lesson'
+        : (lessonId && !isNewPath) ? 'lesson'
         :                      'course';
 
     const [courses,          setCourses]          = useState([]);
@@ -69,7 +73,7 @@ const TeacherCourses = () => {
 
     // ФИКС: sameId для поиска курса и урока
     const activeCourse  = courseId ? courses.find(c => sameId(c.id, courseId)) || null : null;
-    const activeLesson  = (lessonId && !isNew && activeCourse)
+    const activeLesson  = (lessonId && !isNewPath && activeCourse)
         ? activeCourse.lessons.find(l => sameId(l.id, lessonId)) || null
         : null;
     // Урок для редактора (edit mode)
@@ -380,6 +384,7 @@ const TeacherCourses = () => {
                 onAddLesson={() => navigate(`/teacher/courses/${activeCourse.id}/lessons/new`)}
                 onToggleLessonPublish={toggleLessonPublish}
                 onReorderLessons={reorderLessons}
+                canEdit={canEdit}
             />
         );
     }
