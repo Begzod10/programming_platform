@@ -1,11 +1,13 @@
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from sqlalchemy import delete
 
 from app.db.database import AsyncSessionLocal
-from app.models.pc_control import PcDevice, PcCommand
+from app.models.pc_control import PcDevice, PcCommand, PcSession
+from app.models.user import Student, UserRole
 from app.services.pc_lock_service import decide_lock, resolve_override, compute_state
 
 
@@ -45,25 +47,93 @@ def _cmd(scope_type, scope_id, type_):
     return PcCommand(scope_type=scope_type, scope_id=scope_id, type=type_, created_by=1)
 
 
-async def test_device_scope_beats_newer_all_scope():
+async def test_newer_all_lock_beats_older_device_unlock():
     async with AsyncSessionLocal() as db:
         d = await _device(db)
         db.add(_cmd("device", d.id, "unlock"))
         await db.commit()
         db.add(_cmd("all", None, "lock"))
         await db.commit()
+        assert await resolve_override(db, d) == "lock"
+
+
+async def test_newer_device_unlock_beats_older_all_lock():
+    async with AsyncSessionLocal() as db:
+        d = await _device(db)
+        db.add(_cmd("all", None, "lock"))
+        await db.commit()
+        db.add(_cmd("device", d.id, "unlock"))
+        await db.commit()
         assert await resolve_override(db, d) == "unlock"
 
 
-async def test_later_clear_returns_none():
+async def test_later_clear_ends_everything_older():
+    async with AsyncSessionLocal() as db:
+        d = await _device(db, group_id=None)
+        db.add(_cmd("device", d.id, "lock"))
+        db.add(_cmd("all", None, "lock"))
+        await db.commit()
+        db.add(_cmd("all", None, "clear"))
+        await db.commit()
+        assert await resolve_override(db, d) is None
+
+
+async def test_command_from_yesterday_is_ignored():
     async with AsyncSessionLocal() as db:
         d = await _device(db)
-        db.add(_cmd("device", d.id, "lock"))
+        old = _cmd("all", None, "lock")
+        old.created_at = datetime.now(timezone.utc) - timedelta(days=2)
+        db.add(old)
         await db.commit()
-        db.add(_cmd("device", d.id, "clear"))
-        await db.commit()
-        # an all-scope lock exists elsewhere but device-scope clear is most specific
         assert await resolve_override(db, d) is None
+
+
+async def _open_sess(db, device, signed_in):
+    st = Student(username=f"u_{_uid()}", email=f"{_uid()}@example.com", full_name="X",
+                 hashed_password="x", role=UserRole.student)
+    db.add(st)
+    await db.flush()
+    s = PcSession(device_id=device.id, student_id=st.id, signed_in_at=signed_in)
+    db.add(s)
+    await db.commit()
+    await db.refresh(s)
+    return s
+
+
+async def test_device_command_before_session_start_does_not_apply():
+    async with AsyncSessionLocal() as db:
+        d = await _device(db)
+        now = datetime.now(timezone.utc)
+        c = _cmd("device", d.id, "unlock")
+        c.created_at = now - timedelta(minutes=10)
+        db.add(c)
+        await db.commit()
+        await _open_sess(db, d, now - timedelta(minutes=5))  # student B signed in later
+        assert await resolve_override(db, d) is None
+
+
+async def test_device_command_during_session_applies():
+    async with AsyncSessionLocal() as db:
+        d = await _device(db)
+        now = datetime.now(timezone.utc)
+        await _open_sess(db, d, now - timedelta(minutes=10))
+        c = _cmd("device", d.id, "unlock")
+        c.created_at = now - timedelta(minutes=5)
+        db.add(c)
+        await db.commit()
+        assert await resolve_override(db, d) == "unlock"
+
+
+async def test_all_lock_before_sign_in_still_applies():
+    async with AsyncSessionLocal() as db:
+        d = await _device(db)
+        now = datetime.now(timezone.utc)
+        c = _cmd("all", None, "lock")
+        c.created_at = now - timedelta(minutes=10)
+        db.add(c)
+        await db.commit()
+        await _open_sess(db, d, now - timedelta(minutes=5))
+        assert await resolve_override(db, d) == "lock"
 
 
 async def test_group_command_ignored_for_other_group():

@@ -284,6 +284,55 @@ def test_unlock_device_overrides_all_lock(client, teacher, quota_enforced):
     assert s["locked"] is False and s["reason"] == "teacher_unlock"
 
 
+def test_newer_all_lock_beats_older_device_unlock_via_api(client, teacher, quota_enforced):
+    _, th = teacher
+    _, did, _, h = _device_login(client)
+    client.post(f"{T}/commands", headers=th, json={"scope_type": "device", "scope_id": did, "type": "unlock"})
+    assert _state(client, h)["reason"] == "teacher_unlock"
+    client.post(f"{T}/commands", headers=th, json={"scope_type": "all", "type": "lock"})
+    s = _state(client, h)
+    assert s["locked"] is True and s["reason"] == "teacher_lock"
+
+
+def test_device_unlock_does_not_carry_over_to_next_student(client, teacher, quota_enforced):
+    _, th = teacher
+    uid = _uid()
+    mk = f"mk-carry-{uid}"
+
+    def login():
+        sid, uname, _ = _register(client)
+        r = client.post("/api/v1/pc/login", json={
+            "username": uname, "password": PW, "hostname": f"lab-{uid}", "machine_key": mk})
+        assert r.status_code == 200, r.text
+        return {"Authorization": f"Bearer {r.json()['token']}"}, r.json()["state"]
+
+    h_a, _ = login()
+    did = client.get(f"{T}/devices", headers=th).json()
+    did = next(d["id"] for d in did if d["hostname"] == f"lab-{uid}")
+    r = client.post(f"{T}/commands", headers=th, json={"scope_type": "device", "scope_id": did, "type": "unlock"})
+    assert r.status_code == 200, r.text
+    assert _state(client, h_a)["reason"] == "teacher_unlock"
+
+    async def _backdate():  # make the ordering independent of timestamp resolution
+        async with AsyncSessionLocal() as db:
+            await db.execute(update(PcCommand).where(PcCommand.id == r.json()["id"]).values(
+                created_at=datetime.now(timezone.utc) - timedelta(hours=1)))
+            await db.execute(update(PcSession).where(PcSession.device_id == did).values(
+                signed_in_at=datetime.now(timezone.utc) - timedelta(hours=2)))
+            await db.commit()
+    client.portal.call(_backdate)
+    h_b, state_b = login()
+    assert state_b["reason"] == "quota_pending"
+    assert _state(client, h_b)["locked"] is True
+
+
+def test_all_lock_before_sign_in_applies_to_new_session(client, teacher, quota_enforced):
+    _, th = teacher
+    client.post(f"{T}/commands", headers=th, json={"scope_type": "all", "type": "lock"})
+    _, _, _, h = _device_login(client)
+    assert _state(client, h)["reason"] == "teacher_lock"
+
+
 def test_group_command_does_not_reach_other_group(client, teacher, quota_enforced):
     tid, th = teacher
     g1, g2 = _group(client, tid), _group(client, tid)
