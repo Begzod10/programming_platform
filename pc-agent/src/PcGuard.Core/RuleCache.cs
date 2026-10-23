@@ -18,15 +18,20 @@ public class RuleCache
     private readonly string _path;
     private readonly TimeSpan _maxAge;
     private readonly Func<DateTimeOffset> _clock;
+    private readonly bool _persist;
     private readonly object _lock = new();
     private Stored? _stored;
 
-    public RuleCache(string path, TimeSpan maxAge, Func<DateTimeOffset> clock)
+    /// <param name="persist">When false, nothing is read from or written to disk (used when the data
+    /// folder could not be secured): the cache starts empty, so Current() fails closed to locked with
+    /// the default allowlist.</param>
+    public RuleCache(string path, TimeSpan maxAge, Func<DateTimeOffset> clock, bool persist = true)
     {
         _path = path;
         _maxAge = maxAge;
         _clock = clock;
-        _stored = Load();
+        _persist = persist;
+        _stored = persist ? Load() : null;
     }
 
     /// <summary>Stores incoming rules. Returns false (and keeps the previous allowlist) when the incoming allowlist is empty.</summary>
@@ -88,6 +93,7 @@ public class RuleCache
 
     private void Save(Stored s)
     {
+        if (!_persist) return;
         try
         {
             var dir = Path.GetDirectoryName(Path.GetFullPath(_path));

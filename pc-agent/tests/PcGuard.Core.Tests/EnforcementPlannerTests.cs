@@ -62,6 +62,15 @@ public class EnforcementPlannerTests
     }
 
     [Fact]
+    public void SystemOwnedWindowedProcessIsNeverKilledInFreshPath()
+    {
+        // a system-owned process with a window and a non-allowlisted name must not be killed
+        var procs = new[] { P(300, "svcwindow.exe", system: true), P(301, "game.exe") };
+        var plan = EnforcementPlanner.Plan(Rules(true), Snap(new[] { 300, 301 }, procs), Now, Now, procs);
+        Assert.Equal(new[] { 301 }, plan.KillPids);
+    }
+
+    [Fact]
     public void WindowedPidNotInServiceEnumerationIsIgnored()
     {
         var snap = new Snapshot(new[] { new WindowedProc(999, "game.exe") }, null, Array.Empty<BrowserWindow>());
@@ -142,6 +151,31 @@ public class EnforcementPlannerTests
         Assert.Equal(new[] { 103 }, plan.KillPids);
         var fresh = EnforcementPlanner.Plan(Rules(true), Snap(new[] { 102 }, Procs), Now, Now, Procs, exemptPids: new[] { 102 });
         Assert.Empty(fresh.KillPids);
+    }
+
+    [Fact]
+    public void FallbackKillsAllowlistedBrowserWhenHostRuleActive()
+    {
+        // no snapshot => cannot read the address bar, so a host-restricted browser is a loophole: kill it
+        var plan = EnforcementPlanner.Plan(Rules(true, new[] { "platform.uz" }), null, Now, Now, Procs);
+        Assert.Contains(104, plan.KillPids); // chrome.exe, allowlisted, killed anyway
+        Assert.Equal(new[] { 102, 103, 104 }, plan.KillPids);
+    }
+
+    [Fact]
+    public void FallbackDoesNotKillBrowserWhenNoHostRule()
+    {
+        var plan = EnforcementPlanner.Plan(Rules(true, Array.Empty<string>()), null, Now, Now, Procs);
+        Assert.DoesNotContain(104, plan.KillPids); // chrome stays: no host restriction
+        Assert.Equal(new[] { 102, 103 }, plan.KillPids);
+    }
+
+    [Fact]
+    public void FallbackBrowserKillIgnoresSystemOwnedBrowser()
+    {
+        var procs = new[] { P(1, "chrome.exe", system: true), P(2, "game.exe") };
+        var plan = EnforcementPlanner.Plan(Rules(true, new[] { "platform.uz" }), null, Now, Now, procs);
+        Assert.Equal(new[] { 2 }, plan.KillPids);
     }
 
     [Fact]

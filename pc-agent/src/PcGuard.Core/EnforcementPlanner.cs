@@ -34,23 +34,31 @@ public static class EnforcementPlanner
         if (!rules.Locked) return Empty with { ShellMissing = shellMissing };
 
         var exempt = exemptPids is null ? new HashSet<int>() : new HashSet<int>(exemptPids);
-        var candidates = userSessionProcesses.Where(p => !exempt.Contains(p.Pid));
+        // system-owned (or undetermined, which the enumerator reports as system-owned) processes are
+        // never terminated, in BOTH the fresh and the fallback path.
+        var candidates = userSessionProcesses.Where(p => !exempt.Contains(p.Pid) && !p.IsSystemOwned).ToList();
 
-        IEnumerable<ProcInfo> infos;
+        var killSet = new HashSet<int>();
         if (fresh)
         {
             var windowed = new HashSet<int>(snapshot!.Windowed.Select(w => w.Pid));
-            infos = candidates.Select(p => new ProcInfo(p.Pid, p.Exe, windowed.Contains(p.Pid), p.Publisher));
+            var infos = candidates.Select(p => new ProcInfo(p.Pid, p.Exe, windowed.Contains(p.Pid), p.Publisher));
+            foreach (var v in ProcessPolicy.FindViolators(infos, rules)) killSet.Add(v.Pid);
         }
         else
         {
-            // name-only fallback: no window information, so every non-system user process counts as visible
-            infos = candidates.Where(p => !p.IsSystemOwned)
-                .Select(p => new ProcInfo(p.Pid, p.Exe, true, p.Publisher));
+            // name-only fallback: no window information, so every candidate counts as visible
+            var infos = candidates.Select(p => new ProcInfo(p.Pid, p.Exe, true, p.Publisher));
+            foreach (var v in ProcessPolicy.FindViolators(infos, rules)) killSet.Add(v.Pid);
+
+            // the address bar is unreadable without a snapshot, so a host-restricted browser is a
+            // loophole: when locked with a non-empty host list, allowlisted browsers are killed too.
+            if (rules.BrowserHosts.Count > 0)
+                foreach (var p in candidates.Where(p => BrowserHostRule.IsBrowser(p.Exe)))
+                    killSet.Add(p.Pid);
         }
 
-        var kill = ProcessPolicy.FindViolators(infos, rules)
-            .Select(v => v.Pid).Distinct().OrderBy(pid => pid).ToList();
+        var kill = killSet.OrderBy(pid => pid).ToList();
 
         var close = new List<long>();
         if (fresh)

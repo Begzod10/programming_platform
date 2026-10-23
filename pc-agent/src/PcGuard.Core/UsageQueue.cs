@@ -5,13 +5,14 @@ using System.Text.Json.Serialization;
 namespace PcGuard.Core;
 
 /// <summary>
-/// Durable FIFO of usage events waiting for upload. Backed by a JSON-lines file that is rewritten
-/// atomically (temp file + rename) on every change; the in-memory copy is authoritative if the disk
-/// write fails. Corrupt lines are skipped on load and never throw. Holds at most
-/// <see cref="MaxEvents"/> events: the oldest are dropped first.
-/// Thread-safe. Intended use is a single uploader doing PeekBatch -> upload -> Remove(n) while no
-/// other thread calls Remove; Enqueue from elsewhere is safe except that hitting the cap between a
-/// peek and its Remove would shift the head (the uploader should Enqueue on its own thread).
+/// Durable FIFO of usage events waiting for upload, each carrying a non-secret session tag so an
+/// event recorded under one sign-in is only ever uploaded with that sign-in's own token (see
+/// <see cref="UsageUploadPlanner"/>). Backed by a JSON-lines file rewritten atomically (temp file +
+/// rename) on every change; the in-memory copy is authoritative if the disk write fails. Corrupt or
+/// untagged lines are skipped on load and never throw. Holds at most <see cref="MaxEvents"/> events
+/// across all tags: the oldest overall are dropped first (a tag-agnostic cap). Thread-safe.
+/// With <c>persist: false</c> it keeps everything in memory only (used when the data folder could
+/// not be secured — nothing sensitive is written to an unprotected location).
 /// </summary>
 public sealed class UsageQueue
 {
@@ -19,19 +20,24 @@ public sealed class UsageQueue
     public const int MaxBatch = 500;
 
     private sealed record Line(
+        [property: JsonPropertyName("tag")] string? Tag,
         [property: JsonPropertyName("app_name")] string? AppName,
         [property: JsonPropertyName("started_at")] DateTimeOffset? StartedAt,
         [property: JsonPropertyName("ended_at")] DateTimeOffset? EndedAt,
         [property: JsonPropertyName("was_locked")] bool? WasLocked);
 
-    private readonly string _path;
-    private readonly object _lock = new();
-    private readonly List<UsageEvent> _items;
+    private readonly record struct Entry(string Tag, UsageEvent Ev);
 
-    public UsageQueue(string path)
+    private readonly string _path;
+    private readonly bool _persist;
+    private readonly object _lock = new();
+    private readonly List<Entry> _items;
+
+    public UsageQueue(string path, bool persist = true)
     {
         _path = path;
-        _items = Load(path);
+        _persist = persist;
+        _items = persist ? Load(path) : new List<Entry>();
         if (_items.Count > MaxEvents) _items.RemoveRange(0, _items.Count - MaxEvents);
     }
 
@@ -40,10 +46,24 @@ public sealed class UsageQueue
         get { lock (_lock) return _items.Count; }
     }
 
-    public void Enqueue(IEnumerable<UsageEvent> events)
+    /// <summary>Tags present in the queue, each once, ordered by their first (oldest) event.</summary>
+    public IReadOnlyList<string> Tags()
     {
+        lock (_lock)
+        {
+            var seen = new HashSet<string>();
+            var order = new List<string>();
+            foreach (var it in _items)
+                if (seen.Add(it.Tag)) order.Add(it.Tag);
+            return order;
+        }
+    }
+
+    public void Enqueue(string tag, IEnumerable<UsageEvent> events)
+    {
+        if (string.IsNullOrWhiteSpace(tag)) throw new ArgumentException("A session tag is required", nameof(tag));
         ArgumentNullException.ThrowIfNull(events);
-        var valid = events.Where(IsValid).ToList();
+        var valid = events.Where(IsValid).Select(e => new Entry(tag, e)).ToList();
         if (valid.Count == 0) return;
         lock (_lock)
         {
@@ -53,33 +73,51 @@ public sealed class UsageQueue
         }
     }
 
-    /// <summary>Oldest first, at most min(max, 500) events. Does not remove anything.</summary>
-    public IReadOnlyList<UsageEvent> PeekBatch(int max)
+    /// <summary>Oldest first, at most min(max, 500) events of <paramref name="tag"/>. Does not remove anything.</summary>
+    public IReadOnlyList<UsageEvent> PeekBatch(string tag, int max)
     {
+        var cap = Math.Min(max, MaxBatch);
+        if (cap <= 0) return Array.Empty<UsageEvent>();
         lock (_lock)
         {
-            var n = Math.Min(Math.Min(max, MaxBatch), _items.Count);
-            return n <= 0 ? Array.Empty<UsageEvent>() : _items.GetRange(0, n).ToArray();
+            var result = new List<UsageEvent>(Math.Min(cap, _items.Count));
+            foreach (var it in _items)
+            {
+                if (it.Tag != tag) continue;
+                result.Add(it.Ev);
+                if (result.Count == cap) break;
+            }
+            return result;
         }
     }
 
-    /// <summary>Drops the first <paramref name="count"/> events (all if count exceeds Count; no-op if count &lt;= 0).</summary>
-    public void Remove(int count)
+    /// <summary>Drops the first <paramref name="count"/> events of <paramref name="tag"/> (no-op if count &lt;= 0).</summary>
+    public void Remove(string tag, int count)
     {
         if (count <= 0) return;
         lock (_lock)
         {
-            _items.RemoveRange(0, Math.Min(count, _items.Count));
-            Save();
+            var removed = 0;
+            _items.RemoveAll(it => it.Tag == tag && removed < count && ++removed > 0);
+            if (removed > 0) Save();
+        }
+    }
+
+    /// <summary>Drops every event of <paramref name="tag"/>.</summary>
+    public void DropTag(string tag)
+    {
+        lock (_lock)
+        {
+            if (_items.RemoveAll(it => it.Tag == tag) > 0) Save();
         }
     }
 
     private static bool IsValid(UsageEvent? e)
         => e is not null && !string.IsNullOrWhiteSpace(e.AppName) && e.EndedAt > e.StartedAt;
 
-    private static List<UsageEvent> Load(string path)
+    private static List<Entry> Load(string path)
     {
-        var result = new List<UsageEvent>();
+        var result = new List<Entry>();
         string text;
         try
         {
@@ -98,10 +136,11 @@ public sealed class UsageQueue
             try
             {
                 var l = JsonSerializer.Deserialize<Line>(line);
-                if (l is { AppName: { } name, StartedAt: { } s, EndedAt: { } en, WasLocked: { } wl })
+                if (l is { Tag: { } tag, AppName: { } name, StartedAt: { } s, EndedAt: { } en, WasLocked: { } wl }
+                    && !string.IsNullOrWhiteSpace(tag))
                 {
                     var e = new UsageEvent(name, s, en, wl);
-                    if (IsValid(e)) result.Add(e);
+                    if (IsValid(e)) result.Add(new Entry(tag, e));
                 }
             }
             catch
@@ -114,13 +153,14 @@ public sealed class UsageQueue
 
     private void Save()
     {
+        if (!_persist) return;
         try
         {
             var dir = Path.GetDirectoryName(Path.GetFullPath(_path));
             if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
             var sb = new StringBuilder();
-            foreach (var e in _items)
-                sb.Append(JsonSerializer.Serialize(new Line(e.AppName, e.StartedAt, e.EndedAt, e.WasLocked))).Append('\n');
+            foreach (var it in _items)
+                sb.Append(JsonSerializer.Serialize(new Line(it.Tag, it.Ev.AppName, it.Ev.StartedAt, it.Ev.EndedAt, it.Ev.WasLocked))).Append('\n');
             var tmp = _path + ".tmp";
             File.WriteAllText(tmp, sb.ToString(), new UTF8Encoding(false));
             File.Move(tmp, _path, overwrite: true);

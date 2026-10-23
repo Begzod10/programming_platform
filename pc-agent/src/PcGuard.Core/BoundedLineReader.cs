@@ -6,6 +6,9 @@ namespace PcGuard.Core;
 /// Reads UTF-8 '\n'-terminated lines from a stream without ever buffering more than
 /// <c>maxLineBytes</c> per line: a longer line is discarded up to its newline and reading continues.
 /// A trailing '\r' is stripped. Returns null at end of stream. Not thread-safe.
+/// A login line carries the student's password, so every consumed byte is zeroed from both internal
+/// buffers as soon as it has been copied or decoded (the returned string is immutable and cannot be
+/// scrubbed, which is unavoidable in managed code).
 /// </summary>
 public sealed class BoundedLineReader
 {
@@ -53,14 +56,16 @@ public sealed class BoundedLineReader
                 if (_line.Length + (end - _pos) > _max)
                 {
                     _skipping = true;
-                    _line.SetLength(0);
+                    Scrub();
                 }
                 else
                 {
                     _line.Write(_buf, _pos, end - _pos);
                 }
             }
-            _pos = nl < 0 ? _len : nl + 1;
+            var consumedTo = nl < 0 ? _len : nl + 1;
+            Array.Clear(_buf, _pos, consumedTo - _pos); // scrub consumed bytes (may include a password)
+            _pos = consumedTo;
             if (nl < 0) continue;
 
             if (_skipping)
@@ -78,7 +83,15 @@ public sealed class BoundedLineReader
         var n = (int)_line.Length;
         if (n > 0 && bytes[n - 1] == (byte)'\r') n--;
         var s = Encoding.UTF8.GetString(bytes, 0, n);
-        _line.SetLength(0);
+        Scrub();
         return s;
+    }
+
+    // Zero the assembled-line buffer so a password does not linger in memory, then reset it.
+    private void Scrub()
+    {
+        var bytes = _line.GetBuffer();
+        Array.Clear(bytes, 0, (int)_line.Length);
+        _line.SetLength(0);
     }
 }
