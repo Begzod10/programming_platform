@@ -11,12 +11,14 @@ namespace PcGuard.Service;
 internal sealed class ShellSupervisor
 {
     private readonly string _shellPath;
+    private readonly ShellPin _pin;
     private readonly ILogger _log;
     private DateTimeOffset? _lastLaunchAt;
 
-    public ShellSupervisor(string shellPath, ILogger log)
+    public ShellSupervisor(string shellPath, ShellPin pin, ILogger log)
     {
         _shellPath = shellPath;
+        _pin = pin;
         _log = log;
     }
 
@@ -37,12 +39,17 @@ internal sealed class ShellSupervisor
                 }
                 try
                 {
-                    var pid = Native.LaunchInSession(consoleSession!.Value, _shellPath);
+                    var (pid, createdAt) = Native.LaunchInSession(consoleSession!.Value, _shellPath);
+                    _pin.Set(pid, createdAt); // only this instance may speak on the pipe; the pin moves to each new launch
                     _log.LogInformation("Launched shell (pid {Pid}) in session {Session}", pid, consoleSession);
+                }
+                catch (Win32Exception e) when (e.NativeErrorCode == 1008)
+                {
+                    // ERROR_NO_TOKEN: nobody signed in on the console yet / secure desktop (logon, UAC). Normal; try later.
+                    _log.LogDebug("Shell launch deferred in session {Session}: no interactive token yet", consoleSession);
                 }
                 catch (Win32Exception e)
                 {
-                    // ERROR_NO_TOKEN (1008): nobody signed in on the console yet / secure desktop; try later
                     _log.LogWarning("Could not launch shell in session {Session}: {Code} {Message}", consoleSession, e.NativeErrorCode, e.Message);
                 }
                 break;

@@ -70,11 +70,19 @@ internal sealed class ProcessEnumerator
                     var info = path is null ? null : Image(path);
                     var exe = (path is null ? p.ProcessName + ".exe" : Path.GetFileName(path)).ToLowerInvariant();
                     var isShell = path is not null && string.Equals(Path.GetFullPath(path), _shellPath, StringComparison.OrdinalIgnoreCase);
-                    var systemOwned = IsServiceAccount(Native.TryGetProcessOwner(p.Id))
-                                      || (path is not null && info is { TrustedOwner: true }
-                                          && Path.GetFullPath(path).StartsWith(_systemRoot, StringComparison.OrdinalIgnoreCase));
 
-                    if (ProcessPolicy.Protected.Contains(exe) && !systemOwned && !isShell && path is not null)
+                    // Fail safe on undetermined identity: if we cannot read the image path we cannot
+                    // judge the process, so treat it as system-owned (never a kill candidate) and do
+                    // NOT relabel it as "unverified:". Only a process we positively identified as
+                    // neither system-owned nor the shell is relabeled so a spoofed protected name is
+                    // still killed.
+                    var undetermined = path is null;
+                    var systemOwned = undetermined
+                                      || IsServiceAccount(Native.TryGetProcessOwner(p.Id))
+                                      || (info is { TrustedOwner: true }
+                                          && Path.GetFullPath(path!).StartsWith(_systemRoot, StringComparison.OrdinalIgnoreCase));
+
+                    if (ProcessPolicy.Protected.Contains(exe) && !systemOwned && !isShell)
                         exe = "unverified:" + exe;
                     if (isShell) shells.Add(p.Id);
                     if (path is not null) paths[p.Id] = path;

@@ -36,6 +36,7 @@ internal sealed class PipeServer
     }
 
     private readonly string _shellPath;
+    private readonly ShellPin _pin;
     private readonly ILogger _log;
     private readonly object _gate = new();
     private Client? _active;
@@ -49,9 +50,10 @@ internal sealed class PipeServer
     /// <summary>Raised when the accepted client went away (argument: client pid).</summary>
     public event Action<int>? ClientDisconnected;
 
-    public PipeServer(string installedShellPath, ILogger log)
+    public PipeServer(string installedShellPath, ShellPin pin, ILogger log)
     {
         _shellPath = Path.GetFullPath(installedShellPath);
+        _pin = pin;
         _log = log;
     }
 
@@ -197,20 +199,39 @@ internal sealed class PipeServer
             _log.LogWarning("Rejected pipe client: cannot resolve its process id");
             return null;
         }
+
+        // PRIMARY GATE: the client must be the exact process instance (pid + creation time) that
+        // ShellSupervisor launched. This defeats a fake shell, the genuine exe started by hand, and
+        // PID reuse. We never fall back to "newest client wins" or an image-path string match.
+        var createdAt = Native.TryGetProcessCreationTime(pid.Value);
+        if (!_pin.Matches(pid.Value, createdAt))
+        {
+            _log.LogWarning("Rejected pipe client pid {Pid}: not the shell instance this service launched", pid);
+            return null;
+        }
+
+        // SECONDARY sanity check only (never the sole gate): the image should be the installed shell.
+        // Compared via file identity, with a normalised-path fallback, so an 8.3 short path or a
+        // symlink cannot lock out the genuine shell. A mismatch is logged but the pin already decided.
         var image = Native.TryGetImagePath(pid.Value);
-        var console = Native.ActiveConsoleSessionId();
-        var session = Native.SessionIdOf(pid.Value);
-        if (image is null || !string.Equals(Path.GetFullPath(image), _shellPath, StringComparison.OrdinalIgnoreCase))
-        {
-            _log.LogWarning("Rejected pipe client pid {Pid}: not the installed shell ({Image})", pid, image is null ? "unknown" : Path.GetFileName(image));
-            return null;
-        }
-        if (console is null || session != console)
-        {
-            _log.LogWarning("Rejected pipe client pid {Pid}: not in the active console session", pid);
-            return null;
-        }
+        if (image is null || !SameFile(image, _shellPath))
+            _log.LogWarning("Pinned shell pid {Pid} has an unexpected image path ({Image}); accepting on the pin",
+                pid, image is null ? "unknown" : Path.GetFileName(image));
+
         return pid;
+    }
+
+    private static bool SameFile(string a, string b)
+    {
+        try
+        {
+            if (string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase)) return true;
+            return Native.SameFileIdentity(a, b);
+        }
+        catch (Exception e) when (e is ArgumentException or IOException or NotSupportedException)
+        {
+            return false;
+        }
     }
 
     private void Drop(Client c)

@@ -19,7 +19,7 @@ internal sealed class GuardWorker : BackgroundService
     private const int MaxBatchesPerUpload = 20;
 
     private abstract record Command;
-    private sealed record LoginCmd(LoginMessage Message) : Command;
+    private sealed record LoginCmd : Command;
     private sealed record LogoutCmd : Command;
     private sealed record UploadCmd : Command;
     private sealed record TokenDeadCmd(int Generation) : Command;
@@ -28,6 +28,7 @@ internal sealed class GuardWorker : BackgroundService
     {
         public required string Token { get; init; }
         public required int Generation { get; init; }
+        public required string Tag { get; init; } // per-login GUID; usage events carry it so they upload with this token only
         public required string? StudentName { get; init; }
         public required CancellationTokenSource WsCts { get; init; }
         public PcRules? LastServerRules { get; set; }
@@ -38,9 +39,20 @@ internal sealed class GuardWorker : BackgroundService
     private readonly ILogger<GuardWorker> _log;
     private readonly Uri _baseUrl;
     private readonly Func<DateTimeOffset> _clock = () => DateTimeOffset.Now;
-    private readonly Channel<Command> _commands = Channel.CreateUnbounded<Command>(new UnboundedChannelOptions { SingleReader = true });
+    // Bounded so a flood of pipe commands cannot grow memory without limit; oldest dropped if full.
+    private readonly Channel<Command> _commands = Channel.CreateBounded<Command>(
+        new BoundedChannelOptions(256) { SingleReader = true, FullMode = BoundedChannelFullMode.DropOldest });
     private readonly object _snapLock = new();
     private readonly object _stateLock = new();
+    private readonly ShellPin _shellPin = new();
+
+    // Latest pending login (password held only until consumed). Guarded by _loginLock.
+    private readonly object _loginLock = new();
+    private LoginMessage? _pendingLogin;
+
+    // Tag -> token for the current (ClosedAt null) and recently closed sessions, memory only.
+    private readonly object _sessionsLock = new();
+    private readonly Dictionary<string, SessionToken> _sessions = new();
 
     // created in ExecuteAsync (after the data folder is secured)
     private RuleCache _cache = null!;
@@ -82,31 +94,47 @@ internal sealed class GuardWorker : BackgroundService
     {
         var shellPath = Path.Combine(AppContext.BaseDirectory, "PcGuard.Shell.exe");
         var store = new SecureStore(_log);
+        var secured = true;
         try { store.EnsureDirectory(); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            _log.LogCritical("Could not secure the data folder: {Error} {Message}", e.GetType().Name, e.Message);
-        }
-        try { _machineKey = store.LoadOrCreateMachineKey(); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            _machineKey = Guid.NewGuid().ToString("D");
-            _log.LogError("Could not persist the machine key ({Error}); using a temporary one", e.GetType().Name);
+            secured = false;
+            _log.LogCritical("Could not secure the data folder: {Error} {Message}. Running fail-closed: memory-only, locked.", e.GetType().Name, e.Message);
         }
 
-        _cache = new RuleCache(store.RulesPath, TimeSpan.FromMinutes(10), _clock);
-        _queue = new UsageQueue(store.UsageQueuePath);
+        if (secured)
+        {
+            try { _machineKey = store.LoadOrCreateMachineKey(); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                _machineKey = Guid.NewGuid().ToString("D");
+                _log.LogError("Could not persist the machine key ({Error}); using a temporary one", e.GetType().Name);
+            }
+        }
+        else
+        {
+            // fail closed: no persisted cache (locked, Defaults allowlist) and no persisted queue;
+            // nothing sensitive is written to an unprotected folder.
+            _machineKey = Guid.NewGuid().ToString("D");
+        }
+
+        _cache = new RuleCache(store.RulesPath, TimeSpan.FromMinutes(10), _clock, persist: secured);
+        _queue = new UsageQueue(store.UsageQueuePath, persist: secured);
         _tracker = new UsageTracker(_clock);
         _backend = new BackendClient(_baseUrl, _log);
-        _pipe = new PipeServer(shellPath, _log);
+        _pipe = new PipeServer(shellPath, _shellPin, _log);
         _enumerator = new ProcessEnumerator(shellPath, _log);
-        _supervisor = new ShellSupervisor(shellPath, _log);
+        _supervisor = new ShellSupervisor(shellPath, _shellPin, _log);
         _killer = new ProcessKiller(_log);
+
+        // Startup purge: any queued events from before this process started have no token in memory
+        // and can never be safely attributed, so drop them (never upload with the wrong token).
+        foreach (var tag in _queue.Tags()) _queue.DropTag(tag);
 
         _pipe.MessageReceived += OnPipeMessageAsync;
         _pipe.ClientConnected += _ => PushStateAsync(force: true);
 
-        _log.LogInformation("PC Guard started (queued usage events: {Count})", _queue.Count);
+        _log.LogInformation("PC Guard started (queued usage events after startup purge: {Count})", _queue.Count);
 
         var pipeTask = _pipe.RunAsync(stoppingToken);
         var commandTask = CommandLoopAsync(stoppingToken);
@@ -128,9 +156,10 @@ internal sealed class GuardWorker : BackgroundService
         {
             _session?.WsCts.Cancel();
             await Task.WhenAll(Quiet(pipeTask), Quiet(commandTask), Quiet(uploadTask)).ConfigureAwait(false);
-            // persist what was tracked; never delete the rule cache (the PC must stay locked after a stop)
+            // capture what was tracked under the current session's tag; never delete the rule cache
+            // (the PC must stay locked after a stop). On the next start these are purged anyway.
             _tracker.Observe(null, true);
-            _queue.Enqueue(_tracker.Drain());
+            if (_session is { } cur) _queue.Enqueue(cur.Tag, _tracker.Drain());
             _backend.Dispose();
             _log.LogInformation("PC Guard stopped");
         }
@@ -235,7 +264,11 @@ internal sealed class GuardWorker : BackgroundService
                 }
                 break;
             case LoginMessage l:
-                _commands.Writer.TryWrite(new LoginCmd(l));
+                // Keep only the latest login; drop any older pending one (bounds flooding and keeps
+                // just one password in memory). The marker in the channel may be a duplicate; the
+                // handler no-ops when _pendingLogin is already consumed.
+                lock (_loginLock) _pendingLogin = l;
+                _commands.Writer.TryWrite(new LoginCmd());
                 break;
             case LogoutMessage:
                 _commands.Writer.TryWrite(new LogoutCmd());
@@ -264,7 +297,11 @@ internal sealed class GuardWorker : BackgroundService
             {
                 switch (cmd)
                 {
-                    case LoginCmd l: await LoginAsync(l.Message, ct).ConfigureAwait(false); break;
+                    case LoginCmd:
+                        LoginMessage? login;
+                        lock (_loginLock) { login = _pendingLogin; _pendingLogin = null; }
+                        if (login is not null) await LoginAsync(login, ct).ConfigureAwait(false);
+                        break;
                     case LogoutCmd: await SignOutAsync(callLogout: true, ct).ConfigureAwait(false); break;
                     case UploadCmd: await UploadTickAsync(ct).ConfigureAwait(false); break;
                     case TokenDeadCmd d when _session is { } s && s.Generation == d.Generation:
@@ -285,39 +322,52 @@ internal sealed class GuardWorker : BackgroundService
 
     private async Task LoginAsync(LoginMessage m, CancellationToken ct)
     {
-        if (_session is not null) await SignOutAsync(callLogout: true, ct).ConfigureAwait(false);
-
-        var username = m.Username.Trim();
-        if (username.Length == 0 || m.Password.Length == 0)
+        var sent = false;
+        try
         {
-            await _pipe.SendAsync(new LoginResultMessage(false, "bad_credentials")).ConfigureAwait(false);
-            return;
-        }
+            if (_session is not null) await SignOutAsync(callLogout: true, ct).ConfigureAwait(false);
 
-        var r = await _backend.LoginAsync(username, m.Password, _hostname, _machineKey, ct).ConfigureAwait(false);
-        if (!r.Ok || r.Token is null || r.State is null)
+            var username = m.Username.Trim();
+            if (username.Length == 0 || m.Password.Length == 0)
+            {
+                sent = await _pipe.SendAsync(new LoginResultMessage(false, "bad_credentials")).ConfigureAwait(false);
+                return;
+            }
+
+            var r = await _backend.LoginAsync(username, m.Password, _hostname, _machineKey, ct).ConfigureAwait(false);
+            if (!r.Ok || r.Token is null || r.State is null)
+            {
+                _log.LogInformation("Sign-in failed: {Error}", r.Error);
+                sent = await _pipe.SendAsync(new LoginResultMessage(false, r.Error ?? "offline")).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false); // slow down guessing through the shell
+                return;
+            }
+
+            _tracker.Observe(null, true); // nothing tracked before sign-in belongs to this student
+            _tracker.Drain();
+            _cache.Apply(r.State);
+            StartSession(r.Token, r.State, ct);
+            _log.LogInformation("Student signed in");
+            sent = await _pipe.SendAsync(new LoginResultMessage(true, null)).ConfigureAwait(false);
+            await PushStateAsync(force: true).ConfigureAwait(false);
+        }
+        finally
         {
-            _log.LogInformation("Sign-in failed: {Error}", r.Error);
-            await _pipe.SendAsync(new LoginResultMessage(false, r.Error ?? "offline")).ConfigureAwait(false);
-            await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false); // slow down guessing through the shell
-            return;
+            // the shell must always get a result, even on an unexpected failure (its UI would hang otherwise)
+            if (!sent && !ct.IsCancellationRequested)
+                await _pipe.SendAsync(new LoginResultMessage(false, "offline")).ConfigureAwait(false);
         }
-
-        _tracker.Observe(null, true); // nothing tracked before sign-in belongs to this student
-        _tracker.Drain();
-        _cache.Apply(r.State);
-        StartSession(r.Token, r.State, ct);
-        _log.LogInformation("Student signed in");
-        await _pipe.SendAsync(new LoginResultMessage(true, null)).ConfigureAwait(false);
-        await PushStateAsync(force: true).ConfigureAwait(false);
     }
 
     private void StartSession(string token, PcRules state, CancellationToken ct)
     {
+        var tag = Guid.NewGuid().ToString("N");
+        lock (_sessionsLock) _sessions[tag] = new SessionToken(token, null); // open session: ClosedAt null
         var s = new Session
         {
             Token = token,
             Generation = ++_generation,
+            Tag = tag,
             StudentName = state.StudentName,
             WsCts = CancellationTokenSource.CreateLinkedTokenSource(ct),
             LastServerRules = state,
@@ -361,8 +411,8 @@ internal sealed class GuardWorker : BackgroundService
             return;
         }
         _tracker.Observe(null, true);
-        _queue.Enqueue(_tracker.Drain());
-        await UploadQueueAsync(s, ct).ConfigureAwait(false); // before the logout call (session must still be open)
+        _queue.Enqueue(s.Tag, _tracker.Drain());
+        await UploadAllAsync(s, ct).ConfigureAwait(false); // before the logout call (session must still be open)
         if (callLogout) await _backend.LogoutAsync(s.Token, ct).ConfigureAwait(false);
         await EndSessionAsync(s).ConfigureAwait(false);
         _log.LogInformation("Student signed out");
@@ -372,13 +422,21 @@ internal sealed class GuardWorker : BackgroundService
     {
         _log.LogWarning("Session token is no longer valid; signing out");
         _tracker.Observe(null, true);
-        _queue.Enqueue(_tracker.Drain()); // kept on disk and uploaded with the next session's token
+        _queue.Enqueue(s.Tag, _tracker.Drain()); // uploaded with THIS session's token later, or dropped if it 401s
         await EndSessionAsync(s).ConfigureAwait(false);
     }
 
     private async Task EndSessionAsync(Session s)
     {
         _session = null;
+        // keep the token in memory, marked closed, so this session's leftover usage can still be
+        // uploaded (backend accepts a closed session's token for 24 h). Never re-tag events.
+        lock (_sessionsLock)
+        {
+            if (_sessions.TryGetValue(s.Tag, out var st) && st.ClosedAt is null)
+                _sessions[s.Tag] = st with { ClosedAt = _clock() };
+            PruneSessions();
+        }
         s.WsCts.Cancel();
         if (s.WsTask is { } t) await Task.WhenAny(t, Task.Delay(TimeSpan.FromSeconds(3))).ConfigureAwait(false);
         s.WsCts.Dispose();
@@ -388,14 +446,15 @@ internal sealed class GuardWorker : BackgroundService
     private async Task UploadTickAsync(CancellationToken ct)
     {
         var s = _session;
-        if (s is null) return;
-        _queue.Enqueue(_tracker.Drain());
-        if (await UploadQueueAsync(s, ct).ConfigureAwait(false))
+        if (s is not null) _queue.Enqueue(s.Tag, _tracker.Drain());
+
+        if (await UploadAllAsync(s, ct).ConfigureAwait(false))
         {
-            await TokenDiedAsync(s).ConfigureAwait(false);
+            if (s is not null) await TokenDiedAsync(s).ConfigureAwait(false);
             return;
         }
-        if (!s.WsConnected)
+
+        if (s is not null && !s.WsConnected)
         {
             // WebSocket down: poll the state so the cache does not expire while HTTP still works
             var (status, state) = await _backend.GetStateAsync(s.Token, ct).ConfigureAwait(false);
@@ -413,29 +472,64 @@ internal sealed class GuardWorker : BackgroundService
         }
     }
 
-    /// <summary>Uploads queued batches. Returns true when the server said the token is dead.</summary>
-    private async Task<bool> UploadQueueAsync(Session s, CancellationToken ct)
+    /// <summary>
+    /// Uploads every queued tag with that tag's own token (<see cref="UsageUploadPlanner"/>); a tag
+    /// whose token is unknown or past the 24 h grace is dropped. Returns true when the CURRENT
+    /// session's token was rejected (so the caller signs it out). A closed session's 401/403 just
+    /// drops that tag.
+    /// </summary>
+    private async Task<bool> UploadAllAsync(Session? current, CancellationToken ct)
     {
-        for (var i = 0; i < MaxBatchesPerUpload; i++)
+        var currentTokenDead = false;
+        foreach (var tag in _queue.Tags())
         {
-            var batch = _queue.PeekBatch(BackendProtocol.MaxUsageBatch);
-            if (batch.Count == 0) return false;
-            switch (await _backend.UploadUsageAsync(s.Token, batch, ct).ConfigureAwait(false))
+            SessionToken? token;
+            lock (_sessionsLock) _sessions.TryGetValue(tag, out token);
+            var decision = UsageUploadPlanner.Decide(token, _clock());
+            if (decision.Action == UsageTagAction.Drop || decision.Token is null)
             {
-                case UsageOutcome.Ok:
-                    _queue.Remove(batch.Count);
-                    break;
-                case UsageOutcome.DropBatch:
+                if (_queue.PeekBatch(tag, 1).Count > 0)
+                    _log.LogWarning("Dropping {Count} usage events for a session whose token is unavailable", _queue.PeekBatch(tag, UsageQueue.MaxBatch).Count);
+                _queue.DropTag(tag);
+                continue;
+            }
+
+            for (var i = 0; i < MaxBatchesPerUpload; i++)
+            {
+                var batch = _queue.PeekBatch(tag, BackendProtocol.MaxUsageBatch);
+                if (batch.Count == 0) break;
+                var outcome = await _backend.UploadUsageAsync(decision.Token, batch, ct).ConfigureAwait(false);
+                if (outcome == UsageOutcome.Ok)
+                {
+                    _queue.Remove(tag, batch.Count);
+                }
+                else if (outcome == UsageOutcome.DropBatch)
+                {
                     _log.LogWarning("Server rejected a usage batch of {Count} events; dropping it", batch.Count);
-                    _queue.Remove(batch.Count);
+                    _queue.Remove(tag, batch.Count);
+                }
+                else if (outcome == UsageOutcome.TokenDead)
+                {
+                    _queue.DropTag(tag); // 401/403: drop this session's events entirely
+                    if (current is not null && tag == current.Tag) currentTokenDead = true;
                     break;
-                case UsageOutcome.TokenDead:
-                    _queue.Remove(batch.Count);
-                    return true;
-                case UsageOutcome.Retry:
-                    return false;
+                }
+                else // Retry: keep and try again on the next tick
+                {
+                    break;
+                }
             }
         }
-        return false;
+        return currentTokenDead;
+    }
+
+    // Drop closed sessions whose grace has expired so the dictionary cannot grow without bound.
+    private void PruneSessions()
+    {
+        var now = _clock();
+        var stale = _sessions
+            .Where(kv => kv.Value.ClosedAt is { } c && (now - c > UsageUploadPlanner.Grace || now < c))
+            .Select(kv => kv.Key).ToList();
+        foreach (var tag in stale) _sessions.Remove(tag);
     }
 }

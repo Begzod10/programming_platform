@@ -70,9 +70,13 @@ public sealed class BackendClient : IDisposable
             var (token, state) = BackendProtocol.ParseLoginResponse(body);
             return new LoginResult(true, null, token, state);
         }
-        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or FormatException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            if (ct.IsCancellationRequested) throw;
+            throw;
+        }
+        catch (Exception e)
+        {
+            // never let an unexpected exception bubble out of login: the shell must always get a result
             _log.LogWarning("Login failed: {Error}", e.GetType().Name);
             return new LoginResult(false, "offline", null, null);
         }
