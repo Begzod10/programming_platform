@@ -129,6 +129,40 @@ def test_unlock_pushes_state_to_signed_in_device(client, quota_enforced):
         assert frame["locked"] is False
 
 
+def test_heartbeat_delivers_state_change_that_was_never_pushed(client, quota_enforced):
+    student_id, token = _signin(client)
+
+    async def _meet_quota_silently():  # no _emit_unlocked: only the heartbeat can notice
+        async with AsyncSessionLocal() as db:
+            row = (await db.execute(select(StudentDailyProgress).where(
+                StudentDailyProgress.student_id == student_id))).scalars().first()
+            row.required = 0
+            row.base_required = 0
+            await db.commit()
+
+    with client.websocket_connect(f"/api/v1/pc/ws?token={token}") as ws:
+        assert ws.receive_json()["locked"] is True
+        client.portal.call(_meet_quota_silently)
+        ws.send_json({"type": "hb", "app": None})
+        assert ws.receive_json() == {"type": "pong"}
+        frame = ws.receive_json()
+        assert frame["type"] == "state" and frame["locked"] is False
+        # unchanged since the last frame sent on this socket: only a pong
+        ws.send_json({"type": "hb", "app": None})
+        assert ws.receive_json() == {"type": "pong"}
+        ws.send_json({"type": "hb", "app": None})
+        assert ws.receive_json() == {"type": "pong"}
+
+
+def test_heartbeat_unchanged_state_sends_only_pong(client):
+    _, token = _signin(client)
+    with client.websocket_connect(f"/api/v1/pc/ws?token={token}") as ws:
+        ws.receive_json()
+        for _ in range(2):
+            ws.send_json({"type": "hb", "app": "x.exe"})
+            assert ws.receive_json() == {"type": "pong"}
+
+
 def _last_seen(client, machine_key_prefix_host="lab-ws"):
     async def _read():
         async with AsyncSessionLocal() as db:

@@ -156,3 +156,15 @@ async def test_compute_state_no_session():
         assert "code.exe" in [a["exe"] for a in st["allowlist"]]
         assert isinstance(st["browser_hosts"], list)
         assert st["server_time"]
+
+
+async def test_compute_state_pinned_to_given_session():
+    async with AsyncSessionLocal() as db:
+        d = await _device(db)
+        now = datetime.now(timezone.utc)
+        a = await _open_sess(db, d, now - timedelta(minutes=10))
+        a.signed_out_at = now - timedelta(minutes=5)
+        await db.commit()
+        b = await _open_sess(db, d, now - timedelta(minutes=4))
+        assert (await compute_state(db, d))["student"]["id"] == b.student_id
+        assert (await compute_state(db, d, a))["student"]["id"] == a.student_id

@@ -177,6 +177,12 @@ async def pc_usage(
     return {"stored": len(body.events)}
 
 
+def _state_key(state: dict) -> tuple:
+    """The parts of a state frame whose change must reach the agent."""
+    return (state["locked"], state["reason"], state["remaining"],
+            json.dumps(state["allowlist"], sort_keys=True), (state["student"] or {}).get("id"))
+
+
 @router.websocket("/ws")
 async def pc_ws(
         websocket: WebSocket,
@@ -186,7 +192,8 @@ async def pc_ws(
     """Realtime channel for a lab-PC agent. Auth via ``?token=`` (PC token), like notifications_ws.
 
     On connect: ``{type:'state',...}``. Device sends ``{type:'hb', app}`` every ~30 s;
-    server stores last_seen_at/last_app and answers ``{type:'pong'}``. Server pushes
+    server stores last_seen_at/last_app, answers ``{type:'pong'}`` and, if the recomputed
+    state differs from the last one sent on this socket, a ``state`` frame. Server pushes
     ``state`` and ``message`` frames through pc_ws_manager."""
     claims = decode_pc_token(token) if token else None
     if claims is None:
@@ -207,10 +214,18 @@ async def pc_ws(
 
     await pc_ws_manager.connect(device_id, websocket)
     try:
-        state = await compute_state(db, device)
+        # Race guard: a newer login may have closed this token's session between the
+        # validation above and registering the socket. Never answer with another
+        # student's state: compute for THIS socket's session, or close.
+        sess = await db.get(PcSession, ses_id)
+        if sess is None or sess.signed_out_at is not None:
+            await websocket.close(code=4001)
+            return
+        state = await compute_state(db, device, sess)
         # compute_state may have inserted today's quota row; commit so this long-lived
         # session does not sit on an open (write-locking) transaction for the whole connection.
         await db.commit()
+        last_sent = _state_key(state)
         await websocket.send_json({"type": "state", **state})
         while True:
             raw = await websocket.receive_text()
@@ -236,8 +251,16 @@ async def pc_ws(
                 break
             device.last_seen_at = datetime.now(timezone.utc)
             device.last_app = app_name[:255] if isinstance(app_name, str) and app_name else None
-            await db.commit()
+            sess = await db.get(PcSession, ses_id)
+            # Heartbeat doubles as the periodic refresh: quota met, midnight rollover, config
+            # changes are never pushed, so recompute and send a state frame if it moved.
+            state = await compute_state(db, device, sess)
+            await db.commit()  # also persists any quota row compute_state inserted
             await websocket.send_json({"type": "pong"})
+            key = _state_key(state)
+            if key != last_sent:
+                last_sent = key
+                await websocket.send_json({"type": "state", **state})
     except WebSocketDisconnect:
         pass
     except Exception as e:  # noqa: BLE001 — never let a socket error bubble out
