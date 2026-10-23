@@ -175,6 +175,10 @@ class Settings(BaseSettings):
     # SSO_SHARED_SECRET too). Empty disables the endpoint with a 503.
     CLASSROOM_INTEGRATION_SECRET: str = ""
 
+    # PC Guard: comma-separated platform hosts the lab-PC agent treats as
+    # "browser allowed" targets (returned as browser_hosts in lock state).
+    PC_PLATFORM_HOSTS: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
