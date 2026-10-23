@@ -39,8 +39,10 @@ internal sealed class ShellSupervisor
                 }
                 try
                 {
-                    var (pid, createdAt) = Native.LaunchInSession(consoleSession!.Value, _shellPath);
-                    _pin.Set(pid, createdAt); // only this instance may speak on the pipe; the pin moves to each new launch
+                    // launched SUSPENDED: pin the exact instance BEFORE it resumes and can connect,
+                    // so the shell's first connect is never rejected by a not-yet-set pin.
+                    var (pid, _) = Native.LaunchInSession(consoleSession!.Value, _shellPath,
+                        (p, createdAt) => _pin.Set(p, createdAt), _log);
                     _log.LogInformation("Launched shell (pid {Pid}) in session {Session}", pid, consoleSession);
                 }
                 catch (Win32Exception e) when (e.NativeErrorCode == 1008)

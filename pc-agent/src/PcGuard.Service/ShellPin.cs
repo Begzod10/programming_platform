@@ -25,6 +25,13 @@ internal sealed class ShellPin
         }
     }
 
+    /// <summary>Forget the pin (e.g. the console session changed): the next client must be a freshly
+    /// launched, re-pinned shell.</summary>
+    public void Clear()
+    {
+        lock (_lock) _set = false;
+    }
+
     public bool Matches(int pid, long? createdAt)
     {
         if (createdAt is null) return false;

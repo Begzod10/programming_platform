@@ -47,8 +47,11 @@ internal sealed class GuardWorker : BackgroundService
     private readonly ShellPin _shellPin = new();
 
     // Latest pending login (password held only until consumed). Guarded by _loginLock.
+    // _loginQueued ensures at most ONE LoginCmd marker is ever in the channel, so a login flood can
+    // never push a LogoutCmd / TokenDeadCmd out under the channel's DropOldest policy.
     private readonly object _loginLock = new();
     private LoginMessage? _pendingLogin;
+    private int _loginQueued;
 
     // Tag -> token for the current (ClosedAt null) and recently closed sessions, memory only.
     private readonly object _sessionsLock = new();
@@ -72,6 +75,8 @@ internal sealed class GuardWorker : BackgroundService
     private DateTimeOffset _snapshotAt = DateTimeOffset.MinValue;
     private DateTimeOffset? _lastSnapshotAt;
     private int? _snapshotPid;
+    private uint? _snapshotSession;
+    private uint? _lastConsole;
     private DateTimeOffset? _shellMissingSince;
     private StateMessage? _lastStateSent;
     private bool _wasFallback;
@@ -178,6 +183,16 @@ internal sealed class GuardWorker : BackgroundService
         var now = _clock();
         var rules = Effective();
         var console = Native.ActiveConsoleSessionId();
+
+        // Console session changed (fast user switch / sign-in): the old shell and its snapshots belong
+        // to a different session. Drop them and the pin; the supervisor relaunches in the new session.
+        if (console != _lastConsole)
+        {
+            _lastConsole = console;
+            _shellPin.Clear();
+            lock (_snapLock) { _snapshot = null; _snapshotAt = DateTimeOffset.MinValue; _snapshotSession = null; }
+        }
+
         var procs = console is { } c
             ? _enumerator.Enumerate(c)
             : new SessionProcesses(Array.Empty<RunningProcess>(), Array.Empty<int>(), new Dictionary<int, string>());
@@ -185,7 +200,11 @@ internal sealed class GuardWorker : BackgroundService
         Snapshot? snap;
         DateTimeOffset at;
         int? snapPid;
-        lock (_snapLock) { snap = _snapshot; at = _snapshotAt; snapPid = _snapshotPid; }
+        uint? snapSession;
+        lock (_snapLock) { snap = _snapshot; at = _snapshotAt; snapPid = _snapshotPid; snapSession = _snapshotSession; }
+        // Only a snapshot from the current console session is usable (SnapshotGate); otherwise the
+        // planner runs in fallback (name-only, stricter) as if the shell were missing.
+        if (!SnapshotGate.IsUsable(snapSession, console)) snap = null;
 
         var exempt = new List<int> { Environment.ProcessId };
         if (snapPid is { } sp && _pipe.ActiveClientPid == sp) exempt.Add(sp);
@@ -224,8 +243,10 @@ internal sealed class GuardWorker : BackgroundService
 
     private string? FreshForeground()
     {
+        var console = Native.ActiveConsoleSessionId();
         lock (_snapLock)
         {
+            if (!SnapshotGate.IsUsable(_snapshotSession, console)) return null;
             var age = _clock() - _snapshotAt;
             return _snapshot is not null && age >= TimeSpan.Zero && age <= EnforcementPlanner.SnapshotMaxAge ? _snapshot.Foreground : null;
         }
@@ -255,20 +276,21 @@ internal sealed class GuardWorker : BackgroundService
                 if (_pipe.ActiveClientPid != clientPid) break;
                 var fg = s.Snapshot.Foreground?.Trim().ToLowerInvariant();
                 if (fg is { Length: > 255 }) fg = fg[..255]; // server limit for app_name; an invalid event would 422 a whole batch
+                var clientSession = Native.SessionIdOf(clientPid);
                 lock (_snapLock)
                 {
                     _snapshot = s.Snapshot with { Foreground = string.IsNullOrEmpty(fg) ? null : fg };
                     _snapshotAt = _clock();
                     _lastSnapshotAt = _snapshotAt;
                     _snapshotPid = clientPid;
+                    _snapshotSession = clientSession;
                 }
                 break;
             case LoginMessage l:
-                // Keep only the latest login; drop any older pending one (bounds flooding and keeps
-                // just one password in memory). The marker in the channel may be a duplicate; the
-                // handler no-ops when _pendingLogin is already consumed.
+                // Keep only the latest login (one password in memory) and enqueue at most one marker,
+                // so a login flood cannot evict a LogoutCmd / TokenDeadCmd under DropOldest.
                 lock (_loginLock) _pendingLogin = l;
-                _commands.Writer.TryWrite(new LoginCmd());
+                if (Interlocked.Exchange(ref _loginQueued, 1) == 0) _commands.Writer.TryWrite(new LoginCmd());
                 break;
             case LogoutMessage:
                 _commands.Writer.TryWrite(new LogoutCmd());
@@ -298,6 +320,7 @@ internal sealed class GuardWorker : BackgroundService
                 switch (cmd)
                 {
                     case LoginCmd:
+                        Interlocked.Exchange(ref _loginQueued, 0); // reset first: a login arriving now re-queues a marker
                         LoginMessage? login;
                         lock (_loginLock) { login = _pendingLogin; _pendingLogin = null; }
                         if (login is not null) await LoginAsync(login, ct).ConfigureAwait(false);
@@ -322,7 +345,10 @@ internal sealed class GuardWorker : BackgroundService
 
     private async Task LoginAsync(LoginMessage m, CancellationToken ct)
     {
-        var sent = false;
+        // Track whether a definitive result was produced (regardless of whether the pipe write
+        // succeeded), so the finally only sends "offline" on an unexpected failure — never after a
+        // successful sign-in to a shell that momentarily dropped and reconnected.
+        var produced = false;
         try
         {
             if (_session is not null) await SignOutAsync(callLogout: true, ct).ConfigureAwait(false);
@@ -330,7 +356,8 @@ internal sealed class GuardWorker : BackgroundService
             var username = m.Username.Trim();
             if (username.Length == 0 || m.Password.Length == 0)
             {
-                sent = await _pipe.SendAsync(new LoginResultMessage(false, "bad_credentials")).ConfigureAwait(false);
+                produced = true;
+                await _pipe.SendAsync(new LoginResultMessage(false, "bad_credentials")).ConfigureAwait(false);
                 return;
             }
 
@@ -338,7 +365,8 @@ internal sealed class GuardWorker : BackgroundService
             if (!r.Ok || r.Token is null || r.State is null)
             {
                 _log.LogInformation("Sign-in failed: {Error}", r.Error);
-                sent = await _pipe.SendAsync(new LoginResultMessage(false, r.Error ?? "offline")).ConfigureAwait(false);
+                produced = true;
+                await _pipe.SendAsync(new LoginResultMessage(false, r.Error ?? "offline")).ConfigureAwait(false);
                 await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false); // slow down guessing through the shell
                 return;
             }
@@ -348,13 +376,14 @@ internal sealed class GuardWorker : BackgroundService
             _cache.Apply(r.State);
             StartSession(r.Token, r.State, ct);
             _log.LogInformation("Student signed in");
-            sent = await _pipe.SendAsync(new LoginResultMessage(true, null)).ConfigureAwait(false);
+            produced = true;
+            await _pipe.SendAsync(new LoginResultMessage(true, null)).ConfigureAwait(false);
             await PushStateAsync(force: true).ConfigureAwait(false);
         }
         finally
         {
             // the shell must always get a result, even on an unexpected failure (its UI would hang otherwise)
-            if (!sent && !ct.IsCancellationRequested)
+            if (!produced && !ct.IsCancellationRequested)
                 await _pipe.SendAsync(new LoginResultMessage(false, "offline")).ConfigureAwait(false);
         }
     }

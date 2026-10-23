@@ -28,7 +28,9 @@ internal static class Native
     private const int TokenPrimary = 1;
     private const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
     private const uint CREATE_NEW_PROCESS_GROUP = 0x00000200;
+    private const uint CREATE_SUSPENDED = 0x00000004;
     private const uint SDDL_REVISION_1 = 1;
+    private const int TokenDefaultDacl = 6; // TOKEN_INFORMATION_CLASS.TokenDefaultDacl
 
     // Process access rights denied to the interactive user on the shell process (see BuildShellSddl).
     private const uint PROCESS_TERMINATE = 0x0001;
@@ -46,6 +48,12 @@ internal static class Native
         public int nLength;
         public IntPtr lpSecurityDescriptor;
         public int bInheritHandle;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TOKEN_DEFAULT_DACL
+    {
+        public IntPtr DefaultDacl; // PACL into a security-descriptor buffer
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -90,6 +98,18 @@ internal static class Native
 
     [DllImport("advapi32.dll", EntryPoint = "ConvertStringSecurityDescriptorToSecurityDescriptorW", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(string sddl, uint revision, out IntPtr securityDescriptor, out uint size);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool GetSecurityDescriptorDacl(IntPtr securityDescriptor, out bool daclPresent, out IntPtr dacl, out bool daclDefaulted);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool SetTokenInformation(SafeAccessTokenHandle token, int tokenInformationClass, ref TOKEN_DEFAULT_DACL info, int length);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint ResumeThread(IntPtr thread);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool TerminateProcess(IntPtr process, uint exitCode);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetProcessTimes(IntPtr process, out long creation, out long exit, out long kernel, out long user);
@@ -199,19 +219,22 @@ internal static class Native
     /// <summary>
     /// Starts <paramref name="exePath"/> as the user signed in to <paramref name="sessionId"/>, on that
     /// user's interactive desktop (winsta0\default). Requires SYSTEM (SE_TCB_NAME for WTSQueryUserToken).
-    /// Returns the new pid and its creation time (FILETIME ticks) so the caller can pin the exact
-    /// instance. Throws Win32Exception on failure (e.g. ERROR_NO_TOKEN when nobody is signed in).
+    /// The process is created SUSPENDED; <paramref name="beforeResume"/> is invoked with the new pid and
+    /// its creation time (FILETIME ticks) so the caller can pin the exact instance BEFORE it runs and
+    /// can connect (closes the first-connect race), then the primary thread is resumed. Throws
+    /// Win32Exception on a launch failure (e.g. ERROR_NO_TOKEN when nobody is signed in).
     ///
-    /// Hardening:
+    /// Hardening (each step is best-effort: a failure is logged at ERROR and the shell still launches,
+    /// because an unprotected shell beats a PC with no sign-in screen):
     /// - The environment block is rebuilt with <see cref="EnvironmentFilter"/> so HKCU-set
     ///   DOTNET_/COMPlus_/CORECLR_/COR_ variables cannot load student code into the shell (I3a).
-    /// - The process gets a security descriptor (owner = Administrators) that DENIES the interactive
-    ///   user PROCESS_TERMINATE, PROCESS_SUSPEND_RESUME, PROCESS_VM_WRITE/VM_OPERATION and
-    ///   PROCESS_CREATE_THREAD, so a standard user cannot kill, suspend or inject the shell by handle,
-    ///   and cannot rewrite the DACL (owner is Administrators). NOT covered, by design: an administrator
-    ///   can still stop it; same-user injection through other vectors is out of scope.
+    /// - The PROCESS gets a security descriptor denying the interactive user terminate/suspend/inject
+    ///   (see <see cref="BuildShellSecurityDescriptor"/>).
+    /// - The duplicated primary token's DEFAULT DACL is restricted (see <see cref="ApplyRestrictedDefaultDacl"/>)
+    ///   so THREADS and other kernel objects the shell later creates are not grantable to the user for
+    ///   terminate/suspend either — closing the OpenThread(THREAD_TERMINATE|THREAD_SUSPEND_RESUME) hole.
     /// </summary>
-    public static (int Pid, long CreatedAt) LaunchInSession(uint sessionId, string exePath)
+    public static (int Pid, long CreatedAt) LaunchInSession(uint sessionId, string exePath, Action<int, long> beforeResume, ILogger log)
     {
         if (!WTSQueryUserToken(sessionId, out var userToken)) throw new Win32Exception(Marshal.GetLastWin32Error(), "WTSQueryUserToken");
         using (userToken)
@@ -223,34 +246,84 @@ internal static class Native
             using (primary)
             {
                 var userSid = UserSidOf(primary);
-                var psd = BuildShellSecurityDescriptor(userSid); // IntPtr.Zero if it could not be built
+                if (userSid is null)
+                    log.LogError("Shell protection skipped: could not read the interactive user SID; launching the shell unprotected");
+                ApplyRestrictedDefaultDacl(primary, userSid, log); // never touches the user's original token
+                var psd = BuildShellSecurityDescriptor(userSid, log); // IntPtr.Zero if it could not be built
                 if (!CreateEnvironmentBlock(out var env, primary, false))
                 {
                     if (psd != IntPtr.Zero) LocalFree(psd);
                     throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateEnvironmentBlock");
                 }
                 var filtered = PinnedEnvironmentBlock(env);
+                var launched = false;
+                PROCESS_INFORMATION pi = default;
                 try
                 {
                     var sa = new SECURITY_ATTRIBUTES { nLength = Marshal.SizeOf<SECURITY_ATTRIBUTES>(), lpSecurityDescriptor = psd, bInheritHandle = 0 };
                     var si = new STARTUPINFO { cb = Marshal.SizeOf<STARTUPINFO>(), lpDesktop = @"winsta0\default" };
                     var cmd = new StringBuilder("\"" + exePath + "\"");
                     if (!CreateProcessAsUser(primary, exePath, cmd, ref sa, IntPtr.Zero, false,
-                            CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_PROCESS_GROUP, filtered.AddrOfPinnedObject(),
-                            Path.GetDirectoryName(exePath), ref si, out var pi))
+                            CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_PROCESS_GROUP | CREATE_SUSPENDED, filtered.AddrOfPinnedObject(),
+                            Path.GetDirectoryName(exePath), ref si, out pi))
                         throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateProcessAsUser");
+                    launched = true;
                     GetProcessTimes(pi.hProcess, out var created, out _, out _, out _);
-                    CloseHandle(pi.hThread);
-                    CloseHandle(pi.hProcess);
+                    try { beforeResume(pi.dwProcessId, created); } // set the pin before the shell can connect
+                    finally
+                    {
+                        if (ResumeThread(pi.hThread) == 0xFFFFFFFF)
+                        {
+                            log.LogError("Could not resume the shell (Win32 {Code}); terminating the suspended instance", Marshal.GetLastWin32Error());
+                            TerminateProcess(pi.hProcess, 1);
+                            throw new Win32Exception(Marshal.GetLastWin32Error(), "ResumeThread");
+                        }
+                    }
                     return (pi.dwProcessId, created);
                 }
                 finally
                 {
+                    if (launched)
+                    {
+                        if (pi.hThread != IntPtr.Zero) CloseHandle(pi.hThread);
+                        if (pi.hProcess != IntPtr.Zero) CloseHandle(pi.hProcess);
+                    }
                     filtered.Free();
                     DestroyEnvironmentBlock(env);
                     if (psd != IntPtr.Zero) LocalFree(psd);
                 }
             }
+        }
+    }
+
+    // Restrict the DUPLICATED primary token's default DACL so objects the shell creates (threads,
+    // events, mutexes) grant the interactive user only the same read rights as the process SD, not
+    // terminate/suspend. SYSTEM and Administrators keep full control. The shell keeps full access to
+    // its own objects through the handles it receives at creation, so its own operation is unaffected.
+    // Best-effort: any failure is logged at ERROR and the launch proceeds unprotected.
+    private static void ApplyRestrictedDefaultDacl(SafeAccessTokenHandle primary, string? userSid, ILogger log)
+    {
+        if (userSid is null) return;
+        var sddl = $"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x{AllowedToUser:X};;;{userSid})";
+        if (!ConvertStringSecurityDescriptorToSecurityDescriptor(sddl, SDDL_REVISION_1, out var sd, out _))
+        {
+            log.LogError("Shell thread protection skipped: SDDL conversion failed (Win32 {Code})", Marshal.GetLastWin32Error());
+            return;
+        }
+        try
+        {
+            if (!GetSecurityDescriptorDacl(sd, out _, out var dacl, out _))
+            {
+                log.LogError("Shell thread protection skipped: GetSecurityDescriptorDacl failed (Win32 {Code})", Marshal.GetLastWin32Error());
+                return;
+            }
+            var info = new TOKEN_DEFAULT_DACL { DefaultDacl = dacl };
+            if (!SetTokenInformation(primary, TokenDefaultDacl, ref info, Marshal.SizeOf<TOKEN_DEFAULT_DACL>()))
+                log.LogError("Shell thread protection skipped: SetTokenInformation(TokenDefaultDacl) failed (Win32 {Code})", Marshal.GetLastWin32Error());
+        }
+        finally
+        {
+            LocalFree(sd); // the ACL is copied into the token by SetTokenInformation, so this is safe
         }
     }
 
@@ -267,13 +340,20 @@ internal static class Native
         }
     }
 
-    // Deny ACE must precede the allow ACEs. Owner/group = Administrators (BA) so a standard user cannot
-    // rewrite the DACL; SYSTEM (SY) keeps full control.
-    private static IntPtr BuildShellSecurityDescriptor(string? userSid)
+    // Process security descriptor. Covered: a standard user is DENIED PROCESS_TERMINATE,
+    // PROCESS_SUSPEND_RESUME, PROCESS_VM_WRITE, PROCESS_VM_OPERATION and PROCESS_CREATE_THREAD on the
+    // shell process (deny ACE first), and owner = Administrators so the user cannot rewrite the DACL.
+    // Kept for the user: query/synchronize/read_control. NOT covered: SYSTEM and elevated admins keep
+    // full control (can still stop it); this guards the process object only — thread objects are
+    // handled by ApplyRestrictedDefaultDacl. Best-effort: on failure returns Zero (no process SD) and
+    // logs at ERROR; the shell still launches.
+    private static IntPtr BuildShellSecurityDescriptor(string? userSid, ILogger log)
     {
         if (userSid is null) return IntPtr.Zero;
         var sddl = $"O:BAG:BAD:(D;;0x{DeniedToUser:X};;;{userSid})(A;;0x{AllowedToUser:X};;;{userSid})(A;;GA;;;SY)(A;;GA;;;BA)";
-        return ConvertStringSecurityDescriptorToSecurityDescriptor(sddl, SDDL_REVISION_1, out var psd, out _) ? psd : IntPtr.Zero;
+        if (ConvertStringSecurityDescriptorToSecurityDescriptor(sddl, SDDL_REVISION_1, out var psd, out _)) return psd;
+        log.LogError("Shell process protection skipped: SDDL conversion failed (Win32 {Code}); launching unprotected", Marshal.GetLastWin32Error());
+        return IntPtr.Zero;
     }
 
     // Read the user's environment block, strip runtime-hijacking variables, and pin a fresh Unicode,

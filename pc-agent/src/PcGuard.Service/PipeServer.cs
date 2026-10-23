@@ -210,6 +210,15 @@ internal sealed class PipeServer
             return null;
         }
 
+        // Fast user switching: a pinned shell may still be running in a now-disconnected session.
+        // It must not keep feeding the service: require the client's session == the active console.
+        var console = Native.ActiveConsoleSessionId();
+        if (console is null || Native.SessionIdOf(pid.Value) != console)
+        {
+            _log.LogWarning("Rejected pipe client pid {Pid}: not in the active console session", pid);
+            return null;
+        }
+
         // SECONDARY sanity check only (never the sole gate): the image should be the installed shell.
         // Compared via file identity, with a normalised-path fallback, so an 8.3 short path or a
         // symlink cannot lock out the genuine shell. A mismatch is logged but the pin already decided.
