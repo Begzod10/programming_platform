@@ -1,5 +1,5 @@
 """Teacher endpoints for PC Guard (lab PC control)."""
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -11,7 +11,7 @@ from app.dependencies import get_db, get_current_teacher
 from app.models.group import Group
 from app.models.pc_control import PcCommand, PcDevice, PcSession
 from app.models.user import Student
-from app.services import pc_allowlist_service, pc_push_service
+from app.services import pc_allowlist_service, pc_push_service, pc_report_service
 from app.services.pc_lock_service import compute_state
 from app.ws.manager import pc_ws_manager
 
@@ -179,3 +179,21 @@ async def create_command(
     await db.commit()
     return {"id": cmd.id, "scope_type": cmd.scope_type, "scope_id": cmd.scope_id,
             "type": cmd.type, "payload": cmd.payload}
+
+
+MAX_REPORT_DAYS = 31
+
+
+@router.get("/report")
+async def report(
+    date_from: date = Query(alias="from"),
+    date_to: date = Query(alias="to"),
+    group_id: Optional[int] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    if date_to < date_from:
+        raise HTTPException(status_code=422, detail="'to' must not be before 'from'")
+    if (date_to - date_from).days + 1 > MAX_REPORT_DAYS:
+        raise HTTPException(status_code=422, detail=f"Range is limited to {MAX_REPORT_DAYS} days")
+    return await pc_report_service.build_report(db, date_from, date_to, group_id)
