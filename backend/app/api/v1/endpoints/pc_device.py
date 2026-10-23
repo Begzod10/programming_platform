@@ -60,7 +60,8 @@ async def get_pc_device(
 async def pc_login(
         body: PcLoginIn,
         db: AsyncSession = Depends(get_db),
-        _rl: None = Depends(rate_limit(max_calls=20, window_seconds=60)),
+        # rate_limit() keys by client IP only and lab PCs share one NAT IP, so allow a class to sign in together.
+        _rl: None = Depends(rate_limit(max_calls=120, window_seconds=60)),
 ):
     result = await auth_service.login(db, body.username, body.password)
     user = result["user"]
