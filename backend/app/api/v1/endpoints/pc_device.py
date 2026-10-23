@@ -38,6 +38,8 @@ class PcLoginIn(BaseModel):
 
 MAX_USAGE_EVENTS = 500
 MAX_EVENT_DURATION = timedelta(hours=12)
+MAX_FUTURE_SKEW = timedelta(minutes=5)
+USAGE_GRACE = timedelta(hours=24)  # buffered usage may be uploaded this long after sign-out
 
 
 class UsageEventIn(BaseModel):
@@ -60,6 +62,8 @@ class UsageEventIn(BaseModel):
                 raise ValueError("ended_at must be after started_at")
             if v - started > MAX_EVENT_DURATION:
                 raise ValueError("event lasts longer than 12 hours")
+        if v > datetime.now(timezone.utc) + MAX_FUTURE_SKEW:
+            raise ValueError("ended_at is in the future")
         return v
 
 
@@ -91,6 +95,29 @@ async def get_pc_device(
     if device is None:
         raise _unauthorized()
     return device, sess
+
+
+async def get_pc_usage_session(
+        token: str = Depends(_pc_scheme),
+        db: AsyncSession = Depends(get_db),
+) -> PcSession:
+    """Like get_pc_device, but the session may be closed up to USAGE_GRACE ago: the agent
+    buffers usage offline and uploads it after logout / re-login. Events are always
+    attributed to the token's own session, never to a newer one."""
+    claims = decode_pc_token(token)
+    if claims is None:
+        raise _unauthorized()
+    sess = await db.get(PcSession, claims["ses"])
+    if (sess is None or sess.student_id != claims["stu"]
+            or claims["sub"] != f"pc:{sess.device_id}"):
+        raise _unauthorized()
+    if sess.signed_out_at is not None:
+        out = sess.signed_out_at
+        if out.tzinfo is None:
+            out = out.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) - out > USAGE_GRACE:
+            raise _unauthorized()
+    return sess
 
 
 @router.post("/login")
@@ -164,11 +191,10 @@ async def pc_state(
 @router.post("/usage")
 async def pc_usage(
         body: UsageIn,
-        ctx: tuple[PcDevice, PcSession] = Depends(get_pc_device),
+        sess: PcSession = Depends(get_pc_usage_session),
         db: AsyncSession = Depends(get_db),
 ):
     """All-or-nothing: any invalid event (or >500 events) is rejected with 422 by validation."""
-    _, sess = ctx
     for e in body.events:
         db.add(PcUsageEvent(session_id=sess.id, app_name=e.app_name,
                             started_at=e.started_at, ended_at=e.ended_at,

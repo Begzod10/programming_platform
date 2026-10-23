@@ -188,6 +188,95 @@ def test_501_events_422_and_500_ok(client):
     assert _count_events(client, sid) == 500
 
 
+def _login_on(c, mk, uname=None):
+    if uname is None:
+        _, uname, _ = _register(c)
+    r = c.post("/api/v1/pc/login", json={
+        "username": uname, "password": PW, "hostname": "lab-usage", "machine_key": mk})
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+def _events_by_student(client, sid):
+    async def _c():
+        async with AsyncSessionLocal() as db:
+            return (await db.execute(select(PcUsageEvent.session_id, PcSession.student_id).join(
+                PcSession, PcSession.id == PcUsageEvent.session_id).where(
+                PcSession.student_id == sid))).all()
+    return client.portal.call(_c)
+
+
+def test_usage_after_logout_stored_against_old_session(client):
+    sid, _, _, h = _device_login(client)
+    assert client.post("/api/v1/pc/logout", headers=h).status_code == 200
+    now = datetime.now(timezone.utc)
+    r = client.post("/api/v1/pc/usage", headers=h, json={"events": [_ev(now - timedelta(minutes=30))]})
+    assert r.status_code == 200, r.text
+    assert len(_events_by_student(client, sid)) == 1
+    # ...but the token is still dead for everything else
+    assert client.get("/api/v1/pc/state", headers=h).status_code == 401
+
+
+def test_usage_with_old_token_after_second_login_goes_to_old_session(client):
+    uid = _uid()
+    mk = f"mk-usage-{uid}"
+    sid_a, uname_a, _ = _register(client)
+    sid_b, uname_b, _ = _register(client)
+    h_a = _login_on(client, mk, uname_a)
+    h_b = _login_on(client, mk, uname_b)
+    now = datetime.now(timezone.utc)
+    assert client.post("/api/v1/pc/usage", headers=h_a,
+                       json={"events": [_ev(now - timedelta(minutes=30))]}).status_code == 200
+    assert len(_events_by_student(client, sid_a)) == 1
+    assert len(_events_by_student(client, sid_b)) == 0
+    # B's token only ever writes to B's session
+    assert client.post("/api/v1/pc/usage", headers=h_b,
+                       json={"events": [_ev(now - timedelta(minutes=20))]}).status_code == 200
+    assert len(_events_by_student(client, sid_a)) == 1
+    assert len(_events_by_student(client, sid_b)) == 1
+
+
+def test_usage_token_for_session_closed_25h_ago_rejected(client):
+    sid, _, _, h = _device_login(client)
+
+    async def _age():
+        async with AsyncSessionLocal() as db:
+            await db.execute(update(PcSession).where(PcSession.student_id == sid).values(
+                signed_out_at=datetime.now(timezone.utc) - timedelta(hours=25)))
+            await db.commit()
+    client.portal.call(_age)
+    now = datetime.now(timezone.utc)
+    r = client.post("/api/v1/pc/usage", headers=h, json={"events": [_ev(now - timedelta(minutes=30))]})
+    assert r.status_code == 401
+    assert _count_events(client, sid) == 0
+
+
+def test_usage_session_closed_23h_ago_still_accepted(client):
+    sid, _, _, h = _device_login(client)
+
+    async def _age():
+        async with AsyncSessionLocal() as db:
+            await db.execute(update(PcSession).where(PcSession.student_id == sid).values(
+                signed_out_at=datetime.now(timezone.utc) - timedelta(hours=23)))
+            await db.commit()
+    client.portal.call(_age)
+    r = client.post("/api/v1/pc/usage", headers=h, json={"events": [_ev(datetime.now(timezone.utc) - timedelta(hours=24))]})
+    assert r.status_code == 200, r.text
+
+
+def test_future_dated_event_rejects_whole_batch(client):
+    sid, _, _, h = _device_login(client)
+    now = datetime.now(timezone.utc)
+    ok = _ev(now - timedelta(minutes=30))
+    future = _ev(now + timedelta(minutes=10), minutes=5)
+    r = client.post("/api/v1/pc/usage", headers=h, json={"events": [ok, future]})
+    assert r.status_code == 422, r.text
+    assert _count_events(client, sid) == 0
+    # small clock skew (< 5 min ahead) is tolerated
+    assert client.post("/api/v1/pc/usage", headers=h, json={"events": [
+        _ev(now - timedelta(minutes=2), minutes=3)]}).status_code == 200
+
+
 def test_usage_requires_device_token(client):
     assert client.post("/api/v1/pc/usage", json={"events": []}).status_code == 401
 
