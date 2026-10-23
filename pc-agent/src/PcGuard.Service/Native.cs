@@ -32,15 +32,7 @@ internal static class Native
     private const uint SDDL_REVISION_1 = 1;
     private const int TokenDefaultDacl = 6; // TOKEN_INFORMATION_CLASS.TokenDefaultDacl
 
-    // Process access rights denied to the interactive user on the shell process (see BuildShellSddl).
-    private const uint PROCESS_TERMINATE = 0x0001;
-    private const uint PROCESS_CREATE_THREAD = 0x0002;
-    private const uint PROCESS_VM_OPERATION = 0x0008;
-    private const uint PROCESS_VM_WRITE = 0x0020;
-    private const uint PROCESS_SUSPEND_RESUME = 0x0800;
-    private const uint DeniedToUser = PROCESS_TERMINATE | PROCESS_CREATE_THREAD | PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_SUSPEND_RESUME; // 0x082B
-    // Benign rights the user keeps so normal OS interaction still works.
-    private const uint AllowedToUser = 0x1000 /*QUERY_LIMITED_INFO*/ | 0x0400 /*QUERY_INFO*/ | 0x00100000 /*SYNCHRONIZE*/ | 0x00020000 /*READ_CONTROL*/;
+    // The shell process/thread DACL rights live in Core (ShellSecurity) so their ACE layout is tested.
 
     [StructLayout(LayoutKind.Sequential)]
     private struct SECURITY_ATTRIBUTES
@@ -268,16 +260,30 @@ internal static class Native
                             Path.GetDirectoryName(exePath), ref si, out pi))
                         throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateProcessAsUser");
                     launched = true;
-                    GetProcessTimes(pi.hProcess, out var created, out _, out _, out _);
-                    try { beforeResume(pi.dwProcessId, created); } // set the pin before the shell can connect
-                    finally
+                    if (!GetProcessTimes(pi.hProcess, out var created, out _, out _, out _))
                     {
-                        if (ResumeThread(pi.hThread) == 0xFFFFFFFF)
-                        {
-                            log.LogError("Could not resume the shell (Win32 {Code}); terminating the suspended instance", Marshal.GetLastWin32Error());
-                            TerminateProcess(pi.hProcess, 1);
-                            throw new Win32Exception(Marshal.GetLastWin32Error(), "ResumeThread");
-                        }
+                        var err = Marshal.GetLastWin32Error();
+                        log.LogError("Could not read the shell's creation time (Win32 {Code}); terminating the suspended instance", err);
+                        TerminateProcess(pi.hProcess, 1); // never pin createdAt = 0
+                        throw new Win32Exception(err, "GetProcessTimes");
+                    }
+                    try
+                    {
+                        beforeResume(pi.dwProcessId, created); // set the pin before the shell can connect
+                    }
+                    catch
+                    {
+                        // pinning failed: do NOT resume an unpinned shell (the pipe would reject it anyway)
+                        log.LogError("Pinning the shell threw; terminating the suspended instance");
+                        TerminateProcess(pi.hProcess, 1);
+                        throw;
+                    }
+                    if (ResumeThread(pi.hThread) == 0xFFFFFFFF)
+                    {
+                        var err = Marshal.GetLastWin32Error();
+                        log.LogError("Could not resume the shell (Win32 {Code}); terminating the suspended instance", err);
+                        TerminateProcess(pi.hProcess, 1);
+                        throw new Win32Exception(err, "ResumeThread");
                     }
                     return (pi.dwProcessId, created);
                 }
@@ -304,7 +310,9 @@ internal static class Native
     private static void ApplyRestrictedDefaultDacl(SafeAccessTokenHandle primary, string? userSid, ILogger log)
     {
         if (userSid is null) return;
-        var sddl = $"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;0x{AllowedToUser:X};;;{userSid})";
+        // The SDDL (incl. the empty OWNER RIGHTS ACE that stops the owning user rewriting the DACL)
+        // is built by the pure ShellSecurity.DefaultDaclSddl so its ACE layout is unit-tested.
+        var sddl = ShellSecurity.DefaultDaclSddl(userSid);
         if (!ConvertStringSecurityDescriptorToSecurityDescriptor(sddl, SDDL_REVISION_1, out var sd, out _))
         {
             log.LogError("Shell thread protection skipped: SDDL conversion failed (Win32 {Code})", Marshal.GetLastWin32Error());
@@ -350,7 +358,7 @@ internal static class Native
     private static IntPtr BuildShellSecurityDescriptor(string? userSid, ILogger log)
     {
         if (userSid is null) return IntPtr.Zero;
-        var sddl = $"O:BAG:BAD:(D;;0x{DeniedToUser:X};;;{userSid})(A;;0x{AllowedToUser:X};;;{userSid})(A;;GA;;;SY)(A;;GA;;;BA)";
+        var sddl = ShellSecurity.ProcessSddl(userSid);
         if (ConvertStringSecurityDescriptorToSecurityDescriptor(sddl, SDDL_REVISION_1, out var psd, out _)) return psd;
         log.LogError("Shell process protection skipped: SDDL conversion failed (Win32 {Code}); launching unprotected", Marshal.GetLastWin32Error());
         return IntPtr.Zero;
