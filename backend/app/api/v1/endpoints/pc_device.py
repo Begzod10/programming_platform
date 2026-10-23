@@ -2,9 +2,12 @@
 
 Device tokens are scoped (typ="pc") and rejected by every student API."""
 import hashlib
+import json
+import logging
+from typing import Optional
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -17,6 +20,9 @@ from app.models.pc_control import PcDevice, PcSession
 from app.models.user import Student, UserRole
 from app.services import auth_service
 from app.services.pc_lock_service import compute_state
+from app.ws.manager import pc_ws_manager
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -118,3 +124,58 @@ async def pc_state(
     device.last_seen_at = datetime.now(timezone.utc)
     await db.commit()
     return await compute_state(db, device)
+
+
+@router.websocket("/ws")
+async def pc_ws(
+        websocket: WebSocket,
+        token: Optional[str] = Query(default=None),
+        db: AsyncSession = Depends(get_db),
+):
+    """Realtime channel for a lab-PC agent. Auth via ``?token=`` (PC token), like notifications_ws.
+
+    On connect: ``{type:'state',...}``. Device sends ``{type:'hb', app}`` every ~30 s;
+    server stores last_seen_at/last_app and answers ``{type:'pong'}``. Server pushes
+    ``state`` and ``message`` frames through pc_ws_manager."""
+    claims = decode_pc_token(token) if token else None
+    if claims is None:
+        await websocket.close(code=4001)
+        return
+    sess = await db.get(PcSession, claims["ses"])
+    if (sess is None or sess.signed_out_at is not None
+            or sess.student_id != claims["stu"]
+            or claims["sub"] != f"pc:{sess.device_id}"):
+        await websocket.close(code=4001)
+        return
+    device = await db.get(PcDevice, sess.device_id)
+    if device is None:
+        await websocket.close(code=4001)
+        return
+    device_id = device.id
+
+    await pc_ws_manager.connect(device_id, websocket)
+    try:
+        state = await compute_state(db, device)
+        # compute_state may have inserted today's quota row; commit so this long-lived
+        # session does not sit on an open (write-locking) transaction for the whole connection.
+        await db.commit()
+        await websocket.send_json({"type": "state", **state})
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(msg, dict) or msg.get("type") != "hb":
+                continue
+            app_name = msg.get("app")
+            device.last_seen_at = datetime.now(timezone.utc)
+            device.last_app = app_name[:255] if isinstance(app_name, str) and app_name else None
+            await db.commit()
+            await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:  # noqa: BLE001 — never let a socket error bubble out
+        logger.debug("pc ws closed (device=%s): %s", device_id, e)
+    finally:
+        pc_ws_manager.disconnect(device_id, websocket)

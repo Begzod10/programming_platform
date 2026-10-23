@@ -64,3 +64,8 @@ team_project_ws_manager = ConnectionManager()
 # bare-int keyed dict across features is unsafe. The backend runs a single
 # uvicorn worker, so this in-process map reaches every live notification socket.
 notif_ws_manager = ConnectionManager()
+
+# PC Guard: one channel per lab-PC device, keyed by pc_devices.id (its own PK space,
+# so its own instance — see the notes above). Single uvicorn worker, so this
+# in-process map reaches every connected agent.
+pc_ws_manager = ConnectionManager()

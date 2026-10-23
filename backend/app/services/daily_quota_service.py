@@ -481,6 +481,12 @@ async def _emit_unlocked(db: AsyncSession, student_id: int) -> None:
         await notification_service.notify_games_unlocked(db, student_id)
     except Exception as e:  # noqa: BLE001
         logger.debug("games-unlocked notify skipped (student=%s): %s", student_id, e)
+    # Lab PCs unlock on the same event; independent of the notification above.
+    try:
+        from app.services import pc_push_service
+        await pc_push_service.push_state_for_student(db, student_id)
+    except Exception as e:  # noqa: BLE001
+        logger.debug("pc state push skipped (student=%s): %s", student_id, e)
 
 
 async def _emit_daily_complete(db: AsyncSession, student_id: int, bonus: int) -> None:
