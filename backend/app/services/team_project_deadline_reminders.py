@@ -8,8 +8,8 @@ is not archived or cancelled. The deadline is soft (a late submission is accepte
 from __future__ import annotations
 
 import logging
-import math
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 from sqlalchemy import select
@@ -23,16 +23,20 @@ from app.utils.datetime_utils import utcnow
 
 logger = logging.getLogger(__name__)
 
+LOCAL_TZ = ZoneInfo("Asia/Tashkent")
 NOTE_TYPE = "team_task_deadline"
 # Days left on which the daily run speaks up: a week, 3 days, tomorrow, today, then once overdue and again 3 days later.
 MILESTONES = (7, 3, 1, 0, -1, -3)
 
 
 def days_left(deadline: datetime, now: datetime) -> int:
-    """Whole days until the deadline, rounded up (a deadline 5 hours away is 1, one passed 5 hours ago is 0 = today); negative = overdue."""
+    """Calendar days from today to the deadline's day in Tashkent time: 0 = the deadline is today, 1 = tomorrow,
+    -1 = it was yesterday. (Rounding hours instead said "deadline today" the morning after a 23:59 deadline.)"""
     if deadline.tzinfo is None:
         deadline = deadline.replace(tzinfo=timezone.utc)
-    return math.ceil((deadline - now).total_seconds() / 86400)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    return (deadline.astimezone(LOCAL_TZ).date() - now.astimezone(LOCAL_TZ).date()).days
 
 
 def message(title: str, left: int, deadline: datetime) -> tuple[str, str]:

@@ -1593,7 +1593,7 @@ async def test_deadline_reminders_go_to_open_tasks_only_on_milestones_and_never_
             team_id=team.id, assigned_student_id=members[order % len(members)].student_id, order=order,
             title=f"T{order}", title_ru="Т", description="D", description_ru="О", required_level="Beginner",
             interface_contract_json="{}", acceptance_criteria_json="[]", depends_on_json="[]", estimated_hours=4,
-            status=status, deadline_at=now + timedelta(days=days, hours=-1))
+            status=status, deadline_at=now + timedelta(days=days))
         db_session.add(task)
         tasks.append(task)
     team.status = TeamStatus.working
