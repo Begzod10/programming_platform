@@ -47,11 +47,44 @@ def create_access_token(subject: Union[str, Any], expires_delta: Optional[timede
     return encoded_jwt
 
 
+PC_TOKEN_TTL = timedelta(hours=14)
+
+
+def create_pc_token(device_id: int, student_id: int, session_id: int) -> str:
+    """Device-scoped JWT for the PC Guard agent. sub is 'pc:<device_id>' (never a
+    plain student id), so decode_access_token rejects it on every student API."""
+    claims = {
+        "exp": utcnow() + PC_TOKEN_TTL,
+        "sub": f"pc:{device_id}",
+        "stu": student_id,
+        "ses": session_id,
+        "typ": "pc",
+    }
+    return jwt.encode(claims, settings.SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_pc_token(token: str) -> Optional[dict]:
+    """Claims of a valid PC token, else None."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+    except Exception:
+        return None
+    if payload.get("typ") != "pc" or not str(payload.get("sub", "")).startswith("pc:"):
+        return None
+    if not isinstance(payload.get("ses"), int) or not isinstance(payload.get("stu"), int):
+        return None
+    return payload
+
+
 def decode_access_token(token: str) -> Optional[int]:
     """Tokendan user_id olish (robust variant)"""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-        
+
+        # Device (PC Guard) tokens are never student credentials.
+        if payload.get("typ") == "pc" or str(payload.get("sub", "")).startswith("pc:"):
+            return None
+
         # 1. 'sub' maydoni (FastAPI/Standard)
         user_id = payload.get("sub")
         

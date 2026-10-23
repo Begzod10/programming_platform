@@ -37,6 +37,7 @@ from app.api.v1.endpoints import duel
 from app.api.v1.endpoints import classroom_integration
 from app.api.v1.endpoints import notifications
 from app.api.v1.endpoints import daily_quota
+from app.api.v1.endpoints import pc_device
 from fastapi import Depends
 api_router = APIRouter()
 
@@ -86,3 +87,4 @@ api_router.include_router(team_project.router, prefix="/team-projects", tags=["T
 api_router.include_router(classroom_integration.router, prefix="/integrations", tags=["Classroom Integration"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(daily_quota.router, prefix="/daily", tags=["Daily Quota"])
+api_router.include_router(pc_device.router, prefix="/pc", tags=["PC Device"])
