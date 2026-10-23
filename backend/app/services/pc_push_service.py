@@ -24,3 +24,14 @@ async def push_state_for_student(db: AsyncSession, student_id: int) -> None:
     )).scalars().all()
     for device_id in device_ids:
         await push_state_to_device(db, device_id)
+
+
+async def push_state_to_devices(db: AsyncSession, group_id: int | None) -> None:
+    """None = every device with an open session; a group id = that group's devices with one."""
+    q = (select(PcSession.device_id)
+         .join(PcDevice, PcDevice.id == PcSession.device_id)
+         .where(PcSession.signed_out_at.is_(None)))
+    if group_id is not None:
+        q = q.where(PcDevice.group_id == group_id)
+    for device_id in (await db.execute(q.distinct())).scalars().all():
+        await push_state_to_device(db, device_id)

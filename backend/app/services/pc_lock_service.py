@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.pc_control import PcDevice, PcSession, PcCommand
 from app.models.user import Student
-from app.services import daily_quota_service
+from app.services import daily_quota_service, pc_allowlist_service
 
 _SCOPE_RANK = {"device": 3, "group": 2, "all": 1}
 
@@ -45,13 +45,6 @@ async def resolve_override(db: AsyncSession, device: PcDevice) -> Optional[str]:
     return None if best.type == "clear" else best.type
 
 
-def _default_allowlist() -> list[dict]:
-    # TODO(task5): replace with pc_allowlist_service.effective_allowlist
-    exes = ["code.exe", "windowsterminal.exe", "cmd.exe", "powershell.exe",
-            "python.exe", "node.exe", "chrome.exe", "msedge.exe"]
-    return [{"exe": e, "publisher": None} for e in exes]
-
-
 def _browser_hosts() -> list[str]:
     return [h.strip() for h in (settings.PC_PLATFORM_HOSTS or "").split(",") if h.strip()]
 
@@ -84,7 +77,7 @@ async def compute_state(db: AsyncSession, device: PcDevice) -> dict:
         "completed": completed,
         "required": required,
         "student": {"id": student.id, "full_name": student.full_name} if student else None,
-        "allowlist": _default_allowlist(),
+        "allowlist": await pc_allowlist_service.effective_allowlist(db, device.group_id),
         "browser_hosts": _browser_hosts(),
         "server_time": datetime.now(timezone.utc).isoformat(),
     }
