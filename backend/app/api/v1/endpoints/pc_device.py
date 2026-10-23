@@ -5,18 +5,18 @@ import hashlib
 import json
 import logging
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rate_limit import rate_limit
 from app.core.security import create_pc_token, decode_pc_token
 from app.db.session import get_db
-from app.models.pc_control import PcDevice, PcSession
+from app.models.pc_control import PcDevice, PcSession, PcUsageEvent
 from app.models.user import Student, UserRole
 from app.services import auth_service
 from app.services.pc_lock_service import compute_state
@@ -34,6 +34,37 @@ class PcLoginIn(BaseModel):
     password: str = Field(min_length=1, max_length=255)
     hostname: str = Field(min_length=1, max_length=255)
     machine_key: str = Field(min_length=8, max_length=512)
+
+
+MAX_USAGE_EVENTS = 500
+MAX_EVENT_DURATION = timedelta(hours=12)
+
+
+class UsageEventIn(BaseModel):
+    app_name: str = Field(min_length=1, max_length=255)
+    started_at: datetime
+    ended_at: datetime
+    was_locked: bool = False
+
+    @field_validator("started_at", "ended_at")
+    @classmethod
+    def _tz_aware(cls, v: datetime) -> datetime:
+        return v if v.tzinfo is not None else v.replace(tzinfo=timezone.utc)
+
+    @field_validator("ended_at")
+    @classmethod
+    def _sane_range(cls, v: datetime, info) -> datetime:
+        started = info.data.get("started_at")
+        if started is not None:
+            if v <= started:
+                raise ValueError("ended_at must be after started_at")
+            if v - started > MAX_EVENT_DURATION:
+                raise ValueError("event lasts longer than 12 hours")
+        return v
+
+
+class UsageIn(BaseModel):
+    events: list[UsageEventIn] = Field(max_length=MAX_USAGE_EVENTS)
 
 
 def _unauthorized() -> HTTPException:
@@ -128,6 +159,22 @@ async def pc_state(
     device.last_seen_at = datetime.now(timezone.utc)
     await db.commit()
     return await compute_state(db, device)
+
+
+@router.post("/usage")
+async def pc_usage(
+        body: UsageIn,
+        ctx: tuple[PcDevice, PcSession] = Depends(get_pc_device),
+        db: AsyncSession = Depends(get_db),
+):
+    """All-or-nothing: any invalid event (or >500 events) is rejected with 422 by validation."""
+    _, sess = ctx
+    for e in body.events:
+        db.add(PcUsageEvent(session_id=sess.id, app_name=e.app_name,
+                            started_at=e.started_at, ended_at=e.ended_at,
+                            was_locked=e.was_locked))
+    await db.commit()
+    return {"stored": len(body.events)}
 
 
 @router.websocket("/ws")
