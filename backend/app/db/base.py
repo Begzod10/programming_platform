@@ -53,6 +53,13 @@ from app.models.daily_quota import (  # noqa: F401  registers tables for create_
     StreakTracker,
     StreakBonusLog,
 )
+from app.models.pc_control import (  # noqa: F401  registers tables for create_all
+    PcDevice,
+    PcAllowlist,
+    PcSession,
+    PcUsageEvent,
+    PcCommand,
+)
 
 __all__ = [
     "Base",
