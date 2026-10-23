@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{EAFB1AF5
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PcGuard.Core.Tests", "tests\PcGuard.Core.Tests\PcGuard.Core.Tests.csproj", "{96679D98-A715-4DBD-B72A-77AEE12D3046}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PcGuard.Service", "src\PcGuard.Service\PcGuard.Service.csproj", "{24DDFBE1-DB08-419E-88FD-F7744C7B420A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +30,14 @@ Global
 		{96679D98-A715-4DBD-B72A-77AEE12D3046}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{96679D98-A715-4DBD-B72A-77AEE12D3046}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{96679D98-A715-4DBD-B72A-77AEE12D3046}.Release|Any CPU.Build.0 = Release|Any CPU
+		{24DDFBE1-DB08-419E-88FD-F7744C7B420A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{24DDFBE1-DB08-419E-88FD-F7744C7B420A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{24DDFBE1-DB08-419E-88FD-F7744C7B420A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{24DDFBE1-DB08-419E-88FD-F7744C7B420A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{81D1329C-0FE6-42C5-BF62-782F2B027041} = {59E19BB9-7EE5-4093-A130-B44F3BA53556}
 		{96679D98-A715-4DBD-B72A-77AEE12D3046} = {EAFB1AF5-265E-47A1-ADC5-D9A225421A65}
+		{24DDFBE1-DB08-419E-88FD-F7744C7B420A} = {59E19BB9-7EE5-4093-A130-B44F3BA53556}
 	EndGlobalSection
 EndGlobal
