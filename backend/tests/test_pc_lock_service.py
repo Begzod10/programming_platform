@@ -2,6 +2,8 @@ import uuid
 
 import pytest
 
+from sqlalchemy import delete
+
 from app.db.database import AsyncSessionLocal
 from app.models.pc_control import PcDevice, PcCommand
 from app.services.pc_lock_service import decide_lock, resolve_override, compute_state
@@ -30,6 +32,8 @@ def test_no_override_follows_quota():
 
 
 async def _device(db, group_id=None):
+    # DB is shared across tests; start from a clean command table.
+    await db.execute(delete(PcCommand))
     d = PcDevice(hostname="lab", machine_key_hash=f"h-{_uid()}", group_id=group_id)
     db.add(d)
     await db.commit()
