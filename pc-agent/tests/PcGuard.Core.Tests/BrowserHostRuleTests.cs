@@ -54,4 +54,21 @@ public class BrowserHostRuleTests
     [InlineData("MSEdge.exe", true)]
     [InlineData("firefox.exe", false)]
     public void IsBrowser(string exe, bool expected) => Assert.Equal(expected, BrowserHostRule.IsBrowser(exe));
+
+    [Fact]
+    public void EmptyAndWhitespaceEntriesAreSkipped() =>
+        Assert.False(BrowserHostRule.IsAllowed("youtube.com", new[] { "", "  ", "example.uz" }));
+
+    [Fact]
+    public void AllEmptyEntriesMeanRuleDisabled() =>
+        Assert.True(BrowserHostRule.IsAllowed("youtube.com", new[] { "", "   " }));
+
+    [Fact]
+    public void AllowedEntriesAreNormalized() =>
+        Assert.True(BrowserHostRule.IsAllowed("platform.example.uz", new[] { "  Example.UZ. " }));
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void IsBrowserNullOrEmptyIsFalse(string? exe) => Assert.False(BrowserHostRule.IsBrowser(exe));
 }
