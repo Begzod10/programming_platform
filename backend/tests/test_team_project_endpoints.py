@@ -1634,3 +1634,27 @@ async def test_deadline_reminders_skip_archived_projects(db_session, two_teams_p
     await db_session.commit()
     assert task.id not in {t.id for t, _ in await open_tasks(db_session)}
 
+
+async def test_my_team_sees_zip_submissions_of_its_tasks_but_other_teams_stay_redacted(async_client, db_session, two_teams_project):
+    """The lead assembles the project from the members' work, so a ZIP hand-in must reach the team page too."""
+    fx = two_teams_project
+    team_a, team_b = fx["teams"]
+    members_a = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team_a.id))).scalars().all()
+    task = TeamProjectTask(
+        team_id=team_a.id, assigned_student_id=members_a[0].student_id, order=0, title="T", title_ru="Т",
+        description="D", description_ru="О", required_level="Beginner", interface_contract_json="{}",
+        acceptance_criteria_json="[]", depends_on_json="[]", estimated_hours=4, status=TaskStatus.submitted,
+        submission_files="/uploads/projects/abc.zip")
+    db_session.add(task)
+    await db_session.commit()
+
+    uname_a = (await _member_usernames_for_team(db_session, team_a.id, fx))[0]
+    entry = (await async_client.get(f"{BASE}/my", headers=fx["student_headers"][uname_a])).json()[0]
+    assert [t["submission_files"] for t in entry["my_team"]["tasks"]] == ["/uploads/projects/abc.zip"]
+
+    uname_b = (await _member_usernames_for_team(db_session, team_b.id, fx))[0]
+    entry_b = (await async_client.get(f"{BASE}/my", headers=fx["student_headers"][uname_b])).json()[0]
+    seen = [t for team in entry_b["team_project"]["teams"] if team["id"] == team_a.id for t in team["tasks"]]
+    assert seen == []                                                           # another team sees no tasks at all
+

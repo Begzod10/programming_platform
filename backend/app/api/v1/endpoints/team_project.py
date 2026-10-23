@@ -94,6 +94,7 @@ def _task_read(task: TeamProjectTask) -> TaskRead:
             if task.assigned_student else None
         ),
         submission_url=task.submission_url,
+        submission_files=task.submission_files,
         ai_score=task.ai_score,
         ai_feedback=json.loads(task.ai_feedback_json) if task.ai_feedback_json else None,
         lead_comment=task.lead_comment,

@@ -22,6 +22,7 @@ jest.mock('../api/search/base', () => ({
   API_URL: 'http://test/api/',
   useHttp: () => ({ request: mockRequest }),
   headers: () => ({}),
+  resolveImageUrl: (src) => (/^https?:/.test(src) ? src : `http://test/${src.replace(/^\//, '')}`),
 }));
 
 jest.mock('../hooks/useSessionSocket', () => ({
@@ -230,3 +231,39 @@ describe('StudentTeamProject — finalize needs the repo link', () => {
     expect(JSON.parse(body)).toEqual({ github_url: 'https://github.com/foo/bar' });
   });
 });
+
+describe('StudentTeamProject — the handed-in code of the team', () => {
+  const twoMembers = [
+    baseMember({ student_id: 1, full_name: 'Aziz Aliyev' }),
+    baseMember({ student_id: 2, full_name: 'Vali Valiyev' }),
+  ];
+  const teamTasks = [
+    baseTask({ id: 100, assigned_student_id: 1, status: 'submitted', submission_url: 'https://github.com/aziz/part' }),
+    baseTask({ id: 101, assigned_student_id: 2, assigned_student_name: 'Vali Valiyev', status: 'submitted',
+               submission_files: '/uploads/projects/abc.zip' }),
+  ];
+
+  test('the lead sees every submitted task: the GitHub link and the ZIP download', async () => {
+    mockRequest.mockResolvedValueOnce([{ ...baseEntry({ members: twoMembers, tasks: teamTasks }), my_role: 'lead' }]);
+    render(<StudentTeamProject />);
+    const github = await screen.findByRole('link', { name: /GitHub'da ochish/ });
+    expect(github).toHaveAttribute('href', 'https://github.com/aziz/part');
+    const zip = screen.getByRole('link', { name: /ZIP yuklab olish/ });
+    expect(zip).toHaveAttribute('href', 'http://test/uploads/projects/abc.zip');
+  });
+
+  test('a regular member sees the code of their own task only', async () => {
+    mockRequest.mockResolvedValueOnce([baseEntry({ members: twoMembers, tasks: teamTasks })]);   // user id 1 = Aziz, member
+    render(<StudentTeamProject />);
+    expect(await screen.findByRole('link', { name: /GitHub'da ochish/ })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /ZIP yuklab olish/ })).toBeNull();                 // Vali's ZIP is not shown
+  });
+
+  test('nothing is shown for a task that was not submitted yet', async () => {
+    mockRequest.mockResolvedValueOnce([{ ...baseEntry({ members: twoMembers, tasks: [baseTask()] }), my_role: 'lead' }]);
+    render(<StudentTeamProject />);
+    await screen.findByText('Login sahifasi');
+    expect(screen.queryByText('Topshirilgan kod')).toBeNull();
+  });
+});
+
