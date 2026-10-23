@@ -8,10 +8,22 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+_pool_options = (
+    {
+        "pool_size": settings.DB_POOL_SIZE,
+        "max_overflow": settings.DB_MAX_OVERFLOW,
+        "pool_pre_ping": True,      # a connection the server dropped is replaced instead of failing a request
+        "pool_recycle": 1800,
+    }
+    if settings.DATABASE_URL.startswith("postgresql")
+    else {}                          # SQLite (tests) has its own pooling
+)
+
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
     future=True,
+    **_pool_options,
 )
 
 AsyncSessionLocal = async_sessionmaker(

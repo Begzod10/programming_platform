@@ -8,6 +8,11 @@ BASE_DIR = Path(__file__).parent.parent
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://postgres:123@localhost:5432/Student_Platform"
+    # Connection pool of the one uvicorn process (PostgreSQL only). The SQLAlchemy default 5 + 10 ran dry on 15.09
+    # and 20.10 when many students answered a team game at once (52 "QueuePool limit" 500s in two minutes).
+    # The server allows 300 connections and the other apps on it keep ~45, so 20 + 20 leaves plenty of headroom.
+    DB_POOL_SIZE: int = 20
+    DB_MAX_OVERFLOW: int = 20
     APP_NAME: str = "Student Programming Platform"
     DEBUG: bool = False
     # SECRET_KEY is REQUIRED in .env. No default — startup fails loudly if missing,
