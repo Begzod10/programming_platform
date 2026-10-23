@@ -97,6 +97,8 @@ async def pc_login(
     await db.commit()
     await db.refresh(device)
     await db.refresh(sess)
+    # A socket opened with a previous session's token must not outlive that session.
+    await pc_ws_manager.close_all(device.id, code=4001)
 
     return {
         "token": create_pc_token(device.id, student.id, sess.id),
@@ -110,8 +112,10 @@ async def pc_logout(
         db: AsyncSession = Depends(get_db),
 ):
     _, sess = ctx
+    device_id = sess.device_id
     sess.signed_out_at = datetime.now(timezone.utc)
     await db.commit()
+    await pc_ws_manager.close_all(device_id, code=4001)
     return {"ok": True}
 
 
@@ -152,6 +156,7 @@ async def pc_ws(
         await websocket.close(code=4001)
         return
     device_id = device.id
+    ses_id = sess.id
 
     await pc_ws_manager.connect(device_id, websocket)
     try:
@@ -168,7 +173,20 @@ async def pc_ws(
                 continue
             if not isinstance(msg, dict) or msg.get("type") != "hb":
                 continue
+            # Re-check on every heartbeat that this token's session is still open
+            # (logout / a newer login on the device ends it), as GET /pc/state does.
+            signed_out = (await db.execute(
+                select(PcSession.signed_out_at, PcSession.id).where(PcSession.id == ses_id)
+            )).first()
+            await db.rollback()  # end the read txn; also drops any stale identity-map state
+            if signed_out is None or signed_out[0] is not None:
+                await websocket.close(code=4001)
+                break
             app_name = msg.get("app")
+            device = await db.get(PcDevice, device_id)
+            if device is None:
+                await websocket.close(code=4001)
+                break
             device.last_seen_at = datetime.now(timezone.utc)
             device.last_app = app_name[:255] if isinstance(app_name, str) and app_name else None
             await db.commit()
@@ -176,6 +194,6 @@ async def pc_ws(
     except WebSocketDisconnect:
         pass
     except Exception as e:  # noqa: BLE001 — never let a socket error bubble out
-        logger.debug("pc ws closed (device=%s): %s", device_id, e)
+        logger.warning("pc ws closed on error (device=%s): %s", device_id, e, exc_info=True)
     finally:
         pc_ws_manager.disconnect(device_id, websocket)

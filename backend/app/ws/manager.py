@@ -25,6 +25,16 @@ class ConnectionManager:
             self._sessions.pop(session_id, None)
         logger.debug("WS disconnect session=%d remaining=%d", session_id, len(conns))
 
+    async def close_all(self, session_id: int, code: int = 1000) -> None:
+        """Close every socket registered under this key (the handler's finally
+        then disconnects it)."""
+        for ws in list(self._sessions.get(session_id, [])):
+            try:
+                await ws.close(code=code)
+            except Exception:  # noqa: BLE001 — already gone
+                pass
+            self.disconnect(session_id, ws)
+
     async def broadcast(self, session_id: int, payload: dict) -> None:
         dead: list[WebSocket] = []
         for ws in list(self._sessions.get(session_id, [])):
