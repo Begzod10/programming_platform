@@ -10,7 +10,7 @@ import DemoBanner from '../DemoBanner';
 import './AppHeader.css';
 import {
     Bell, LayoutGrid, X, LogOut, User, BarChart3,
-    LayoutDashboard, BookOpen, Map, Monitor, BookMarked, Gamepad2, Users2,
+    LayoutDashboard, BookOpen, Map, Monitor, BookMarked, ClipboardCheck, Users2,
     HelpCircle, Zap, Puzzle, Trophy, Construction, GraduationCap, Award, Lock, Target,
 } from 'lucide-react';
 
@@ -43,7 +43,7 @@ const NAV_GROUPS = (ru, earlyEligible) => [
             { id: 'roadmap',       Icon: Map,             ru: 'Дорожная карта',  uz: "Yo'l xaritasi" },
             { id: 'projects',      Icon: Monitor,         ru: 'Мои проекты',     uz: 'Mening loyihalarim' },
             { id: 'dictionary',    Icon: BookMarked,      ru: 'Словарь',         uz: "Lug'at" },
-            { id: 'team-game',     Icon: Gamepad2,        ru: 'Командные игры',  uz: "Jamoa o'yinlari" },
+            { id: 'team-game',     Icon: ClipboardCheck,  ru: 'Проверка знаний',  uz: 'Bilim sinovi' },
             { id: 'team-projects', Icon: Users2,          ru: 'Команд. проекты', uz: 'Jamoaviy loyihalar' },
             { id: 'quiz',          Icon: HelpCircle,      ru: 'Викторина',       uz: 'Viktorina' },
             { id: 'duel',          Icon: Zap,             ru: '1 на 1',          uz: '1 vs 1 poyga' },

@@ -1218,7 +1218,7 @@ export default function TeacherTeamGame() {
         <div className="tg-page">
             <div className="tg-page-header">
                 <div>
-                    <h1>Командные игры</h1>
+                    <h1>Проверка знаний</h1>
                     <p className="tg-subtitle">Создайте сессию — система случайно разобьёт студентов по командам. Обновления в реальном времени.</p>
                 </div>
                 <button className="tg-btn-primary tg-btn-lg" onClick={() => setShowCreate(true)}>

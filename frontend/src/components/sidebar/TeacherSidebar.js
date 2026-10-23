@@ -6,7 +6,7 @@ import { subscribeNotifications, closeNotificationsSocket } from '../../api/noti
 import { useStore } from '../../context/StoreContext';
 import CoinChip from './CoinChip';
 import {
-    User, Download, Users, BookOpen, Gamepad2,
+    User, Download, Users, BookOpen, Gamepad2, ClipboardCheck,
     Trophy, Construction, Award, Medal, TrendingUp, Star, Activity,
     ShoppingBag, Building2, Puzzle, Bug, Users2, ShieldCheck, Bell, Gavel,
 } from 'lucide-react';
@@ -82,7 +82,7 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
         { id: 'students',       label: 'Мои Студенты',    Icon: Users,        section: 'main' },
         { id: 'groups',         label: 'Мои Группы',      Icon: Building2,    section: 'main' },
         { id: 'courses',        label: 'Курсы',           Icon: BookOpen,     section: 'main' },
-        { id: 'team-game',      label: 'Командные игры',  Icon: Gamepad2,     section: 'main' },
+        { id: 'team-game',      label: 'Проверка знаний', Icon: ClipboardCheck, section: 'main' },
         { id: 'team-projects',  label: 'Jamoaviy loyihalar', Icon: Users2,    section: 'main' },
         { id: 'store',          label: 'Магазин (beta)',  Icon: ShoppingBag,  section: 'main' },
         { id: 'early-learning', label: 'Kichkinalar uchun', Icon: Puzzle,     section: 'main' },
