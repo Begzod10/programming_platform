@@ -3,12 +3,12 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, insert, select, update
 from starlette.testclient import TestClient
 
 from app.db.database import AsyncSessionLocal
 from app.main import app
-from app.models.group import Group
+from app.models.group import Group, student_groups
 from app.models.pc_control import PcCommand, PcDevice, PcSession, PcUsageEvent
 from app.models.user import Student, UserRole
 from app.services import daily_quota_service
@@ -114,6 +114,14 @@ def _group(client, teacher_id):
             await db.refresh(g)
             return g.id
     return client.portal.call(_mk)
+
+
+def _enroll(client, student_id, group_id):
+    async def _go():
+        async with AsyncSessionLocal() as db:
+            await db.execute(insert(student_groups).values(student_id=student_id, group_id=group_id))
+            await db.commit()
+    client.portal.call(_go)
 
 
 def _set_group(client, device_id, group_id):
@@ -288,8 +296,9 @@ def _find(devices, device_id):
 
 
 def test_devices_online_after_heartbeat_and_offline_when_stale(client, teacher, quota_enforced):
-    _, th = teacher
+    tid, th = teacher
     sid, did, token, h = _device_login(client)
+    _enroll(client, sid, _group(client, tid))
     assert client.get("/api/v1/pc/state", headers=h).status_code == 200  # heartbeat-ish
     d = _find(client.get(f"{T}/devices", headers=th).json(), did)
     assert d["online"] is True
@@ -339,6 +348,57 @@ def test_patch_device_pushes_state(client, teacher):
         assert ws.receive_json()["type"] == "state"
         assert client.patch(f"{T}/devices/{did}", headers=th, json={"group_id": gid}).status_code == 200
         assert ws.receive_json()["type"] == "state"
+
+
+def test_device_list_hides_identity_of_students_outside_teachers_scope(client, teacher):
+    tid, th = teacher
+    other_tid, oh = _register(client, UserRole.teacher)[0], None
+    sid, did, _, _ = _device_login(client)
+    _enroll(client, sid, _group(client, other_tid))  # belongs to someone else's group
+    d = _find(client.get(f"{T}/devices", headers=th).json(), did)  # still listed (shared hardware)
+    assert d["student"] == {"id": None, "full_name": None}
+    assert d["locked"] in (True, False) and d["reason"] != "no_student"
+    # a teacher who does teach the student sees them
+    _enroll(client, sid, _group(client, tid))
+    assert _find(client.get(f"{T}/devices", headers=th).json(), did)["student"]["id"] == sid
+
+
+def test_patch_device_foreign_group_403_and_own_ok(client, teacher):
+    tid, th = teacher
+    other_tid = _register(client, UserRole.teacher)[0]
+    _, did, _, _ = _device_login(client)
+    foreign = _group(client, other_tid)
+    assert client.patch(f"{T}/devices/{did}", headers=th, json={"group_id": foreign}).status_code == 403
+    own = _group(client, tid)
+    assert client.patch(f"{T}/devices/{did}", headers=th, json={"group_id": own}).status_code == 200
+
+
+def test_patch_device_empty_body_keeps_group_and_null_clears(client, teacher):
+    tid, th = teacher
+    _, did, _, _ = _device_login(client)
+    gid = _group(client, tid)
+    assert client.patch(f"{T}/devices/{did}", headers=th, json={"group_id": gid}).status_code == 200
+    r = client.patch(f"{T}/devices/{did}", headers=th, json={})
+    assert r.status_code == 200 and r.json()["group_id"] == gid
+    assert _find(client.get(f"{T}/devices", headers=th).json(), did)["group_id"] == gid
+    r = client.patch(f"{T}/devices/{did}", headers=th, json={"group_id": None})
+    assert r.status_code == 200 and r.json()["group_id"] is None
+
+
+def test_group_command_on_foreign_group_403(client, teacher):
+    _, th = teacher
+    other_tid = _register(client, UserRole.teacher)[0]
+    foreign = _group(client, other_tid)
+    for t in ("lock", "unlock", "clear"):
+        r = client.post(f"{T}/commands", headers=th, json={"scope_type": "group", "scope_id": foreign, "type": t})
+        assert r.status_code == 403, r.text
+    r = client.post(f"{T}/commands", headers=th, json={
+        "scope_type": "group", "scope_id": foreign, "type": "message", "payload": {"text": "x"}})
+    assert r.status_code == 403
+    # device and all scopes stay open to any teacher (shared hardware)
+    _, did, _, _ = _device_login(client)
+    assert client.post(f"{T}/commands", headers=th, json={
+        "scope_type": "device", "scope_id": did, "type": "lock"}).status_code == 200
 
 
 # ---------- commands ----------

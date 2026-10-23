@@ -211,3 +211,18 @@ def test_device_token_rejected(client):
     assert r.status_code == 200, r.text
     h = {"Authorization": f"Bearer {r.json()['token']}"}
     assert _report(client, h, D1, D1).status_code in (401, 403)
+
+
+def test_report_foreign_group_403_and_unfiltered_excludes_outsiders(client, teacher):
+    tid, h = teacher
+    other_tid, _ = _register(client, UserRole.teacher)
+    mine, foreign = _group(client, tid), _group(client, other_tid)
+    ev = [(_at(D1, 9), _at(D1, 9, 5), "a.exe", False)]
+    s_mine = _mk_student_session(client, events=ev, group_id=mine)
+    s_foreign = _mk_student_session(client, events=ev, group_id=foreign)
+    s_nogroup = _mk_student_session(client, events=ev)
+    assert _report(client, h, D1, D1, foreign).status_code == 403
+    assert _report(client, h, D1, D1, 99999999).status_code == 403
+    ids = {x["student_id"] for x in _report(client, h, D1, D1).json()}
+    assert s_mine in ids
+    assert s_foreign not in ids and s_nogroup not in ids

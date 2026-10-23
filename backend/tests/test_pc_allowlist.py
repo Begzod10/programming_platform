@@ -174,3 +174,17 @@ def test_put_pushes_new_allowlist_to_connected_device(client, teacher):
         frame = ws.receive_json()
         assert frame["type"] == "state"
         assert frame["allowlist"] == [{"exe": "pushed.exe", "publisher": "P"}]
+
+
+def test_foreign_group_allowlist_403_and_unknown_group_404(client, teacher):
+    _, h = teacher
+    other_tid = _register(client, UserRole.teacher)[0]
+    foreign = _group(client, other_tid)
+    assert client.get(f"{URL}?group_id={foreign}", headers=h).status_code == 403
+    assert client.put(f"{URL}?group_id={foreign}", headers=h,
+                      json={"entries": [{"exe": "a.exe"}]}).status_code == 403
+    assert client.get(f"{URL}?group_id=99999999", headers=h).status_code == 404
+    assert client.put(f"{URL}?group_id=99999999", headers=h,
+                      json={"entries": [{"exe": "a.exe"}]}).status_code == 404
+    # the global allowlist is a platform-wide setting: any teacher may edit it
+    assert client.put(URL, headers=h, json={"entries": [{"exe": "a.exe"}]}).status_code == 200

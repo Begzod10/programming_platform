@@ -12,6 +12,7 @@ from app.models.group import student_groups
 from app.models.pc_control import PcSession, PcUsageEvent
 from app.models.user import Student
 from app.services.daily_quota_service import TZ
+from app.services.teacher_students import teacher_student_ids_subquery
 
 TOP_APPS = 5
 
@@ -25,18 +26,24 @@ def _day_start(d: date) -> datetime:
 
 
 async def build_report(db: AsyncSession, date_from: date, date_to: date,
-                       group_id: Optional[int]) -> list[dict]:
+                       group_id: Optional[int], teacher_id: Optional[int] = None) -> list[dict]:
+    """`teacher_id` restricts the report to that teacher's students (group or flow);
+    None = unrestricted."""
     start = _day_start(date_from)
     end = _day_start(date_to + timedelta(days=1))
     start_utc, end_utc = start.astimezone(timezone.utc), end.astimezone(timezone.utc)
 
     allowed: Optional[set[int]] = None
-    if group_id is not None:
+    if teacher_id is not None:
         allowed = set((await db.execute(
+            select(teacher_student_ids_subquery(teacher_id).c.student_id))).scalars().all())
+    if group_id is not None:
+        members = set((await db.execute(
             select(student_groups.c.student_id).where(student_groups.c.group_id == group_id)
         )).scalars().all())
-        if not allowed:
-            return []
+        allowed = members if allowed is None else allowed & members
+    if allowed is not None and not allowed:
+        return []
 
     # 1. sessions in range -> (student, day) keys
     q = select(PcSession.student_id, PcSession.signed_in_at).where(

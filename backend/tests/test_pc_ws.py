@@ -235,3 +235,11 @@ def test_push_for_student_without_session_is_noop(client):
             await pc_push_service.push_state_to_device(db, 987654321)
             await daily_quota_service._emit_unlocked(db, 987654321)
     client.portal.call(_go)
+
+
+def test_pc_token_rejected_on_student_notifications_ws(client):
+    _, token = _signin(client)
+    with pytest.raises(WebSocketDisconnect) as ei:
+        with client.websocket_connect(f"/api/v1/notifications/ws?token={token}") as ws:
+            ws.receive_json()
+    assert ei.value.code == 4001
