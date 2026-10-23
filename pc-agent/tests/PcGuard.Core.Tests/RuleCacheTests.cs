@@ -104,4 +104,56 @@ public class RuleCacheTests : IDisposable
         Assert.False(cur.Locked);
         Assert.Equal("a.exe", cur.Allowlist.Single().Exe);
     }
+
+    [Fact]
+    public void ClockMovedBackwards_IsExpired_ThenApplyRecovers()
+    {
+        var c = Make();
+        c.Apply(Rules(false, "a.exe"));
+        _now -= TimeSpan.FromMinutes(1);
+        var cur = c.Current();
+        Assert.True(cur.Locked);
+        Assert.Equal("offline_timeout", cur.Reason);
+        Assert.Equal("a.exe", cur.Allowlist.Single().Exe);
+        Assert.True(c.Apply(Rules(false, "b.exe")));
+        Assert.False(c.Current().Locked);
+    }
+
+    [Fact]
+    public void PersistedFutureAppliedAt_IsExpired()
+    {
+        Make().Apply(Rules(false, "a.exe"));
+        _now -= TimeSpan.FromMinutes(1);
+        var cur = Make().Current();
+        Assert.True(cur.Locked);
+        Assert.Equal("offline_timeout", cur.Reason);
+        Assert.Equal("a.exe", cur.Allowlist.Single().Exe);
+    }
+
+    [Fact]
+    public void ZeroAge_IsValid()
+    {
+        var c = Make();
+        c.Apply(Rules(false, "a.exe"));
+        Assert.False(c.Current().Locked);
+    }
+
+    [Fact]
+    public void HandEditedFile_NullEntriesAndLists_AreSanitized()
+    {
+        var at = _now.ToString("o");
+        File.WriteAllText(P, "{\"Rules\":{\"Locked\":false,\"Reason\":null,\"Remaining\":1,\"StudentName\":null,"
+            + "\"Allowlist\":[null,{\"Exe\":null,\"Publisher\":null},{\"Exe\":\"\",\"Publisher\":null},{\"Exe\":\"a.exe\",\"Publisher\":null}],"
+            + "\"BrowserHosts\":null},\"AppliedAt\":\"" + at + "\"}");
+        var cur = Make().Current();
+        Assert.Equal("a.exe", cur.Allowlist.Single().Exe);
+        Assert.Empty(cur.BrowserHosts);
+        Assert.NotNull(cur.Reason);
+    }
+
+    [Fact]
+    public void Defaults_AreNotMutableViaCast()
+    {
+        Assert.False(Defaults.Allowlist is IList<AllowEntry> l && !l.IsReadOnly);
+    }
 }

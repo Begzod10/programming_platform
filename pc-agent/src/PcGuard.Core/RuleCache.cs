@@ -4,11 +4,11 @@ namespace PcGuard.Core;
 
 public static class Defaults
 {
-    public static readonly IReadOnlyList<AllowEntry> Allowlist = new[]
+    public static readonly IReadOnlyList<AllowEntry> Allowlist = Array.AsReadOnly(new[]
     {
         "code.exe", "windowsterminal.exe", "cmd.exe", "powershell.exe",
         "python.exe", "node.exe", "chrome.exe", "msedge.exe",
-    }.Select(e => new AllowEntry(e, null)).ToList();
+    }.Select(e => new AllowEntry(e, null)).ToArray());
 }
 
 public class RuleCache
@@ -48,8 +48,13 @@ public class RuleCache
     {
         lock (_lock)
         {
-            if (_stored is { } s && _clock() - s.AppliedAt <= _maxAge)
-                return s.Rules;
+            if (_stored is { } s)
+            {
+                var age = _clock() - s.AppliedAt;
+                // negative age (clock moved backwards / future timestamp) counts as expired
+                if (age >= TimeSpan.Zero && age <= _maxAge)
+                    return s.Rules;
+            }
             return new PcRules(
                 true, "offline_timeout", 0, null,
                 _stored?.Rules.Allowlist is { Count: > 0 } a ? a : Defaults.Allowlist,
@@ -63,9 +68,17 @@ public class RuleCache
         {
             if (!File.Exists(_path)) return null;
             var s = JsonSerializer.Deserialize<Stored>(File.ReadAllText(_path));
-            if (s?.Rules is null || s.Rules.Allowlist is null || s.Rules.BrowserHosts is null || s.Rules.Reason is null)
-                return null;
-            return s;
+            if (s?.Rules is null) return null;
+            var allow = (s.Rules.Allowlist ?? Array.Empty<AllowEntry>())
+                .Where(a => a is not null && !string.IsNullOrWhiteSpace(a.Exe)).ToList();
+            var hosts = (s.Rules.BrowserHosts ?? Array.Empty<string>())
+                .Where(h => !string.IsNullOrWhiteSpace(h)).ToList();
+            return new Stored(s.Rules with
+            {
+                Reason = s.Rules.Reason ?? "unknown",
+                Allowlist = allow,
+                BrowserHosts = hosts,
+            }, s.AppliedAt);
         }
         catch
         {
