@@ -37,12 +37,13 @@ public class ShellLaunchPolicyTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 23, 10, 0, 0, TimeSpan.Zero);
 
-    private static ShellAction D(double? missingFor, double? sinceLaunch = null, bool console = true, bool running = false, double? sinceSnapshot = null)
+    private static ShellAction D(double? missingFor, double? sinceLaunch = null, bool console = true, bool running = false, double? sinceSnapshot = null, double? sinceAlive = null)
         => ShellLaunchPolicy.Decide(Now,
             missingFor is { } m ? Now.AddSeconds(-m) : null,
             sinceLaunch is { } l ? Now.AddSeconds(-l) : null,
             console, running,
-            sinceSnapshot is { } s ? Now.AddSeconds(-s) : null);
+            sinceSnapshot is { } s ? Now.AddSeconds(-s) : null,
+            sinceAlive is { } a ? Now.AddSeconds(-a) : null);
 
     [Fact] public void NothingWhenShellPresent() => Assert.Equal(ShellAction.None, D(null));
     [Fact] public void NothingBeforeSixSeconds() => Assert.Equal(ShellAction.None, D(5.9));
@@ -55,4 +56,24 @@ public class ShellLaunchPolicyTests
     [Fact] public void RunningButSilentFor30SecondsIsKilled() => Assert.Equal(ShellAction.KillHung, D(60, sinceLaunch: 40, running: true, sinceSnapshot: 30));
     [Fact] public void RecentSnapshotKeepsRunningShell() => Assert.Equal(ShellAction.None, D(10, running: true, sinceSnapshot: 10));
     [Fact] public void RunningShellNeverLaunchedButSilentIsKilled() => Assert.Equal(ShellAction.KillHung, D(31, running: true));
+
+    // "alive" frames from a shell that deliberately sends no snapshots (non-Default input desktop)
+    [Fact] public void RecentAliveKeepsSilentRunningShell() => Assert.Equal(ShellAction.None, D(120, sinceLaunch: 120, running: true, sinceSnapshot: 120, sinceAlive: 29.9));
+    [Fact] public void AliveExactly30sOldIsHung() => Assert.Equal(ShellAction.KillHung, D(120, sinceLaunch: 120, running: true, sinceSnapshot: 120, sinceAlive: 30));
+    [Fact] public void StaleAliveAndStaleSnapshotStillKilled() => Assert.Equal(ShellAction.KillHung, D(120, sinceLaunch: 120, running: true, sinceSnapshot: 90, sinceAlive: 60));
+    [Fact] public void AliveNeverMeansLaunchWhenNotRunning() => Assert.Equal(ShellAction.Launch, D(60, running: false, sinceAlive: 1));
+}
+
+public class AliveDoesNotFreshenSnapshotTests
+{
+    [Fact]
+    public void PlannerIgnoresAlive_StaleSnapshotStillMeansShellMissingAndFallback()
+    {
+        var now = new DateTimeOffset(2026, 10, 23, 10, 0, 0, TimeSpan.Zero);
+        var rules = new PcRules(true, "no_student", 0, null, Defaults.Allowlist, Array.Empty<string>());
+        var plan = EnforcementPlanner.Plan(rules, new Snapshot(Array.Empty<WindowedProc>(), null, Array.Empty<BrowserWindow>()),
+            now.AddSeconds(-7), now, Array.Empty<RunningProcess>());
+        Assert.True(plan.ShellMissing);
+        Assert.True(plan.UsedFallback);
+    }
 }

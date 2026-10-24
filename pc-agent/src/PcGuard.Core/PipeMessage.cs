@@ -29,6 +29,7 @@ public abstract record PipeMessage(string T)
                     w.WriteString("password", m.Password);
                     break;
                 case LogoutMessage:
+                case AliveMessage:
                     break;
                 case SnapshotMessage m:
                     WriteSnapshot(w, m.Snapshot);
@@ -73,6 +74,7 @@ public abstract record PipeMessage(string T)
             {
                 "login" => new LoginMessage(ReqString(r, "username"), ReqString(r, "password")),
                 "logout" => new LogoutMessage(),
+                "alive" => new AliveMessage(),
                 "snapshot" => new SnapshotMessage(ParseSnapshot(r)),
                 "login_result" => new LoginResultMessage(ReqBool(r, "ok"), OptString(r, "error")),
                 "state" => new StateMessage(
@@ -185,6 +187,12 @@ public sealed record LoginMessage(string Username, string Password) : PipeMessag
 
 /// <summary>shell -> service.</summary>
 public sealed record LogoutMessage() : PipeMessage("logout");
+
+/// <summary>
+/// shell -> service: liveness only, sent on ticks where the shell deliberately sends no snapshot
+/// (non-Default input desktop). Never makes a snapshot fresh.
+/// </summary>
+public sealed record AliveMessage() : PipeMessage("alive");
 
 /// <summary>shell -> service, every ~2 s.</summary>
 public sealed record SnapshotMessage(Snapshot Snapshot) : PipeMessage("snapshot");

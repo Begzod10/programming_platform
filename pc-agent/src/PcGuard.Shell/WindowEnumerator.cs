@@ -3,7 +3,7 @@ using PcGuard.Core;
 namespace PcGuard.Shell;
 
 /// <summary>One visible application window. Title text is never read (only whether it is non-empty).</summary>
-internal readonly record struct AppWindow(long Hwnd, int Pid, string Exe);
+internal readonly record struct AppWindow(long Hwnd, int Pid, string Exe, bool BrowserEligible);
 
 /// <summary>Enumerates visible top-level application windows via EnumWindows. WINDOWS ONLY.</summary>
 internal static class WindowEnumerator
@@ -38,6 +38,11 @@ internal static class WindowEnumerator
                 if (Native.ClassName(hwnd) == "ApplicationFrameWindow")
                     pids = UwpPidPicker.Pick((int)pid, CoreWindowPids(hwnd));
 
+                var eligible = BrowserWindowEligibility.IsEligible(
+                    hasOwner: Native.GetWindow(hwnd, Native.GW_OWNER) != IntPtr.Zero,
+                    toolWindow: (ex & Native.WS_EX_TOOLWINDOW) != 0,
+                    width: r.Right - r.Left, height: r.Bottom - r.Top);
+
                 foreach (var p in pids)
                 {
                     if (p == (int)self) continue;
@@ -48,7 +53,7 @@ internal static class WindowEnumerator
                         exe = Native.TryGetExeName((uint)p) ?? UnknownExe;
                         exeCache[(uint)p] = exe;
                     }
-                    result.Add(new AppWindow(hwnd.ToInt64(), p, exe));
+                    result.Add(new AppWindow(hwnd.ToInt64(), p, exe, eligible));
                 }
             }
             catch (Exception e)
@@ -92,6 +97,11 @@ internal static class WindowEnumerator
         var hwnd = new IntPtr(hwndValue);
         if (!Native.IsWindow(hwnd) || !Native.IsWindowVisible(hwnd)) return false;
         if (Native.GetAncestor(hwnd, Native.GA_ROOT) != hwnd) return false;
+        if (!BrowserWindowEligibility.IsEligible(
+                hasOwner: Native.GetWindow(hwnd, Native.GW_OWNER) != IntPtr.Zero,
+                toolWindow: (Native.GetExStyle(hwnd) & Native.WS_EX_TOOLWINDOW) != 0,
+                width: 1, height: 1)) // size already checked when the window was reported
+            return false;
         if (Native.GetWindowThreadProcessId(hwnd, out var pid) == 0 || pid == 0 || pid == (uint)Environment.ProcessId) return false;
         return BrowserHostRule.IsBrowser(Native.TryGetExeName(pid));
     }

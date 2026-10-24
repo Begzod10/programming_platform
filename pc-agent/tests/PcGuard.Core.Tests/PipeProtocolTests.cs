@@ -31,6 +31,15 @@ public class PipeProtocolTests
     }
 
     [Fact]
+    public void AliveRoundTripsAndIsExactlyTheTagOnly()
+    {
+        Assert.Equal("{\"t\":\"alive\"}", PipeMessage.Serialize(new AliveMessage()));
+        Assert.IsType<AliveMessage>(PipeMessage.Parse("{\"t\":\"alive\"}"));
+        Assert.IsType<AliveMessage>(PipeMessage.Parse("{\"t\":\"alive\",\"extra\":1}"));
+        Assert.Equal("alive", RoundTrip(new AliveMessage()).T);
+    }
+
+    [Fact]
     public void LogoutRoundTrips() => Assert.Equal("logout", RoundTrip(new LogoutMessage()).T);
 
     [Fact]

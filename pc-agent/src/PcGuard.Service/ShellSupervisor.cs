@@ -24,10 +24,10 @@ internal sealed class ShellSupervisor
 
     /// <summary>Called from the guard loop.</summary>
     public void Supervise(DateTimeOffset now, DateTimeOffset? shellMissingSince, DateTimeOffset? lastSnapshotAt,
-        uint? consoleSession, IReadOnlyList<int> runningShellPids)
+        DateTimeOffset? lastAliveAt, uint? consoleSession, IReadOnlyList<int> runningShellPids)
     {
         var action = ShellLaunchPolicy.Decide(now, shellMissingSince, _lastLaunchAt,
-            consoleSession is not null, runningShellPids.Count > 0, lastSnapshotAt);
+            consoleSession is not null, runningShellPids.Count > 0, lastSnapshotAt, lastAliveAt);
         switch (action)
         {
             case ShellAction.Launch:

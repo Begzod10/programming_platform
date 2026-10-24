@@ -31,8 +31,11 @@ public static class ShellLaunchPolicy
     /// <param name="hasConsoleSession">A user is signed in on the physical console.</param>
     /// <param name="shellProcessRunning">The installed shell exe is running in that session.</param>
     /// <param name="lastSnapshotAt">Last snapshot received from a verified shell, if ever.</param>
+    /// <param name="lastAliveAt">Last "alive" frame (shell is up but deliberately not sending snapshots), if ever.
+    /// Counts as liveness for the hung decision only; it never makes a snapshot fresh.</param>
     public static ShellAction Decide(DateTimeOffset now, DateTimeOffset? shellMissingSince, DateTimeOffset? lastLaunchAt,
-        bool hasConsoleSession, bool shellProcessRunning, DateTimeOffset? lastSnapshotAt)
+        bool hasConsoleSession, bool shellProcessRunning, DateTimeOffset? lastSnapshotAt,
+        DateTimeOffset? lastAliveAt = null)
     {
         if (!hasConsoleSession || shellMissingSince is not { } since) return ShellAction.None;
         if (now - since < MissingGrace) return ShellAction.None;
@@ -40,7 +43,8 @@ public static class ShellLaunchPolicy
         if (shellProcessRunning)
         {
             // give a running shell time to (re)connect; one that stays silent is hung
-            var reference = Max(since, Max(lastSnapshotAt, ClampFuture(lastLaunchAt, now)));
+            var liveness = Max(ClampFuture(lastSnapshotAt, now), ClampFuture(lastAliveAt, now));
+            var reference = Max(since, Max(liveness, ClampFuture(lastLaunchAt, now)));
             return now - reference >= HungAfter ? ShellAction.KillHung : ShellAction.None;
         }
 

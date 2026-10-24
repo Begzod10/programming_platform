@@ -16,6 +16,7 @@ internal static class Native
     public const uint WM_CLOSE = 0x0010;
     public const int DWMWA_CLOAKED = 14;
     public const uint GA_ROOT = 2;
+    public const uint GW_OWNER = 4;
     public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 
     public const int SM_XVIRTUALSCREEN = 76;
@@ -73,6 +74,7 @@ internal static class Native
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] public static extern int GetWindowTextLengthW(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hwnd, uint cmd);
     [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
     [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
     [DllImport("user32.dll", SetLastError = true)] public static extern bool PostMessageW(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);

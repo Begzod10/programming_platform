@@ -74,6 +74,7 @@ internal sealed class GuardWorker : BackgroundService
     private Snapshot? _snapshot;
     private DateTimeOffset _snapshotAt = DateTimeOffset.MinValue;
     private DateTimeOffset? _lastSnapshotAt;
+    private DateTimeOffset? _lastAliveAt; // liveness only; never freshens the snapshot
     private int? _snapshotPid;
     private uint? _snapshotSession;
     private uint? _lastConsole;
@@ -228,7 +229,9 @@ internal sealed class GuardWorker : BackgroundService
         else _shellMissingSince = null;
         DateTimeOffset? lastSnap;
         lock (_snapLock) lastSnap = _lastSnapshotAt;
-        _supervisor.Supervise(now, _shellMissingSince, lastSnap, console, procs.ShellPids);
+        DateTimeOffset? lastAlive;
+        lock (_snapLock) lastAlive = _lastAliveAt;
+        _supervisor.Supervise(now, _shellMissingSince, lastSnap, lastAlive, console, procs.ShellPids);
 
         _ = PushStateAsync(force: false);
     }
@@ -285,6 +288,11 @@ internal sealed class GuardWorker : BackgroundService
                     _snapshotPid = clientPid;
                     _snapshotSession = clientSession;
                 }
+                break;
+            case AliveMessage:
+                // shell is up but on a non-Default desktop (no snapshot): counts against "hung" only
+                if (_pipe.ActiveClientPid != clientPid) break;
+                lock (_snapLock) _lastAliveAt = _clock();
                 break;
             case LoginMessage l:
                 // Keep only the latest login (one password in memory) and enqueue at most one marker,

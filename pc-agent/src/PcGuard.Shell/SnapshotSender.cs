@@ -48,7 +48,13 @@ internal sealed class SnapshotSender : IDisposable
         // Windows of another (non-Default) input desktop are invisible to EnumWindows: send nothing so
         // the service falls back to name-only enforcement. If the desktop cannot be opened (secure
         // desktop / UAC / lock screen) behave as before.
-        if (!DesktopPolicy.ShouldSendSnapshot(Native.TryGetInputDesktopName())) return;
+        if (!DesktopPolicy.ShouldSendSnapshot(Native.TryGetInputDesktopName()))
+        {
+            // tell the service we are alive (it would otherwise kill a "silent" shell as hung);
+            // this is liveness only and does not make any snapshot fresh
+            await _pipe.SendAsync(new AliveMessage()).ConfigureAwait(false);
+            return;
+        }
         if (Interlocked.Exchange(ref _busy, 1) == 1) return; // previous snapshot still in progress
         try
         {
@@ -75,7 +81,7 @@ internal sealed class SnapshotSender : IDisposable
             .Take(PipeMessage.MaxSnapshotEntries)
             .ToList();
 
-        var browserWindows = windows.Where(w => BrowserHostRule.IsBrowser(w.Exe)).Take(MaxBrowsers).ToList();
+        var browserWindows = windows.Where(w => w.BrowserEligible && BrowserHostRule.IsBrowser(w.Exe)).Take(MaxBrowsers).ToList();
         var hosts = await ReadHostsAsync(browserWindows).ConfigureAwait(false);
         var browsers = browserWindows
             .Select(w =>
