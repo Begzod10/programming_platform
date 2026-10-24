@@ -154,6 +154,30 @@ def test_heartbeat_delivers_state_change_that_was_never_pushed(client, quota_enf
         assert ws.receive_json() == {"type": "pong"}
 
 
+def test_heartbeat_delivers_state_after_platform_hosts_change(client, monkeypatch):
+    """A changed PC_PLATFORM_HOSTS must reach a connected agent on the next heartbeat."""
+    from app.config import settings
+    monkeypatch.setattr(settings, "PC_PLATFORM_HOSTS", "old.example.uz")  # restored by monkeypatch
+    _, token = _signin(client)
+    with client.websocket_connect(f"/api/v1/pc/ws?token={token}") as ws:
+        first = ws.receive_json()
+        assert first["type"] == "state"
+        assert first["browser_hosts"] == ["old.example.uz"]
+
+        monkeypatch.setattr(settings, "PC_PLATFORM_HOSTS", "new.example.uz,lms.example.uz")
+        ws.send_json({"type": "hb", "app": None})
+        assert ws.receive_json() == {"type": "pong"}
+        frame = ws.receive_json()
+        assert frame["type"] == "state"
+        assert frame["browser_hosts"] == ["new.example.uz", "lms.example.uz"]
+
+        # unchanged afterwards: only a pong
+        ws.send_json({"type": "hb", "app": None})
+        assert ws.receive_json() == {"type": "pong"}
+        ws.send_json({"type": "hb", "app": None})
+        assert ws.receive_json() == {"type": "pong"}
+
+
 def test_heartbeat_unchanged_state_sends_only_pong(client):
     _, token = _signin(client)
     with client.websocket_connect(f"/api/v1/pc/ws?token={token}") as ws:

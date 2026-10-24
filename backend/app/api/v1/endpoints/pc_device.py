@@ -206,7 +206,8 @@ async def pc_usage(
 def _state_key(state: dict) -> tuple:
     """The parts of a state frame whose change must reach the agent."""
     return (state["locked"], state["reason"], state["remaining"],
-            json.dumps(state["allowlist"], sort_keys=True), (state["student"] or {}).get("id"))
+            json.dumps(state["allowlist"], sort_keys=True), (state["student"] or {}).get("id"),
+            tuple(state.get("browser_hosts") or ()))
 
 
 @router.websocket("/ws")
