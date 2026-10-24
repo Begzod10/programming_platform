@@ -64,6 +64,15 @@ try {
         Write-Host 'No PcGuard service registered.'
     }
 
+    # Remove the Safe Mode registration added by install.ps1 (best-effort; that feature is UNTESTED).
+    foreach ($key in @('HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\PcGuard',
+                       'HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\PcGuard')) {
+        try {
+            if (Test-Path -LiteralPath $key) { Remove-Item -LiteralPath $key -Recurse -Force }
+        }
+        catch { Write-Warning "Could not remove the Safe Mode key ${key}: $($_.Exception.Message)" }
+    }
+
     foreach ($name in @('PcGuard.Shell', 'PcGuard.Service')) {
         Stop-Process -Name $name -Force -ErrorAction SilentlyContinue
         if (Get-Process -Name $name -ErrorAction SilentlyContinue) {

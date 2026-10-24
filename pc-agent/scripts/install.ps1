@@ -6,6 +6,8 @@
   appsettings.json, locks the folder down, registers the PcGuard service (LocalSystem, automatic start,
   restart on failure) and starts it. The shell (PcGuard.Shell.exe) is launched ONLY by the service:
   this script deliberately registers no Run key, scheduled task or Startup shortcut for it.
+  The service is also registered for Safe Mode (SafeBoot\Minimal and SafeBoot\Network keys with the
+  default value "Service"); this is best-effort and UNTESTED.
   Upgrade: the old folder is renamed to <InstallDir>.old-<timestamp>; if any later step fails, the new
   files and service are removed and the old version is restored. The old folder is deleted only after
   the new service started.
@@ -39,6 +41,7 @@ $script:backupDir = $null
 $script:newFolderCreated = $false
 $script:target = $null
 $script:NativeExit = 0
+$script:hadSafeBoot = $false
 
 function Invoke-Native {
     # Runs a native program without letting stderr text turn into a terminating error (Windows PowerShell 5.1).
@@ -128,6 +131,34 @@ function Register-PcGuardService {
     Invoke-Sc failureflag $ServiceName 1
 }
 
+# Safe Mode registration. BEST-EFFORT and UNTESTED: a service runs in Safe Mode only if a key with its
+# name exists under SafeBoot\Minimal (plain Safe Mode) or SafeBoot\Network (Safe Mode with Networking),
+# with the default value "Service" (REG_SZ). Whether the shell and enforcement then work is unverified;
+# see the Safe Mode test in README.md.
+$SafeBootKeys = @(
+    'HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\PcGuard',
+    'HKLM:\SYSTEM\CurrentControlSet\Control\SafeBoot\Network\PcGuard'
+)
+
+function Register-PcGuardSafeBoot {
+    foreach ($key in $SafeBootKeys) {
+        try {
+            if (-not (Test-Path -LiteralPath $key)) { New-Item -Path $key -Force | Out-Null }
+            Set-Item -LiteralPath $key -Value 'Service'   # sets the key's (Default) value as REG_SZ
+        }
+        catch { Write-Warning "Could not register PcGuard for Safe Mode ($key): $($_.Exception.Message)" }
+    }
+}
+
+function Unregister-PcGuardSafeBoot {
+    foreach ($key in $SafeBootKeys) {
+        try {
+            if (Test-Path -LiteralPath $key) { Remove-Item -LiteralPath $key -Recurse -Force }
+        }
+        catch { Write-Warning "Could not remove the Safe Mode key ${key}: $($_.Exception.Message)" }
+    }
+}
+
 function Assert-FolderAcl {
     # Fails if Users, Authenticated Users or Everyone have any write-type right on the folder or anything inside it.
     param([string]$Root)
@@ -148,6 +179,7 @@ function Assert-FolderAcl {
 
 function Invoke-Rollback {
     Write-Host 'Rolling back ...' -ForegroundColor Yellow
+    Unregister-PcGuardSafeBoot   # best-effort; never throws
     try {
         if ($script:oldServiceRemoved) {
             # A service that exists now is the new one (or a half-created one): remove it.
@@ -180,6 +212,8 @@ function Invoke-Rollback {
                 if (Test-Path -LiteralPath $oldExe) { Register-PcGuardService -ExePath $oldExe }
             }
             if (Test-ServiceExists) {
+                # restore the previous install's Safe Mode registration only if it had one
+                if ($script:hadSafeBoot) { Register-PcGuardSafeBoot }
                 Start-Service -Name $ServiceName
                 Write-Host 'The previous PcGuard service was restarted.'
             }
@@ -233,6 +267,7 @@ try {
 
     # --- stop the old service and shells; abort before touching any folder if they will not die ---
     $script:hadService = Test-ServiceExists
+    $script:hadSafeBoot = [bool](Test-Path -LiteralPath $SafeBootKeys[0])
     if ($script:hadService) {
         Write-Host 'Existing PcGuard service found: stopping it ...'
         Stop-PcGuardService
@@ -291,6 +326,9 @@ try {
     # --- create the service (verifies the quoted ImagePath; throws and removes the service otherwise) ---
     Write-Host 'Registering the PcGuard service ...'
     Register-PcGuardService -ExePath (Join-Path $target 'PcGuard.Service.exe')
+
+    # --- Safe Mode registration (best-effort, UNTESTED; warnings only, never aborts the install) ---
+    Register-PcGuardSafeBoot
 
     # --- start ---
     Start-Service -Name $ServiceName

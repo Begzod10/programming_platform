@@ -11,7 +11,7 @@ PC Guard is a Windows service plus a small sign-in/overlay application for compu
 - **Pipe**: the shell talks to the service over the local named pipe `PcGuard.Pipe`. The service launches the shell itself (suspended, pins its pid and creation time, then resumes) and accepts only that exact instance.
 - **Backend**: the existing platform API (`/api/v1/pc/*`). **The server decides the lock state.** The agent never unlocks by itself; it applies the rules the server sends. If the server cannot be reached the cached rules stay for 10 minutes, then the PC locks.
 - **Install folder**: both exes live in the same folder (`C:\Program Files\PcGuard`), writable only by SYSTEM and Administrators.
-- **Fallback**: without fresh snapshots (shell missing, hung, other desktop or session) the service enforces by process name only, which is stricter.
+- **Fallback**: without fresh snapshots (shell missing, hung, other desktop or session) the service enforces by process name only. This is stricter for third-party apps (background apps are killed too) but exempts Windows inbox apps; see the never-kill rule under Known limitations.
 
 ## Requirements
 
@@ -70,6 +70,11 @@ The script: stops and removes an existing PcGuard service (upgrade), kills lefto
 - **Same-user code injection into the shell is only partly mitigated.** The shell is protected by a process security descriptor, a restricted token default DACL, a startup-hook-free build and a cleaned environment, and the pipe accepts only the launched instance. Other same-user vectors are not covered; a compromised shell could under-report windows.
 - **An administrator can stop the service** (and so can anyone with administrator rights). Standard accounts are required.
 - **Violators are killed at once** with no chance to save their work (no graceful close from session 0).
+- **Never-kill rule.** While locked, a console-session process is never killed if its exe name is in the protected set (explorer, dwm, csrss, winlogon, ctfmon, sihost, taskhostw, runtimebroker, shellexperiencehost, searchhost, startmenuexperiencehost, textinputhost, conhost, the PC Guard shell and service), or if it is allowlisted, or if its process token belongs to SYSTEM, LOCAL SERVICE or NETWORK SERVICE (a token owner that cannot be read counts as a service account, so it is not killed). That is the whole rule in normal (fresh) mode. In fallback mode (no fresh snapshot from the shell) processes whose image is under %SystemRoot% and owned by TrustedInstaller, SYSTEM or Administrators are also spared.
+- **Inbox apps in fallback mode (accepted).** Notepad, Paint and other Windows inbox apps run under the student's own account, so in fresh mode they are killed when locked like any other non-allowlisted app. In fallback mode they survive until the shell is back (about 6-15 s), because without window information the service cannot tell them from background OS processes.
+- **Allowlisted interpreters can open other windows (by design).** A window opened by `python.exe` (for example pygame) or `node.exe` (for example Electron run through node) belongs to the allowlisted process and is not killed. Remove those entries from the allowlist if this matters.
+- **WSL, Docker and virtual machine guests are out of reach.** Only host-side windowed processes are checked. The host process (wsl.exe, a VM window, Docker Desktop) is killed when it is not allowlisted, but programs inside a running guest are not seen.
+- **Safe Mode support is untested.** The installer registers the service for Safe Mode (Minimal and Network) on a best-effort basis; whether the service, the shell and enforcement work there has not been checked (see the Safe Mode test).
 - **Fallback mode is stricter** and can kill autostart and background apps (OneDrive, Teams) for a few seconds, for example right after Windows sign-in.
 - **Browser address-bar reading depends on Chrome/Edge UI Automation** (omnibox class `OmniboxViewViews`) and may break after a browser update. If the address bar cannot be read the host counts as unknown and is allowed, except for windows with no address bar at all (app-mode, PWA, popup windows), which are closed while a host list is active. Only Chrome and Edge are covered; other browsers are not restricted by the host rule.
 - **UWP edge cases**: UWP windows are hosted by ApplicationFrameHost; the real app pid is resolved from the CoreWindow child, and edge cases remain (suspended apps, Store/Settings).
@@ -91,7 +96,8 @@ Nothing below has been run yet. Use a Windows 10 or 11 VM with snapshots: one st
 2. Open Notepad (or any app that is not on the allowlist).
 3. Watch the window.
 
-- Expected: Notepad closes within about 5 s and the lock banner stays visible. Allowlisted apps keep working.
+- Expected: Notepad closes within about 5 s and the lock banner stays visible. Allowlisted apps keep working. This test is in normal (fresh) mode, with the shell running.
+- Note: if the shell has been killed (fallback mode), Notepad and other inbox apps survive until the shell is relaunched (about 6-15 s). That is accepted; see Test 49.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 2. Completing the quota unlocks the PC**
@@ -190,9 +196,9 @@ Each test says what to do, then what must happen.
 - Expected: In a test install rename PcGuard.Shell.exe: Event Log has an error naming the path; service stays Running. Restore the name.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 15.** Session filtering and system-owned processes: only console-session processes are listed; explorer, dwm, sihost, ctfmon, SearchHost, StartMenuExperienceHost, svchost are never killed; a process whose image path cannot be read is never killed.
+**Test 15.** Session filtering and the never-kill rule: only console-session processes are listed. In normal (fresh) mode the only processes never killed are the protected set (explorer, dwm, sihost, ctfmon, SearchHost, StartMenuExperienceHost and the rest listed under Known limitations), allowlisted apps, and processes whose token belongs to SYSTEM, LOCAL SERVICE or NETWORK SERVICE (for example svchost), plus processes whose token owner cannot be read. In fallback mode, processes whose image is under C:\Windows and owned by TrustedInstaller, SYSTEM or Administrators are also spared.
 
-- Expected: While locked the desktop, Start menu and search keep working.
+- Expected: While locked, the desktop, Start menu and search keep working. With the shell running, Notepad, Paint (mspaint) and Character Map started by the student close within about 5 s. With the shell ended by an admin (fallback), the same apps stay open until the shell is back, and svchost and other service-account processes are never killed in either mode.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 16.** A copy of an exe in C:\Windows\Temp or renamed to explorer.exe is NOT trusted (reported as unverified:name) and is killed when locked.
@@ -370,9 +376,9 @@ Each test says what to do, then what must happen.
 
 #### F. Fallback mode
 
-**Test 49.** With no fresh snapshot for more than 6 s (end the shell as admin), enforcement is name-only and strict: every non-system, non-allowlisted user process in the console session is killed, including background apps such as OneDrive or Teams autostart.
+**Test 49.** With no fresh snapshot for more than 6 s (end the shell as admin), enforcement is name-only: every non-allowlisted user process in the console session is killed, including background apps such as OneDrive or Teams autostart, except protected names, service-account processes and Windows inbox apps (image under C:\Windows owned by TrustedInstaller, SYSTEM or Administrators).
 
-- Expected: Those apps are killed until the shell is back (about 6-15 s). Judge how disruptive this is right after Windows sign-in and record it.
+- Expected: Third-party apps are killed until the shell is back (about 6-15 s). Notepad and Paint stay open during fallback (accepted). Judge how disruptive this is right after Windows sign-in and record it.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 50.** Fallback with an active browser host list: allowlisted browsers are also killed.
@@ -487,7 +493,7 @@ Each test says what to do, then what must happen.
 
 **Test 70.** Fresh install with a real https URL.
 
-- Expected: Files copied; appsettings.json has the URL under Backend:BaseUrl; service Running; `sc.exe qfailure PcGuard` shows three restarts at 5000 ms, reset 0, and the failure flag on. RAW IMAGEPATH CHECK: `reg query HKLM\SYSTEM\CurrentControlSet\Services\PcGuard /v ImagePath` must show the path WITH double quotes around it. Run the install once from Windows PowerShell 5.1 and once from PowerShell 7 (uninstall in between); both must show the quoted string (an unquoted path with a space in a SYSTEM service is a privilege-escalation hole: Fail).
+- Expected: Files copied; appsettings.json has the URL under Backend:BaseUrl; service Running; `sc.exe qfailure PcGuard` shows three restarts at 5000 ms, reset 0, and the failure flag on. RAW IMAGEPATH CHECK: `reg query HKLM\SYSTEM\CurrentControlSet\Services\PcGuard /v ImagePath` must show the path WITH double quotes around it. Run the install once from Windows PowerShell 5.1 and once from PowerShell 7 (uninstall in between); both must show the quoted string (an unquoted path with a space in a SYSTEM service is a privilege-escalation hole: Fail). SAFE MODE KEYS: `reg query HKLM\SYSTEM\CurrentControlSet\Control\SafeBoot\Minimal\PcGuard` and `...\SafeBoot\Network\PcGuard` each show a (Default) REG_SZ value `Service`.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 71.** Folder ACL: `icacls "C:\Program Files\PcGuard"`.
@@ -517,7 +523,7 @@ Each test says what to do, then what must happen.
 
 **Test 76.** Uninstall without -Purge.
 
-- Expected: Service and install folder removed; %ProgramData%\PcGuard kept; reinstalling reuses the machine key.
+- Expected: Service and install folder removed; both SafeBoot\Minimal\PcGuard and SafeBoot\Network\PcGuard keys removed; %ProgramData%\PcGuard kept; reinstalling reuses the machine key. After a failed install that rolled back (Test 75), the SafeBoot keys match the state before the install.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 77.** Uninstall with -Purge.
@@ -584,9 +590,31 @@ Each test says what to do, then what must happen.
 - Expected: Only login, heartbeat/state and usage events. The browser host and window titles are never sent to the backend.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
+#### N. Host-list changes, escape paths and Safe Mode
+
+**Test 89.** An intentionally empty host list disables the browser host rule, and a populated one turns it back on.
+
+- Expected: While a locked student has a Chrome window open on a non-platform host, set `PC_PLATFORM_HOSTS` on the backend to empty and restart the backend: within one state frame or heartbeat (about 30 s) the window is no longer closed. Set it back to the platform host: within about 30 s the non-platform window is closed again. The PC stays locked throughout.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 90.** A changed `PC_PLATFORM_HOSTS` reaches a connected agent without a reconnect.
+
+- Expected: Keep the student signed in and watch that the WebSocket does not drop (no reconnect in the service log). Change the host list on the backend (for example add a second host) and restart the backend workers if needed. Within about 30 s (the next heartbeat) a window on the new host is allowed while locked.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 91.** Known escape paths behave as documented.
+
+- Expected: (1) While locked, a pygame window started with an allowlisted `python.exe` stays open (allowed by design; remove python.exe from the allowlist to block it). (2) If WSL or a VM is installed, the host-side window (wsl.exe terminal, VM window) is killed when not allowlisted; programs inside a guest that is already running are not seen. Record what you observe.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 92.** Safe Mode with Networking (UNTESTED feature, best effort).
+
+- Expected: Boot into Safe Mode with Networking and sign in as the standard student. Check and record each: (a) the PcGuard service is running (`sc query PcGuard`); (b) the shell sign-in screen appears; (c) a locked student's Notepad is closed. Also note whether a standard user could reach Safe Mode at all. Repeat once for plain Safe Mode (no networking): the PC should stay locked with cached or default rules.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
 ### 3. Results
 
-Fill in after each run. Total tests: 88 (7 core, 81 additional).
+Fill in after each run. Total tests: 92 (7 core, 85 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|
