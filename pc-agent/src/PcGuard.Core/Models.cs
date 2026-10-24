@@ -22,4 +22,8 @@ public record BrowserWindow(long Hwnd, int Pid, string? Host, bool Readable = tr
 public record Snapshot(IReadOnlyList<WindowedProc> Windowed, string? Foreground, IReadOnlyList<BrowserWindow> Browsers);
 
 /// <summary>A process in the active console session as enumerated by the service itself.</summary>
-public record RunningProcess(int Pid, string Exe, string? Publisher, bool IsSystemOwned);
+/// <param name="IsServiceOwned">The process TOKEN user is SYSTEM, LOCAL SERVICE or NETWORK SERVICE, or
+/// the token owner could not be determined (conservative: undetermined =&gt; never killed).</param>
+/// <param name="IsSystemImage">The image lies under %SystemRoot% and the image file is owned by
+/// TrustedInstaller, SYSTEM or Administrators (inbox apps such as notepad.exe). Exempt only in fallback.</param>
+public record RunningProcess(int Pid, string Exe, string? Publisher, bool IsServiceOwned, bool IsSystemImage);

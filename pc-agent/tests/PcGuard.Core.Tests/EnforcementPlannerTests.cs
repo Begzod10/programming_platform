@@ -9,19 +9,20 @@ public class EnforcementPlannerTests
     private static PcRules Rules(bool locked, IReadOnlyList<string>? hosts = null, params AllowEntry[] allow)
         => new(locked, locked ? "quota" : "ok", 2, "Ali", allow.Length > 0 ? allow : Defaults.Allowlist, hosts ?? Array.Empty<string>());
 
-    private static RunningProcess P(int pid, string exe, bool system = false, string? pub = null) => new(pid, exe, pub, system);
+    // svc = token user is SYSTEM/LOCAL SERVICE/NETWORK SERVICE or undetermined; img = image under %SystemRoot% owned by TI/SYSTEM/Admins
+    private static RunningProcess P(int pid, string exe, bool svc = false, bool img = false, string? pub = null) => new(pid, exe, pub, svc, img);
 
     private static Snapshot Snap(IEnumerable<int> windowedPids, IReadOnlyList<RunningProcess> procs, params BrowserWindow[] browsers)
         => new(windowedPids.Select(pid => new WindowedProc(pid, procs.First(p => p.Pid == pid).Exe)).ToList(), null, browsers);
 
     private static readonly RunningProcess[] Procs =
     {
-        P(100, "explorer.exe", system: true),
+        P(100, "explorer.exe", img: true),
         P(101, "code.exe"),
         P(102, "game.exe"),
         P(103, "steam.exe"),          // background, no window
         P(104, "chrome.exe"),
-        P(105, "svchost.exe", system: true),
+        P(105, "svchost.exe", svc: true),
         P(106, "dwm.exe"),            // protected by name
         P(107, "pcguard.shell.exe"),
     };
@@ -65,7 +66,7 @@ public class EnforcementPlannerTests
     public void SystemOwnedWindowedProcessIsNeverKilledInFreshPath()
     {
         // a system-owned process with a window and a non-allowlisted name must not be killed
-        var procs = new[] { P(300, "svcwindow.exe", system: true), P(301, "game.exe") };
+        var procs = new[] { P(300, "svcwindow.exe", svc: true), P(301, "game.exe") };
         var plan = EnforcementPlanner.Plan(Rules(true), Snap(new[] { 300, 301 }, procs), Now, Now, procs);
         Assert.Equal(new[] { 301 }, plan.KillPids);
     }
@@ -153,6 +154,60 @@ public class EnforcementPlannerTests
         Assert.Empty(fresh.KillPids);
     }
 
+    // ---- service-owned vs system-image split (inbox apps such as Notepad) ----
+
+    private static readonly RunningProcess Notepad = P(400, "notepad.exe", img: true); // System32, student token
+
+    [Fact]
+    public void UserTokenSystemImageAppIsViolatorInFreshMode()
+    {
+        var procs = new[] { Notepad };
+        var plan = EnforcementPlanner.Plan(Rules(true), Snap(new[] { 400 }, procs), Now, Now, procs);
+        Assert.Equal(new[] { 400 }, plan.KillPids);
+    }
+
+    [Fact]
+    public void UserTokenSystemImageAppSurvivesFallback()
+    {
+        var procs = new[] { Notepad };
+        var plan = EnforcementPlanner.Plan(Rules(true), null, Now, Now, procs);
+        Assert.True(plan.UsedFallback);
+        Assert.Empty(plan.KillPids);
+    }
+
+    [Fact]
+    public void ServiceOwnedWindowedProcessIsNeverAViolator()
+    {
+        var procs = new[] { P(401, "svcui.exe", svc: true) };
+        Assert.Empty(EnforcementPlanner.Plan(Rules(true), Snap(new[] { 401 }, procs), Now, Now, procs).KillPids);
+        Assert.Empty(EnforcementPlanner.Plan(Rules(true), null, Now, Now, procs).KillPids);
+    }
+
+    [Fact]
+    public void UndeterminedOwnerProcessIsNeverAViolator()
+    {
+        // the enumerator reports an undetermined token owner as IsServiceOwned = true (conservative)
+        var procs = new[] { P(402, "mystery.exe", svc: true) };
+        Assert.Empty(EnforcementPlanner.Plan(Rules(true), Snap(new[] { 402 }, procs), Now, Now, procs).KillPids);
+        Assert.Empty(EnforcementPlanner.Plan(Rules(true), null, Now, Now, procs).KillPids);
+    }
+
+    [Fact]
+    public void ProtectedNamesAreNeverViolatorsInEitherMode()
+    {
+        var procs = new[] { P(403, "dwm.exe"), P(404, "explorer.exe", img: true) };
+        Assert.Empty(EnforcementPlanner.Plan(Rules(true), Snap(new[] { 403, 404 }, procs), Now, Now, procs).KillPids);
+        Assert.Empty(EnforcementPlanner.Plan(Rules(true), null, Now, Now, procs).KillPids);
+    }
+
+    [Fact]
+    public void AllowlistedAppsAreNeverViolatorsInEitherMode()
+    {
+        var procs = new[] { P(405, "code.exe"), P(406, "cmd.exe", img: true) };
+        Assert.Empty(EnforcementPlanner.Plan(Rules(true), Snap(new[] { 405, 406 }, procs), Now, Now, procs).KillPids);
+        Assert.Empty(EnforcementPlanner.Plan(Rules(true), null, Now, Now, procs).KillPids);
+    }
+
     [Fact]
     public void FallbackKillsAllowlistedBrowserWhenHostRuleActive()
     {
@@ -173,7 +228,7 @@ public class EnforcementPlannerTests
     [Fact]
     public void FallbackBrowserKillIgnoresSystemOwnedBrowser()
     {
-        var procs = new[] { P(1, "chrome.exe", system: true), P(2, "game.exe") };
+        var procs = new[] { P(1, "chrome.exe", svc: true), P(2, "game.exe") };
         var plan = EnforcementPlanner.Plan(Rules(true, new[] { "platform.uz" }), null, Now, Now, procs);
         Assert.Equal(new[] { 2 }, plan.KillPids);
     }

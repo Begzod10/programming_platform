@@ -20,13 +20,18 @@ internal sealed record SessionProcesses(IReadOnlyList<RunningProcess> Processes,
 ///   signature check; CompanyName is a plain resource string anyone can set in their own binary, so
 ///   publisher-restricted allowlist entries only stop casual renaming, not a determined student.
 ///   (Documented for the README task.)
-/// - IsSystemOwned = the process runs as SYSTEM / LOCAL SERVICE / NETWORK SERVICE, or its image lies
-///   under %SystemRoot% AND the image file is owned by TrustedInstaller, SYSTEM or Administrators.
-///   The owner check exists because standard users can write to a few folders under %SystemRoot%
+/// - IsServiceOwned = the process TOKEN user (OpenProcessToken with PROCESS_QUERY_LIMITED_INFORMATION,
+///   TokenUser via WindowsIdentity) is SYSTEM (S-1-5-18), LOCAL SERVICE (S-1-5-19) or NETWORK SERVICE
+///   (S-1-5-20); OR the token owner / image path could not be determined (conservative: undetermined
+///   =&gt; never killed). Exempt in BOTH fresh and fallback enforcement.
+/// - IsSystemImage = the image lies under %SystemRoot% AND the image file is owned by TrustedInstaller,
+///   SYSTEM or Administrators (inbox apps such as notepad.exe, mspaint.exe). Exempt ONLY in fallback:
+///   in fresh mode a student's Notepad runs under the student's token and is a violator. The file-owner
+///   check exists because standard users can write to a few folders under %SystemRoot%
 ///   (e.g. C:\Windows\Temp, C:\Windows\Tasks); a binary dropped there is owned by the student.
-/// - Anti-spoofing: a process whose name is in ProcessPolicy.Protected but which is neither system
-///   owned nor the installed shell is reported with Exe = "unverified:" + name, so a game renamed to
-///   explorer.exe or pcguard.shell.exe is not protected (and cannot match an allowlist entry).
+/// - Anti-spoofing: a process whose name is in ProcessPolicy.Protected but which is neither
+///   service-owned, nor a system image, nor the installed shell is reported with Exe = "unverified:" +
+///   name, so a game renamed to explorer.exe or pcguard.shell.exe is not protected.
 /// </summary>
 internal sealed class ProcessEnumerator
 {
@@ -71,23 +76,20 @@ internal sealed class ProcessEnumerator
                     var exe = (path is null ? p.ProcessName + ".exe" : Path.GetFileName(path)).ToLowerInvariant();
                     var isShell = path is not null && string.Equals(Path.GetFullPath(path), _shellPath, StringComparison.OrdinalIgnoreCase);
 
-                    // Fail safe on undetermined identity: if we cannot read the image path we cannot
-                    // judge the process, so treat it as system-owned (never a kill candidate) and do
-                    // NOT relabel it as "unverified:". Only a process we positively identified as
-                    // neither system-owned nor the shell is relabeled so a spoofed protected name is
-                    // still killed.
-                    var undetermined = path is null;
-                    var systemOwned = undetermined
-                                      || IsServiceAccount(Native.TryGetProcessOwner(p.Id))
-                                      || (info is { TrustedOwner: true }
-                                          && Path.GetFullPath(path!).StartsWith(_systemRoot, StringComparison.OrdinalIgnoreCase));
+                    // Fail safe on undetermined identity: an unreadable token owner or image path means
+                    // we cannot judge the process, so it counts as service-owned (never a kill
+                    // candidate) and is NOT relabeled "unverified:".
+                    var owner = Native.TryGetProcessOwner(p.Id);
+                    var serviceOwned = path is null || owner is null || IsServiceAccount(owner);
+                    var systemImage = path is not null && info is { TrustedOwner: true }
+                                      && Path.GetFullPath(path).StartsWith(_systemRoot, StringComparison.OrdinalIgnoreCase);
 
-                    if (ProcessPolicy.Protected.Contains(exe) && !systemOwned && !isShell)
+                    if (ProcessPolicy.Protected.Contains(exe) && !serviceOwned && !systemImage && !isShell)
                         exe = "unverified:" + exe;
                     if (isShell) shells.Add(p.Id);
                     if (path is not null) paths[p.Id] = path;
 
-                    result.Add(new RunningProcess(p.Id, exe, info?.Publisher, systemOwned));
+                    result.Add(new RunningProcess(p.Id, exe, info?.Publisher, serviceOwned, systemImage));
                 }
                 catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or ArgumentException)
                 {

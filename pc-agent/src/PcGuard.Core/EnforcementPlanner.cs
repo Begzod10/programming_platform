@@ -37,9 +37,15 @@ public static class EnforcementPlanner
         if (!rules.Locked) return Empty with { ShellMissing = shellMissing };
 
         var exempt = exemptPids is null ? new HashSet<int>() : new HashSet<int>(exemptPids);
-        // system-owned (or undetermined, which the enumerator reports as system-owned) processes are
-        // never terminated, in BOTH the fresh and the fallback path.
-        var candidates = userSessionProcesses.Where(p => !exempt.Contains(p.Pid) && !p.IsSystemOwned).ToList();
+        // Never-kill rule:
+        // - FRESH: the Protected set (in ProcessPolicy) + service-account-owned processes (IsServiceOwned,
+        //   which includes an undetermined token owner). A student's notepad.exe runs under the student's
+        //   token, so it IS a violator when windowed and not allowlisted, even though its image is in System32.
+        // - FALLBACK (no window information): additionally exempt system-image processes (IsSystemImage),
+        //   so inbox apps survive fallback (accepted, documented) instead of killing background OS processes.
+        var candidates = userSessionProcesses
+            .Where(p => !exempt.Contains(p.Pid) && !p.IsServiceOwned && (fresh || !p.IsSystemImage))
+            .ToList();
 
         var killSet = new HashSet<int>();
         if (fresh)
