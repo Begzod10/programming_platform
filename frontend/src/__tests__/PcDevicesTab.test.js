@@ -32,9 +32,11 @@ const setup = async (devices = [dev()]) => {
 beforeEach(() => {
     jest.clearAllMocks();
     localStorage.setItem('lang', 'ru');
-    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+    visibility = 'visible';
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility });
 });
-afterEach(() => { jest.useRealTimers(); });
+let visibility = 'visible';
+afterEach(() => { jest.useRealTimers(); visibility = 'visible'; });
 
 describe('DevicesTab', () => {
     it('renders a card with hostname and student name', async () => {
@@ -132,5 +134,115 @@ describe('DevicesTab', () => {
         unmount();
         await act(async () => { jest.advanceTimersByTime(15000); });
         expect(api.listDevices).toHaveBeenCalledTimes(2);
+    });
+
+    it('Lock all confirm expires after 4s and the next click only re-arms', async () => {
+        await setup();
+        jest.useFakeTimers();
+        const bar = screen.getByTestId('pc-all-bar');
+        fireEvent.click(within(bar).getByRole('button', { name: S.lockAll }));
+        expect(within(bar).getByRole('button', { name: S.confirm })).toBeInTheDocument();
+        act(() => { jest.advanceTimersByTime(4000); });
+        expect(within(bar).queryByRole('button', { name: S.confirm })).not.toBeInTheDocument();
+        fireEvent.click(within(bar).getByRole('button', { name: S.lockAll }));
+        expect(api.sendCommand).not.toHaveBeenCalled();
+    });
+
+    it('another action disarms a pending confirm', async () => {
+        await setup();
+        const bar = screen.getByTestId('pc-all-bar');
+        fireEvent.click(within(bar).getByRole('button', { name: S.lockAll }));
+        fireEvent.click(within(bar).getByRole('button', { name: S.resumeAll }));
+        expect(within(bar).queryByRole('button', { name: S.confirm })).not.toBeInTheDocument();
+        await waitFor(() => expect(api.sendCommand).toHaveBeenCalledTimes(1));
+    });
+
+    it('hidden tab pauses polling; becoming visible refreshes at once', async () => {
+        jest.useFakeTimers();
+        api.listDevices.mockResolvedValue([dev()]);
+        api.listMyGroups.mockResolvedValue(GROUPS);
+        render(<DevicesTab />);
+        await act(async () => { await Promise.resolve(); });
+        expect(api.listDevices).toHaveBeenCalledTimes(1);
+        visibility = 'hidden';
+        await act(async () => { jest.advanceTimersByTime(5000); });
+        expect(api.listDevices).toHaveBeenCalledTimes(1);
+        visibility = 'visible';
+        await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+        expect(api.listDevices).toHaveBeenCalledTimes(2);
+    });
+
+    it('array-detail 422 shows readable text and does not throw', async () => {
+        await setup();
+        api.sendCommand.mockRejectedValue({ response: { data: { detail: [{ msg: 'Field required', loc: ['body'] }] } } });
+        fireEvent.click(within(screen.getByTestId('pc-all-bar')).getByRole('button', { name: S.resumeAll }));
+        expect(await screen.findByText('Field required')).toBeInTheDocument();
+        expect(screen.getByTestId('pc-card-1')).toBeInTheDocument();
+    });
+
+    it('double click sends only one command', async () => {
+        await setup();
+        let release;
+        api.sendCommand.mockReturnValue(new Promise(r => { release = r; }));
+        const btn = within(screen.getByTestId('pc-all-bar')).getByRole('button', { name: S.resumeAll });
+        fireEvent.click(btn);
+        fireEvent.click(btn);
+        expect(api.sendCommand).toHaveBeenCalledTimes(1);
+        await act(async () => { release({}); });
+    });
+
+    it('slow poll does not start a second request', async () => {
+        jest.useFakeTimers();
+        let release;
+        api.listDevices.mockReturnValueOnce(new Promise(r => { release = r; }));
+        api.listDevices.mockResolvedValue([dev()]);
+        api.listMyGroups.mockResolvedValue(GROUPS);
+        render(<DevicesTab />);
+        await act(async () => { jest.advanceTimersByTime(10000); });
+        expect(api.listDevices).toHaveBeenCalledTimes(1);
+        await act(async () => { release([dev()]); });
+        await act(async () => { jest.advanceTimersByTime(5000); });
+        expect(api.listDevices).toHaveBeenCalledTimes(2);
+    });
+
+    it('a stale older response does not overwrite a newer one', async () => {
+        jest.useFakeTimers();
+        let releaseOld;
+        api.listDevices.mockReturnValueOnce(new Promise(r => { releaseOld = r; }));
+        api.listDevices.mockResolvedValue([dev({ hostname: 'NEW-PC' })]);
+        api.listMyGroups.mockResolvedValue(GROUPS);
+        render(<DevicesTab />);
+        await act(async () => { document.dispatchEvent(new Event('visibilitychange')); });
+        expect(screen.getByText('NEW-PC')).toBeInTheDocument();
+        await act(async () => { releaseOld([dev({ hostname: 'OLD-PC' })]); });
+        expect(screen.getByText('NEW-PC')).toBeInTheDocument();
+        expect(screen.queryByText('OLD-PC')).not.toBeInTheDocument();
+    });
+
+    it('failed poll keeps data and shows a stale hint, not the red banner', async () => {
+        jest.useFakeTimers();
+        api.listDevices.mockResolvedValueOnce([dev()]);
+        api.listDevices.mockRejectedValue(new Error('x'));
+        api.listMyGroups.mockResolvedValue(GROUPS);
+        render(<DevicesTab />);
+        await act(async () => { await Promise.resolve(); });
+        await act(async () => { jest.advanceTimersByTime(5000); });
+        expect(screen.getByText('LAB-01')).toBeInTheDocument();
+        expect(screen.getByText(S.staleHint)).toBeInTheDocument();
+        expect(screen.queryByText(S.loadError)).not.toBeInTheDocument();
+    });
+
+    it('first-load failure shows the red banner', async () => {
+        api.listDevices.mockRejectedValue(new Error('x'));
+        api.listMyGroups.mockResolvedValue(GROUPS);
+        render(<DevicesTab />);
+        expect(await screen.findByText(S.loadError)).toBeInTheDocument();
+    });
+
+    it('unknown device group id gets a disabled option', async () => {
+        await setup([dev({ group_id: 99 })]);
+        const sel = within(screen.getByTestId('pc-card-1')).getByRole('combobox');
+        expect(sel.value).toBe('99');
+        expect(within(sel).getByRole('option', { name: new RegExp(S.otherGroup) })).toBeDisabled();
     });
 });

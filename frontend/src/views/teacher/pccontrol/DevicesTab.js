@@ -2,17 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useHttp } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { listDevices, patchDevice, sendCommand, listMyGroups } from './pcApi';
+import { errorMessage } from './pcErrors';
 import { pcStrings, REASON_KEYS } from './pcStrings';
 
 const POLL_MS = 5000;
 const CONFIRM_MS = 4000;
 const MAX_MESSAGE = 500;
 
-const errorText = (e, fallback) =>
-    e?.response?.data?.detail
-    || e?.response?.data?.error?.message
-    || e?.message
-    || fallback;
 
 function formatSeen(iso, locale, never) {
     if (!iso) return never;
@@ -39,20 +35,48 @@ export default function DevicesTab() {
     const confirmTimer = useRef(null);
     const busyRef = useRef(false);
 
-    const load = useCallback(() =>
-        listDevices(request)
-            .then(d => { setDevices(Array.isArray(d) ? d : []); setLoadFailed(false); })
-            .catch(() => setLoadFailed(true)),
-    [request]);
+    const aliveRef = useRef(true);
+    const inflight = useRef(0);
+    const seqIssued = useRef(0);
+    const seqApplied = useRef(0);
 
-    // Poll every 5 s; skip while the tab is hidden; clean up on unmount.
+    // Every load gets a sequence number; a response older than the newest
+    // applied one is dropped. `poll` ticks skip while a request is pending.
+    const load = useCallback(({ poll = false } = {}) => {
+        if (poll && inflight.current > 0) return Promise.resolve();
+        const seq = ++seqIssued.current;
+        inflight.current += 1;
+        return listDevices(request)
+            .then(d => {
+                if (!aliveRef.current || seq < seqApplied.current) return;
+                seqApplied.current = seq;
+                setDevices(Array.isArray(d) ? d : []);
+                setLoadFailed(false);
+            })
+            .catch(() => {
+                if (!aliveRef.current || seq < seqApplied.current) return;
+                setLoadFailed(true);
+            })
+            .finally(() => { inflight.current -= 1; });
+    }, [request]);
+
+    // Poll every 5 s; skip while hidden; refresh at once when visible again.
     useEffect(() => {
+        aliveRef.current = true;
         load();
         const id = setInterval(() => {
             if (document.visibilityState === 'hidden') return;
-            load();
+            load({ poll: true });
         }, POLL_MS);
-        return () => clearInterval(id);
+        const onVisible = () => {
+            if (document.visibilityState !== 'hidden') load();
+        };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            aliveRef.current = false;
+            clearInterval(id);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
     }, [load]);
 
     useEffect(() => {
@@ -65,10 +89,16 @@ export default function DevicesTab() {
 
     useEffect(() => () => clearTimeout(confirmTimer.current), []);
 
+    const disarm = () => {
+        clearTimeout(confirmTimer.current);
+        setConfirmKey(null);
+    };
+
     // Runs one action with double-click protection and notice handling.
     const run = async (fn, okText) => {
         if (busyRef.current) return false;
         busyRef.current = true;
+        disarm();
         setBusy(true);
         setNotice(null);
         try {
@@ -77,7 +107,7 @@ export default function DevicesTab() {
             load();
             return true;
         } catch (e) {
-            setNotice({ ok: false, text: errorText(e, t.failed) });
+            setNotice({ ok: false, text: errorMessage(e, t.failed) });
             return false;
         } finally {
             busyRef.current = false;
@@ -91,8 +121,7 @@ export default function DevicesTab() {
 
     const confirmed = (key, fn) => {
         if (confirmKey === key) {
-            clearTimeout(confirmTimer.current);
-            setConfirmKey(null);
+            disarm();
             fn();
         } else {
             setConfirmKey(key);
@@ -184,13 +213,19 @@ export default function DevicesTab() {
                             {(devices || []).map(d => <option key={d.id} value={d.id}>{d.hostname}</option>)}
                         </select>
                     )}
+                    {target === 'group' && (
+                        <span className="pc-muted">
+                            {gid == null ? t.pickGroupHint : (groups.find(g => g.id === gid)?.name || '')}
+                        </span>
+                    )}
                     <button type="button" className="pc-btn primary" disabled={messageDisabled}
                         onClick={sendMessage}>{t.send}</button>
                 </div>
             </section>
 
             {devices === null && !loadFailed && <p className="pc-muted">{t.loading}</p>}
-            {loadFailed && <p className="pc-notice err" role="alert">{t.loadError}</p>}
+            {loadFailed && devices === null && <p className="pc-notice err" role="alert">{t.loadError}</p>}
+            {loadFailed && devices !== null && <p className="pc-muted">{t.staleHint}</p>}
             {devices && devices.length === 0 && <p className="pc-muted">{t.noDevices}</p>}
 
             <div className="pc-grid">
@@ -220,6 +255,9 @@ export default function DevicesTab() {
                             value={d.group_id == null ? '' : String(d.group_id)} disabled={busy}
                             onChange={e => changeGroup(d, e.target.value)}>
                             <option value="">{t.noGroup}</option>
+                            {d.group_id != null && !groups.some(g => g.id === d.group_id) && (
+                                <option value={d.group_id} disabled>{t.otherGroup} #{d.group_id}</option>
+                            )}
                             {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                         </select>
                         <div className="pc-btn-row">

@@ -8,7 +8,7 @@ describe('pcStrings', () => {
         for (const lang of ['uz', 'ru']) {
             for (const [k, v] of Object.entries(strings[lang])) {
                 expect(typeof v).toBe('string');
-                expect(`${lang}.${k}:${v.trim()}`).not.toBe(`${lang}.${k}:`);
+                expect(v.trim()).not.toBe('');
             }
         }
     });
