@@ -32,6 +32,11 @@ export default function AllowlistTab() {
     const [inputErr, setInputErr] = useState(null);
     const seq = useRef(0);
     const alive = useRef(true);
+    const busyRef = useRef(false);
+    const scopeRef = useRef('');
+    const tRef = useRef(t);          // strings read at call time, never as effect deps
+    tRef.current = t;
+    scopeRef.current = scope;
     useEffect(() => () => { alive.current = false; }, []);
 
     const apply = (data) => {
@@ -43,26 +48,28 @@ export default function AllowlistTab() {
 
     const load = useCallback((sc) => {
         const id = ++seq.current;
+        const current = () => alive.current && id === seq.current && scopeRef.current === sc;
         setLoading(true);
         setLoadError(null);
         setNotice(null);
+        setPendingScope(null);
         return getAllowlist(request, sc === '' ? null : Number(sc))
-            .then(d => { if (alive.current && id === seq.current) { apply(d); setLoading(false); } })
+            .then(d => { if (current()) { apply(d); setLoading(false); } })
             .catch(e => {
-                if (!alive.current || id !== seq.current) return;
-                setLoadError(errorMessage(e, t.loadError));
+                if (!current()) return;
+                setLoadError(errorMessage(e, tRef.current.loadError));
                 setLoading(false);
             });
-    }, [request, t.loadError]);
+    }, [request]);
 
     useEffect(() => { load(scope); }, [load, scope]);
 
-    const dirty = !sameList(entries.map(e => ({ exe: e.exe, publisher: e.publisher })), saved);
+    const dirty = !sameList(clean(entries), saved);
     const empty = entries.length === 0;
     const saveDisabled = busy || loading || empty || !dirty;
 
     const changeScope = (value) => {
-        if (value === scope) return;
+        if (value === scope || busyRef.current || loading) return;
         if (dirty) { setPendingScope(value); return; }
         setScope(value);
     };
@@ -79,18 +86,24 @@ export default function AllowlistTab() {
         setEntries(entries.map(e => (e.exe === name ? { ...e, publisher: value.trim() ? value : null } : e)));
 
     const onSave = async () => {
-        if (saveDisabled) return;
+        if (saveDisabled || busyRef.current) return;
+        busyRef.current = true;
+        const id = ++seq.current;
+        const sc = scope;
+        const current = () => alive.current && id === seq.current && scopeRef.current === sc;
         setBusy(true);
         setNotice(null);
+        setPendingScope(null);
         try {
-            const payload = entries.map(e => ({ exe: e.exe, publisher: (e.publisher || '').trim() || null }));
-            const d = await putAllowlist(request, scope === '' ? null : Number(scope), payload);
-            if (!alive.current) return;
-            apply(d);
-            setNotice({ ok: true, text: t.saved });
+            const d = await putAllowlist(request, sc === '' ? null : Number(sc), clean(entries));
+            if (current()) {
+                apply(d);
+                setNotice({ ok: true, text: tRef.current.saved });
+            }
         } catch (e) {
-            if (alive.current) setNotice({ ok: false, text: errorMessage(e, t.failed) });
+            if (current()) setNotice({ ok: false, text: errorMessage(e, tRef.current.failed) });
         } finally {
+            busyRef.current = false;
             if (alive.current) setBusy(false);
         }
     };
@@ -100,6 +113,7 @@ export default function AllowlistTab() {
             <section className="pc-panel">
                 <label className="pc-field-label" htmlFor="pc-al-scope">{t.scope}</label>
                 <select id="pc-al-scope" className="pc-select" aria-label={t.scope} value={scope}
+                    disabled={busy || loading}
                     onChange={e => changeScope(e.target.value)}>
                     <option value="">{t.scopeGlobal}</option>
                     {groups.map(g => <option key={g.id} value={String(g.id)}>{g.name}</option>)}
@@ -115,7 +129,7 @@ export default function AllowlistTab() {
                 )}
             </section>
 
-            {loading && <p className="pc-muted">{t.loading}</p>}
+            {loading && <p className="pc-muted" role="status">{t.loading}</p>}
             {loadError && <p className="pc-notice err" role="alert">{loadError}</p>}
 
             {!loading && !loadError && (
@@ -136,9 +150,9 @@ export default function AllowlistTab() {
                                     <span className="pc-exe">{e.exe}</span>
                                     <input className="pc-input" value={e.publisher || ''} placeholder={t.publisher}
                                         aria-label={`${t.publisher}: ${e.exe}`}
-                                        onChange={ev => setPublisher(e.exe, ev.target.value)} />
+                                        disabled={busy} onChange={ev => setPublisher(e.exe, ev.target.value)} />
                                     <button type="button" className="pc-btn danger" aria-label={`${t.remove} ${e.exe}`}
-                                        onClick={() => removeEntry(e.exe)}>{t.remove}</button>
+                                        disabled={busy} onClick={() => removeEntry(e.exe)}>{t.remove}</button>
                                 </li>
                             ))}
                         </ul>
@@ -149,7 +163,7 @@ export default function AllowlistTab() {
                                 onKeyDown={ev => { if (ev.key === 'Enter') addEntry(); }} />
                             <input className="pc-input" value={pub} placeholder={t.publisher}
                                 aria-label={t.publisher} maxLength={200} onChange={ev => setPub(ev.target.value)} />
-                            <button type="button" className="pc-btn" onClick={addEntry}>{t.add}</button>
+                            <button type="button" className="pc-btn" disabled={busy} onClick={addEntry}>{t.add}</button>
                         </div>
                         <p className="pc-muted">{t.publisherNote}</p>
                         {inputErr && <p className="pc-notice err" role="alert">{inputErr}</p>}

@@ -15,9 +15,22 @@ export function normalizeExe(raw, existing = []) {
 const p2 = (n) => String(n).padStart(2, '0');
 export const toIsoDate = (d) => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
 
+const TZ = 'Asia/Tashkent';   // same zone the backend buckets days in
+const fmtDate = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+const fmtTime = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const parts = (f, d) => Object.fromEntries(f.formatToParts(d).map(x => [x.type, x.value]));
+
+export const tashkentDate = (d = new Date()) => {
+    const p = parts(fmtDate, d);
+    return `${p.year}-${p.month}-${p.day}`;
+};
+
+// Last 7 days ending today (Tashkent), inclusive.
 export function defaultRange(now = new Date()) {
-    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
-    return { from: toIsoDate(from), to: toIsoDate(now) };
+    const to = tashkentDate(now);
+    const [y, m, d] = to.split('-').map(Number);
+    const from = new Date(Date.UTC(y, m - 1, d - 6));
+    return { from: `${from.getUTCFullYear()}-${p2(from.getUTCMonth() + 1)}-${p2(from.getUTCDate())}`, to };
 }
 
 const parse = (s) => {
@@ -86,5 +99,7 @@ export function formatTopApps(apps, minLabel) {
 export function formatTime(iso) {
     if (!iso) return DASH;
     const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? DASH : `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+    if (Number.isNaN(d.getTime())) return DASH;
+    const p = parts(fmtTime, d);
+    return `${p.hour}:${p.minute}`;
 }

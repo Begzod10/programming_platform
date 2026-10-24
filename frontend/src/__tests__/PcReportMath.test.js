@@ -31,8 +31,12 @@ describe('dates', () => {
     it('toIsoDate uses local date parts', () => {
         expect(toIsoDate(new Date(2026, 9, 5, 23, 59))).toBe('2026-10-05');
     });
-    it('defaultRange is the last 7 days ending today', () => {
-        expect(defaultRange(new Date(2026, 9, 24, 12))).toEqual({ from: '2026-10-18', to: '2026-10-24' });
+    it('defaultRange is the last 7 days ending today in Tashkent', () => {
+        expect(defaultRange(new Date('2026-10-24T07:00:00Z'))).toEqual({ from: '2026-10-18', to: '2026-10-24' });
+        // 20:30Z is already the next day in Tashkent (UTC+5)
+        expect(defaultRange(new Date('2026-10-24T20:30:00Z'))).toEqual({ from: '2026-10-19', to: '2026-10-25' });
+        // crossing a month boundary
+        expect(defaultRange(new Date('2026-11-02T10:00:00Z'))).toEqual({ from: '2026-10-27', to: '2026-11-02' });
     });
     it('daysInclusive', () => {
         expect(daysInclusive('2026-10-18', '2026-10-24')).toBe(7);
@@ -94,8 +98,9 @@ describe('formatting', () => {
         expect(formatTopApps([], 'min')).toBe('—');
         expect(formatTopApps(undefined, 'min')).toBe('—');
     });
-    it('formatTime is HH:MM local or a dash', () => {
-        expect(formatTime(new Date(2026, 9, 20, 9, 5).toISOString())).toBe('09:05');
+    it('formatTime is HH:MM in Tashkent time or a dash', () => {
+        expect(formatTime('2026-10-24T04:05:00+00:00')).toBe('09:05');
+        expect(formatTime('2026-10-24T19:30:00Z')).toBe('00:30');
         expect(formatTime(null)).toBe('—');
         expect(formatTime('garbage')).toBe('—');
     });

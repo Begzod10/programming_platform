@@ -65,6 +65,7 @@ export default function ReportTab() {
                             onChange={e => setRange({ ...range, to: e.target.value })} />
                     </label>
                 </div>
+                <p className="pc-muted">{t.tzNote}</p>
                 <div className="pc-form-row">
                     <select className="pc-select" aria-label={t.groupScope} value={groupId}
                         onChange={e => setGroupId(e.target.value)}>
@@ -76,7 +77,7 @@ export default function ReportTab() {
             </section>
 
             {error && <p className="pc-notice err" role="alert">{error}</p>}
-            {loading && <p className="pc-muted">{t.loading}</p>}
+            {loading && <p className="pc-muted" role="status">{t.loading}</p>}
             {rows && rows.length === 0 && !loading && <p className="pc-muted">{t.reportEmpty}</p>}
 
             {rows && rows.length > 0 && (
@@ -105,8 +106,8 @@ export default function ReportTab() {
                         <table className="pc-table" data-testid="pc-report-table">
                             <thead>
                                 <tr>
-                                    <th>{t.colDate}</th><th>{t.student}</th><th>{t.colQuota}</th><th>{t.colUnlock}</th>
-                                    <th>{t.colLocked}</th><th>{t.colUnlocked}</th><th>{t.colApps}</th>
+                                    <th scope="col">{t.colDate}</th><th scope="col">{t.student}</th><th scope="col">{t.colQuota}</th><th scope="col">{t.colUnlock}</th>
+                                    <th scope="col">{t.colLocked}</th><th scope="col">{t.colUnlocked}</th><th scope="col">{t.colApps}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -116,8 +117,8 @@ export default function ReportTab() {
                                         <td>{r.full_name}</td>
                                         <td>
                                             {r.quota_met
-                                                ? <span className="pc-ok" aria-label={t.quotaMetShort}>✓</span>
-                                                : <span className="pc-no" aria-label={t.quotaMissed}>✗</span>}
+                                                ? <span className="pc-ok" role="img" aria-label={t.quotaMetShort}>✓</span>
+                                                : <span className="pc-no" role="img" aria-label={t.quotaMissed}>✗</span>}
                                         </td>
                                         <td>{formatTime(r.unlocked_at)}</td>
                                         <td>{formatMinutes(r.minutes_locked)}</td>

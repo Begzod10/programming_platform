@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import AllowlistTab from '../views/teacher/pccontrol/AllowlistTab';
 import * as api from '../views/teacher/pccontrol/pcApi';
 import { strings } from '../views/teacher/pccontrol/pcStrings';
@@ -147,5 +147,109 @@ describe('AllowlistTab', () => {
         api.getAllowlist.mockRejectedValue({ response: { data: { detail: 'Not your group' } } });
         render(<AllowlistTab />);
         expect(await screen.findByRole('alert')).toHaveTextContent('Not your group');
+    });
+});
+
+describe('AllowlistTab races and edits', () => {
+    const deferred = () => { let res, rej; const p = new Promise((a, b) => { res = a; rej = b; }); return { p, res, rej }; };
+
+    it('scope select is disabled and ignored while a save is in flight; late response applies to its own scope', async () => {
+        await setup();
+        api.getAllowlist.mockResolvedValue({ entries: [{ exe: 'a.exe', publisher: null }], effective: [] });
+        fireEvent.change(screen.getByLabelText(S.scope), { target: { value: '10' } });
+        await screen.findByText('a.exe');
+        const d = deferred();
+        api.putAllowlist.mockReturnValue(d.p);
+        add('b.exe');
+        fireEvent.click(save());
+        expect(screen.getByLabelText(S.scope)).toBeDisabled();
+        api.getAllowlist.mockClear();
+        fireEvent.change(screen.getByLabelText(S.scope), { target: { value: '11' } });
+        expect(api.getAllowlist).not.toHaveBeenCalled();
+        expect(screen.getByLabelText(S.scope)).toHaveValue('10');
+        await act(async () => { d.res({ entries: [{ exe: 'a.exe', publisher: null }, { exe: 'b.exe', publisher: null }], effective: [] }); });
+        expect(screen.getByLabelText(S.scope)).toBeEnabled();
+        expect(within(entriesList()).getByText('b.exe')).toBeInTheDocument();
+        expect(screen.getByLabelText(S.scope)).toHaveValue('10');
+    });
+
+    it('scope select is disabled while a load is in flight', async () => {
+        api.listMyGroups.mockResolvedValue(GROUPS);
+        const d = deferred();
+        api.getAllowlist.mockReturnValue(d.p);
+        render(<AllowlistTab />);
+        expect(screen.getByLabelText(S.scope)).toBeDisabled();
+        await act(async () => { d.res(GLOBAL); });
+        expect(screen.getByLabelText(S.scope)).toBeEnabled();
+    });
+
+    it('double-click on Save sends one PUT', async () => {
+        await setup();
+        const d = deferred();
+        api.putAllowlist.mockReturnValue(d.p);
+        add('notepad.exe');
+        fireEvent.click(save());
+        fireEvent.click(save());
+        expect(api.putAllowlist).toHaveBeenCalledTimes(1);
+        await act(async () => { d.res({ entries: GLOBAL.entries, effective: [] }); });
+    });
+
+    it('a language change keeps unsaved edits and does not reload', async () => {
+        await setup();
+        add('notepad.exe');
+        api.getAllowlist.mockClear();
+        await act(async () => { window.dispatchEvent(new CustomEvent('languageChange', { detail: 'uz' })); });
+        expect(screen.getByLabelText(strings.uz.scope)).toBeInTheDocument();
+        expect(within(entriesList()).getByText('notepad.exe')).toBeInTheDocument();
+        expect(api.getAllowlist).not.toHaveBeenCalled();
+        await act(async () => { window.dispatchEvent(new CustomEvent('languageChange', { detail: 'ru' })); });
+    });
+
+    it('a trailing space in publisher does not make the form dirty', async () => {
+        await setup();
+        fireEvent.change(screen.getByLabelText(`${S.publisher}: chrome.exe`), { target: { value: 'Google LLC  ' } });
+        expect(save()).toBeDisabled();
+        fireEvent.change(screen.getByLabelText(`${S.publisher}: code.exe`), { target: { value: '   ' } });
+        expect(save()).toBeDisabled();
+    });
+
+    it('editing a publisher is saved trimmed', async () => {
+        await setup();
+        api.putAllowlist.mockResolvedValue(GLOBAL);
+        fireEvent.change(screen.getByLabelText(`${S.publisher}: code.exe`), { target: { value: ' Microsoft ' } });
+        fireEvent.click(save());
+        await waitFor(() => expect(api.putAllowlist).toHaveBeenCalled());
+        expect(api.putAllowlist.mock.calls[0][2]).toEqual([
+            { exe: 'chrome.exe', publisher: 'Google LLC' }, { exe: 'code.exe', publisher: 'Microsoft' },
+        ]);
+    });
+
+    it('rejects the 201st entry in the UI', async () => {
+        const many = Array.from({ length: 200 }, (_, i) => ({ exe: `a${i}.exe`, publisher: null }));
+        api.listMyGroups.mockResolvedValue([]);
+        api.getAllowlist.mockResolvedValue({ entries: many, effective: many });
+        render(<AllowlistTab />);
+        await within(await screen.findByTestId('pc-al-entries')).findByText('a0.exe');
+        add('extra.exe');
+        expect(screen.getByRole('alert')).toHaveTextContent(S.errMax);
+        expect(within(entriesList()).getAllByRole('listitem')).toHaveLength(200);
+    });
+
+    it('a pending scope-switch confirm is cleared when a save completes', async () => {
+        await setup();
+        api.putAllowlist.mockResolvedValue({ entries: [...GLOBAL.entries, { exe: 'n.exe', publisher: null }], effective: [] });
+        add('n.exe');
+        fireEvent.change(screen.getByLabelText(S.scope), { target: { value: '11' } });
+        expect(screen.getByText(S.discardAsk)).toBeInTheDocument();
+        fireEvent.click(save());
+        await screen.findByText(S.saved);
+        expect(screen.queryByText(S.discardAsk)).not.toBeInTheDocument();
+    });
+
+    it('loading text is a status region', async () => {
+        api.listMyGroups.mockResolvedValue([]);
+        api.getAllowlist.mockReturnValue(new Promise(() => {}));
+        render(<AllowlistTab />);
+        expect(screen.getByRole('status')).toHaveTextContent(S.loading);
     });
 });

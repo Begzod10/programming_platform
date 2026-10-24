@@ -57,3 +57,4 @@
 .pc-trends { display: grid; grid-template-columns: 1fr; gap: 8px; }
 @media (min-width: 700px) { .pc-trends { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); } }
 .pc-trend { border: 1px solid var(--pc-border); border-radius: 12px; padding: 10px 12px; background: var(--pc-card); display: flex; flex-direction: column; gap: 2px; }
+.pc-list .pc-muted, .pc-list .pc-input, .pc-table td { overflow-wrap: anywhere; }

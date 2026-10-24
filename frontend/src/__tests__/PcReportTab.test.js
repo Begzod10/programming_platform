@@ -13,7 +13,7 @@ const { useHttp } = require('../api/search/base');
 
 const S = strings.ru;
 const GROUPS = [{ id: 10, name: 'Python 1' }];
-const UNLOCK = new Date(2026, 9, 20, 9, 5).toISOString();
+const UNLOCK = '2026-10-20T04:05:00+00:00'; // 09:05 in Tashkent
 const ROWS = [
     { student_id: 1, full_name: 'Ali', date: '2026-10-20', quota_met: true, unlocked_at: UNLOCK,
         minutes_locked: 10, minutes_unlocked: 42, top_apps: [{ app: 'code.exe', minutes: 42 }, { app: 'chrome.exe', minutes: 3.14 }] },
@@ -27,7 +27,7 @@ beforeEach(() => {
     jest.clearAllMocks();
     localStorage.setItem('lang', 'ru');
     jest.useFakeTimers('modern');
-    jest.setSystemTime(new Date(2026, 9, 24, 12, 0));
+    jest.setSystemTime(new Date('2026-10-24T20:30:00Z')); // Tashkent date is already 2026-10-25
     api.listMyGroups.mockResolvedValue(GROUPS);
     api.getReport.mockResolvedValue(ROWS);
 });
@@ -45,8 +45,8 @@ const setDate = (label, v) => fireEvent.change(screen.getByLabelText(label), { t
 describe('ReportTab', () => {
     it('defaults to the last 7 days and does not fetch on mount', async () => {
         await setup();
-        expect(screen.getByLabelText(S.dateFrom)).toHaveValue('2026-10-18');
-        expect(screen.getByLabelText(S.dateTo)).toHaveValue('2026-10-24');
+        expect(screen.getByLabelText(S.dateFrom)).toHaveValue('2026-10-19');
+        expect(screen.getByLabelText(S.dateTo)).toHaveValue('2026-10-25');
         expect(api.getReport).not.toHaveBeenCalled();
     });
 
@@ -55,14 +55,14 @@ describe('ReportTab', () => {
         fireEvent.change(screen.getByLabelText(S.groupScope), { target: { value: '10' } });
         await load();
         expect(api.getReport).toHaveBeenCalledWith(useHttp().request,
-            { from: '2026-10-18', to: '2026-10-24', groupId: 10 });
+            { from: '2026-10-19', to: '2026-10-25', groupId: 10 });
     });
 
     it('uses a null group by default', async () => {
         await setup();
         await load();
         expect(api.getReport).toHaveBeenCalledWith(useHttp().request,
-            { from: '2026-10-18', to: '2026-10-24', groupId: null });
+            { from: '2026-10-19', to: '2026-10-25', groupId: null });
     });
 
     it('blocks a range longer than 31 days', async () => {
@@ -73,9 +73,22 @@ describe('ReportTab', () => {
         expect(screen.getByRole('alert')).toHaveTextContent(S.rangeTooLong);
     });
 
+    it('blocks an empty date with the invalid message', async () => {
+        await setup();
+        setDate(S.dateFrom, '');
+        await load();
+        expect(api.getReport).not.toHaveBeenCalled();
+        expect(screen.getByRole('alert')).toHaveTextContent(S.rangeInvalid);
+    });
+
+    it('notes that days and times are Tashkent time', async () => {
+        await setup();
+        expect(screen.getByText(S.tzNote)).toBeInTheDocument();
+    });
+
     it('blocks from after to', async () => {
         await setup();
-        setDate(S.dateFrom, '2026-10-25');
+        setDate(S.dateFrom, '2026-10-26');
         await load();
         expect(api.getReport).not.toHaveBeenCalled();
         expect(screen.getByRole('alert')).toHaveTextContent(S.rangeOrder);
@@ -98,7 +111,12 @@ describe('ReportTab', () => {
         expect(rows[2]).toHaveTextContent(`code.exe 42.0 ${S.min}, chrome.exe 3.1 ${S.min}`);
         // 2026-10-21 Ali row: quota not met, no unlock time
         expect(rows[0]).toHaveTextContent('✗');
-        expect(rows[0]).toHaveTextContent('—');
+        const cells0 = within(rows[0]).getAllByRole('cell');
+        expect(cells0[3]).toHaveTextContent(/^—$/);       // unlock time cell
+        expect(within(cells0[2]).getByRole('img')).toHaveAccessibleName(S.quotaMissed);
+        expect(within(within(rows[2]).getAllByRole('cell')[2]).getByRole('img')).toHaveAccessibleName(S.quotaMetShort);
+        expect(within(rows[2]).getAllByRole('cell')[3]).toHaveTextContent(/^09:05$/);
+        expect(within(table).getAllByRole('columnheader')[0]).toHaveAttribute('scope', 'col');
     });
 
     it('shows per-student trend and the header summary', async () => {
