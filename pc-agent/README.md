@@ -360,7 +360,7 @@ Each test says what to do, then what must happen.
 
 **Test 47.** The published shell has startup hook support disabled.
 
-- Expected: `PcGuard.Shell.runtimeconfig.json` in the install folder has `System.Runtime.EnableStartupHookSupport` set to false.
+- Expected: `PcGuard.Shell.runtimeconfig.json` in the install folder has `System.StartupHookProvider.IsSupported` set to false.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 48.** The student cannot plant files beside the shell.

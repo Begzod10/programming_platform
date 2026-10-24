@@ -56,12 +56,15 @@ try {
     $rc = Join-Path $out 'PcGuard.Shell.runtimeconfig.json'
     if (-not (Test-Path -LiteralPath $rc)) { throw 'PcGuard.Shell.runtimeconfig.json missing in the output.' }
     $cfg = Get-Content -LiteralPath $rc -Raw -Encoding UTF8 | ConvertFrom-Json
-    $hookSwitch = $null
-    if ($cfg.runtimeOptions -and $cfg.runtimeOptions.configProperties) {
-        $hookSwitch = $cfg.runtimeOptions.configProperties.'System.Runtime.EnableStartupHookSupport'
+    $key = 'System.StartupHookProvider.IsSupported'   # written by the SDK for <StartupHookSupport>false</StartupHookSupport>
+    $props = $null
+    if ($cfg.runtimeOptions) { $props = $cfg.runtimeOptions.configProperties }
+    if ($null -eq $props -or -not ($props.PSObject.Properties.Name -contains $key)) {
+        throw "PcGuard.Shell.runtimeconfig.json has no '$key' entry. Check StartupHookSupport=false in PcGuard.Shell.csproj."
     }
-    if ($hookSwitch -ne $false) {
-        throw 'PcGuard.Shell.runtimeconfig.json does not set System.Runtime.EnableStartupHookSupport to false. Check StartupHookSupport in PcGuard.Shell.csproj.'
+    $hookSwitch = $props.$key
+    if (-not ($hookSwitch -is [bool]) -or $hookSwitch -ne $false) {
+        throw "PcGuard.Shell.runtimeconfig.json has '$key' = '$hookSwitch', expected the boolean false."
     }
 
     Write-Host ''

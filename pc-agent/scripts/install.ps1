@@ -72,7 +72,7 @@ function Wait-ServiceGone {
     $deadline = (Get-Date).AddSeconds(30)
     while ((Test-ServiceExists) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
     if (Test-ServiceExists) {
-        throw 'The PcGuard service is still registered after 30 s (marked for deletion; something holds a handle, a reboot may be required).'
+        throw ('The PcGuard service is still registered after 30 s (marked for deletion; something holds a handle, a reboot may be required).' + " If the PC is now UNGUARDED (no PcGuard service running): reboot, then run install.ps1 again, or restore the '<InstallDir>.old-*' folder and re-create the service.")
     }
 }
 
@@ -187,6 +187,7 @@ function Invoke-Rollback {
     }
     catch {
         Write-Host "Rollback problem: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "WARNING: this PC may now be UNGUARDED (no PcGuard service running). Reboot, then run install.ps1 again; or restore the '<InstallDir>.old-*' folder and re-create the service." -ForegroundColor Red
     }
 }
 
