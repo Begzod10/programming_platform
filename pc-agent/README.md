@@ -70,7 +70,7 @@ The script: stops and removes an existing PcGuard service (upgrade), kills lefto
 - **Same-user code injection into the shell is only partly mitigated.** The shell is protected by a process security descriptor, a restricted token default DACL, a startup-hook-free build and a cleaned environment, and the pipe accepts only the launched instance. Other same-user vectors are not covered; a compromised shell could under-report windows.
 - **An administrator can stop the service** (and so can anyone with administrator rights). Standard accounts are required.
 - **Violators are killed at once** with no chance to save their work (no graceful close from session 0).
-- **Never-kill rule.** While locked, a console-session process is never killed if its exe name is in the protected set (explorer, dwm, csrss, winlogon, ctfmon, sihost, taskhostw, runtimebroker, shellexperiencehost, searchhost, startmenuexperiencehost, textinputhost, conhost, the PC Guard shell and service), or if it is allowlisted, or if its process token belongs to SYSTEM, LOCAL SERVICE or NETWORK SERVICE (a token owner that cannot be read counts as a service account, so it is not killed). That is the whole rule in normal (fresh) mode. In fallback mode (no fresh snapshot from the shell) processes whose image is under %SystemRoot% and owned by TrustedInstaller, SYSTEM or Administrators are also spared.
+- **Never-kill rule.** While locked, a console-session process is never killed if its exe name is in the protected set (explorer, dwm, csrss, winlogon, ctfmon, sihost, taskhostw, runtimebroker, shellexperiencehost, searchhost, startmenuexperiencehost, textinputhost, conhost, applicationframehost, searchapp, searchui, lockapp, shellhost, widgets, and the PC Guard shell and service), or if it is allowlisted, or if it counts as service-owned. Service-owned means: its process token belongs to SYSTEM, LOCAL SERVICE or NETWORK SERVICE; or its token owner cannot be read AND its image is under %SystemRoot% and owned by TrustedInstaller, SYSTEM or Administrators; or even its image path cannot be read (the service cannot open the process at all, despite SeDebugPrivilege, for example protected system processes). A process whose token owner cannot be read but whose image is anywhere else (for example a user-writable folder) counts as the student's and is killed. That is the whole rule in normal (fresh) mode. In fallback mode (no fresh snapshot from the shell) processes whose image is under %SystemRoot% and owned by TrustedInstaller, SYSTEM or Administrators are also spared.
 - **Inbox apps in fallback mode (accepted).** Notepad, Paint and other Windows inbox apps run under the student's own account, so in fresh mode they are killed when locked like any other non-allowlisted app. In fallback mode they survive until the shell is back (about 6-15 s), because without window information the service cannot tell them from background OS processes.
 - **Allowlisted interpreters can open other windows (by design).** A window opened by `python.exe` (for example pygame) or `node.exe` (for example Electron run through node) belongs to the allowlisted process and is not killed. Remove those entries from the allowlist if this matters.
 - **WSL, Docker and virtual machine guests are out of reach.** Only host-side windowed processes are checked. The host process (wsl.exe, a VM window, Docker Desktop) is killed when it is not allowlisted, but programs inside a running guest are not seen.
@@ -196,9 +196,9 @@ Each test says what to do, then what must happen.
 - Expected: In a test install rename PcGuard.Shell.exe: Event Log has an error naming the path; service stays Running. Restore the name.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 15.** Session filtering and the never-kill rule: only console-session processes are listed. In normal (fresh) mode the only processes never killed are the protected set (explorer, dwm, sihost, ctfmon, SearchHost, StartMenuExperienceHost and the rest listed under Known limitations), allowlisted apps, and processes whose token belongs to SYSTEM, LOCAL SERVICE or NETWORK SERVICE (for example svchost), plus processes whose token owner cannot be read. In fallback mode, processes whose image is under C:\Windows and owned by TrustedInstaller, SYSTEM or Administrators are also spared.
+**Test 15.** Session filtering and the never-kill rule: only console-session processes are listed. In normal (fresh) mode the only processes never killed are the protected set (explorer, dwm, sihost, ctfmon, SearchHost, SearchApp, SearchUI, StartMenuExperienceHost, ShellExperienceHost, ApplicationFrameHost, LockApp, ShellHost, Widgets and the rest listed under Known limitations), allowlisted apps, and service-owned processes: token of SYSTEM, LOCAL SERVICE or NETWORK SERVICE (for example svchost), or an unreadable token owner on a system image, or an unreadable image path. In fallback mode, processes whose image is under C:\Windows and owned by TrustedInstaller, SYSTEM or Administrators are also spared.
 
-- Expected: While locked, the desktop, Start menu and search keep working. With the shell running, Notepad, Paint (mspaint) and Character Map started by the student close within about 5 s. With the shell ended by an admin (fallback), the same apps stay open until the shell is back, and svchost and other service-account processes are never killed in either mode.
+- Expected: While locked, the desktop, Start menu, Windows 10 Search (SearchApp/SearchUI) and Windows 11 Search (SearchHost) keep working; locking the PC shows the lock screen (LockApp) normally, and on Windows 11 the widgets panel does not crash the session. With the shell running, Notepad, Paint (mspaint) and Character Map started by the student close within about 5 s. With the shell ended by an admin (fallback), the same apps stay open until the shell is back, and svchost and other service-account processes are never killed in either mode.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 16.** A copy of an exe in C:\Windows\Temp or renamed to explorer.exe is NOT trusted (reported as unverified:name) and is killed when locked.
@@ -243,7 +243,29 @@ Each test says what to do, then what must happen.
 
 **Test 24.** SeDebugPrivilege: LocalSystem can terminate processes whose own security descriptor denies everyone else. If the service ever runs under a non-SYSTEM account it needs this privilege.
 
-- Expected: The service kills a violator that was started with a restrictive process ACL; record the result.
+- Expected: The service kills a violator that was started with a restrictive process ACL; record the result. The Application event log (source PcGuard) shows "SeDebugPrivilege enabled" at service start; an error entry there instead is a Fail.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 24a.** A program that locks down its own process and token DACL is still closed while locked.
+
+- Steps (untested snippet): powershell.exe itself is allowlisted and lives in System32, so use a copy outside C:\Windows. As the student, copy `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe` to `Downloads\ps2.exe`, save the PowerShell below as `Downloads\deny.ps1`, and while the PC is locked run `Downloads\ps2.exe -ExecutionPolicy Bypass -File Downloads\deny.ps1`. It replaces its own process and token DACL with an empty one (no access for anyone), then opens a window.
+
+```powershell
+Add-Type -Namespace W -Name A -MemberDefinition @'
+[DllImport("advapi32.dll")] public static extern uint SetSecurityInfo(IntPtr h, int type, uint info, IntPtr owner, IntPtr group, IntPtr dacl, IntPtr sacl);
+[DllImport("advapi32.dll")] public static extern bool InitializeAcl(byte[] acl, int len, int rev);
+[DllImport("advapi32.dll")] public static extern bool OpenProcessToken(IntPtr p, uint access, out IntPtr t);
+'@
+$acl = New-Object byte[] 64; [W.A]::InitializeAcl($acl, 64, 2) | Out-Null
+$h = [Runtime.InteropServices.GCHandle]::Alloc($acl, 'Pinned'); $p = $h.AddrOfPinnedObject()
+$proc = [Diagnostics.Process]::GetCurrentProcess().Handle
+[W.A]::SetSecurityInfo($proc, 6, 4, [IntPtr]::Zero, [IntPtr]::Zero, $p, [IntPtr]::Zero)   # 6 = kernel object, 4 = DACL
+$tok = [IntPtr]::Zero; [W.A]::OpenProcessToken($proc, 0x60000, [ref]$tok) | Out-Null       # READ_CONTROL | WRITE_DAC
+[W.A]::SetSecurityInfo($tok, 6, 4, [IntPtr]::Zero, [IntPtr]::Zero, $p, [IntPtr]::Zero)
+Add-Type -AssemblyName System.Windows.Forms; [Windows.Forms.MessageBox]::Show('still open?') | Out-Null
+```
+
+- Expected: ps2.exe and its window are closed within about 5 s. Both SetSecurityInfo calls should print 0 (success); record what they print. If they print 0 and the window stays open, that is a Fail.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 #### B. Backend client
@@ -614,7 +636,7 @@ Each test says what to do, then what must happen.
 
 ### 3. Results
 
-Fill in after each run. Total tests: 92 (7 core, 85 additional).
+Fill in after each run. Total tests: 93 (7 core, 86 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|
