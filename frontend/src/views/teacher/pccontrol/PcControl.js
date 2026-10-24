@@ -4,13 +4,8 @@ import { Monitor } from 'lucide-react';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { pcStrings } from './pcStrings';
 import DevicesTab from './DevicesTab';
-
-// Task 15 replaces these two stubs with the real tabs.
-const AllowlistTab = () => {
-    const { lang } = useTranslation();
-    return <p className="pc-muted">{pcStrings(lang).comingNext}</p>;
-};
-const ReportTab = AllowlistTab;
+import AllowlistTab from './AllowlistTab';
+import ReportTab from './ReportTab';
 
 export default function PcControl() {
     const { lang } = useTranslation();
