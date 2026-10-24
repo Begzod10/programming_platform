@@ -16,7 +16,7 @@ public record ProcInfo(int Pid, string Exe, bool HasVisibleWindow, string? Publi
 public record WindowedProc(int Pid, string Exe);
 
 /// <summary>A top-level browser window reported by the shell. Host is the bare host read from the address bar (never stored or sent).</summary>
-public record BrowserWindow(long Hwnd, int Pid, string? Host);
+public record BrowserWindow(long Hwnd, int Pid, string? Host, bool Readable = true);
 
 /// <summary>What the shell sees in the student's session. Only a report: the service decides.</summary>
 public record Snapshot(IReadOnlyList<WindowedProc> Windowed, string? Foreground, IReadOnlyList<BrowserWindow> Browsers);

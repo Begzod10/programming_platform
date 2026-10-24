@@ -66,10 +66,13 @@ internal sealed class PipeClient : IDisposable
             {
                 break;
             }
-            catch (Exception e) when (e is IOException or TimeoutException or UnauthorizedAccessException
-                                          or ObjectDisposedException or InvalidOperationException)
+            catch (Exception e)
             {
-                // not connectable yet / connection dropped: fall through to the backoff
+                // not connectable yet / connection dropped / anything unexpected: the loop must never
+                // end. Log the type only, then fall through to the backoff.
+                if (e is not (IOException or TimeoutException or UnauthorizedAccessException
+                              or ObjectDisposedException or InvalidOperationException))
+                    ShellLog.Info("Pipe loop error: " + e.GetType().FullName);
             }
             finally
             {

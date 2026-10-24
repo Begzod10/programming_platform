@@ -113,7 +113,8 @@ public partial class App : Application
         if (signedIn || forceHideLogin) _login?.HideLogin();
         else _login?.ShowLogin();
 
-        if (signedIn && _state!.Locked) _overlay?.ShowFor(_state.Student!, _state.Remaining);
+        // visible whenever a student is signed in (so an unlocked student can still sign out)
+        if (signedIn) _overlay?.ShowFor(_state!.Student!, _state.Remaining, _state.Locked);
         else _overlay?.HideOverlay();
     }
 

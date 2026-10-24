@@ -196,6 +196,29 @@ public class EnforcementPlannerTests
         => EnforcementPlanner.Plan(rules, Snap(new[] { 104 }, Procs, windows), Now, Now, Procs);
 
     [Fact]
+    public void UnreadableBrowserWindowIsClosedWhenLockedWithHostList()
+    {
+        var plan = PlanBrowsers(Rules(true, Hosts), new BrowserWindow(9, 104, null, false), new BrowserWindow(3, 104, null, true));
+        Assert.Equal(new long[] { 9 }, plan.CloseWindows);
+    }
+
+    [Fact]
+    public void UnreadableBrowserWindowIgnoredWhenHostListEmpty()
+        => Assert.Empty(PlanBrowsers(Rules(true, Array.Empty<string>()), new BrowserWindow(9, 104, null, false)).CloseWindows);
+
+    [Fact]
+    public void UnreadableBrowserWindowIgnoredWhenNotLocked()
+        => Assert.Empty(PlanBrowsers(Rules(false, Hosts), new BrowserWindow(9, 104, null, false)).CloseWindows);
+
+    [Fact]
+    public void ReadableNullHostIsAllowed()
+        => Assert.Empty(PlanBrowsers(Rules(true, Hosts), new BrowserWindow(9, 104, null, true)).CloseWindows);
+
+    [Fact]
+    public void UnreadableNonBrowserPidIgnored()
+        => Assert.Empty(PlanBrowsers(Rules(true, Hosts), new BrowserWindow(9, 4242, null, false)).CloseWindows);
+
+    [Fact]
     public void AllowedHostIsNotClosed()
     {
         var plan = PlanBrowsers(Rules(true, Hosts), new BrowserWindow(1, 104, "platform.uz"), new BrowserWindow(2, 104, "app.platform.uz"));

@@ -12,6 +12,7 @@ public partial class LockOverlay : Window
     private UiLang _lang;
     private string _student = "";
     private int _remaining;
+    private bool _locked;
 
     internal Action? SignOutRequested { get; set; }
 
@@ -21,14 +22,20 @@ public partial class LockOverlay : Window
         _lang = lang;
         _keepOnTop = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _keepOnTop.Tick += (_, _) => Reassert();
+        SourceInitialized += (_, _) =>
+        {
+            var h = new WindowInteropHelper(this).Handle;
+            Native.SetExStyle(h, Native.GetExStyle(h) | Native.WS_EX_TOOLWINDOW); // all virtual desktops
+        };
         Closing += (_, e) => { if (!App.Quitting) e.Cancel = true; };
         SizeChanged += (_, _) => Reposition();
         IsVisibleChanged += (_, _) => { if (IsVisible) _keepOnTop.Start(); else _keepOnTop.Stop(); };
         Apply();
     }
 
-    internal void ShowFor(string student, int remaining)
+    internal void ShowFor(string student, int remaining, bool locked)
     {
+        _locked = locked;
         _student = student;
         _remaining = remaining;
         Apply();
@@ -51,6 +58,7 @@ public partial class LockOverlay : Window
     {
         NameText.Text = _student;
         RemainingText.Text = UiStrings.Banner(_lang, _remaining);
+        RemainingText.Visibility = _locked ? Visibility.Visible : Visibility.Collapsed; // unlocked: name + sign-out only
         SignOutButton.Content = UiStrings.SignOut(_lang);
     }
 

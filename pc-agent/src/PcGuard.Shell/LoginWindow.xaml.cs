@@ -37,7 +37,12 @@ public partial class LoginWindow : Window
         _busyTimer.Tick += (_, _) => { _busyTimer.Stop(); SetBusy(false); ShowError("offline"); };
 
         Closing += (_, e) => { if (!App.Quitting) e.Cancel = true; }; // Alt+F4 / any close: ignored
-        SourceInitialized += (_, _) => Cover();
+        SourceInitialized += (_, _) =>
+        {
+            var h = new WindowInteropHelper(this).Handle;
+            Native.SetExStyle(h, Native.GetExStyle(h) | Native.WS_EX_TOOLWINDOW); // all virtual desktops
+            Cover();
+        };
         Deactivated += (_, _) => { if (IsVisible) Dispatcher.BeginInvoke(ActivateSafe, DispatcherPriority.Background); };
         IsVisibleChanged += (_, _) =>
         {
@@ -57,10 +62,11 @@ public partial class LoginWindow : Window
     /// <summary>Stretch over the whole virtual screen in physical pixels (all monitors) and stay topmost.</summary>
     private void Cover()
     {
+        if (!IsVisible) return; // never re-show a window WPF considers hidden (Show() does the showing)
         var hwnd = new WindowInteropHelper(this).Handle;
         if (hwnd == IntPtr.Zero) return;
         var (x, y, w, h) = Native.VirtualScreen();
-        Native.SetWindowPos(hwnd, Native.HWND_TOPMOST, x, y, w, h, Native.SWP_NOACTIVATE | Native.SWP_SHOWWINDOW);
+        Native.SetWindowPos(hwnd, Native.HWND_TOPMOST, x, y, w, h, Native.SWP_NOACTIVATE);
     }
 
     internal void ShowLogin()

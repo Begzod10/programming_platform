@@ -8,6 +8,8 @@ public static class ProcessPolicy
         "taskhostw.exe", "runtimebroker.exe", "shellexperiencehost.exe", "searchhost.exe",
         "startmenuexperiencehost.exe", "textinputhost.exe", "conhost.exe",
         "pcguard.shell.exe", "pcguard.service.exe",
+        // host of UWP frames; the real app pid is reported by the shell via its CoreWindow
+        "applicationframehost.exe",
     };
 
     public static IReadOnlyList<ProcInfo> FindViolators(IEnumerable<ProcInfo> running, PcRules rules)

@@ -18,6 +18,9 @@ public static class EnforcementPlanner
 
     private static readonly EnforcementPlan Empty = new(Array.Empty<int>(), Array.Empty<long>(), false, false);
 
+    private static bool HostRuleActive(PcRules rules)
+        => rules.BrowserHosts.Any(h => !string.IsNullOrWhiteSpace(h));
+
     /// <param name="exemptPids">Pids never killed (the service itself, the verified shell).</param>
     public static EnforcementPlan Plan(
         PcRules rules,
@@ -68,7 +71,10 @@ public static class EnforcementPlanner
             close = snapshot!.Browsers
                 .Where(b => exeByPid.TryGetValue(b.Pid, out var exe)
                             && BrowserHostRule.IsBrowser(exe)
-                            && !BrowserHostRule.IsAllowed(b.Host, rules.BrowserHosts))
+                            && (!b.Readable
+                                // no omnibox at all (app-mode window, PWA, popup): cannot show an allowed host
+                                ? HostRuleActive(rules)
+                                : !BrowserHostRule.IsAllowed(b.Host, rules.BrowserHosts)))
                 .Select(b => b.Hwnd).Distinct().OrderBy(h => h).ToList();
         }
 

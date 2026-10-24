@@ -111,6 +111,7 @@ public abstract record PipeMessage(string T)
             w.WriteNumber("hwnd", b.Hwnd);
             w.WriteNumber("pid", b.Pid);
             WriteNullableString(w, "host", b.Host);
+            w.WriteBoolean("readable", b.Readable);
             w.WriteEndObject();
         }
         w.WriteEndArray();
@@ -135,7 +136,9 @@ public abstract record PipeMessage(string T)
                 && TryInt(e, "pid", out var pid))
             {
                 var host = OptString(e, "host");
-                browsers.Add(new BrowserWindow(hwnd, pid, string.IsNullOrWhiteSpace(host) ? null : host));
+                // absent or wrongly typed "readable" means true (older shells stay valid)
+                var readable = !(e.TryGetProperty("readable", out var rd) && rd.ValueKind == JsonValueKind.False);
+                browsers.Add(new BrowserWindow(hwnd, pid, string.IsNullOrWhiteSpace(host) ? null : host, readable));
             }
         }
 

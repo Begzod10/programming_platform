@@ -64,4 +64,8 @@ public class ProcessPolicyTests
             Assert.Empty(ProcessPolicy.FindViolators(new[] { Proc(name.ToUpperInvariant()) }, Rules(true)));
         }
     }
+
+    [Fact]
+    public void ApplicationFrameHostIsProtected()
+        => Assert.Contains("applicationframehost.exe", ProcessPolicy.Protected);
 }

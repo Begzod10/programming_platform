@@ -30,18 +30,26 @@ internal static class WindowEnumerator
                     width: r.Right - r.Left,
                     height: r.Bottom - r.Top,
                     toolWindow: (ex & Native.WS_EX_TOOLWINDOW) != 0,
-                    appWindowStyle: (ex & Native.WS_EX_APPWINDOW) != 0,
-                    hasTitle: Native.GetWindowTextLengthW(hwnd) > 0);
+                    appWindowStyle: (ex & Native.WS_EX_APPWINDOW) != 0);
                 if (!counts) return true;
 
-                if (!exeCache.TryGetValue(pid, out var exe))
+                // UWP: the frame belongs to ApplicationFrameHost; the real app owns a CoreWindow child.
+                IReadOnlyList<int> pids = new[] { (int)pid };
+                if (Native.ClassName(hwnd) == "ApplicationFrameWindow")
+                    pids = UwpPidPicker.Pick((int)pid, CoreWindowPids(hwnd));
+
+                foreach (var p in pids)
                 {
-                    // Unknown (protected/elevated) images are still reported: the service needs the pid
-                    // to treat the process as windowed; it ignores the name for that purpose.
-                    exe = Native.TryGetExeName(pid) ?? UnknownExe;
-                    exeCache[pid] = exe;
+                    if (p == (int)self) continue;
+                    if (!exeCache.TryGetValue((uint)p, out var exe))
+                    {
+                        // Unknown (protected/elevated) images are still reported: the service needs the pid
+                        // to treat the process as windowed; it ignores the name for that purpose.
+                        exe = Native.TryGetExeName((uint)p) ?? UnknownExe;
+                        exeCache[(uint)p] = exe;
+                    }
+                    result.Add(new AppWindow(hwnd.ToInt64(), p, exe));
                 }
-                result.Add(new AppWindow(hwnd.ToInt64(), (int)pid, exe));
             }
             catch (Exception e)
             {
@@ -51,6 +59,19 @@ internal static class WindowEnumerator
         }, IntPtr.Zero);
 
         return result;
+    }
+
+    private static List<int> CoreWindowPids(IntPtr frame)
+    {
+        var pids = new List<int>();
+        Native.EnumChildWindows(frame, (child, _) =>
+        {
+            if (Native.ClassName(child) == "Windows.UI.Core.CoreWindow"
+                && Native.GetWindowThreadProcessId(child, out var cp) != 0 && cp != 0)
+                pids.Add((int)cp);
+            return true;
+        }, IntPtr.Zero);
+        return pids;
     }
 
     /// <summary>Lower-case exe name of the foreground window's process, or null (also for the shell itself).</summary>

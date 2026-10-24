@@ -32,6 +32,40 @@ internal static class Native
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT { public int Left, Top, Right, Bottom; }
 
+    [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr parent, EnumWindowsProc proc, IntPtr lParam);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetClassNameW(IntPtr hwnd, StringBuilder buf, int max);
+
+    private const uint DESKTOP_SWITCHDESKTOP = 0x0100;
+    private const int UOI_NAME = 2;
+    [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
+    [DllImport("user32.dll")] private static extern bool CloseDesktop(IntPtr desktop);
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool GetUserObjectInformationW(IntPtr obj, int index, StringBuilder buf, int length, out int needed);
+
+    /// <summary>Name of the current input desktop ("Default", "Winlogon", ...) or null when it cannot be opened.</summary>
+    public static string? TryGetInputDesktopName()
+    {
+        var h = OpenInputDesktop(0, false, DESKTOP_SWITCHDESKTOP);
+        if (h == IntPtr.Zero) return null;
+        try
+        {
+            var sb = new StringBuilder(256);
+            return GetUserObjectInformationW(h, UOI_NAME, sb, sb.Capacity * 2, out _) ? sb.ToString() : null;
+        }
+        finally
+        {
+            CloseDesktop(h);
+        }
+    }
+
+    public static string ClassName(IntPtr hwnd)
+    {
+        var sb = new StringBuilder(256);
+        var n = GetClassNameW(hwnd, sb, sb.Capacity);
+        return n > 0 ? sb.ToString(0, n) : "";
+    }
+
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc proc, IntPtr lParam);
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);

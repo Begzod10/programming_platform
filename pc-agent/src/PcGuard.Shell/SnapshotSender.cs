@@ -45,6 +45,10 @@ internal sealed class SnapshotSender : IDisposable
     private async Task SendOnceAsync()
     {
         if (!_pipe.IsConnected) return;
+        // Windows of another (non-Default) input desktop are invisible to EnumWindows: send nothing so
+        // the service falls back to name-only enforcement. If the desktop cannot be opened (secure
+        // desktop / UAC / lock screen) behave as before.
+        if (!DesktopPolicy.ShouldSendSnapshot(Native.TryGetInputDesktopName())) return;
         if (Interlocked.Exchange(ref _busy, 1) == 1) return; // previous snapshot still in progress
         try
         {
@@ -74,7 +78,11 @@ internal sealed class SnapshotSender : IDisposable
         var browserWindows = windows.Where(w => BrowserHostRule.IsBrowser(w.Exe)).Take(MaxBrowsers).ToList();
         var hosts = await ReadHostsAsync(browserWindows).ConfigureAwait(false);
         var browsers = browserWindows
-            .Select(w => new BrowserWindow(w.Hwnd, w.Pid, hosts.GetValueOrDefault(w.Hwnd)))
+            .Select(w =>
+            {
+                var r = hosts.TryGetValue(w.Hwnd, out var read) ? read : _reader.LastKnown(w.Hwnd);
+                return new BrowserWindow(w.Hwnd, w.Pid, r.Host, r.Readable);
+            })
             .ToList();
 
         return new Snapshot(windowed, WindowEnumerator.ForegroundExe(), browsers);
@@ -82,24 +90,25 @@ internal sealed class SnapshotSender : IDisposable
 
     // UI Automation can block on a hung browser: read on a worker with a time budget; whatever is not
     // done in time is reported as unknown (null host). A still-running read must finish before the
-    // next one starts, because the reader is single-threaded.
-    private Task<Dictionary<long, string?>>? _pendingRead;
+    // next one starts, because the reader is single-threaded. Anything not read in time reuses the
+    // last committed host (readable stays true: a timeout is not proof of "no address bar").
+    private Task<Dictionary<long, HostRead>>? _pendingRead;
 
-    private async Task<Dictionary<long, string?>> ReadHostsAsync(List<AppWindow> browserWindows)
+    private async Task<Dictionary<long, HostRead>> ReadHostsAsync(List<AppWindow> browserWindows)
     {
-        var none = new Dictionary<long, string?>();
+        var none = new Dictionary<long, HostRead>();
         if (browserWindows.Count == 0) return none;
         if (_pendingRead is { IsCompleted: false }) return none;
 
         var live = browserWindows.Select(w => w.Hwnd).ToHashSet();
-        var result = new Dictionary<long, string?>();
+        var result = new Dictionary<long, HostRead>();
         var work = Task.Run(() =>
         {
             _reader.Prune(live);
             foreach (var w in browserWindows)
             {
-                var host = _reader.ReadHost(w.Hwnd);
-                lock (result) result[w.Hwnd] = host;
+                var read = _reader.Read(w.Hwnd);
+                lock (result) result[w.Hwnd] = read;
             }
             return result;
         });
@@ -110,14 +119,14 @@ internal sealed class SnapshotSender : IDisposable
         }
         catch (TimeoutException)
         {
-            lock (result) return new Dictionary<long, string?>(result); // partial: the rest is null
+            lock (result) return new Dictionary<long, HostRead>(result); // partial: the rest is null
         }
         catch (Exception e)
         {
             ShellLog.Error("BrowserAddressReader", e);
             return none;
         }
-        lock (result) return new Dictionary<long, string?>(result);
+        lock (result) return new Dictionary<long, HostRead>(result);
     }
 
     public void Dispose()

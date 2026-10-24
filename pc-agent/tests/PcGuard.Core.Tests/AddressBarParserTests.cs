@@ -18,6 +18,12 @@ public class AddressBarParserTests
     [InlineData("https://[::1]:8080/", "::1")]
     [InlineData("//example.com/x", "example.com")]
     [InlineData("LOCALHOST", "localhost")]
+    [InlineData("пример.рф", "xn--e1afmkfd.xn--p1ai")]
+    [InlineData("https://пример.рф/путь", "xn--e1afmkfd.xn--p1ai")]
+    [InlineData("[::1]:3000", "::1")]
+    [InlineData("https://allowed.com@evil.com", "evil.com")]
+    [InlineData("HTTPS://Example.com/", "example.com")]
+    [InlineData("node.js", "node.js")]
     public void ExtractsBareHost(string raw, string expected)
         => Assert.Equal(expected, AddressBarParser.ExtractHost(raw));
 

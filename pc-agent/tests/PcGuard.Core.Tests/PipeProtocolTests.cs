@@ -179,6 +179,20 @@ public class PipeProtocolTests
     }
 
     [Fact]
+    public void BrowserReadableDefaultsToTrueAndRoundTripsFalse()
+    {
+        var m = Assert.IsType<SnapshotMessage>(PipeMessage.Parse(
+            "{\"t\":\"snapshot\",\"browsers\":[{\"hwnd\":1,\"pid\":2,\"host\":null},{\"hwnd\":3,\"pid\":2,\"host\":null,\"readable\":false},{\"hwnd\":4,\"pid\":2,\"readable\":\"x\"}]}"));
+        Assert.Equal(new[] { true, false, true }, m.Snapshot.Browsers.Select(b => b.Readable).ToArray());
+
+        var snap = new Snapshot(Array.Empty<WindowedProc>(), null,
+            new[] { new BrowserWindow(1, 2, null, false), new BrowserWindow(3, 2, "a.uz", true) });
+        var line = PipeMessage.Serialize(new SnapshotMessage(snap));
+        Assert.Contains("\"readable\":false", line);
+        Assert.Equal(snap.Browsers, Assert.IsType<SnapshotMessage>(PipeMessage.Parse(line)).Snapshot.Browsers);
+    }
+
+    [Fact]
     public void SnapshotSkipsInvalidEntries()
     {
         var m = Assert.IsType<SnapshotMessage>(PipeMessage.Parse(
