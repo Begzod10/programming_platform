@@ -10,6 +10,8 @@ public static class ProcessPolicy
         "pcguard.shell.exe", "pcguard.service.exe",
         // host of UWP frames; the real app pid is reported by the shell via its CoreWindow
         "applicationframehost.exe",
+        // shell UI hosts that run under the user's token (Windows 10 Search, lock screen, Windows 11 shell/widgets)
+        "searchapp.exe", "searchui.exe", "lockapp.exe", "shellhost.exe", "widgets.exe",
     };
 
     public static IReadOnlyList<ProcInfo> FindViolators(IEnumerable<ProcInfo> running, PcRules rules)

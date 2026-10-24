@@ -97,6 +97,32 @@ internal static class Native
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool SetTokenInformation(SafeAccessTokenHandle token, int tokenInformationClass, ref TOKEN_DEFAULT_DACL info, int length);
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LUID
+    {
+        public uint LowPart;
+        public int HighPart;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TOKEN_PRIVILEGES
+    {
+        public int PrivilegeCount; // always 1 here
+        public LUID Luid;
+        public uint Attributes;
+    }
+
+    private const uint TOKEN_ADJUST_PRIVILEGES = 0x0020;
+    private const uint SE_PRIVILEGE_ENABLED = 0x00000002;
+    private const int ERROR_NOT_ALL_ASSIGNED = 1300;
+
+    [DllImport("advapi32.dll", EntryPoint = "LookupPrivilegeValueW", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool LookupPrivilegeValue(string? systemName, string name, out LUID luid);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool AdjustTokenPrivileges(SafeAccessTokenHandle token, bool disableAll, ref TOKEN_PRIVILEGES newState,
+        int bufferLength, IntPtr previousState, IntPtr returnLength);
+
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern uint ResumeThread(IntPtr thread);
 
@@ -137,6 +163,37 @@ internal static class Native
 
     [DllImport("advapi32.dll", SetLastError = true)]
     private static extern bool OpenProcessToken(SafeProcessHandle process, uint desiredAccess, out SafeAccessTokenHandle token);
+
+    /// <summary>
+    /// Enables SeDebugPrivilege on the service's own token so the SYSTEM service can open (query the
+    /// image of, and terminate) user processes even when their own DACL denies access. Called once at
+    /// startup, before the first enforcement tick. Logged at Information on success, at Error with the
+    /// Win32 code on failure (enforcement continues; such processes may then be unreadable).
+    /// </summary>
+    public static void EnableSeDebugPrivilege(ILogger log)
+    {
+        using var self = System.Diagnostics.Process.GetCurrentProcess();
+        if (!OpenProcessToken(self.SafeHandle, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out var token))
+        {
+            log.LogError("Could not open the service token to enable SeDebugPrivilege (Win32 {Code})", Marshal.GetLastWin32Error());
+            return;
+        }
+        using (token)
+        {
+            if (!LookupPrivilegeValue(null, "SeDebugPrivilege", out var luid))
+            {
+                log.LogError("LookupPrivilegeValue(SeDebugPrivilege) failed (Win32 {Code})", Marshal.GetLastWin32Error());
+                return;
+            }
+            var tp = new TOKEN_PRIVILEGES { PrivilegeCount = 1, Luid = luid, Attributes = SE_PRIVILEGE_ENABLED };
+            var ok = AdjustTokenPrivileges(token, false, ref tp, Marshal.SizeOf<TOKEN_PRIVILEGES>(), IntPtr.Zero, IntPtr.Zero);
+            var err = Marshal.GetLastWin32Error(); // AdjustTokenPrivileges can "succeed" with ERROR_NOT_ALL_ASSIGNED
+            if (!ok || err == ERROR_NOT_ALL_ASSIGNED)
+                log.LogError("Enabling SeDebugPrivilege failed (Win32 {Code})", ok ? ERROR_NOT_ALL_ASSIGNED : err);
+            else
+                log.LogInformation("SeDebugPrivilege enabled");
+        }
+    }
 
     /// <summary>The session attached to the physical console, or null when none (e.g. at boot / during switch).</summary>
     public static uint? ActiveConsoleSessionId()

@@ -98,6 +98,9 @@ internal sealed class GuardWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // before the first tick: lets the enumerator open user processes that deny access in their own DACL
+        Native.EnableSeDebugPrivilege(_log);
+
         var shellPath = Path.Combine(AppContext.BaseDirectory, "PcGuard.Shell.exe");
         var store = new SecureStore(_log);
         var secured = true;

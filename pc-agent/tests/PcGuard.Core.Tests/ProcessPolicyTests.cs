@@ -68,4 +68,19 @@ public class ProcessPolicyTests
     [Fact]
     public void ApplicationFrameHostIsProtected()
         => Assert.Contains("applicationframehost.exe", ProcessPolicy.Protected);
+
+    [Fact]
+    public void ProtectedSetIsExactlyPinned()
+    {
+        var expected = new[]
+        {
+            "explorer.exe", "dwm.exe", "csrss.exe", "winlogon.exe", "ctfmon.exe", "sihost.exe",
+            "taskhostw.exe", "runtimebroker.exe", "shellexperiencehost.exe", "searchhost.exe",
+            "startmenuexperiencehost.exe", "textinputhost.exe", "conhost.exe",
+            "pcguard.shell.exe", "pcguard.service.exe", "applicationframehost.exe",
+            "searchapp.exe", "searchui.exe", "lockapp.exe", "shellhost.exe", "widgets.exe",
+        };
+        Assert.Equal(expected.OrderBy(x => x, StringComparer.Ordinal),
+            ProcessPolicy.Protected.OrderBy(x => x, StringComparer.Ordinal));
+    }
 }
