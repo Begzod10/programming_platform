@@ -16,7 +16,7 @@ PC Guard is a Windows service plus a small sign-in/overlay application for compu
 ## Requirements
 
 - Windows 10 or 11, x64.
-- Students use **standard (non-administrator) Windows accounts**. An administrator can stop the service and bypass the whole system; the installer prints a warning when the signed-in user is an administrator.
+- Students use **standard (non-administrator) Windows accounts**. An administrator can stop the service and bypass the whole system; the installer prints a BEST-EFFORT warning when the signed-in user looks like an administrator (domain, Azure AD and nested-group administrators and RDP sessions may be missed), so verify yourself that student accounts are standard users.
 - Outbound HTTPS from the PCs to the backend (including WebSocket `wss`).
 - A build machine with the .NET 8 SDK (Windows, because the shell uses WPF). Target PCs need no .NET installed: the build is self-contained.
 - On the backend: `PC_PLATFORM_HOSTS` set (see Configuration).
@@ -41,7 +41,7 @@ Copy `dist` and `scripts` to the PC (for example to a USB stick), open PowerShel
 
 Parameters: `-BackendBaseUrl` (required; includes the `/api/v1` prefix; must be https unless the host is localhost), `-DistDir` (default `..\dist`), `-InstallDir` (default `C:\Program Files\PcGuard`).
 
-The script: stops and removes an existing PcGuard service (upgrade), kills leftover shells, copies the files, writes the URL into the installed `appsettings.json`, removes inheritance from the install folder and grants SYSTEM and Administrators full control and Users read/execute only, creates the service (`LocalSystem`, automatic start), sets the description, sets recovery to restart after 5 s on every failure (`sc.exe failure PcGuard reset= 0 actions= restart/5000/restart/5000/restart/5000` plus `failureflag 1`) and starts it. It deliberately does NOT register a Run key, scheduled task or Startup shortcut for the shell: only the service starts the shell. Running it again upgrades in place and keeps `%ProgramData%\PcGuard`.
+The script: stops and removes an existing PcGuard service (upgrade), kills leftover shells, copies the files, writes the URL into the installed `appsettings.json`, removes inheritance from the install folder and grants SYSTEM and Administrators full control and Users read/execute only, creates the service (`LocalSystem`, automatic start, quoted binary path verified by reading `ImagePath` back; a wrong path aborts and removes the service), sets the description, sets recovery to restart after 5 s on every failure (`sc.exe failure PcGuard reset= 0 actions= restart/5000/restart/5000/restart/5000` plus `failureflag 1`) and starts it. It deliberately does NOT register a Run key, scheduled task or Startup shortcut for the shell: only the service starts the shell. Running it again upgrades: the old folder is renamed to `PcGuard.old-<timestamp>`, and if any step fails the new files and service are removed and the old version is restored; the old folder is deleted only after the new service started. `%ProgramData%\PcGuard` is kept.
 
 ## Uninstall
 
@@ -53,7 +53,7 @@ The script: stops and removes an existing PcGuard service (upgrade), kills lefto
 ## Configuration
 
 - **PC side**: `Backend:BaseUrl` in `appsettings.json` next to the exes (written by `install.ps1`). Edit it only as administrator and restart the service (`Restart-Service PcGuard`).
-- **Backend side**: `PC_PLATFORM_HOSTS` in the backend `.env` is a comma-separated list of platform hosts (for example `example.uz,www.example.uz`). While a PC is locked, browser windows are allowed only on these hosts. **If it is empty the browser host rule is DISABLED and browsers run unrestricted while locked, so it must be set before rollout.** The backend branch auto-deploys on push, so changing `.env` and pushing takes effect without manual steps on the server; check that the deployment actually picked up the new value.
+- **Backend side**: `PC_PLATFORM_HOSTS` (setting in `backend/app/config.py`, default empty) is a comma-separated list of platform hosts (for example `example.uz,www.example.uz`). While a PC is locked, browser windows are allowed only on these hosts. **If it is empty the browser host rule is DISABLED and browsers run unrestricted while locked, so it must be set before rollout.** Set it in the SERVER's own `.env` file (a server-local file, not part of the repository); it takes effect after the backend restarts. Pushing backend changes to the `server` branch auto-deploys: the workflow `.github/workflows/deploy-backend.yml` triggers on pushes to `server` that touch `backend/**` (or the workflow file) and restarts the backend service. That deploy does not change `.env`, so edit it on the server and restart the backend.
 - The default app allowlist comes from the server. Publisher entries in the allowlist are not used by default.
 
 ## Data locations and what is recorded
@@ -336,9 +336,9 @@ Each test says what to do, then what must happen.
 - Expected: Sign-in, banner, popup and snapshots work through a full session; no access-denied on its own objects.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 43.** Windows Error Reporting for a crashed shell.
+**Test 43.** Windows Error Reporting for a crashed shell: force a crash of the shell as the student (for example with an admin tool that injects a crash) and check Reliability Monitor / %LocalAppData%\CrashDumps.
 
-- Expected: Record: a report is still produced / is not produced.
+- Expected: A WER entry for PcGuard.Shell.exe exists. If none exists, mark Fail and note it as an accepted loss caused by the deny ACE.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 44.** Failure paths of the suspended launch: a failing pin callback or GetProcessTimes must leave no orphaned suspended PcGuard.Shell.exe (review or force if feasible).
@@ -382,7 +382,7 @@ Each test says what to do, then what must happen.
 
 **Test 51.** A snapshot older than 6 s, or from another session, is not trusted.
 
-- Expected: See sections I and J.
+- Expected: Steps: (1) as admin suspend PcGuard.Shell.exe (Process Explorer) and watch Notepad as a locked student; (2) after about 6 s a non-allowlisted app opened now is killed by name even though the shell is still alive; (3) resume the shell. For the other-session case run test 'Fast user switching' in section J. Expected: step 2 kills Notepad within about 5 s after the 6 s staleness window, and enforcement is window-aware again after step 3.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 #### G. Usage upload attribution across sign-outs
@@ -487,7 +487,7 @@ Each test says what to do, then what must happen.
 
 **Test 70.** Fresh install with a real https URL.
 
-- Expected: Files copied; appsettings.json has the URL under Backend:BaseUrl; service Running; `sc.exe qfailure PcGuard` shows three restarts at 5000 ms, reset 0, and the failure flag on; `sc.exe qc` shows a quoted path.
+- Expected: Files copied; appsettings.json has the URL under Backend:BaseUrl; service Running; `sc.exe qfailure PcGuard` shows three restarts at 5000 ms, reset 0, and the failure flag on. RAW IMAGEPATH CHECK: `reg query HKLM\SYSTEM\CurrentControlSet\Services\PcGuard /v ImagePath` must show the path WITH double quotes around it. Run the install once from Windows PowerShell 5.1 and once from PowerShell 7 (uninstall in between); both must show the quoted string (an unquoted path with a space in a SYSTEM service is a privilege-escalation hole: Fail).
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 71.** Folder ACL: `icacls "C:\Program Files\PcGuard"`.
@@ -502,86 +502,91 @@ Each test says what to do, then what must happen.
 
 **Test 73.** Administrator warning: run the installer while signed in as an administrator account, then as a standard user (elevating with another admin).
 
-- Expected: With an admin console user the warning and fix steps are printed and the install still succeeds; with a standard user no warning.
+- Expected: With an admin console user the warning and fix steps are printed and the install still succeeds; with a standard user no warning. The check is best-effort (domain, Azure AD, nested-group admins and RDP sessions may be missed): independently verify in Computer Management that every student account is a standard user.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 74.** Upgrade: run install.ps1 again over a running install.
 
-- Expected: Old service stopped and removed, shell killed, files replaced, service recreated and Running; %ProgramData%\PcGuard is kept; the same machine appears in the teacher console.
+- Expected: Old service stopped and removed, shell killed, files replaced, service recreated and Running; the `PcGuard.old-*` folder is gone; %ProgramData%\PcGuard is kept; the same machine appears in the teacher console.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 75.** Uninstall without -Purge.
+**Test 75.** Rollback: run install.ps1 over a working install with a dist folder whose appsettings.json is invalid JSON (for example truncated), so a step after the file copy fails.
+
+- Expected: The script exits non-zero, the new folder and service are removed, the previous version is restored and its service is running again, no `.old-*` folder is left.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 76.** Uninstall without -Purge.
 
 - Expected: Service and install folder removed; %ProgramData%\PcGuard kept; reinstalling reuses the machine key.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 76.** Uninstall with -Purge.
+**Test 77.** Uninstall with -Purge.
 
 - Expected: %ProgramData%\PcGuard is also removed.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 77.** Reboot after install.
+**Test 78.** Reboot after install.
 
 - Expected: Service is Running before anyone signs in.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 #### L. Shell UI, multi-monitor and sign-in errors
 
-**Test 78.** Sign-in screen covers the whole virtual screen on multi-monitor setups with mixed DPI or different layouts, and after hot-plug or resolution changes; a resolution change while signed in does not re-show it.
+**Test 79.** Sign-in screen covers the whole virtual screen on multi-monitor setups with mixed DPI or different layouts, and after hot-plug or resolution changes; a resolution change while signed in does not re-show it.
 
 - Expected: All monitors covered and resized correctly.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 79.** Sign-in screen stays on top of other topmost windows; Alt+F4, Win key and Alt+Tab do not dismiss it; visible on all virtual desktops; no taskbar button; keyboard focus in the username box. Ctrl+Alt+Del is outside its reach.
+**Test 80.** Sign-in screen stays on top of other topmost windows; Alt+F4, Win key and Alt+Tab do not dismiss it; visible on all virtual desktops; no taskbar button; keyboard focus in the username box. Ctrl+Alt+Del is outside its reach.
 
 - Expected: Cannot be closed from the keyboard. Document what a student can do on the Ctrl+Alt+Del screen.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 80.** Enter submits; the UZ/RU toggle works and resets to Uzbek at each shell start; Uzbek and Russian glyphs render correctly.
+**Test 81.** Enter submits; the UZ/RU toggle works and resets to Uzbek at each shell start; Uzbek and Russian glyphs render correctly.
 
 - Expected: Visual check.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 81.** Login errors in both languages: wrong password, forbidden account, too many attempts (429), backend unreachable, 20 s busy timeout, empty fields.
+**Test 82.** Login errors in both languages: wrong password, forbidden account, too many attempts (429), backend unreachable, 20 s busy timeout, empty fields.
 
 - Expected: Each shows a distinct, correctly translated message in Uzbek and Russian; the password box is cleared after submit; a failed login has about 1 s delay.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 82.** The privacy notice is shown at the bottom of the sign-in screen in Uzbek and Russian.
+**Test 83.** The privacy notice is shown at the bottom of the sign-in screen in Uzbek and Russian.
 
 - Expected: Text present and readable.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 83.** Banner (top centre of the primary monitor): name and lessons left when locked, name and Sign out only when unlocked; Sign out returns to the sign-in screen; it never steals focus; topmost is re-asserted every 2 s.
+**Test 84.** Banner (top centre of the primary monitor): name and lessons left when locked, name and Sign out only when unlocked; Sign out returns to the sign-in screen; it never steals focus; topmost is re-asserted every 2 s.
 
 - Expected: As described, also on multi-monitor.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 84.** Message popup: bottom right, non-activating, 10 s, one at a time (queue up to 20).
+**Test 85.** Message popup: bottom right, non-activating, 10 s, one at a time (queue up to 20).
 
 - Expected: As described.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 85.** Single instance and robustness: a second shell exits at once; unhandled exceptions go to shell.log and the shell keeps running; state changes (service restart, token death, sign-out) show the right window.
+**Test 86.** Single instance and robustness: a second shell exits at once; unhandled exceptions go to shell.log and the shell keeps running; state changes (service restart, token death, sign-out) show the right window.
 
 - Expected: As described.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 #### M. Privacy
 
-**Test 86.** Browse several sites and open documents with revealing titles for 30 minutes while signed in, then search everything the agent wrote: %ProgramData%\PcGuard\*, %LocalAppData%\PcGuard\shell.log, the Application event log (PcGuard source) and the backend table pc_usage_events.
+**Test 87.** Browse several sites and open documents with revealing titles for 30 minutes while signed in, then search everything the agent wrote: %ProgramData%\PcGuard\*, %LocalAppData%\PcGuard\shell.log, the Application event log (PcGuard source) and the backend table pc_usage_events.
 
 - Expected: No URLs, visited host names, window titles, keystrokes or passwords anywhere. Only app names, durations and lock state. shell.log contains only exception type names and stack traces.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 87.** Capture the PC's network traffic (or read backend logs) during a session.
+**Test 88.** Capture the PC's network traffic (or read backend logs) during a session.
 
 - Expected: Only login, heartbeat/state and usage events. The browser host and window titles are never sent to the backend.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 ### 3. Results
 
-Fill in after each run. Total tests: 87 (7 core, 80 additional).
+Fill in after each run. Total tests: 88 (7 core, 81 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|

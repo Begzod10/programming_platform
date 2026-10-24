@@ -52,6 +52,18 @@ try {
         if (-not (Test-Path (Join-Path $out $exe))) { throw "Expected file missing in output: $exe" }
     }
 
+    # The shell must keep startup hooks disabled (injection hardening): fail the build otherwise.
+    $rc = Join-Path $out 'PcGuard.Shell.runtimeconfig.json'
+    if (-not (Test-Path -LiteralPath $rc)) { throw 'PcGuard.Shell.runtimeconfig.json missing in the output.' }
+    $cfg = Get-Content -LiteralPath $rc -Raw -Encoding UTF8 | ConvertFrom-Json
+    $hookSwitch = $null
+    if ($cfg.runtimeOptions -and $cfg.runtimeOptions.configProperties) {
+        $hookSwitch = $cfg.runtimeOptions.configProperties.'System.Runtime.EnableStartupHookSupport'
+    }
+    if ($hookSwitch -ne $false) {
+        throw 'PcGuard.Shell.runtimeconfig.json does not set System.Runtime.EnableStartupHookSupport to false. Check StartupHookSupport in PcGuard.Shell.csproj.'
+    }
+
     Write-Host ''
     Write-Host "Done. Output: $out"
     Write-Host 'Next: copy this folder to the target PC and run install.ps1 as Administrator.'
