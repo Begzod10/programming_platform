@@ -147,6 +147,7 @@ describe('AllowlistTab', () => {
         api.getAllowlist.mockRejectedValue({ response: { data: { detail: 'Not your group' } } });
         render(<AllowlistTab />);
         expect(await screen.findByRole('alert')).toHaveTextContent('Not your group');
+        await act(async () => {});
     });
 });
 
@@ -179,6 +180,7 @@ describe('AllowlistTab races and edits', () => {
         api.getAllowlist.mockReturnValue(d.p);
         render(<AllowlistTab />);
         expect(screen.getByLabelText(S.scope)).toBeDisabled();
+        await act(async () => {});
         await act(async () => { d.res(GLOBAL); });
         expect(screen.getByLabelText(S.scope)).toBeEnabled();
     });
@@ -251,5 +253,6 @@ describe('AllowlistTab races and edits', () => {
         api.getAllowlist.mockReturnValue(new Promise(() => {}));
         render(<AllowlistTab />);
         expect(screen.getByRole('status')).toHaveTextContent(S.loading);
+        await act(async () => {});
     });
 });

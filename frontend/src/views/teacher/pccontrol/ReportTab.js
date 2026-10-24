@@ -95,7 +95,7 @@ export default function ReportTab() {
                                     <strong>{s.full_name}</strong>
                                     <span>{t.sumQuota}: <strong>{s.trend}</strong></span>
                                     <span className="pc-muted">
-                                        {t.colLocked}: {formatMinutes(s.minutesLocked)} · {t.colUnlocked}: {formatMinutes(s.minutesUnlocked)}
+                                        {t.colLocked}: {formatMinutes(s.minutesLocked, lang)} · {t.colUnlocked}: {formatMinutes(s.minutesUnlocked, lang)}
                                     </span>
                                 </div>
                             ))}
@@ -121,9 +121,9 @@ export default function ReportTab() {
                                                 : <span className="pc-no" role="img" aria-label={t.quotaMissed}>✗</span>}
                                         </td>
                                         <td>{formatTime(r.unlocked_at)}</td>
-                                        <td>{formatMinutes(r.minutes_locked)}</td>
-                                        <td>{formatMinutes(r.minutes_unlocked)}</td>
-                                        <td>{formatTopApps(r.top_apps, t.min)}</td>
+                                        <td>{formatMinutes(r.minutes_locked, lang)}</td>
+                                        <td>{formatMinutes(r.minutes_unlocked, lang)}</td>
+                                        <td>{formatTopApps(r.top_apps, t.min, lang)}</td>
                                     </tr>
                                 ))}
                             </tbody>

@@ -1,6 +1,6 @@
 import {
     normalizeExe, toIsoDate, defaultRange, daysInclusive, validateRange,
-    sortRows, summarizeByStudent, summarizeAll, formatMinutes, formatTopApps, formatTime, MAX_ENTRIES,
+    sortRows, summarizeByStudent, summarizeAll, formatMinutes, formatTopApps, formatTime, formatSeen, MAX_ENTRIES,
 } from '../views/teacher/pccontrol/pcReportMath';
 
 describe('normalizeExe', () => {
@@ -103,5 +103,21 @@ describe('formatting', () => {
         expect(formatTime('2026-10-24T19:30:00Z')).toBe('00:30');
         expect(formatTime(null)).toBe('—');
         expect(formatTime('garbage')).toBe('—');
+    });
+});
+
+describe('locale and last seen', () => {
+    it('ru uses a decimal comma, uz a dot', () => {
+        expect(formatMinutes(12.5, 'ru')).toBe('12,5');
+        expect(formatMinutes(12.5, 'uz')).toBe('12.5');
+        expect(formatTopApps([{ app: 'a.exe', minutes: 1.5 }], 'мин.', 'ru')).toBe('a.exe 1,5 мин.');
+    });
+    it('formatSeen: today, yesterday, null', () => {
+        const now = new Date('2026-10-24T10:00:00Z');            // 15:00 Tashkent, 24 Oct
+        expect(formatSeen('2026-10-24T04:05:00Z', now, 'never')).toBe('09:05');
+        expect(formatSeen('2026-10-23T04:05:00Z', now, 'never')).toBe('23.10 09:05');
+        expect(formatSeen('2026-10-23T20:00:00Z', now, 'never')).toBe('01:00'); // already 24 Oct in Tashkent
+        expect(formatSeen(null, now, 'never')).toBe('never');
+        expect(formatSeen('junk', now, 'never')).toBe('never');
     });
 });

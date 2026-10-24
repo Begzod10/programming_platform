@@ -9,5 +9,6 @@ export function errorMessage(e, fallback) {
         const msgs = detail.map(i => str(i?.msg)).filter(Boolean);
         if (msgs.length) return msgs.join('; ');
     }
-    return str(data?.error?.message) || str(e?.message) || fallback;
+    // No e.message: axios/fetch network errors carry raw English text with URLs.
+    return str(data?.error?.message) || fallback;
 }

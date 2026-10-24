@@ -19,7 +19,10 @@ describe('errorMessage', () => {
     });
     it('missing response / network error', () => {
         expect(errorMessage({}, 'F')).toBe('F');
-        expect(errorMessage(new Error('Network Error'), 'F')).toBe('Network Error');
+        expect(errorMessage(new Error('Network Error'), 'F')).toBe('F');
+        expect(errorMessage(new Error('Could not fetch https://x/api/v1/y status: undefined: Network Error'), 'F')).toBe('F');
+        expect(errorMessage({ message: 'timeout of 5000ms exceeded' }, 'F')).toBe('F');
+        expect(errorMessage({ response: { status: 502, data: '<html>' } }, 'F')).toBe('F');
         expect(errorMessage(undefined, 'F')).toBe('F');
         expect(errorMessage({ message: { x: 1 } }, 'F')).toBe('F');
     });

@@ -29,14 +29,17 @@ const setup = async (devices = [dev()]) => {
     return utils;
 };
 
+const clock = { now: 1700000000000 };
 beforeEach(() => {
     jest.clearAllMocks();
+    clock.now = 1700000000000;
+    jest.spyOn(Date, 'now').mockImplementation(() => clock.now);
     localStorage.setItem('lang', 'ru');
     visibility = 'visible';
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility });
 });
 let visibility = 'visible';
-afterEach(() => { jest.useRealTimers(); visibility = 'visible'; });
+afterEach(() => { jest.restoreAllMocks(); jest.useRealTimers(); visibility = 'visible'; });
 
 describe('DevicesTab', () => {
     it('renders a card with hostname and student name', async () => {
@@ -59,7 +62,7 @@ describe('DevicesTab', () => {
         const card = screen.getByTestId('pc-card-1');
         expect(within(card).getByText(S.offline)).toBeInTheDocument();
         for (const label of [S.lock, S.unlock, S.resume]) {
-            expect(within(card).getByRole('button', { name: label })).toBeDisabled();
+            expect(within(card).getByRole('button', { name: `${label} LAB-01` })).toBeDisabled();
         }
     });
 
@@ -68,6 +71,7 @@ describe('DevicesTab', () => {
         const bar = screen.getByTestId('pc-all-bar');
         fireEvent.click(within(bar).getByRole('button', { name: S.lockAll }));
         expect(api.sendCommand).not.toHaveBeenCalled();
+        clock.now += 700;
         fireEvent.click(within(bar).getByRole('button', { name: S.confirm }));
         await waitFor(() => expect(api.sendCommand).toHaveBeenCalledTimes(1));
         expect(api.sendCommand.mock.calls[0][1]).toEqual({ scope_type: 'all', scope_id: null, type: 'lock' });
@@ -146,13 +150,14 @@ describe('DevicesTab', () => {
         expect(within(bar).queryByRole('button', { name: S.confirm })).not.toBeInTheDocument();
         fireEvent.click(within(bar).getByRole('button', { name: S.lockAll }));
         expect(api.sendCommand).not.toHaveBeenCalled();
+        jest.useRealTimers();
     });
 
     it('another action disarms a pending confirm', async () => {
         await setup();
         const bar = screen.getByTestId('pc-all-bar');
         fireEvent.click(within(bar).getByRole('button', { name: S.lockAll }));
-        fireEvent.click(within(bar).getByRole('button', { name: S.resumeAll }));
+        fireEvent.click(within(screen.getByTestId('pc-all-bar')).getByRole('button', { name: S.resumeAll }));
         expect(within(bar).queryByRole('button', { name: S.confirm })).not.toBeInTheDocument();
         await waitFor(() => expect(api.sendCommand).toHaveBeenCalledTimes(1));
     });
@@ -244,5 +249,115 @@ describe('DevicesTab', () => {
         const sel = within(screen.getByTestId('pc-card-1')).getByRole('combobox');
         expect(sel.value).toBe('99');
         expect(within(sel).getByRole('option', { name: new RegExp(S.otherGroup) })).toBeDisabled();
+    });
+
+    describe('Part C fix wave', () => {
+        const bar = () => screen.getByTestId('pc-all-bar');
+        it('confirm tap at 100 ms is ignored (stays armed), at 700 ms sends once', async () => {
+            await setup();
+            fireEvent.click(within(bar()).getByRole('button', { name: S.lockAll }));
+            clock.now += 100;
+            fireEvent.click(within(bar()).getByRole('button', { name: S.confirm }));
+            expect(api.sendCommand).not.toHaveBeenCalled();
+            expect(within(bar()).getByRole('button', { name: S.confirm })).toBeInTheDocument();
+            clock.now += 600;
+            fireEvent.click(within(bar()).getByRole('button', { name: S.confirm }));
+            await waitFor(() => expect(api.sendCommand).toHaveBeenCalledTimes(1));
+            expect(api.sendCommand.mock.calls[0][1]).toEqual({ scope_type: 'all', scope_id: null, type: 'lock' });
+        });
+
+        it('Unlock all confirm path', async () => {
+            await setup();
+            fireEvent.click(within(bar()).getByRole('button', { name: S.unlockAll }));
+            expect(api.sendCommand).not.toHaveBeenCalled();
+            clock.now += 700;
+            fireEvent.click(within(bar()).getByRole('button', { name: S.confirm }));
+            await waitFor(() => expect(api.sendCommand).toHaveBeenCalledTimes(1));
+            expect(api.sendCommand.mock.calls[0][1]).toMatchObject({ scope_type: 'all', type: 'unlock' });
+        });
+
+        it('all-PC buttons have the fixed-width class and Resume all is in its own row', async () => {
+            await setup();
+            for (const n of [S.lockAll, S.unlockAll, S.resumeAll]) {
+                expect(within(bar()).getByRole('button', { name: n })).toHaveClass('pc-btn-fixed');
+            }
+            const lockRow = within(bar()).getByRole('button', { name: S.lockAll }).parentElement;
+            expect(within(lockRow).queryByRole('button', { name: S.resumeAll })).not.toBeInTheDocument();
+        });
+
+        it('no_student device: buttons disabled and hint shown', async () => {
+            await setup([dev({ reason: 'no_student', student: { id: null, full_name: null } })]);
+            const card = screen.getByTestId('pc-card-1');
+            expect(within(card).getByText(S.noStudentHint)).toBeInTheDocument();
+            expect(within(card).getByRole('button', { name: `${S.lock} LAB-01` })).toBeDisabled();
+            expect(within(bar()).getByRole('button', { name: S.resumeAll })).toBeEnabled();
+        });
+
+        it('shows the command explanation', async () => {
+            await setup();
+            expect(screen.getByTestId('pc-cmd-explain')).toHaveTextContent(S.cmdExplain);
+        });
+
+        it('device group select has the hostname in its label', async () => {
+            await setup();
+            expect(screen.getByRole('combobox', { name: `${S.deviceGroup} LAB-01` })).toBeInTheDocument();
+        });
+
+        const msgBox = () => screen.getByTestId('pc-message-box');
+        const typeMsg = (v) => fireEvent.change(within(msgBox()).getByRole('textbox'), { target: { value: v } });
+
+        it('message notice counts online PCs (all)', async () => {
+            await setup([dev(), dev({ id: 2, hostname: 'B' }), dev({ id: 3, hostname: 'C', online: false })]);
+            typeMsg('hi');
+            fireEvent.click(within(msgBox()).getByRole('button', { name: S.send }));
+            expect(await screen.findByText(`${S.messageSentTo} 2`)).toBeInTheDocument();
+        });
+
+        it('message to a group counts only online devices of that group', async () => {
+            await setup([dev({ group_id: 10 }), dev({ id: 2, hostname: 'B', group_id: 10, online: false }),
+                dev({ id: 3, hostname: 'C', group_id: 11 })]);
+            await within(msgBox()).findByRole('option', { name: S.targetGroup });
+            const [targetSel] = within(msgBox()).getAllByRole('combobox');
+            fireEvent.change(targetSel, { target: { value: 'group' } });
+            const send = within(msgBox()).getByRole('button', { name: S.send });
+            typeMsg('hi');
+            expect(send).toBeDisabled();                       // no group chosen
+            const gsel = within(screen.getByTestId('pc-group-bar')).getByRole('combobox');
+            await within(gsel).findByRole('option', { name: 'Python 1' });
+            fireEvent.change(gsel, { target: { value: '10' } });
+            expect(send).toBeEnabled();
+            fireEvent.click(send);
+            expect(await screen.findByText(`${S.messageSentTo} 1`)).toBeInTheDocument();
+            expect(api.sendCommand.mock.calls[0][1]).toEqual({
+                scope_type: 'group', scope_id: 10, type: 'message', payload: { text: 'hi' } });
+        });
+
+        it('message to one offline device warns that nothing was delivered', async () => {
+            await setup([dev({ online: false })]);
+            const [targetSel] = within(msgBox()).getAllByRole('combobox');
+            fireEvent.change(targetSel, { target: { value: 'device' } });
+            typeMsg('hi');
+            const send = within(msgBox()).getByRole('button', { name: S.send });
+            expect(send).toBeDisabled();                       // no device chosen
+            fireEvent.change(within(msgBox()).getByRole('combobox', { name: S.pickDevice }), { target: { value: '1' } });
+            fireEvent.click(send);
+            const warn = await screen.findByText(S.messageNoPc);
+            expect(warn.closest('.pc-notice')).toHaveClass('warn');
+            expect(api.sendCommand.mock.calls[0][1]).toMatchObject({ scope_type: 'device', scope_id: 1 });
+        });
+
+        it('message length is limited to 500 and counted', async () => {
+            await setup();
+            const box = within(msgBox()).getByRole('textbox');
+            expect(box).toHaveAttribute('maxLength', '500');
+            typeMsg('abc');
+            expect(within(msgBox()).getByText('3/500')).toBeInTheDocument();
+        });
+
+        it('shows last seen in Tashkent time (HH:MM today)', async () => {
+            const iso = new Date().toISOString();
+            await setup([dev({ last_seen_at: iso })]);
+            expect(within(screen.getByTestId('pc-card-1')).getByText(/^\d{2}:\d{2}$/)).toBeInTheDocument();
+        });
     });
 });

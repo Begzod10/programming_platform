@@ -107,8 +107,8 @@ describe('ReportTab', () => {
         // 2026-10-20 Ali row
         expect(rows[2]).toHaveTextContent('✓');
         expect(rows[2]).toHaveTextContent('09:05');
-        expect(rows[2]).toHaveTextContent('10.0');
-        expect(rows[2]).toHaveTextContent(`code.exe 42.0 ${S.min}, chrome.exe 3.1 ${S.min}`);
+        expect(rows[2]).toHaveTextContent('10,0');
+        expect(rows[2]).toHaveTextContent(`code.exe 42,0 ${S.min}, chrome.exe 3,1 ${S.min}`);
         // 2026-10-21 Ali row: quota not met, no unlock time
         expect(rows[0]).toHaveTextContent('✗');
         const cells0 = within(rows[0]).getAllByRole('cell');

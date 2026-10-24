@@ -89,11 +89,14 @@ export function summarizeAll(rows) {
     };
 }
 
-export const formatMinutes = (m) => (Number(m) || 0).toFixed(1);
+export const formatMinutes = (m, lang) => {
+    const v = (Number(m) || 0).toFixed(1);
+    return lang === 'ru' ? v.replace('.', ',') : v;
+};
 
-export function formatTopApps(apps, minLabel) {
+export function formatTopApps(apps, minLabel, lang) {
     if (!Array.isArray(apps) || !apps.length) return DASH;
-    return apps.map(a => `${a.app} ${formatMinutes(a.minutes)} ${minLabel}`).join(', ');
+    return apps.map(a => `${a.app} ${formatMinutes(a.minutes, lang)} ${minLabel}`).join(', ');
 }
 
 export function formatTime(iso) {
@@ -102,4 +105,16 @@ export function formatTime(iso) {
     if (Number.isNaN(d.getTime())) return DASH;
     const p = parts(fmtTime, d);
     return `${p.hour}:${p.minute}`;
+}
+
+// "HH:MM" when `iso` is today in Tashkent, else "DD.MM HH:MM"; `never` for null/invalid.
+export function formatSeen(iso, now, never) {
+    if (!iso) return never;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return never;
+    const p = parts(fmtTime, d);
+    const hm = `${p.hour}:${p.minute}`;
+    if (tashkentDate(d) === tashkentDate(now)) return hm;
+    const [, mo, da] = tashkentDate(d).split('-');
+    return `${da}.${mo} ${hm}`;
 }
