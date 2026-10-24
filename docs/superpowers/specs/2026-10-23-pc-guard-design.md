@@ -1,7 +1,7 @@
 # PC Guard: student PC blocking tied to the daily quota
 
 Date: 2026-10-23
-Status: draft for review
+Status: implemented; Windows components untested (see section 14)
 
 ## 1. Goal
 
@@ -18,10 +18,10 @@ progress report, both from a phone or a Mac.
 | Blocking mode | Allowlist (only listed apps run while locked) |
 | Agent stack | C# .NET 8: Windows Service plus a shell app |
 | Teacher console | Responsive page in the existing React teacher UI (phone and Mac browsers), no native apps |
-| Teacher powers | Lock/unlock now, edit allowlist, live status, send message |
+| Teacher powers | Lock/unlock now, resume, edit allowlist, live status, send message |
 | Report | Teacher dashboard in the platform (no Telegram digest in this version) |
-| Monitoring depth | App name and duration, plus lock/unlock events. No screenshots, keystrokes or page contents |
-| Student identity | Student signs in on the PC with their platform account (assumption, confirm in review) |
+| Monitoring depth | App name and duration (each usage row carries `was_locked`), plus session sign-in/out times; there is no lock/unlock event log. No screenshots, keystrokes or page contents |
+| Student identity | Student signs in on the PC with their platform account (built that way) |
 
 ## 3. Existing code this builds on
 
@@ -39,6 +39,8 @@ Lock state is NOT redefined. The PC reads the platform's own quota result.
 
 ### 4.1 Windows agent (`pc-agent/`)
 
+Implemented and unit-tested at the logic level; the Windows service, shell, ACLs and installer have not yet been run on Windows (see section 14). The agent requires an https backend URL (the installer allows http only for localhost); the password and token travel over it.
+
 Two processes, split by Windows session. A SYSTEM service in session 0 cannot see the
 student's desktop, so the service is the authority and the shell is its eyes.
 
@@ -54,8 +56,9 @@ student's desktop, so the service is the authority and the shell is its eyes.
   - Usage tracker: gaps over 30 s end the open interval at the last observation; intervals
     are chunked below 12 h. Events carry the session they belong to, each session keeps its
     own token in memory, and the queue (capped at 20,000 events) uploads in batches of at
-    most 500. After a service restart, queued usage whose token is gone is dropped, never
-    filed under another student.
+    most 500. Startup purges the whole queue (a token is memory-only), so usage buffered while
+    offline or before a service restart or reboot is lost and reports undercount; it is
+    never filed under another student.
 - **Shell** (WPF, runs as the student in the console session): sign-in screen with a
   privacy notice in Uzbek and Russian, lock banner (always visible while signed in; shows
   remaining lessons while locked), teacher message pop-ups. Every 2 seconds it sends a
@@ -119,7 +122,7 @@ Endpoints:
   that the token's session is still open, otherwise the socket closes with 4001.
   Server pushes `state` and `message` frames.
 - `POST /pc/usage`: batched usage events, all-or-nothing: at most 500 events per batch, each
-  event shorter than 12 h with `ended_at` after `started_at`, and no event ending more than
+  event at most 12 h long with `ended_at` after `started_at`, and no event ending more than
   5 minutes in the future (else 422). Events are attributed to the token's own session. A
   token whose session was closed within the last 24 h is still accepted here (offline-buffered
   usage), and nowhere else.
@@ -131,7 +134,12 @@ Endpoints:
   Scoping: report access and group-level actions (group commands, group allowlist, assigning a
   device to a group) are limited to the teacher's own groups (403 otherwise). The device list,
   scope `all` and `device` commands and the global allowlist are open to any teacher, because
-  lab PCs are shared hardware. A signed-in student is named in the device list only to a
+  lab PCs are shared hardware: any teacher may lock, unlock or message any device and may set
+  a device's group to null or to one of their own groups, even if it is now in another
+  teacher's group; only the target group is checked. For allowlist, command and device
+  endpoints an unknown group is 404 and a foreign one 403; the report returns 403 for both.
+  Flow-owned students count as the teacher's students for the report and device-list
+  visibility, while group actions require `Group.teacher_id`. A signed-in student is named in the device list only to a
   teacher who teaches that student. Message text is limited to 500 characters. An empty
   allowlist is rejected (422); a group list cannot be cleared back to "global only" through
   the API.
@@ -161,13 +169,17 @@ way.
 
 Page `frontend/src/views/teacher/pccontrol/` with three tabs, strings in Uzbek and Russian:
 - **Devices**: online/offline, signed-in student, locked/unlocked with reason, active app,
-  last seen. Per device a group selector (own groups only), and lock, unlock, resume and
-  message buttons. A scope picker (one device, one of the teacher's groups, or all PCs);
-  lock/unlock for all PCs needs a second confirmation. Students the teacher does not teach
-  show as "-". The list refreshes every 5 s and pauses while the browser tab is hidden.
+  last seen. Per device a group selector (own groups only) and Lock/Unlock/Resume (disabled
+  while the PC is offline). An all-PCs bar and a group bar (own groups) offer the same three
+  actions; lock/unlock for all PCs needs a second confirmation. Messages (max 500
+  characters) are sent from a separate box with a target picker (one device, a group, or all).
+  Students the teacher does not teach show as "-". The list refreshes every 5 s, pauses while
+  the browser tab is hidden and reloads after a command or when the tab becomes visible;
+  there is no manual refresh button.
 - **Allowlist**: global and per-group editor.
 - **Report**: date range and group filter, per-student per-day table, a per-student summary
-  (quota days met, 7-day trend), and a note that days and times are Tashkent time.
+  (`met/days`: quota days met out of the days with data in the range; the default range is
+  the last 7 days ending today), and a note that days and times are Tashkent time.
 
 ## 5. Browser handling
 
@@ -182,6 +194,9 @@ locally and never stored or uploaded. Details:
   after 2 consecutive snapshots (about 4 s; Chrome builds its UI tree lazily) and is closed
   while a host list is active. If the bar exists but cannot be read, the last host for that
   window is reused; internal pages (`chrome://`, new tab) are allowed.
+- A null host is allowed: `ExtractHost` returns null for every non-http(s) scheme (`file:`,
+  `data:`, `view-source:`, `about:blank`, `javascript:`) and for dotless text, so such pages
+  stay open while locked. Subdomains of a listed host are allowed.
 - Only Chrome and Edge are covered by the host rule. Other allowlisted browsers are not.
 - This is best-effort and depends on browser UI internals that can change with an update. If
   it proves unreliable, the fallback is to remove browsers from the locked-state allowlist.
@@ -219,8 +234,11 @@ Recorded and sent to the backend: app (exe) names, start and end times, lock sta
 and sign-out times. Not recorded: screenshots, keystrokes, window titles, page contents,
 URLs. The browser host is read in the shell, checked by the service, and never stored or
 sent. Logs: the shell log (per student, about 512 KB, rotated) holds exception type names and
-stack traces only, never messages, titles, URLs or passwords. Local data in
-`%ProgramData%\PcGuard` (machine key, rule cache, usage queue) is readable only by SYSTEM and
+stack traces only. The service writes to the Windows Application event log: names of killed
+executables ("Terminated <exe>"), and some error entries that include exception messages
+(pipe, shell-launch and data-folder errors). No log call writes passwords, tokens, URLs or
+window titles (checked by reading the log calls); checklist test 87 verifies it on a PC. Local data in
+`%ProgramData%\PcGuard` (machine key, rule cache, usage queue; the queue is purged at service start) is readable only by SYSTEM and
 Administrators. A notice in Uzbek and Russian is shown at sign-in because many students are
 minors; the center should inform parents. These claims are enforced by design, but the
 privacy search (checklist tests 87 and 88) has not been run.
@@ -277,7 +295,8 @@ is built. A PC permanently bound to one student (install-time binding) was not i
 Tested: backend pytest (105 PC Guard tests; the whole backend suite had one failure,
 `test_auth.py::test_synced_student_username_upgrades_from_synthetic_on_relogin`, a pre-existing
 shared-test-DB collision unrelated to this feature); agent Core unit tests (386); frontend
-(49 suites, 292 tests, also under other time zones).
+(49 suites, 292 tests: the whole frontend suite, not only the PC console; also run under
+other time zones).
 
 Never run: the Windows service, the shell and the installer scripts (`install.ps1`,
 `uninstall.ps1`, `publish.ps1`). They compile (0-warning build) but nothing has executed on
@@ -295,6 +314,9 @@ Accepted or parked risks:
   under-report windows.
 - An administrator can stop the service; Safe Mode behaviour is untested.
 - Violators are killed with no chance to save work.
+- Browser rule gaps: pages with a non-http(s) scheme or a dotless address read as no host
+  and are allowed; subdomains of a listed host are allowed; only Chrome and Edge are covered.
+- Usage buffered offline is lost on a service restart or reboot (reports undercount).
 - Fallback mode is stricter for third-party apps (can kill autostart apps right after
   sign-in) and weaker for inbox apps.
 - Parked pending a Windows VM: an unreadable token owner on a non-system image is treated as
@@ -315,4 +337,5 @@ Accepted or parked risks:
 Deploy warning: pushing branch `server` auto-deploys the backend to production
 (`.github/workflows/deploy-backend.yml`), which exposes `/pc/*` and `/teacher/pc/*`. Set
 `PC_PLATFORM_HOSTS` in the server's own `.env` first; the deploy does not touch `.env`, and an
-empty value silently disables the browser rule. Nothing has been pushed.
+empty value silently disables the browser rule. The workflow does not run Alembic (it pulls,
+installs requirements and restarts); missing tables are created by `create_all` at startup. Nothing has been pushed.
