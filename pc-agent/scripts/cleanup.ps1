@@ -258,14 +258,16 @@ function Invoke-FindBusyScripts {
         $pct = ($delta / ($elapsed * $cores)) * 100
         $c = $cim[$procId]
         if (-not $c) { continue }
-        [void]$rows.Add([pscustomobject]@{ ProcId = [int]$procId; Cpu = [math]::Round($pct, 1); Cim = $c })
+        $startOk = [bool]($a.Start -and $b.Start)
+        [void]$rows.Add([pscustomobject]@{ ProcId = [int]$procId; Cpu = [math]::Round($pct, 1); CpuRaw = $pct; StartOk = $startOk; Cim = $c })
     }
 
     # Candidates: script hosts, or script-looking command lines whose parent is a script host.
     $cands = New-Object System.Collections.ArrayList
     foreach ($r in $rows) {
-        if ($r.Cpu -lt $MinCpuPercent) { continue }
+        if ($r.CpuRaw -lt $MinCpuPercent) { continue }   # compare the UNROUNDED value; Cpu is for display only
         if ($r.ProcId -eq 0) { continue }
+        if (-not $r.StartOk) { continue }   # fail closed: no start time in both samples => PID reuse cannot be excluded
         $c = $r.Cim
         $img = Get-ImageName $c.Name
         $cmd = [string]$c.CommandLine
@@ -398,8 +400,16 @@ function Invoke-FindBusyScripts {
                 }
             }
             catch {
-                Write-Host ('   PID {0}: FAILED: {1}' -f $x.ProcId, $_.Exception.Message) -ForegroundColor Red
-                $script:KillFailures++
+                $killMsg = $_.Exception.Message
+                $exitedNow = $false
+                try { $p.Refresh(); $exitedNow = $p.HasExited } catch { $exitedNow = $false }
+                if ($exitedNow) {
+                    Write-Host ('   PID {0}: already gone.' -f $x.ProcId) -ForegroundColor Green
+                }
+                else {
+                    Write-Host ('   PID {0}: FAILED: {1}' -f $x.ProcId, $killMsg) -ForegroundColor Red
+                    $script:KillFailures++
+                }
             }
         }
         else {
@@ -436,14 +446,33 @@ function Grant-AdminOnItem {
     Invoke-Native 'icacls.exe' @($Path, '/grant', '*S-1-5-32-544:(F)', '/C', '/L', '/Q') | Out-Null
 }
 
+function Test-ItemUnchanged {
+    # Fresh read of the attributes of the item ITSELF (a link is not followed): still the same kind as when listed?
+    param([string]$Path, [bool]$IsDir, [bool]$IsLink)
+    try {
+        $a = [int][System.IO.File]::GetAttributes($Path)
+    }
+    catch {
+        return $false
+    }
+    $nowLink = (($a -band ([int][System.IO.FileAttributes]::ReparsePoint)) -ne 0)
+    $nowDir = (($a -band ([int][System.IO.FileAttributes]::Directory)) -ne 0)
+    return (($nowLink -eq $IsLink) -and ($nowDir -eq $IsDir))
+}
+
 function Remove-OneItem {
     # Deletes one file / directory / link. A link is removed as a link only. On failure fixes ACL of that item and retries once.
+    # The kind of the item is re-read immediately before deleting (a changed or unreadable state is a failure for that item).
     param([string]$Path, [bool]$IsDir, [bool]$IsLink, $Errors)
+    if (-not (Test-ItemUnchanged $Path $IsDir $IsLink)) {
+        [void]$Errors.Add($Path + ': changed or unreadable just before deletion; not deleted')
+        return
+    }
     $lastMsg = ''
     for ($attempt = 0; $attempt -lt 2; $attempt++) {
         try {
             if (-not $IsLink) {
-                # Never touch attributes of a link: that could follow it to the target.
+                # Never touch attributes of a link here: that could follow it to the target.
                 try { [System.IO.File]::SetAttributes($Path, [System.IO.FileAttributes]::Normal) } catch { }
             }
             if ($IsDir) { [System.IO.Directory]::Delete($Path, $false) }
@@ -453,12 +482,21 @@ function Remove-OneItem {
         catch {
             $lastMsg = $_.Exception.Message
         }
-        if ($attempt -eq 0) { Grant-AdminOnItem $Path }
+        if ($attempt -eq 0) {
+            if ($IsLink -and (-not $IsDir)) {
+                # File link (possibly read-only): clear the attribute now, then retry. (Windows may apply this to the link target.)
+                try { [System.IO.File]::SetAttributes($Path, [System.IO.FileAttributes]::Normal) } catch { }
+            }
+            Grant-AdminOnItem $Path
+        }
     }
     [void]$Errors.Add($Path + ': ' + $lastMsg)
 }
 
 function Remove-TreeInner {
+    # NOTE ON RACES: the listing is a snapshot. The attributes are re-read right before recursing and right before every
+    # delete, but the real protection is that callers only pass folders that Test-TrustedAdminFolder /
+    # Test-NoNonAdminWrite accepted: nobody but administrators can create or swap entries there while this runs.
     param([string]$Dir, $Errors)
     $children = @()
     $listed = $false
@@ -478,7 +516,13 @@ function Remove-TreeInner {
     foreach ($c in $children) {
         $link = Test-IsReparse $c
         if ($c -is [System.IO.DirectoryInfo]) {
-            if (-not $link) { Remove-TreeInner $c.FullName $Errors }
+            if (-not $link) {
+                if (-not (Test-ItemUnchanged $c.FullName $true $false)) {
+                    [void]$Errors.Add($c.FullName + ': changed or unreadable before descending; skipped')
+                    continue
+                }
+                Remove-TreeInner $c.FullName $Errors
+            }
             Remove-OneItem $c.FullName $true $link $Errors
         }
         else {
@@ -526,6 +570,71 @@ function Get-FolderOwner {
     }
     catch {
         return $null
+    }
+}
+
+function Test-TrustedAdminFolder {
+    # Fail closed (any error => $false). Sets $script:TrustWhy. Trusted = owner SYSTEM / Administrators / the current elevated
+    # user, ACL not inherited, and every Allow ACE belongs to SYSTEM or Administrators (CREATOR OWNER is ignored).
+    param([string]$Path)
+    $script:TrustWhy = 'could not read the ACL'
+    try {
+        $owner = Get-FolderOwner $Path
+        if (-not $owner) { $script:TrustWhy = 'owner unknown'; return $false }
+        $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+        $okOwners = @('S-1-5-18', 'S-1-5-32-544', $me)
+        if ($okOwners -notcontains $owner.Sid) { $script:TrustWhy = 'owner ' + $owner.Text; return $false }
+        $acl = Get-Acl -LiteralPath $Path -ErrorAction Stop
+        if (-not $acl.AreAccessRulesProtected) { $script:TrustWhy = 'owner ' + $owner.Text + ', ACL inherits entries from the parent folder'; return $false }
+        $okAce = @('S-1-5-18', 'S-1-5-32-544', 'S-1-3-0')
+        foreach ($r in $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])) {
+            if ($r.AccessControlType -ne 'Allow') { continue }
+            $sid = [string]$r.IdentityReference.Value
+            if ($okAce -notcontains $sid) { $script:TrustWhy = 'owner ' + $owner.Text + ', non-admin ACE for ' + $sid; return $false }
+        }
+        return $true
+    }
+    catch {
+        $script:TrustWhy = 'error while checking: ' + $_.Exception.Message
+        return $false
+    }
+}
+
+function Test-NoNonAdminWrite {
+    # Fail closed. For the install folder (Users may legitimately have read/execute). Sets $script:WriteWhy.
+    param([string]$Path)
+    $script:WriteWhy = 'could not read the ACL'
+    try {
+        $acl = Get-Acl -LiteralPath $Path -ErrorAction Stop
+        # WriteData 2, AppendData 4, DeleteSubdirectoriesAndFiles 64, Delete 0x10000, ChangePermissions 0x40000,
+        # TakeOwnership 0x80000, GenericAll 0x10000000, GenericWrite 0x40000000
+        $mask = (2 -bor 4 -bor 64 -bor 0x10000 -bor 0x40000 -bor 0x80000 -bor 0x10000000 -bor 0x40000000)
+        $names = @{ 'S-1-5-32-545' = 'Users'; 'S-1-5-11' = 'Authenticated Users'; 'S-1-1-0' = 'Everyone'; 'S-1-5-4' = 'INTERACTIVE' }
+        foreach ($r in $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])) {
+            if ($r.AccessControlType -ne 'Allow') { continue }
+            $sid = [string]$r.IdentityReference.Value
+            if (-not $names.ContainsKey($sid)) { continue }
+            $rights = [int]$r.FileSystemRights
+            if (($rights -band $mask) -ne 0) {
+                $script:WriteWhy = $names[$sid] + ' (' + $sid + ') has write-type rights (' + $r.FileSystemRights + ') on the folder'
+                return $false
+            }
+        }
+        return $true
+    }
+    catch {
+        $script:WriteWhy = 'error while checking: ' + $_.Exception.Message
+        return $false
+    }
+}
+
+function Test-MarkedForDeletion {
+    try {
+        $v = (Get-ItemProperty -LiteralPath $ServiceKey -Name DeleteFlag -ErrorAction Stop).DeleteFlag
+        return ([int]$v -ne 0)
+    }
+    catch {
+        return $false
     }
 }
 
@@ -623,6 +732,13 @@ function Test-ServiceExists {
     return [bool](Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)
 }
 
+function Write-MarkedBlock {
+    Write-Host ''
+    Write-Host 'The PcGuard service is marked for deletion: close Services / Event Viewer / Task Manager windows or reboot,' -ForegroundColor Red
+    Write-Host 'then run this script again. It was disabled and stopped, so this PC is UNGUARDED until the removal finishes or the' -ForegroundColor Red
+    Write-Host 'service is reinstalled with install.ps1.' -ForegroundColor Red
+}
+
 function Write-RestoreBlock {
     Write-Host ''
     Write-Host 'WARNING: the PcGuard service still exists but this script changed it. The PC is UNGUARDED until you rerun' -ForegroundColor Red
@@ -704,6 +820,27 @@ function Invoke-RemovePcGuard {
         Add-Result $Name 'OK' ('start type set to disabled (original Start value: ' + $script:OrigStart + ')')
     }
 
+    Invoke-Step 'Clear recovery actions' {
+        if (-not (Test-ServiceExists)) { Add-Result $Name 'SKIPPED' 'service not registered'; return }
+        if (-not (Confirm-Action $ServiceName 'sc.exe failure: clear recovery actions (no restart on failure)')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
+        $script:ServiceTouched = $true
+        # One verbatim argument string: an empty "" argument would be dropped or mangled by array passing.
+        $code = -1
+        try {
+            $pr = Start-Process -FilePath 'sc.exe' -ArgumentList 'failure PcGuard reset= 0 actions= ""' -Wait -PassThru -NoNewWindow -ErrorAction Stop
+            $code = [int]$pr.ExitCode
+        }
+        catch {
+            Add-Result $Name 'FAILED' ('could not run sc.exe failure: ' + $_.Exception.Message + ' (the recovery actions may bring the service back when it is killed)')
+            return
+        }
+        if ($code -ne 0) {
+            Add-Result $Name 'FAILED' ('sc.exe failure exit code ' + $code + ' (the recovery actions may bring the service back when it is killed)')
+            return
+        }
+        Add-Result $Name 'OK' 'recovery actions cleared'
+    }
+
     Invoke-Step 'Stop service' {
         if (-not (Test-ServiceExists)) { Add-Result $Name 'SKIPPED' 'service not registered'; return }
         $svc = Get-Service -Name $ServiceName
@@ -720,7 +857,11 @@ function Invoke-RemovePcGuard {
     Invoke-Step 'End PcGuard.Service.exe' {
         $present = @(Get-Process -Name 'PcGuard.Service' -ErrorAction SilentlyContinue)
         if ($present.Count -eq 0) { Add-Result $Name 'SKIPPED' 'not running'; return }
-        if (-not (Confirm-Action 'PcGuard.Service.exe' 'Stop process')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
+        if (-not (Confirm-Action 'PcGuard.Service.exe' 'Stop process')) {
+            if (-not $script:DryRun) { $script:ProcEndFailed = $true }
+            Add-Result $Name 'SKIPPED' (Get-NotDoneText)
+            return
+        }
         $script:ServiceTouched = $true
         $left = Stop-ProcessesByBaseName 'PcGuard.Service'
         if ($left -eq 0) { Add-Result $Name 'OK' ('ended ' + $present.Count + ' process(es)') }
@@ -733,7 +874,11 @@ function Invoke-RemovePcGuard {
     Invoke-Step 'End PcGuard.Shell.exe' {
         $present = @(Get-Process -Name 'PcGuard.Shell' -ErrorAction SilentlyContinue)
         if ($present.Count -eq 0) { Add-Result $Name 'SKIPPED' 'not running'; return }
-        if (-not (Confirm-Action 'PcGuard.Shell.exe' 'Stop process')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
+        if (-not (Confirm-Action 'PcGuard.Shell.exe' 'Stop process')) {
+            if (-not $script:DryRun) { $script:ProcEndFailed = $true }
+            Add-Result $Name 'SKIPPED' (Get-NotDoneText)
+            return
+        }
         $left = Stop-ProcessesByBaseName 'PcGuard.Shell'
         if ($left -eq 0) { Add-Result $Name 'OK' ('ended ' + $present.Count + ' process(es)') }
         else {
@@ -807,16 +952,24 @@ function Invoke-RemovePcGuard {
                 return
             }
         }
+        if (-not (Test-NoNonAdminWrite $dir)) {
+            if (-not $Force) {
+                Add-Result $Name 'FAILED' ('''' + $dir + ''' is not safe to delete automatically (' + $script:WriteWhy + '); nothing deleted. Inspect it; rerun with -Force only if you are sure.')
+                return
+            }
+            Write-Host ('  WARNING: -Force given; continuing although ' + $script:WriteWhy) -ForegroundColor Yellow
+        }
         if (-not (Confirm-Action $dir 'Delete folder tree (links are removed, never followed)')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
         Remove-TreeSafe $dir
         Add-Result $Name 'OK' ('deleted ' + $dir)
     }
 
-    # 5. Leftover setup temp folders created by Setup (owner SYSTEM or Administrators, not a link).
+    # 5. Leftover setup temp folders created by Setup (admin-only ACL and owner, not a link, direct child of ProgramData).
     Invoke-Step 'Setup temp folders' {
         $list = @()
         try { $list = @(Get-ChildItem -LiteralPath $env:ProgramData -Directory -Filter 'PcGuard-setup-*' -Force -ErrorAction SilentlyContinue) } catch { }
         if ($list.Count -eq 0) { Add-Result $Name 'SKIPPED' 'none found'; return }
+        $pdFull = Resolve-FsPath $env:ProgramData
         $done = 0
         $notDone = 0
         $skipped = @()
@@ -824,19 +977,17 @@ function Invoke-RemovePcGuard {
         foreach ($d in $list) {
             if ($d.Name -notlike 'PcGuard-setup-*') { continue }
             if (Test-IsReparse $d) { $bad += ($d.FullName + ' is a reparse point (junction or symlink); nothing deleted'); continue }
-            $owner = Get-FolderOwner $d.FullName
-            $ownerOk = $false
-            if ($owner) {
-                if (($owner.Sid -eq 'S-1-5-18') -or ($owner.Sid -eq 'S-1-5-32-544')) { $ownerOk = $true }
-            }
-            if (-not $ownerOk) {
-                $ot = 'unknown'
-                if ($owner) { $ot = $owner.Text }
-                $skipped += ($d.FullName + ': not created by Setup (owner ' + $ot + '); delete manually')
+            $full = $null
+            try { $full = Resolve-FsPath $d.FullName } catch { $bad += ($d.FullName + ': ' + $_.Exception.Message); continue }
+            if ((Split-Path -Parent $full) -ne $pdFull) { $bad += ($full + ' is not directly inside ' + $pdFull + '; not deleted'); continue }
+            $refusal = Get-DeleteRefusal $full
+            if ($refusal) { $bad += ($full + ': refusing to delete: ' + $refusal); continue }
+            if (-not (Test-TrustedAdminFolder $full)) {
+                $skipped += ($full + ': folder is not admin-only (' + $script:TrustWhy + '); inspect it and delete manually')
                 continue
             }
-            if (-not (Confirm-Action $d.FullName 'Delete folder tree (links are removed, never followed)')) { $notDone++; continue }
-            try { Remove-TreeSafe $d.FullName; $done++ } catch { $bad += ($d.FullName + ': ' + $_.Exception.Message) }
+            if (-not (Confirm-Action $full 'Delete folder tree (links are removed, never followed)')) { $notDone++; continue }
+            try { Remove-TreeSafe $full; $done++ } catch { $bad += ($full + ': ' + $_.Exception.Message) }
         }
         if ($bad.Count -gt 0) {
             Add-Result $Name 'FAILED' (($bad + $skipped) -join '; ')
@@ -852,7 +1003,7 @@ function Invoke-RemovePcGuard {
         }
     }
 
-    # 6. Data folder (machine key) only with -Purge.
+    # 6. Data folder (machine key) only with -Purge; must be exactly <ProgramData>\PcGuard and admin-only.
     Invoke-Step 'Data folder' {
         $data = Join-Path $env:ProgramData 'PcGuard'
         if (-not $Purge) {
@@ -861,9 +1012,20 @@ function Invoke-RemovePcGuard {
             return
         }
         if (-not (Test-Path -LiteralPath $data)) { Add-Result $Name 'SKIPPED' 'not present'; return }
-        if (-not (Confirm-Action $data 'Delete folder tree (-Purge; links are removed, never followed)')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
-        Remove-TreeSafe $data
-        Add-Result $Name 'OK' ('deleted ' + $data)
+        $full = Resolve-FsPath $data
+        $expected = (Resolve-FsPath $env:ProgramData) + '\PcGuard'
+        if ($full -ne $expected) { Add-Result $Name 'FAILED' ('refusing to purge ''' + $full + ''': it is not exactly ' + $expected); return }
+        $refusal = Get-DeleteRefusal $full
+        if ($refusal) { Add-Result $Name 'FAILED' ('refusing to purge ''' + $full + ''': ' + $refusal); return }
+        $di = New-Object System.IO.DirectoryInfo($full)
+        if (Test-IsReparse $di) { Add-Result $Name 'FAILED' ('''' + $full + ''' is a reparse point (junction or symlink); nothing deleted'); return }
+        if (-not (Test-TrustedAdminFolder $full)) {
+            Add-Result $Name 'SKIPPED' ('folder is not admin-only (' + $script:TrustWhy + '); inspect it and delete manually')
+            return
+        }
+        if (-not (Confirm-Action $full 'Delete folder tree (-Purge; links are removed, never followed)')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
+        Remove-TreeSafe $full
+        Add-Result $Name 'OK' ('deleted ' + $full)
     }
 
     $old = @()
@@ -905,7 +1067,9 @@ try {
     if ($failed -gt 0) {
         Write-Host ''
         Write-Host ('{0} step(s) FAILED. See the messages above.' -f $failed) -ForegroundColor Red
-        if ($script:RemovalRan -and $script:ServiceTouched -and (Test-ServiceExists)) { Write-RestoreBlock }
+        if ($script:RemovalRan -and $script:ServiceTouched -and (Test-ServiceExists)) {
+            if (Test-MarkedForDeletion) { Write-MarkedBlock } else { Write-RestoreBlock }
+        }
         exit 2
     }
     Write-Host ''

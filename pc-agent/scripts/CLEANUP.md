@@ -51,13 +51,14 @@ The install folder is deleted only when it is named exactly `PcGuard` AND holds 
 `-InstallDir <path> -Force`); an explicit `-InstallDir` with another name needs `-Force` and a PC Guard exe inside.
 Never deleted: drive roots, Windows (and System32/SysWOW64), Program Files (both), Common Files, ProgramData,
 C:\Users, every user profile and its Desktop/Documents/Downloads. If the service or shell could not be ended the
-install folder is left alone. `PcGuard-setup-*` folders are deleted only when owned by SYSTEM or Administrators.
+install folder is left alone (also when you decline the Stop process step at a `-Confirm` prompt). `PcGuard-setup-*` folders and the `-Purge` target `%ProgramData%\PcGuard` (which must be exactly that path) are deleted only when they are admin-only: owner SYSTEM / Administrators / the current admin, inheritance off, only SYSTEM and Administrators in the ACL (else SKIPPED, inspect by hand). The install folder is refused (FAILED, overridable with `-Force`) when Users, Authenticated Users, Everyone or INTERACTIVE hold write-type rights on it. During the walk each item's attributes are re-read right before it is entered or deleted; the admin-only checks are what make this race-free.
 If a step fails after the service was disabled, the script prints how to restore it (the PC is unguarded meanwhile).
 
 ## Honest limits
 
 - NEVER executed on Windows (written without PowerShell available). Run the checklist below on a VM first.
 - CPU % is one short sample, not an average; a process can spike or sleep just outside the window.
+- Not handled: user profiles registered outside C:\\Users, 8.3 short-name aliases on PowerShell 7, and the ACL side effect on hard links (a per-item `icacls` fix on a hard-linked file changes the other name too).
 - `ProcessorCount` counts one processor group on .NET Framework (Windows PowerShell 5.1) on machines with more than 64 logical cores, so percentages can be too high there.
 - Processes of other users (and their command lines) need elevation to be seen.
 - The shell is protected by a deny-terminate DACL. An elevated admin should still end it, but if not, the step
@@ -81,14 +82,15 @@ while ($true) { $x++ }
 
 | # | Test | Expected | Pass/Fail |
 |---|------|----------|-----------|
-| 1 | Elevated: `.\cleanup.ps1` with the burner running | Burner listed with CPU above 10%, owner, parent, command line `burn.ps1`; top-10 list labelled informational; nothing closed | [ ] Pass [ ] Fail |
+| 1 | Elevated: `.\cleanup.ps1` with the burner running | Use a VM with 8 or fewer logical cores (a single burner shows 100/cores percent) or lower `-MinCpuPercent`. Burner listed with CPU above 10%, owner, parent, command line `burn.ps1`; top-10 list labelled informational; nothing closed | [ ] Pass [ ] Fail |
 | 2 | Same with `-MinCpuPercent 95 -SampleSeconds 2` on a multi-core VM | Burner (about 100/cores %) not listed; "None found." | [ ] Pass [ ] Fail |
 | 3 | `.\cleanup.ps1 -Kill -WhatIf` with burner running | "What if: ... Stop process" printed, no prompt, burner keeps running | [ ] Pass [ ] Fail |
 | 4 | `.\cleanup.ps1 -Kill`, answer `N` (or just Enter) | Burner still running afterwards | [ ] Pass [ ] Fail |
 | 5 | `.\cleanup.ps1 -Kill`, answer `y` | Burner closed, message "closed"; exit code 0 | [ ] Pass [ ] Fail |
 | 6 | Start two burners, `-Kill`, answer `a` on the first | Both closed; protected ones (if any listed) still skipped | [ ] Pass [ ] Fail |
 | 7 | Answer `q` at the first prompt | Loop ends, nothing closed | [ ] Pass [ ] Fail |
-| 8 | Parent-chain protection. Window B: `powershell -NoExit -Command "powershell -NoProfile -Command 'while($true){}'"` (outer host B1 is idle, inner host B2 burns). In window B2's parent chain nothing runs cleanup, so first run `.\cleanup.ps1 -Kill` from a separate window A: B2 is listed and closable (answer N). Then in window B (before starting the burner) run `.\cleanup.ps1 -Kill` from inside the same console tree while another burner runs elsewhere | A burner that is NOT an ancestor of the cleanup window is listed and closable; any ancestor host of the cleanup window is never prompted (shown `[protected: this PowerShell or its parent chain]` if it is busy) | [ ] Pass [ ] Fail |
+| 8 | Parent-chain protection. Elevated, in the scripts folder, from a NORMAL PowerShell window run (PowerShell syntax): `powershell -NoExit -Command '$ps=[powershell]::Create().AddScript(''while($true){}''); $null=$ps.BeginInvoke(); .\cleanup.ps1 -Kill'`  (from cmd.exe use: `powershell -NoExit -Command "$ps=[powershell]::Create().AddScript('while($true){}'); $null=$ps.BeginInvoke(); .\cleanup.ps1 -Kill"`) | That new window's own powershell.exe burns CPU inside and is the ancestor of the cleanup script: it is listed as `[protected: this PowerShell or its parent chain]` and is never offered for closing | [ ] Pass [ ] Fail |
+| 8b | Not an ancestor: start the burner in a separate window (`Start-Process powershell -ArgumentList '-NoProfile','-Command','while($true){}'`), then in another elevated window run `.\cleanup.ps1 -Kill` | The burner is listed and offered; answering N keeps it, answering y closes it | [ ] Pass [ ] Fail |
 | 9 | While heavy load runs from explorer/svchost/MsMpEng (e.g. a full Defender scan) | They appear only in the top-10 informational list, never in the candidate list or any prompt | [ ] Pass [ ] Fail |
 | 10 | With PC Guard running, `.\cleanup.ps1 -Kill` | PcGuard.* processes never listed for closing or prompted | [ ] Pass [ ] Fail |
 | 11 | Unelevated: `.\cleanup.ps1` | Lists, with a warning about hidden processes; exit 0 | [ ] Pass [ ] Fail |
@@ -112,6 +114,14 @@ while ($true) { $x++ }
 | 29 | Relative path: `cd C:\x; [Environment]::CurrentDirectory = 'C:\'; .\cleanup.ps1 -RemovePcGuard -InstallDir .\PcGuard -WhatIf` | Printed folder is `C:\x\PcGuard` (PowerShell location), the same one checked and deleted | [ ] Pass [ ] Fail |
 | 30 | Install via sc.exe pointing at `D:\build\Release\PcGuard.Service.exe` (copy of the exe), then `-RemovePcGuard` | Folder step SKIPPED with "not named PcGuard ... rerun with -InstallDir"; folder intact. With `-InstallDir D:\build\Release` alone: SKIPPED (needs -Force); with `-Force`: deleted | [ ] Pass [ ] Fail |
 | 31 | Make the shell un-killable (or run with a shell that survives) so End PcGuard.Shell.exe FAILS | Install folder step SKIPPED with the reboot / Safe Mode hint; folder untouched; exit 2 | [ ] Pass [ ] Fail |
-| 32 | Same failure as 31 (service disabled but not deleted) | Restore block printed (`sc.exe config PcGuard start= auto`, failure, failureflag, start) with the "UNGUARDED" warning | [ ] Pass [ ] Fail |
+| 32 | Restore block (variant A, service marked for deletion): open `services.msc`, double-click PcGuard (leave the Properties dialog open), run `.\cleanup.ps1 -RemovePcGuard -Force` | Delete service FAILED "marked for deletion"; at the end the MARKED text is printed (close Services/Event Viewer/Task Manager windows or reboot, rerun; PC unguarded) and NOT the `sc.exe config ... start= auto` restore block | [ ] Pass [ ] Fail |
+| 32b | Restore block (variant B, delete refused but not marked; UNTESTED recipe): note `sc.exe sdshow PcGuard`, then `sc.exe sdset PcGuard "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCLCSWRPWPDTLOCRRC;;;BA)"` (no DELETE right for anyone), run `.\cleanup.ps1 -RemovePcGuard -Force`, afterwards restore the old SDDL with `sdset` | `sc delete` FAILED (access denied), service still exists and is not marked; the restore block (start= auto, failure actions, failureflag 1, start) and the UNGUARDED warning are printed | [ ] Pass [ ] Fail |
 | 33 | Process re-check (code reading, a PID swap during the prompt cannot be staged): read the Kill loop in cleanup.ps1 | After the answer it calls Get-Process again, compares StartTime (2 s tolerance) and name, re-runs Get-ProtectionReason on fresh data and uses `Stop-Process -InputObject` | [ ] Pass [ ] Fail |
 | 34 | A script started by `Setup-PcGuard.exe` (child of it) burning CPU | Listed with `[protected: started by PC Guard / Setup-PcGuard]`, no prompt | [ ] Pass [ ] Fail |
+| 35 | Setup folder not admin-only: create `C:\ProgramData\PcGuard-setup-acl`, grant `Users:(M)` with icacls (inheritance left on) | SKIPPED "folder is not admin-only (...)"; folder remains | [ ] Pass [ ] Fail |
+| 36 | `-Purge` with a writable data folder: `icacls C:\ProgramData\PcGuard /grant Users:(M)` then `-RemovePcGuard -Purge -Force` | Data folder step SKIPPED (not admin-only); machine.key remains | [ ] Pass [ ] Fail |
+| 37 | Install folder `icacls "C:\Program Files\PcGuard" /grant Users:(M)` then `-RemovePcGuard -Force` | Install folder step FAILED naming Users and the rights; nothing deleted; with `-Force` and the same state only a warning and then deletion happens (a normal install with Users read/execute passes without any warning) | [ ] Pass [ ] Fail |
+| 38 | `.\cleanup.ps1 -RemovePcGuard -Force -Confirm`, answer No to "Stop process" for the service or shell | End step SKIPPED (declined) and Install folder step SKIPPED with the reboot hint; folder untouched | [ ] Pass [ ] Fail |
+| 39 | Put a read-only file symlink (`mklink` with a read-only target file) inside the install folder | Removed as a link; the target file still exists | [ ] Pass [ ] Fail |
+| 40 | `.\cleanup.ps1 -RemovePcGuard -WhatIf`, then a real run with `-Force` on a normal install | WhatIf shows Disable service and Clear recovery actions as not performed and changes nothing; the real run reports both OK (`sc.exe qfailure PcGuard` shows no actions just before the delete if you pause there) | [ ] Pass [ ] Fail |
+
