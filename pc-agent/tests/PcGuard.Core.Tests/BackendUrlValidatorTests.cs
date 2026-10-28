@@ -176,7 +176,7 @@ public class BackendUrlValidatorTests
     {
         var r = BackendUrlValidator.Validate("https://b\u00fccher.example/api/v1");
         Assert.False(r.Ok);
-        Assert.Equal("The backend URL contains characters that are not allowed.", r.Error);
+        Assert.Equal("The backend URL contains non-ASCII characters. Use the punycode (xn--) form of the domain name.", r.Error);
     }
 
     [Fact]

@@ -33,6 +33,14 @@ public sealed record AceInfo(string Path, string Sid, bool Allow, AceRights Righ
 
 public sealed record UnsafeGrant(string Path, string Sid, string Group);
 
+/// <summary>Flattened result of walking the package: all ACEs, reparse points found inside dist\, and the number of entries visited.</summary>
+public sealed record PackageScan(IReadOnlyList<AceInfo> Aces, IReadOnlyList<string> ReparsePaths, int EntryCount);
+
+public sealed record PackageVerdict(IReadOnlyList<UnsafeGrant> Grants, IReadOnlyList<string> ReparsePaths, bool TooLarge)
+{
+    public bool IsSafe => Grants.Count == 0 && ReparsePaths.Count == 0 && !TooLarge;
+}
+
 /// <summary>Decides whether a package folder can be modified by standard users (then an elevated install must refuse it).</summary>
 public static class PackageAclPolicy
 {
@@ -47,6 +55,30 @@ public static class PackageAclPolicy
     private const AceRights Dangerous =
         AceRights.WriteData | AceRights.AppendData | AceRights.DeleteSubdirectoriesAndFiles | AceRights.Delete
         | AceRights.ChangePermissions | AceRights.TakeOwnership | AceRights.GenericAll | AceRights.GenericWrite;
+
+    /// <summary>The walk of dist\ stops after this many files and folders; a bigger tree counts as unsafe.</summary>
+    public const int MaxEntries = 5000;
+
+    /// <summary>Printed when the package is refused. Single source for the exe message (the README repeats it).</summary>
+    public static readonly IReadOnlyList<string> RemedyLines = new[]
+    {
+        "Copy the whole PcGuard folder to an admin-only place (for example C:\\PcGuardSetup), then run this in an elevated prompt AFTER copying:",
+        "icacls C:\\PcGuardSetup /inheritance:r /grant:r \"*S-1-5-32-544:(OI)(CI)F\" \"*S-1-5-18:(OI)(CI)F\"",
+        "(this removes the inherited permissions, so only Administrators and SYSTEM keep access). Then run Setup-PcGuard.exe from there.",
+        "Alternatively run it from the administrator's own profile folder (Desktop or Downloads), which passes the check on a default Windows profile.",
+        "Or pass --allow-writable-package if you accept the risk.",
+    };
+
+    public static PackageVerdict Evaluate(PackageScan scan) =>
+        new(FindUnsafeGrants(scan.Aces), scan.ReparsePaths, scan.EntryCount > MaxEntries);
+
+    /// <summary>One line per grant, at most five, then "and N more.".</summary>
+    public static IReadOnlyList<string> DescribeGrants(IReadOnlyList<UnsafeGrant> grants)
+    {
+        var lines = grants.Take(5).Select(g => $"{g.Group} can modify: {g.Path}").ToList();
+        if (grants.Count > 5) lines.Add($"and {grants.Count - 5} more.");
+        return lines;
+    }
 
     /// <summary>Allow entries for Users, Authenticated Users, Everyone or INTERACTIVE that grant write-like rights. Deny entries are ignored.</summary>
     public static IReadOnlyList<UnsafeGrant> FindUnsafeGrants(IEnumerable<AceInfo> aces)

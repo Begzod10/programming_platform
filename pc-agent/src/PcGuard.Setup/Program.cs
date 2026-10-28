@@ -152,16 +152,16 @@ internal static class Program
             PowerShellCommand.BuildInstall(script, result.Normalized!, distDir, WindowsDir));
     }
 
-    /// <summary>Refuses a package folder that standard users can modify (they could swap the exe that becomes a SYSTEM service).</summary>
+    /// <summary>Refuses a package folder that standard users can modify (they could swap files that end up in a SYSTEM service).</summary>
     private static bool CheckPackageAcl(string packageRoot, bool allowWritable)
     {
         Console.WriteLine("Package folder: " + packageRoot);
-        Console.WriteLine("(Install refuses a package folder that standard users can modify; copy it to an admin-only place such as C:\\PcGuardSetup.)");
+        Console.WriteLine("Install refuses a package folder that standard users can modify (see the README: copy it to C:\\PcGuardSetup and lock it with icacls).");
 
-        List<PcGuard.Core.UnsafeGrant> bad;
+        PackageVerdict verdict;
         try
         {
-            bad = PcGuard.Core.PackageAclPolicy.FindUnsafeGrants(PackageAcl.Read(packageRoot)).ToList();
+            verdict = PackageAclPolicy.Evaluate(PackageAcl.Read(packageRoot));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -171,18 +171,25 @@ internal static class Program
             return true;
         }
 
-        if (bad.Count == 0) return true;
+        if (verdict.IsSafe) return true;
 
-        foreach (var g in bad)
-            Console.Error.WriteLine($"  {g.Group} can modify: {g.Path}");
+        foreach (var line in PackageAclPolicy.DescribeGrants(verdict.Grants))
+            Console.Error.WriteLine("  " + line);
+        foreach (var p in verdict.ReparsePaths.Take(5))
+            Console.Error.WriteLine("  Link or junction inside the package (could point anywhere): " + p);
+        if (verdict.ReparsePaths.Count > 5)
+            Console.Error.WriteLine($"  and {verdict.ReparsePaths.Count - 5} more.");
+        if (verdict.TooLarge)
+            Console.Error.WriteLine($"  The dist folder has more than {PackageAclPolicy.MaxEntries} files and folders; it is too large to check and is treated as unsafe.");
+
         if (!allowWritable)
         {
-            Console.Error.WriteLine("Refusing to install: a standard user could replace these files before they are installed as a SYSTEM service.");
-            Console.Error.WriteLine("Copy the whole PcGuard folder to an admin-only location (for example C:\\PcGuardSetup) and run Setup-PcGuard.exe from there,");
-            Console.Error.WriteLine("or pass --allow-writable-package if you accept the risk.");
+            Console.Error.WriteLine("Refusing to install: a standard user could replace files before they are installed as a SYSTEM service.");
+            foreach (var line in PackageAclPolicy.RemedyLines)
+                Console.Error.WriteLine("  " + line);
             return false;
         }
-        Console.Error.WriteLine("WARNING: --allow-writable-package given. Continuing although standard users can modify the package folder!");
+        Console.Error.WriteLine("WARNING: --allow-writable-package given. Continuing although the package folder is not safe!");
         return true;
     }
 
@@ -314,7 +321,7 @@ internal static class Program
         Console.WriteLine("  (no arguments)   interactive menu");
         Console.WriteLine("  --install        install or upgrade; with --backend-url it runs without questions");
         Console.WriteLine("  --uninstall      uninstall without questions (add --purge to also delete ProgramData\\PcGuard)");
-        Console.WriteLine("  --allow-writable-package   install even if standard users can modify the package folder (NOT recommended)");
+        Console.WriteLine("  --allow-writable-package   install even if standard users can modify the package folder, or it holds links or too many files (NOT recommended)");
         Console.WriteLine("  --no-pause       with --install/--uninstall: do not wait for Enter at the end");
     }
 }

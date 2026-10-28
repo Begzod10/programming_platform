@@ -66,9 +66,15 @@ Double-click it (Windows shows the UAC prompt; it needs Administrator) and choos
 
 - The two scripts are EMBEDDED in the exe. At run time they are written to a new folder `%ProgramData%\PcGuard-setup-<guid>` that only SYSTEM and Administrators can access (ACL applied when the folder is created, inheritance removed), checked by SHA-256 against the embedded bytes, run, and the folder is deleted afterwards (also after errors and Ctrl+C). The loose `scripts\` folder is never executed by the exe (so a changed file there has no effect on it). The app files are taken from `dist\` next to the exe, so keep the folder together; if `dist\PcGuard.Service.exe`, `dist\PcGuard.Shell.exe` or `dist\appsettings.json` is missing it stops with a clear error.
 - Silent use: `Setup-PcGuard.exe --install --backend-url https://host/api/v1 --no-pause` (no questions), `Setup-PcGuard.exe --uninstall --no-pause`, `--uninstall --purge` (also deletes `%ProgramData%\PcGuard`), `--help`. `--backend-url` works only with `--install`, and `--purge` only as `--uninstall --purge`.
-- **Copy the PcGuard folder to an admin-only location such as `C:\PcGuardSetup` before running it.** The installer turns `dist\PcGuard.Service.exe` into a service that runs as SYSTEM, so it refuses a package folder that standard users can modify: before doing anything it reads the permissions of the package folder, `dist\` and the three required files and stops with exit code 4 if Users, Authenticated Users, Everyone or INTERACTIVE can write, append, delete or change permissions (a USB stick, `C:\Users\Public` and Downloads are typical offenders). `--allow-writable-package` overrides this with a loud warning; use it only if you accept the risk. The exe prints the package path and this rule at every install.
+- **Copy the PcGuard folder to an admin-only location such as `C:\PcGuardSetup` and lock it before running the install.** The installer turns `dist\PcGuard.Service.exe` (and every DLL in `dist\`) into a service that runs as SYSTEM, so it refuses a package folder that standard users can modify: before doing anything it reads the permissions of the package folder and of EVERY folder and file under `dist\` (at most 5000 entries; links or junctions inside `dist\` and a bigger tree are refused too) and stops with exit code 4 if Users, Authenticated Users, Everyone or INTERACTIVE can write, append, delete or change permissions. Typical offenders: `C:\Users\Public`, a USB stick or FAT/exFAT drive, a non-system drive root, shared folders, and a folder copied under the `C:\` root, because on a default Windows `C:\` gives Authenticated Users Modify and a plain copy inherits it. A default user-profile folder such as the administrator's own Downloads or Desktop passes. So after copying to `C:\PcGuardSetup`, run this from an elevated prompt (it removes the inherited permissions and gives only Administrators and SYSTEM access):
+
+  ```
+  icacls C:\PcGuardSetup /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F"
+  ```
+
+  Alternatively run the package from the administrator's own profile folder (Desktop or Downloads). `--allow-writable-package` overrides the check with a loud warning; use it only if you accept the risk. The exe prints the package path at every install, and the refusal message repeats these commands.
 - It is NOT code-signed, so Windows SmartScreen may show "Windows protected your PC" (More info, Run anyway), and a downloaded zip may need Unblock in the file properties.
-- It has NEVER been run on Windows. Run tests 93-105 below before relying on it.
+- It has NEVER been run on Windows. Run tests 93-107 below before relying on it.
 - Build: `dotnet publish src/PcGuard.Setup/PcGuard.Setup.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist-setup` (works on macOS too).
 
 ## Configuration
@@ -707,24 +713,34 @@ Add-Type -AssemblyName System.Windows.Forms; [Windows.Forms.MessageBox]::Show('s
 - Expected: The output says FAILED with the script's exit code, and `%ERRORLEVEL%` equals that non-zero code.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 103.** Run the install from a package folder that standard users can write to (for example copy `PcGuard` to `C:\Users\Public\PcGuard`).
+**Test 103.** Run the install from a package folder that standard users can write to (for example copy `PcGuard` to `C:\Users\Public\PcGuard`), and also from a plain copy at `C:\PcGuardSetup` (inherits Authenticated Users Modify from `C:\`).
 
-- Expected: The exe prints the package path, names the path and group (for example "Users can modify: C:\Users\Public\PcGuard\dist"), refuses with "Refusing to install", exit code 4, nothing changed and no `PcGuard-setup-*` folder. Uninstall still works from there.
+- Expected: The exe prints the package path, names up to 5 paths and the group (for example "Users can modify: C:\Users\Public\PcGuard\dist"), refuses with "Refusing to install" and the icacls commands, exit code 4, nothing changed and no `PcGuard-setup-*` folder. Uninstall still works from there.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 104.** Copy the package to `C:\PcGuardSetup`, then `icacls C:\PcGuardSetup /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F"` and run the install from there.
+**Test 104.** Copy the package to `C:\PcGuardSetup`, then (elevated) `icacls C:\PcGuardSetup /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F"` and run the install from there. Also try the package in the administrator's own Desktop or Downloads folder.
 
 - Expected: The check passes silently (only the package path line is printed) and the install proceeds. Re-grant `*S-1-5-32-545:(OI)(CI)M` (Users modify) and it is refused again.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 105.** From the writable folder of Test 103 run `Setup-PcGuard.exe --install --backend-url https://example.uz/api/v1 --allow-writable-package --no-pause`.
 
-- Expected: A loud WARNING that standard users can modify the package folder, then the install proceeds and succeeds. Without `--allow-writable-package` the same command returns 4.
+- Expected: A loud WARNING that the package folder is not safe, then the install proceeds and succeeds. Without `--allow-writable-package` the same command returns 4.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 106.** In a correctly locked package (Test 104 passes) grant Users Modify on one nested file only, for example `icacls C:\PcGuardSetup\dist\System.Private.CoreLib.dll /grant "*S-1-5-32-545:M"`, or create a subfolder in `dist` that Users can write to; run the install.
+
+- Expected: Refused with exit code 4, naming that file or folder (the check covers everything under `dist\`, not only the three exes).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 107.** In a locked package create a junction inside `dist` (`mklink /J C:\PcGuardSetup\dist\link C:\Windows\Temp`) and run the install.
+
+- Expected: Refused with exit code 4 ("Link or junction inside the package"); the junction is not followed. Remove it and the install is accepted again.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 ### 3. Results
 
-Fill in after each run. Total tests: 106 (7 core, 99 additional).
+Fill in after each run. Total tests: 108 (7 core, 101 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|

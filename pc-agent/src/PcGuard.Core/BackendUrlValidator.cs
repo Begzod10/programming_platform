@@ -22,6 +22,8 @@ public static class BackendUrlValidator
 
         foreach (var ch in s)
         {
+            if (ch > '~' && !char.IsWhiteSpace(ch) && !char.IsControl(ch))
+                return Fail("The backend URL contains non-ASCII characters. Use the punycode (xn--) form of the domain name.");
             if (char.IsWhiteSpace(ch) || char.IsControl(ch) || ch > '~' || "\"'`<>\\".IndexOf(ch) >= 0)
                 return Fail("The backend URL contains characters that are not allowed.");
         }
