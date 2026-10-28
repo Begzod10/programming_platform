@@ -47,12 +47,23 @@ class TeacherDictionaryWord(BaseModel):
     incorrect_count: int = 0
     last_reviewed_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    # the teacher's oral checks of this word: the latest verdict (None = never asked), when, and how many times asked
+    last_check_knows: Optional[bool] = None
+    last_checked_at: Optional[datetime] = None
+    checks_count: int = 0
 
 
 class TeacherStudentDictionary(BaseModel):
     student_id: int
     total: int
+    known: int = 0          # words whose latest check says "knows"
+    unknown: int = 0        # latest check says "does not know"
+    unchecked: int = 0      # never asked
     words: List[TeacherDictionaryWord]
+
+
+class TeacherWordCheckBody(BaseModel):
+    knows: bool
 
 
 # ─── QUIZ (DRAG AND DROP) SHÉMALARI ───────────────────

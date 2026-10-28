@@ -20,7 +20,7 @@ from app.services.student_service import StudentService
 from app.services.teacher_students import teacher_student_ids_subquery
 from app.services.skill_profile_service import build_skill_profile
 from app.schemas.team_project import SkillProfile
-from app.schemas.dictionary import TeacherDictionaryWord, TeacherStudentDictionary
+from app.schemas.dictionary import TeacherDictionaryWord, TeacherStudentDictionary, TeacherWordCheckBody
 
 router = APIRouter()
 
@@ -139,21 +139,14 @@ async def get_student_skill_profile(
     return profile
 
 
-@router.get("/{student_id}/dictionary", response_model=TeacherStudentDictionary)
-async def get_student_dictionary(
-        student_id: int,
-        lang: Optional[str] = Query(None, description="uz | ru — only words saved in this language"),
-        current_teacher: Student = Depends(get_current_instructor),
-        db: AsyncSession = Depends(get_db)
-):
-    """The words a student saved to their dictionary (lug'at), so the teacher can ask them out loud.
-    Read-only; only for students the teacher reaches through a group or flow of their own."""
+async def _load_dictionary_words(
+        db: AsyncSession, student_id: int, lang: Optional[str] = None, word_id: Optional[int] = None,
+) -> List[TeacherDictionaryWord]:
+    """A student's saved words with the teacher's oral-check state (latest verdict, when, how many times asked)."""
     from app.models.course import Course
-    from app.models.dictionary import UserDictionary
+    from app.models.dictionary import DictionaryWordCheck, UserDictionary
     from app.models.lesson import Lesson
 
-    if not await _student_belongs_to_teacher(db, student_id, current_teacher.id):
-        raise HTTPException(status_code=404, detail="Student not found")
     q = (
         select(UserDictionary, Lesson.title, Course.id, Course.title)
         .outerjoin(Lesson, Lesson.id == UserDictionary.lesson_id)
@@ -162,17 +155,77 @@ async def get_student_dictionary(
     )
     if lang:
         q = q.where(UserDictionary.lang == lang.strip().lower())
+    if word_id is not None:
+        q = q.where(UserDictionary.id == word_id)
     rows = (await db.execute(q.order_by(UserDictionary.created_at.desc(), UserDictionary.id.desc()))).all()
-    words = [
+
+    checks = (await db.execute(
+        select(DictionaryWordCheck.word_id, DictionaryWordCheck.knows, DictionaryWordCheck.created_at)
+        .where(DictionaryWordCheck.student_id == student_id)
+        .order_by(DictionaryWordCheck.created_at, DictionaryWordCheck.id)
+    )).all()
+    latest: dict = {}
+    counts: dict = {}
+    for wid, knows, created in checks:                     # ascending: the last write wins
+        latest[wid] = (knows, created)
+        counts[wid] = counts.get(wid, 0) + 1
+
+    return [
         TeacherDictionaryWord(
             id=w.id, word=w.word, context=w.context, lang=w.lang or "uz", lesson_id=w.lesson_id,
             lesson_title=lesson_title, course_id=course_id, course_title=course_title,
             review_count=w.review_count or 0, correct_count=w.correct_count or 0,
             incorrect_count=w.incorrect_count or 0, last_reviewed_at=w.last_reviewed_at, created_at=w.created_at,
+            last_check_knows=latest[w.id][0] if w.id in latest else None,
+            last_checked_at=latest[w.id][1] if w.id in latest else None,
+            checks_count=counts.get(w.id, 0),
         )
         for w, lesson_title, course_id, course_title in rows
     ]
-    return TeacherStudentDictionary(student_id=student_id, total=len(words), words=words)
+
+
+@router.get("/{student_id}/dictionary", response_model=TeacherStudentDictionary)
+async def get_student_dictionary(
+        student_id: int,
+        lang: Optional[str] = Query(None, description="uz | ru — only words saved in this language"),
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """The words a student saved to their dictionary (lug'at), so the teacher can ask them out loud, with the
+    teacher's recorded checks. Only for students the teacher reaches through a group or flow of their own."""
+    if not await _student_belongs_to_teacher(db, student_id, current_teacher.id):
+        raise HTTPException(status_code=404, detail="Student not found")
+    words = await _load_dictionary_words(db, student_id, lang)
+    known = sum(1 for w in words if w.last_check_knows is True)
+    unknown = sum(1 for w in words if w.last_check_knows is False)
+    return TeacherStudentDictionary(
+        student_id=student_id, total=len(words), known=known, unknown=unknown,
+        unchecked=len(words) - known - unknown, words=words,
+    )
+
+
+@router.post("/{student_id}/dictionary/{word_id}/check", response_model=TeacherDictionaryWord)
+async def check_student_dictionary_word(
+        student_id: int,
+        word_id: int,
+        body: TeacherWordCheckBody,
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """Record the result of asking the student a saved word out loud: knows / does not know. Every check is kept;
+    the word's state is the latest one. Returns the word with its updated check state."""
+    from app.models.dictionary import DictionaryWordCheck, UserDictionary
+
+    if not await _student_belongs_to_teacher(db, student_id, current_teacher.id):
+        raise HTTPException(status_code=404, detail="Student not found")
+    word = (await db.execute(
+        select(UserDictionary.id).where(UserDictionary.id == word_id, UserDictionary.student_id == student_id)
+    )).scalar_one_or_none()
+    if word is None:
+        raise HTTPException(status_code=404, detail="Word not found")
+    db.add(DictionaryWordCheck(word_id=word_id, student_id=student_id, teacher_id=current_teacher.id, knows=body.knows))
+    await db.commit()
+    return (await _load_dictionary_words(db, student_id, word_id=word_id))[0]
 
 
 @router.delete("/{student_id}")

@@ -9,12 +9,12 @@ jest.mock('../api/search/base', () => ({
   headers: () => ({}),
 }));
 
-import StudentDictionary, { hardness, isHard } from '../views/teacher/mystudents/StudentDictionary';
+import StudentDictionary, { hardness, isHard, checkState } from '../views/teacher/mystudents/StudentDictionary';
 
 const word = (o) => ({
   id: 1, word: 'closure', context: 'A closure remembers its scope.', lang: 'uz', lesson_id: 5,
   lesson_title: 'Funksiyalar', course_id: 3, course_title: 'JavaScript', review_count: 2,
-  correct_count: 1, incorrect_count: 0, ...o,
+  correct_count: 1, incorrect_count: 0, last_check_knows: null, last_checked_at: null, checks_count: 0, ...o,
 });
 const dictionary = (words) => ({ student_id: 9, total: words.length, words });
 
@@ -80,3 +80,79 @@ test('empty dictionary and load errors have their own messages', async () => {
   await waitFor(() => expect(screen.getByText(/yuklab bo'lmadi/)).toBeInTheDocument());
   expect(screen.getByText('Qayta urinish')).toBeInTheDocument();
 });
+
+describe("the teacher's oral checks", () => {
+  test('checkState maps the latest verdict', () => {
+    expect(checkState(word({ last_check_knows: true }))).toBe('known');
+    expect(checkState(word({ last_check_knows: false }))).toBe('unknown');
+    expect(checkState(word({ last_check_knows: null }))).toBe('unchecked');
+  });
+
+  test('shows the tally and each word state', async () => {
+    mockRequest.mockResolvedValue(dictionary([
+      word({ id: 1, word: 'a', last_check_knows: true, last_checked_at: '2026-10-20T10:00:00Z', checks_count: 1 }),
+      word({ id: 2, word: 'b', last_check_knows: false, checks_count: 2, last_checked_at: '2026-10-21T10:00:00Z' }),
+      word({ id: 3, word: 'c' }),
+    ]));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('a');
+    expect(container.querySelector('.sdict-tally')).toHaveTextContent("Biladi 1 · Bilmaydi 1 · So'ralmagan 1");
+    expect(container.querySelector('.sdict-state--known')).toBeInTheDocument();
+    expect(container.querySelector('.sdict-state--unknown')).toHaveTextContent('2x');
+  });
+
+  test('the status filter narrows the list to unknown or unasked words', async () => {
+    mockRequest.mockResolvedValue(dictionary([
+      word({ id: 1, word: 'known1', last_check_knows: true }),
+      word({ id: 2, word: 'unknown1', last_check_knows: false }),
+      word({ id: 3, word: 'fresh1' }),
+    ]));
+    render(<StudentDictionary studentId={9} />);
+    await screen.findByText('known1');
+    fireEvent.change(screen.getByLabelText('Holat'), { target: { value: 'unknown' } });
+    expect(screen.getByText('unknown1')).toBeInTheDocument();
+    expect(screen.queryByText('known1')).toBeNull();
+    fireEvent.change(screen.getByLabelText('Holat'), { target: { value: 'unchecked' } });
+    expect(screen.getByText('fresh1')).toBeInTheDocument();
+    expect(screen.queryByText('unknown1')).toBeNull();
+  });
+
+  test('"Biladi" on a row saves the verdict through the API and updates the row and the tally', async () => {
+    mockRequest.mockResolvedValueOnce(dictionary([word({ id: 7, word: 'closure' })]));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('closure');
+    mockRequest.mockResolvedValueOnce(word({ id: 7, word: 'closure', last_check_knows: true, last_checked_at: '2026-10-28T09:00:00Z', checks_count: 1 }));
+    fireEvent.click(screen.getByLabelText('closure: biladi'));
+    await waitFor(() => expect(container.querySelector('.sdict-state--known')).toBeInTheDocument());
+    const call = mockRequest.mock.calls[1];
+    expect(call[0]).toBe('http://test/api/v1/teacher/students/9/dictionary/7/check');
+    expect(call[1]).toBe('POST');
+    expect(JSON.parse(call[2])).toEqual({ knows: true });
+    expect(container.querySelector('.sdict-tally')).toHaveTextContent('Biladi 1 · Bilmaydi 0');
+  });
+
+  test('on the random card, a verdict is saved and the next word comes up', async () => {
+    mockRequest.mockResolvedValueOnce(dictionary([word({ id: 1, word: 'first' }), word({ id: 2, word: 'second' })]));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('first');
+    fireEvent.click(screen.getByText(/Tasodifiy so'z/));
+    const shownFirst = container.querySelector('.sdict-picked-word').textContent;
+    const other = shownFirst === 'first' ? 'second' : 'first';
+    const pickedId = shownFirst === 'first' ? 1 : 2;
+    mockRequest.mockResolvedValueOnce(word({ id: pickedId, word: shownFirst, last_check_knows: false, checks_count: 1, last_checked_at: '2026-10-28T09:00:00Z' }));
+    fireEvent.click(screen.getByText('✗ Bilmaydi'));
+    await waitFor(() => expect(container.querySelector('.sdict-picked-word')).toHaveTextContent(other));
+    expect(JSON.parse(mockRequest.mock.calls[1][2])).toEqual({ knows: false });
+  });
+
+  test('a failed save shows an error and keeps the old state', async () => {
+    mockRequest.mockResolvedValueOnce(dictionary([word({ id: 7, word: 'closure' })]));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('closure');
+    mockRequest.mockRejectedValueOnce(new Error('boom'));
+    fireEvent.click(screen.getByLabelText('closure: bilmaydi'));
+    expect(await screen.findByRole('alert')).toHaveTextContent("saqlab bo'lmadi");
+    expect(container.querySelector('.sdict-tally')).toHaveTextContent("Biladi 0 · Bilmaydi 0 · So'ralmagan 1");
+  });
+});
+

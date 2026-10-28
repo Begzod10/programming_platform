@@ -21,3 +21,19 @@
 .sdict-stats { margin-top: 4px; font-size: 12px; color: #666; }
 .sdict-empty { text-align: center; padding: 32px 12px; color: #888; display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .sdict-empty span { font-size: 32px; }
+.sdict-verdict { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+.sdict-btn--yes { background: #00b894; border-color: #00b894; color: #fff; }
+.sdict-btn--no { background: #e17055; border-color: #e17055; color: #fff; }
+.sdict-error { margin: 0; color: #c4452b; font-size: 13px; }
+.sdict-tally { margin: 0; font-size: 14px; font-weight: 600; color: #555; }
+.sdict-tally-yes { color: #00a07f; }
+.sdict-tally-no { color: #c4452b; }
+.sdict-check-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.sdict-state { font-size: 12px; padding: 2px 8px; border-radius: 8px; background: #f0f0f6; color: #777; margin-right: auto; }
+.sdict-state--known { background: #e3f8f1; color: #00846a; }
+.sdict-state--unknown { background: #ffe9e3; color: #c4452b; }
+.sdict-mini { width: 30px; height: 28px; border: 1px solid #d8d8ea; border-radius: 8px; background: #fff; cursor: pointer; }
+.sdict-mini--yes:hover { background: #e3f8f1; border-color: #00b894; }
+.sdict-mini--no:hover { background: #ffe9e3; border-color: #e17055; }
+.sdict-mini:disabled { opacity: .5; cursor: default; }
+

@@ -20,7 +20,7 @@ from app.models.group import Group
 from app.models.exercise import Exercise, ExerciseSubmission
 from app.models.quiz import Quiz, Question, StudentQuizResult
 from app.models.video_watch import VideoWatch
-from app.models.dictionary import UserDictionary, PracticeSession
+from app.models.dictionary import UserDictionary, PracticeSession, DictionaryWordCheck
 from app.models.lesson_feedback import LessonFeedback
 from app.models.translation_cache import TranslationCache
 from app.models.team_game import GameSession, GameTeam, GameTeamMember, GameQuestion, GameAnswer
@@ -87,6 +87,7 @@ __all__ = [
     "VideoWatch",
     "UserDictionary",
     "PracticeSession",
+    "DictionaryWordCheck",
     "LessonFeedback",
     "TranslationCache",
     "GameSession",

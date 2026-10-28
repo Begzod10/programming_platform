@@ -6,7 +6,12 @@ import './StudentDictionary.css';
 export const hardness = (w) => (w.incorrect_count || 0) - (w.correct_count || 0);
 export const isHard = (w) => hardness(w) > 0;
 
-/** The student's saved words (lug'at), read-only: the teacher asks them out loud. */
+/** 'known' | 'unknown' | 'unchecked' — the teacher's latest oral verdict on a word. */
+export const checkState = (w) => (w.last_check_knows === true ? 'known' : w.last_check_knows === false ? 'unknown' : 'unchecked');
+
+const STATE_LABEL = { known: 'biladi', unknown: 'bilmaydi', unchecked: "so'ralmagan" };
+
+/** The student's saved words (lug'at): the teacher asks them out loud and records whether the student knows them. */
 export default function StudentDictionary({ studentId }) {
     const { request } = useHttp();
     const [data, setData] = useState(null);
@@ -15,6 +20,9 @@ export default function StudentDictionary({ studentId }) {
     const [course, setCourse] = useState('');
     const [lang, setLang] = useState('');
     const [hardFirst, setHardFirst] = useState(false);
+    const [state, setState] = useState('');            // '' | known | unknown | unchecked
+    const [saving, setSaving] = useState(false);
+    const [saveError, setSaveError] = useState(null);
     const [picked, setPicked] = useState(null);
     const [showContext, setShowContext] = useState(false);
 
@@ -39,16 +47,47 @@ export default function StudentDictionary({ studentId }) {
             (!q || w.word.toLowerCase().includes(q))
             && (!course || String(w.course_id) === course)
             && (!lang || w.lang === lang)
+            && (!state || checkState(w) === state)
         ));
         if (hardFirst) list = [...list].sort((a, b) => hardness(b) - hardness(a));
         return list;
-    }, [words, query, course, lang, hardFirst]);
+    }, [words, query, course, lang, hardFirst, state]);
 
-    const pickRandom = () => {
-        if (shown.length === 0) return;
-        const pool = shown.length > 1 ? shown.filter((w) => !picked || w.id !== picked.id) : shown;
+    const tally = useMemo(() => {
+        const t = { known: 0, unknown: 0, unchecked: 0 };
+        words.forEach((w) => { t[checkState(w)] += 1; });
+        return t;
+    }, [words]);
+
+    const pickFrom = (list, current) => {
+        if (list.length === 0) { setPicked(null); return; }
+        const pool = list.length > 1 ? list.filter((w) => !current || w.id !== current.id) : list;
         setPicked(pool[Math.floor(Math.random() * pool.length)]);
         setShowContext(false);
+    };
+    const pickRandom = () => pickFrom(shown, picked);
+
+    /** Save the teacher's verdict for a word, update it in place; from the random card, move on to the next word. */
+    const record = async (word, knows, { next = false } = {}) => {
+        setSaving(true);
+        setSaveError(null);
+        try {
+            const updated = await request(
+                `${API_URL}v1/teacher/students/${studentId}/dictionary/${word.id}/check`,
+                'POST', JSON.stringify({ knows }), headers(),
+            );
+            setData((d) => ({ ...d, words: d.words.map((w) => (w.id === updated.id ? updated : w)) }));
+            if (next) {
+                const rest = shown.filter((w) => w.id !== word.id && (!state || state === checkState(updated)));
+                pickFrom(rest, word);
+            } else if (picked && picked.id === updated.id) {
+                setPicked(updated);
+            }
+        } catch {
+            setSaveError("Natijani saqlab bo'lmadi. Qayta urinib ko'ring.");
+        } finally {
+            setSaving(false);
+        }
     };
 
     if (error) return (
@@ -75,6 +114,12 @@ export default function StudentDictionary({ studentId }) {
                     <option value="uz">UZ</option>
                     <option value="ru">RU</option>
                 </select>
+                <select className="sdict-input" value={state} onChange={(e) => setState(e.target.value)} aria-label="Holat">
+                    <option value="">Hamma so'zlar</option>
+                    <option value="unknown">Bilmaydiganlar</option>
+                    <option value="unchecked">So'ralmaganlar</option>
+                    <option value="known">Biladiganlar</option>
+                </select>
                 <label className="sdict-check">
                     <input type="checkbox" checked={hardFirst} onChange={(e) => setHardFirst(e.target.checked)} />
                     Qiyinlari birinchi
@@ -92,9 +137,23 @@ export default function StudentDictionary({ studentId }) {
                             ? <p className="sdict-picked-ctx">{picked.context}</p>
                             : <button className="sdict-link" onClick={() => setShowContext(true)}>Kontekstni ko'rsatish</button>
                     )}
+                    <div className="sdict-verdict">
+                        <button className="sdict-btn sdict-btn--yes" disabled={saving} onClick={() => record(picked, true, { next: true })}>
+                            ✓ Biladi
+                        </button>
+                        <button className="sdict-btn sdict-btn--no" disabled={saving} onClick={() => record(picked, false, { next: true })}>
+                            ✗ Bilmaydi
+                        </button>
+                    </div>
                 </div>
             )}
+            {saveError && <p className="sdict-error" role="alert">{saveError}</p>}
 
+            <p className="sdict-tally">
+                <span className="sdict-tally-yes">Biladi {tally.known}</span> ·{' '}
+                <span className="sdict-tally-no">Bilmaydi {tally.unknown}</span> ·{' '}
+                <span>So'ralmagan {tally.unchecked}</span>
+            </p>
             <p className="sdict-count">{shown.length} / {data.total} so'z</p>
             {shown.length === 0 ? (
                 <div className="sdict-empty"><p>Hech narsa topilmadi</p></div>
@@ -112,6 +171,17 @@ export default function StudentDictionary({ studentId }) {
                             )}
                             <div className="sdict-stats">
                                 takror: {w.review_count} · ✓ {w.correct_count} · ✗ {w.incorrect_count}
+                            </div>
+                            <div className="sdict-check-row">
+                                <span className={`sdict-state sdict-state--${checkState(w)}`}>
+                                    {STATE_LABEL[checkState(w)]}
+                                    {w.last_checked_at && ` · ${new Date(w.last_checked_at).toLocaleDateString('ru-RU')}`}
+                                    {w.checks_count > 1 && ` · ${w.checks_count}x`}
+                                </span>
+                                <button className="sdict-mini sdict-mini--yes" disabled={saving} onClick={() => record(w, true)}
+                                        aria-label={`${w.word}: biladi`}>✓</button>
+                                <button className="sdict-mini sdict-mini--no" disabled={saving} onClick={() => record(w, false)}
+                                        aria-label={`${w.word}: bilmaydi`}>✗</button>
                             </div>
                         </li>
                     ))}
