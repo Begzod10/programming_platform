@@ -12,10 +12,13 @@ internal sealed class AdminTempDir
 {
     public string Path { get; }
 
-    private AdminTempDir(string path) => Path = path;
+    private readonly string _noun;
 
+    private AdminTempDir(string path, string noun) { Path = path; _noun = noun; }
+
+    /// <param name="noun">Word used in error messages ("Setup folder ...").</param>
     /// <param name="prefix">Folder name prefix. Setup keeps the default; Cleanup-PcGuard uses another one so that cleanup.ps1, which deletes PcGuard-setup-* folders, never deletes the folder it runs from.</param>
-    public static AdminTempDir Create(string prefix = "PcGuard-setup-")
+    public static AdminTempDir Create(string prefix = "PcGuard-setup-", string noun = "Setup")
     {
         var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
         if (string.IsNullOrWhiteSpace(programData))
@@ -24,7 +27,7 @@ internal sealed class AdminTempDir
         // 128-bit random name: nobody can pre-create it.
         var path = System.IO.Path.Combine(programData, prefix + Guid.NewGuid().ToString("N"));
         if (Directory.Exists(path) || File.Exists(path))
-            throw new IOException("Setup folder already exists; refusing to reuse it.");
+            throw new IOException($"{noun} folder already exists; refusing to reuse it.");
 
         var security = new DirectorySecurity();
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
@@ -38,7 +41,7 @@ internal sealed class AdminTempDir
 
         var info = new DirectoryInfo(path);
         info.Create(security);
-        var dir = new AdminTempDir(path);
+        var dir = new AdminTempDir(path, noun);
         try
         {
             dir.Verify();
@@ -56,11 +59,11 @@ internal sealed class AdminTempDir
     {
         var info = new DirectoryInfo(Path);
         if (!info.Exists || (info.Attributes & FileAttributes.ReparsePoint) != 0)
-            throw new InvalidOperationException("Setup folder is not a plain directory; refusing to use it.");
+            throw new InvalidOperationException($"{_noun} folder is not a plain directory; refusing to use it.");
 
         var sec = info.GetAccessControl(AccessControlSections.Access);
         if (!sec.AreAccessRulesProtected)
-            throw new InvalidOperationException("Setup folder inherits permissions; refusing to use it.");
+            throw new InvalidOperationException($"{_noun} folder inherits permissions; refusing to use it.");
 
         var allowed = new[]
         {
@@ -70,7 +73,7 @@ internal sealed class AdminTempDir
         foreach (FileSystemAccessRule rule in sec.GetAccessRules(true, true, typeof(SecurityIdentifier)))
         {
             if (!allowed.Contains((SecurityIdentifier)rule.IdentityReference))
-                throw new InvalidOperationException("Setup folder has an unexpected permission entry; refusing to use it.");
+                throw new InvalidOperationException($"{_noun} folder has an unexpected permission entry; refusing to use it.");
         }
     }
 

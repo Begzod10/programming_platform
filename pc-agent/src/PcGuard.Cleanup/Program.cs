@@ -11,7 +11,7 @@ internal static class Program
 {
     private const string ScriptName = "cleanup.ps1";
     private const string TempPrefix = "PcGuard-cleanup-"; // NOT PcGuard-setup-*: cleanup.ps1 deletes those folders, even while running from one
-    private const int ExitUsage = 2;
+    private const int ExitUsage = 64; // distinct from 2 = partial failure of the script
     private const int ExitIntegrity = 3;
     private const int ExitNotElevated = 1;
     private const int ExitCancelled = 130;
@@ -67,20 +67,26 @@ internal static class Program
         try
         {
             // Step 1: extract (admin-only folder, hash check). The folder lives until the end and is removed in finally.
-            lock (CleanupLock) { _temp = AdminTempDir.Create(TempPrefix); }
+            lock (CleanupLock) { _temp = AdminTempDir.Create(TempPrefix, "Cleanup"); }
             var scriptPath = EmbeddedScripts.Extract(ScriptName, _temp.Path);
 
             // Step 2: list busy scripts (closes nothing).
             Console.WriteLine();
             Console.WriteLine("Step 1 of 3: busy script processes (nothing is closed)");
             var code = RunChild(CleanupCommand.BuildList(scriptPath, WindowsDir), "List of busy scripts");
-            if (code != 0 || args.ListOnly) return code;
+            if (!CleanupFlow.ShouldContinueAfterList(code) || args.ListOnly) return code;
 
             // Step 3: preview (changes nothing).
             Console.WriteLine();
             Console.WriteLine("Step 2 of 3: preview of the PC Guard removal (nothing is changed)");
             code = RunChild(CleanupCommand.BuildPreview(scriptPath, WindowsDir), "Preview");
-            if (code != 0 || args.PreviewOnly) return code;
+            if (!CleanupFlow.ShouldContinueAfterPreview(code)) return code;
+            if (code == 2)
+            {
+                Console.WriteLine();
+                Console.WriteLine(CleanupFlow.PreviewPartialWarning);
+            }
+            if (args.PreviewOnly) return code;
 
             // Step 4: confirm.
             Console.WriteLine();
@@ -116,6 +122,11 @@ internal static class Program
         {
             Console.Error.WriteLine("Cleanup could not run the script: " + e.Message);
             return ExitIntegrity;
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine("Unexpected error: " + e.GetType().Name + ": " + e.Message);
+            return ExitNotElevated; // exit code 1 = error
         }
         finally
         {
@@ -199,6 +210,9 @@ internal static class Program
         Console.WriteLine("  --preview-only   list, then preview what the removal would do (changes nothing), then exit");
         Console.WriteLine("  --purge          answer yes to \"delete PC Guard's data\" (you are still asked to type YES)");
         Console.WriteLine("  --no-pause       do not wait for Enter at the end");
-        Console.WriteLine("  There is no silent mode: removal always asks you to type YES. Processes are never closed.");
+        Console.WriteLine("  There is no silent mode: removal always asks you to type YES.");
+        Console.WriteLine("  Busy scripts are never closed; PC Guard's own service and shell are ended as part of the removal.");
+        Console.WriteLine("  The preview does not include the data purge (it removes only %ProgramData%\\PcGuard, after the same checks).");
+        Console.WriteLine("  Exit codes: 0 ok, 1 error or not Administrator, 2 partial failure, 3 integrity/startup problem, 64 bad command line, 130 cancelled.");
     }
 }
