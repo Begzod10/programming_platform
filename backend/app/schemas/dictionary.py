@@ -62,6 +62,18 @@ class TeacherStudentDictionary(BaseModel):
     words: List[TeacherDictionaryWord]
 
 
+class TeacherDictionarySummary(BaseModel):
+    """How well a student knows their saved words, from the teacher's oral checks."""
+    student_id: int
+    total: int                          # saved words
+    known: int                          # latest check says "knows"
+    unknown: int                        # latest check says "does not know"
+    unchecked: int                      # never asked
+    checked: int                        # known + unknown
+    percent_known: Optional[int] = None  # known / checked, whole percent; None until at least one word was asked
+    last_checked_at: Optional[datetime] = None
+
+
 class TeacherWordCheckBody(BaseModel):
     knows: bool
 

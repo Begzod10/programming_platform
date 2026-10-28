@@ -37,3 +37,10 @@
 .sdict-mini--no:hover { background: #ffe9e3; border-color: #e17055; }
 .sdict-mini:disabled { opacity: .5; cursor: default; }
 
+
+.sdsum-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.sdsum-percent { font-size: 32px; font-weight: 800; color: #6c5ce7; }
+.sdsum-text { color: #555; font-size: 14px; }
+.sdsum-bar { height: 8px; border-radius: 6px; background: #ececf6; overflow: hidden; margin: 10px 0 6px; }
+.sdsum-bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #6c5ce7, #00b894); transition: width .6s ease; }
+.sdsum-meta, .sdsum-empty { margin: 0; font-size: 13px; color: #888; }

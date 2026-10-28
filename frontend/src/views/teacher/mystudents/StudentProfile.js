@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import './StudentProfile.css';
 import StudentDictionary from './StudentDictionary';
+import DictionarySummaryCard from './DictionarySummaryCard';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { Star, Trophy } from 'lucide-react';
 
@@ -385,6 +386,8 @@ const StudentProfilePage = () => {
                   </div>
                 </div>
               )}
+
+              <DictionarySummaryCard studentId={studentId} onOpen={() => setTab('dictionary')} />
 
               {courses.length > 0 && (
                 <div className="spp-section">

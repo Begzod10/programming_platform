@@ -20,7 +20,9 @@ from app.services.student_service import StudentService
 from app.services.teacher_students import teacher_student_ids_subquery
 from app.services.skill_profile_service import build_skill_profile
 from app.schemas.team_project import SkillProfile
-from app.schemas.dictionary import TeacherDictionaryWord, TeacherStudentDictionary, TeacherWordCheckBody
+from app.schemas.dictionary import (
+    TeacherDictionarySummary, TeacherDictionaryWord, TeacherStudentDictionary, TeacherWordCheckBody,
+)
 
 router = APIRouter()
 
@@ -201,6 +203,28 @@ async def get_student_dictionary(
     return TeacherStudentDictionary(
         student_id=student_id, total=len(words), known=known, unknown=unknown,
         unchecked=len(words) - known - unknown, words=words,
+    )
+
+
+@router.get("/{student_id}/dictionary/summary", response_model=TeacherDictionarySummary)
+async def get_student_dictionary_summary(
+        student_id: int,
+        current_teacher: Student = Depends(get_current_instructor),
+        db: AsyncSession = Depends(get_db)
+):
+    """The percentage of checked words the student knows, for the teacher's student profile. The percentage is
+    over the words the teacher actually asked (known / (known + does not know)): words nobody asked yet say
+    nothing about the student and are reported separately as `unchecked`."""
+    if not await _student_belongs_to_teacher(db, student_id, current_teacher.id):
+        raise HTTPException(status_code=404, detail="Student not found")
+    words = await _load_dictionary_words(db, student_id)
+    known = sum(1 for w in words if w.last_check_knows is True)
+    unknown = sum(1 for w in words if w.last_check_knows is False)
+    checked = known + unknown
+    last = max((w.last_checked_at for w in words if w.last_checked_at), default=None)
+    return TeacherDictionarySummary(
+        student_id=student_id, total=len(words), known=known, unknown=unknown, unchecked=len(words) - checked,
+        checked=checked, percent_known=round(100 * known / checked) if checked else None, last_checked_at=last,
     )
 
 
