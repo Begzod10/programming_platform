@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>Setup-PcGuard</AssemblyName>
+    <RootNamespace>PcGuard.Setup</RootNamespace>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <StartupHookSupport>false</StartupHookSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PcGuard.Core\PcGuard.Core.csproj" />
+  </ItemGroup>
+
+  <!-- The two scripts are embedded and extracted to an admin-only folder at run time; the loose scripts\ folder is never executed. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\scripts\install.ps1" LogicalName="install.ps1" Link="Embedded\install.ps1" />
+    <EmbeddedResource Include="..\..\scripts\uninstall.ps1" LogicalName="uninstall.ps1" Link="Embedded\uninstall.ps1" />
+  </ItemGroup>
+
+</Project>

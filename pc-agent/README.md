@@ -50,6 +50,26 @@ The script: stops and removes an existing PcGuard service (upgrade), kills lefto
 .\scripts\uninstall.ps1 -Purge   # also deletes %ProgramData%\PcGuard
 ```
 
+## Setup-PcGuard.exe (one-click install)
+
+`Setup-PcGuard.exe` sits in the root of the package folder, next to `dist\` and `scripts\`:
+
+```
+PcGuard\
+  Setup-PcGuard.exe
+  dist\        (PcGuard.Service.exe, PcGuard.Shell.exe, appsettings.json, runtime files)
+  scripts\     (install.ps1, uninstall.ps1, publish.ps1)
+  README.md
+```
+
+Double-click it (Windows shows the UAC prompt; it needs Administrator) and choose `[1] Install or upgrade`, `[2] Uninstall` or `[3] Quit`. For install it asks for the backend URL (`https://host/api/v1`; http is accepted only for localhost, 127.0.0.1 and [::1]; a URL not ending in `/api/v1` gives a warning only), shows a summary and waits for you to type `YES`. Then it runs `install.ps1` / `uninstall.ps1` with Windows PowerShell, shows the script output live, reports the exit code and waits for Enter. The exit code of the script is the exit code of the exe.
+
+- The two scripts are EMBEDDED in the exe. At run time they are written to a new folder `%ProgramData%\PcGuard-setup-<guid>` that only SYSTEM and Administrators can access (ACL applied when the folder is created, inheritance removed), checked by SHA-256 against the embedded bytes, run, and the folder is deleted afterwards (also after errors and Ctrl+C). The loose `scripts\` folder is never executed by the exe (so a changed file there has no effect on it). The app files are taken from `dist\` next to the exe, so keep the folder together; if `dist\PcGuard.Service.exe`, `dist\PcGuard.Shell.exe` or `dist\appsettings.json` is missing it stops with a clear error.
+- Silent use: `Setup-PcGuard.exe --install --backend-url https://host/api/v1 --no-pause` (no questions), `Setup-PcGuard.exe --uninstall --no-pause`, `--uninstall --purge` (also deletes `%ProgramData%\PcGuard`), `--help`.
+- It is NOT code-signed, so Windows SmartScreen may show "Windows protected your PC" (More info, Run anyway), and a downloaded zip may need Unblock in the file properties.
+- It has NEVER been run on Windows. Run tests 93-102 below before relying on it.
+- Build: `dotnet publish src/PcGuard.Setup/PcGuard.Setup.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist-setup` (works on macOS too).
+
 ## Configuration
 
 - **PC side**: `Backend:BaseUrl` in `appsettings.json` next to the exes (written by `install.ps1`). Edit it only as administrator and restart the service (`Restart-Service PcGuard`).
@@ -634,9 +654,61 @@ Add-Type -AssemblyName System.Windows.Forms; [Windows.Forms.MessageBox]::Show('s
 - Expected: Boot into Safe Mode with Networking and sign in as the standard student. Check and record each: (a) the PcGuard service is running (`sc query PcGuard`); (b) the shell sign-in screen appears; (c) a locked student's Notepad is closed. Also note whether a standard user could reach Safe Mode at all. Repeat once for plain Safe Mode (no networking): the PC should stay locked with cached or default rules.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
+#### O. Setup-PcGuard.exe
+
+**Test 93.** Double-click `Setup-PcGuard.exe` as a standard or administrator user.
+
+- Expected: The UAC prompt appears (shield icon on the exe); after approval the console menu shows `[1] Install or upgrade`, `[2] Uninstall`, `[3] Quit`. Declining UAC starts nothing.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 94.** Enter a wrong URL (`abc`, empty, `https://a@b/api/v1`, `https://x/api/v1?x=1`).
+
+- Expected: Each is rejected with a clear message and the prompt repeats. `https://example.uz/api` is accepted with a warning only.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 95.** Enter `http://example.uz/api/v1`; then `http://localhost:8000/api/v1`.
+
+- Expected: The remote http URL is rejected; the localhost one is accepted.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 96.** Install with a real https URL, answer YES.
+
+- Expected: Script output streams live; "finished successfully (exit code 0)"; service Running; `reg query HKLM\SYSTEM\CurrentControlSet\Services\PcGuard /v ImagePath` shows the path WITH double quotes (same checks as Test 70). Typing anything but YES changes nothing.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 97.** Copy only `Setup-PcGuard.exe` to an empty folder (no `dist`) and run it, choose Install.
+
+- Expected: Clear error naming the missing `dist\...` files; nothing changed; Enter closes it; exit code 2.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 98.** Choose Uninstall, answer N to purge, then run again with purge Y.
+
+- Expected: As Tests 76 and 77: first run keeps `%ProgramData%\PcGuard`, the purge run removes it.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 99.** Silent mode: `Setup-PcGuard.exe --install --backend-url https://example.uz/api/v1 --no-pause` from an elevated prompt; then `--uninstall --no-pause`.
+
+- Expected: No questions, no "Press Enter"; installs, then uninstalls; `echo %ERRORLEVEL%` is 0. With an invalid URL it prints the error and returns 2.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 100.** Edit `scripts\install.ps1` in the package (for example add `Write-Host TAMPERED` at the top, or make it `exit 99`), then run Setup-PcGuard.exe install.
+
+- Expected: The edit has NO effect: the embedded copy runs (no TAMPERED line, install behaves normally).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 101.** After an install or uninstall (and after pressing Ctrl+C during a run) look in `%ProgramData%`.
+
+- Expected: No `PcGuard-setup-*` folder remains. While a run is in progress, `icacls %ProgramData%\PcGuard-setup-*` shows only SYSTEM and Administrators, no inherited entries. A first Ctrl+C waits for the script, a second one stops it.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 102.** Exit code propagation: make the install fail (for example `--install --backend-url https://example.uz/api/v1` with a `dist\appsettings.json` that is invalid JSON, as in Test 75), run silently.
+
+- Expected: The output says FAILED with the script's exit code, and `%ERRORLEVEL%` equals that non-zero code.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
 ### 3. Results
 
-Fill in after each run. Total tests: 93 (7 core, 86 additional).
+Fill in after each run. Total tests: 103 (7 core, 96 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|
