@@ -77,6 +77,26 @@ Double-click it (Windows shows the UAC prompt; it needs Administrator) and choos
 - It has NEVER been run on Windows. Run tests 93-107 below before relying on it.
 - Build: `dotnet publish src/PcGuard.Setup/PcGuard.Setup.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist-setup` (works on macOS too).
 
+## Cleanup-PcGuard.exe (no terminal needed)
+
+`Cleanup-PcGuard.exe` is a double-click wrapper around `scripts\cleanup.ps1` (see `scripts\CLEANUP.md`) for removing PC Guard from a PC when the normal uninstall is not possible. It is a single file: it needs no `dist\` or `scripts\` folder, so it also runs from a USB stick.
+
+Double-click it (UAC asks for Administrator rights). It then does, without any menu:
+
+1. Extracts the embedded `cleanup.ps1` to a new admin-only folder `%ProgramData%\PcGuard-cleanup-<guid>` (SHA-256 checked against the embedded bytes; deleted afterwards, also after errors and Ctrl+C).
+2. Lists busy script processes (`-FindBusyScripts`). It never closes any process.
+3. Shows a preview of the removal (`-RemovePcGuard -WhatIf`); nothing is changed.
+4. Asks `Type YES to remove PC Guard (anything else exits)`. Anything but YES (any case) prints "Nothing was changed." and exits with code 0.
+5. Asks `Also delete PC Guard's data (machine key, rules)? [y/N]` (default No).
+6. Runs the real removal (`-RemovePcGuard -Force`, plus `-Purge` if you said yes). It never passes `-Kill`, `-IgnoreAcl` or `-InstallDir`. It prints what the exit code means (0 ok, 1 error or not elevated, 2 at least one step FAILED) and waits for Enter; the exit code of the removal is the exit code of the exe.
+
+Switches: `--list-only` (steps 1-2 only), `--preview-only` (steps 1-3 only; cannot be combined with `--list-only` or `--purge`), `--purge` (answers step 5 with yes; the YES question is still asked), `--no-pause` (no "Press Enter"), `--help`. There is deliberately no silent mode.
+
+- It is a tool for administrators. Although it needs Administrator rights to run, do not leave it on a PC, share or USB stick where students can get at it: anyone who can approve a UAC prompt can use it to remove PC Guard.
+- It is NOT code-signed, so Windows SmartScreen may show "Windows protected your PC" (More info, Run anyway), and a downloaded zip may need Unblock in the file properties.
+- It has NEVER been run on Windows. Run tests 108-118 below before relying on it.
+- Build: `dotnet publish src/PcGuard.Cleanup/PcGuard.Cleanup.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist-cleanup` (works on macOS too).
+
 ## Configuration
 
 - **PC side**: `Backend:BaseUrl` in `appsettings.json` next to the exes (written by `install.ps1`). Edit it only as administrator and restart the service (`Restart-Service PcGuard`).
@@ -738,9 +758,66 @@ Add-Type -AssemblyName System.Windows.Forms; [Windows.Forms.MessageBox]::Show('s
 - Expected: Refused with exit code 4 ("Link or junction inside the package"); the junction is not followed. Remove it and the install is accepted again.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
+#### P. Cleanup-PcGuard.exe
+
+**Test 108.** Double-click `Cleanup-PcGuard.exe` as a standard or administrator user.
+
+- Expected: The UAC prompt appears (shield icon on the exe); after approval the list of busy scripts is shown and the flow continues without a menu. Declining UAC starts nothing.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 109.** Run `Cleanup-PcGuard.exe --list-only` (elevated prompt) while a CPU burner script runs.
+
+- Expected: Busy script list is shown, the burner keeps running, the exe exits (no preview, no YES question); `%ERRORLEVEL%` is 0.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 110.** Run `Cleanup-PcGuard.exe --preview-only` on a PC with PC Guard installed.
+
+- Expected: The list and then the "What if" preview of the removal are shown; service, shell, install folder and data are unchanged afterwards; no YES question.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 111.** Run the full flow and answer anything but YES (Enter, `y`, `yes please`, `no`; also close stdin).
+
+- Expected: "Nothing was changed.", exit code 0, PC Guard still installed and running. `yes` or ` YES ` (any case, spaces) continues.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 112.** Run the full flow, type `YES`, answer `n` (or Enter) to the data question.
+
+- Expected: Service, shell and install folder removed, Safe Mode keys gone; `%ProgramData%\PcGuard\machine.key` still present; exit code 0.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 113.** Install again, run the full flow, type `YES`, answer `y` to the data question (also try `--purge`).
+
+- Expected: `%ProgramData%\PcGuard` is gone as well. With `--purge` the data question is not asked, but YES still is.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 114.** Run `Cleanup-PcGuard.exe` on a PC without PC Guard.
+
+- Expected: The preview and the removal say nothing is there to remove (steps SKIPPED); it exits cleanly with code 0.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 115.** Press Ctrl+C during the list step and during the removal.
+
+- Expected: The first Ctrl+C waits for the running step, a second one stops it; the exe prints that the step may be incomplete and removes its folder; a console with no step running just ends the program.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 116.** Look in `%ProgramData%` after each run (also after Ctrl+C), and with `icacls` while a step is running.
+
+- Expected: No `PcGuard-cleanup-*` folder remains (closing the console with X or killing the exe may leave one; it is admin-only and can be deleted). While running only SYSTEM and Administrators have access, no inherited entries.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 117.** Make the removal fail partly (for example keep services.msc open on PcGuard, as in CLEANUP.md test 22/32) and check `%ERRORLEVEL%` with `--no-pause`.
+
+- Expected: The output explains exit code 2 (partial failure) and `%ERRORLEVEL%` is 2; a non-elevated run prints the Administrator message and returns 1.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 118.** Copy only `Cleanup-PcGuard.exe` to a USB stick (no `dist\`, no `scripts\`), edit/delete nothing, run it from there on a PC with PC Guard.
+
+- Expected: It works without any package; placing a modified `cleanup.ps1` next to it has no effect (the embedded copy runs). Also run it with the stick as the current directory: nothing is read from there.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
 ### 3. Results
 
-Fill in after each run. Total tests: 108 (7 core, 101 additional).
+Fill in after each run. Total tests: 119 (7 core, 112 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|

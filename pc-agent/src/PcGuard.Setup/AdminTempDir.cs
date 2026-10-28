@@ -14,14 +14,15 @@ internal sealed class AdminTempDir
 
     private AdminTempDir(string path) => Path = path;
 
-    public static AdminTempDir Create()
+    /// <param name="prefix">Folder name prefix. Setup keeps the default; Cleanup-PcGuard uses another one so that cleanup.ps1, which deletes PcGuard-setup-* folders, never deletes the folder it runs from.</param>
+    public static AdminTempDir Create(string prefix = "PcGuard-setup-")
     {
         var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
         if (string.IsNullOrWhiteSpace(programData))
             throw new InvalidOperationException("Cannot find %ProgramData%.");
 
         // 128-bit random name: nobody can pre-create it.
-        var path = System.IO.Path.Combine(programData, "PcGuard-setup-" + Guid.NewGuid().ToString("N"));
+        var path = System.IO.Path.Combine(programData, prefix + Guid.NewGuid().ToString("N"));
         if (Directory.Exists(path) || File.Exists(path))
             throw new IOException("Setup folder already exists; refusing to reuse it.");
 

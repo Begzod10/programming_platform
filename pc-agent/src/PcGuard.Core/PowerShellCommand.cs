@@ -3,7 +3,7 @@ namespace PcGuard.Core;
 /// <summary>A process to start: the executable and its arguments as a LIST (never one concatenated string).</summary>
 public sealed record PowerShellCommand(string Executable, IReadOnlyList<string> Arguments)
 {
-    private static string PowerShellExe(string systemRoot) =>
+    internal static string PowerShellExe(string systemRoot) =>
         systemRoot.TrimEnd('\\') + @"\System32\WindowsPowerShell\v1.0\powershell.exe";
 
     private static List<string> Prefix(string scriptPath) =>

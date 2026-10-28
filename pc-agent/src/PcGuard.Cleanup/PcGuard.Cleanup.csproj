@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>Cleanup-PcGuard</AssemblyName>
+    <RootNamespace>PcGuard.Cleanup</RootNamespace>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <StartupHookSupport>false</StartupHookSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PcGuard.Core\PcGuard.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Shared with Setup-PcGuard by linking the source files (Setup itself is unchanged). -->
+  <ItemGroup>
+    <Compile Include="..\PcGuard.Setup\AdminTempDir.cs" Link="Shared\AdminTempDir.cs" />
+    <Compile Include="..\PcGuard.Setup\EmbeddedScripts.cs" Link="Shared\EmbeddedScripts.cs" />
+    <Compile Include="..\PcGuard.Setup\Elevation.cs" Link="Shared\Elevation.cs" />
+  </ItemGroup>
+
+  <!-- The script is embedded and extracted to an admin-only folder at run time; the loose scripts\ folder is never executed. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\scripts\cleanup.ps1" LogicalName="cleanup.ps1" Link="Embedded\cleanup.ps1" />
+  </ItemGroup>
+
+</Project>
