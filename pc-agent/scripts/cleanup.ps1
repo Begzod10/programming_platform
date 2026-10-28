@@ -33,6 +33,10 @@
   With -RemovePcGuard: also delete %ProgramData%\PcGuard (machine key, rules, usage queue).
 .PARAMETER Force
   With -RemovePcGuard: do not ask to type YES (and allow an explicit -InstallDir not named PcGuard).
+  It does NOT override the install-folder ACL safety check (see -IgnoreAcl).
+.PARAMETER IgnoreAcl
+  With -RemovePcGuard: delete the install folder even though Users / Everyone / Authenticated Users / INTERACTIVE can write
+  to it. DANGEROUS: in a user-writable folder a directory can be swapped for a junction while it is being deleted.
 .EXAMPLE
   .\cleanup.ps1
 .EXAMPLE
@@ -51,7 +55,8 @@ param(
     [switch]$RemovePcGuard,
     [string]$InstallDir,
     [switch]$Purge,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$IgnoreAcl
 )
 
 $ErrorActionPreference = 'Stop'
@@ -68,6 +73,7 @@ $script:OrigStart = $null
 $script:TargetDir = $null
 $script:DirExplicit = $false
 $script:RemovalRan = $false
+$script:SvcDisabled = $false
 
 # Script hosts (image name without .exe, lower case).
 $ScriptHosts = @('powershell', 'pwsh', 'powershell_ise', 'cmd', 'wscript', 'cscript', 'mshta', 'python', 'pythonw', 'node', 'ruby', 'perl', 'bash', 'wsl')
@@ -387,7 +393,7 @@ function Invoke-FindBusyScripts {
         if (Confirm-Action ('PID {0} ({1})' -f $x.ProcId, $x.Name) 'Stop process') {
             try {
                 # Kill through the very object that was verified above, not through the bare PID.
-                Stop-Process -InputObject $p -Force -ErrorAction Stop
+                Stop-Process -InputObject $p -Force -WhatIf:$false -Confirm:$false -ErrorAction Stop
                 Start-Sleep -Milliseconds 700
                 $gone = $false
                 try { $p.Refresh(); $gone = $p.HasExited } catch { $gone = $false }
@@ -484,8 +490,11 @@ function Remove-OneItem {
         }
         if ($attempt -eq 0) {
             if ($IsLink -and (-not $IsDir)) {
-                # File link (possibly read-only): clear the attribute now, then retry. (Windows may apply this to the link target.)
-                try { [System.IO.File]::SetAttributes($Path, [System.IO.FileAttributes]::Normal) } catch { }
+                # File link: never SetAttributes on it (that can follow the link and strips Hidden/System).
+                # Only when the link ITSELF is read-only: attrib /L acts on the link, not on its target.
+                $ro = $false
+                try { $ro = ((([int][System.IO.File]::GetAttributes($Path)) -band ([int][System.IO.FileAttributes]::ReadOnly)) -ne 0) } catch { $ro = $false }
+                if ($ro) { Invoke-Native 'attrib.exe' @('-R', '/L', $Path) | Out-Null }
             }
             Grant-AdminOnItem $Path
         }
@@ -716,7 +725,7 @@ function Stop-ProcessesByBaseName {
     param([string]$BaseName)
     $procs = @(Get-Process -Name $BaseName -ErrorAction SilentlyContinue)
     foreach ($p in $procs) {
-        try { Stop-Process -Id $p.Id -Force -ErrorAction Stop } catch { }
+        try { Stop-Process -Id $p.Id -Force -WhatIf:$false -Confirm:$false -ErrorAction Stop } catch { }
     }
     Start-Sleep -Milliseconds 800
     $left = @(Get-Process -Name $BaseName -ErrorAction SilentlyContinue)
@@ -733,10 +742,19 @@ function Test-ServiceExists {
 }
 
 function Write-MarkedBlock {
+    $running = @(Get-Process -Name 'PcGuard.Service' -ErrorAction SilentlyContinue).Count
     Write-Host ''
     Write-Host 'The PcGuard service is marked for deletion: close Services / Event Viewer / Task Manager windows or reboot,' -ForegroundColor Red
-    Write-Host 'then run this script again. It was disabled and stopped, so this PC is UNGUARDED until the removal finishes or the' -ForegroundColor Red
-    Write-Host 'service is reinstalled with install.ps1.' -ForegroundColor Red
+    Write-Host 'then run this script again.' -ForegroundColor Red
+    if ($script:SvcDisabled) { Write-Host '  This run set the service start type to disabled.' } else { Write-Host '  This run did not change the service start type.' }
+    if ($running -gt 0) {
+        Write-Host '  PcGuard.Service.exe is still running, so the PC is currently still guarded.' -ForegroundColor Yellow
+        if ($script:SvcDisabled) { Write-Host '  Because the start type is now disabled it will NOT start again after a reboot.' -ForegroundColor Yellow }
+    }
+    else {
+        Write-Host '  PcGuard.Service.exe is not running: this PC is UNGUARDED now.' -ForegroundColor Red
+    }
+    Write-Host '  When the removal is complete the PC stays unguarded until PC Guard is installed again (install.ps1).' -ForegroundColor Red
 }
 
 function Write-RestoreBlock {
@@ -817,6 +835,7 @@ function Invoke-RemovePcGuard {
             Add-Result $Name 'FAILED' ('sc.exe config exit code ' + $script:NativeExit + ': ' + ($o1 -join ' ') + ' (the recovery actions may restart the service when it is killed)')
             return
         }
+        $script:SvcDisabled = $true
         Add-Result $Name 'OK' ('start type set to disabled (original Start value: ' + $script:OrigStart + ')')
     }
 
@@ -827,7 +846,9 @@ function Invoke-RemovePcGuard {
         # One verbatim argument string: an empty "" argument would be dropped or mangled by array passing.
         $code = -1
         try {
-            $pr = Start-Process -FilePath 'sc.exe' -ArgumentList 'failure PcGuard reset= 0 actions= ""' -Wait -PassThru -NoNewWindow -ErrorAction Stop
+            $pr = Start-Process -FilePath 'sc.exe' -ArgumentList 'failure PcGuard reset= 0 actions= ""' -Wait -PassThru -NoNewWindow -WhatIf:$false -Confirm:$false -ErrorAction Stop
+            if ($null -eq $pr) { throw 'no process object returned by Start-Process' }
+            if ($null -eq $pr.ExitCode) { throw 'sc.exe exit code is not available' }
             $code = [int]$pr.ExitCode
         }
         catch {
@@ -847,7 +868,7 @@ function Invoke-RemovePcGuard {
         if ($svc.Status -eq 'Stopped') { Add-Result $Name 'SKIPPED' 'already stopped'; return }
         if (-not (Confirm-Action $ServiceName 'Stop service')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
         $script:ServiceTouched = $true
-        try { Stop-Service -Name $ServiceName -Force -ErrorAction Stop } catch { }
+        try { Stop-Service -Name $ServiceName -Force -WhatIf:$false -Confirm:$false -ErrorAction Stop } catch { }
         try { $svc.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30)) } catch { }
         $svc.Refresh()
         if ($svc.Status -eq 'Stopped') { Add-Result $Name 'OK' 'stopped' }
@@ -913,7 +934,7 @@ function Invoke-RemovePcGuard {
         Invoke-Step $stepName {
             if (-not (Test-Path -LiteralPath $key)) { Add-Result $Name 'SKIPPED' 'not present'; return }
             if (-not (Confirm-Action $key 'Remove registry key')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
-            Remove-Item -LiteralPath $key -Recurse -Force -ErrorAction Stop
+            Remove-Item -LiteralPath $key -Recurse -Force -WhatIf:$false -Confirm:$false -ErrorAction Stop
             Add-Result $Name 'OK' 'removed'
         }
     }
@@ -953,11 +974,11 @@ function Invoke-RemovePcGuard {
             }
         }
         if (-not (Test-NoNonAdminWrite $dir)) {
-            if (-not $Force) {
-                Add-Result $Name 'FAILED' ('''' + $dir + ''' is not safe to delete automatically (' + $script:WriteWhy + '); nothing deleted. Inspect it; rerun with -Force only if you are sure.')
+            if (-not $IgnoreAcl) {
+                Add-Result $Name 'FAILED' ('''' + $dir + ''' is not safe to delete automatically (' + $script:WriteWhy + '); nothing deleted. Inspect it; only -IgnoreAcl overrides this check (-Force does not).')
                 return
             }
-            Write-Host ('  WARNING: -Force given; continuing although ' + $script:WriteWhy) -ForegroundColor Yellow
+            Write-Host ('  WARNING: -IgnoreAcl given; deleting a user-writable folder although ' + $script:WriteWhy + '. A directory can be swapped for a junction during the delete.') -ForegroundColor Red
         }
         if (-not (Confirm-Action $dir 'Delete folder tree (links are removed, never followed)')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
         Remove-TreeSafe $dir
