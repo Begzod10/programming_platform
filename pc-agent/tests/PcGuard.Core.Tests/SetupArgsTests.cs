@@ -46,12 +46,33 @@ public class SetupArgsTests
     }
 
     [Fact]
-    public void Purge_implies_uninstall()
+    public void Purge_without_uninstall_is_an_error()
     {
         var a = SetupArgs.Parse(new[] { "--purge" });
+        Assert.Equal("--purge must be used as: --uninstall --purge.", a.Error);
+    }
+
+    [Fact]
+    public void Backend_url_without_install_is_an_error()
+    {
+        var a = SetupArgs.Parse(new[] { "--backend-url", "https://x.uz/api/v1" });
+        Assert.Equal("--backend-url can only be used together with --install.", a.Error);
+    }
+
+    [Fact]
+    public void Backend_url_with_uninstall_is_an_error()
+    {
+        var a = SetupArgs.Parse(new[] { "--uninstall", "--backend-url", "https://x.uz/api/v1" });
+        Assert.Equal("--backend-url can only be used together with --install.", a.Error);
+    }
+
+    [Fact]
+    public void Allow_writable_package_flag()
+    {
+        var a = SetupArgs.Parse(new[] { "--install", "--allow-writable-package" });
         Assert.Null(a.Error);
-        Assert.True(a.Uninstall);
-        Assert.True(a.Purge);
+        Assert.True(a.AllowWritablePackage);
+        Assert.False(SetupArgs.Parse(new[] { "--install" }).AllowWritablePackage);
     }
 
     [Fact]
@@ -103,6 +124,6 @@ public class SetupArgsTests
     public void Install_and_purge_together_is_an_error()
     {
         var a = SetupArgs.Parse(new[] { "--install", "--purge" });
-        Assert.Equal("--install and --uninstall cannot be combined.", a.Error);
+        Assert.Equal("--install and --purge cannot be combined.", a.Error);
     }
 }

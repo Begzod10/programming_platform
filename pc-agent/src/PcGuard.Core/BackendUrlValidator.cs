@@ -13,6 +13,8 @@ public static class BackendUrlValidator
         var s = input?.Trim();
         if (string.IsNullOrEmpty(s))
             return Fail("The backend URL is empty.");
+        if (s.Length > 2048)
+            return Fail("The backend URL is too long.");
 
         // "://" check first: on Unix "/api/v1" would otherwise parse as an absolute file path.
         if (!s.Contains("://", StringComparison.Ordinal) || !Uri.TryCreate(s, UriKind.Absolute, out var uri))
@@ -20,7 +22,7 @@ public static class BackendUrlValidator
 
         foreach (var ch in s)
         {
-            if (char.IsWhiteSpace(ch) || char.IsControl(ch) || "\"'`<>\\".IndexOf(ch) >= 0)
+            if (char.IsWhiteSpace(ch) || char.IsControl(ch) || ch > '~' || "\"'`<>\\".IndexOf(ch) >= 0)
                 return Fail("The backend URL contains characters that are not allowed.");
         }
 
@@ -34,6 +36,12 @@ public static class BackendUrlValidator
 
         if (s.Contains('?') || s.Contains('#'))
             return Fail("The backend URL must not contain a query string or fragment.");
+
+        foreach (var seg in uri.OriginalString.Split('/'))
+        {
+            if (seg == ".." || seg == ".")
+                return Fail("The backend URL must not contain . or .. path segments.");
+        }
 
         var path = uri.AbsolutePath.TrimEnd('/');
         var normalized = uri.GetLeftPart(UriPartial.Authority) + path;

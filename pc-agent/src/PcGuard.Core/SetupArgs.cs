@@ -2,14 +2,14 @@ namespace PcGuard.Core;
 
 /// <summary>Command line of Setup-PcGuard.exe. <c>Error</c> is set when the arguments are invalid.</summary>
 public sealed record SetupArgs(
-    bool Install, bool Uninstall, bool Purge, string? BackendUrl, bool NoPause, bool Help, string? Error)
+    bool Install, bool Uninstall, bool Purge, string? BackendUrl, bool NoPause, bool Help, bool AllowWritablePackage, string? Error)
 {
     public static SetupArgs Parse(string[] args)
     {
-        bool install = false, uninstall = false, purge = false, noPause = false, help = false;
+        bool install = false, uninstall = false, purge = false, noPause = false, help = false, allowWritable = false;
         string? url = null;
 
-        SetupArgs Err(string e) => new(false, false, false, null, false, false, e);
+        SetupArgs Err(string e) => new(false, false, false, null, false, false, false, e);
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -17,7 +17,8 @@ public sealed record SetupArgs(
             {
                 case "--install": install = true; break;
                 case "--uninstall": uninstall = true; break;
-                case "--purge": purge = true; uninstall = true; break;
+                case "--purge": purge = true; break;
+                case "--allow-writable-package": allowWritable = true; break;
                 case "--no-pause": noPause = true; break;
                 case "--help": help = true; break;
                 case "--backend-url":
@@ -30,9 +31,15 @@ public sealed record SetupArgs(
             }
         }
 
+        if (install && purge)
+            return Err("--install and --purge cannot be combined.");
         if (install && uninstall)
             return Err("--install and --uninstall cannot be combined.");
+        if (purge && !uninstall)
+            return Err("--purge must be used as: --uninstall --purge.");
+        if (url is not null && !install)
+            return Err("--backend-url can only be used together with --install.");
 
-        return new SetupArgs(install, uninstall, purge, url, noPause, help, null);
+        return new SetupArgs(install, uninstall, purge, url, noPause, help, allowWritable, null);
     }
 }

@@ -10,8 +10,12 @@ internal static class Program
 {
     private const int ExitUsage = 2;
     private const int ExitIntegrity = 3;
+    private const int ExitUnsafePackage = 4;
     private const int ExitNotElevated = 1;
     private const int ExitCancelled = 130;
+
+    // Real Windows folder from the OS API, never from an environment variable.
+    private static readonly string WindowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
 
     private static volatile bool _cancelRequested;
     private static Process? _child;
@@ -106,7 +110,10 @@ internal static class Program
             return ExitUsage;
         }
 
-        var silent = args.BackendUrl is not null;
+        if (!CheckPackageAcl(packageRoot, args.AllowWritablePackage))
+            return ExitUnsafePackage;
+
+        var silent = args.Install && args.BackendUrl is not null;
         var urlInput = args.BackendUrl;
         BackendUrlResult result;
         while (true)
@@ -142,7 +149,41 @@ internal static class Program
         }
 
         return RunScript(EmbeddedScripts.Install, script =>
-            PowerShellCommand.BuildInstall(script, result.Normalized!, distDir, Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows"));
+            PowerShellCommand.BuildInstall(script, result.Normalized!, distDir, WindowsDir));
+    }
+
+    /// <summary>Refuses a package folder that standard users can modify (they could swap the exe that becomes a SYSTEM service).</summary>
+    private static bool CheckPackageAcl(string packageRoot, bool allowWritable)
+    {
+        Console.WriteLine("Package folder: " + packageRoot);
+        Console.WriteLine("(Install refuses a package folder that standard users can modify; copy it to an admin-only place such as C:\\PcGuardSetup.)");
+
+        List<PcGuard.Core.UnsafeGrant> bad;
+        try
+        {
+            bad = PcGuard.Core.PackageAclPolicy.FindUnsafeGrants(PackageAcl.Read(packageRoot)).ToList();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            Console.Error.WriteLine("Cannot read the permissions of the package folder: " + e.Message);
+            if (!allowWritable) return false;
+            Console.Error.WriteLine("WARNING: continuing because --allow-writable-package was given.");
+            return true;
+        }
+
+        if (bad.Count == 0) return true;
+
+        foreach (var g in bad)
+            Console.Error.WriteLine($"  {g.Group} can modify: {g.Path}");
+        if (!allowWritable)
+        {
+            Console.Error.WriteLine("Refusing to install: a standard user could replace these files before they are installed as a SYSTEM service.");
+            Console.Error.WriteLine("Copy the whole PcGuard folder to an admin-only location (for example C:\\PcGuardSetup) and run Setup-PcGuard.exe from there,");
+            Console.Error.WriteLine("or pass --allow-writable-package if you accept the risk.");
+            return false;
+        }
+        Console.Error.WriteLine("WARNING: --allow-writable-package given. Continuing although standard users can modify the package folder!");
+        return true;
     }
 
     private static int DoUninstall(SetupArgs args, bool purge)
@@ -162,7 +203,7 @@ internal static class Program
 
         var p = purge;
         return RunScript(EmbeddedScripts.Uninstall, script =>
-            PowerShellCommand.BuildUninstall(script, p, Environment.GetEnvironmentVariable("SystemRoot") ?? @"C:\Windows"));
+            PowerShellCommand.BuildUninstall(script, p, WindowsDir));
     }
 
     /// <summary>Extracts the embedded script into an admin-only folder, runs it, always deletes the folder.</summary>
@@ -192,6 +233,7 @@ internal static class Program
             Console.WriteLine();
 
             int code;
+            _cancelRequested = false;
             using (var proc = Process.Start(psi) ?? throw new InvalidOperationException("Could not start PowerShell."))
             {
                 _child = proc;
@@ -205,7 +247,9 @@ internal static class Program
             Console.WriteLine(code == 0
                 ? $"{scriptName} finished successfully (exit code 0)."
                 : $"{scriptName} FAILED with exit code {code}. Read the messages above.");
-            return code != 0 ? code : (_cancelRequested ? ExitCancelled : 0);
+            var cancelled = _cancelRequested;
+            _cancelRequested = false;
+            return code != 0 ? code : (cancelled ? ExitCancelled : 0);
         }
         catch (Exception e) when (e is IOException or InvalidDataException or UnauthorizedAccessException
                                       or InvalidOperationException or System.ComponentModel.Win32Exception)
@@ -232,6 +276,8 @@ internal static class Program
 
     private static void OnCancel(object? sender, ConsoleCancelEventArgs e)
     {
+        var child = _child;
+        if (child is null) return; // no script running: let Ctrl+C end the program normally (ProcessExit cleans up)
         e.Cancel = true; // keep running so that the finally blocks and cleanup execute
         if (!_cancelRequested)
         {
@@ -240,7 +286,7 @@ internal static class Program
             Console.WriteLine("Ctrl+C received: waiting for the running script to stop. Press Ctrl+C again to force it.");
             return;
         }
-        try { _child?.Kill(entireProcessTree: true); } catch (Exception) { /* already gone */ }
+        try { child.Kill(entireProcessTree: true); } catch (Exception) { /* already gone */ }
     }
 
     private static bool Confirm(string prompt)
@@ -264,10 +310,11 @@ internal static class Program
 
     private static void PrintUsage()
     {
-        Console.WriteLine("Usage: Setup-PcGuard.exe [--install --backend-url <https://host/api/v1>] [--uninstall [--purge]] [--no-pause] [--help]");
+        Console.WriteLine("Usage: Setup-PcGuard.exe [--install --backend-url <https://host/api/v1>] [--uninstall [--purge]] [--allow-writable-package] [--no-pause] [--help]");
         Console.WriteLine("  (no arguments)   interactive menu");
         Console.WriteLine("  --install        install or upgrade; with --backend-url it runs without questions");
         Console.WriteLine("  --uninstall      uninstall without questions (add --purge to also delete ProgramData\\PcGuard)");
+        Console.WriteLine("  --allow-writable-package   install even if standard users can modify the package folder (NOT recommended)");
         Console.WriteLine("  --no-pause       with --install/--uninstall: do not wait for Enter at the end");
     }
 }

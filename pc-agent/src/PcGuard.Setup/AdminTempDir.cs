@@ -35,8 +35,42 @@ internal sealed class AdminTempDir
                 sid, FileSystemRights.FullControl, inherit, PropagationFlags.None, AccessControlType.Allow));
         }
 
-        new DirectoryInfo(path).Create(security);
-        return new AdminTempDir(path);
+        var info = new DirectoryInfo(path);
+        info.Create(security);
+        var dir = new AdminTempDir(path);
+        try
+        {
+            dir.Verify();
+        }
+        catch
+        {
+            dir.TryDelete();
+            throw;
+        }
+        return dir;
+    }
+
+    /// <summary>Asserts the created folder is a real directory (no reparse point) with a protected DACL holding only SYSTEM and Administrators.</summary>
+    private void Verify()
+    {
+        var info = new DirectoryInfo(Path);
+        if (!info.Exists || (info.Attributes & FileAttributes.ReparsePoint) != 0)
+            throw new InvalidOperationException("Setup folder is not a plain directory; refusing to use it.");
+
+        var sec = info.GetAccessControl(AccessControlSections.Access);
+        if (!sec.AreAccessRulesProtected)
+            throw new InvalidOperationException("Setup folder inherits permissions; refusing to use it.");
+
+        var allowed = new[]
+        {
+            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+            new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+        };
+        foreach (FileSystemAccessRule rule in sec.GetAccessRules(true, true, typeof(SecurityIdentifier)))
+        {
+            if (!allowed.Contains((SecurityIdentifier)rule.IdentityReference))
+                throw new InvalidOperationException("Setup folder has an unexpected permission entry; refusing to use it.");
+        }
     }
 
     /// <summary>Deletes the folder; returns false (and leaves it) if that is impossible.</summary>

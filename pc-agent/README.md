@@ -65,9 +65,10 @@ PcGuard\
 Double-click it (Windows shows the UAC prompt; it needs Administrator) and choose `[1] Install or upgrade`, `[2] Uninstall` or `[3] Quit`. For install it asks for the backend URL (`https://host/api/v1`; http is accepted only for localhost, 127.0.0.1 and [::1]; a URL not ending in `/api/v1` gives a warning only), shows a summary and waits for you to type `YES`. Then it runs `install.ps1` / `uninstall.ps1` with Windows PowerShell, shows the script output live, reports the exit code and waits for Enter. The exit code of the script is the exit code of the exe.
 
 - The two scripts are EMBEDDED in the exe. At run time they are written to a new folder `%ProgramData%\PcGuard-setup-<guid>` that only SYSTEM and Administrators can access (ACL applied when the folder is created, inheritance removed), checked by SHA-256 against the embedded bytes, run, and the folder is deleted afterwards (also after errors and Ctrl+C). The loose `scripts\` folder is never executed by the exe (so a changed file there has no effect on it). The app files are taken from `dist\` next to the exe, so keep the folder together; if `dist\PcGuard.Service.exe`, `dist\PcGuard.Shell.exe` or `dist\appsettings.json` is missing it stops with a clear error.
-- Silent use: `Setup-PcGuard.exe --install --backend-url https://host/api/v1 --no-pause` (no questions), `Setup-PcGuard.exe --uninstall --no-pause`, `--uninstall --purge` (also deletes `%ProgramData%\PcGuard`), `--help`.
+- Silent use: `Setup-PcGuard.exe --install --backend-url https://host/api/v1 --no-pause` (no questions), `Setup-PcGuard.exe --uninstall --no-pause`, `--uninstall --purge` (also deletes `%ProgramData%\PcGuard`), `--help`. `--backend-url` works only with `--install`, and `--purge` only as `--uninstall --purge`.
+- **Copy the PcGuard folder to an admin-only location such as `C:\PcGuardSetup` before running it.** The installer turns `dist\PcGuard.Service.exe` into a service that runs as SYSTEM, so it refuses a package folder that standard users can modify: before doing anything it reads the permissions of the package folder, `dist\` and the three required files and stops with exit code 4 if Users, Authenticated Users, Everyone or INTERACTIVE can write, append, delete or change permissions (a USB stick, `C:\Users\Public` and Downloads are typical offenders). `--allow-writable-package` overrides this with a loud warning; use it only if you accept the risk. The exe prints the package path and this rule at every install.
 - It is NOT code-signed, so Windows SmartScreen may show "Windows protected your PC" (More info, Run anyway), and a downloaded zip may need Unblock in the file properties.
-- It has NEVER been run on Windows. Run tests 93-102 below before relying on it.
+- It has NEVER been run on Windows. Run tests 93-105 below before relying on it.
 - Build: `dotnet publish src/PcGuard.Setup/PcGuard.Setup.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist-setup` (works on macOS too).
 
 ## Configuration
@@ -698,7 +699,7 @@ Add-Type -AssemblyName System.Windows.Forms; [Windows.Forms.MessageBox]::Show('s
 
 **Test 101.** After an install or uninstall (and after pressing Ctrl+C during a run) look in `%ProgramData%`.
 
-- Expected: No `PcGuard-setup-*` folder remains. While a run is in progress, `icacls %ProgramData%\PcGuard-setup-*` shows only SYSTEM and Administrators, no inherited entries. A first Ctrl+C waits for the script, a second one stops it.
+- Expected: No `PcGuard-setup-*` folder remains (exception: closing the console window with the X button, or killing the exe, may leave a `PcGuard-setup-<guid>` folder behind; it is admin-only and harmless and can be deleted). A second Ctrl+C kills the script and can leave a half-done upgrade: re-run the install. No `PcGuard-setup-*` folder remains in the normal cases. While a run is in progress, `icacls %ProgramData%\PcGuard-setup-*` shows only SYSTEM and Administrators, no inherited entries. A first Ctrl+C waits for the script, a second one stops it.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 102.** Exit code propagation: make the install fail (for example `--install --backend-url https://example.uz/api/v1` with a `dist\appsettings.json` that is invalid JSON, as in Test 75), run silently.
@@ -706,9 +707,24 @@ Add-Type -AssemblyName System.Windows.Forms; [Windows.Forms.MessageBox]::Show('s
 - Expected: The output says FAILED with the script's exit code, and `%ERRORLEVEL%` equals that non-zero code.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
+**Test 103.** Run the install from a package folder that standard users can write to (for example copy `PcGuard` to `C:\Users\Public\PcGuard`).
+
+- Expected: The exe prints the package path, names the path and group (for example "Users can modify: C:\Users\Public\PcGuard\dist"), refuses with "Refusing to install", exit code 4, nothing changed and no `PcGuard-setup-*` folder. Uninstall still works from there.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 104.** Copy the package to `C:\PcGuardSetup`, then `icacls C:\PcGuardSetup /inheritance:r /grant:r "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F"` and run the install from there.
+
+- Expected: The check passes silently (only the package path line is printed) and the install proceeds. Re-grant `*S-1-5-32-545:(OI)(CI)M` (Users modify) and it is refused again.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 105.** From the writable folder of Test 103 run `Setup-PcGuard.exe --install --backend-url https://example.uz/api/v1 --allow-writable-package --no-pause`.
+
+- Expected: A loud WARNING that standard users can modify the package folder, then the install proceeds and succeeds. Without `--allow-writable-package` the same command returns 4.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
 ### 3. Results
 
-Fill in after each run. Total tests: 103 (7 core, 96 additional).
+Fill in after each run. Total tests: 106 (7 core, 99 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|

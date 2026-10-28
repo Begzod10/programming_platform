@@ -127,4 +127,90 @@ public class BackendUrlValidatorTests
         Assert.True(r.Ok);
         Assert.Equal("https://example.uz/api/v1", r.Normalized);
     }
+
+    [Theory]
+    [InlineData("http://localhost.evil.com/api/v1")]
+    [InlineData("http://127.0.0.1.evil.com/api/v1")]
+    [InlineData("http://[::ffff:127.0.0.1]/api/v1")]
+    [InlineData("http://127.0.0.2/api/v1")]
+    public void Lookalike_hosts_do_not_count_as_loopback(string input)
+    {
+        var r = BackendUrlValidator.Validate(input);
+        Assert.False(r.Ok);
+        Assert.Equal("Only https URLs are allowed (http is allowed only for localhost).", r.Error);
+    }
+
+    [Theory]
+    [InlineData("https://example.uz/api/v1\nx")]
+    [InlineData("https://example.uz/api/v1\tx")]
+    [InlineData("https://example.uz/api/\r\nv1")]
+    [InlineData("https://example.uz/api/\u0001v1")]
+    public void Control_characters_are_rejected(string input)
+    {
+        var r = BackendUrlValidator.Validate(input);
+        Assert.False(r.Ok);
+        Assert.Equal("The backend URL contains characters that are not allowed.", r.Error);
+    }
+
+    [Theory]
+    [InlineData("-https://example.uz/api/v1")]
+    [InlineData("--x://example.uz/api/v1")]
+    public void Leading_dash_is_rejected(string input)
+    {
+        Assert.False(BackendUrlValidator.Validate(input).Ok);
+    }
+
+    [Theory]
+    [InlineData("https://example.uz/../x")]
+    [InlineData("https://example.uz/api/../v1")]
+    [InlineData("https://example.uz/./api/v1")]
+    public void Dot_segments_are_rejected(string input)
+    {
+        var r = BackendUrlValidator.Validate(input);
+        Assert.False(r.Ok);
+        Assert.Equal("The backend URL must not contain . or .. path segments.", r.Error);
+    }
+
+    [Fact]
+    public void Non_ascii_idn_host_is_rejected()
+    {
+        var r = BackendUrlValidator.Validate("https://b\u00fccher.example/api/v1");
+        Assert.False(r.Ok);
+        Assert.Equal("The backend URL contains characters that are not allowed.", r.Error);
+    }
+
+    [Fact]
+    public void Trailing_dot_host_is_accepted_as_is()
+    {
+        var r = BackendUrlValidator.Validate("https://example.uz./api/v1");
+        Assert.True(r.Ok);
+        Assert.Equal("https://example.uz./api/v1", r.Normalized);
+    }
+
+    [Fact]
+    public void Very_long_input_is_rejected()
+    {
+        var r = BackendUrlValidator.Validate("https://example.uz/" + new string('a', 3000) + "/api/v1");
+        Assert.False(r.Ok);
+        Assert.Equal("The backend URL is too long.", r.Error);
+    }
+
+    [Fact]
+    public void Pipe_is_percent_escaped_by_normalisation()
+    {
+        var r = BackendUrlValidator.Validate("https://example.uz/a|b/api/v1");
+        Assert.True(r.Ok);
+        Assert.Equal("https://example.uz/a%7Cb/api/v1", r.Normalized);
+    }
+
+    [Theory]
+    [InlineData("https://example.uz/$(calc);a&b/api/v1")]
+    [InlineData("https://example.uz/$x/(y)/;z/&w/api/v1")]
+    public void Shell_metacharacters_pass_through_unchanged(string input)
+    {
+        // Safe only because the URL is passed as one ProcessStartInfo.ArgumentList item (see PowerShellCommandTests).
+        var r = BackendUrlValidator.Validate(input);
+        Assert.True(r.Ok);
+        Assert.Equal(input, r.Normalized);
+    }
 }
