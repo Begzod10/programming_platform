@@ -9,11 +9,12 @@
   -RemovePcGuard: forced removal of PC Guard (service, shell, install folder, Safe Mode keys, setup temp
   folders) even when the install is damaged. %ProgramData%\PcGuard (machine key) is deleted only with -Purge.
   Use -WhatIf to print what would be done without changing anything.
-  Never touched: system processes, explorer, this PowerShell and its parent chain, and anything named PcGuard*
-  (PC Guard is removed only through -RemovePcGuard, never through -Kill).
+  Never touched: system processes, explorer, this PowerShell and its parent chain, anything named PcGuard*, and
+  script hosts started by PcGuard / Setup-PcGuard (PC Guard is removed only through -RemovePcGuard).
+  Folder deletion never follows junctions or symlinks (reparse points are removed as links only).
   Command lines are shown as-is and may contain secrets: do not paste the output publicly.
   NOT TESTED: written without PowerShell available; run the VM checklist in CLEANUP.md.
-  Compatible with Windows PowerShell 5.1 and PowerShell 7 (no ternary, no && / ||).
+  Compatible with Windows PowerShell 5.1 and PowerShell 7 (no ternary, no pipeline chain operators).
   Exit codes: 0 ok, 1 error or not elevated, 2 partial failure (some step FAILED).
 .PARAMETER FindBusyScripts
   List busy script processes (default when no other switch is given).
@@ -27,10 +28,11 @@
   Force-remove PC Guard. Requires Administrator.
 .PARAMETER InstallDir
   Override of the PC Guard install folder (default: taken from the service ImagePath, else Program Files\PcGuard).
+  A folder whose name is not PcGuard is deleted only together with -Force.
 .PARAMETER Purge
   With -RemovePcGuard: also delete %ProgramData%\PcGuard (machine key, rules, usage queue).
 .PARAMETER Force
-  With -RemovePcGuard: do not ask to type YES.
+  With -RemovePcGuard: do not ask to type YES (and allow an explicit -InstallDir not named PcGuard).
 .EXAMPLE
   .\cleanup.ps1
 .EXAMPLE
@@ -60,6 +62,12 @@ $script:DryRun = [bool]$WhatIfPreference
 $script:NativeExit = 0
 $script:Results = New-Object System.Collections.ArrayList
 $script:KillFailures = 0
+$script:ProcEndFailed = $false
+$script:ServiceTouched = $false
+$script:OrigStart = $null
+$script:TargetDir = $null
+$script:DirExplicit = $false
+$script:RemovalRan = $false
 
 # Script hosts (image name without .exe, lower case).
 $ScriptHosts = @('powershell', 'pwsh', 'powershell_ise', 'cmd', 'wscript', 'cscript', 'mshta', 'python', 'pythonw', 'node', 'ruby', 'perl', 'bash', 'wsl')
@@ -97,6 +105,11 @@ function Confirm-Action {
     return $script:Cmdlet.ShouldProcess($Target, $Action)
 }
 
+function Get-NotDoneText {
+    if ($script:DryRun) { return 'WhatIf: not performed' }
+    return 'not performed (declined at the -Confirm prompt)'
+}
+
 function Add-Result {
     param([string]$Step, [string]$Status, [string]$Detail)
     [void]$script:Results.Add([pscustomobject]@{ Step = $Step; Status = $Status; Detail = $Detail })
@@ -124,7 +137,7 @@ function Get-ImageName {
 }
 
 function Get-CimProcessMap {
-    # pid (int) -> Win32_Process instance
+    # pid (int) -> Win32_Process instance (read-only query)
     $map = @{}
     foreach ($p in (Get-CimInstance -ClassName Win32_Process -ErrorAction Stop)) {
         $map[[int]$p.ProcessId] = $p
@@ -149,18 +162,31 @@ function Get-OwnChain {
 
 function Get-ProtectionReason {
     # Returns a reason string when the process must never be closed, otherwise $null.
-    param([int]$ProcId, [string]$ImgName, $Chain)
+    param([int]$ProcId, [string]$ImgName, $Chain, $CimMap)
     if ($ProcId -le 4) { return 'system process id' }
     if ($Chain.ContainsKey($ProcId)) { return 'this PowerShell or its parent chain' }
     if ($ProtectedNames -contains $ImgName) { return 'system / shell process' }
     if ($ImgName -like 'pcguard*') { return 'PC Guard (use -RemovePcGuard)' }
+    # Anything started (directly or indirectly) by PcGuard or Setup-PcGuard is protected.
+    $cur = $CimMap[$ProcId]
+    $guard = 0
+    while ($cur -and $guard -lt 32) {
+        $pp = [int]$cur.ParentProcessId
+        if ($pp -le 0) { break }
+        $par = $CimMap[$pp]
+        if (-not $par) { break }
+        $pn = Get-ImageName ([string]$par.Name)
+        if (($pn -like 'pcguard*') -or ($pn -like 'setup-pcguard*')) { return 'started by PC Guard / Setup-PcGuard' }
+        $cur = $par
+        $guard++
+    }
     return $null
 }
 
 function Get-OwnerText {
     param($CimProc)
     try {
-        $r = Invoke-CimMethod -InputObject $CimProc -MethodName GetOwner -ErrorAction Stop
+        $r = Invoke-CimMethod -InputObject $CimProc -MethodName GetOwner -WhatIf:$false -Confirm:$false -ErrorAction Stop
         if ($r -and $r.User) { return ('{0}\{1}' -f $r.Domain, $r.User) }
     }
     catch { }
@@ -168,10 +194,15 @@ function Get-OwnerText {
 }
 
 function Get-CpuSample {
-    # pid (int) -> total processor seconds
+    # pid (int) -> @{ Cpu = total processor seconds; Start = StartTime or $null }
     $h = @{}
     foreach ($p in (Get-Process -ErrorAction SilentlyContinue)) {
-        try { $h[[int]$p.Id] = $p.TotalProcessorTime.TotalSeconds } catch { }
+        $cpu = $null
+        try { $cpu = $p.TotalProcessorTime.TotalSeconds } catch { $cpu = $null }
+        if ($null -eq $cpu) { continue }
+        $st = $null
+        try { $st = $p.StartTime } catch { $st = $null }
+        $h[[int]$p.Id] = [pscustomobject]@{ Cpu = $cpu; Start = $st }
     }
     return $h
 }
@@ -184,6 +215,7 @@ function Format-Cmd {
 }
 
 function Read-Answer {
+    # Enter, EOF or a non-interactive host never count as yes: Read-Host failing returns 'q'.
     param([string]$Prompt)
     try {
         $a = Read-Host $Prompt
@@ -217,7 +249,11 @@ function Invoke-FindBusyScripts {
     $rows = New-Object System.Collections.ArrayList
     foreach ($procId in $s2.Keys) {
         if (-not $s1.ContainsKey($procId)) { continue }
-        $delta = $s2[$procId] - $s1[$procId]
+        $a = $s1[$procId]
+        $b = $s2[$procId]
+        # Same PID but a different start time means the PID was reused: skip.
+        if ($a.Start -and $b.Start -and ($a.Start -ne $b.Start)) { continue }
+        $delta = $b.Cpu - $a.Cpu
         if ($delta -lt 0) { $delta = 0 }
         $pct = ($delta / ($elapsed * $cores)) * 100
         $c = $cim[$procId]
@@ -251,7 +287,7 @@ function Invoke-FindBusyScripts {
             if ($ScriptHosts -contains (Get-ImageName $parentName)) { $childOfHost = $true }
         }
         if (-not ($isHost -or $childOfHost)) { continue }
-        $reason = Get-ProtectionReason $r.ProcId $img $chain
+        $reason = Get-ProtectionReason $r.ProcId $img $chain $cim
         [void]$cands.Add([pscustomobject]@{
                 ProcId     = $r.ProcId
                 Name       = [string]$c.Name
@@ -307,43 +343,58 @@ function Invoke-FindBusyScripts {
     Write-Host ('--- Close processes ({0} candidate(s); default answer is No) ---' -f $killable.Count) -ForegroundColor Cyan
     $all = $false
     foreach ($x in $killable) {
-        # Re-check right before acting: same process (name + start time) and still not protected.
-        $fresh = $null
-        try { $fresh = Get-CimInstance -ClassName Win32_Process -Filter ('ProcessId=' + $x.ProcId) -ErrorAction Stop } catch { }
-        if (-not $fresh) {
-            Write-Host ('PID {0} ({1}) no longer running; skipped.' -f $x.ProcId, $x.Name)
-            continue
-        }
-        if (([string]$fresh.Name -ne $x.Name) -or ($fresh.CreationDate -ne $x.Started)) {
-            Write-Host ('PID {0}: a different process now uses this id; skipped.' -f $x.ProcId)
-            continue
-        }
-        $freshMap = Get-CimProcessMap
-        $freshChain = Get-OwnChain $freshMap
-        $why = Get-ProtectionReason $x.ProcId (Get-ImageName $fresh.Name) $freshChain
-        if ($why) {
-            Write-Host ('PID {0} ({1}) is protected ({2}); skipped.' -f $x.ProcId, $x.Name, $why)
-            continue
-        }
-
         if (-not $script:DryRun) {
             if (-not $all) {
                 $ans = Read-Answer ('Close PID {0} ({1}, {2}% CPU)? [y/N/a=all remaining/q=quit]' -f $x.ProcId, $x.Name, $x.Cpu)
                 if ($ans -eq 'q') { Write-Host 'Quit.'; break }
                 if ($ans -eq 'a') { $all = $true }
-                elseif ($ans -ne 'y') { Write-Host '   left running.'; continue }
+                elseif ($ans -ne 'y') { Write-Host '   not closed (answered No); still running.'; continue }
             }
         }
+
+        # Re-check AFTER the answer: the PID may have been reused while the prompt waited.
+        $p = $null
+        try { $p = Get-Process -Id $x.ProcId -ErrorAction Stop } catch { $p = $null }
+        if (-not $p) {
+            Write-Host ('   PID {0} ({1}) is no longer running; skipped.' -f $x.ProcId, $x.Name)
+            continue
+        }
+        $pStart = $null
+        try { $pStart = $p.StartTime } catch { $pStart = $null }
+        $sameStart = $false
+        if ($pStart -and $x.Started) {
+            if ([math]::Abs(($pStart - $x.Started).TotalSeconds) -le 2) { $sameStart = $true }
+        }
+        $freshMap = Get-CimProcessMap
+        $freshCim = $freshMap[[int]$x.ProcId]
+        $sameName = $false
+        if ($freshCim) {
+            if ((Get-ImageName ([string]$freshCim.Name)) -eq $x.Image) { $sameName = $true }
+        }
+        if ((-not $sameStart) -or (-not $sameName) -or ((Get-ImageName $p.ProcessName) -ne $x.Image)) {
+            Write-Host ('   PID {0}: PID was reused (or could not be verified); skipped.' -f $x.ProcId) -ForegroundColor Yellow
+            continue
+        }
+        $freshChain = Get-OwnChain $freshMap
+        $why = Get-ProtectionReason $x.ProcId $x.Image $freshChain $freshMap
+        if ($why) {
+            Write-Host ('   PID {0} ({1}) is protected ({2}); skipped.' -f $x.ProcId, $x.Name, $why)
+            continue
+        }
+
         if (Confirm-Action ('PID {0} ({1})' -f $x.ProcId, $x.Name) 'Stop process') {
             try {
-                Stop-Process -Id $x.ProcId -Force -ErrorAction Stop
+                # Kill through the very object that was verified above, not through the bare PID.
+                Stop-Process -InputObject $p -Force -ErrorAction Stop
                 Start-Sleep -Milliseconds 700
-                if (Get-Process -Id $x.ProcId -ErrorAction SilentlyContinue) {
-                    Write-Host ('   PID {0}: still running after Stop-Process.' -f $x.ProcId) -ForegroundColor Red
-                    $script:KillFailures++
+                $gone = $false
+                try { $p.Refresh(); $gone = $p.HasExited } catch { $gone = $false }
+                if ($gone) {
+                    Write-Host ('   PID {0}: closed.' -f $x.ProcId) -ForegroundColor Green
                 }
                 else {
-                    Write-Host ('   PID {0}: closed.' -f $x.ProcId) -ForegroundColor Green
+                    Write-Host ('   PID {0}: not confirmed closed (still running or state unreadable).' -f $x.ProcId) -ForegroundColor Red
+                    $script:KillFailures++
                 }
             }
             catch {
@@ -351,6 +402,130 @@ function Invoke-FindBusyScripts {
                 $script:KillFailures++
             }
         }
+        else {
+            Write-Host ('   PID {0}: {1}' -f $x.ProcId, (Get-NotDoneText))
+        }
+    }
+}
+
+# ---------------------------------------------------------------- safe folder deletion
+
+function Resolve-FsPath {
+    # Resolves a path ONCE (relative to the PowerShell location, not the process directory). FileSystem provider only.
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { throw 'empty path' }
+    $prov = $null
+    $drv = $null
+    $full = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path, [ref]$prov, [ref]$drv)
+    if ((-not $prov) -or ($prov.Name -ne 'FileSystem')) { throw ('not a file system path: ' + $Path) }
+    if ($full -notmatch '^[A-Za-z]:\\') { throw ('must be an absolute local path with a drive letter: ' + $Path) }
+    $full = [System.IO.Path]::GetFullPath($full)
+    if ($full.Length -gt 3) { $full = $full.TrimEnd('\') }
+    return $full
+}
+
+function Test-IsReparse {
+    param($Info)
+    return ((([int]$Info.Attributes) -band ([int][System.IO.FileAttributes]::ReparsePoint)) -ne 0)
+}
+
+function Grant-AdminOnItem {
+    # Per ITEM only (never recursive); /L acts on a link itself instead of its target. Locale independent (SID).
+    param([string]$Path)
+    Invoke-Native 'icacls.exe' @($Path, '/setowner', '*S-1-5-32-544', '/C', '/L', '/Q') | Out-Null
+    Invoke-Native 'icacls.exe' @($Path, '/grant', '*S-1-5-32-544:(F)', '/C', '/L', '/Q') | Out-Null
+}
+
+function Remove-OneItem {
+    # Deletes one file / directory / link. A link is removed as a link only. On failure fixes ACL of that item and retries once.
+    param([string]$Path, [bool]$IsDir, [bool]$IsLink, $Errors)
+    $lastMsg = ''
+    for ($attempt = 0; $attempt -lt 2; $attempt++) {
+        try {
+            if (-not $IsLink) {
+                # Never touch attributes of a link: that could follow it to the target.
+                try { [System.IO.File]::SetAttributes($Path, [System.IO.FileAttributes]::Normal) } catch { }
+            }
+            if ($IsDir) { [System.IO.Directory]::Delete($Path, $false) }
+            else { [System.IO.File]::Delete($Path) }
+            return
+        }
+        catch {
+            $lastMsg = $_.Exception.Message
+        }
+        if ($attempt -eq 0) { Grant-AdminOnItem $Path }
+    }
+    [void]$Errors.Add($Path + ': ' + $lastMsg)
+}
+
+function Remove-TreeInner {
+    param([string]$Dir, $Errors)
+    $children = @()
+    $listed = $false
+    for ($attempt = 0; $attempt -lt 2; $attempt++) {
+        try {
+            $di = New-Object System.IO.DirectoryInfo($Dir)
+            $children = @($di.GetFileSystemInfos())
+            $listed = $true
+            break
+        }
+        catch {
+            if ($attempt -eq 0) { Grant-AdminOnItem $Dir }
+            else { [void]$Errors.Add($Dir + ': cannot list: ' + $_.Exception.Message) }
+        }
+    }
+    if (-not $listed) { return }
+    foreach ($c in $children) {
+        $link = Test-IsReparse $c
+        if ($c -is [System.IO.DirectoryInfo]) {
+            if (-not $link) { Remove-TreeInner $c.FullName $Errors }
+            Remove-OneItem $c.FullName $true $link $Errors
+        }
+        else {
+            Remove-OneItem $c.FullName $false $link $Errors
+        }
+    }
+}
+
+function Remove-TreeSafe {
+    # Deletes a folder tree WITHOUT following junctions / symlinks. Throws on any problem. Root must not be a link.
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    $root = New-Object System.IO.DirectoryInfo($Path)
+    if (Test-IsReparse $root) {
+        throw ('''' + $Path + ''' is a reparse point (junction or symlink); nothing was deleted.')
+    }
+    if ((([int]$root.Attributes) -band ([int][System.IO.FileAttributes]::Directory)) -eq 0) {
+        throw ('''' + $Path + ''' is not a folder; nothing was deleted.')
+    }
+    $errs = New-Object System.Collections.ArrayList
+    Remove-TreeInner $Path $errs
+    Remove-OneItem $Path $true $false $errs
+    if ($errs.Count -gt 0) {
+        $first = @($errs | Select-Object -First 5) -join ' | '
+        throw ('could not delete everything under ''' + $Path + ''' (' + $errs.Count + ' problem(s)): ' + $first)
+    }
+    if (Test-Path -LiteralPath $Path) { throw ('''' + $Path + ''' still exists after deletion.') }
+}
+
+function Get-FolderOwner {
+    # @{ Text; Sid } of the folder owner, or $null when it cannot be determined.
+    param([string]$Path)
+    try {
+        $acl = Get-Acl -LiteralPath $Path -ErrorAction Stop
+        $text = [string]$acl.Owner
+        if (-not $text) { return $null }
+        $sid = $null
+        if ($text -match '^S-1-') {
+            $sid = (New-Object System.Security.Principal.SecurityIdentifier($text)).Value
+        }
+        else {
+            $sid = (New-Object System.Security.Principal.NTAccount($text)).Translate([System.Security.Principal.SecurityIdentifier]).Value
+        }
+        return [pscustomobject]@{ Text = $text; Sid = $sid }
+    }
+    catch {
+        return $null
     }
 }
 
@@ -379,47 +554,52 @@ function Get-DefaultInstallDir {
     return (Join-Path $pf 'PcGuard')
 }
 
-function Get-DeleteRefusal {
-    # Returns a reason when the folder must NOT be deleted, otherwise $null.
-    param([string]$Path)
-    $full = [System.IO.Path]::GetFullPath($Path).TrimEnd('\')
-    if ($full.StartsWith('\\')) { return 'network (UNC) path' }
-    $root = [System.IO.Path]::GetPathRoot($full).TrimEnd('\')
-    if ($full -eq $root) { return 'drive root' }
-    $forbidden = @($env:windir, $env:SystemRoot, $env:ProgramFiles, $env:ProgramW6432, ${env:ProgramFiles(x86)},
-        $env:ProgramData, $env:SystemDrive, $env:USERPROFILE, (Join-Path $env:SystemRoot 'System32'))
-    foreach ($f in $forbidden) {
-        if ($f -and ($full -eq $f.TrimEnd('\'))) { return ('protected system folder (' + $f + ')') }
+function Test-AnyFile {
+    param([string]$Dir, [string[]]$Names)
+    foreach ($n in $Names) {
+        if (Test-Path -LiteralPath (Join-Path $Dir $n)) { return $true }
     }
-    if ($env:windir -and $full.StartsWith(($env:windir.TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)) {
-        return 'inside the Windows folder'
-    }
-    $leaf = Split-Path -Leaf $full
-    $hasFiles = (Test-Path -LiteralPath (Join-Path $full 'PcGuard.Service.exe')) -or (Test-Path -LiteralPath (Join-Path $full 'PcGuard.Shell.exe'))
-    if ((-not $hasFiles) -and ($leaf -ne 'PcGuard')) {
-        return 'folder is not named PcGuard and contains no PcGuard.Service.exe / PcGuard.Shell.exe'
-    }
-    return $null
+    return $false
 }
 
-function Remove-DirForced {
-    # Resets ACLs, deletes; if that fails takes ownership and retries. Throws when the folder remains.
-    param([string]$Path)
-    Invoke-Native 'icacls.exe' @($Path, '/reset', '/T', '/C', '/Q') | Out-Null
-    try {
-        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+function Get-DeleteRefusal {
+    # $Full must already be resolved with Resolve-FsPath. Returns a reason when the folder must NOT be deleted, else $null.
+    param([string]$Full)
+    $t = $Full.TrimEnd('\')
+    $root = [System.IO.Path]::GetPathRoot($Full).TrimEnd('\')
+    if ($t -eq $root) { return 'drive root' }
+    $list = New-Object System.Collections.ArrayList
+    foreach ($v in @($env:windir, $env:SystemRoot, $env:ProgramFiles, $env:ProgramW6432, ${env:ProgramFiles(x86)},
+            $env:CommonProgramFiles, ${env:CommonProgramFiles(x86)}, $env:CommonProgramW6432, $env:ProgramData, $env:USERPROFILE)) {
+        if ($v) { [void]$list.Add([string]$v) }
     }
-    catch { }
-    if (-not (Test-Path -LiteralPath $Path)) { return }
-    Invoke-Native 'takeown.exe' @('/F', $Path, '/R', '/D', 'Y') | Out-Null
-    Invoke-Native 'icacls.exe' @($Path, '/reset', '/T', '/C', '/Q') | Out-Null
-    try {
-        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+    if ($env:SystemRoot) {
+        [void]$list.Add((Join-Path $env:SystemRoot 'System32'))
+        [void]$list.Add((Join-Path $env:SystemRoot 'SysWOW64'))
     }
-    catch {
-        throw ('could not delete ''' + $Path + ''': ' + $_.Exception.Message)
+    $profiles = New-Object System.Collections.ArrayList
+    if ($env:USERPROFILE) { [void]$profiles.Add([string]$env:USERPROFILE) }
+    if ($env:SystemDrive) {
+        $users = Join-Path $env:SystemDrive 'Users'
+        [void]$list.Add($users)
+        try {
+            foreach ($d in @(Get-ChildItem -LiteralPath $users -Directory -Force -ErrorAction SilentlyContinue)) {
+                [void]$profiles.Add($d.FullName)
+            }
+        }
+        catch { }
     }
-    if (Test-Path -LiteralPath $Path) { throw ('''' + $Path + ''' still exists after deletion attempt.') }
+    foreach ($pr in $profiles) {
+        [void]$list.Add($pr)
+        foreach ($sub in @('Desktop', 'Documents', 'Downloads')) { [void]$list.Add((Join-Path $pr $sub)) }
+    }
+    foreach ($f in $list) {
+        if ($t -eq $f.TrimEnd('\')) { return ('protected system or user folder (' + $f + ')') }
+    }
+    if ($env:windir -and $t.StartsWith(($env:windir.TrimEnd('\') + '\'), [StringComparison]::OrdinalIgnoreCase)) {
+        return 'inside the Windows folder'
+    }
+    return $null
 }
 
 function Stop-ProcessesByBaseName {
@@ -443,26 +623,41 @@ function Test-ServiceExists {
     return [bool](Get-Service -Name $ServiceName -ErrorAction SilentlyContinue)
 }
 
+function Write-RestoreBlock {
+    Write-Host ''
+    Write-Host 'WARNING: the PcGuard service still exists but this script changed it. The PC is UNGUARDED until you rerun' -ForegroundColor Red
+    Write-Host 'this script (after fixing the failed step) or restore the service by hand:' -ForegroundColor Red
+    if ($null -ne $script:OrigStart) { Write-Host ('  (original Start value in the registry was {0}; 2 = automatic)' -f $script:OrigStart) }
+    Write-Host '  sc.exe config PcGuard start= auto'
+    Write-Host '  sc.exe failure PcGuard reset= 0 actions= restart/5000/restart/5000/restart/5000'
+    Write-Host '  sc.exe failureflag PcGuard 1'
+    Write-Host '  sc.exe start PcGuard'
+}
+
 function Invoke-RemovePcGuard {
-    # ---- resolve the install folder BEFORE the service is deleted
+    $script:RemovalRan = $true
+    # ---- resolve the install folder ONCE, BEFORE the service is deleted
     $dirSource = ''
     $candidates = New-Object System.Collections.ArrayList
     if ($InstallDir) {
-        [void]$candidates.Add($InstallDir)
+        [void]$candidates.Add((Resolve-FsPath $InstallDir))
+        $script:DirExplicit = $true
         $dirSource = 'from -InstallDir'
     }
     else {
         $fromSvc = Get-ServiceImageDir
-        if ($fromSvc) { [void]$candidates.Add($fromSvc) }
-        [void]$candidates.Add((Get-DefaultInstallDir))
+        if ($fromSvc) {
+            try { [void]$candidates.Add((Resolve-FsPath $fromSvc)) } catch { }
+        }
+        [void]$candidates.Add((Resolve-FsPath (Get-DefaultInstallDir)))
     }
     $resolved = $null
     foreach ($c in $candidates) {
-        if ($c -and (Test-Path -LiteralPath $c)) { $resolved = $c; break }
+        if (Test-Path -LiteralPath $c) { $resolved = $c; break }
     }
     if (-not $resolved) { $resolved = $candidates[0] }
     if (-not $dirSource) {
-        if ($resolved -eq (Get-DefaultInstallDir)) { $dirSource = 'default location' } else { $dirSource = 'from the service ImagePath' }
+        if ($resolved -eq (Resolve-FsPath (Get-DefaultInstallDir))) { $dirSource = 'default location' } else { $dirSource = 'from the service ImagePath' }
     }
     $script:TargetDir = $resolved
     $dataDir = Join-Path $env:ProgramData 'PcGuard'
@@ -474,8 +669,8 @@ function Invoke-RemovePcGuard {
     Write-Host 'This will:'
     Write-Host '  - disable and stop the PcGuard service, end PcGuard.Service.exe and PcGuard.Shell.exe'
     Write-Host '  - delete the PcGuard service and its Safe Mode registry keys'
-    Write-Host ('  - delete the install folder: {0} ({1})' -f $resolved, $dirSource)
-    Write-Host ('  - delete {0} leftover PcGuard-setup-* folder(s) in {1}' -f $setupDirs.Count, $env:ProgramData)
+    Write-Host ('  - delete the install folder: {0} ({1}); only if it passes the safety checks' -f $resolved, $dirSource)
+    Write-Host ('  - delete PcGuard-setup-* folders in {0} that were created by Setup (currently {1})' -f $env:ProgramData, $setupDirs.Count)
     if ($Purge) {
         Write-Host ('  - DELETE {0} (machine key, rules, usage queue)' -f $dataDir) -ForegroundColor Yellow
     }
@@ -495,23 +690,26 @@ function Invoke-RemovePcGuard {
     Write-Host ''
     Write-Host 'Steps:'
 
-    # 1. Stop recovery from restarting the service, then stop it.
+    # 1. Disable the service (start= disabled is the real guard against a restart by the recovery actions), then stop it.
     Invoke-Step 'Disable service' {
         if (-not (Test-ServiceExists)) { Add-Result $Name 'SKIPPED' 'service not registered'; return }
-        if (-not (Confirm-Action $ServiceName 'sc.exe config start= disabled; failureflag 0')) { Add-Result $Name 'SKIPPED' 'WhatIf'; return }
+        try { $script:OrigStart = [int](Get-ItemProperty -LiteralPath $ServiceKey -Name Start -ErrorAction Stop).Start } catch { $script:OrigStart = $null }
+        if (-not (Confirm-Action $ServiceName 'sc.exe config start= disabled')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
+        $script:ServiceTouched = $true
         $o1 = Invoke-Native 'sc.exe' @('config', $ServiceName, 'start=', 'disabled')
-        $e1 = $script:NativeExit
-        $o2 = Invoke-Native 'sc.exe' @('failureflag', $ServiceName, '0')
-        $e2 = $script:NativeExit
-        if ($e1 -ne 0) { Add-Result $Name 'SKIPPED' ('could not disable (exit ' + $e1 + '); continuing: ' + ($o1 -join ' ')); return }
-        Add-Result $Name 'OK' ('start type disabled; failureflag exit ' + $e2)
+        if ($script:NativeExit -ne 0) {
+            Add-Result $Name 'FAILED' ('sc.exe config exit code ' + $script:NativeExit + ': ' + ($o1 -join ' ') + ' (the recovery actions may restart the service when it is killed)')
+            return
+        }
+        Add-Result $Name 'OK' ('start type set to disabled (original Start value: ' + $script:OrigStart + ')')
     }
 
     Invoke-Step 'Stop service' {
         if (-not (Test-ServiceExists)) { Add-Result $Name 'SKIPPED' 'service not registered'; return }
         $svc = Get-Service -Name $ServiceName
         if ($svc.Status -eq 'Stopped') { Add-Result $Name 'SKIPPED' 'already stopped'; return }
-        if (-not (Confirm-Action $ServiceName 'Stop service')) { Add-Result $Name 'SKIPPED' 'WhatIf'; return }
+        if (-not (Confirm-Action $ServiceName 'Stop service')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
+        $script:ServiceTouched = $true
         try { Stop-Service -Name $ServiceName -Force -ErrorAction Stop } catch { }
         try { $svc.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30)) } catch { }
         $svc.Refresh()
@@ -522,25 +720,32 @@ function Invoke-RemovePcGuard {
     Invoke-Step 'End PcGuard.Service.exe' {
         $present = @(Get-Process -Name 'PcGuard.Service' -ErrorAction SilentlyContinue)
         if ($present.Count -eq 0) { Add-Result $Name 'SKIPPED' 'not running'; return }
-        if (-not (Confirm-Action 'PcGuard.Service.exe' 'Stop process')) { Add-Result $Name 'SKIPPED' 'WhatIf'; return }
+        if (-not (Confirm-Action 'PcGuard.Service.exe' 'Stop process')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
+        $script:ServiceTouched = $true
         $left = Stop-ProcessesByBaseName 'PcGuard.Service'
         if ($left -eq 0) { Add-Result $Name 'OK' ('ended ' + $present.Count + ' process(es)') }
-        else { Add-Result $Name 'FAILED' ($left.ToString() + ' process(es) still running. Reboot (or boot into Safe Mode) and run this script again.') }
+        else {
+            $script:ProcEndFailed = $true
+            Add-Result $Name 'FAILED' ($left.ToString() + ' process(es) still running. Reboot (or boot into Safe Mode) and run this script again.')
+        }
     }
 
     Invoke-Step 'End PcGuard.Shell.exe' {
         $present = @(Get-Process -Name 'PcGuard.Shell' -ErrorAction SilentlyContinue)
         if ($present.Count -eq 0) { Add-Result $Name 'SKIPPED' 'not running'; return }
-        if (-not (Confirm-Action 'PcGuard.Shell.exe' 'Stop process')) { Add-Result $Name 'SKIPPED' 'WhatIf'; return }
+        if (-not (Confirm-Action 'PcGuard.Shell.exe' 'Stop process')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
         $left = Stop-ProcessesByBaseName 'PcGuard.Shell'
         if ($left -eq 0) { Add-Result $Name 'OK' ('ended ' + $present.Count + ' process(es)') }
-        else { Add-Result $Name 'FAILED' ($left.ToString() + ' process(es) still running (the shell is protected). Reboot into Safe Mode / see README, then run this script again.') }
+        else {
+            $script:ProcEndFailed = $true
+            Add-Result $Name 'FAILED' ($left.ToString() + ' process(es) still running (the shell is protected). Reboot into Safe Mode / see README, then run this script again.')
+        }
     }
 
     # 2. Delete the service.
     Invoke-Step 'Delete service' {
         if (-not (Test-ServiceExists)) { Add-Result $Name 'SKIPPED' 'service not registered'; return }
-        if (-not (Confirm-Action $ServiceName 'sc.exe delete')) { Add-Result $Name 'SKIPPED' 'WhatIf'; return }
+        if (-not (Confirm-Action $ServiceName 'sc.exe delete')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
         $out = Invoke-Native 'sc.exe' @('delete', $ServiceName)
         if ($script:NativeExit -ne 0) {
             Add-Result $Name 'FAILED' ('sc.exe delete exit code ' + $script:NativeExit + ': ' + ($out -join ' '))
@@ -562,39 +767,89 @@ function Invoke-RemovePcGuard {
         $stepName = 'Safe Mode key ' + $mode
         Invoke-Step $stepName {
             if (-not (Test-Path -LiteralPath $key)) { Add-Result $Name 'SKIPPED' 'not present'; return }
-            if (-not (Confirm-Action $key 'Remove registry key')) { Add-Result $Name 'SKIPPED' 'WhatIf'; return }
+            if (-not (Confirm-Action $key 'Remove registry key')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
             Remove-Item -LiteralPath $key -Recurse -Force -ErrorAction Stop
             Add-Result $Name 'OK' 'removed'
         }
     }
 
-    # 4. Install folder.
+    # 4. Install folder (only with safety checks; never while PcGuard processes could not be ended).
     Invoke-Step 'Install folder' {
         $dir = $script:TargetDir
+        if (-not $dir) { Add-Result $Name 'SKIPPED' 'no install folder found'; return }
         if (-not (Test-Path -LiteralPath $dir)) { Add-Result $Name 'SKIPPED' ($dir + ' does not exist'); return }
+        if ($script:ProcEndFailed) {
+            Add-Result $Name 'SKIPPED' ('a PcGuard process could not be ended, so ''' + $dir + ''' was not touched. Reboot into Safe Mode / see README, then run this script again.')
+            return
+        }
         $refusal = Get-DeleteRefusal $dir
         if ($refusal) { Add-Result $Name 'FAILED' ('refusing to delete ''' + $dir + ''': ' + $refusal); return }
-        if (-not (Confirm-Action $dir 'Delete folder recursively')) { Add-Result $Name 'SKIPPED' 'WhatIf'; return }
-        Remove-DirForced $dir
+        $leaf = Split-Path -Leaf $dir
+        $hasBinary = Test-AnyFile $dir @('PcGuard.Service.exe', 'PcGuard.Shell.exe')
+        $hasAny = ($hasBinary -or (Test-AnyFile $dir @('appsettings.json')))
+        if ($leaf -eq 'PcGuard') {
+            if (-not $hasAny) {
+                Add-Result $Name 'SKIPPED' ('''' + $dir + ''' contains none of PcGuard.Service.exe, PcGuard.Shell.exe, appsettings.json; not deleted')
+                return
+            }
+        }
+        else {
+            if (-not $script:DirExplicit) {
+                Add-Result $Name 'SKIPPED' ('the discovered install folder ''' + $dir + ''' is not named PcGuard, so it is not deleted automatically. Rerun with -InstallDir ''' + $dir + ''' -Force if you are sure.')
+                return
+            }
+            if (-not $Force) {
+                Add-Result $Name 'SKIPPED' ('-InstallDir ''' + $dir + ''' is not named PcGuard; add -Force if you are sure')
+                return
+            }
+            if (-not $hasBinary) {
+                Add-Result $Name 'SKIPPED' ('''' + $dir + ''' contains neither PcGuard.Service.exe nor PcGuard.Shell.exe; not deleted')
+                return
+            }
+        }
+        if (-not (Confirm-Action $dir 'Delete folder tree (links are removed, never followed)')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
+        Remove-TreeSafe $dir
         Add-Result $Name 'OK' ('deleted ' + $dir)
     }
 
-    # 5. Leftover setup temp folders.
+    # 5. Leftover setup temp folders created by Setup (owner SYSTEM or Administrators, not a link).
     Invoke-Step 'Setup temp folders' {
         $list = @()
         try { $list = @(Get-ChildItem -LiteralPath $env:ProgramData -Directory -Filter 'PcGuard-setup-*' -Force -ErrorAction SilentlyContinue) } catch { }
         if ($list.Count -eq 0) { Add-Result $Name 'SKIPPED' 'none found'; return }
         $done = 0
+        $notDone = 0
+        $skipped = @()
         $bad = @()
         foreach ($d in $list) {
             if ($d.Name -notlike 'PcGuard-setup-*') { continue }
-            if (($d.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { $bad += ($d.FullName + ' (reparse point, skipped)'); continue }
-            if (-not (Confirm-Action $d.FullName 'Delete folder recursively')) { continue }
-            try { Remove-DirForced $d.FullName; $done++ } catch { $bad += ($d.FullName + ': ' + $_.Exception.Message) }
+            if (Test-IsReparse $d) { $bad += ($d.FullName + ' is a reparse point (junction or symlink); nothing deleted'); continue }
+            $owner = Get-FolderOwner $d.FullName
+            $ownerOk = $false
+            if ($owner) {
+                if (($owner.Sid -eq 'S-1-5-18') -or ($owner.Sid -eq 'S-1-5-32-544')) { $ownerOk = $true }
+            }
+            if (-not $ownerOk) {
+                $ot = 'unknown'
+                if ($owner) { $ot = $owner.Text }
+                $skipped += ($d.FullName + ': not created by Setup (owner ' + $ot + '); delete manually')
+                continue
+            }
+            if (-not (Confirm-Action $d.FullName 'Delete folder tree (links are removed, never followed)')) { $notDone++; continue }
+            try { Remove-TreeSafe $d.FullName; $done++ } catch { $bad += ($d.FullName + ': ' + $_.Exception.Message) }
         }
-        if ($bad.Count -gt 0) { Add-Result $Name 'FAILED' ($bad -join '; ') }
-        elseif ($script:DryRun) { Add-Result $Name 'SKIPPED' 'WhatIf' }
-        else { Add-Result $Name 'OK' ('deleted ' + $done + ' folder(s)') }
+        if ($bad.Count -gt 0) {
+            Add-Result $Name 'FAILED' (($bad + $skipped) -join '; ')
+        }
+        elseif ($skipped.Count -gt 0) {
+            Add-Result $Name 'SKIPPED' ('deleted ' + $done + '; ' + ($skipped -join '; '))
+        }
+        elseif ($notDone -gt 0) {
+            Add-Result $Name 'SKIPPED' (Get-NotDoneText)
+        }
+        else {
+            Add-Result $Name 'OK' ('deleted ' + $done + ' folder(s)')
+        }
     }
 
     # 6. Data folder (machine key) only with -Purge.
@@ -606,10 +861,8 @@ function Invoke-RemovePcGuard {
             return
         }
         if (-not (Test-Path -LiteralPath $data)) { Add-Result $Name 'SKIPPED' 'not present'; return }
-        if (-not (Confirm-Action $data 'Delete folder recursively (-Purge)')) { Add-Result $Name 'SKIPPED' 'WhatIf'; return }
-        # No "icacls /reset": it would briefly expose machine.key through inherited rights.
-        Remove-Item -LiteralPath $data -Recurse -Force -ErrorAction Stop
-        if (Test-Path -LiteralPath $data) { throw ('''' + $data + ''' still exists after deletion.') }
+        if (-not (Confirm-Action $data 'Delete folder tree (-Purge; links are removed, never followed)')) { Add-Result $Name 'SKIPPED' (Get-NotDoneText); return }
+        Remove-TreeSafe $data
         Add-Result $Name 'OK' ('deleted ' + $data)
     }
 
@@ -652,10 +905,12 @@ try {
     if ($failed -gt 0) {
         Write-Host ''
         Write-Host ('{0} step(s) FAILED. See the messages above.' -f $failed) -ForegroundColor Red
+        if ($script:RemovalRan -and $script:ServiceTouched -and (Test-ServiceExists)) { Write-RestoreBlock }
         exit 2
     }
     Write-Host ''
-    Write-Host 'Done.' -ForegroundColor Green
+    if ($script:DryRun) { Write-Host 'Done (-WhatIf: nothing was changed).' -ForegroundColor Green }
+    else { Write-Host 'Done.' -ForegroundColor Green }
     exit 0
 }
 catch {
