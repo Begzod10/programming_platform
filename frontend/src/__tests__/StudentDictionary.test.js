@@ -224,3 +224,52 @@ describe('a failed save says why and can be repeated', () => {
   });
 });
 
+
+describe('the random card is for words that were not asked yet', () => {
+  const mixed = () => dictionary([
+    word({ id: 1, word: 'alpha', last_check_knows: true, checks_count: 1 }),
+    word({ id: 2, word: 'bravo', last_check_knows: false, checks_count: 1 }),
+    word({ id: 3, word: 'charlie' }),
+  ]);
+
+  test('already asked words never come up, whatever the verdict was', async () => {
+    mockRequest.mockResolvedValue(mixed());
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('alpha');
+    for (let i = 0; i < 10; i += 1) {
+      fireEvent.click(screen.getByText(/Tasodifiy so'z/));
+      expect(container.querySelector('.sdict-picked-word')).toHaveTextContent('charlie');
+    }
+  });
+
+  test('when every word was asked it says so instead of repeating one', async () => {
+    mockRequest.mockResolvedValue(dictionary([
+      word({ id: 1, word: 'alpha', last_check_knows: true }), word({ id: 2, word: 'bravo', last_check_knows: false }),
+    ]));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('alpha');
+    fireEvent.click(screen.getByText(/Tasodifiy so'z/));
+    expect(container.querySelector('.sdict-picked-word')).toBeNull();
+    expect(screen.getByRole('status')).toHaveTextContent("Hamma so'zlar so'ralgan");
+  });
+
+  test('choosing a status lets the teacher ask those words again', async () => {
+    mockRequest.mockResolvedValue(mixed());
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('alpha');
+    fireEvent.change(screen.getByLabelText('Holat'), { target: { value: 'unknown' } });
+    fireEvent.click(screen.getByText(/Tasodifiy so'z/));
+    expect(container.querySelector('.sdict-picked-word')).toHaveTextContent('bravo');
+  });
+
+  test('after the last unasked word is answered the card says everything was asked', async () => {
+    mockRequest.mockResolvedValueOnce(dictionary([word({ id: 1, word: 'alpha', last_check_knows: true }), word({ id: 3, word: 'charlie' })]));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('charlie');
+    fireEvent.click(screen.getByText(/Tasodifiy so'z/));
+    mockRequest.mockResolvedValueOnce(word({ id: 3, word: 'charlie', last_check_knows: true, checks_count: 1, last_checked_at: '2026-10-30T09:00:00Z' }));
+    fireEvent.click(screen.getByText('✓ Biladi'));
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent("Hamma so'zlar so'ralgan"));
+    expect(container.querySelector('.sdict-picked-word')).toBeNull();
+  });
+});

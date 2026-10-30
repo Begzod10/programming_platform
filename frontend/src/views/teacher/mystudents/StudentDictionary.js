@@ -35,6 +35,7 @@ export default function StudentDictionary({ studentId }) {
     const [hideCode, setHideCode] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState(null);
+    const [pickNote, setPickNote] = useState('');
     const lastVerdict = useRef(true);
     const [picked, setPicked] = useState(null);
     const [showContext, setShowContext] = useState(false);
@@ -75,13 +76,24 @@ export default function StudentDictionary({ studentId }) {
         return t;
     }, [words]);
 
+    // The random card is for words not asked yet. Asked words come back only when the teacher picks a status
+    // ("Bilmaydiganlar" to ask the ones the student did not know again, say).
+    const askable = useMemo(
+        () => (state ? shown : shown.filter((w) => checkState(w) === 'unchecked')),
+        [shown, state],
+    );
+    const nothingToAsk = state
+        ? "Bu holatda so'z yo'q."
+        : "Hamma so'zlar so'ralgan 🎉 Qayta so'rash uchun yuqoridan «Bilmaydiganlar» holatini tanlang.";
+
     const pickFrom = (list, current) => {
-        if (list.length === 0) { setPicked(null); return; }
+        if (list.length === 0) { setPicked(null); setPickNote(nothingToAsk); return; }
         const pool = list.length > 1 ? list.filter((w) => !current || w.id !== current.id) : list;
+        setPickNote('');
         setPicked(pool[Math.floor(Math.random() * pool.length)]);
         setShowContext(false);
     };
-    const pickRandom = () => pickFrom(shown, picked);
+    const pickRandom = () => pickFrom(askable, picked);
 
     /** Save the teacher's verdict for a word, update it in place; from the random card, move on to the next word. */
     const record = async (word, knows, { next = false } = {}) => {
@@ -95,7 +107,7 @@ export default function StudentDictionary({ studentId }) {
             );
             setData((d) => ({ ...d, words: d.words.map((w) => (w.id === updated.id ? updated : w)) }));
             if (next) {
-                const rest = shown.filter((w) => w.id !== word.id && (!state || state === checkState(updated)));
+                const rest = askable.filter((w) => w.id !== word.id && (!state || state === checkState(updated)));
                 pickFrom(rest, word);
             } else if (picked && picked.id === updated.id) {
                 setPicked(updated);
@@ -149,11 +161,12 @@ export default function StudentDictionary({ studentId }) {
                         Kod bo'laklarini yashirish ({codeCount})
                     </label>
                 )}
-                <button className="sdict-btn sdict-btn--accent" onClick={pickRandom} disabled={shown.length === 0}>
+                <button className="sdict-btn sdict-btn--accent" onClick={pickRandom} disabled={words.length === 0}>
                     🎲 Tasodifiy so'z
                 </button>
             </div>
 
+            {!picked && pickNote && <div className="sdict-picked sdict-picked--note" role="status">{pickNote}</div>}
             {picked && (
                 <div className="sdict-picked" role="status">
                     <div className="sdict-picked-word">{picked.word}</div>

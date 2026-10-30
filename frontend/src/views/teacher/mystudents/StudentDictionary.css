@@ -1,8 +1,10 @@
 .sdict { display: flex; flex-direction: column; gap: 14px; }
 .sdict-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.sdict-input { padding: 8px 12px; border: 1px solid #e3e3ef; border-radius: 10px; font: inherit; background: #fff; min-width: 120px; }
-.sdict-check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: #555; }
-.sdict-btn { padding: 8px 14px; border: 1px solid #d8d8ea; border-radius: 10px; background: #fff; cursor: pointer; font: inherit; }
+.sdict-input { padding: 8px 12px; border: 1px solid #e3e3ef; border-radius: 10px; font: inherit; background: #fff; color: #23233a; min-width: 120px; }
+.sdict-input option { background: #fff; color: #23233a; }
+.sdict-check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: #444; }
+.sdict-check input { accent-color: #6c5ce7; }
+.sdict-btn { padding: 8px 14px; border: 1px solid #d8d8ea; border-radius: 10px; background: #fff; color: #23233a; cursor: pointer; font: inherit; }
 .sdict-btn--accent { background: #6c5ce7; border-color: #6c5ce7; color: #fff; }
 .sdict-btn:disabled { opacity: .5; cursor: default; }
 .sdict-link { background: none; border: 0; color: #6c5ce7; cursor: pointer; padding: 0; font: inherit; }
@@ -32,7 +34,7 @@
 .sdict-state { font-size: 12px; padding: 2px 8px; border-radius: 8px; background: #f0f0f6; color: #777; margin-right: auto; }
 .sdict-state--known { background: #e3f8f1; color: #00846a; }
 .sdict-state--unknown { background: #ffe9e3; color: #c4452b; }
-.sdict-mini { width: 30px; height: 28px; border: 1px solid #d8d8ea; border-radius: 8px; background: #fff; cursor: pointer; }
+.sdict-mini { width: 30px; height: 28px; border: 1px solid #d8d8ea; border-radius: 8px; background: #fff; color: #23233a; cursor: pointer; }
 .sdict-mini--yes:hover { background: #e3f8f1; border-color: #00b894; }
 .sdict-mini--no:hover { background: #ffe9e3; border-color: #e17055; }
 .sdict-mini:disabled { opacity: .5; cursor: default; }
@@ -44,3 +46,4 @@
 .sdsum-bar { height: 8px; border-radius: 6px; background: #ececf6; overflow: hidden; margin: 10px 0 6px; }
 .sdsum-bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, #6c5ce7, #00b894); transition: width .6s ease; }
 .sdsum-meta, .sdsum-empty { margin: 0; font-size: 13px; color: #888; }
+.sdict-picked--note { font-size: 16px; color: #3b2fa0; border-style: solid; }
