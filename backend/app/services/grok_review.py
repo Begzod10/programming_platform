@@ -157,6 +157,33 @@ def _format_lesson_context_block(
     return ("\n".join(lines) + "\n", persona_hint)
 
 
+def _format_requirements_rules(lesson_context: Optional[dict]) -> str:
+    """How to grade against the lesson's "Talablar" list. Without these rules the model kept inventing criteria
+    (read "kamida 3 ta" as "exactly 3", penalised 100px font sizes for beginners, asked for tags the lesson never
+    required) and missed the real defect (an HTML class that no CSS selector matches), so a student could submit
+    10+ times, fixing something different each time, and still fail. Empty when the lesson lists no requirements."""
+    requirements = str((lesson_context or {}).get("task_requirements") or "").strip()
+    if not requirements:
+        return ""
+    return """
+## TALABLAR BO'YICHA BAHOLASH — DARS KONTEKSTIDAGI "Talablar" RO'YXATI
+- "Talablar" ro'yxati — YAGONA mezon. HAR BANDNI alohida tekshir: bajarilgan (✅) yoki bajarilmagan (❌).
+- feedback ni shu ro'yxat bilan BOSHLA: har band uchun bitta qator, masalan "✅ 1) Kamida 3 ta kartochka bor" yoki
+  "❌ 4) Rang varianti: HTMLda class=\"danger\", CSSda esa .card-danger — nomlar mos emas, shuning uchun rang qo'llanmaydi.
+  Tuzatish: HTMLda class=\"card-danger\" deb yozing". Faqat shundan keyin umumiy fikr va maqtov.
+- Ro'yxatda YOKI topshiriq tavsifida YO'Q talabni O'YLAB TOPMA va uning uchun ball PASAYTIRMA: aniq son (agar "kamida N"
+  yozilgan bo'lsa, N yoki undan KO'P to'g'ri; ko'p bo'lgani uchun ball pasaytirma), o'lcham/shrift/rang qiymatlari
+  ("100px beginner uchun katta" kabi), kod uslubi, nomlash, ortiqcha teg yoki element (agar talab taqiqlamasa).
+- "masalan ..." deb berilgan misol majburiy emas: mazmun majburiy, aynan shu nom yoki shakl emas.
+- Agar talab CSS selektorini yoki class/id nomini nazarda tutsa, HTMLdagi nom CSSdagi selektor bilan AYNAN bir xil
+  ekanini tekshir (HTMLda "danger", CSSda ".card-danger" bo'lsa stil qo'llanmaydi — bu ❌ band, kamchilik sifatida ayt).
+- Har ❌ band uchun: nima kutilgan edi, kodda nima bor (fayl va qator), va BITTA aniq tuzatish. Shunda o'quvchi bir marta
+  tuzatib o'tadi, qayta-qayta urinmaydi.
+- Ball: hamma band ✅ bo'lsa — kamida 75 (B), kod boshlovchi uchun ideal bo'lmasa ham. Bitta band ❌ bo'lsa — odatda
+  60-74. Bir nechta band ❌ bo'lsa, ularning ahamiyatiga qarab past. (Quyidagi "QATTIQ QOIDA"lar bundan ustun.)
+"""
+
+
 def _format_encouragement_block(difficulty_level: str) -> str:
     """Render the beginner-friendly grading guidance for Easy lessons.
 
@@ -224,6 +251,7 @@ def _build_review_prompt(
     authorship_block = _format_authorship_block(authorship)
     lesson_block, persona_hint = _format_lesson_context_block(lesson_context, technologies)
     encouragement_block = _format_encouragement_block(difficulty_level)
+    requirements_rules = _format_requirements_rules(lesson_context)
 
     return f"""
 
@@ -237,7 +265,7 @@ MUHIM — DARS DOIRASI:
 - "Keyingi safar X qo'shing" turidagi maslahatni faqat SHU DARSDA o'tilgan texnologiyaning chuqurroq qismi bo'yicha bering, kurs hali boshlanmagan boshqa texnologiya bo'yicha emas.
 
 {_INJECTION_GUARD}
-{lesson_block}{encouragement_block}
+{lesson_block}{requirements_rules}{encouragement_block}
 ## METADATA
 <student_input>
 - Nomi: {title}
