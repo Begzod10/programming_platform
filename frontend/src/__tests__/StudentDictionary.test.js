@@ -9,7 +9,7 @@ jest.mock('../api/search/base', () => ({
   headers: () => ({}),
 }));
 
-import StudentDictionary, { hardness, isHard, checkState } from '../views/teacher/mystudents/StudentDictionary';
+import StudentDictionary, { hardness, isHard, checkState, looksLikeCode } from '../views/teacher/mystudents/StudentDictionary';
 
 const word = (o) => ({
   id: 1, word: 'closure', context: 'A closure remembers its scope.', lang: 'uz', lesson_id: 5,
@@ -103,18 +103,18 @@ describe("the teacher's oral checks", () => {
 
   test('the status filter narrows the list to unknown or unasked words', async () => {
     mockRequest.mockResolvedValue(dictionary([
-      word({ id: 1, word: 'known1', last_check_knows: true }),
-      word({ id: 2, word: 'unknown1', last_check_knows: false }),
-      word({ id: 3, word: 'fresh1' }),
+      word({ id: 1, word: 'knownword', last_check_knows: true }),
+      word({ id: 2, word: 'unknownword', last_check_knows: false }),
+      word({ id: 3, word: 'freshword' }),
     ]));
     render(<StudentDictionary studentId={9} />);
-    await screen.findByText('known1');
+    await screen.findByText('knownword');
     fireEvent.change(screen.getByLabelText('Holat'), { target: { value: 'unknown' } });
-    expect(screen.getByText('unknown1')).toBeInTheDocument();
-    expect(screen.queryByText('known1')).toBeNull();
+    expect(screen.getByText('unknownword')).toBeInTheDocument();
+    expect(screen.queryByText('knownword')).toBeNull();
     fireEvent.change(screen.getByLabelText('Holat'), { target: { value: 'unchecked' } });
-    expect(screen.getByText('fresh1')).toBeInTheDocument();
-    expect(screen.queryByText('unknown1')).toBeNull();
+    expect(screen.getByText('freshword')).toBeInTheDocument();
+    expect(screen.queryByText('unknownword')).toBeNull();
   });
 
   test('"Biladi" on a row saves the verdict through the API and updates the row and the tally', async () => {
@@ -153,6 +153,74 @@ describe("the teacher's oral checks", () => {
     fireEvent.click(screen.getByLabelText('closure: bilmaydi'));
     expect(await screen.findByRole('alert')).toHaveTextContent("saqlab bo'lmadi");
     expect(container.querySelector('.sdict-tally')).toHaveTextContent("Biladi 0 · Bilmaydi 0 · So'ralmagan 1");
+  });
+});
+
+describe('code fragments in the dictionary', () => {
+  test('looksLikeCode flags paths, snake_case, calls, file names and identifiers but not ordinary words', () => {
+    ['contract_test.py', '/api/admin/users', '/nope', 'user_id', 'foo()', 'getName', 'utf8', 'app.py'].forEach(
+      (w) => expect(looksLikeCode(w)).toBe(true));
+    ['token', 'Authorization', 'mutation', 'closure', 'итератор', 'API', 'JSON', 'side-effect', 'hello world'].forEach(
+      (w) => expect(looksLikeCode(w)).toBe(false));
+    expect(looksLikeCode('')).toBe(false);
+    expect(looksLikeCode(null)).toBe(false);
+  });
+
+  test('code fragments are hidden by default, with a switch that shows them again and a count', async () => {
+    mockRequest.mockResolvedValue(dictionary([
+      word({ id: 1, word: 'closure' }), word({ id: 2, word: 'contract_test.py' }), word({ id: 3, word: '/api/admin/users' }),
+    ]));
+    render(<StudentDictionary studentId={9} />);
+    await screen.findByText('closure');
+    expect(screen.queryByText('contract_test.py')).toBeNull();
+    expect(screen.getByText('1 / 3 so\'z')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Kod bo'laklarini yashirish (2)"));
+    expect(screen.getByText('contract_test.py')).toBeInTheDocument();
+    expect(screen.getByText('3 / 3 so\'z')).toBeInTheDocument();
+  });
+
+  test('the random card never picks a hidden code fragment', async () => {
+    mockRequest.mockResolvedValue(dictionary([word({ id: 1, word: 'closure' }), word({ id: 2, word: '/nope' })]));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('closure');
+    for (let i = 0; i < 6; i += 1) {
+      fireEvent.click(screen.getByText(/Tasodifiy so'z/));
+      expect(container.querySelector('.sdict-picked-word')).toHaveTextContent('closure');
+    }
+  });
+
+  test('no switch is shown when the dictionary has no code fragments', async () => {
+    mockRequest.mockResolvedValue(dictionary([word({ id: 1, word: 'closure' })]));
+    render(<StudentDictionary studentId={9} />);
+    await screen.findByText('closure');
+    expect(screen.queryByLabelText(/Kod bo'laklarini yashirish/)).toBeNull();
+  });
+});
+
+describe('a failed save says why and can be repeated', () => {
+  test('an HTTP status is named, a missing answer is called a network error, and the retry button repeats the same verdict', async () => {
+    mockRequest.mockResolvedValueOnce(dictionary([word({ id: 1, word: 'closure' })]));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('closure');
+    fireEvent.click(screen.getByText(/Tasodifiy so'z/));
+    const withStatus = Object.assign(new Error('x'), { status: 502 });
+    mockRequest.mockRejectedValueOnce(withStatus);
+    fireEvent.click(screen.getByText('✗ Bilmaydi'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('server javobi 502');
+    mockRequest.mockResolvedValueOnce(word({ id: 1, word: 'closure', last_check_knows: false, checks_count: 1, last_checked_at: '2026-10-30T09:00:00Z' }));
+    fireEvent.click(screen.getByText('Qayta urinish'));
+    await waitFor(() => expect(container.querySelector('.sdict-state--unknown')).toBeInTheDocument());
+    expect(JSON.parse(mockRequest.mock.calls[2][2])).toEqual({ knows: false });      // the retry repeats the same verdict
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  test('without an HTTP status it is reported as a network error', async () => {
+    mockRequest.mockResolvedValueOnce(dictionary([word({ id: 1, word: 'closure' })]));
+    render(<StudentDictionary studentId={9} />);
+    await screen.findByText('closure');
+    mockRequest.mockRejectedValueOnce(new Error('Network Error'));
+    fireEvent.click(screen.getByLabelText('closure: biladi'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('tarmoq xatosi');
   });
 });
 

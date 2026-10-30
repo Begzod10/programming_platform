@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import './StudentDictionary.css';
 
@@ -8,6 +8,17 @@ export const isHard = (w) => hardness(w) > 0;
 
 /** 'known' | 'unknown' | 'unchecked' — the teacher's latest oral verdict on a word. */
 export const checkState = (w) => (w.last_check_knows === true ? 'known' : w.last_check_knows === false ? 'unknown' : 'unchecked');
+
+/** Students sometimes save pieces of code from a lesson (README, contract_test.py, /api/admin/users, user_id, foo()) —
+ *  not words a teacher can ask. A heuristic, only used to hide them from the list and the random card. */
+export const looksLikeCode = (word) => {
+    const w = (word || '').trim();
+    if (!w) return false;
+    return /[/\\_(){}<>=[\];:$@#`|*]/.test(w)           // path, snake_case, call, tag, operator characters
+        || /\.[a-z]/i.test(w)                             // file extension / dotted name: app.py, os.path
+        || /^[a-z]+[A-Z]/.test(w)                         // camelCase identifier
+        || (/\d/.test(w) && /[a-z]/i.test(w));            // letters and digits mixed: utf8, h2
+};
 
 const STATE_LABEL = { known: 'biladi', unknown: 'bilmaydi', unchecked: "so'ralmagan" };
 
@@ -21,8 +32,10 @@ export default function StudentDictionary({ studentId }) {
     const [lang, setLang] = useState('');
     const [hardFirst, setHardFirst] = useState(false);
     const [state, setState] = useState('');            // '' | known | unknown | unchecked
+    const [hideCode, setHideCode] = useState(true);
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState(null);
+    const lastVerdict = useRef(true);
     const [picked, setPicked] = useState(null);
     const [showContext, setShowContext] = useState(false);
 
@@ -34,7 +47,7 @@ export default function StudentDictionary({ studentId }) {
     }, [studentId, request]);
     useEffect(() => { load(); }, [load]);
 
-    const words = data?.words || [];
+    const words = useMemo(() => data?.words || [], [data]);
     const courses = useMemo(() => {
         const seen = new Map();
         words.forEach((w) => { if (w.course_id && !seen.has(w.course_id)) seen.set(w.course_id, w.course_title); });
@@ -48,10 +61,13 @@ export default function StudentDictionary({ studentId }) {
             && (!course || String(w.course_id) === course)
             && (!lang || w.lang === lang)
             && (!state || checkState(w) === state)
+            && (!hideCode || !looksLikeCode(w.word))
         ));
         if (hardFirst) list = [...list].sort((a, b) => hardness(b) - hardness(a));
         return list;
-    }, [words, query, course, lang, hardFirst, state]);
+    }, [words, query, course, lang, hardFirst, state, hideCode]);
+
+    const codeCount = useMemo(() => words.filter((w) => looksLikeCode(w.word)).length, [words]);
 
     const tally = useMemo(() => {
         const t = { known: 0, unknown: 0, unchecked: 0 };
@@ -69,6 +85,7 @@ export default function StudentDictionary({ studentId }) {
 
     /** Save the teacher's verdict for a word, update it in place; from the random card, move on to the next word. */
     const record = async (word, knows, { next = false } = {}) => {
+        lastVerdict.current = knows;
         setSaving(true);
         setSaveError(null);
         try {
@@ -83,8 +100,10 @@ export default function StudentDictionary({ studentId }) {
             } else if (picked && picked.id === updated.id) {
                 setPicked(updated);
             }
-        } catch {
-            setSaveError("Natijani saqlab bo'lmadi. Qayta urinib ko'ring.");
+        } catch (e) {
+            // say WHY (an HTTP status, or no answer at all = network / proxy) so a failure can be told apart next time
+            const why = e?.status ? `server javobi ${e.status}` : "serverga yetib bo'lmadi (tarmoq xatosi)";
+            setSaveError(`Natijani saqlab bo'lmadi (${why}). Qayta urinib ko'ring.`);
         } finally {
             setSaving(false);
         }
@@ -124,6 +143,12 @@ export default function StudentDictionary({ studentId }) {
                     <input type="checkbox" checked={hardFirst} onChange={(e) => setHardFirst(e.target.checked)} />
                     Qiyinlari birinchi
                 </label>
+                {codeCount > 0 && (
+                    <label className="sdict-check">
+                        <input type="checkbox" checked={hideCode} onChange={(e) => setHideCode(e.target.checked)} />
+                        Kod bo'laklarini yashirish ({codeCount})
+                    </label>
+                )}
                 <button className="sdict-btn sdict-btn--accent" onClick={pickRandom} disabled={shown.length === 0}>
                     🎲 Tasodifiy so'z
                 </button>
@@ -147,7 +172,12 @@ export default function StudentDictionary({ studentId }) {
                     </div>
                 </div>
             )}
-            {saveError && <p className="sdict-error" role="alert">{saveError}</p>}
+            {saveError && (
+                <p className="sdict-error" role="alert">
+                    {saveError}
+                    {picked && <> <button className="sdict-link" onClick={() => record(picked, lastVerdict.current, { next: true })}>Qayta urinish</button></>}
+                </p>
+            )}
 
             <p className="sdict-tally">
                 <span className="sdict-tally-yes">Biladi {tally.known}</span> ·{' '}
