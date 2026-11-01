@@ -86,3 +86,10 @@
 .sm-confirm-card { border-color: rgba(154, 140, 255, 0.5); width: min(420px, 100%); }
 .sm-confirm-card h2 { color: #eef0ff; font-size: 1.25rem; }
 .sm-confirm-row { justify-content: center; margin-top: 18px; }
+
+/* Result: the card never grows past the screen; only the review list scrolls. */
+.sm-page--fit { overflow: hidden; align-items: center; padding: 20px 16px; }
+.sm-card--result { max-height: calc(100vh - 40px); display: flex; flex-direction: column; min-height: 0; }
+.sm-card--result .sm-score { font-size: 3rem; margin: 0; }
+.sm-card--result .sm-review { flex: 1; min-height: 0; overflow-y: auto; padding-right: 6px; }
+.sm-card--result h1, .sm-card--result h3, .sm-card--result .sm-sub, .sm-card--result .sm-row { flex-shrink: 0; }

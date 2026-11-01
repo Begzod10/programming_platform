@@ -404,8 +404,8 @@ export default function Summative() {
         const review = result.review || [];
         const shown = onlyWrong ? review.filter((r) => r.chosen !== r.correct) : review;
         return createPortal(
-            <div className="sm-page">
-                <div className="sm-card">
+            <div className="sm-page sm-page--fit">
+                <div className="sm-card sm-card--result">
                     <h1>{L.result}</h1>
                     <div className={`sm-score ${result.score >= 60 ? 'is-pass' : 'is-fail'}`}>{result.score}%</div>
                     <p className="sm-sub">{L.correct}: {result.correct} / {result.total}</p>
