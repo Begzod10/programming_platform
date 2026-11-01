@@ -34,6 +34,9 @@ export default function TeacherSummative() {
         request(`${API_URL}v1/summative/teacher/groups`, 'GET', null, headers()).then(setGroups).catch(() => {});
     }, [request, loadSets]);
 
+    // A group that already has a live test can't get a second one.
+    const freeGroups = groups.filter((g) => !sets.some((x) => x.is_active && x.group_id === g.id));
+
     const save = async () => {
         setMsg('');
         if (!groupId) { setMsg('Sinfni (guruhni) tanlang.'); return; }
@@ -113,13 +116,16 @@ export default function TeacherSummative() {
                     <label>Sinf (guruh)
                         <select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
                             <option value="">— tanlang —</option>
-                            {groups.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.students} ta talaba)</option>)}
+                            {freeGroups.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.students} ta talaba)</option>)}
                         </select>
                     </label>
                     <label>Test nomi
                         <input value={title} maxLength={200} placeholder="Masalan: 1-chorak yakuniy" onChange={(e) => setTitle(e.target.value)} />
                     </label>
                 </div>
+                {groups.length > 0 && freeGroups.length === 0 && (
+                    <p className="tsm-note">Hamma sinflarga test biriktirilgan. Yangisini yaratish uchun avval eskisini to'xtating yoki o'chiring.</p>
+                )}
                 <div className="tsm-form">
                     <label>Savollar soni
                         <input type="number" min={1} max={100} value={count} onChange={(e) => setCount(e.target.value)} />
