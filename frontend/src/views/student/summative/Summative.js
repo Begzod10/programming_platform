@@ -93,10 +93,17 @@ const fsSupported = () => !!(document.documentElement.requestFullscreen && docum
 const enterFs = () => {
     try {
         const p = document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
-        if (p && p.catch) p.catch(() => {});
+        if (p && p.then) {
+            // Chromium: capture Esc so a quick tap no longer leaves fullscreen
+            // (the browser then needs Esc held for ~2s). The little ✕ the
+            // browser draws at the top is its own UI and can't be removed —
+            // using it is counted as a violation like any other exit.
+            p.then(() => navigator.keyboard?.lock?.(['Escape']).catch(() => {})).catch(() => {});
+        }
     } catch { /* ignore */ }
 };
 const exitFs = () => {
+    try { navigator.keyboard?.unlock?.(); } catch { /* ignore */ }
     try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch { /* ignore */ }
 };
 
