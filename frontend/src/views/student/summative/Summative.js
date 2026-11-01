@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import './Summative.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
@@ -290,7 +291,10 @@ export default function Summative() {
     if (attempt) {
         const q = attempt.questions[idx];
         const unanswered = answers.filter((a) => a === null).length;
-        return (
+        // Portal to <body>: a transformed/filtered ancestor in the app layout
+        // would otherwise turn this "fixed" layer into a box inside the page
+        // and let the sidebar show through.
+        return createPortal(
             <div className="sm-test" onContextMenu={(e) => e.preventDefault()}>
                 <div className="sm-test-bar">
                     <span className="sm-q-count">{L.q(idx + 1, attempt.total)}</span>
@@ -350,7 +354,8 @@ export default function Summative() {
                         </div>
                     </div>
                 )}
-            </div>
+            </div>,
+            document.body
         );
     }
 

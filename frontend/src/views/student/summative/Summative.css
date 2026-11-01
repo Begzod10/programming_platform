@@ -48,7 +48,7 @@
 
 /* running test: full viewport, no selection */
 .sm-test {
-    position: fixed; inset: 0; z-index: 99999; overflow-y: auto; color: #eef0ff;
+    position: fixed; inset: 0; z-index: 2147483000; overflow-y: auto; color: #eef0ff;
     background: #0d0f26; user-select: none; -webkit-user-select: none;
     display: flex; flex-direction: column;
 }
@@ -60,7 +60,7 @@
 .sm-timer.is-low { color: #ff7d8f; animation: sm-blink 1s infinite; }
 .sm-viol { color: #ffcf66; }
 @keyframes sm-blink { 50% { opacity: 0.45; } }
-.sm-test-body { width: min(860px, 100%); margin: 0 auto; padding: 26px 18px 40px; }
+.sm-test-body { width: min(860px, 100%); margin: auto; padding: 26px 18px 40px; }
 .sm-question { font-size: 1.3rem; font-weight: 700; line-height: 1.5; white-space: pre-wrap; margin-bottom: 20px; }
 .sm-options { display: flex; flex-direction: column; gap: 10px; }
 .sm-option {
@@ -78,6 +78,6 @@
 .sm-dot.is-done { background: rgba(54, 196, 107, 0.25); color: #eafff1; }
 .sm-dot.is-cur { outline: 2px solid #9a8cff; }
 
-.sm-away { position: fixed; inset: 0; z-index: 100000; background: rgba(6, 7, 20, 0.97); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.sm-away { position: fixed; inset: 0; z-index: 2147483001; background: rgba(6, 7, 20, 0.97); display: flex; align-items: center; justify-content: center; padding: 20px; }
 .sm-away-card { max-width: 440px; text-align: center; padding: 28px; border-radius: 18px; background: #1c1f45; border: 1px solid rgba(240, 85, 107, 0.5); }
 .sm-away-card h2 { margin-top: 0; color: #ff9aa8; }
