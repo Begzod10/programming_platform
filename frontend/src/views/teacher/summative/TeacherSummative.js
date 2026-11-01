@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import './TeacherSummative.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 
@@ -27,6 +27,8 @@ export default function TeacherSummative() {
     // create form
     const [groupIds, setGroupIds] = useState([]);
     const [quarter, setQuarter] = useState(0);
+    const [dropOpen, setDropOpen] = useState(false);
+    const dropRef = useRef(null);
     const [title, setTitle] = useState('');
     const [count, setCount] = useState(25);
     const [minutes, setMinutes] = useState(30);
@@ -46,6 +48,14 @@ export default function TeacherSummative() {
 
     // A group that already has a live test can't get a second one.
     const freeGroups = groups.filter((g) => !sets.some((x) => x.is_active && x.group_id === g.id));
+
+    // close the class dropdown on an outside click
+    useEffect(() => {
+        if (!dropOpen) return undefined;
+        const onDown = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setDropOpen(false); };
+        document.addEventListener('mousedown', onDown);
+        return () => document.removeEventListener('mousedown', onDown);
+    }, [dropOpen]);
 
     const save = async () => {
         setMsg('');
@@ -123,32 +133,39 @@ export default function TeacherSummative() {
                     Siz faqat savollar sonini belgilaysiz. Savollarni tizim o'zi tuzadi: har bir talaba uchun uning
                     tanlangan chorakda tugatgan darslaridan (javoblar aralashtirilgan holda).
                 </p>
-                <div className="tsm-group-box">
-                    <div className="tsm-group-head">
-                        <b>Sinflar (guruhlar)</b>
-                        {freeGroups.length > 0 && (
-                            <button
-                                type="button"
-                                className="tsm-link"
-                                onClick={() => setGroupIds(groupIds.length === freeGroups.length ? [] : freeGroups.map((g) => g.id))}
-                            >
-                                {groupIds.length === freeGroups.length ? 'Tanlovni olib tashlash' : 'Hammasini tanlash'}
-                            </button>
-                        )}
-                    </div>
-                    <div className="tsm-groups">
-                        {freeGroups.map((g) => (
-                            <label key={g.id} className={`tsm-group ${groupIds.includes(g.id) ? 'is-on' : ''}`}>
+                <div className="tsm-group-box" ref={dropRef}>
+                    <b className="tsm-label">Sinflar (guruhlar)</b>
+                    <button type="button" className="tsm-select" onClick={() => setDropOpen((o) => !o)} disabled={freeGroups.length === 0}>
+                        <span>{groupIds.length === 0
+                            ? '— tanlang —'
+                            : groupIds.length <= 2
+                                ? freeGroups.filter((g) => groupIds.includes(g.id)).map((g) => g.name).join(', ')
+                                : `${groupIds.length} ta sinf tanlandi`}</span>
+                        <i aria-hidden="true">▾</i>
+                    </button>
+                    {dropOpen && (
+                        <div className="tsm-drop">
+                            <label className="tsm-drop-item tsm-drop-all">
                                 <input
                                     type="checkbox"
-                                    checked={groupIds.includes(g.id)}
-                                    onChange={() => setGroupIds((cur) => (cur.includes(g.id) ? cur.filter((x) => x !== g.id) : [...cur, g.id]))}
+                                    checked={groupIds.length === freeGroups.length && freeGroups.length > 0}
+                                    onChange={() => setGroupIds(groupIds.length === freeGroups.length ? [] : freeGroups.map((g) => g.id))}
                                 />
-                                <span>{g.name}</span>
-                                <small>{g.students} ta talaba</small>
+                                <span>Hammasini tanlash</span>
                             </label>
-                        ))}
-                    </div>
+                            {freeGroups.map((g) => (
+                                <label key={g.id} className="tsm-drop-item">
+                                    <input
+                                        type="checkbox"
+                                        checked={groupIds.includes(g.id)}
+                                        onChange={() => setGroupIds((cur) => (cur.includes(g.id) ? cur.filter((x) => x !== g.id) : [...cur, g.id]))}
+                                    />
+                                    <span>{g.name}</span>
+                                    <small>{g.students} ta talaba</small>
+                                </label>
+                            ))}
+                        </div>
+                    )}
                     {groups.length > 0 && freeGroups.length === 0 && (
                         <p className="tsm-note">Hamma sinflarga test biriktirilgan. Yangisini yaratish uchun avval eskisini to'xtating yoki o'chiring.</p>
                     )}
