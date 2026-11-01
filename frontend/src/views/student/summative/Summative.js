@@ -20,6 +20,13 @@ const TEXT = {
             "3 ta qoidabuzarlikdan keyin test avtomatik tugaydi va shu paytgacha bergan javoblaringiz hisoblanadi.",
             "Nusxa olish, kontekst menyu va F12 o'chirilgan. Vaqt tugasa test o'zi yopiladi.",
         ],
+        retakeWarn: (pct, pts) => `Siz bu testni oldin topshirgansiz. Qayta topshirsangiz, to'plagan ballaringizdan ${pct}% (${pts} ball) ayriladi.`,
+        retakeTitle: 'Qayta topshirish',
+        retakeYes: (pts) => `Ha, ${pts} ball ayirilsin`,
+        penaltyTaken: (pts) => `Ballaringizdan ${pts} ball ayirildi.`,
+        hint: 'Yordam',
+        hintTip: (n) => `Yordam: ${n} ta qoldi. Bosilsa, shu savolning javobi tanlanadi.`,
+        hintNone: "Yordam qolmadi",
         start: 'Testni boshlash',
         resume: 'Davom ettirish',
         starting: 'Tayyorlanmoqda…',
@@ -64,6 +71,13 @@ const TEXT = {
             'После 3 нарушений тест завершается автоматически, засчитываются ответы, данные к этому моменту.',
             'Копирование, контекстное меню и F12 отключены. По окончании времени тест закроется сам.',
         ],
+        retakeWarn: (pct, pts) => `Вы уже сдавали этот тест. При пересдаче у вас спишется ${pct}% набранных баллов (${pts} б.).`,
+        retakeTitle: 'Пересдача',
+        retakeYes: (pts) => `Да, списать ${pts} б.`,
+        penaltyTaken: (pts) => `С вас списано ${pts} баллов.`,
+        hint: 'Подсказка',
+        hintTip: (n) => `Подсказок: ${n}. По нажатию выбирается ответ на этот вопрос.`,
+        hintNone: 'Подсказок не осталось',
         start: 'Начать тест',
         resume: 'Продолжить',
         starting: 'Подготовка…',
@@ -139,12 +153,18 @@ export default function Summative() {
     const [away, setAway] = useState(false);
     const [onlyWrong, setOnlyWrong] = useState(true);
     const [confirmOpen, setConfirmOpen] = useState(false);
+    const [retakeOpen, setRetakeOpen] = useState(false);
+    const [hintsLeft, setHintsLeft] = useState(3);
+    const [hinted, setHinted] = useState([]);
+    const [notice, setNotice] = useState('');
 
     const attemptRef = useRef(null);
+    const idxRef = useRef(0);
     const answersRef = useRef([]);
     const finishingRef = useRef(false);
     const awayRef = useRef(false);
     attemptRef.current = attempt;
+    idxRef.current = idx;
     answersRef.current = answers;
 
     const json = (o) => JSON.stringify(o);
@@ -163,10 +183,29 @@ export default function Summative() {
         setAway(false);
         setResult(null);
         setAttempt(payload);
-        setAnswers(Array(payload.total).fill(null));
+        setAnswers(Array.from({ length: payload.total }, (_, i) => (payload.answers && Number.isInteger(payload.answers[i]) ? payload.answers[i] : null)));
+        setHintsLeft(payload.hints_left ?? 3);
+        setHinted(payload.hinted || []);
+        setNotice(payload.penalty ? L.penaltyTaken(payload.penalty) : '');
         setIdx(0);
         setRemaining(payload.remaining_seconds);
         setViolations(payload.violations || 0);
+    };
+
+    // A retake costs points: ask first (in-page dialog), then start.
+    const onStartClick = () => {
+        if (info?.retake && info.penalty > 0) setRetakeOpen(true); else start();
+    };
+
+    const useHint = async () => {
+        const a = attemptRef.current;
+        if (!a || hintsLeft <= 0) return;
+        try {
+            const res = await request(`${API_URL}v1/summative/${a.id}/hint`, 'POST', json({ q: idxRef.current }), jsonHeaders());
+            setHinted((h) => (h.includes(idxRef.current) ? h : [...h, idxRef.current]));
+            setHintsLeft(res.hints_left);
+            pick(idxRef.current, res.correct);
+        } catch { /* out of hints / finished */ }
     };
 
     const start = async () => {
@@ -331,15 +370,24 @@ export default function Summative() {
                 <div className="sm-test-bar">
                     <span className="sm-q-count">{L.q(idx + 1, attempt.total)}</span>
                     <span className={`sm-timer ${remaining < 60 ? 'is-low' : ''}`}>⏱ {fmtTime(remaining)}</span>
+                    <button
+                        className="sm-lamp"
+                        disabled={hintsLeft <= 0 && !hinted.includes(idx)}
+                        onClick={useHint}
+                        title={hintsLeft > 0 ? L.hintTip(hintsLeft) : L.hintNone}
+                    >
+                        💡 {L.hint} <b>{hintsLeft}</b>
+                    </button>
                     <span className="sm-viol">⚠ {violations}/{attempt.max_violations}</span>
                 </div>
+                {notice && <div className="sm-notice" onAnimationEnd={() => setNotice('')}>{notice}</div>}
                 <div className="sm-test-body">
                     <div className="sm-question">{q.text}</div>
                     <div className="sm-options">
                         {q.options.map((opt, oi) => (
                             <button
                                 key={`${idx}-${oi}`}
-                                className={`sm-option ${answers[idx] === oi ? 'is-picked' : ''}`}
+                                className={`sm-option ${answers[idx] === oi ? 'is-picked' : ''} ${hinted.includes(idx) && answers[idx] === oi ? 'is-hint' : ''}`}
                                 onClick={() => pick(idx, oi)}
                             >
                                 <b>{LETTERS[oi]}</b><span>{opt}</span>
@@ -465,8 +513,9 @@ export default function Summative() {
                     <ul>{L.rulesList.map((r) => <li key={r}>{r}</li>)}</ul>
                 </div>
 
+                {info?.retake && info.penalty > 0 && <p className="sm-warn">{L.retakeWarn(info.penalty_pct, info.penalty)}</p>}
                 {error && <p className="sm-warn">{error}</p>}
-                <button className="sm-btn sm-btn--primary sm-start" disabled={busy || (!enough && !info?.in_progress)} onClick={start}>
+                <button className="sm-btn sm-btn--primary sm-start" disabled={busy || (!enough && !info?.in_progress)} onClick={onStartClick}>
                     {busy ? L.starting : info?.in_progress ? L.resume : L.start}
                 </button>
 
@@ -494,6 +543,18 @@ export default function Summative() {
                     ))}
                 </div>
             </div>
+            {retakeOpen && (
+                <div className="sm-away sm-confirm">
+                    <div className="sm-away-card sm-confirm-card">
+                        <h2>{L.retakeTitle}</h2>
+                        <p>{L.retakeWarn(info.penalty_pct, info.penalty)}</p>
+                        <div className="sm-row sm-confirm-row">
+                            <button className="sm-btn" onClick={() => setRetakeOpen(false)}>{L.cancel}</button>
+                            <button className="sm-btn sm-btn--danger" onClick={() => { setRetakeOpen(false); start(); }}>{L.retakeYes(info.penalty)}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>,
         document.body
     );

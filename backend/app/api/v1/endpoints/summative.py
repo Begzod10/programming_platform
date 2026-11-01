@@ -30,6 +30,7 @@ from app.models.lesson_question import LessonQuestion
 from app.models.quiz import Question, Quiz
 from app.models.summative import SummativeAttempt, SummativeSet
 from app.models.user import Student
+from app.services.ranking_service import RankingService
 from app.utils.datetime_utils import utcnow
 
 router = APIRouter()
@@ -37,6 +38,8 @@ router = APIRouter()
 TEST_QUESTIONS = 30         # every test has 30 questions (fewer only if the student has fewer to draw from)
 # SMALL_TEST, BIG_TEST = 25, 50   (disabled: fixed 30 now)
 # BIG_TEST_MIN_LESSONS = 20
+RETAKE_PENALTY_PCT = 30     # every attempt after the first costs this % of the student's points
+MAX_HINTS = 3               # 💡 per test
 MIN_QUESTIONS = 10          # below this a "summative" isn't meaningful
 TEST_SECONDS = 30 * 60      # fixed 30 minutes
 GRACE_SECONDS = 20          # network slack on the deadline
@@ -296,6 +299,19 @@ async def _expire_if_late(db: AsyncSession, att: SummativeAttempt) -> None:
 #     return tset.question_count or len(tset.question_ids or []) or 25
 #
 #
+async def _attempt_count(db: AsyncSession, student_id: int) -> int:
+    return (await db.execute(
+        select(func.count(SummativeAttempt.id)).where(SummativeAttempt.student_id == student_id)
+    )).scalar() or 0
+
+
+def _penalty_for(student: Student, previous_attempts: int) -> int:
+    """30% of the points the student has now, from the second attempt on."""
+    if previous_attempts <= 0:
+        return 0
+    return int((student.total_points or 0) * RETAKE_PENALTY_PCT / 100)
+
+
 # ── endpoints ───────────────────────────────────────────────────────────────
 
 @router.get("/available")
@@ -332,10 +348,16 @@ async def available(
     )).scalar_one_or_none()
     if last:
         await _expire_if_late(db, last)
+    prev = await _attempt_count(db, student.id)
+    resuming = bool(last and last.status == "in_progress")
     return {
         "lessons": len(lessons), "questions": len(pool), "planned": _plan_count(len(lessons), len(pool)),
         "minutes": TEST_SECONDS // 60, "min_questions": MIN_QUESTIONS,
-        "in_progress": last.id if last and last.status == "in_progress" else None,
+        "in_progress": last.id if resuming else None,
+        # 2nd+ attempt: costs a share of the student's points (not charged when resuming)
+        "retake": prev > 0 and not resuming, "penalty_pct": RETAKE_PENALTY_PCT,
+        "penalty": _penalty_for(student, prev) if not resuming else 0,
+        "points": student.total_points or 0, "max_hints": MAX_HINTS,
     }
 
 
@@ -394,6 +416,7 @@ async def start(
             detail=f"Test uchun savol yetarli emas ({len(pool)} ta). Avval ko'proq dars tugating.",
         )
     chosen = _place_answers(_pick_balanced(pool, _plan_count(len(lessons), len(pool))))
+    penalty = _penalty_for(student, await _attempt_count(db, student.id))
     att = SummativeAttempt(
         student_id=student.id, scope="quarter", lang=lang, total=len(chosen), questions=chosen,
         time_limit_seconds=TEST_SECONDS,
@@ -401,15 +424,22 @@ async def start(
     db.add(att)
     await db.commit()
     await db.refresh(att)
-    return _start_payload(att)
+    if penalty > 0:
+        # Retake: the points are taken once, at the moment the new test is created
+        # (resuming it later doesn't charge again).
+        await RankingService(db).revoke_earned_points(student.id, penalty)
+    return _start_payload(att, penalty)
 
 
-def _start_payload(att: SummativeAttempt) -> dict:
+def _start_payload(att: SummativeAttempt, penalty: int = 0) -> dict:
     remaining = max(0, int((_deadline(att) - utcnow()).total_seconds()))
+    hinted = [i for i, q in enumerate(att.questions) if q.get("hint")]
     return {
         "id": att.id, "total": att.total, "remaining_seconds": remaining,
         "violations": att.violations, "max_violations": MAX_VIOLATIONS,
         "questions": _public_questions(att),
+        "answers": att.answers, "hinted": hinted, "hints_left": MAX_HINTS - len(hinted),
+        "penalty": penalty,
     }
 
 
@@ -465,6 +495,36 @@ async def violation(
 
 class SaveBody(BaseModel):
     answers: List[Optional[int]]
+
+
+class HintBody(BaseModel):
+    q: int
+
+
+@router.post("/{attempt_id}/hint")
+async def use_hint(
+        attempt_id: int,
+        body: HintBody,
+        db: AsyncSession = Depends(get_db),
+        student: Student = Depends(get_current_student),
+):
+    """💡 The server picks the answer for this question (the client then selects
+    it). Three per test; asking again about the same question is free."""
+    att = await _mine(db, attempt_id, student)
+    if att.status != "in_progress":
+        raise HTTPException(status_code=409, detail="Test tugagan")
+    if not 0 <= body.q < len(att.questions):
+        raise HTTPException(status_code=422, detail="Savol topilmadi")
+    questions = [dict(q) for q in att.questions]
+    used = sum(1 for q in questions if q.get("hint"))
+    if not questions[body.q].get("hint"):
+        if used >= MAX_HINTS:
+            raise HTTPException(status_code=409, detail="Yordam tugagan")
+        questions[body.q]["hint"] = True
+        att.questions = questions  # reassign so the JSON column is flagged dirty
+        used += 1
+        await db.commit()
+    return {"correct": att.questions[body.q]["correct"], "hints_left": MAX_HINTS - used}
 
 
 @router.post("/{attempt_id}/save")
