@@ -236,7 +236,21 @@ export default function Summative() {
 
     useEffect(() => {
         if (!attempt) return undefined;
-        const onFs = () => { if (fsSupported() && !document.fullscreenElement) reportViolation(); };
+        const onFs = () => {
+            if (!fsSupported()) return;
+            if (!document.fullscreenElement) {
+                reportViolation();
+                // Browsers only allow entering fullscreen from a user gesture,
+                // so go back in on the very next click / key press / tap.
+                const back = () => { enterFs(); };
+                window.addEventListener('pointerdown', back, { once: true, capture: true });
+                window.addEventListener('keydown', back, { once: true, capture: true });
+            } else {
+                // back in fullscreen: dismiss the warning automatically
+                awayRef.current = false;
+                setAway(false);
+            }
+        };
         const onVis = () => { if (document.hidden) reportViolation(); };
         const onBlur = () => { if (!document.fullscreenElement || document.hidden) reportViolation(); };
         const block = (e) => e.preventDefault();
