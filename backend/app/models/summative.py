@@ -7,7 +7,7 @@ client only ever receives the text + options. Grading happens on submit.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base_class import Base
@@ -29,8 +29,27 @@ class SummativeAttempt(Base):
     score: Mapped[int] = mapped_column(Integer, default=0)  # percent
     time_limit_seconds: Mapped[int] = mapped_column(Integer, default=0)
     violations: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Set when the questions came from a teacher's SummativeSet (NULL = auto-built).
+    # Added after the table shipped -> see _reconcile_indexes in db/database.py.
+    set_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     # [{"text", "options": [...], "correct": int, "kind", "explanation"}]
     questions: Mapped[list] = mapped_column(JSON, nullable=False)
     answers: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)  # chosen option index or null, per question
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SummativeSet(Base):
+    """A test a teacher assembled by hand for one of their groups: exactly the
+    LessonQuestion ids they ticked. Every student of the group answers all of
+    them (once), in the time the teacher set."""
+    __tablename__ = "summative_sets"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    teacher_id: Mapped[int] = mapped_column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    group_id: Mapped[int] = mapped_column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    question_ids: Mapped[list] = mapped_column(JSON, nullable=False)  # LessonQuestion ids, in teacher order
+    minutes: Mapped[int] = mapped_column(Integer, default=30, server_default="30")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

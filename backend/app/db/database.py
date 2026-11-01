@@ -105,6 +105,9 @@ async def _reconcile_indexes(conn) -> None:
     IF NOT EXISTS so re-running on a clean DB is a no-op.
     """
     statements = [
+        # 2026-11: summative attempts can point at a teacher-made set
+        text("ALTER TABLE IF EXISTS summative_attempts ADD COLUMN IF NOT EXISTS set_id INTEGER"),
+        text("CREATE INDEX IF NOT EXISTS ix_summative_attempts_set_id ON summative_attempts (set_id)"),
         # 2026-06-01: submissions(student_id, lesson_id) partial unique
         # to close the submit_lesson_project TOCTOU. Partial because
         # standalone (lesson_id IS NULL) projects can repeat.

@@ -9,6 +9,8 @@ const TEXT = {
     uz: {
         title: 'Chorak yakuniy testi',
         sub: "Test siz tugatgan darslardan tuziladi. Javoblar har safar aralash joylashadi.",
+        teacherTest: (t, n, m) => `O'qituvchingiz test belgilagan: «${t}». ${n} ta savol · ${m} daqiqa.`,
+        teacherDone: (t, sc) => `«${t}» testini topshirgansiz. Natija: ${sc}%. Bu testni qayta topshirib bo'lmaydi.`,
         plan: (l, n, m) => `Shu chorakda ${l} ta dars tugatgansiz. Test shu darslardan tuziladi: ${n} ta savol · ${m} daqiqa.`,
         notEnough: (min) => `Test uchun kamida ${min} ta savol kerak. Ko'proq dars tugating.`,
         rules: 'Qoidalar',
@@ -51,6 +53,8 @@ const TEXT = {
     ru: {
         title: 'Итоговый тест четверти',
         sub: 'Тест составляется из пройденных вами уроков. Порядок ответов каждый раз случайный.',
+        teacherTest: (t, n, m) => `Учитель назначил тест: «${t}». ${n} вопросов · ${m} минут.`,
+        teacherDone: (t, sc) => `Вы уже сдали тест «${t}». Результат: ${sc}%. Повторно сдать нельзя.`,
         plan: (l, n, m) => `В этой четверти вы прошли уроков: ${l}. Тест составляется из них: ${n} вопросов · ${m} минут.`,
         notEnough: (min) => `Нужно минимум ${min} вопросов. Пройдите больше уроков.`,
         rules: 'Правила',
@@ -436,7 +440,7 @@ export default function Summative() {
     }
 
     // ── lobby ──
-    const enough = info && info.questions >= (info.min_questions || 10);
+    const enough = info && info.questions >= (info.min_questions || 10) && !(info.teacher_set && info.teacher_set.done);
     return createPortal(
         <div className="sm-page">
             <div className="sm-card">
@@ -444,8 +448,15 @@ export default function Summative() {
                 <h1>📝 {L.title}</h1>
                 <p className="sm-sub">{L.sub}</p>
 
-                {info && <p className="sm-plan">{L.plan(info.lessons, info.planned, info.minutes)}</p>}
-                {info && !enough && <p className="sm-warn">{L.notEnough(info.min_questions)}</p>}
+                {info && info.teacher_set && (
+                    <p className={info.teacher_set.done ? 'sm-warn' : 'sm-plan'}>
+                        {info.teacher_set.done
+                            ? L.teacherDone(info.teacher_set.title, info.teacher_set.score)
+                            : L.teacherTest(info.teacher_set.title, info.teacher_set.count, info.teacher_set.minutes)}
+                    </p>
+                )}
+                {info && !info.teacher_set && <p className="sm-plan">{L.plan(info.lessons, info.planned, info.minutes)}</p>}
+                {info && !info.teacher_set && !enough && <p className="sm-warn">{L.notEnough(info.min_questions)}</p>}
 
                 <div className="sm-rules">
                     <b>{L.rules}</b>

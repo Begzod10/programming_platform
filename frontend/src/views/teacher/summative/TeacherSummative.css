@@ -1,0 +1,50 @@
+/* Neutral styling: uses translucent surfaces + inherited text colour so it
+   reads on both the light and dark teacher themes. */
+.tsm-page { padding: 24px; max-width: 1000px; margin: 0 auto; padding-bottom: 90px; }
+.tsm-page h1 { font-size: 1.5rem; margin: 6px 0 8px; }
+.tsm-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tsm-muted { opacity: 0.7; font-size: 0.9rem; margin: 4px 0 10px; }
+.tsm-note { background: rgba(108, 92, 231, 0.15); padding: 10px 14px; border-radius: 10px; font-weight: 600; }
+.tsm-link { background: none; border: none; color: #7c6cf0; cursor: pointer; font-weight: 700; padding: 4px 0; }
+
+.tsm-btn { border: 1px solid rgba(128, 128, 150, 0.4); background: rgba(128, 128, 150, 0.12); color: inherit; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-weight: 700; }
+.tsm-btn:disabled { opacity: 0.45; cursor: default; }
+.tsm-btn--primary { background: #6c5ce7; border-color: #6c5ce7; color: #fff; }
+.tsm-btn--danger { color: #e5484d; }
+
+.tsm-sets { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+.tsm-set { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 16px; border-radius: 14px; border: 1px solid rgba(128, 128, 150, 0.3); background: rgba(128, 128, 150, 0.08); }
+.tsm-set.is-off { opacity: 0.6; }
+.tsm-set-main { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 2px; }
+.tsm-badge { font-size: 0.78rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: rgba(128, 128, 150, 0.25); }
+.tsm-badge.is-on { background: rgba(54, 196, 107, 0.25); color: #2da55a; }
+
+.tsm-form { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 0; }
+.tsm-form label { display: flex; flex-direction: column; gap: 4px; font-weight: 700; font-size: 0.88rem; flex: 1; min-width: 200px; }
+.tsm-form select, .tsm-form input { padding: 9px 12px; border-radius: 10px; border: 1px solid rgba(128, 128, 150, 0.45); background: rgba(128, 128, 150, 0.1); color: inherit; font-size: 0.95rem; }
+.tsm-form select option { color: #222; }
+
+.tsm-lessons { display: flex; flex-direction: column; gap: 14px; }
+.tsm-lesson { border: 1px solid rgba(128, 128, 150, 0.3); border-radius: 14px; overflow: hidden; }
+.tsm-lesson-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(128, 128, 150, 0.15); cursor: pointer; }
+.tsm-lesson-head span { margin-left: auto; }
+.tsm-q { padding: 8px 14px; border-top: 1px solid rgba(128, 128, 150, 0.2); display: flex; flex-wrap: wrap; align-items: flex-start; gap: 6px 10px; }
+.tsm-q.is-on { background: rgba(108, 92, 231, 0.12); }
+.tsm-q-main { display: flex; gap: 10px; align-items: flex-start; flex: 1; min-width: 240px; cursor: pointer; }
+.tsm-opts { width: 100%; margin: 4px 0 4px 28px; padding-left: 0; list-style: none; font-size: 0.88rem; }
+.tsm-opts li { padding: 2px 0; opacity: 0.85; }
+.tsm-opts li.is-right { color: #2da55a; font-weight: 800; opacity: 1; }
+
+.tsm-bar {
+    position: sticky; bottom: 12px; display: flex; align-items: center; gap: 14px; justify-content: flex-end; flex-wrap: wrap;
+    margin-top: 18px; padding: 12px 16px; border-radius: 14px; background: rgba(30, 32, 64, 0.96); color: #fff;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+.tsm-bar span { margin-right: auto; }
+
+.tsm-table { display: flex; flex-direction: column; border: 1px solid rgba(128, 128, 150, 0.3); border-radius: 12px; overflow: hidden; margin-top: 10px; }
+.tsm-tr { display: grid; grid-template-columns: 2fr 1.4fr 1fr 0.8fr 1fr; gap: 8px; padding: 10px 14px; border-top: 1px solid rgba(128, 128, 150, 0.2); align-items: center; }
+.tsm-th { font-weight: 800; background: rgba(128, 128, 150, 0.15); border-top: none; }
+.is-pass { color: #2da55a; }
+.is-fail { color: #e5484d; }
+@media (max-width: 720px) { .tsm-tr { grid-template-columns: 1.6fr 1fr 1fr; } .tsm-tr span:nth-child(5), .tsm-th span:nth-child(5) { display: none; } }
