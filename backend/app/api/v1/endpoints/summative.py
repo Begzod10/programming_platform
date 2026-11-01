@@ -24,7 +24,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rate_limit import rate_limit
 from app.dependencies import get_current_instructor, get_current_student, get_db
-from app.models.course import Course
 from app.models.group import Group, student_groups
 from app.models.lesson import Lesson, LessonCompletion, LessonVocabulary
 from app.models.lesson_question import LessonQuestion
@@ -260,40 +259,8 @@ async def _set_attempt(db: AsyncSession, set_id: int, student_id: int) -> Option
     )).scalar_one_or_none()
 
 
-async def _questions_from_set(db: AsyncSession, tset: SummativeSet, lang: str) -> List[dict]:
-    """The teacher's questions as pool items. The bank stores a uz and a ru row
-    per question; the teacher ticks one of them, and a student in the other
-    language gets that question's twin (same lesson, same position)."""
-    rows = {q.id: q for q in (await db.execute(
-        select(LessonQuestion).where(LessonQuestion.id.in_(tset.question_ids))
-    )).scalars().all()}
-    lesson_ids = {q.lesson_id for q in rows.values()}
-    siblings = (await db.execute(
-        select(LessonQuestion).where(LessonQuestion.lesson_id.in_(lesson_ids), LessonQuestion.question_kind == "quiz")
-    )).scalars().all()
-    by_lesson_lang: dict = {}
-    for q in siblings:
-        by_lesson_lang.setdefault((q.lesson_id, _lang_of(q.question_text)), []).append(q)
-    for lst in by_lesson_lang.values():
-        lst.sort(key=lambda x: (x.order_index, x.id))
-
-    out, seen = [], set()
-    for qid in tset.question_ids:
-        q = rows.get(qid)
-        if q is None or not q.options or q.correct_option is None:
-            continue
-        own = _lang_of(q.question_text)
-        if own != lang:
-            mine = by_lesson_lang.get((q.lesson_id, own), [])
-            theirs = by_lesson_lang.get((q.lesson_id, lang), [])
-            if q in mine and len(mine) == len(theirs):
-                q = theirs[mine.index(q)]
-        if q.id in seen or not (0 <= q.correct_option < len(q.options)):
-            continue
-        seen.add(q.id)
-        out.append({"text": q.question_text, "options": [str(o) for o in q.options], "correct": q.correct_option,
-                    "kind": "teacher", "explanation": None, "lesson_id": q.lesson_id})
-    return out
+def _set_count(tset: SummativeSet) -> int:
+    return tset.question_count or len(tset.question_ids or []) or 25
 
 
 # ── endpoints ───────────────────────────────────────────────────────────────
@@ -309,12 +276,16 @@ async def available(
         att = await _set_attempt(db, tset.id, student.id)
         if att:
             await _expire_if_late(db, att)
+        lessons = await _completed_lessons(db, student.id)
+        pool = await _build_pool(db, lessons, "ru" if lang == "ru" else "uz")
+        planned = min(_set_count(tset), len(pool))
         return {
             "teacher_set": {
-                "id": tset.id, "title": tset.title, "count": len(tset.question_ids), "minutes": tset.minutes,
-                "done": bool(att and att.status == "finished"), "score": att.score if att and att.status == "finished" else None,
+                "id": tset.id, "title": tset.title, "count": planned, "minutes": tset.minutes,
+                "done": bool(att and att.status == "finished"),
+                "score": att.score if att and att.status == "finished" else None,
             },
-            "lessons": 0, "questions": len(tset.question_ids), "planned": len(tset.question_ids),
+            "lessons": len(lessons), "questions": len(pool), "planned": planned,
             "minutes": tset.minutes, "min_questions": 1,
             "in_progress": att.id if att and att.status == "in_progress" else None,
         }
@@ -363,9 +334,14 @@ async def start(
     if tset:
         if await _set_attempt(db, tset.id, student.id):
             raise HTTPException(status_code=409, detail="Siz bu testni allaqachon topshirgansiz")
-        chosen = _place_answers(await _questions_from_set(db, tset, lang))
-        if not chosen:
-            raise HTTPException(status_code=400, detail="Testda savol topilmadi")
+        lessons = await _completed_lessons(db, student.id)
+        pool = await _build_pool(db, lessons, lang)
+        if not pool:
+            raise HTTPException(
+                status_code=400,
+                detail="Test uchun savol topilmadi. Shu chorakda tugatgan darslaringiz yo'q.",
+            )
+        chosen = _place_answers(_pick_balanced(pool, min(_set_count(tset), len(pool))))
         att = SummativeAttempt(
             student_id=student.id, scope="teacher", lang=lang, total=len(chosen), questions=chosen,
             time_limit_seconds=tset.minutes * 60, set_id=tset.id,
@@ -494,8 +470,8 @@ async def submit(
 
 class SetBody(BaseModel):
     group_id: int
-    title: str
-    question_ids: List[int]
+    title: str = ""
+    question_count: int = 25
     minutes: int = 30
 
 
@@ -519,54 +495,6 @@ async def teacher_groups(
     return [{"id": i, "name": n, "students": c} for i, n, c in rows]
 
 
-@router.get("/teacher/courses")
-async def teacher_courses(
-        db: AsyncSession = Depends(get_db),
-        teacher: Student = Depends(get_current_instructor),
-):
-    """Courses that have a question bank to pick from."""
-    rows = (await db.execute(
-        select(Course.id, Course.title, func.count(LessonQuestion.id))
-        .join(Lesson, Lesson.course_id == Course.id).join(LessonQuestion, LessonQuestion.lesson_id == Lesson.id)
-        .where(LessonQuestion.question_kind == "quiz").group_by(Course.id, Course.title).order_by(Course.title)
-    )).all()
-    return [{"id": i, "title": t, "questions": c} for i, t, c in rows]
-
-
-@router.get("/teacher/questions")
-async def teacher_questions(
-        course_id: int,
-        lang: str = "uz",
-        db: AsyncSession = Depends(get_db),
-        teacher: Student = Depends(get_current_instructor),
-):
-    """Quiz questions of a course, grouped by lesson. Only one language is
-    listed (every question exists as a uz and a ru twin; the student gets
-    the twin in their own language)."""
-    lang = "ru" if lang == "ru" else "uz"
-    lessons = (await db.execute(
-        select(Lesson).where(Lesson.course_id == course_id).order_by(Lesson.order, Lesson.id)
-    )).scalars().all()
-    qs = (await db.execute(
-        select(LessonQuestion).where(
-            LessonQuestion.lesson_id.in_([l.id for l in lessons]), LessonQuestion.question_kind == "quiz")
-        .order_by(LessonQuestion.lesson_id, LessonQuestion.order_index, LessonQuestion.id)
-    )).scalars().all() if lessons else []
-    out = []
-    for l in lessons:
-        mine = [q for q in qs if q.lesson_id == l.id and q.options]
-        pick = [q for q in mine if _lang_of(q.question_text) == lang] or mine
-        if pick:
-            out.append({
-                "lesson_id": l.id, "title": l.title,
-                "questions": [
-                    {"id": q.id, "text": q.question_text, "options": q.options, "correct": q.correct_option}
-                    for q in pick
-                ],
-            })
-    return out
-
-
 @router.post("/teacher/sets")
 async def create_set(
         body: SetBody,
@@ -574,19 +502,10 @@ async def create_set(
         teacher: Student = Depends(get_current_instructor),
 ):
     await _own_group(db, body.group_id, teacher)
-    ids = list(dict.fromkeys(body.question_ids))
-    if not ids:
-        raise HTTPException(status_code=422, detail="Kamida bitta savol tanlang")
-    if len(ids) > 200:
-        raise HTTPException(status_code=422, detail="Bitta testda 200 tadan ko'p savol bo'lmaydi")
+    if not 1 <= body.question_count <= 100:
+        raise HTTPException(status_code=422, detail="Savollar soni 1 dan 100 gacha bo'lishi kerak")
     if not 5 <= body.minutes <= 180:
         raise HTTPException(status_code=422, detail="Vaqt 5 dan 180 daqiqagacha bo'lishi kerak")
-    found = set((await db.execute(
-        select(LessonQuestion.id).where(LessonQuestion.id.in_(ids), LessonQuestion.question_kind == "quiz")
-    )).scalars().all())
-    ids = [i for i in ids if i in found]
-    if not ids:
-        raise HTTPException(status_code=422, detail="Tanlangan savollar topilmadi")
     # One live test per group: a new one replaces the previous.
     for old in (await db.execute(
         select(SummativeSet).where(SummativeSet.group_id == body.group_id, SummativeSet.is_active.is_(True))
@@ -594,12 +513,12 @@ async def create_set(
         old.is_active = False
     new = SummativeSet(
         teacher_id=teacher.id, group_id=body.group_id, title=body.title.strip()[:200] or "Summativ test",
-        question_ids=ids, minutes=body.minutes,
+        question_count=body.question_count, minutes=body.minutes,
     )
     db.add(new)
     await db.commit()
     await db.refresh(new)
-    return {"id": new.id, "count": len(ids)}
+    return {"id": new.id, "count": body.question_count}
 
 
 @router.get("/teacher/sets")
@@ -621,7 +540,7 @@ async def list_sets(
             select(func.count(student_groups.c.student_id)).where(student_groups.c.group_id == st.group_id)
         )).scalar() or 0
         out.append({
-            "id": st.id, "title": st.title, "group_id": st.group_id, "group": gname, "count": len(st.question_ids),
+            "id": st.id, "title": st.title, "group_id": st.group_id, "group": gname, "count": _set_count(st),
             "minutes": st.minutes, "is_active": st.is_active, "created_at": st.created_at,
             "finished": stats[0] or 0, "average": round(float(stats[1])) if stats[1] is not None else None,
             "students": members,
@@ -689,14 +608,14 @@ async def set_results(
     for a in atts.values():
         await _expire_if_late(db, a)
     return {
-        "title": st.title, "count": len(st.question_ids),
+        "title": st.title, "count": _set_count(st),
         "students": [
             {
                 "id": sid, "name": full or uname,
                 "status": atts[sid].status if sid in atts else "not_started",
                 "score": atts[sid].score if sid in atts and atts[sid].status == "finished" else None,
                 "correct": atts[sid].correct if sid in atts else None,
-                "total": atts[sid].total if sid in atts else len(st.question_ids),
+                "total": atts[sid].total if sid in atts else _set_count(st),
                 "violations": atts[sid].violations if sid in atts else 0,
                 "finish_reason": atts[sid].finish_reason if sid in atts else None,
             }

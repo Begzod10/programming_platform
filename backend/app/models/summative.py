@@ -40,16 +40,19 @@ class SummativeAttempt(Base):
 
 
 class SummativeSet(Base):
-    """A test a teacher assembled by hand for one of their groups: exactly the
-    LessonQuestion ids they ticked. Every student of the group answers all of
-    them (once), in the time the teacher set."""
+    """A test a teacher switched on for one of their groups. The teacher only
+    decides HOW MANY questions and how long; each student's questions are then
+    built automatically from the lessons THEY finished this quarter. One
+    attempt per student per set."""
     __tablename__ = "summative_sets"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     teacher_id: Mapped[int] = mapped_column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
     group_id: Mapped[int] = mapped_column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
-    question_ids: Mapped[list] = mapped_column(JSON, nullable=False)  # LessonQuestion ids, in teacher order
+    question_count: Mapped[int] = mapped_column(Integer, default=25, server_default="25")
+    # legacy: an earlier version had the teacher tick questions by hand
+    question_ids: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     minutes: Mapped[int] = mapped_column(Integer, default=30, server_default="30")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

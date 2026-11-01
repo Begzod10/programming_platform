@@ -1,6 +1,6 @@
 /* Neutral styling: uses translucent surfaces + inherited text colour so it
    reads on both the light and dark teacher themes. */
-.tsm-page { padding: 24px; max-width: 1000px; margin: 0 auto; padding-bottom: 90px; }
+.tsm-page { padding: 24px 24px 60px; max-width: 1000px; margin: 0 auto; height: 100%; max-height: 100vh; overflow-y: auto; }
 .tsm-page h1 { font-size: 1.5rem; margin: 6px 0 8px; }
 .tsm-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
 .tsm-muted { opacity: 0.7; font-size: 0.9rem; margin: 4px 0 10px; }
@@ -48,3 +48,7 @@
 .is-pass { color: #2da55a; }
 .is-fail { color: #e5484d; }
 @media (max-width: 720px) { .tsm-tr { grid-template-columns: 1.6fr 1fr 1fr; } .tsm-tr span:nth-child(5), .tsm-th span:nth-child(5) { display: none; } }
+
+.tsm-quick { display: flex; gap: 6px; margin-top: 4px; }
+.tsm-chip { border: 1px solid rgba(128, 128, 150, 0.45); background: rgba(128, 128, 150, 0.12); color: inherit; border-radius: 999px; padding: 4px 12px; cursor: pointer; font-weight: 700; }
+.tsm-chip.is-on { background: #6c5ce7; border-color: #6c5ce7; color: #fff; }
