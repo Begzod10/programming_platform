@@ -34,10 +34,11 @@ from app.utils.datetime_utils import utcnow
 
 router = APIRouter()
 
-SMALL_TEST, BIG_TEST = 25, 50
-BIG_TEST_MIN_LESSONS = 20   # a quarter with this many finished lessons gets the 50-question test
+TEST_QUESTIONS = 30         # every test has 30 questions (fewer only if the student has fewer to draw from)
+# SMALL_TEST, BIG_TEST = 25, 50   (disabled: fixed 30 now)
+# BIG_TEST_MIN_LESSONS = 20
 MIN_QUESTIONS = 10          # below this a "summative" isn't meaningful
-TEST_SECONDS = 30 * 60      # fixed 30 minutes, whether it has 25 or 50 questions
+TEST_SECONDS = 30 * 60      # fixed 30 minutes
 GRACE_SECONDS = 20          # network slack on the deadline
 MAX_VIOLATIONS = 3          # leaving fullscreen/the tab this often ends the test
 QUARTER_DAYS = 92
@@ -56,33 +57,44 @@ def _norm(text: str) -> str:
 
 # ── question pool ───────────────────────────────────────────────────────────
 
-# School quarters (month ranges, inclusive): the academic year starts 1 September.
-_QUARTER_MONTHS = {1: (9, 10), 2: (11, 12), 3: (1, 3), 4: (4, 5)}
-
-
-def _quarter_range(quarter: int, anchor: datetime):
-    """[start, end) of a school quarter in the academic year `anchor` falls in."""
-    if quarter not in _QUARTER_MONTHS:
-        return None
-    year = anchor.year if anchor.month >= 9 else anchor.year - 1  # academic year's September
-    m1, m2 = _QUARTER_MONTHS[quarter]
-    y1 = year if m1 >= 9 else year + 1
-    y2 = year if m2 >= 9 else year + 1
-    start = datetime(y1, m1, 1, tzinfo=timezone.utc)
-    end = datetime(y2 + (1 if m2 == 12 else 0), 1 if m2 == 12 else m2 + 1, 1, tzinfo=timezone.utc)
-    return start, end
-
-
-async def _completed_lessons(db: AsyncSession, student_id: int, tset: Optional[SummativeSet] = None) -> List[int]:
-    """Lessons finished in the test's period: the teacher's chosen school
-    quarter, or (no set / quarter 0) the last ~3 months."""
-    rng = _quarter_range(tset.quarter, tset.created_at) if tset is not None and tset.quarter else None
-    stmt = select(LessonCompletion.lesson_id).where(LessonCompletion.student_id == student_id)
-    if rng:
-        stmt = stmt.where(LessonCompletion.completed_at >= rng[0], LessonCompletion.completed_at < rng[1])
-    else:
-        stmt = stmt.where(LessonCompletion.completed_at >= utcnow() - timedelta(days=QUARTER_DAYS))
+# DISABLED — school-quarter filter (used by teacher-built tests)
+# # School quarters (month ranges, inclusive): the academic year starts 1 September.
+# _QUARTER_MONTHS = {1: (9, 10), 2: (11, 12), 3: (1, 3), 4: (4, 5)}
+#
+#
+# def _quarter_range(quarter: int, anchor: datetime):
+#     """[start, end) of a school quarter in the academic year `anchor` falls in."""
+#     if quarter not in _QUARTER_MONTHS:
+#         return None
+#     year = anchor.year if anchor.month >= 9 else anchor.year - 1  # academic year's September
+#     m1, m2 = _QUARTER_MONTHS[quarter]
+#     y1 = year if m1 >= 9 else year + 1
+#     y2 = year if m2 >= 9 else year + 1
+#     start = datetime(y1, m1, 1, tzinfo=timezone.utc)
+#     end = datetime(y2 + (1 if m2 == 12 else 0), 1 if m2 == 12 else m2 + 1, 1, tzinfo=timezone.utc)
+#     return start, end
+#
+#
+# async def _completed_lessons(db: AsyncSession, student_id: int, tset: Optional[SummativeSet] = None) -> List[int]:
+#     """Lessons finished in the test's period: the teacher's chosen school
+#     quarter, or (no set / quarter 0) the last ~3 months."""
+#     rng = _quarter_range(tset.quarter, tset.created_at) if tset is not None and tset.quarter else None
+#     stmt = select(LessonCompletion.lesson_id).where(LessonCompletion.student_id == student_id)
+#     if rng:
+#         stmt = stmt.where(LessonCompletion.completed_at >= rng[0], LessonCompletion.completed_at < rng[1])
+#     else:
+#         stmt = stmt.where(LessonCompletion.completed_at >= utcnow() - timedelta(days=QUARTER_DAYS))
+#     return list((await db.execute(stmt)).scalars().all())
+#
+#
+async def _completed_lessons(db: AsyncSession, student_id: int) -> List[int]:
+    """Lessons finished in the current quarter (the last ~3 months)."""
+    stmt = select(LessonCompletion.lesson_id).where(
+        LessonCompletion.student_id == student_id,
+        LessonCompletion.completed_at >= utcnow() - timedelta(days=QUARTER_DAYS),
+    )
     return list((await db.execute(stmt)).scalars().all())
+
 
 
 async def _build_pool(db: AsyncSession, lesson_ids: List[int], lang: str) -> List[dict]:
@@ -174,9 +186,9 @@ def _pick_balanced(pool: List[dict], count: int) -> List[dict]:
 
 
 def _plan_count(lessons: int, questions: int) -> int:
-    want = BIG_TEST if lessons >= BIG_TEST_MIN_LESSONS else SMALL_TEST
-    return min(want, questions)
-
+    # Always TEST_QUESTIONS (30) — fewer only if the student's pool is smaller.
+    # (Old rule, 25 or 50 by finished lessons: want = BIG_TEST if lessons >= BIG_TEST_MIN_LESSONS else SMALL_TEST)
+    return min(TEST_QUESTIONS, questions)
 
 def _place_answers(questions: List[dict]) -> List[dict]:
     """Shuffle every question's options and spread the correct answer evenly
@@ -257,32 +269,33 @@ async def _expire_if_late(db: AsyncSession, att: SummativeAttempt) -> None:
         await db.commit()
 
 
-# ── teacher-made sets (student side) ────────────────────────────────────────
-
-async def _active_set(db: AsyncSession, student: Student) -> Optional[SummativeSet]:
-    """The newest active set assigned to any group the student is in."""
-    group_ids = list((await db.execute(
-        select(student_groups.c.group_id).where(student_groups.c.student_id == student.id)
-    )).scalars().all())
-    if not group_ids:
-        return None
-    return (await db.execute(
-        select(SummativeSet).where(SummativeSet.group_id.in_(group_ids), SummativeSet.is_active.is_(True))
-        .order_by(SummativeSet.id.desc()).limit(1)
-    )).scalar_one_or_none()
-
-
-async def _set_attempt(db: AsyncSession, set_id: int, student_id: int) -> Optional[SummativeAttempt]:
-    return (await db.execute(
-        select(SummativeAttempt).where(SummativeAttempt.set_id == set_id, SummativeAttempt.student_id == student_id)
-        .order_by(SummativeAttempt.id.desc()).limit(1)
-    )).scalar_one_or_none()
-
-
-def _set_count(tset: SummativeSet) -> int:
-    return tset.question_count or len(tset.question_ids or []) or 25
-
-
+# DISABLED — teacher-made sets helpers
+# # ── teacher-made sets (student side) ────────────────────────────────────────
+#
+# async def _active_set(db: AsyncSession, student: Student) -> Optional[SummativeSet]:
+#     """The newest active set assigned to any group the student is in."""
+#     group_ids = list((await db.execute(
+#         select(student_groups.c.group_id).where(student_groups.c.student_id == student.id)
+#     )).scalars().all())
+#     if not group_ids:
+#         return None
+#     return (await db.execute(
+#         select(SummativeSet).where(SummativeSet.group_id.in_(group_ids), SummativeSet.is_active.is_(True))
+#         .order_by(SummativeSet.id.desc()).limit(1)
+#     )).scalar_one_or_none()
+#
+#
+# async def _set_attempt(db: AsyncSession, set_id: int, student_id: int) -> Optional[SummativeAttempt]:
+#     return (await db.execute(
+#         select(SummativeAttempt).where(SummativeAttempt.set_id == set_id, SummativeAttempt.student_id == student_id)
+#         .order_by(SummativeAttempt.id.desc()).limit(1)
+#     )).scalar_one_or_none()
+#
+#
+# def _set_count(tset: SummativeSet) -> int:
+#     return tset.question_count or len(tset.question_ids or []) or 25
+#
+#
 # ── endpoints ───────────────────────────────────────────────────────────────
 
 @router.get("/available")
@@ -291,25 +304,26 @@ async def available(
         db: AsyncSession = Depends(get_db),
         student: Student = Depends(get_current_student),
 ):
-    tset = await _active_set(db, student)
-    if tset:
-        att = await _set_attempt(db, tset.id, student.id)
-        if att:
-            await _expire_if_late(db, att)
-        lessons = await _completed_lessons(db, student.id, tset)
-        pool = await _build_pool(db, lessons, "ru" if lang == "ru" else "uz")
-        planned = min(_set_count(tset), len(pool))
-        return {
-            "teacher_set": {
-                "id": tset.id, "title": tset.title, "count": planned, "minutes": tset.minutes,
-                "done": bool(att and att.status == "finished"),
-                "score": att.score if att and att.status == "finished" else None,
-            },
-            "lessons": len(lessons), "questions": len(pool), "planned": planned,
-            "minutes": tset.minutes, "min_questions": 1,
-            "in_progress": att.id if att and att.status == "in_progress" else None,
-        }
-
+# DISABLED — teacher-set branch of available()
+#     tset = await _active_set(db, student)
+#     if tset:
+#         att = await _set_attempt(db, tset.id, student.id)
+#         if att:
+#             await _expire_if_late(db, att)
+#         lessons = await _completed_lessons(db, student.id, tset)
+#         pool = await _build_pool(db, lessons, "ru" if lang == "ru" else "uz")
+#         planned = min(_set_count(tset), len(pool))
+#         return {
+#             "teacher_set": {
+#                 "id": tset.id, "title": tset.title, "count": planned, "minutes": tset.minutes,
+#                 "done": bool(att and att.status == "finished"),
+#                 "score": att.score if att and att.status == "finished" else None,
+#             },
+#             "lessons": len(lessons), "questions": len(pool), "planned": planned,
+#             "minutes": tset.minutes, "min_questions": 1,
+#             "in_progress": att.id if att and att.status == "in_progress" else None,
+#         }
+#
     lessons = await _completed_lessons(db, student.id)
     pool = await _build_pool(db, lessons, "ru" if lang == "ru" else "uz")
     last = (await db.execute(
@@ -350,27 +364,28 @@ async def start(
         if open_att.status == "in_progress":
             return _start_payload(open_att)
 
-    tset = await _active_set(db, student)
-    if tset:
-        if await _set_attempt(db, tset.id, student.id):
-            raise HTTPException(status_code=409, detail="Siz bu testni allaqachon topshirgansiz")
-        lessons = await _completed_lessons(db, student.id, tset)
-        pool = await _build_pool(db, lessons, lang)
-        if not pool:
-            raise HTTPException(
-                status_code=400,
-                detail="Test uchun savol topilmadi. Shu chorakda tugatgan darslaringiz yo'q.",
-            )
-        chosen = _place_answers(_pick_balanced(pool, min(_set_count(tset), len(pool))))
-        att = SummativeAttempt(
-            student_id=student.id, scope="teacher", lang=lang, total=len(chosen), questions=chosen,
-            time_limit_seconds=tset.minutes * 60, set_id=tset.id,
-        )
-        db.add(att)
-        await db.commit()
-        await db.refresh(att)
-        return _start_payload(att)
-
+# DISABLED — teacher-set branch of start()
+#     tset = await _active_set(db, student)
+#     if tset:
+#         if await _set_attempt(db, tset.id, student.id):
+#             raise HTTPException(status_code=409, detail="Siz bu testni allaqachon topshirgansiz")
+#         lessons = await _completed_lessons(db, student.id, tset)
+#         pool = await _build_pool(db, lessons, lang)
+#         if not pool:
+#             raise HTTPException(
+#                 status_code=400,
+#                 detail="Test uchun savol topilmadi. Shu chorakda tugatgan darslaringiz yo'q.",
+#             )
+#         chosen = _place_answers(_pick_balanced(pool, min(_set_count(tset), len(pool))))
+#         att = SummativeAttempt(
+#             student_id=student.id, scope="teacher", lang=lang, total=len(chosen), questions=chosen,
+#             time_limit_seconds=tset.minutes * 60, set_id=tset.id,
+#         )
+#         db.add(att)
+#         await db.commit()
+#         await db.refresh(att)
+#         return _start_payload(att)
+#
     lessons = await _completed_lessons(db, student.id)
     pool = await _build_pool(db, lessons, lang)
     if len(pool) < MIN_QUESTIONS:
@@ -484,168 +499,170 @@ async def submit(
     return {**_summary(att), "review": _review(att)}
 
 
-# ── teacher: build and manage sets ──────────────────────────────────────────
-# Registered after the student routes; none of these paths collide with
-# "/{attempt_id}" (they all have a second segment).
-
-class SetBody(BaseModel):
-    group_ids: List[int]
-    title: str = ""
-    question_count: int = 25
-    quarter: int = 0
-    minutes: int = 30
-
-
-async def _own_group(db: AsyncSession, group_id: int, teacher: Student) -> Group:
-    g = (await db.execute(select(Group).where(Group.id == group_id))).scalar_one_or_none()
-    if g is None or g.teacher_id != teacher.id:
-        raise HTTPException(status_code=403, detail="Bu guruh sizga tegishli emas")
-    return g
-
-
-@router.get("/teacher/groups")
-async def teacher_groups(
-        db: AsyncSession = Depends(get_db),
-        teacher: Student = Depends(get_current_instructor),
-):
-    rows = (await db.execute(
-        select(Group.id, Group.name, func.count(student_groups.c.student_id))
-        .outerjoin(student_groups, student_groups.c.group_id == Group.id)
-        .where(Group.teacher_id == teacher.id).group_by(Group.id, Group.name).order_by(Group.name)
-    )).all()
-    return [{"id": i, "name": n, "students": c} for i, n, c in rows]
-
-
-@router.post("/teacher/sets")
-async def create_set(
-        body: SetBody,
-        db: AsyncSession = Depends(get_db),
-        teacher: Student = Depends(get_current_instructor),
-):
-    group_ids = list(dict.fromkeys(body.group_ids))
-    if not group_ids:
-        raise HTTPException(status_code=422, detail="Kamida bitta sinfni tanlang")
-    for gid in group_ids:
-        await _own_group(db, gid, teacher)
-    if not 1 <= body.question_count <= 100:
-        raise HTTPException(status_code=422, detail="Savollar soni 1 dan 100 gacha bo'lishi kerak")
-    if not 5 <= body.minutes <= 180:
-        raise HTTPException(status_code=422, detail="Vaqt 5 dan 180 daqiqagacha bo'lishi kerak")
-    if body.quarter not in (0, 1, 2, 3, 4):
-        raise HTTPException(status_code=422, detail="Chorak 1-4 bo'lishi kerak")
-    # One live test per group: a new one replaces the previous.
-    for old in (await db.execute(
-        select(SummativeSet).where(SummativeSet.group_id.in_(group_ids), SummativeSet.is_active.is_(True))
-    )).scalars().all():
-        old.is_active = False
-    title = body.title.strip()[:200] or "Summativ test"
-    for gid in group_ids:
-        db.add(SummativeSet(
-            teacher_id=teacher.id, group_id=gid, title=title, question_count=body.question_count,
-            quarter=body.quarter, minutes=body.minutes,
-        ))
-    await db.commit()
-    return {"created": len(group_ids), "count": body.question_count}
-
-
-@router.get("/teacher/sets")
-async def list_sets(
-        db: AsyncSession = Depends(get_db),
-        teacher: Student = Depends(get_current_instructor),
-):
-    rows = (await db.execute(
-        select(SummativeSet, Group.name).join(Group, Group.id == SummativeSet.group_id)
-        .where(SummativeSet.teacher_id == teacher.id).order_by(SummativeSet.id.desc()).limit(50)
-    )).all()
-    out = []
-    for st, gname in rows:
-        stats = (await db.execute(
-            select(func.count(SummativeAttempt.id), func.avg(SummativeAttempt.score)).where(
-                SummativeAttempt.set_id == st.id, SummativeAttempt.status == "finished")
-        )).one()
-        members = (await db.execute(
-            select(func.count(student_groups.c.student_id)).where(student_groups.c.group_id == st.group_id)
-        )).scalar() or 0
-        out.append({
-            "id": st.id, "title": st.title, "group_id": st.group_id, "group": gname, "count": _set_count(st),
-            "minutes": st.minutes, "quarter": st.quarter, "is_active": st.is_active, "created_at": st.created_at,
-            "finished": stats[0] or 0, "average": round(float(stats[1])) if stats[1] is not None else None,
-            "students": members,
-        })
-    return out
-
-
-class ActiveBody(BaseModel):
-    is_active: bool
-
-
-async def _own_set(db: AsyncSession, set_id: int, teacher: Student) -> SummativeSet:
-    st = (await db.execute(select(SummativeSet).where(SummativeSet.id == set_id))).scalar_one_or_none()
-    if st is None or st.teacher_id != teacher.id:
-        raise HTTPException(status_code=404, detail="Test topilmadi")
-    return st
-
-
-@router.patch("/teacher/sets/{set_id}")
-async def toggle_set(
-        set_id: int,
-        body: ActiveBody,
-        db: AsyncSession = Depends(get_db),
-        teacher: Student = Depends(get_current_instructor),
-):
-    st = await _own_set(db, set_id, teacher)
-    if body.is_active:  # one live test per group
-        for other in (await db.execute(
-            select(SummativeSet).where(SummativeSet.group_id == st.group_id, SummativeSet.is_active.is_(True),
-                                       SummativeSet.id != st.id)
-        )).scalars().all():
-            other.is_active = False
-    st.is_active = body.is_active
-    await db.commit()
-    return {"ok": True}
-
-
-@router.delete("/teacher/sets/{set_id}")
-async def delete_set(
-        set_id: int,
-        db: AsyncSession = Depends(get_db),
-        teacher: Student = Depends(get_current_instructor),
-):
-    st = await _own_set(db, set_id, teacher)
-    await db.delete(st)
-    await db.commit()
-    return {"ok": True}
-
-
-@router.get("/teacher/sets/{set_id}/results")
-async def set_results(
-        set_id: int,
-        db: AsyncSession = Depends(get_db),
-        teacher: Student = Depends(get_current_instructor),
-):
-    st = await _own_set(db, set_id, teacher)
-    students = (await db.execute(
-        select(Student.id, Student.full_name, Student.username)
-        .join(student_groups, student_groups.c.student_id == Student.id)
-        .where(student_groups.c.group_id == st.group_id).order_by(Student.full_name)
-    )).all()
-    atts = {a.student_id: a for a in (await db.execute(
-        select(SummativeAttempt).where(SummativeAttempt.set_id == st.id).order_by(SummativeAttempt.id)
-    )).scalars().all()}
-    for a in atts.values():
-        await _expire_if_late(db, a)
-    return {
-        "title": st.title, "count": _set_count(st),
-        "students": [
-            {
-                "id": sid, "name": full or uname,
-                "status": atts[sid].status if sid in atts else "not_started",
-                "score": atts[sid].score if sid in atts and atts[sid].status == "finished" else None,
-                "correct": atts[sid].correct if sid in atts else None,
-                "total": atts[sid].total if sid in atts else _set_count(st),
-                "violations": atts[sid].violations if sid in atts else 0,
-                "finish_reason": atts[sid].finish_reason if sid in atts else None,
-            }
-            for sid, full, uname in students
-        ],
-    }
+# DISABLED — teacher-built tests (re-enable by removing the leading "# ")
+# # ── teacher: build and manage sets ──────────────────────────────────────────
+# # Registered after the student routes; none of these paths collide with
+# # "/{attempt_id}" (they all have a second segment).
+#
+# class SetBody(BaseModel):
+#     group_ids: List[int]
+#     title: str = ""
+#     question_count: int = 25
+#     quarter: int = 0
+#     minutes: int = 30
+#
+#
+# async def _own_group(db: AsyncSession, group_id: int, teacher: Student) -> Group:
+#     g = (await db.execute(select(Group).where(Group.id == group_id))).scalar_one_or_none()
+#     if g is None or g.teacher_id != teacher.id:
+#         raise HTTPException(status_code=403, detail="Bu guruh sizga tegishli emas")
+#     return g
+#
+#
+# @router.get("/teacher/groups")
+# async def teacher_groups(
+#         db: AsyncSession = Depends(get_db),
+#         teacher: Student = Depends(get_current_instructor),
+# ):
+#     rows = (await db.execute(
+#         select(Group.id, Group.name, func.count(student_groups.c.student_id))
+#         .outerjoin(student_groups, student_groups.c.group_id == Group.id)
+#         .where(Group.teacher_id == teacher.id).group_by(Group.id, Group.name).order_by(Group.name)
+#     )).all()
+#     return [{"id": i, "name": n, "students": c} for i, n, c in rows]
+#
+#
+# @router.post("/teacher/sets")
+# async def create_set(
+#         body: SetBody,
+#         db: AsyncSession = Depends(get_db),
+#         teacher: Student = Depends(get_current_instructor),
+# ):
+#     group_ids = list(dict.fromkeys(body.group_ids))
+#     if not group_ids:
+#         raise HTTPException(status_code=422, detail="Kamida bitta sinfni tanlang")
+#     for gid in group_ids:
+#         await _own_group(db, gid, teacher)
+#     if not 1 <= body.question_count <= 100:
+#         raise HTTPException(status_code=422, detail="Savollar soni 1 dan 100 gacha bo'lishi kerak")
+#     if not 5 <= body.minutes <= 180:
+#         raise HTTPException(status_code=422, detail="Vaqt 5 dan 180 daqiqagacha bo'lishi kerak")
+#     if body.quarter not in (0, 1, 2, 3, 4):
+#         raise HTTPException(status_code=422, detail="Chorak 1-4 bo'lishi kerak")
+#     # One live test per group: a new one replaces the previous.
+#     for old in (await db.execute(
+#         select(SummativeSet).where(SummativeSet.group_id.in_(group_ids), SummativeSet.is_active.is_(True))
+#     )).scalars().all():
+#         old.is_active = False
+#     title = body.title.strip()[:200] or "Summativ test"
+#     for gid in group_ids:
+#         db.add(SummativeSet(
+#             teacher_id=teacher.id, group_id=gid, title=title, question_count=body.question_count,
+#             quarter=body.quarter, minutes=body.minutes,
+#         ))
+#     await db.commit()
+#     return {"created": len(group_ids), "count": body.question_count}
+#
+#
+# @router.get("/teacher/sets")
+# async def list_sets(
+#         db: AsyncSession = Depends(get_db),
+#         teacher: Student = Depends(get_current_instructor),
+# ):
+#     rows = (await db.execute(
+#         select(SummativeSet, Group.name).join(Group, Group.id == SummativeSet.group_id)
+#         .where(SummativeSet.teacher_id == teacher.id).order_by(SummativeSet.id.desc()).limit(50)
+#     )).all()
+#     out = []
+#     for st, gname in rows:
+#         stats = (await db.execute(
+#             select(func.count(SummativeAttempt.id), func.avg(SummativeAttempt.score)).where(
+#                 SummativeAttempt.set_id == st.id, SummativeAttempt.status == "finished")
+#         )).one()
+#         members = (await db.execute(
+#             select(func.count(student_groups.c.student_id)).where(student_groups.c.group_id == st.group_id)
+#         )).scalar() or 0
+#         out.append({
+#             "id": st.id, "title": st.title, "group_id": st.group_id, "group": gname, "count": _set_count(st),
+#             "minutes": st.minutes, "quarter": st.quarter, "is_active": st.is_active, "created_at": st.created_at,
+#             "finished": stats[0] or 0, "average": round(float(stats[1])) if stats[1] is not None else None,
+#             "students": members,
+#         })
+#     return out
+#
+#
+# class ActiveBody(BaseModel):
+#     is_active: bool
+#
+#
+# async def _own_set(db: AsyncSession, set_id: int, teacher: Student) -> SummativeSet:
+#     st = (await db.execute(select(SummativeSet).where(SummativeSet.id == set_id))).scalar_one_or_none()
+#     if st is None or st.teacher_id != teacher.id:
+#         raise HTTPException(status_code=404, detail="Test topilmadi")
+#     return st
+#
+#
+# @router.patch("/teacher/sets/{set_id}")
+# async def toggle_set(
+#         set_id: int,
+#         body: ActiveBody,
+#         db: AsyncSession = Depends(get_db),
+#         teacher: Student = Depends(get_current_instructor),
+# ):
+#     st = await _own_set(db, set_id, teacher)
+#     if body.is_active:  # one live test per group
+#         for other in (await db.execute(
+#             select(SummativeSet).where(SummativeSet.group_id == st.group_id, SummativeSet.is_active.is_(True),
+#                                        SummativeSet.id != st.id)
+#         )).scalars().all():
+#             other.is_active = False
+#     st.is_active = body.is_active
+#     await db.commit()
+#     return {"ok": True}
+#
+#
+# @router.delete("/teacher/sets/{set_id}")
+# async def delete_set(
+#         set_id: int,
+#         db: AsyncSession = Depends(get_db),
+#         teacher: Student = Depends(get_current_instructor),
+# ):
+#     st = await _own_set(db, set_id, teacher)
+#     await db.delete(st)
+#     await db.commit()
+#     return {"ok": True}
+#
+#
+# @router.get("/teacher/sets/{set_id}/results")
+# async def set_results(
+#         set_id: int,
+#         db: AsyncSession = Depends(get_db),
+#         teacher: Student = Depends(get_current_instructor),
+# ):
+#     st = await _own_set(db, set_id, teacher)
+#     students = (await db.execute(
+#         select(Student.id, Student.full_name, Student.username)
+#         .join(student_groups, student_groups.c.student_id == Student.id)
+#         .where(student_groups.c.group_id == st.group_id).order_by(Student.full_name)
+#     )).all()
+#     atts = {a.student_id: a for a in (await db.execute(
+#         select(SummativeAttempt).where(SummativeAttempt.set_id == st.id).order_by(SummativeAttempt.id)
+#     )).scalars().all()}
+#     for a in atts.values():
+#         await _expire_if_late(db, a)
+#     return {
+#         "title": st.title, "count": _set_count(st),
+#         "students": [
+#             {
+#                 "id": sid, "name": full or uname,
+#                 "status": atts[sid].status if sid in atts else "not_started",
+#                 "score": atts[sid].score if sid in atts and atts[sid].status == "finished" else None,
+#                 "correct": atts[sid].correct if sid in atts else None,
+#                 "total": atts[sid].total if sid in atts else _set_count(st),
+#                 "violations": atts[sid].violations if sid in atts else 0,
+#                 "finish_reason": atts[sid].finish_reason if sid in atts else None,
+#             }
+#             for sid, full, uname in students
+#         ],
+#     }
+#

@@ -84,7 +84,7 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
         { id: 'groups',         label: 'Мои Группы',      Icon: Building2,    section: 'main' },
         { id: 'courses',        label: 'Курсы',           Icon: BookOpen,     section: 'main' },
         { id: 'team-game',      label: 'Проверка знаний', Icon: ClipboardCheck, section: 'main' },
-        { id: 'summative',      label: 'Summativ test',   Icon: ClipboardCheck, section: 'main' },
+        // { id: 'summative',      label: 'Summativ test',   Icon: ClipboardCheck, section: 'main' }, // disabled: teacher-built summative tests
         { id: 'team-projects',  label: 'Jamoaviy loyihalar', Icon: Users2,    section: 'main' },
         { id: 'store',          label: 'Магазин (beta)',  Icon: ShoppingBag,  section: 'main' },
         { id: 'early-learning', label: 'Kichkinalar uchun', Icon: Puzzle,     section: 'main' },

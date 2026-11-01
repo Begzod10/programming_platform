@@ -29,7 +29,7 @@ import Duel               from './views/student/duel/Duel';
 import CodeCheck          from './views/student/codecheck/CodeCheck';
 import DailyChallenge     from './views/student/early-learning/DailyChallenge';
 import Summative          from './views/student/summative/Summative';
-import TeacherSummative   from './views/teacher/summative/TeacherSummative';
+// import TeacherSummative   from './views/teacher/summative/TeacherSummative'; // disabled: teacher-built summative tests
 
 // ── Teacher views ──
 import TeacherCourses           from './views/teacher/courses/TeacherCourses/TeacherCourses';
@@ -167,7 +167,9 @@ function AppRouter() {
                 <Route path="profile"                                     element={<TeacherProfilePage />} />
                 <Route path="review"                                      element={<TeacherReview />} />
                 <Route path="penalties"                                   element={<TeacherPenalties />} />
+                {/* disabled: teacher-built summative tests
                 <Route path="summative"                                   element={<TeacherSummative />} />
+                */}
                 <Route path="pc"                                          element={<PcControl />} />
                 <Route path="students"                                    element={<MyStudents />} />
                 <Route path="students/:studentId"                         element={<StudentProfilePage />} />

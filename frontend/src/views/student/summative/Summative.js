@@ -448,6 +448,7 @@ export default function Summative() {
                 <h1>📝 {L.title}</h1>
                 <p className="sm-sub">{L.sub}</p>
 
+                {/* disabled: teacher-built summative tests
                 {info && info.teacher_set && (
                     <p className={info.teacher_set.done ? 'sm-warn' : 'sm-plan'}>
                         {info.teacher_set.done
@@ -455,6 +456,7 @@ export default function Summative() {
                             : L.teacherTest(info.teacher_set.title, info.teacher_set.count, info.teacher_set.minutes)}
                     </p>
                 )}
+                */}
                 {info && !info.teacher_set && <p className="sm-plan">{L.plan(info.lessons, info.planned, info.minutes)}</p>}
                 {info && !info.teacher_set && !enough && <p className="sm-warn">{L.notEnough(info.min_questions)}</p>}
 
