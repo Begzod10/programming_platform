@@ -28,7 +28,10 @@ const TEXT = {
         prev: 'Oldingi',
         next: 'Keyingi',
         finish: 'Testni yakunlash',
-        confirmFinish: (left) => (left > 0 ? `${left} ta savolga javob bermadingiz. Baribir yakunlaysizmi?` : 'Testni yakunlaysizmi?'),
+        finishTitle: 'Testni yakunlaysizmi?',
+        cancel: 'Bekor qilish',
+        finishYes: 'Ha, yakunlash',
+        confirmFinish: (left) => (left > 0 ? `${left} ta savolga javob bermadingiz. Baribir yakunlaysizmi?` : "Barcha savollarga javob berdingiz. Yakunlaymizmi?"),
         left: 'Qoldi',
         warnTitle: 'Test ekranidan chiqdingiz!',
         warnText: (n, max) => `Qoidabuzarlik: ${n} / ${max}. ${max} ga yetsa test tugaydi.`,
@@ -67,7 +70,10 @@ const TEXT = {
         prev: 'Назад',
         next: 'Далее',
         finish: 'Завершить тест',
-        confirmFinish: (left) => (left > 0 ? `Вы не ответили на ${left} вопр. Всё равно завершить?` : 'Завершить тест?'),
+        finishTitle: 'Завершить тест?',
+        cancel: 'Отмена',
+        finishYes: 'Да, завершить',
+        confirmFinish: (left) => (left > 0 ? `Вы не ответили на ${left} вопр. Всё равно завершить?` : 'Вы ответили на все вопросы. Завершаем?'),
         left: 'Осталось',
         warnTitle: 'Вы покинули экран теста!',
         warnText: (n, max) => `Нарушение: ${n} / ${max}. При ${max} тест завершится.`,
@@ -128,6 +134,7 @@ export default function Summative() {
     const [violations, setViolations] = useState(0);
     const [away, setAway] = useState(false);
     const [onlyWrong, setOnlyWrong] = useState(true);
+    const [confirmOpen, setConfirmOpen] = useState(false);
 
     const attemptRef = useRef(null);
     const answersRef = useRef([]);
@@ -328,7 +335,7 @@ export default function Summative() {
                         ) : (
                             <button
                                 className="sm-btn sm-btn--danger"
-                                onClick={() => { if (window.confirm(L.confirmFinish(unanswered))) finish(); }}
+                                onClick={() => setConfirmOpen(true)}
                             >
                                 {L.finish}
                             </button>
@@ -347,11 +354,23 @@ export default function Summative() {
                     </div>
                     <button
                         className="sm-link"
-                        onClick={() => { if (window.confirm(L.confirmFinish(unanswered))) finish(); }}
+                        onClick={() => setConfirmOpen(true)}
                     >
                         {L.finish}
                     </button>
                 </div>
+                {confirmOpen && (
+                    <div className="sm-away sm-confirm">
+                        <div className="sm-away-card sm-confirm-card">
+                            <h2>{L.finishTitle}</h2>
+                            <p>{L.confirmFinish(unanswered)}</p>
+                            <div className="sm-row sm-confirm-row">
+                                <button className="sm-btn" onClick={() => setConfirmOpen(false)}>{L.cancel}</button>
+                                <button className="sm-btn sm-btn--danger" onClick={() => { setConfirmOpen(false); finish(); }}>{L.finishYes}</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 {away && (
                     <div className="sm-away">
                         <div className="sm-away-card">

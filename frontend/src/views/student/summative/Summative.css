@@ -81,3 +81,8 @@
 .sm-away { position: fixed; inset: 0; z-index: 2147483001; background: rgba(6, 7, 20, 0.97); display: flex; align-items: center; justify-content: center; padding: 20px; }
 .sm-away-card { max-width: 440px; text-align: center; padding: 28px; border-radius: 18px; background: #1c1f45; border: 1px solid rgba(240, 85, 107, 0.5); }
 .sm-away-card h2 { margin-top: 0; color: #ff9aa8; }
+
+.sm-confirm { background: rgba(6, 7, 20, 0.78); }
+.sm-confirm-card { border-color: rgba(154, 140, 255, 0.5); width: min(420px, 100%); }
+.sm-confirm-card h2 { color: #eef0ff; font-size: 1.25rem; }
+.sm-confirm-row { justify-content: center; margin-top: 18px; }
