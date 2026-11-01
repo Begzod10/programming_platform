@@ -363,7 +363,7 @@ export default function Summative() {
     if (result) {
         const review = result.review || [];
         const shown = onlyWrong ? review.filter((r) => r.chosen !== r.correct) : review;
-        return (
+        return createPortal(
             <div className="sm-page">
                 <div className="sm-card">
                     <h1>{L.result}</h1>
@@ -390,13 +390,14 @@ export default function Summative() {
                         ))}
                     </div>
                 </div>
-            </div>
+            </div>,
+            document.body
         );
     }
 
     // ── lobby ──
     const enough = info && info.questions >= (info.min_questions || 10);
-    return (
+    return createPortal(
         <div className="sm-page">
             <div className="sm-card">
                 <button className="sm-link" onClick={() => navigate('/student/dashboard')}>← {L.back}</button>
@@ -440,6 +441,7 @@ export default function Summative() {
                     ))}
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }
