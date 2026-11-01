@@ -8,13 +8,8 @@ const TEXT = {
     uz: {
         title: 'Chorak yakuniy testi',
         sub: "Test siz tugatgan darslardan tuziladi. Javoblar har safar aralash joylashadi.",
-        count: 'Savollar soni',
-        minutes: (n) => `${n} ta savol · ${n} daqiqa`,
-        scope: 'Qaysi darslardan',
-        quarter: "So'nggi 3 oy (shu chorak)",
-        all: 'Barcha tugatilgan darslar',
-        lessonsQs: (l, q) => `${l} ta dars · ${q} ta savol mavjud`,
-        notEnough: (min) => `Test uchun kamida ${min} ta savol kerak. Ko'proq dars tugating yoki "Barcha darslar" ni tanlang.`,
+        plan: (l, n, m) => `Shu chorakda ${l} ta dars tugatgansiz. Test shu darslardan tuziladi: ${n} ta savol · ${m} daqiqa.`,
+        notEnough: (min) => `Test uchun kamida ${min} ta savol kerak. Ko'proq dars tugating.`,
         rules: 'Qoidalar',
         rulesList: [
             "Test boshlanganda ekran avtomatik to'liq ekran rejimiga o'tadi.",
@@ -52,13 +47,8 @@ const TEXT = {
     ru: {
         title: 'Итоговый тест четверти',
         sub: 'Тест составляется из пройденных вами уроков. Порядок ответов каждый раз случайный.',
-        count: 'Количество вопросов',
-        minutes: (n) => `${n} вопросов · ${n} минут`,
-        scope: 'Из каких уроков',
-        quarter: 'Последние 3 месяца (эта четверть)',
-        all: 'Все пройденные уроки',
-        lessonsQs: (l, q) => `${l} ур. · доступно вопросов: ${q}`,
-        notEnough: (min) => `Нужно минимум ${min} вопросов. Пройдите больше уроков или выберите «Все уроки».`,
+        plan: (l, n, m) => `В этой четверти вы прошли уроков: ${l}. Тест составляется из них: ${n} вопросов · ${m} минут.`,
+        notEnough: (min) => `Нужно минимум ${min} вопросов. Пройдите больше уроков.`,
         rules: 'Правила',
         rulesList: [
             'При старте экран автоматически переходит в полноэкранный режим.',
@@ -119,8 +109,6 @@ export default function Summative() {
 
     const [info, setInfo] = useState(null);
     const [history, setHistory] = useState([]);
-    const [count, setCount] = useState(25);
-    const [scope, setScope] = useState('quarter');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
 
@@ -168,7 +156,7 @@ export default function Summative() {
         enterFs(); // must happen inside this click (user gesture)
         try {
             const payload = await request(`${API_URL}v1/summative/start`, 'POST',
-                json({ count, scope, lang: apiLang }), jsonHeaders());
+                json({ lang: apiLang }), jsonHeaders());
             begin(payload);
         } catch (e) {
             exitFs();
@@ -402,8 +390,7 @@ export default function Summative() {
     }
 
     // ── lobby ──
-    const sc = info?.scopes?.[scope];
-    const enough = sc && sc.questions >= (info?.min_questions || 10);
+    const enough = info && info.questions >= (info.min_questions || 10);
     return (
         <div className="sm-page">
             <div className="sm-card">
@@ -411,25 +398,8 @@ export default function Summative() {
                 <h1>📝 {L.title}</h1>
                 <p className="sm-sub">{L.sub}</p>
 
-                <div className="sm-group">{L.count}</div>
-                <div className="sm-row">
-                    {(info?.counts || [25, 50]).map((c) => (
-                        <button key={c} className={`sm-chip ${count === c ? 'is-on' : ''}`} onClick={() => setCount(c)}>
-                            {L.minutes(c)}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="sm-group">{L.scope}</div>
-                <div className="sm-row">
-                    {['quarter', 'all'].map((s) => (
-                        <button key={s} className={`sm-chip ${scope === s ? 'is-on' : ''}`} onClick={() => setScope(s)}>
-                            {L[s]}
-                        </button>
-                    ))}
-                </div>
-                {sc && <p className="sm-sub">{L.lessonsQs(sc.lessons, sc.questions)}</p>}
-                {sc && !enough && <p className="sm-warn">{L.notEnough(info.min_questions)}</p>}
+                {info && <p className="sm-plan">{L.plan(info.lessons, info.planned, info.minutes)}</p>}
+                {info && !enough && <p className="sm-warn">{L.notEnough(info.min_questions)}</p>}
 
                 <div className="sm-rules">
                     <b>{L.rules}</b>

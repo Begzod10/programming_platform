@@ -33,9 +33,10 @@ from app.utils.datetime_utils import utcnow
 
 router = APIRouter()
 
-COUNTS = (25, 50)
+SMALL_TEST, BIG_TEST = 25, 50
+BIG_TEST_MIN_LESSONS = 20   # a quarter with this many finished lessons gets the 50-question test
 MIN_QUESTIONS = 10          # below this a "summative" isn't meaningful
-SECONDS_PER_QUESTION = 60   # 25 questions -> 25 minutes, 50 -> 50
+TEST_SECONDS = 30 * 60      # fixed 30 minutes, whether it has 25 or 50 questions
 GRACE_SECONDS = 20          # network slack on the deadline
 MAX_VIOLATIONS = 3          # leaving fullscreen/the tab this often ends the test
 QUARTER_DAYS = 92
@@ -54,10 +55,12 @@ def _norm(text: str) -> str:
 
 # ── question pool ───────────────────────────────────────────────────────────
 
-async def _completed_lessons(db: AsyncSession, student_id: int, scope: str) -> List[int]:
-    stmt = select(LessonCompletion.lesson_id).where(LessonCompletion.student_id == student_id)
-    if scope == "quarter":
-        stmt = stmt.where(LessonCompletion.completed_at >= utcnow() - timedelta(days=QUARTER_DAYS))
+async def _completed_lessons(db: AsyncSession, student_id: int) -> List[int]:
+    """Lessons finished in the current quarter (the last ~3 months)."""
+    stmt = select(LessonCompletion.lesson_id).where(
+        LessonCompletion.student_id == student_id,
+        LessonCompletion.completed_at >= utcnow() - timedelta(days=QUARTER_DAYS),
+    )
     return list((await db.execute(stmt)).scalars().all())
 
 
@@ -69,7 +72,7 @@ async def _build_pool(db: AsyncSession, lesson_ids: List[int], lang: str) -> Lis
     pool: List[dict] = []
     seen = set()
 
-    def add(text, options, correct, kind, explanation=None):
+    def add(text, options, correct, kind, explanation=None, lesson_id=None):
         key = _norm(text)
         options = [str(o) for o in options if o is not None and str(o).strip()]
         if (
@@ -78,7 +81,8 @@ async def _build_pool(db: AsyncSession, lesson_ids: List[int], lang: str) -> Lis
         ):
             return
         seen.add(key)
-        pool.append({"text": text, "options": options, "correct": correct, "kind": kind, "explanation": explanation})
+        pool.append({"text": text, "options": options, "correct": correct, "kind": kind,
+                     "explanation": explanation, "lesson_id": lesson_id})
 
     # 1) lesson question bank — uz and ru rows are paired translations, so use
     #    the student's language and only fall back to the other if none exist.
@@ -90,7 +94,7 @@ async def _build_pool(db: AsyncSession, lesson_ids: List[int], lang: str) -> Lis
     mine = [q for q in bank if _lang_of(q.question_text) == lang]
     for q in (mine or bank):
         if q.options:
-            add(q.question_text, q.options, q.correct_option, "bank")
+            add(q.question_text, q.options, q.correct_option, "bank", lesson_id=q.lesson_id)
 
     # 2) course quizzes of the courses these lessons belong to
     course_ids = list((await db.execute(
@@ -121,12 +125,36 @@ async def _build_pool(db: AsyncSession, lesson_ids: List[int], lang: str) -> Lis
             if len(others) < 3:
                 continue
             opts = [v.word] + random.sample(others, 3)
-            vocab_qs.append((v.definition, opts, 0))
+            vocab_qs.append((v.definition, opts, 0, v.lesson_id))
         random.shuffle(vocab_qs)
         cap = max(0, int((len(pool) + len(vocab_qs)) * VOCAB_MAX_SHARE))
-        for text, opts, correct in vocab_qs[:cap if pool else len(vocab_qs)]:
-            add(text, opts, correct, "vocab")
+        for text, opts, correct, lid in vocab_qs[:cap if pool else len(vocab_qs)]:
+            add(text, opts, correct, "vocab", lesson_id=lid)
     return pool
+
+
+def _pick_balanced(pool: List[dict], count: int) -> List[dict]:
+    """Take `count` questions spread evenly over the finished lessons (round
+    robin), so every lesson of the quarter is represented instead of a few
+    lessons with big question banks crowding the rest out."""
+    groups = {}
+    for q in pool:
+        groups.setdefault(q.get("lesson_id"), []).append(q)
+    buckets = list(groups.values())
+    for b in buckets:
+        random.shuffle(b)
+    random.shuffle(buckets)
+    picked: List[dict] = []
+    while len(picked) < count and any(buckets):
+        for b in buckets:
+            if b and len(picked) < count:
+                picked.append(b.pop())
+    return picked
+
+
+def _plan_count(lessons: int, questions: int) -> int:
+    want = BIG_TEST if lessons >= BIG_TEST_MIN_LESSONS else SMALL_TEST
+    return min(want, questions)
 
 
 def _place_answers(questions: List[dict]) -> List[dict]:
@@ -216,11 +244,8 @@ async def available(
         db: AsyncSession = Depends(get_db),
         student: Student = Depends(get_current_student),
 ):
-    out = {}
-    for scope in ("quarter", "all"):
-        lessons = await _completed_lessons(db, student.id, scope)
-        pool = await _build_pool(db, lessons, "ru" if lang == "ru" else "uz")
-        out[scope] = {"lessons": len(lessons), "questions": len(pool)}
+    lessons = await _completed_lessons(db, student.id)
+    pool = await _build_pool(db, lessons, "ru" if lang == "ru" else "uz")
     last = (await db.execute(
         select(SummativeAttempt).where(SummativeAttempt.student_id == student.id)
         .order_by(SummativeAttempt.id.desc()).limit(1)
@@ -228,14 +253,13 @@ async def available(
     if last:
         await _expire_if_late(db, last)
     return {
-        "counts": list(COUNTS), "min_questions": MIN_QUESTIONS, "scopes": out,
+        "lessons": len(lessons), "questions": len(pool), "planned": _plan_count(len(lessons), len(pool)),
+        "minutes": TEST_SECONDS // 60, "min_questions": MIN_QUESTIONS,
         "in_progress": last.id if last and last.status == "in_progress" else None,
     }
 
 
 class StartBody(BaseModel):
-    count: int = 25
-    scope: str = "quarter"
     lang: str = "uz"
 
 
@@ -246,9 +270,6 @@ async def start(
         student: Student = Depends(get_current_student),
         _rl: None = Depends(rate_limit(max_calls=6, window_seconds=60)),
 ):
-    if body.count not in COUNTS:
-        raise HTTPException(status_code=422, detail="count 25 yoki 50 bo'lishi kerak")
-    scope = body.scope if body.scope in ("quarter", "all") else "quarter"
     lang = "ru" if body.lang == "ru" else "uz"
 
     # Resume an unfinished attempt instead of letting a student re-roll
@@ -263,18 +284,17 @@ async def start(
         if open_att.status == "in_progress":
             return _start_payload(open_att)
 
-    lessons = await _completed_lessons(db, student.id, scope)
+    lessons = await _completed_lessons(db, student.id)
     pool = await _build_pool(db, lessons, lang)
     if len(pool) < MIN_QUESTIONS:
         raise HTTPException(
             status_code=400,
             detail=f"Test uchun savol yetarli emas ({len(pool)} ta). Avval ko'proq dars tugating.",
         )
-    random.shuffle(pool)
-    chosen = _place_answers(pool[: body.count])
+    chosen = _place_answers(_pick_balanced(pool, _plan_count(len(lessons), len(pool))))
     att = SummativeAttempt(
-        student_id=student.id, scope=scope, lang=lang, total=len(chosen), questions=chosen,
-        time_limit_seconds=len(chosen) * SECONDS_PER_QUESTION,
+        student_id=student.id, scope="quarter", lang=lang, total=len(chosen), questions=chosen,
+        time_limit_seconds=TEST_SECONDS,
     )
     db.add(att)
     await db.commit()

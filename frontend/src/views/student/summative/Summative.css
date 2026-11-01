@@ -1,6 +1,8 @@
 /* Self-contained dark look (matches the student dashboard). The running test
    is a fixed full-viewport layer so the app sidebar can never show through. */
-.sm-page { min-height: 100vh; padding: 24px 16px 60px; display: flex; justify-content: center; align-items: flex-start; color: #eef0ff; }
+.sm-page { min-height: 100vh; padding: 24px 16px 60px; display: flex; justify-content: center; align-items: flex-start; color: #eef0ff;
+    background: radial-gradient(1200px 600px at 20% -10%, #25295a 0%, #0d0f26 60%); }
+.sm-plan { margin: 14px 0; padding: 12px 16px; border-radius: 12px; background: rgba(108, 92, 231, 0.18); font-weight: 700; line-height: 1.5; }
 .sm-card {
     width: min(760px, 100%); padding: 26px; border-radius: 20px;
     background: rgba(26, 28, 56, 0.92); border: 1px solid rgba(255, 255, 255, 0.08);
