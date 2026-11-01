@@ -206,3 +206,9 @@
 @media (prefers-reduced-motion:reduce) {
     .stp-progress-fill, .stp-skel-head, .stp-skel-card { animation:none; transition:none; }
 }
+
+.stp-code { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px; }
+.stp-code-link { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:8px;
+    border:1px solid var(--stp-faint); color:var(--stp-ink); text-decoration:none; font-size:.82rem; }
+.stp-code-link:hover { border-color:var(--stp-muted); }
+

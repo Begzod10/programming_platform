@@ -32,6 +32,52 @@ class DictionaryOut(BaseModel):
         from_attributes = True
 
 
+class TeacherDictionaryWord(BaseModel):
+    """One saved word as the teacher sees it (read-only): enough to ask the student the word out loud."""
+    id: int
+    word: str
+    context: Optional[str] = None
+    lang: str = "uz"
+    lesson_id: Optional[int] = None
+    lesson_title: Optional[str] = None
+    course_id: Optional[int] = None
+    course_title: Optional[str] = None
+    review_count: int = 0
+    correct_count: int = 0
+    incorrect_count: int = 0
+    last_reviewed_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    # the teacher's oral checks of this word: the latest verdict (None = never asked), when, and how many times asked
+    last_check_knows: Optional[bool] = None
+    last_checked_at: Optional[datetime] = None
+    checks_count: int = 0
+
+
+class TeacherStudentDictionary(BaseModel):
+    student_id: int
+    total: int
+    known: int = 0          # words whose latest check says "knows"
+    unknown: int = 0        # latest check says "does not know"
+    unchecked: int = 0      # never asked
+    words: List[TeacherDictionaryWord]
+
+
+class TeacherDictionarySummary(BaseModel):
+    """How well a student knows their saved words, from the teacher's oral checks."""
+    student_id: int
+    total: int                          # saved words
+    known: int                          # latest check says "knows"
+    unknown: int                        # latest check says "does not know"
+    unchecked: int                      # never asked
+    checked: int                        # known + unknown
+    percent_known: Optional[int] = None  # known / checked, whole percent; None until at least one word was asked
+    last_checked_at: Optional[datetime] = None
+
+
+class TeacherWordCheckBody(BaseModel):
+    knows: bool
+
+
 # ─── QUIZ (DRAG AND DROP) SHÉMALARI ───────────────────
 
 class QuizWordItem(BaseModel):

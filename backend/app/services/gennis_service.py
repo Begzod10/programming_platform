@@ -1,6 +1,7 @@
 import httpx
 import logging
 import re
+import time
 from datetime import date
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +25,43 @@ logger = logging.getLogger(__name__)
 # birth_date is advisory everywhere it's read.
 _MIN_BIRTH_YEAR = 1990
 _MAX_BIRTH_YEAR = utcnow().year - 2
+
+class _LoginBreaker:
+    """Stops asking Gennis for a while once it keeps being unreachable.
+
+    On 27-28 Oct the server could not reach office.gennis.uz (a blocked Cloudflare range): every login waited the
+    full 10 s timeout for Gennis, then fell back to local auth. After FAILURES_TO_OPEN consecutive failures to reach
+    it, Gennis is skipped for OPEN_FOR seconds (login goes straight to local auth); then one request is let through
+    to probe. Only "could not reach it" counts: an answer from Gennis, even 401 for a wrong password, is a healthy
+    service. One uvicorn process, so plain module state is enough."""
+    FAILURES_TO_OPEN = 3
+    OPEN_FOR = 90.0
+
+    def __init__(self):
+        self.failures = 0
+        self.open_until = 0.0
+
+    def allow(self, now: float) -> bool:
+        return now >= self.open_until
+
+    def success(self) -> None:
+        self.failures = 0
+        self.open_until = 0.0
+
+    def failure(self, now: float) -> bool:
+        """Record a failure to reach Gennis; True when this one opens the breaker."""
+        self.failures += 1
+        if self.failures >= self.FAILURES_TO_OPEN:
+            self.open_until = now + self.OPEN_FOR
+            self.failures = self.FAILURES_TO_OPEN - 1      # a failed probe re-opens at once
+            return True
+        return False
+
+
+_login_breaker = _LoginBreaker()
+# 3 s to connect (an unreachable host fails fast), 10 s to wait for the answer once connected
+_LOGIN_TIMEOUT = httpx.Timeout(10.0, connect=3.0)
+
 
 class GennisService:
     """Talks to management-v2's student_platform integration endpoint.
@@ -50,14 +88,23 @@ class GennisService:
         # v2's shim mirrors old gennis's /base/login, including the request
         # field name, so the body below is unchanged from the old integration.
         url = f"{cls.BASE_URL}/login"
+        now = time.monotonic()
+        if not _login_breaker.allow(now):
+            return None          # Gennis is known to be unreachable right now: local auth, without the wait
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=_LOGIN_TIMEOUT) as client:
                 resp = await client.post(url, json={"username": username, "password": password})
-                if resp.status_code == 200:
-                    return resp.json()
-                logger.error(f"Gennis login muvaffaqiyatsiz: {resp.status_code}")
+            _login_breaker.success()          # it answered, whatever the answer
+            if resp.status_code == 200:
+                return resp.json()
+            logger.error(f"Gennis login muvaffaqiyatsiz: {resp.status_code}")
         except Exception as e:
-            logger.error(f"Gennis login xatosi: {e}")
+            # str(httpx timeout errors) is empty: the type is what says what happened
+            logger.error(f"Gennis login xatosi: {type(e).__name__}: {e}")
+            if _login_breaker.failure(time.monotonic()):
+                logger.error(
+                    "Gennis %d marta ketma-ket javob bermadi: %d soniya davomida so'ralmaydi, login mahalliy tekshiruvga o'tadi",
+                    _LoginBreaker.FAILURES_TO_OPEN, int(_LoginBreaker.OPEN_FOR))
         return None
 
     @classmethod

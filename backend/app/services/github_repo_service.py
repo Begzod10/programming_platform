@@ -182,6 +182,23 @@ async def _gh_get(client: httpx.AsyncClient, url: str) -> httpx.Response:
     return await client.get(url, headers=headers)
 
 
+async def github_repo_is_missing(github_url: str) -> bool:
+    """True only when GitHub says the repo does not exist or is private (404 for an anonymous reader).
+    Everything else (rate limit, GitHub outage, timeout, no network) is "unknown" and returns False, so a
+    student is never blocked by a problem on our side or GitHub's; the review handles those later."""
+    parsed = parse_github_url(github_url)
+    if not parsed:
+        return False
+    owner, repo, _ = parsed
+    try:
+        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT, proxy=settings.HTTP_PROXY or None,
+                                     follow_redirects=True) as client:
+            resp = await _gh_get(client, f"https://api.github.com/repos/{owner}/{repo}")
+        return resp.status_code == 404
+    except (httpx.HTTPError, OSError):
+        return False
+
+
 def _empty_authorship(reason: str = "") -> dict:
     """Authorship dict shape returned when we can't read git history."""
     return {

@@ -71,6 +71,21 @@ class PracticeSession(Base):
     student = relationship("Student")
 
 
+class DictionaryWordCheck(Base):
+    """One oral check of a saved word by the teacher: they asked the student the word and recorded whether it
+    was known. Every check is kept (history); a word's current state is its latest check. Separate from the
+    student's own practice counters on UserDictionary (review_count / correct_count / incorrect_count)."""
+
+    __tablename__ = "dictionary_word_checks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    word_id = Column(Integer, ForeignKey("user_dictionary.id", ondelete="CASCADE"), nullable=False, index=True)
+    student_id = Column(Integer, ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    teacher_id = Column(Integer, ForeignKey("students.id", ondelete="SET NULL"), nullable=True)
+    knows = Column(Boolean, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class QuizSession(Base):
     __tablename__ = "quiz_sessions"
 

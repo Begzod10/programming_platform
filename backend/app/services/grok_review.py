@@ -157,6 +157,38 @@ def _format_lesson_context_block(
     return ("\n".join(lines) + "\n", persona_hint)
 
 
+def _format_requirements_rules(lesson_context: Optional[dict]) -> str:
+    """How to grade against the lesson's "Talablar" list. Without these rules the model kept inventing criteria
+    (read "kamida 3 ta" as "exactly 3", penalised 100px font sizes for beginners, asked for tags the lesson never
+    required) and missed the real defect (an HTML class that no CSS selector matches), so a student could submit
+    10+ times, fixing something different each time, and still fail. Empty when the lesson lists no requirements."""
+    requirements = str((lesson_context or {}).get("task_requirements") or "").strip()
+    if not requirements:
+        return ""
+    return """
+## TALABLAR BO'YICHA BAHOLASH — DARS KONTEKSTIDAGI "Talablar" RO'YXATI
+- "Talablar" ro'yxati — YAGONA mezon. HAR BANDNI alohida tekshir: bajarilgan (✅) yoki bajarilmagan (❌).
+- JAVOB JSON'iga qo'shimcha maydon qo'sh: "requirements": [{"n": 1, "met": true, "note": "qisqa izoh"}, ...] — Talablar
+  ro'yxatidagi HAR BAND uchun bitta yozuv, ro'yxat tartibida. "met": false bo'lsa, "note" da nima kutilgan edi, kodda nima bor
+  (fayl va qator) va BITTA aniq tuzatish yoz, masalan: "HTMLda class=\"danger\", CSSda esa .card-danger — nomlar mos emas,
+  shuning uchun rang qo'llanmaydi. HTMLda class=\"card-danger\" deb yozing". Tizim bu ro'yxatni o'quvchiga ✅/❌ qatorlar
+  sifatida o'zi ko'rsatadi, shuning uchun "feedback" da uni takrorlama.
+- Ro'yxatda YOKI topshiriq tavsifida YO'Q talabni O'YLAB TOPMA va uning uchun ball PASAYTIRMA: aniq son (agar "kamida N"
+  yozilgan bo'lsa, N yoki undan KO'P to'g'ri; ko'p bo'lgani uchun ball pasaytirma), o'lcham/shrift/rang qiymatlari
+  ("100px beginner uchun katta" kabi), kod uslubi, nomlash, ortiqcha teg yoki element (agar talab taqiqlamasa).
+- "masalan ..." deb berilgan misol majburiy emas: mazmun majburiy, aynan shu nom yoki shakl emas. Band "nomini o'zingiz
+  tanlaysiz" desa, istalgan nom to'g'ri. Band "X bor" desa, X ga qo'shimcha narsa (boshqa class, ortiqcha teg) bo'lishi
+  uni bekor qilmaydi.
+- Agar talab CSS selektorini yoki class/id nomini nazarda tutsa, HTMLdagi nom CSSdagi selektor bilan AYNAN bir xil
+  ekanini tekshir (HTMLda "danger", CSSda ".card-danger" bo'lsa stil qo'llanmaydi — bu ❌ band, kamchilik sifatida ayt).
+- Har ❌ band uchun: nima kutilgan edi, kodda nima bor (fayl va qator), va BITTA aniq tuzatish. Shunda o'quvchi bir marta
+  tuzatib o'tadi, qayta-qayta urinmaydi.
+- Ball "requirements" ga mos bo'lsin: hamma band met=true bo'lsa — kamida 75 (B), kod boshlovchi uchun ideal bo'lmasa ham.
+  Bitta band met=false bo'lsa — odatda 60-74. Bir nechta bo'lsa, ularning ahamiyatiga qarab past. (Quyidagi "QATTIQ
+  QOIDA"lar bundan ustun.)
+"""
+
+
 def _format_encouragement_block(difficulty_level: str) -> str:
     """Render the beginner-friendly grading guidance for Easy lessons.
 
@@ -224,6 +256,7 @@ def _build_review_prompt(
     authorship_block = _format_authorship_block(authorship)
     lesson_block, persona_hint = _format_lesson_context_block(lesson_context, technologies)
     encouragement_block = _format_encouragement_block(difficulty_level)
+    requirements_rules = _format_requirements_rules(lesson_context)
 
     return f"""
 
@@ -237,7 +270,7 @@ MUHIM — DARS DOIRASI:
 - "Keyingi safar X qo'shing" turidagi maslahatni faqat SHU DARSDA o'tilgan texnologiyaning chuqurroq qismi bo'yicha bering, kurs hali boshlanmagan boshqa texnologiya bo'yicha emas.
 
 {_INJECTION_GUARD}
-{lesson_block}{encouragement_block}
+{lesson_block}{requirements_rules}{encouragement_block}
 ## METADATA
 <student_input>
 - Nomi: {title}
@@ -378,6 +411,23 @@ def _has_task_mismatch_signal(feedback: Optional[str], improvements: Optional[li
     return any(pattern.search(combined) for pattern in _TASK_MISMATCH_PATTERNS)
 
 
+def _parse_requirements_checklist(raw) -> Optional[list[tuple[bool, str]]]:
+    """The model's per-requirement verdicts as [(met, note)], or None when absent or unusable."""
+    if not isinstance(raw, list) or not raw:
+        return None
+    items: list[tuple[bool, str]] = []
+    for entry in raw:
+        if not isinstance(entry, dict) or not isinstance(entry.get("met"), bool):
+            return None                                   # a half-broken checklist is worse than none
+        items.append((entry["met"], str(entry.get("note") or "").strip()))
+    return items
+
+
+def _format_requirements_checklist(items: list[tuple[bool, str]]) -> str:
+    lines = [f"{'✅' if met else '❌'} {i}) {note}".rstrip() for i, (met, note) in enumerate(items, start=1)]
+    return "Talablar bo'yicha:\n" + "\n".join(lines)
+
+
 def _derive_grade_from_points(pts: int) -> str:
     """Map a 0-100 score back to the A/B/C/D/F bucket used by the prompt."""
     if pts >= 90:
@@ -447,6 +497,24 @@ def _normalize_grading_result(result: dict, *, difficulty_level: str = "") -> di
     else:
         out["grade"] = _derive_grade_from_points(pts)
 
+    # ── Requirements checklist (lessons that list "Talablar") ─────────────
+    # The checklist is formatted here, not by the model (it ignored "start the feedback with the list"), so the
+    # student always sees which requirement failed and why. All met = the project passes: the score is raised to
+    # 75 (a student with every requirement ✅ must not fail on the model's taste), and the contradiction guard
+    # below ignores stray negative phrases in the prose. The guard looks at the model's own prose only, never at
+    # the checklist notes added here.
+    prose_feedback = out.get("feedback")
+    checklist = _parse_requirements_checklist(out.pop("requirements", None))
+    all_met = False
+    if checklist:
+        all_met = all(met for met, _ in checklist)
+        out["requirements_checklist"] = [{"met": met, "note": note} for met, note in checklist]
+        out["feedback"] = f"{_format_requirements_checklist(checklist)}\n\n{(prose_feedback or '').strip()}".strip()
+        if all_met and out["points"] < 75:
+            out["points"] = 75
+            out["grade"] = _derive_grade_from_points(75)
+            out["requirements_floor_applied"] = True
+
     # ── Contradiction guard: AI's own prose says the task wasn't
     # fulfilled, but points/grade are still in Approved range (>=75) ─────
     # This is the mirror image of the 0-10 scale-up fix above: there we
@@ -457,8 +525,8 @@ def _normalize_grading_result(result: dict, *, difficulty_level: str = "") -> di
     # the next lesson, and inflate ranking. Capped (not zeroed) because the
     # submission may still have some standalone merit; a teacher makes the
     # final call from here.
-    if out["points"] >= 75 and _has_task_mismatch_signal(
-            out.get("feedback"), out.get("improvements")):
+    if out["points"] >= 75 and not all_met and _has_task_mismatch_signal(
+            prose_feedback, out.get("improvements")):
         out["points"] = min(out["points"], 50)
         out["grade"] = _derive_grade_from_points(out["points"])
         out["contradiction_flagged"] = True
@@ -507,7 +575,7 @@ async def analyze_project_with_grok(
 
     try:
         _text, parsed, provider, attempts = await call_chain(
-            prompt, max_tokens=1200, validator=parse_ai_json,
+            prompt, max_tokens=1600, validator=parse_ai_json,
         )
     except ProviderError as e:
         return _failure_review("all_providers_failed", f"AI baholash muvaffaqiyatsiz: {e}")

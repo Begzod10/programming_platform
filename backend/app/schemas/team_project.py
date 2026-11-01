@@ -94,6 +94,8 @@ class TaskRead(BaseModel):
     assigned_student_id: Optional[int] = None
     assigned_student_name: Optional[str] = None
     submission_url: Optional[str] = None
+    # "/uploads/projects/<uuid>.zip" when the work was handed in as a ZIP (the team lead needs it to assemble the project)
+    submission_files: Optional[str] = None
     ai_score: Optional[int] = None
     ai_feedback: Optional[dict] = None
     lead_comment: Optional[str] = None

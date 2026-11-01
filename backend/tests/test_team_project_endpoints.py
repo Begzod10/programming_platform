@@ -1548,3 +1548,113 @@ async def test_every_bot_theme_plans_end_to_end_into_stored_tasks_and_a_bot_cont
     assert len(tasks) == 2 and all(t.deadline_at for t in tasks)
     assert any(".env.example" in c for t in tasks for c in json.loads(t.acceptance_criteria_json))
 
+
+async def test_submitting_a_missing_or_private_repo_is_a_clear_400_before_any_review(async_client, db_session, two_teams_project):
+    fx = two_teams_project
+    team_a = fx["teams"][0]
+    members_a = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team_a.id))).scalars().all()
+    task = TeamProjectTask(
+        team_id=team_a.id, assigned_student_id=members_a[0].student_id, order=1,
+        title="T", title_ru="Т", description="D", description_ru="О",
+        required_level="Beginner", interface_contract_json="{}",
+        acceptance_criteria_json="[]", depends_on_json="[]", estimated_hours=4,
+    )
+    db_session.add(task)
+    await db_session.commit()
+    await db_session.refresh(task)
+    username = next(u for sid, u in zip(fx["student_ids"], fx["student_usernames"]) if sid == members_a[0].student_id)
+    review = AsyncMock()
+    with patch("app.api.v1.endpoints.team_project.github_repo_is_missing", new=AsyncMock(return_value=True)), \
+            patch("app.api.v1.endpoints.team_project.review_task_submission", new=review):
+        resp = await async_client.post(
+            f"{BASE}/teams/{team_a.id}/tasks/{task.id}/submit",
+            json={"submission_url": "https://github.com/acme/private"}, headers=fx["student_headers"][username])
+    assert resp.status_code == 400 and "Public" in resp.text
+    review.assert_not_awaited()
+    await db_session.refresh(task)
+    assert task.status != TaskStatus.submitted and task.submission_url is None
+
+
+async def test_deadline_reminders_go_to_open_tasks_only_on_milestones_and_never_twice_a_day(db_session, two_teams_project):
+    from datetime import timedelta
+    from app.utils.datetime_utils import utcnow
+    from app.models.notification import Notification
+    from app.services.team_project_deadline_reminders import send_deadline_reminders
+    fx = two_teams_project
+    team = fx["teams"][0]
+    members = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id))).scalars().all()
+    now = utcnow()
+    plan = [(TaskStatus.assigned, 3), (TaskStatus.assigned, 5), (TaskStatus.approved, 3)]   # days from now
+    tasks = []
+    for order, (status, days) in enumerate(plan):
+        task = TeamProjectTask(
+            team_id=team.id, assigned_student_id=members[order % len(members)].student_id, order=order,
+            title=f"T{order}", title_ru="Т", description="D", description_ru="О", required_level="Beginner",
+            interface_contract_json="{}", acceptance_criteria_json="[]", depends_on_json="[]", estimated_hours=4,
+            status=status, deadline_at=now + timedelta(days=days))
+        db_session.add(task)
+        tasks.append(task)
+    team.status = TeamStatus.working
+    await db_session.commit()
+
+    only_milestones = await send_deadline_reminders(db_session, apply=True, milestones_only=True, now=now)
+    mine = [r for r in only_milestones if r["task_id"] in {t.id for t in tasks}]
+    assert [r["left"] for r in mine] == [3]                      # the 5-day task is not a milestone, the approved one is not open
+    again = await send_deadline_reminders(db_session, apply=True, milestones_only=True, now=now)
+    assert all(r["skipped"] for r in again if r["task_id"] in {t.id for t in tasks})
+    stored = (await db_session.execute(
+        select(Notification).where(Notification.type == "team_task_deadline", Notification.student_id == tasks[0].assigned_student_id)
+    )).scalars().all()
+    assert len(stored) == 1 and "3 kun" in stored[0].title
+
+    everyone = await send_deadline_reminders(db_session, apply=False, milestones_only=False, now=now)
+    assert {r["left"] for r in everyone if r["task_id"] in {t.id for t in tasks}} == {3, 5}
+
+
+async def test_deadline_reminders_skip_archived_projects(db_session, two_teams_project):
+    from datetime import timedelta
+    from app.utils.datetime_utils import utcnow
+    from app.services.team_project_deadline_reminders import open_tasks
+    fx = two_teams_project
+    team = fx["teams"][1]
+    member = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team.id))).scalars().first()
+    task = TeamProjectTask(
+        team_id=team.id, assigned_student_id=member.student_id, order=0, title="T", title_ru="Т", description="D",
+        description_ru="О", required_level="Beginner", interface_contract_json="{}", acceptance_criteria_json="[]",
+        depends_on_json="[]", estimated_hours=4, status=TaskStatus.assigned, deadline_at=utcnow() + timedelta(days=2))
+    db_session.add(task)
+    team.status = TeamStatus.working
+    await db_session.commit()
+    assert task.id in {t.id for t, _ in await open_tasks(db_session)}
+    tp = (await db_session.execute(select(TeamProject).where(TeamProject.id == team.team_project_id))).scalar_one()
+    tp.archived_at = utcnow()
+    await db_session.commit()
+    assert task.id not in {t.id for t, _ in await open_tasks(db_session)}
+
+
+async def test_my_team_sees_zip_submissions_of_its_tasks_but_other_teams_stay_redacted(async_client, db_session, two_teams_project):
+    """The lead assembles the project from the members' work, so a ZIP hand-in must reach the team page too."""
+    fx = two_teams_project
+    team_a, team_b = fx["teams"]
+    members_a = (await db_session.execute(
+        select(TeamProjectMember).where(TeamProjectMember.team_id == team_a.id))).scalars().all()
+    task = TeamProjectTask(
+        team_id=team_a.id, assigned_student_id=members_a[0].student_id, order=0, title="T", title_ru="Т",
+        description="D", description_ru="О", required_level="Beginner", interface_contract_json="{}",
+        acceptance_criteria_json="[]", depends_on_json="[]", estimated_hours=4, status=TaskStatus.submitted,
+        submission_files="/uploads/projects/abc.zip")
+    db_session.add(task)
+    await db_session.commit()
+
+    uname_a = (await _member_usernames_for_team(db_session, team_a.id, fx))[0]
+    entry = (await async_client.get(f"{BASE}/my", headers=fx["student_headers"][uname_a])).json()[0]
+    assert [t["submission_files"] for t in entry["my_team"]["tasks"]] == ["/uploads/projects/abc.zip"]
+
+    uname_b = (await _member_usernames_for_team(db_session, team_b.id, fx))[0]
+    entry_b = (await async_client.get(f"{BASE}/my", headers=fx["student_headers"][uname_b])).json()[0]
+    seen = [t for team in entry_b["team_project"]["teams"] if team["id"] == team_a.id for t in team["tasks"]]
+    assert seen == []                                                           # another team sees no tasks at all
+

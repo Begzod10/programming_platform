@@ -112,6 +112,12 @@ def assign_blueprint(blueprint: dict, members: list[dict]) -> list[dict]:
     unassigned = list(unit_order)
 
     def feasible(i: int, unit_file: str) -> bool:
+        # Express routes are .js, the same language as the frontend: a JavaScript-only member could formally cover
+        # them but has never studied Express, so server .js files need the backend's own course (node).
+        # (Python server files are already limited to Python-family areas by the extension check.)
+        if (_is_backend_file(unit_file) and _ext(unit_file) == ".js"
+                and not any(_has_area(members[i], a) for a in family_areas)):
+            return False
         return _area_for(members[i], held[i] + [unit_file], members, preferred) is not None
 
     def give(i: int, unit: tuple[str, str]) -> None:

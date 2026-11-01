@@ -7,7 +7,7 @@ import { useStore } from '../../context/StoreContext';
 import StreakBadge from './StreakBadge';
 import {
     LayoutDashboard, User, BookOpen, Map, Monitor, BookMarked,
-    Gamepad2, BarChart2, Trophy, Construction, GraduationCap, Award, Puzzle,
+    ClipboardCheck, BarChart2, Trophy, Construction, GraduationCap, Award, Puzzle,
     HelpCircle, Users2, Zap,
 } from 'lucide-react';
 
@@ -63,7 +63,7 @@ function Sidebar({ activeTab, onLogout, role, earlyLearningEligible = true }) {
         { id: 'roadmap',        label: t('roadmap') || 'Roadmap',       Icon: Map,             section: 'main' },
         { id: 'projects',       label: t('my_projects'),                Icon: Monitor,         section: 'main' },
         { id: 'dictionary',     label: t('dictionary'),                 Icon: BookMarked,      section: 'main' },
-        { id: 'team-game',      label: t('team_game'),                  Icon: Gamepad2,        section: 'main' },
+        { id: 'team-game',      label: t('team_game'),                  Icon: ClipboardCheck,  section: 'main' },
         { id: 'team-projects',  label: t('team_projects') || 'Jamoaviy loyihalar', Icon: Users2, section: 'main' },
         { id: 'quiz',           label: t('quiz'),                       Icon: HelpCircle,      section: 'main' },
         { id: 'duel',           label: t('duel'),                       Icon: Zap,             section: 'main' },

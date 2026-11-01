@@ -191,6 +191,7 @@ const CourseModal = ({
     onAddLesson,
     onToggleLessonPublish,
     onReorderLessons,
+    canEdit = true,
 }) => {
     const {
         orderedItems, dragId, overId, isDragging,
@@ -226,6 +227,7 @@ const CourseModal = ({
             isDragging={dragId === lesson.id}
             isOver={overId === lesson.id && dragId !== lesson.id}
             onOpen={() => { if (!isDragging) onOpenLesson(lesson); }}
+            canEdit={canEdit}
             onTogglePublish={() => onToggleLessonPublish(lesson)}
             onDragHandleMouseDown={(e) => { e.stopPropagation(); handleMouseDown(e, lesson.id); }}
             onMouseEnter={() => handleMouseEnter(lesson.id)}
@@ -247,7 +249,7 @@ const CourseModal = ({
                     ← Назад к курсам
                 </button>
                 <div className="cdp-top-bar-right">
-                    {hasUnsaved && (
+                    {canEdit && hasUnsaved && (
                         <button
                             className={`cdp-save-order-btn${isSaving ? ' cdp-save-order-btn--saving' : ''}`}
                             onClick={saveOrder}
@@ -256,12 +258,14 @@ const CourseModal = ({
                             {isSaving ? <><span className="cdp-save-spinner" /> Сохранение...</> : '💾 Сохранить порядок'}
                         </button>
                     )}
-                    {savedOk && !hasUnsaved && (
+                    {canEdit && savedOk && !hasUnsaved && (
                         <span className="cdp-save-ok">✅ Порядок сохранён</span>
                     )}
-                    <button className="cdp-add-lesson-btn" onClick={onAddLesson}>
-                        ➕ Добавить урок
-                    </button>
+                    {canEdit && (
+                        <button className="cdp-add-lesson-btn" onClick={onAddLesson}>
+                            ➕ Добавить урок
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -283,7 +287,7 @@ const CourseModal = ({
             {/* Section header */}
             <div className="cdp-section-header">
                 <h2 className="cdp-section-title">📖 Уроки курса</h2>
-                {!allEmpty && (
+                {canEdit && !allEmpty && (
                     <div className="cdp-dnd-hint">
                         <span className="cdp-dnd-hint-icon">⠿</span>
                         Зажми ⠿ и перетащи урок
@@ -334,7 +338,7 @@ const CourseModal = ({
    LessonCard
 ───────────────────────────────────────── */
 const LessonCard = ({
-    lesson, index,
+    lesson, index, canEdit,
     onOpen, onTogglePublish,
     isDragging, isOver,
     onDragHandleMouseDown,
@@ -367,14 +371,16 @@ const LessonCard = ({
             onTouchEnd={onTouchEnd}
         >
             {/* Drag handle */}
-            <div
-                className="cdp-drag-handle"
-                onMouseDown={onDragHandleMouseDown}
-                onClick={e => e.stopPropagation()}
-                title="Зажми и перетащи"
-            >
-                <span className="cdp-drag-dots">⠿</span>
-            </div>
+            {canEdit && (
+                <div
+                    className="cdp-drag-handle"
+                    onMouseDown={onDragHandleMouseDown}
+                    onClick={e => e.stopPropagation()}
+                    title="Зажми и перетащи"
+                >
+                    <span className="cdp-drag-dots">⠿</span>
+                </div>
+            )}
 
             {/* Preview */}
             <div className="cdp-lesson-preview">
@@ -398,15 +404,23 @@ const LessonCard = ({
                             {blockCount} {blockCount === 1 ? 'блок' : blockCount < 5 ? 'блока' : 'блоков'}
                         </span>
                     )}
-                    <button
-                        className={`cdp-lesson-publish-btn ${lesson.is_published ? 'published' : 'draft'}`}
-                        onMouseDown={e => e.stopPropagation()}
-                        onClick={e => { e.stopPropagation(); onTogglePublish(); }}
-                        title={lesson.is_published ? 'Скрыть от студентов' : 'Опубликовать урок'}
-                    >
-                        <span className="cdp-publish-dot" />
-                        {lesson.is_published ? 'Опубликован' : 'Черновик'}
-                    </button>
+                    {canEdit ? (
+                        <button
+                            className={`cdp-lesson-publish-btn ${lesson.is_published ? 'published' : 'draft'}`}
+                            onMouseDown={e => e.stopPropagation()}
+                            onClick={e => { e.stopPropagation(); onTogglePublish(); }}
+                            title={lesson.is_published ? 'Скрыть от студентов' : 'Опубликовать урок'}
+                        >
+                            <span className="cdp-publish-dot" />
+                            {lesson.is_published ? 'Опубликован' : 'Черновик'}
+                        </button>
+                    ) : (
+                        <span className={`cdp-lesson-publish-btn ${lesson.is_published ? 'published' : 'draft'}`}
+                              style={{ cursor: 'default', pointerEvents: 'none' }}>
+                            <span className="cdp-publish-dot" />
+                            {lesson.is_published ? 'Опубликован' : 'Черновик'}
+                        </span>
+                    )}
                 </div>
             </div>
 

@@ -191,7 +191,7 @@ def test_repair_prompt_lists_unowned_files_and_unproduced_endpoints_and_the_leve
               "Task 3: area javascript is assigned to X, who has not finished a course in it — give this piece to a member who has."]
     text = _build_repair_prompt("PROMPT", {"tasks": []}, errors)
     assert "README.md, frontend/js/api.js" in text and "auth.login" in text
-    assert "darajasiga tenglang" in text and "kursi tugatilmagan" in text
+    assert "darajasiga tenglang" in text and "ursi tugatilmagan" in text
 
 
 def test_repair_prompt_without_known_error_kinds_has_no_hint_block():

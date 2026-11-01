@@ -6,9 +6,9 @@ import { subscribeNotifications, closeNotificationsSocket } from '../../api/noti
 import { useStore } from '../../context/StoreContext';
 import CoinChip from './CoinChip';
 import {
-    User, Download, Users, BookOpen, Gamepad2,
+    User, Download, Users, BookOpen, Gamepad2, ClipboardCheck,
     Trophy, Construction, Award, Medal, TrendingUp, Star, Activity,
-    ShoppingBag, Building2, Puzzle, Bug, Users2, ShieldCheck, Bell, Gavel,
+    ShoppingBag, Building2, Puzzle, Bug, Users2, ShieldCheck, Bell, Gavel, Monitor,
 } from 'lucide-react';
 
 const COLLAPSED_KEY = 'sidebar:teacher:collapsed';
@@ -79,10 +79,11 @@ function TeacherSidebar({ activeTab, onLogout, username }) {
         { id: 'notifications',  label: 'Bildirishnomalar', Icon: Bell,        section: 'main' },
         { id: 'review',         label: 'Проверка работ',  Icon: Download,     section: 'main' },
         { id: 'penalties',      label: 'Штрафы',          Icon: Gavel,        section: 'main' },
+        { id: 'pc',             label: 'Компьютеры',      Icon: Monitor,      section: 'main' },
         { id: 'students',       label: 'Мои Студенты',    Icon: Users,        section: 'main' },
         { id: 'groups',         label: 'Мои Группы',      Icon: Building2,    section: 'main' },
         { id: 'courses',        label: 'Курсы',           Icon: BookOpen,     section: 'main' },
-        { id: 'team-game',      label: 'Командные игры',  Icon: Gamepad2,     section: 'main' },
+        { id: 'team-game',      label: 'Проверка знаний', Icon: ClipboardCheck, section: 'main' },
         { id: 'team-projects',  label: 'Jamoaviy loyihalar', Icon: Users2,    section: 'main' },
         { id: 'store',          label: 'Магазин (beta)',  Icon: ShoppingBag,  section: 'main' },
         { id: 'early-learning', label: 'Kichkinalar uchun', Icon: Puzzle,     section: 'main' },

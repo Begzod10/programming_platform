@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { API_URL, useHttp, headers } from '../../../api/search/base';
+import { API_URL, useHttp, headers, resolveImageUrl } from '../../../api/search/base';
 import { useSessionSocket } from '../../../hooks/useSessionSocket';
 import AppHeader from '../../../components/appheader/AppHeader';
-import { Users2, Crown, Link2, Upload, Clock, Rocket } from 'lucide-react';
+import { Users2, Crown, Link2, Upload, Clock, Rocket, ExternalLink, Download } from 'lucide-react';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { pickLang, pickLangList } from '../../../utils/pickLang';
 import TeamProjectHistory from './TeamProjectHistory';
@@ -47,7 +47,28 @@ function deadlineLabel(task, ru) {
     return { text: ru ? `Осталось ${daysLeft} дн.` : `${daysLeft} kun qoldi`, warning: daysLeft <= 2 };
 }
 
-const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting, lang }) => {
+/** The handed-in code of a task (GitHub link or ZIP) — shown to the team lead for every task (they assemble the
+ *  project from these) and to a member for their own task only. Renders nothing before something was submitted. */
+export const SubmittedCode = ({ task, ru }) => {
+    if (!task.submission_url && !task.submission_files) return null;
+    return (
+        <div className="stp-code">
+            <span className="stp-field-label">{ru ? 'Сданный код' : 'Topshirilgan kod'}</span>
+            {task.submission_url && (
+                <a className="stp-code-link" href={task.submission_url} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink size={13} aria-hidden="true" /> {ru ? 'Открыть на GitHub' : "GitHub'da ochish"}
+                </a>
+            )}
+            {task.submission_files && (
+                <a className="stp-code-link" href={resolveImageUrl(task.submission_files)} download>
+                    <Download size={13} aria-hidden="true" /> {ru ? 'Скачать ZIP' : 'ZIP yuklab olish'}
+                </a>
+            )}
+        </div>
+    );
+};
+
+const TaskCard = ({ task, isMine, isLead, onSubmit, onSubmitFile, submitting, lang }) => {
     const ru = lang === 'ru';
     const [url, setUrl] = useState('');
     const [file, setFile] = useState(null);
@@ -94,6 +115,7 @@ const TaskCard = ({ task, isMine, onSubmit, onSubmitFile, submitting, lang }) =>
             {!isMine && (
                 <p className="stp-muted">{ru ? 'Исполнитель:' : 'Bajaruvchi:'} {task.assigned_student_name}</p>
             )}
+            {(isLead || isMine) && <SubmittedCode task={task} ru={ru} />}
             {isMine && task.status !== 'approved' && (
                 <div className="stp-submit-row">
                     <label className="stp-field-label" htmlFor={`stp-url-${task.id}`}><Link2 size={13} /> {ru ? 'Ссылка на GitHub' : 'GitHub havolasi'}</label>
@@ -512,6 +534,7 @@ const StudentTeamProject = () => {
                         key={task.id}
                         task={task}
                         isMine={task.assigned_student_id === meId}
+                        isLead={role === 'lead'}
                         submitting={submittingId === task.id}
                         onSubmit={submitTask}
                         onSubmitFile={submitTaskFile}

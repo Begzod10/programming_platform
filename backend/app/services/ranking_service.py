@@ -7,6 +7,9 @@ from app.utils.datetime_utils import utcnow
 from typing import List, Literal, Optional
 from sqlalchemy import over
 
+# pg_try_advisory_xact_lock key of the scheduled rank refresh (one run at a time)
+_RANK_REFRESH_LOCK = 7_300_001
+
 class RankingService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -230,8 +233,10 @@ class RankingService:
             )
             self.db.add(ranking)
 
-        await self.db.flush()
-        await self.calculate_and_update_rankings()
+        # Persist this student's points and release the row locks now. The full rank recompute is NOT run
+        # here (it rewrote every Ranking/Student row inside the request and made concurrent submissions
+        # deadlock — see refresh_rankings, run by the scheduler every minute).
+        await self.db.commit()
         await self.db.refresh(student)
         return student
 
@@ -308,8 +313,16 @@ class RankingService:
         student.total_points = max(0, student.total_points - points)
         student.lifetime_points = max(0, student.lifetime_points - points)
 
-        await self.db.flush()
-        await self.calculate_and_update_rankings()
+        # This student's own leaderboard row follows at once (same Student -> Ranking lock order as an award);
+        # everyone's positions catch up in refresh_rankings.
+        ranking = (await self.db.execute(
+            select(Ranking).where(Ranking.student_id == student_id).with_for_update()
+        )).scalar_one_or_none()
+        if ranking is not None:
+            ranking.total_points = student.lifetime_points
+            ranking.last_calculated_at = utcnow()
+
+        await self.db.commit()
         await self.db.refresh(student)
         return student
 
@@ -407,71 +420,75 @@ class RankingService:
         """
         # Only rank active students — inactive/teacher rows keep whatever
         # rank they last had, matching the previous Python-side filter.
-        active_rankings_subq = (
+        # Lock first, skipping what is busy: this recompute never waits for a row. A point award holds its student's
+        # Student/Ranking rows while it runs; waiting for them while holding rows it had already updated deadlocked
+        # against awards in production (the pair in the PostgreSQL log: "SELECT rankings ... FOR UPDATE" vs this UPDATE).
+        # The ids are locked in one statement and every UPDATE below touches only those rows, so none of them can wait;
+        # a row an award holds is left for the next run a minute later. (SQLite ignores FOR UPDATE.)
+        locked_ids = (await self.db.execute(
             select(Ranking.id)
             .join(Student, Student.id == Ranking.student_id)
             .where(Student.is_active == True, Student.role == UserRole.student, Student.is_demo.is_(False))
+            .order_by(Ranking.id)
+            .with_for_update(skip_locked=True, of=Ranking)
+        )).scalars().all()
+        active_rankings_subq = locked_ids
+
+        # ONE UPDATE for every Ranking column. Updating the same rows several times in one transaction (one UPDATE per
+        # rank column, as this used to) makes PostgreSQL re-check the foreign key to students on the 2nd+ update, i.e.
+        # lock the Student row (FOR KEY SHARE) — which an award holds (FOR UPDATE) while it waits for this Ranking row:
+        # that cycle was the production deadlock. total_points is reasserted from Student.lifetime_points (the
+        # invariant add_points_to_student/revoke_earned_points/sync_all_student_points maintain, a safety net for
+        # drift) and every rank is computed from that same value.
+        now = utcnow()
+        windowed = (
+            select(
+                Ranking.id.label("rid"),
+                Student.lifetime_points.label("total"),
+                func.row_number().over(order_by=(Student.lifetime_points.desc(), Ranking.student_id.asc())).label("g"),
+                func.row_number().over(order_by=(Ranking.daily_points.desc(), Ranking.student_id.asc())).label("d"),
+                func.row_number().over(
+                    order_by=((Ranking.weekly_points + Ranking.daily_points).desc(), Ranking.student_id.asc())).label("w"),
+                func.row_number().over(
+                    order_by=((Ranking.monthly_points + Ranking.daily_points).desc(), Ranking.student_id.asc())).label("m"),
+            )
+            .select_from(Ranking)
+            .join(Student, Student.id == Ranking.student_id)
+            .where(Student.is_active == True, Student.role == UserRole.student, Student.is_demo.is_(False))
+            .subquery()
         )
 
-        # Reassert Ranking.total_points == Student.lifetime_points (the
-        # invariant add_points_to_student/revoke_earned_points/
-        # sync_all_student_points already maintain) before ranking off it —
-        # a safety net for any row that drifted out of band.
+        def _from_window(column):
+            return select(windowed.c[column]).where(windowed.c.rid == Ranking.id).scalar_subquery()
+
         await self.db.execute(
             update(Ranking)
             .where(Ranking.id.in_(active_rankings_subq))
             .values(
-                total_points=(
-                    select(Student.lifetime_points)
-                    .where(Student.id == Ranking.student_id)
-                    .scalar_subquery()
-                )
+                total_points=_from_window("total"), global_rank=_from_window("g"), daily_rank=_from_window("d"),
+                weekly_rank=_from_window("w"), monthly_rank=_from_window("m"), last_calculated_at=now,
             )
         )
 
-        now = utcnow()
-        period_config = [
-            (Ranking.total_points, "global_rank"),
-            (Ranking.daily_points, "daily_rank"),
-            (Ranking.weekly_points + Ranking.daily_points, "weekly_rank"),
-            (Ranking.monthly_points + Ranking.daily_points, "monthly_rank"),
-        ]
-
-        for order_col, rank_attr in period_config:
-            windowed = (
-                select(
-                    Ranking.id.label("rid"),
-                    func.row_number()
-                    .over(order_by=(order_col.desc(), Ranking.student_id.asc()))
-                    .label("rnk"),
-                )
-                .select_from(Ranking)
-                .join(Student, Student.id == Ranking.student_id)
-                .where(Student.is_active == True, Student.role == UserRole.student, Student.is_demo.is_(False))
-                .subquery()
-            )
-
-            rank_scalar = (
-                select(windowed.c.rnk)
-                .where(windowed.c.rid == Ranking.id)
-                .scalar_subquery()
-            )
-
-            await self.db.execute(
-                update(Ranking)
-                .where(Ranking.id.in_(active_rankings_subq))
-                .values(**{rank_attr: rank_scalar, "last_calculated_at": now})
-            )
+        # Commit the Ranking rows first, THEN mirror onto Student rows in a second transaction: an award locks
+        # Student then Ranking, so one transaction holding both tables here could deadlock against it.
+        await self.db.commit()
 
         # Mirror the freshly computed global_rank onto Student.global_rank
         # (the denormalized copy read elsewhere on the Student row itself).
-        await self.db.execute(
-            update(Student)
+        student_ids = (await self.db.execute(
+            select(Student.id)
             .where(
                 Student.is_active == True,
                 Student.role == UserRole.student, Student.is_demo.is_(False),
                 Student.id.in_(select(Ranking.student_id)),
             )
+            .order_by(Student.id)
+            .with_for_update(skip_locked=True)
+        )).scalars().all()
+        await self.db.execute(
+            update(Student)
+            .where(Student.id.in_(student_ids))
             .values(
                 global_rank=(
                     select(Ranking.global_rank)
@@ -482,6 +499,17 @@ class RankingService:
         )
 
         await self.db.commit()
+
+    async def refresh_rankings(self) -> bool:
+        """The scheduled full rank recompute (every minute). One run at a time: on PostgreSQL a transaction-level
+        advisory lock makes an overlapping run skip instead of piling up behind the previous one. Returns whether it ran."""
+        if self.db.bind is not None and self.db.bind.dialect.name == "postgresql":
+            got = (await self.db.execute(select(func.pg_try_advisory_xact_lock(_RANK_REFRESH_LOCK)))).scalar_one()
+            if not got:
+                await self.db.rollback()
+                return False
+        await self.calculate_and_update_rankings()
+        return True
 
     # ========== DELETE & UPDATE ==========
 
