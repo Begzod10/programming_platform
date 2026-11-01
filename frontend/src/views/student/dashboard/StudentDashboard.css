@@ -201,3 +201,15 @@
     .db-cell { transition-duration:.001s; }
     .db-bar-track, .db-course-fill, .db-radar polygon { transition-duration:.001s; }
 }
+
+.db-summative {
+    display: flex; align-items: center; gap: 16px; width: 100%; margin: 0 0 18px; padding: 16px 20px; cursor: pointer;
+    text-align: left; color: var(--db-ink); border-radius: var(--db-r);
+    background: linear-gradient(135deg, rgba(108, 92, 231, 0.32), rgba(54, 224, 107, 0.16));
+    border: 1px solid var(--db-stroke); transition: transform .3s cubic-bezier(.2,.7,.3,1), border-color .3s;
+}
+.db-summative:hover { transform: translateY(-3px); border-color: rgba(154, 140, 255, 0.7); }
+.db-summative-icon { display: flex; padding: 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.1); }
+.db-summative-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.db-summative-text b { font-size: 1.05rem; }
+.db-summative-text small { opacity: 0.75; }

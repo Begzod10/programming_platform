@@ -33,7 +33,7 @@ from app.api.v1.endpoints import parent
 from app.api.v1.endpoints import bot_stats
 from app.api.v1.endpoints import store
 from app.api.v1.endpoints import early_learning
-from app.api.v1.endpoints import duel
+from app.api.v1.endpoints import duel, summative
 from app.api.v1.endpoints import classroom_integration
 from app.api.v1.endpoints import notifications
 from app.api.v1.endpoints import daily_quota
@@ -77,6 +77,7 @@ api_router.include_router(
 # blanket-gated here (an HTTP-header dependency would break the WS handshake).
 # The quota lock is applied per-action inside duel.py instead.
 api_router.include_router(duel.router, prefix="/duels", tags=["Duels"])
+api_router.include_router(summative.router, prefix="/summative", tags=["Summative"])
 api_router.include_router(teacher_error_log.router, prefix="/teacher/error-log", tags=["Teacher - Error Log"])
 api_router.include_router(translations_admin.router, prefix="/admin", tags=["Admin"])
 api_router.include_router(teacher_penalties.router, prefix="/teacher/penalties", tags=["Teacher - Penalties"])

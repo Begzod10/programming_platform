@@ -4,7 +4,7 @@ import { API_URL, headers } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
 import AppHeader from '../../../components/appheader/AppHeader';
 import './StudentDashboard.css';
-import { BookOpen, Trophy, Award, Medal, Flame, ArrowRight } from 'lucide-react';
+import { BookOpen, Trophy, Award, Medal, Flame, ArrowRight, ClipboardCheck } from 'lucide-react';
 
 const LEVEL_META = {
     Beginner:     { ru: 'Начинающий', uz: "Boshlang'ich" },
@@ -313,6 +313,16 @@ export default function StudentDashboard() {
                         <span className="db-points">★ <CountUp value={profile.total_points || 0} group /> {ru ? 'очков' : 'ball'}</span>
                     </div>
                 </div>
+
+                {/* ── end-of-quarter summative test ── */}
+                <button className="db-summative db-rise" style={{ animationDelay: '.06s' }} onClick={() => go('summative')}>
+                    <span className="db-summative-icon"><ClipboardCheck size={28} /></span>
+                    <span className="db-summative-text">
+                        <b>{ru ? 'Итоговый тест четверти (суммативное)' : 'Chorak yakuniy testi (Summativ)'}</b>
+                        <small>{ru ? '25 или 50 вопросов по пройденным урокам' : "Tugatgan darslaringizdan 25 yoki 50 ta savol"}</small>
+                    </span>
+                    <ArrowRight size={20} />
+                </button>
 
                 {/* ── feature cards ── */}
                 <div className="db-features">

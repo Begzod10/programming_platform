@@ -28,6 +28,7 @@ import Quiz               from './views/student/quiz/Quiz';
 import Duel               from './views/student/duel/Duel';
 import CodeCheck          from './views/student/codecheck/CodeCheck';
 import DailyChallenge     from './views/student/early-learning/DailyChallenge';
+import Summative          from './views/student/summative/Summative';
 
 // ── Teacher views ──
 import TeacherCourses           from './views/teacher/courses/TeacherCourses/TeacherCourses';
@@ -133,6 +134,7 @@ function AppRouter() {
                 <Route path="team-game"                                   element={<StudentTeamGame />} />
                 <Route path="team-projects"                               element={<StudentTeamProject />} />
                 <Route path="duel"                                        element={<Duel />} />
+                <Route path="summative"                                   element={<Summative />} />
                 <Route path="daily"                                       element={<DailyChallenge />} />
                 <Route path="quiz"                                        element={<Quiz />} />
                 <Route path="quiz/:quizId"                                element={<Quiz />} />
