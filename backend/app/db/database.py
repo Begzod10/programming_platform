@@ -110,6 +110,7 @@ async def _reconcile_indexes(conn) -> None:
         text("CREATE INDEX IF NOT EXISTS ix_summative_attempts_set_id ON summative_attempts (set_id)"),
         text("ALTER TABLE IF EXISTS summative_sets ADD COLUMN IF NOT EXISTS question_count INTEGER NOT NULL DEFAULT 25"),
         text("ALTER TABLE IF EXISTS summative_sets ALTER COLUMN question_ids DROP NOT NULL"),
+        text("ALTER TABLE IF EXISTS summative_sets ADD COLUMN IF NOT EXISTS quarter INTEGER NOT NULL DEFAULT 0"),
         # 2026-06-01: submissions(student_id, lesson_id) partial unique
         # to close the submit_lesson_project TOCTOU. Partial because
         # standalone (lesson_id IS NULL) projects can repeat.

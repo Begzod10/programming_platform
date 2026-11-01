@@ -51,6 +51,8 @@ class SummativeSet(Base):
     group_id: Mapped[int] = mapped_column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     question_count: Mapped[int] = mapped_column(Integer, default=25, server_default="25")
+    # 0 = the last ~3 months; 1..4 = school quarter (see _quarter_range in the endpoint)
+    quarter: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # legacy: an earlier version had the teacher tick questions by hand
     question_ids: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     minutes: Mapped[int] = mapped_column(Integer, default=30, server_default="30")

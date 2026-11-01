@@ -2,6 +2,15 @@ import React, { useCallback, useEffect, useState } from 'react';
 import './TeacherSummative.css';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 
+const QUARTERS = [
+    { v: 0, label: "So'nggi 3 oy" },
+    { v: 1, label: "1-chorak (sentyabr–oktyabr)" },
+    { v: 2, label: "2-chorak (noyabr–dekabr)" },
+    { v: 3, label: "3-chorak (yanvar–mart)" },
+    { v: 4, label: "4-chorak (aprel–may)" },
+];
+const quarterLabel = (v) => (QUARTERS.find((q) => q.v === v) || QUARTERS[0]).label;
+
 const errText = (e, fallback) => (e?.message || '').split(': ').pop() || fallback;
 
 /** /teacher/summative — build a summative test by ticking questions from the
@@ -16,7 +25,8 @@ export default function TeacherSummative() {
     const [msg, setMsg] = useState('');
 
     // create form
-    const [groupId, setGroupId] = useState('');
+    const [groupIds, setGroupIds] = useState([]);
+    const [quarter, setQuarter] = useState(0);
     const [title, setTitle] = useState('');
     const [count, setCount] = useState(25);
     const [minutes, setMinutes] = useState(30);
@@ -39,14 +49,15 @@ export default function TeacherSummative() {
 
     const save = async () => {
         setMsg('');
-        if (!groupId) { setMsg('Sinfni (guruhni) tanlang.'); return; }
+        if (!groupIds.length) { setMsg('Kamida bitta sinfni tanlang.'); return; }
         setSaving(true);
         try {
             await request(`${API_URL}v1/summative/teacher/sets`, 'POST', JSON.stringify({
-                group_id: Number(groupId), title: title.trim() || 'Summativ test',
+                group_ids: groupIds, title: title.trim() || 'Summativ test', quarter,
                 question_count: Number(count) || 25, minutes: Number(minutes) || 30,
             }), jsonHeaders());
             setTitle('');
+            setGroupIds([]);
             setMode('list');
             loadSets();
             setMsg("Test sinfga biriktirildi. Talabalar uni endi ko'radi.");
@@ -110,22 +121,48 @@ export default function TeacherSummative() {
                 {msg && <p className="tsm-note">{msg}</p>}
                 <p className="tsm-muted">
                     Siz faqat savollar sonini belgilaysiz. Savollarni tizim o'zi tuzadi: har bir talaba uchun uning
-                    shu chorakda tugatgan darslaridan (javoblar aralashtirilgan holda).
+                    tanlangan chorakda tugatgan darslaridan (javoblar aralashtirilgan holda).
                 </p>
+                <div className="tsm-group-box">
+                    <div className="tsm-group-head">
+                        <b>Sinflar (guruhlar)</b>
+                        {freeGroups.length > 0 && (
+                            <button
+                                type="button"
+                                className="tsm-link"
+                                onClick={() => setGroupIds(groupIds.length === freeGroups.length ? [] : freeGroups.map((g) => g.id))}
+                            >
+                                {groupIds.length === freeGroups.length ? 'Tanlovni olib tashlash' : 'Hammasini tanlash'}
+                            </button>
+                        )}
+                    </div>
+                    <div className="tsm-groups">
+                        {freeGroups.map((g) => (
+                            <label key={g.id} className={`tsm-group ${groupIds.includes(g.id) ? 'is-on' : ''}`}>
+                                <input
+                                    type="checkbox"
+                                    checked={groupIds.includes(g.id)}
+                                    onChange={() => setGroupIds((cur) => (cur.includes(g.id) ? cur.filter((x) => x !== g.id) : [...cur, g.id]))}
+                                />
+                                <span>{g.name}</span>
+                                <small>{g.students} ta talaba</small>
+                            </label>
+                        ))}
+                    </div>
+                    {groups.length > 0 && freeGroups.length === 0 && (
+                        <p className="tsm-note">Hamma sinflarga test biriktirilgan. Yangisini yaratish uchun avval eskisini to'xtating yoki o'chiring.</p>
+                    )}
+                </div>
                 <div className="tsm-form">
-                    <label>Sinf (guruh)
-                        <select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
-                            <option value="">— tanlang —</option>
-                            {freeGroups.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.students} ta talaba)</option>)}
+                    <label>Chorak (qaysi davrdagi darslardan)
+                        <select value={quarter} onChange={(e) => setQuarter(Number(e.target.value))}>
+                            {QUARTERS.map((q) => <option key={q.v} value={q.v}>{q.label}</option>)}
                         </select>
                     </label>
                     <label>Test nomi
                         <input value={title} maxLength={200} placeholder="Masalan: 1-chorak yakuniy" onChange={(e) => setTitle(e.target.value)} />
                     </label>
                 </div>
-                {groups.length > 0 && freeGroups.length === 0 && (
-                    <p className="tsm-note">Hamma sinflarga test biriktirilgan. Yangisini yaratish uchun avval eskisini to'xtating yoki o'chiring.</p>
-                )}
                 <div className="tsm-form">
                     <label>Savollar soni
                         <input type="number" min={1} max={100} value={count} onChange={(e) => setCount(e.target.value)} />
@@ -139,8 +176,8 @@ export default function TeacherSummative() {
                         <input type="number" min={5} max={180} value={minutes} onChange={(e) => setMinutes(e.target.value)} />
                     </label>
                 </div>
-                <button className="tsm-btn tsm-btn--primary" disabled={saving || !groupId} onClick={save}>
-                    {saving ? 'Saqlanmoqda…' : 'Sinfga biriktirish'}
+                <button className="tsm-btn tsm-btn--primary" disabled={saving || !groupIds.length} onClick={save}>
+                    {saving ? 'Saqlanmoqda…' : `Biriktirish${groupIds.length ? ` (${groupIds.length} ta sinf)` : ''}`}
                 </button>
             </div>
         );
@@ -165,7 +202,7 @@ export default function TeacherSummative() {
                         <div className="tsm-set-main">
                             <b>{s.title}</b>
                             <span className="tsm-muted">
-                                {s.group} · {s.count} ta savol · {s.minutes} daqiqa · topshirgan {s.finished}/{s.students}
+                                {s.group} · {quarterLabel(s.quarter)} · {s.count} ta savol · {s.minutes} daqiqa · topshirgan {s.finished}/{s.students}
                                 {s.average !== null && ` · o'rtacha ${s.average}%`}
                             </span>
                         </div>

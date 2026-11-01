@@ -14,7 +14,7 @@ Question sources, all limited to lessons the student has COMPLETED:
 """
 import random
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -56,12 +56,32 @@ def _norm(text: str) -> str:
 
 # ── question pool ───────────────────────────────────────────────────────────
 
-async def _completed_lessons(db: AsyncSession, student_id: int) -> List[int]:
-    """Lessons finished in the current quarter (the last ~3 months)."""
-    stmt = select(LessonCompletion.lesson_id).where(
-        LessonCompletion.student_id == student_id,
-        LessonCompletion.completed_at >= utcnow() - timedelta(days=QUARTER_DAYS),
-    )
+# School quarters (month ranges, inclusive): the academic year starts 1 September.
+_QUARTER_MONTHS = {1: (9, 10), 2: (11, 12), 3: (1, 3), 4: (4, 5)}
+
+
+def _quarter_range(quarter: int, anchor: datetime):
+    """[start, end) of a school quarter in the academic year `anchor` falls in."""
+    if quarter not in _QUARTER_MONTHS:
+        return None
+    year = anchor.year if anchor.month >= 9 else anchor.year - 1  # academic year's September
+    m1, m2 = _QUARTER_MONTHS[quarter]
+    y1 = year if m1 >= 9 else year + 1
+    y2 = year if m2 >= 9 else year + 1
+    start = datetime(y1, m1, 1, tzinfo=timezone.utc)
+    end = datetime(y2 + (1 if m2 == 12 else 0), 1 if m2 == 12 else m2 + 1, 1, tzinfo=timezone.utc)
+    return start, end
+
+
+async def _completed_lessons(db: AsyncSession, student_id: int, tset: Optional[SummativeSet] = None) -> List[int]:
+    """Lessons finished in the test's period: the teacher's chosen school
+    quarter, or (no set / quarter 0) the last ~3 months."""
+    rng = _quarter_range(tset.quarter, tset.created_at) if tset is not None and tset.quarter else None
+    stmt = select(LessonCompletion.lesson_id).where(LessonCompletion.student_id == student_id)
+    if rng:
+        stmt = stmt.where(LessonCompletion.completed_at >= rng[0], LessonCompletion.completed_at < rng[1])
+    else:
+        stmt = stmt.where(LessonCompletion.completed_at >= utcnow() - timedelta(days=QUARTER_DAYS))
     return list((await db.execute(stmt)).scalars().all())
 
 
@@ -276,7 +296,7 @@ async def available(
         att = await _set_attempt(db, tset.id, student.id)
         if att:
             await _expire_if_late(db, att)
-        lessons = await _completed_lessons(db, student.id)
+        lessons = await _completed_lessons(db, student.id, tset)
         pool = await _build_pool(db, lessons, "ru" if lang == "ru" else "uz")
         planned = min(_set_count(tset), len(pool))
         return {
@@ -334,7 +354,7 @@ async def start(
     if tset:
         if await _set_attempt(db, tset.id, student.id):
             raise HTTPException(status_code=409, detail="Siz bu testni allaqachon topshirgansiz")
-        lessons = await _completed_lessons(db, student.id)
+        lessons = await _completed_lessons(db, student.id, tset)
         pool = await _build_pool(db, lessons, lang)
         if not pool:
             raise HTTPException(
@@ -469,9 +489,10 @@ async def submit(
 # "/{attempt_id}" (they all have a second segment).
 
 class SetBody(BaseModel):
-    group_id: int
+    group_ids: List[int]
     title: str = ""
     question_count: int = 25
+    quarter: int = 0
     minutes: int = 30
 
 
@@ -501,24 +522,30 @@ async def create_set(
         db: AsyncSession = Depends(get_db),
         teacher: Student = Depends(get_current_instructor),
 ):
-    await _own_group(db, body.group_id, teacher)
+    group_ids = list(dict.fromkeys(body.group_ids))
+    if not group_ids:
+        raise HTTPException(status_code=422, detail="Kamida bitta sinfni tanlang")
+    for gid in group_ids:
+        await _own_group(db, gid, teacher)
     if not 1 <= body.question_count <= 100:
         raise HTTPException(status_code=422, detail="Savollar soni 1 dan 100 gacha bo'lishi kerak")
     if not 5 <= body.minutes <= 180:
         raise HTTPException(status_code=422, detail="Vaqt 5 dan 180 daqiqagacha bo'lishi kerak")
+    if body.quarter not in (0, 1, 2, 3, 4):
+        raise HTTPException(status_code=422, detail="Chorak 1-4 bo'lishi kerak")
     # One live test per group: a new one replaces the previous.
     for old in (await db.execute(
-        select(SummativeSet).where(SummativeSet.group_id == body.group_id, SummativeSet.is_active.is_(True))
+        select(SummativeSet).where(SummativeSet.group_id.in_(group_ids), SummativeSet.is_active.is_(True))
     )).scalars().all():
         old.is_active = False
-    new = SummativeSet(
-        teacher_id=teacher.id, group_id=body.group_id, title=body.title.strip()[:200] or "Summativ test",
-        question_count=body.question_count, minutes=body.minutes,
-    )
-    db.add(new)
+    title = body.title.strip()[:200] or "Summativ test"
+    for gid in group_ids:
+        db.add(SummativeSet(
+            teacher_id=teacher.id, group_id=gid, title=title, question_count=body.question_count,
+            quarter=body.quarter, minutes=body.minutes,
+        ))
     await db.commit()
-    await db.refresh(new)
-    return {"id": new.id, "count": body.question_count}
+    return {"created": len(group_ids), "count": body.question_count}
 
 
 @router.get("/teacher/sets")
@@ -541,7 +568,7 @@ async def list_sets(
         )).scalar() or 0
         out.append({
             "id": st.id, "title": st.title, "group_id": st.group_id, "group": gname, "count": _set_count(st),
-            "minutes": st.minutes, "is_active": st.is_active, "created_at": st.created_at,
+            "minutes": st.minutes, "quarter": st.quarter, "is_active": st.is_active, "created_at": st.created_at,
             "finished": stats[0] or 0, "average": round(float(stats[1])) if stats[1] is not None else None,
             "students": members,
         })
