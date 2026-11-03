@@ -18,6 +18,7 @@ import logging
 from typing import Optional
 
 import httpx
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, text as sa_text
@@ -481,7 +482,7 @@ async def sessions_completed_today(
     _require_internal_secret(x_internal_secret)
     # 24-hour window rather than "since midnight" so the 20:00 job
     # doesn't miss a session completed at 20:05 the previous day.
-    since_expr = sa_text("now() - interval '24 hours'")
+    since_expr = datetime.now(timezone.utc) - timedelta(hours=24)        # portable (the SQL form was PostgreSQL-only)
     rows = (await db.execute(
         select(GameSessionSnapshot.session_id, GameSessionSnapshot.completed_at)
         .where(GameSessionSnapshot.completed_at >= since_expr)

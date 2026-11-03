@@ -62,8 +62,11 @@ api_router.include_router(teacher_course_access.router, prefix="/teacher/courses
 api_router.include_router(dictionary.router, prefix="/dictionary", tags=["dictionary"])
 api_router.include_router(dict_practice.router, prefix="/dictionary/practice", tags=["dictionary-practice"])
 api_router.include_router(lesson_feedback.router, prefix="", tags=["Lesson Feedback"])
-api_router.include_router(team_game_session.router, prefix="/game-sessions", tags=["Team Game"])
+# The reports router goes FIRST: its fixed path GET /game-sessions/completed-today (the parent bot's daily job) must be
+# matched before team_game_session's GET /game-sessions/{session_id}, which would swallow it and answer 401 "Not
+# authenticated" (broken since the 11 Sep split, so the bot's 20:00 game list never loaded).
 api_router.include_router(team_game_session_reports.router, prefix="/game-sessions", tags=["Team Game"])
+api_router.include_router(team_game_session.router, prefix="/game-sessions", tags=["Team Game"])
 api_router.include_router(team_game_questions.router, prefix="/game-sessions", tags=["Team Game"])
 api_router.include_router(lesson_questions.router, prefix="", tags=["Lesson Questions"])
 api_router.include_router(parent.router, prefix="/parent", tags=["Parent MiniApp"])
