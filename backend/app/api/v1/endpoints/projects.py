@@ -23,6 +23,7 @@ from fastapi.responses import FileResponse
 from app.services.grok_service import analyze_project_with_grok
 from app.services.lesson_context_resolver import load_lesson_context_for_project
 from app.services.ai_review_service import run_ai_review_for_project
+from app.services.file_format_check import zip_format_warnings
 from app.services.github_repo_service import zip_bytes_have_code_file, zip_plain_text_only_names
 from app.services.integrity_check import PLAIN_TEXT_UPLOAD_MESSAGE
 from app.services.submission_cooldown import enforce_submission_cooldown
@@ -261,6 +262,7 @@ async def upload_project_zip(
         "project_id": new_project.id,
         "file_url": file_url,
         "message": "ZIP fayl yuklandi!",
+        "format_warnings": zip_format_warnings(contents),
         "ai_review": {
             "grade": ai_result.get("grade") if ai_result.get("success") else None,
             "points": ai_result.get("new_points") if ai_result.get("success") else None,
@@ -749,6 +751,7 @@ async def upload_project_zip_by_id(
     return {
         "file_url": file_url,
         "message": "ZIP fayl yuklandi va AI tekshirdi!",
+        "format_warnings": zip_format_warnings(contents),
         "ai_review": {
             "grade": ai_result.get("grade") if ai_result.get("success") else None,
             "points": ai_result.get("new_points") if ai_result.get("success") else None,

@@ -267,3 +267,22 @@ describe('StudentTeamProject — the handed-in code of the team', () => {
   });
 });
 
+describe('StudentTeamProject — file format warning after a ZIP upload', () => {
+  test('the warning from the upload endpoint is shown above the tasks, the submission still goes through', async () => {
+    mockRequest.mockResolvedValueOnce([baseEntry()]);
+    const { container } = render(<StudentTeamProject />);
+    await screen.findByLabelText('GitHub havolasi');
+    const warning = { file: 'OK.html', message: "«OK.html» fayli .html deb nomlangan, lekin ichida Python kodi bor.", message_ru: 'ru' };
+    mockRequest
+      .mockResolvedValueOnce({ submission_files: '/uploads/projects/a.zip', format_warnings: [warning] })   // upload-zip
+      .mockResolvedValueOnce({})                                                                            // submit
+      .mockResolvedValueOnce([baseEntry()]);                                                                // reload
+    const fileInput = container.querySelector('input[type="file"]');
+    const zip = new File(['PK'], 'work.zip', { type: 'application/zip' });
+    fireEvent.change(fileInput, { target: { files: [zip] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Topshirish' }));
+    expect(await screen.findByText(/Python kodi bor/)).toBeInTheDocument();
+    expect(mockRequest.mock.calls[2][0]).toMatch(/\/submit$/);
+  });
+});
+

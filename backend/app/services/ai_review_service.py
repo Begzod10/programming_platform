@@ -12,6 +12,7 @@ provider never blocks lesson submission.
 """
 from __future__ import annotations
 
+from app.services.file_format_check import apply_to_review, snapshot_format_warnings
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -265,6 +266,7 @@ async def run_ai_review_for_project(
         technologies = (project.technologies_used.split(",")
                         if project.technologies_used else [])
 
+        format_warnings = snapshot_format_warnings(snapshot)
         review = await analyze_project_with_grok(
             title=project.title,
             description=project.description or "",
@@ -275,7 +277,10 @@ async def run_ai_review_for_project(
             repo_summary=repo_summary,
             authorship=snapshot.get("authorship"),
             lesson_context=lesson_context,
+            format_warnings=format_warnings,
         )
+        if not review.get("error"):
+            apply_to_review(review, format_warnings)
 
         # AI call failed (all providers down, rate-limited, no key, etc.).
         # Do NOT write to DB — project stays "Submitted" for teacher manual review.

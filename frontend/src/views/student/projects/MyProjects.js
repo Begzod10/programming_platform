@@ -1,3 +1,4 @@
+import FormatWarnings from '../../../components/formatwarnings/FormatWarnings';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import './MyProjects.css';
@@ -391,6 +392,7 @@ function MyProjects() {
     // Detail modal states
     const [uploading, setUploading] = useState(false);
     const [uploadMsg, setUploadMsg] = useState('');
+    const [formatWarnings, setFormatWarnings] = useState([]);
     const [selectedFile, setSelectedFile] = useState(null);
 
     const [fileUrlInput, setFileUrlInput] = useState('');
@@ -535,9 +537,11 @@ function MyProjects() {
         formData.append('file', file);
         setUploading(true);
         setUploadMsg('');
+        setFormatWarnings([]);
 
         request(`${API_URL}v1/project/${projectId}/upload-zip`, 'POST', formData, headers())
-            .then(() => {
+            .then((uploaded) => {
+                setFormatWarnings(uploaded?.format_warnings || []);
                 setUploadMsg(ru ? '✅ ZIP загружен успешно' : '✅ ZIP muvaffaqiyatli yuklandi');
                 setSelectedFile(null);
                 return request(`${API_URL}v1/project/${projectId}`, 'GET', null, headers());
@@ -834,6 +838,7 @@ function MyProjects() {
                                     {uploading ? <>{ru ? 'Загрузка...' : 'Yuklanmoqda...'}</> : (ru ? '📤 Загрузить ZIP' : '📤 ZIP yuklash')}
                                 </button>
                                 {uploadMsg && <span className={`mp-upload-msg ${uploadMsg.startsWith('✅') ? 'success' : 'error'}`}>{uploadMsg}</span>}
+                                <FormatWarnings warnings={formatWarnings} ru={ru} />
                             </div>
                         </div>
 

@@ -157,6 +157,20 @@ def _format_lesson_context_block(
     return ("\n".join(lines) + "\n", persona_hint)
 
 
+def _format_format_warnings_block(warnings: Optional[list]) -> str:
+    """Files whose name does not match their content (Python saved as .html ...), found by the system."""
+    if not warnings:
+        return ""
+    files = "\n".join(f"- {w['file']}: {w['extension']} deb nomlangan, ichida {w['detected']} kodi" for w in warnings[:8])
+    return f"""
+## FAYL FORMATI OGOHLANTIRISHI (tizim aniqladi)
+{files}
+- Bu faqat fayl NOMI/kengaytmasi xatosi. Kod o'zi to'g'ri bo'lsa, shu sababli ball PASAYTIRMA.
+- Tizim bu ogohlantirishni o'quvchiga o'zi ko'rsatadi, feedback'da takrorlama va kodni "noto'g'ri tilda" deb baholama:
+  baholashda faylning ASL mazmuniga qara.
+"""
+
+
 def _format_requirements_rules(lesson_context: Optional[dict]) -> str:
     """How to grade against the lesson's "Talablar" list. Without these rules the model kept inventing criteria
     (read "kamida 3 ta" as "exactly 3", penalised 100px font sizes for beginners, asked for tags the lesson never
@@ -231,6 +245,7 @@ def _build_review_prompt(
     repo_summary: str,
     authorship: Optional[dict] = None,
     lesson_context: Optional[dict] = None,
+    format_warnings: Optional[list] = None,
 ) -> str:
     technologies_str = ", ".join(technologies) if technologies else "ko'rsatilmagan"
 
@@ -257,6 +272,7 @@ def _build_review_prompt(
     lesson_block, persona_hint = _format_lesson_context_block(lesson_context, technologies)
     encouragement_block = _format_encouragement_block(difficulty_level)
     requirements_rules = _format_requirements_rules(lesson_context)
+    format_block = _format_format_warnings_block(format_warnings)
 
     return f"""
 
@@ -270,7 +286,7 @@ MUHIM — DARS DOIRASI:
 - "Keyingi safar X qo'shing" turidagi maslahatni faqat SHU DARSDA o'tilgan texnologiyaning chuqurroq qismi bo'yicha bering, kurs hali boshlanmagan boshqa texnologiya bo'yicha emas.
 
 {_INJECTION_GUARD}
-{lesson_block}{requirements_rules}{encouragement_block}
+{lesson_block}{requirements_rules}{format_block}{encouragement_block}
 ## METADATA
 <student_input>
 - Nomi: {title}
@@ -551,6 +567,7 @@ async def analyze_project_with_grok(
         repo_summary: str = "",
         authorship: Optional[dict] = None,
         lesson_context: Optional[dict] = None,
+        format_warnings: Optional[list] = None,
 ) -> dict:
     """Grade a student project using the configured AI provider chain.
 
@@ -570,7 +587,7 @@ async def analyze_project_with_grok(
         technologies=technologies, difficulty_level=difficulty_level,
         previous_points=previous_points, repo_content=repo_content,
         repo_summary=repo_summary, authorship=authorship,
-        lesson_context=lesson_context,
+        lesson_context=lesson_context, format_warnings=format_warnings,
     )
 
     try:

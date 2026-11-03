@@ -37,6 +37,7 @@ from app.services.team_project_planner import generate_plan_for_team, validate_p
 from app.services.team_project_task_review import review_task_submission
 from app.services.team_project_constants import THEMES_BY_KEY, TECH_STACKS_BY_KEY
 from app.services.project_service import ProjectService
+from app.services.file_format_check import zip_format_warnings
 from app.services.github_repo_service import github_repo_is_missing, parse_github_url, zip_bytes_have_code_file, zip_plain_text_only_names
 from app.services.integrity_check import PLAIN_TEXT_UPLOAD_MESSAGE
 from app.schemas.project import ProjectCreate
@@ -825,7 +826,7 @@ async def upload_task_zip(
     with open(filepath, "wb") as f:
         f.write(contents)
 
-    return {"submission_files": f"/uploads/projects/{filename}"}
+    return {"submission_files": f"/uploads/projects/{filename}", "format_warnings": zip_format_warnings(contents)}
 
 
 # ── Student: submit a task ──────────────────────────────────────────────────

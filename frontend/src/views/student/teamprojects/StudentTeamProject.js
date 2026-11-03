@@ -8,6 +8,7 @@ import { pickLang, pickLangList } from '../../../utils/pickLang';
 import TeamProjectHistory from './TeamProjectHistory';
 import TeamContractCard from './TeamContractCard';
 import UnmetLessons from '../../../components/teamprojects/UnmetLessons';
+import FormatWarnings from '../../../components/formatwarnings/FormatWarnings';
 import './StudentTeamProject.css';
 
 // Matches the two shapes api/search/base.js's request() wrapper can reject
@@ -249,6 +250,7 @@ const StudentTeamProject = () => {
     const [myRatings, setMyRatings] = useState({});
     const [myRatingsLoaded, setMyRatingsLoaded] = useState(false);
     const [error, setError] = useState(null);
+    const [formatWarnings, setFormatWarnings] = useState([]);
 
     const loadedOnce = useRef(false);
     const reload = useCallback(async () => {
@@ -356,6 +358,7 @@ const StudentTeamProject = () => {
         if (!entry) return;
         setSubmittingId(taskId);
         setError(null);
+        setFormatWarnings([]);
         try {
             const formData = new FormData();
             formData.append('file', file);
@@ -363,6 +366,7 @@ const StudentTeamProject = () => {
                 `${API_URL}v1/team-projects/teams/${entry.my_team.id}/tasks/${taskId}/upload-zip`,
                 'POST', formData,
             );
+            setFormatWarnings(uploadResult?.format_warnings || []);
             await request(
                 `${API_URL}v1/team-projects/teams/${entry.my_team.id}/tasks/${taskId}/submit`,
                 'POST', JSON.stringify({ submission_files: uploadResult.submission_files }), headers(),
@@ -528,6 +532,7 @@ const StudentTeamProject = () => {
                 )
             )}
 
+            <FormatWarnings warnings={formatWarnings} ru={ru} />
             <div className="stp-tasks-grid">
                 {team.tasks.map(task => (
                     <TaskCard
