@@ -25,6 +25,11 @@ namespace PcGuard.Service;
 /// enforcing at once (flag + killer halted), writes the audit entry, tells the shell to exit
 /// (released), sets its own start type to Disabled and stops. No backend involved; the code is never
 /// logged or written anywhere.
+///
+/// Startup grace (<see cref="StartupGrace"/>): from service start until the first shell has connected
+/// and reported (its first snapshot or alive) or 30 s have passed, a name-only fallback plan kills and
+/// closes nothing (the shell is still launched as usual). Only "no shell ever since this process
+/// started" gets it: a shell that connected once and then dies, hangs or goes stale gets no grace.
 /// </summary>
 internal sealed class GuardWorker : BackgroundService
 {
@@ -119,6 +124,8 @@ internal sealed class GuardWorker : BackgroundService
     private DateTimeOffset? _shellMissingSince;
     private StateMessage? _lastStateSent;
     private bool _wasFallback;
+    // monotonic, started with the service process; ended for good by the first shell report or 30 s
+    private readonly StartupGrace _startupGrace = new();
 
     public GuardWorker(ILogger<GuardWorker> log, IConfiguration config, IHostApplicationLifetime lifetime)
     {
@@ -205,6 +212,8 @@ internal sealed class GuardWorker : BackgroundService
         };
 
         _log.LogInformation("PC Guard started (queued usage events after startup purge: {Count})", _queue.Count);
+        if (_startupGrace.Evaluate().Active)
+            _log.LogInformation("Startup grace: enforcement paused until the shell connects or {Seconds} s pass", (int)StartupGrace.Window.TotalSeconds);
 
         var pipeTask = _pipe.RunAsync(stoppingToken);
         var commandTask = CommandLoopAsync(stoppingToken);
@@ -280,12 +289,23 @@ internal sealed class GuardWorker : BackgroundService
         var exempt = new List<int> { Environment.ProcessId };
         if (snapPid is { } sp && _pipe.ActiveClientPid == sp) exempt.Add(sp);
 
-        var plan = EnforcementPlanner.Plan(rules, snap, at, now, procs.Processes, exempt);
+        var grace = _startupGrace.Evaluate();
+        switch (grace.JustEnded)
+        {
+            case StartupGraceEnd.ShellConnected:
+                _log.LogInformation("Startup grace ended: shell connected");
+                break;
+            case StartupGraceEnd.Expired:
+                _log.LogInformation("Startup grace expired without a shell: name-only enforcement");
+                break;
+        }
+        // planner stays pure; the grace only holds back a fallback plan's kills (flags kept for the supervisor)
+        var plan = StartupGrace.Apply(EnforcementPlanner.Plan(rules, snap, at, now, procs.Processes, exempt), grace.Active);
 
         foreach (var hwnd in plan.CloseWindows) _ = _pipe.SendAsync(new CloseWindowMessage(hwnd));
         foreach (var pid in plan.KillPids) _killer.Schedule(pid, procs.ImagePaths.GetValueOrDefault(pid), stopping);
 
-        if (plan.UsedFallback != _wasFallback)
+        if (!grace.Active && plan.UsedFallback != _wasFallback)
         {
             _wasFallback = plan.UsedFallback;
             if (plan.UsedFallback) _log.LogWarning("No fresh snapshot from the shell: name-only enforcement");
@@ -558,11 +578,13 @@ internal sealed class GuardWorker : BackgroundService
                     _snapshotPid = clientPid;
                     _snapshotSession = clientSession;
                 }
+                _startupGrace.MarkShellConnected(); // first report of a verified shell: window-aware enforcement from the next tick
                 break;
             case AliveMessage:
                 // shell is up but on a non-Default desktop (no snapshot): counts against "hung" only
                 if (_pipe.ActiveClientPid != clientPid) break;
                 lock (_snapLock) _lastAliveAt = _clock();
+                _startupGrace.MarkShellConnected();
                 break;
             case LoginMessage l:
                 // Keep only the latest login (one password in memory) and enqueue at most one marker,
