@@ -86,6 +86,56 @@ public static class BackendProtocol
         }
     }
 
+    public const string MaintenanceRedeemPath = "pc/maintenance/redeem";
+
+    /// <summary>Body of POST /pc/maintenance/redeem. Contains the code: never log it.</summary>
+    public static string MaintenanceRedeemBody(string machineKey, string code)
+        => Write(w =>
+        {
+            w.WriteStartObject();
+            w.WriteString("machine_key", machineKey);
+            w.WriteString("code", code);
+            w.WriteEndObject();
+        });
+
+    /// <summary>
+    /// 200 with <c>{"minutes": 15|60|240}</c> is Ok; any other duration, type or body is Error (never
+    /// trust an arbitrary value). 403 = InvalidCode (the backend answers every failure the same way),
+    /// 429 = RateLimited, 408/502/503/504 = Offline (not reachable behind a proxy), anything else Error.
+    /// </summary>
+    public static MaintenanceRedeemResult ClassifyMaintenanceRedeem(int status, string? body)
+    {
+        switch (status)
+        {
+            case 200:
+                return ParseMinutes(body) is { } m && MaintenanceMode.IsAllowedDuration(m)
+                    ? MaintenanceRedeemResult.Ok(m)
+                    : MaintenanceRedeemResult.Error;
+            case 403: return MaintenanceRedeemResult.InvalidCode;
+            case 429: return MaintenanceRedeemResult.RateLimited;
+            case 408 or 502 or 503 or 504: return MaintenanceRedeemResult.Offline;
+            default: return MaintenanceRedeemResult.Error;
+        }
+    }
+
+    private static int? ParseMinutes(string? body)
+    {
+        if (string.IsNullOrEmpty(body)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var r = doc.RootElement;
+            return r.ValueKind == JsonValueKind.Object && r.TryGetProperty("minutes", out var v)
+                   && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var m)
+                ? m
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     public const int MaxUsageBatch = 500;
 
     public static string UsageBody(IReadOnlyList<UsageEvent> events)

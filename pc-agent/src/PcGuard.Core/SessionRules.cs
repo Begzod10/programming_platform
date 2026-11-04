@@ -15,6 +15,14 @@ public static class SessionRules
         Allowlist = cached.Allowlist.Count > 0 ? cached.Allowlist : Defaults.Allowlist,
     };
 
+    /// <summary>
+    /// Maintenance mode (teacher code) suspends enforcement: while active the rules are unlocked
+    /// (reason "maintenance"), so the planner kills nothing, closes no window and never falls back to
+    /// name-only kills. Server rules keep arriving and apply again the moment it ends.
+    /// </summary>
+    public static PcRules WithMaintenance(PcRules rules, bool active)
+        => active ? rules with { Locked = false, Reason = "maintenance" } : rules;
+
     public static StateMessage ToStateMessage(PcRules r) => new(r.Locked, r.Reason, r.Remaining, r.StudentName);
 }
 

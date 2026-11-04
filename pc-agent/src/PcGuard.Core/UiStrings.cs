@@ -35,32 +35,15 @@ public static class UiStrings
     public static string PasswordLabel(UiLang l) => l == UiLang.Ru ? "Пароль" : "Parol";
     public static string Connecting(UiLang l) => l == UiLang.Ru ? "Подключение к службе…" : "Xizmatga ulanmoqda…";
 
-    // ---- administrator maintenance unlock (emergency) ----
+    // ---- maintenance mode (one-time teacher code) ----
+    // Durations are not chosen on the PC: the teacher picks 15, 60 or 240 minutes when issuing the code.
 
     public static string AdminLink(UiLang l) => l == UiLang.Ru ? "Администратор" : "Administrator";
-    public static string AdminTitle(UiLang l) => l == UiLang.Ru ? "Вход администратора" : "Administrator kirishi";
-    public static string AdminAccountLabel(UiLang l) => l == UiLang.Ru ? "Учётная запись Windows" : "Windows akkaunti";
-    public static string AdminPasswordLabel(UiLang l) => PasswordLabel(l);
-    public static string AdminDurationLabel(UiLang l) => l == UiLang.Ru ? "Длительность" : "Muddat";
+    public static string AdminTitle(UiLang l) => l == UiLang.Ru ? "Режим обслуживания" : "Texnik rejim";
+    public static string MaintenanceCodeLabel(UiLang l) => l == UiLang.Ru ? "Код обслуживания (6 цифр)" : "Texnik kod (6 raqam)";
     public static string AdminUnlockButton(UiLang l) => l == UiLang.Ru ? "Открыть" : "Ochish";
     public static string AdminCancelButton(UiLang l) => l == UiLang.Ru ? "Отмена" : "Bekor qilish";
     public static string MaintenanceEndButton(UiLang l) => l == UiLang.Ru ? "Завершить" : "Tugatish";
-    public static string AdminWarning(UiLang l) => l == UiLang.Ru
-        ? "Вводите пароль так, чтобы его никто не видел"
-        : "Parolni faqat o'zingiz ko'ra oladigan joyda kiriting";
-
-    /// <summary>Label of one of the fixed durations (15, 60, 240 minutes); any other value throws.</summary>
-    public static string AdminDuration(UiLang l, int minutes)
-    {
-        var ru = l == UiLang.Ru;
-        return minutes switch
-        {
-            15 => ru ? "15 минут" : "15 daqiqa",
-            60 => ru ? "1 час" : "1 soat",
-            240 => ru ? "4 часа" : "4 soat",
-            _ => throw new ArgumentOutOfRangeException(nameof(minutes), minutes, "Not an allowed maintenance duration"),
-        };
-    }
 
     /// <summary>Banner text; <paramref name="time"/> is the local end time (see <see cref="ClockTime"/>).</summary>
     public static string MaintenanceBanner(UiLang l, string time)
@@ -69,15 +52,16 @@ public static class UiStrings
     /// <summary>24-hour "HH:mm" of the given time in its own offset (pass a local time).</summary>
     public static string ClockTime(DateTimeOffset t) => t.ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
 
-    /// <summary>Maps an admin_result.error code; invalid_duration, error, null and unknown codes read as a generic error.</summary>
+    /// <summary>Maps an admin_result.error code; error, null and unknown codes read as a generic error.</summary>
     public static string AdminError(UiLang l, string? code, int retrySeconds)
     {
         var ru = l == UiLang.Ru;
         var n = Math.Max(0, retrySeconds).ToString(System.Globalization.CultureInfo.InvariantCulture);
         return code switch
         {
-            AdminErrors.BadCredentials => ru ? "Неверный логин или пароль" : "Login yoki parol noto'g'ri",
-            AdminErrors.NotAdmin => ru ? "Этот аккаунт не администратор" : "Bu akkaunt administrator emas",
+            AdminErrors.InvalidCode => ru ? "Неверный код или срок действия истёк" : "Kod noto'g'ri yoki muddati o'tgan",
+            AdminErrors.Offline => ru ? "Нет связи с сервером" : "Serverga ulanib bo'lmadi",
+            AdminErrors.RateLimited => ru ? "Слишком много попыток, повторите позже" : "Juda ko'p urinish, keyinroq urinib ko'ring",
             AdminErrors.LockedOut => (ru ? "Слишком много попыток. Повторите через {n} с" : "Juda ko'p urinish. {n} soniyadan so'ng qayta urinib ko'ring").Replace("{n}", n),
             _ => ru ? "Произошла ошибка" : "Xatolik yuz berdi",
         };

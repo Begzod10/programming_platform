@@ -51,10 +51,8 @@ public abstract record PipeMessage(string T)
                 case CloseWindowMessage m:
                     w.WriteNumber("hwnd", m.Hwnd);
                     break;
-                case AdminUnlockMessage m:
-                    w.WriteString("username", m.Username);
-                    w.WriteString("password", m.Password);
-                    w.WriteNumber("minutes", m.Minutes);
+                case MaintenanceRedeemMessage m:
+                    w.WriteString("code", m.Code);
                     break;
                 case AdminEndMessage:
                     break;
@@ -106,10 +104,8 @@ public abstract record PipeMessage(string T)
                     r.TryGetProperty("hwnd", out var h) && h.ValueKind == JsonValueKind.Number && h.TryGetInt64(out var hv)
                         ? hv
                         : throw new FormatException("'hwnd' missing or not an integer")),
-                // minutes: anything but a 32-bit integer reads as 0, which the service rejects with
-                // invalid_duration (only 15, 60 and 240 are ever accepted)
-                "admin_unlock" => new AdminUnlockMessage(ReqString(r, "username"), ReqString(r, "password"),
-                    TryInt(r, "minutes", out var minutes) ? minutes : 0),
+                // any string: the service checks the shape (MaintenanceCode) before any network call
+                "maintenance_redeem" => new MaintenanceRedeemMessage(ReqString(r, "code")),
                 "admin_end" => new AdminEndMessage(),
                 "admin_result" => new AdminResultMessage(ReqBool(r, "ok"), OptString(r, "error"),
                     TryInt(r, "retry_seconds", out var retry) ? Math.Max(0, retry) : 0),
@@ -249,21 +245,21 @@ public sealed record TextMessage(string Text) : PipeMessage("message");
 public sealed record CloseWindowMessage(long Hwnd) : PipeMessage("close_window");
 
 /// <summary>
-/// shell -> service: administrator maintenance unlock request (local Windows administrator account).
-/// The password must never be logged or persisted: <see cref="PrintMembers"/> (and so ToString, also
+/// shell -> service: redeem a one-time maintenance code that a teacher issued in the console for this
+/// PC. The code must never be logged or persisted: <see cref="PrintMembers"/> (and so ToString, also
 /// when this record is printed inside another one) redacts it.
 /// </summary>
-public sealed record AdminUnlockMessage(string Username, string Password, int Minutes) : PipeMessage("admin_unlock")
+public sealed record MaintenanceRedeemMessage(string Code) : PipeMessage("maintenance_redeem")
 {
     protected override bool PrintMembers(StringBuilder builder)
     {
         base.PrintMembers(builder);
-        builder.Append(", Username = ").Append(Username).Append(", Password = ***, Minutes = ").Append(Minutes);
+        builder.Append(", Code = ***");
         return true;
     }
 }
 
-/// <summary>shell -> service: end maintenance mode now (no password needed: ending only re-locks).</summary>
+/// <summary>shell -> service: end maintenance mode now (no code needed: ending only re-locks).</summary>
 public sealed record AdminEndMessage() : PipeMessage("admin_end");
 
 /// <summary>service -> shell. Error is one of <see cref="AdminErrors"/>; RetrySeconds is set for locked_out.</summary>
