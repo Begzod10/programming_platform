@@ -109,8 +109,9 @@ student's desktop, so the service is the authority and the shell is its eyes.
   backend (https only) and, on success, treats the rules as unlocked for the 15, 60 or 240
   minutes the backend returned, measured on a monotonic clock. In memory only.
 - **Recovery code (offline escape)**: see 4.5. Next to "Texnik kod", the link "Tiklash kodi" /
-  "Код восстановления" sends an install-time code that the service checks locally; on success
-  PC Guard stops enforcing, sets its own start type to Disabled and stops.
+  "Код восстановления" sends an install-time, single-use code that the service checks locally;
+  on success PC Guard stops enforcing, deletes the code's hash, sets its own start type to
+  Disabled, ends every shell it launched and stops.
 
 ### 4.2 Backend (module `pc_control`)
 
@@ -291,37 +292,65 @@ person at that PC is ready to type it.
 
 Purpose: the last way out when a PC is stuck on the full-screen lock and nothing else works
 (backend down, so no teacher code; Task Manager hidden behind the topmost lock window). Found
-during real-PC testing. It does not unlock temporarily: it switches PC Guard off on that PC.
+during real-PC testing. It does not unlock temporarily: it switches PC Guard off on that PC,
+and it works once.
 
 - Set at install, interactive Setup only: typed hidden (Console.ReadKey with intercept,
-  Backspace) and confirmed; 10-128 printable ASCII characters (inner spaces allowed, no
-  leading/trailing space), at least 3 distinct characters, not 6 digits (teacher code shape),
-  not on a short deny list. Mismatch or invalid: asked again, 3 failed tries abort the install
-  with nothing changed. Silent installs set none (`--no-recovery-code` explicit, otherwise a
-  warning). Never accepted on the command line or from environment variables.
+  Backspace) and confirmed; 12-128 printable ASCII characters (inner spaces allowed, no
+  leading/trailing space), at least 6 distinct characters, not 6 digits (teacher code shape),
+  and at least 8 characters left after removing guessable parts (common uz/ru/en words such as
+  maktab, kompyuter, admin, parol, password, school anywhere in the code; years 19xx/20xx;
+  keyboard runs of 4+; alphabet/digit runs of 4+; a character 3+ times in a row; any repeated
+  block of 3+). Mismatch or invalid: asked again, 3 failed tries abort the install with nothing
+  changed; an empty answer after a failed try asks "Install without a recovery code? (y/N)".
+  Silent installs set none (`--no-recovery-code` explicit, otherwise a warning). Never accepted
+  on the command line or from environment variables.
 - Stored as `pbkdf2-sha256$<iterations>$<salt b64>$<hash b64>` (PBKDF2-HMAC-SHA256, 310000
   iterations, 16-byte random salt, 32-byte hash) computed by Setup (Core `RecoveryCode.Hash`,
-  char buffers zeroed afterwards). Only the hash is passed to `install.ps1 -RecoveryCodeHash`,
-  which validates its format before changing anything and writes
-  `%ProgramData%\PcGuard\recovery.hash` (folder and file owner Administrators, SYSTEM and
-  Administrators only, untrusted pre-existing folder moved aside). An upgrade keeps it unless a
-  new one is given; `-ClearRecoveryCode` removes it; a failed install restores the previous one.
-- Use: shell dialog (PasswordBox, cleared right after reading) -> pipe `recovery_release {id,
-  code}` (code redacted in ToString) -> `recovery_result {id, ok, error: invalid_code |
-  locked_out | not_configured | error, retry_seconds}`, same request-id convention as
-  `admin_result`. Pinned shell only (existing pipe gate).
+  char buffers zeroed afterwards). The hash is never on a command line (Windows PowerShell 5.1
+  logs its command line in events 400/600 of the "Windows PowerShell" log, which standard users
+  can usually read): Setup writes it to `recovery-hash.in` in its admin-only temp folder and
+  passes `install.ps1 -RecoveryCodeHashFile <path>`. install.ps1 requires a local absolute path
+  with no reparse point in the chain, an admin-only folder and file (owner and ACL), at most
+  136 bytes and a valid hash, before changing anything; it then wipes and deletes the file and
+  writes `%ProgramData%\PcGuard\recovery.hash` (folder and file owner Administrators, SYSTEM
+  and Administrators only, untrusted pre-existing folder moved aside FIRST, before any existing
+  file is read). An existing recovery.hash is read only if trusted (admin-only, no link,
+  <= 136 bytes, well formed), and kept on an upgrade only if the old service is not Disabled;
+  `-ClearRecoveryCode` removes it; a failed install restores the previous one after validating
+  it again (never one of a Disabled service). A new code resets recovery.attempts.
+- Use: shell dialog (PasswordBox, cleared right after reading; text outside 0x20-0x7E is refused
+  locally with a "switch the layout to EN" hint, not sent, not counted) -> pipe
+  `recovery_release {id, code}` (code redacted in ToString) -> `recovery_result {id, ok, error:
+  invalid_code | locked_out | not_configured | error, retry_seconds}`, same request-id
+  convention as `admin_result`. Pinned shell only (existing pipe gate).
 - Service: no trusted `recovery.hash` (missing, data folder not secured, link, other owner or
-  ACL, malformed) -> not_configured (not counted). Otherwise its own AdminAttemptLimiter (1 s
-  spacing, 5 failures -> 10 minutes, only invalid_code counts, memory only) and
-  `RecoveryCode.Verify` (constant-time compare, false for malformed values, never throws) on a
-  worker thread, one verification at a time. On success: an internal flag stops enforcement
-  and kills at once, the event log gets `Recovery code accepted: PC Guard stopped and disabled
-  on this PC`, the shell gets `recovery_result ok` and `released` (it closes its windows and
-  exits), then ChangeServiceConfigW sets start=Disabled and the host stops cleanly. Failures log
+  ACL, malformed) -> not_configured (not counted). Otherwise the persistent
+  `RecoveryAttemptLimiter` (Core, injectable store): 1 s spacing; 5 failures -> lockout of 10
+  minutes, then 1 hour, then 24 hours each further time; state in `recovery.attempts` (admin-only
+  data folder, same trust rules as recovery.hash), loaded at service start; every attempt is
+  persisted as a failure BEFORE verification (power loss still counts; a failed write refuses
+  the attempt); a success deletes the file and resets the escalation; an untrusted or corrupt
+  file at start means a 24 h lockout (logged, written back); a file that disappears while
+  running never shortens a lockout. Then `RecoveryCode.Verify` (constant-time compare, false
+  for malformed values, never throws) on a worker thread, one verification at a time. On
+  success: an internal flag stops enforcement and kills at once, the event log gets the
+  acceptance, recovery.hash is overwritten and deleted (single use), ChangeServiceConfigW sets
+  start=Disabled, the shell gets `recovery_result ok` and `released`, after 1.5 s the service
+  terminates every PcGuard.Shell.exe it launched in any session (remembered pid + creation time,
+  or this install's image), and the host stops cleanly. If ChangeServiceConfigW fails the service
+  does NOT stop: it stays released (no enforcement), sends the shell a uz/ru notice (8 s before
+  `released`), logs the error and retries every 30 s, stopping once it succeeds. Failures log
   the failure count only. The code and the hash are never logged.
-- After a release the PC stays unprotected until Setup install / install.ps1 runs again (it
-  deletes the Disabled service and creates a new Automatic one) or an administrator sets the
-  service back to Automatic. uninstall.ps1 and Cleanup handle a Disabled service.
+- Shell: every pipe connection's server is checked (GetNamedPipeServerProcessId against the
+  SCM's process id of PcGuard from QueryServiceStatusEx); a provably different server is
+  disconnected and never heard; if the check cannot be made the connection is used but
+  `released` is ignored. After a lost connection the shell exits when the SCM reports PcGuard
+  stopped AND Disabled (read-only QueryServiceStatusEx / QueryServiceConfig).
+- After a release the PC stays unprotected until Setup install / install.ps1 runs again with a
+  new code (it deletes the Disabled service and creates a new Automatic one; the old code is
+  gone) or an administrator sets the service back to Automatic (then without a code).
+  uninstall.ps1 and Cleanup handle a Disabled service.
 
 ## 5. Browser handling
 
@@ -379,18 +408,25 @@ second day. The report is limited to the calling teacher's students and 31 days.
 - Publisher entries in the allowlist are metadata matches and spoofable (see section 14).
 - Recovery code (4.5), threat model: it is a deliberate offline kill switch. Anyone who knows
   the code can switch PC Guard off on that PC (no backend, no teacher involved), so it must be
-  strong and unique per PC and never the Windows password. Guessing is bounded by the local
-  limiter (5 wrong codes -> 10 minutes, reset by a service restart, which a standard user cannot
-  trigger) and PBKDF2 with 310000 iterations; the stored hash is readable only by SYSTEM and
-  Administrators (an administrator can bypass PC Guard anyway). A fake shell cannot send a
-  release (pipe pin); a student cannot plant a `recovery.hash` (admin-only folder, and the
-  service refuses a file or folder with any other owner or ACL). The plain code is never on
-  disk, on a command line, in a log or an exception message; the hash is on install.ps1's command
-  line during the install (visible to administrators only). Residual: a release is recorded only
-  in the PC's event log (no console audit, no remote end), an administrator with physical access
-  can still remove PC Guard other ways, and the code is a .NET string in the shell and service
-  memory. A squatted pipe while the service is not running could tell the shell to exit, but
-  then nothing is enforced anyway.
+  strong and unique per PC and never the Windows password. Online guessing is bounded by the
+  persistent limiter (5 wrong codes -> 10 min, 1 h, then 24 h lockouts; kept in recovery.attempts,
+  so neither a service restart nor a reboot, which a standard user CAN cause, resets it; at most
+  about 15 guesses on the first day and 5 a day after that). The stored hash is readable only by
+  SYSTEM and Administrators (an administrator can bypass PC Guard anyway) and never appears on a
+  command line or in a PowerShell log (passed as an admin-only file); with the hash, guessing is
+  offline and only PBKDF2 (310000 iterations) and the code rules slow it down. A fake shell
+  cannot send a release (pipe pin); a student cannot plant a `recovery.hash` or
+  `recovery.attempts` (admin-only folder; the service and install.ps1 refuse a file or folder
+  with any other owner or ACL, install.ps1 quarantines an untrusted folder before reading it and
+  never restores an unvalidated hash). The code is single use: the release deletes the hash and
+  a reinstall over a Disabled service never keeps one. The typed code is exposed in the
+  student's session (a low-level keyboard hook needs no rights; an allowed remote-control or
+  screen-recording app; shoulder surfing), which is why it is single use. A pipe-name squatter
+  (service down) is detected by the shell (server pid != the SCM's service pid) and cannot make
+  it exit. The plain code is never on disk, on a command line, in a log or an exception
+  message. Residual: a release is recorded only in the PC's event log (no console audit, no
+  remote end), an administrator with physical access can still remove PC Guard other ways, and
+  the code is a .NET string in the shell and service memory (and the hash in Setup's).
 - Extra allowed apps (4.1) are local and administrator-configured (the install folder is
   admin-writable only) and bypass the lock for that PC only; the server and the teacher console
   do not see them. Adding remote-control software lets someone at the PC use it while the PC is
@@ -452,8 +488,8 @@ privacy search (checklist tests 87 and 88) has not been run.
   and queue, planner, pipe protocol, browser rule, ownership, shell security, UI strings).
   The Windows service, shell and scripts are only compile-checked.
 - Frontend: component tests for the console tabs, in `frontend/src/__tests__/`.
-- Manual: the 155-test Windows VM checklist in `pc-agent/README.md` (tests 120 to 137 cover
-  maintenance mode, 144 to 154 the recovery code).
+- Manual: the 169-test Windows VM checklist in `pc-agent/README.md` (tests 120 to 137 cover
+  maintenance mode, 144 to 154 and 158 to 168 the recovery code, 155 to 157 the startup grace).
 
 ## 11. Delivery order
 
@@ -486,11 +522,13 @@ other time zones). Since then the agent Core suite has grown to 712 tests, inclu
 maintenance mode (code shape, limiter, gate, monotonic deadline, request ids, https-only
 redeem, redeem protocol, pipe messages, strings, rules); with extra allowed apps and the
 recovery code (validation, PBKDF2 vector, verify, gate, prompt, hidden input, pipe messages,
-Setup arguments) it is 872.
+Setup arguments) it is 872; with the startup grace 892; with the recovery-code hardening
+(stricter code rules, persistent escalating limiter, hash-file hand-off, shell server check,
+Setup confirmation) 965.
 
 Never run: the Windows service, the shell and the installer scripts (`install.ps1`,
 `uninstall.ps1`, `publish.ps1`). They compile (0-warning build) but nothing has executed on
-Windows. The 155-test VM checklist in `pc-agent/README.md` must be run before any rollout;
+Windows. The 169-test VM checklist in `pc-agent/README.md` must be run before any rollout;
 treat enforcement, shell protection, the Safe Mode registration, browser address-bar reading
 and the installer rollback as unverified until then.
 
@@ -507,7 +545,8 @@ Accepted or parked risks:
   key: otherwise a locked PC can only be freed through the recovery code (if set), Safe Mode or
   the Cleanup tool.
 - The recovery code switches PC Guard off on that PC for anyone who knows it, until it is
-  installed again; a release is visible only in the PC's event log. Its service, shell dialog,
+  installed again with a new code; it is single use, but typed in the student's session (keylogger,
+  shoulder surfing); a release is visible only in the PC's event log. Its service, shell dialog,
   Setup prompt and install.ps1 handling are only compile-checked / unrun. A window
   lasts up to 4 hours and cannot be ended remotely yet (recommend 15 minutes). The maintenance service, shell dialog and banner are only
   compile-checked.
