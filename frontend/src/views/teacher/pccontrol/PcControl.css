@@ -22,6 +22,7 @@
 .pc-badge.on, .pc-badge.open { background: #dcfce7; color: #166534; }
 .pc-badge.off { background: #eef0f6; color: #6b7384; }
 .pc-badge.locked { background: #fee2e2; color: #991b1b; }
+.pc-badge.maint { background: #fef3c7; color: #92400e; }
 .pc-meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; font-size: .88rem; }
 .pc-meta dt { color: var(--pc-muted); }
 .pc-meta dd { margin: 0; word-break: break-word; }

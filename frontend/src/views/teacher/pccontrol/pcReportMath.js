@@ -118,3 +118,18 @@ export function formatSeen(iso, now, never) {
     const [, mo, da] = tashkentDate(d).split('-');
     return `${da}.${mo} ${hm}`;
 }
+
+// The server may send a naive ISO timestamp; treat it as UTC. Returns epoch ms (NaN if bad).
+export const parseUtc = (iso) => {
+    const s = String(iso || '');
+    return Date.parse(/(Z|[+-]\d\d:?\d\d)$/.test(s) ? s : `${s}Z`);
+};
+
+// Local HH:mm of a server timestamp, or null when it is missing or not after `now`.
+export const maintenanceUntil = (iso, now = Date.now()) => {
+    if (!iso) return null;
+    const ms = parseUtc(iso);
+    if (!(ms > now)) return null;
+    const d = new Date(ms);
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};

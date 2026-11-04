@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useHttp } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { listDevices, patchDevice, sendCommand } from './pcApi';
-import { formatSeen } from './pcReportMath';
+import { formatSeen, maintenanceUntil } from './pcReportMath';
 import useMyGroups from './useMyGroups';
 import { errorMessage } from './pcErrors';
 import MaintenanceCodeModal from './MaintenanceCodeModal';
@@ -247,6 +247,11 @@ export default function DevicesTab() {
                                 {d.locked ? t.locked : t.unlocked}
                             </span>
                             <span className="pc-muted">{reasonText(d.reason)}</span>
+                            {maintenanceUntil(d.maintenance_until) && (
+                                <span className="pc-badge maint" data-testid="pc-maint-badge">
+                                    {t.maintActive.replace('{hm}', maintenanceUntil(d.maintenance_until))}
+                                </span>
+                            )}
                         </div>
                         <dl className="pc-meta">
                             <dt>{t.student}</dt>

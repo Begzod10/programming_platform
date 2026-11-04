@@ -40,9 +40,9 @@ beforeEach(() => {
 afterEach(() => { jest.useRealTimers(); });
 
 describe('maintenance code', () => {
-    it('button opens the modal with 1 h preselected', async () => {
+    it('button opens the modal with 15 min preselected', async () => {
         const dlg = await open();
-        expect(within(dlg).getByRole('combobox')).toHaveValue('60');
+        expect(within(dlg).getByRole('combobox')).toHaveValue('15');
         expect(within(dlg).getAllByRole('option').map(o => o.value)).toEqual(['15', '60', '240']);
     });
 
@@ -99,5 +99,12 @@ describe('maintenance code', () => {
         fireEvent.click(screen.getByRole('button', { name: new RegExp(S.maintCode) }));
         expect(screen.queryByTestId('pc-maint-code')).toBeNull();
         expect(JSON.stringify(localStorage)).not.toMatch(/123456/);
+    });
+
+    it('creating without changing the duration sends 15 minutes', async () => {
+        api.createMaintenanceCode.mockResolvedValue(created());
+        const dlg = await open();
+        await create(dlg);
+        expect(api.createMaintenanceCode).toHaveBeenCalledWith(expect.anything(), 7, 15);
     });
 });

@@ -1,14 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createMaintenanceCode } from './pcApi';
 import { maintenanceError } from './pcErrors';
+import { parseUtc as parseExpiry } from './pcReportMath';
 
 const OPTIONS = [[15, 'maint15'], [60, 'maint60'], [240, 'maint240']];
 
-// The server may send a naive ISO timestamp; treat it as UTC.
-const parseExpiry = (iso) => {
-    const s = String(iso || '');
-    return Date.parse(/(Z|[+-]\d\d:?\d\d)$/.test(s) ? s : `${s}Z`);
-};
 const fmtLeft = (ms) => {
     const total = Math.max(0, Math.ceil(ms / 1000));
     return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
@@ -18,7 +14,7 @@ const spaced = (c) => (c.length === 6 ? `${c.slice(0, 3)} ${c.slice(3)}` : c);
 // The plain code lives in component state only: never stored, logged or put
 // in a URL. Unmounting (close) drops it.
 export default function MaintenanceCodeModal({ request, device, t, onClose }) {
-    const [minutes, setMinutes] = useState(60);
+    const [minutes, setMinutes] = useState(15);   // short by default: the PC is unrestricted while it lasts
     const [busy, setBusy] = useState(false);
     const [result, setResult] = useState(null);   // { code, expiresAt }
     const [error, setError] = useState(null);

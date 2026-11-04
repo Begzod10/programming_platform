@@ -251,6 +251,35 @@ describe('DevicesTab', () => {
         expect(within(sel).getByRole('option', { name: new RegExp(S.otherGroup) })).toBeDisabled();
     });
 
+    describe('maintenance badge', () => {
+        const hm = (ms) => {
+            const d = new Date(ms);
+            return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        };
+        it('shows "until HH:mm" for a device in maintenance (ru)', async () => {
+            const until = clock.now + 15 * 60 * 1000;
+            await setup([dev({ maintenance_until: new Date(until).toISOString() })]);
+            const card = screen.getByTestId('pc-card-1');
+            expect(within(card).getByTestId('pc-maint-badge')).toHaveTextContent(`Режим обслуживания до ${hm(until)}`);
+        });
+        it('uz wording', async () => {
+            localStorage.setItem('lang', 'uz');
+            const until = clock.now + 60 * 60 * 1000;
+            await setup([dev({ maintenance_until: new Date(until).toISOString() })]);
+            expect(screen.getByTestId('pc-maint-badge')).toHaveTextContent(`Texnik rejim ${hm(until)} gacha`);
+        });
+        it('treats a naive timestamp as UTC', async () => {
+            const until = clock.now + 15 * 60 * 1000;
+            await setup([dev({ maintenance_until: new Date(until).toISOString().replace('Z', '') })]);
+            expect(screen.getByTestId('pc-maint-badge')).toHaveTextContent(hm(until));
+        });
+        it('no badge when null or already passed', async () => {
+            await setup([dev({ maintenance_until: null }),
+                dev({ id: 2, hostname: 'LAB-02', maintenance_until: new Date(clock.now - 1000).toISOString() })]);
+            expect(screen.queryByTestId('pc-maint-badge')).toBeNull();
+        });
+    });
+
     describe('Part C fix wave', () => {
         const bar = () => screen.getByTestId('pc-all-bar');
         it('confirm tap at 100 ms is ignored (stays armed), at 700 ms sends once', async () => {
