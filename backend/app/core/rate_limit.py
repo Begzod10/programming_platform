@@ -62,3 +62,40 @@ def rate_limit(max_calls: int, window_seconds: int = 60):
             _counters[key].append(now)
 
     return _check
+
+
+# ── Failure-based lockout (same in-memory store and caveats as rate_limit) ────
+
+def _clock() -> float:
+    return time.monotonic()
+
+
+def client_ip(request: Request) -> str:
+    return _client_ip(request)
+
+
+def failure_block_active(scope: str, key: str) -> bool:
+    """True while `key` is blocked in `scope` (set by record_failure)."""
+    now = _clock()
+    with _lock:
+        until = _counters.get(("block", scope, key))
+        if until and until[0] > now:
+            return True
+        _counters.pop(("block", scope, key), None)
+        return False
+
+
+def record_failure(scope: str, key: str, max_failures: int, block_seconds: int) -> None:
+    """Count one failure for `key`; the `max_failures`-th within `block_seconds` blocks the
+    key for `block_seconds` from that moment (see failure_block_active)."""
+    now = _clock()
+    cutoff = now - block_seconds
+    fkey = ("fail", scope, key)
+    with _lock:
+        recent = [t for t in _counters[fkey] if t > cutoff]
+        recent.append(now)
+        if len(recent) >= max_failures:
+            _counters[("block", scope, key)] = [now + block_seconds]
+            _counters.pop(fkey, None)
+        else:
+            _counters[fkey] = recent

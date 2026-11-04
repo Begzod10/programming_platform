@@ -60,6 +60,7 @@ from app.models.pc_control import (  # noqa: F401  registers tables for create_a
     PcSession,
     PcUsageEvent,
     PcCommand,
+    PcMaintenanceCode,
 )
 
 __all__ = [

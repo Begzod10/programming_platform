@@ -7,18 +7,19 @@ import logging
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, status
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.rate_limit import rate_limit
+from app.core.rate_limit import client_ip, failure_block_active, rate_limit, record_failure
 from app.core.security import create_pc_token, decode_pc_token
 from app.db.session import get_db
 from app.models.pc_control import PcDevice, PcSession, PcUsageEvent
 from app.models.user import Student, UserRole
-from app.services import auth_service
+from app.services import auth_service, pc_maintenance_service
 from app.services.pc_lock_service import compute_state
 from app.ws.manager import pc_ws_manager
 
@@ -162,6 +163,39 @@ async def pc_login(
         "token": create_pc_token(device.id, student.id, sess.id),
         "state": await compute_state(db, device),
     }
+
+
+class MaintenanceRedeemIn(BaseModel):
+    machine_key: str = Field(min_length=1, max_length=512)
+    code: str = Field(max_length=64)  # any string; a malformed code is just a wrong code
+
+
+REDEEM_MAX_FAILURES = 5
+REDEEM_BLOCK_SECONDS = 600
+
+
+@router.post("/maintenance/redeem")
+async def pc_maintenance_redeem(
+        body: MaintenanceRedeemIn,
+        request: Request,
+        db: AsyncSession = Depends(get_db),
+):
+    """No bearer token: a signed-out agent only knows its machine_key. Every failure answers
+    the same 403 {"detail":"invalid_code"}; 5 failures per machine_key or per client IP block
+    further attempts with 429 for 10 minutes (blocked attempts are not validated at all)."""
+    mk_key = pc_maintenance_service.machine_key_hash(body.machine_key)
+    ip = client_ip(request)
+    if (failure_block_active("pc-maint-mk", mk_key)
+            or failure_block_active("pc-maint-ip", ip)):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Too many attempts; try again later")
+    minutes = await pc_maintenance_service.redeem_code(db, body.machine_key, body.code)
+    if minutes is None:
+        record_failure("pc-maint-mk", mk_key, REDEEM_MAX_FAILURES, REDEEM_BLOCK_SECONDS)
+        record_failure("pc-maint-ip", ip, REDEEM_MAX_FAILURES, REDEEM_BLOCK_SECONDS)
+        # Plain JSONResponse, not HTTPException: the global handler would wrap the body, and the
+        # agent contract is exactly {"detail": "invalid_code"} for every failure.
+        return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content={"detail": "invalid_code"})
+    return {"minutes": minutes}
 
 
 @router.post("/logout")

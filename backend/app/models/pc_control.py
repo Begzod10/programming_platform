@@ -76,3 +76,27 @@ class PcCommand(Base):
     payload: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_by: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PcMaintenanceCode(Base):
+    """One-time code a teacher issues so one PC's agent stops blocking for `minutes`.
+
+    Only an HMAC of the code is stored (see pc_maintenance_service). `used_at` is set when
+    the code is redeemed, superseded by a newer code, or burnt by too many wrong guesses."""
+    __tablename__ = "pc_maintenance_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    device_id: Mapped[int] = mapped_column(
+        ForeignKey("pc_devices.id", ondelete="CASCADE"), nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    salt: Mapped[str] = mapped_column(String(64), nullable=False)
+    minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_by_user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+    __table_args__ = (
+        Index("ix_pc_maintenance_codes_device_created", "device_id", "created_at"),
+    )

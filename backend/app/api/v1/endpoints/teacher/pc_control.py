@@ -11,7 +11,7 @@ from app.dependencies import get_db, get_current_teacher
 from app.models.group import Group
 from app.models.pc_control import PcCommand, PcDevice, PcSession
 from app.models.user import Student
-from app.services import pc_allowlist_service, pc_push_service, pc_report_service
+from app.services import pc_allowlist_service, pc_maintenance_service, pc_push_service, pc_report_service
 from app.services.pc_lock_service import compute_state
 from app.services.teacher_students import teacher_student_ids_subquery
 from app.ws.manager import pc_ws_manager
@@ -201,6 +201,30 @@ async def create_command(
     await db.commit()
     return {"id": cmd.id, "scope_type": cmd.scope_type, "scope_id": cmd.scope_id,
             "type": cmd.type, "payload": cmd.payload}
+
+
+class MaintenanceCodeIn(BaseModel):
+    minutes: Literal[15, 60, 240] = 60
+
+
+@router.post("/devices/{device_id}/maintenance-code", status_code=201)
+async def issue_maintenance_code(
+    device_id: int,
+    body: Optional[MaintenanceCodeIn] = None,
+    db: AsyncSession = Depends(get_db),
+    teacher: Student = Depends(get_current_teacher),
+):
+    """One-time code that puts this (shared) device into maintenance mode when the agent
+    redeems it. The plain code is returned only here; nothing is pushed to the PC."""
+    device = await db.get(PcDevice, device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="Device not found")
+    minutes = (body or MaintenanceCodeIn()).minutes
+    try:
+        code, row = await pc_maintenance_service.issue_code(db, device, minutes, teacher.id)
+    except pc_maintenance_service.IssueLimitExceeded:
+        raise HTTPException(status_code=429, detail="Too many maintenance codes for this device; try later")
+    return {"code": code, "expires_at": _aware(row.expires_at).isoformat(), "minutes": row.minutes}
 
 
 MAX_REPORT_DAYS = 31
