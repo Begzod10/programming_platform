@@ -18,6 +18,9 @@ public partial class App : Application
     private SnapshotSender? _sender;
     private LoginWindow? _login;
     private LockOverlay? _overlay;
+    private MaintenanceBanner? _banner;
+    private MaintenanceDialog? _dialog;
+    private DateTimeOffset? _maintenanceUntil; // set while the service reports maintenance mode active
     private readonly Queue<string> _messages = new();
     private bool _popupOpen;
     private UiLang _lang = UiLang.Uz;
@@ -58,6 +61,9 @@ public partial class App : Application
         _login = new LoginWindow(_lang) { Sender = m => _pipe?.SendAsync(m) ?? Task.FromResult(false) };
         _login.LanguageChanged += OnLanguageChanged;
         _overlay = new LockOverlay(_lang) { SignOutRequested = () => _ = _pipe?.SendAsync(new LogoutMessage()) };
+        _login.AdminRequested += () => OpenMaintenanceDialog(_login);
+        _overlay.AdminRequested = () => OpenMaintenanceDialog(_overlay);
+        _banner = new MaintenanceBanner(_lang) { EndRequested = () => _ = _pipe?.SendAsync(new AdminEndMessage()) };
         _login.SetConnected(false);
         _login.Show();
 
@@ -75,13 +81,19 @@ public partial class App : Application
         _lang = lang;
         _overlay?.SetLanguage(lang);
         _login?.SetLanguage(lang);
+        _banner?.SetLanguage(lang);
+        _dialog?.SetLanguage(lang);
         UpdateWindows();
     }
 
     private void OnConnection(bool connected)
     {
         _connected = connected;
-        if (!connected) _state = null; // a restarted service starts signed out; wait for its state
+        if (!connected)
+        {
+            _state = null; // a restarted service starts signed out; wait for its state
+            _maintenanceUntil = null; // and maintenance is memory-only there: a restart re-locks
+        }
         _login?.SetConnected(connected);
         UpdateWindows();
     }
@@ -101,6 +113,13 @@ public partial class App : Application
             case TextMessage t:
                 EnqueueMessage(t.Text);
                 break;
+            case AdminResultMessage r:
+                _dialog?.ShowResult(r);
+                break;
+            case MaintenanceMessage m:
+                _maintenanceUntil = m.Active ? m.UntilUtc : null;
+                UpdateWindows();
+                break;
             case CloseWindowMessage c:
                 _ = Task.Run(() => WindowEnumerator.Close(c.Hwnd));
                 break;
@@ -110,12 +129,47 @@ public partial class App : Application
     private void UpdateWindows(bool forceHideLogin = false)
     {
         var signedIn = _connected && _state?.Student is not null;
-        if (signedIn || forceHideLogin) _login?.HideLogin();
+        var maintenance = _connected && _maintenanceUntil is not null;
+        // maintenance mode: no sign-in lock at all (a signed-in student keeps the name banner)
+        if (signedIn || maintenance || forceHideLogin) _login?.HideLogin();
         else _login?.ShowLogin();
 
         // visible whenever a student is signed in (so an unlocked student can still sign out)
         if (signedIn) _overlay?.ShowFor(_state!.Student!, _state.Remaining, _state.Locked);
         else _overlay?.HideOverlay();
+
+        if (maintenance) _banner?.ShowUntil(_maintenanceUntil!.Value);
+        else _banner?.HideBanner();
+
+        // the dialog is pointless once maintenance is on, without a service, or when its window went away
+        if (_dialog is { } d && (maintenance || !_connected || d.Owner is not { IsVisible: true }))
+            d.Close();
+    }
+
+    private void OpenMaintenanceDialog(Window owner)
+    {
+        if (!_connected || _maintenanceUntil is not null || !owner.IsVisible) return;
+        if (_dialog is { } open)
+        {
+            try { open.Activate(); } catch (InvalidOperationException) { }
+            return;
+        }
+
+        var dialog = new MaintenanceDialog(_lang)
+        {
+            Owner = owner, // owned: always above the topmost owner, even when it re-asserts its z-order
+            Sender = m => _pipe?.SendAsync(m) ?? Task.FromResult(false),
+        };
+        _dialog = dialog;
+        if (_login is not null) _login.DialogOpen = true;
+        dialog.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_dialog, dialog)) _dialog = null;
+            if (_login is null) return;
+            _login.DialogOpen = false;
+            if (_login.IsVisible) _login.ActivateSafe();
+        };
+        dialog.Show();
     }
 
     private void EnqueueMessage(string text)

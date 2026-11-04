@@ -11,6 +11,12 @@ namespace PcGuard.Service;
 /// The shell is only the service's eyes (snapshots); every decision is made here
 /// (<see cref="EnforcementPlanner"/>). Without a fresh snapshot the planner falls back to stricter
 /// name-only enforcement and the shell is relaunched.
+///
+/// Maintenance mode (teacher code): the shell forwards a one-time code (maintenance_redeem), the
+/// command loop checks it with the backend (POST /pc/maintenance/redeem, 10 s timeout) behind a
+/// local limiter, and on success enforcement is suspended (rules Locked=false) for the 15, 60 or 240
+/// minutes the server returned. In memory only: it ends at expiry, on admin_end, when the clock is
+/// set back, or with the service. The code is never logged or written to disk.
 /// </summary>
 internal sealed class GuardWorker : BackgroundService
 {
@@ -23,6 +29,7 @@ internal sealed class GuardWorker : BackgroundService
     private sealed record LogoutCmd : Command;
     private sealed record UploadCmd : Command;
     private sealed record TokenDeadCmd(int Generation) : Command;
+    private sealed record RedeemCmd : Command;
 
     private sealed class Session
     {
@@ -52,6 +59,16 @@ internal sealed class GuardWorker : BackgroundService
     private readonly object _loginLock = new();
     private LoginMessage? _pendingLogin;
     private int _loginQueued;
+
+    // Maintenance mode (teacher code), memory only. _maintenance is thread-safe; the gate and its
+    // limiter are used from the command loop only. The latest pending code is held (like a pending
+    // login) only until the command loop takes it; _redeemQueued keeps at most one RedeemCmd queued.
+    private readonly MaintenanceMode _maintenance = new();
+    private readonly MaintenanceCodeGate _redeemGate;
+    private readonly object _redeemLock = new();
+    private string? _pendingCode;
+    private int _redeemQueued;
+    private MaintenanceMessage? _lastMaintenanceSent; // guarded by _stateLock
 
     // Tag -> token for the current (ClosedAt null) and recently closed sessions, memory only.
     private readonly object _sessionsLock = new();
@@ -85,6 +102,7 @@ internal sealed class GuardWorker : BackgroundService
     public GuardWorker(ILogger<GuardWorker> log, IConfiguration config)
     {
         _log = log;
+        _redeemGate = new MaintenanceCodeGate(_maintenance, new AdminAttemptLimiter());
         var raw = config["Backend:BaseUrl"];
         if (!Uri.TryCreate(raw, UriKind.Absolute, out var u) || u.Scheme is not ("https" or "http"))
         {
@@ -141,7 +159,11 @@ internal sealed class GuardWorker : BackgroundService
         foreach (var tag in _queue.Tags()) _queue.DropTag(tag);
 
         _pipe.MessageReceived += OnPipeMessageAsync;
-        _pipe.ClientConnected += _ => PushStateAsync(force: true);
+        _pipe.ClientConnected += async _ =>
+        {
+            await PushStateAsync(force: true).ConfigureAwait(false);
+            await PushMaintenanceAsync(force: true).ConfigureAwait(false);
+        };
 
         _log.LogInformation("PC Guard started (queued usage events after startup purge: {Count})", _queue.Count);
 
@@ -164,6 +186,10 @@ internal sealed class GuardWorker : BackgroundService
         finally
         {
             _session?.WsCts.Cancel();
+            // maintenance is memory-only: a restart always re-locks
+            if (_maintenance.IsActive(_clock()))
+                _log.LogInformation("{Audit}", MaintenanceAudit.Ended(MaintenanceEndReason.ServiceStopped));
+            _maintenance.End();
             await Task.WhenAll(Quiet(pipeTask), Quiet(commandTask), Quiet(uploadTask)).ConfigureAwait(false);
             // capture what was tracked under the current session's tag; never delete the rule cache
             // (the PC must stay locked after a stop). On the next start these are purged anyway.
@@ -185,7 +211,8 @@ internal sealed class GuardWorker : BackgroundService
     private void Tick(CancellationToken stopping)
     {
         var now = _clock();
-        var rules = Effective();
+        ExpireMaintenance(now);
+        var rules = Effective(now);
         var console = Native.ActiveConsoleSessionId();
 
         // Console session changed (fast user switch / sign-in): the old shell and its snapshots belong
@@ -237,9 +264,15 @@ internal sealed class GuardWorker : BackgroundService
         _supervisor.Supervise(now, _shellMissingSince, lastSnap, lastAlive, console, procs.ShellPids);
 
         _ = PushStateAsync(force: false);
+        _ = PushMaintenanceAsync(force: false);
     }
 
-    private PcRules Effective()
+    /// <summary>Rules as the server and the cache say, plus the maintenance override.</summary>
+    private PcRules Effective() => Effective(_clock());
+
+    private PcRules Effective(DateTimeOffset now) => SessionRules.WithMaintenance(ServerRules(), _maintenance.IsActive(now));
+
+    private PcRules ServerRules()
     {
         var s = _session;
         var cached = _cache.Current();
@@ -269,6 +302,107 @@ internal sealed class GuardWorker : BackgroundService
         if (!await _pipe.SendAsync(msg).ConfigureAwait(false))
         {
             lock (_stateLock) { if (_lastStateSent == msg) _lastStateSent = null; } // resend when a shell is back
+        }
+    }
+
+    // ---------------- maintenance mode ----------------
+
+    private void ExpireMaintenance(DateTimeOffset now)
+    {
+        var until = _maintenance.Until;
+        if (!_maintenance.TryExpire(now)) return;
+        // still before its end but no longer active: the clock was set back before the start
+        var reason = until is { } u && now < u ? MaintenanceEndReason.ClockSetBack : MaintenanceEndReason.Expired;
+        _log.LogInformation("{Audit}", MaintenanceAudit.Ended(reason));
+        _ = PushMaintenanceAsync(force: true);
+    }
+
+    private void EndMaintenanceOnPc()
+    {
+        if (!_maintenance.End()) return;
+        _log.LogInformation("{Audit}", MaintenanceAudit.Ended(MaintenanceEndReason.EndedOnPc));
+        // re-lock now: the shell gets the locked state at once, enforcement follows on the next tick (<= 2 s)
+        _ = PushMaintenanceAsync(force: true);
+        _ = PushStateAsync(force: true);
+    }
+
+    private async Task PushMaintenanceAsync(bool force)
+    {
+        var now = _clock();
+        var active = _maintenance.IsActive(now);
+        var msg = new MaintenanceMessage(active, active ? _maintenance.Until : null);
+        lock (_stateLock)
+        {
+            if (!force && msg == _lastMaintenanceSent) return;
+            _lastMaintenanceSent = msg;
+        }
+        if (!await _pipe.SendAsync(msg).ConfigureAwait(false))
+        {
+            lock (_stateLock) { if (_lastMaintenanceSent == msg) _lastMaintenanceSent = null; }
+        }
+    }
+
+    /// <summary>
+    /// One redemption on the command loop (serialised with sign-in). Lockout and code shape are
+    /// checked before any network call; the HTTP call has its own 10 s timeout. The shell always
+    /// gets exactly one admin_result. The code is never logged.
+    /// </summary>
+    private async Task RedeemAsync(string code, CancellationToken ct)
+    {
+        var produced = false;
+        try
+        {
+            var failuresBefore = _redeemGate.ConsecutiveFailures;
+            var pre = _redeemGate.Precheck(_clock(), code);
+            if (pre is not null)
+            {
+                AuditFailure(pre, counted: _redeemGate.ConsecutiveFailures > failuresBefore);
+                produced = true;
+                await _pipe.SendAsync(pre).ConfigureAwait(false);
+                return;
+            }
+
+            var result = await _backend.RedeemMaintenanceCodeAsync(_machineKey, code, ct).ConfigureAwait(false);
+            failuresBefore = _redeemGate.ConsecutiveFailures;
+            var reply = _redeemGate.Complete(_clock(), result);
+            if (reply.Ok && _maintenance.Until is { } until)
+                _log.LogInformation("{Audit}", MaintenanceAudit.Started(result.Minutes, until));
+            else if (!reply.Ok)
+                AuditFailure(reply, counted: _redeemGate.ConsecutiveFailures > failuresBefore);
+
+            produced = true;
+            await _pipe.SendAsync(reply).ConfigureAwait(false);
+            if (reply.Ok)
+            {
+                await PushMaintenanceAsync(force: true).ConfigureAwait(false);
+                await PushStateAsync(force: true).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            if (!produced && !ct.IsCancellationRequested)
+                await _pipe.SendAsync(new AdminResultMessage(false, AdminErrors.Error, 0)).ConfigureAwait(false);
+        }
+    }
+
+    /// <param name="counted">This attempt was counted as a failure (so a locked_out reply means it started the lockout).</param>
+    private void AuditFailure(AdminResultMessage reply, bool counted)
+    {
+        switch (reply.Error)
+        {
+            case AdminErrors.InvalidCode:
+                _log.LogWarning("{Audit}", MaintenanceAudit.Rejected(_redeemGate.ConsecutiveFailures));
+                break;
+            case AdminErrors.LockedOut when counted:
+                _log.LogWarning("{Audit}", MaintenanceAudit.Rejected(_redeemGate.ConsecutiveFailures));
+                _log.LogWarning("{Audit}", MaintenanceAudit.LockedOut());
+                break;
+            case AdminErrors.LockedOut:
+                _log.LogInformation("{Audit}", MaintenanceAudit.RefusedLockedOut(reply.RetrySeconds));
+                break;
+            case { } other:
+                _log.LogInformation("{Audit}", MaintenanceAudit.NotChecked(other));
+                break;
         }
     }
 
@@ -306,6 +440,17 @@ internal sealed class GuardWorker : BackgroundService
             case LogoutMessage:
                 _commands.Writer.TryWrite(new LogoutCmd());
                 break;
+            case MaintenanceRedeemMessage r:
+                // only the pinned, verified shell reaches this handler at all (PipeServer gate); like
+                // snapshots, a frame from a replaced client is dropped too. Only the latest code is kept.
+                if (_pipe.ActiveClientPid != clientPid) break;
+                lock (_redeemLock) _pendingCode = r.Code;
+                if (Interlocked.Exchange(ref _redeemQueued, 1) == 0) _commands.Writer.TryWrite(new RedeemCmd());
+                break;
+            case AdminEndMessage:
+                if (_pipe.ActiveClientPid != clientPid) break;
+                EndMaintenanceOnPc();
+                break;
             default:
                 _log.LogDebug("Ignoring pipe message of kind {Kind}", message.T);
                 break;
@@ -335,6 +480,12 @@ internal sealed class GuardWorker : BackgroundService
                         LoginMessage? login;
                         lock (_loginLock) { login = _pendingLogin; _pendingLogin = null; }
                         if (login is not null) await LoginAsync(login, ct).ConfigureAwait(false);
+                        break;
+                    case RedeemCmd:
+                        Interlocked.Exchange(ref _redeemQueued, 0);
+                        string? code;
+                        lock (_redeemLock) { code = _pendingCode; _pendingCode = null; }
+                        if (code is not null) await RedeemAsync(code, ct).ConfigureAwait(false);
                         break;
                     case LogoutCmd: await SignOutAsync(callLogout: true, ct).ConfigureAwait(false); break;
                     case UploadCmd: await UploadTickAsync(ct).ConfigureAwait(false); break;

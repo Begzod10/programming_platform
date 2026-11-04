@@ -10,6 +10,8 @@ namespace PcGuard.Shell;
 /// the user (Closing is always cancelled); it is only hidden after a successful sign-in.
 /// The password lives in the PasswordBox and in one local variable for the duration of the pipe
 /// write; the box is cleared before the write is awaited.
+/// The "Administrator" link opens the maintenance code dialog (owned by this window). While it is
+/// open (<see cref="DialogOpen"/>) this window does not take the focus back.
 /// </summary>
 public partial class LoginWindow : Window
 {
@@ -25,6 +27,10 @@ public partial class LoginWindow : Window
 
     internal Func<PipeMessage, Task<bool>>? Sender { get; set; }
     internal event Action<UiLang>? LanguageChanged;
+    internal event Action? AdminRequested;
+
+    /// <summary>Set while the maintenance dialog is open: never re-activate over it.</summary>
+    internal bool DialogOpen { get; set; }
 
     internal LoginWindow(UiLang lang)
     {
@@ -43,10 +49,14 @@ public partial class LoginWindow : Window
             Native.SetExStyle(h, Native.GetExStyle(h) | Native.WS_EX_TOOLWINDOW); // all virtual desktops
             Cover();
         };
-        Deactivated += (_, _) => { if (IsVisible) Dispatcher.BeginInvoke(ActivateSafe, DispatcherPriority.Background); };
+        Deactivated += (_, _) =>
+        {
+            if (IsVisible && !DialogOpen)
+                Dispatcher.BeginInvoke(() => { if (!DialogOpen) ActivateSafe(); }, DispatcherPriority.Background);
+        };
         IsVisibleChanged += (_, _) =>
         {
-            if (IsVisible) { _keepOnTop.Start(); Cover(); ActivateSafe(); UserBox.Focus(); }
+            if (IsVisible) { _keepOnTop.Start(); Cover(); if (!DialogOpen) { ActivateSafe(); UserBox.Focus(); } }
             else _keepOnTop.Stop();
         };
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += (_, _) => Dispatcher.BeginInvoke(Cover);
@@ -54,7 +64,7 @@ public partial class LoginWindow : Window
         ApplyLanguage();
     }
 
-    private void ActivateSafe()
+    internal void ActivateSafe()
     {
         try { Activate(); } catch (InvalidOperationException) { }
     }
@@ -133,6 +143,8 @@ public partial class LoginWindow : Window
         PwLabel.Text = UiStrings.PasswordLabel(_lang);
         LoginButton.Content = UiStrings.LoginButton(_lang);
         NoticeText.Text = UiStrings.Notice(_lang);
+        AdminLinkText.Text = UiStrings.AdminLink(_lang);
+        AdminLink.IsEnabled = _connected;
         ConnectingText.Text = UiStrings.Connecting(_lang);
         ConnectingText.Visibility = _connected ? Visibility.Collapsed : Visibility.Visible;
         ErrorText.Text = _hasError ? UiStrings.LoginError(_lang, _errorCode) : "";
@@ -148,6 +160,11 @@ public partial class LoginWindow : Window
         _lang = _lang == UiLang.Uz ? UiLang.Ru : UiLang.Uz;
         ApplyLanguage();
         LanguageChanged?.Invoke(_lang);
+    }
+
+    private void OnAdminClick(object sender, RoutedEventArgs e)
+    {
+        if (_connected) AdminRequested?.Invoke();
     }
 
     private async void OnLoginClick(object sender, RoutedEventArgs e)

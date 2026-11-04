@@ -5,7 +5,10 @@ using PcGuard.Core;
 
 namespace PcGuard.Shell;
 
-/// <summary>Small always-on-top banner (top centre) while the student is signed in and locked.</summary>
+/// <summary>
+/// Small always-on-top banner (top centre) while a student is signed in. Also carries the
+/// "Administrator" link (maintenance code) because the sign-in window is hidden while signed in.
+/// </summary>
 public partial class LockOverlay : Window
 {
     private readonly DispatcherTimer _keepOnTop;
@@ -15,6 +18,7 @@ public partial class LockOverlay : Window
     private bool _locked;
 
     internal Action? SignOutRequested { get; set; }
+    internal Action? AdminRequested { get; set; }
 
     internal LockOverlay(UiLang lang)
     {
@@ -60,6 +64,7 @@ public partial class LockOverlay : Window
         RemainingText.Text = UiStrings.Banner(_lang, _remaining);
         RemainingText.Visibility = _locked ? Visibility.Visible : Visibility.Collapsed; // unlocked: name + sign-out only
         SignOutButton.Content = UiStrings.SignOut(_lang);
+        AdminLinkText.Text = UiStrings.AdminLink(_lang);
     }
 
     private void Reposition()
@@ -78,4 +83,6 @@ public partial class LockOverlay : Window
     }
 
     private void OnSignOut(object sender, RoutedEventArgs e) => SignOutRequested?.Invoke();
+
+    private void OnAdminClick(object sender, RoutedEventArgs e) => AdminRequested?.Invoke();
 }

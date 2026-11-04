@@ -11,5 +11,8 @@
         </StackPanel>
         <Button x:Name="SignOutButton" Margin="20,0,0,0" Padding="12,4" VerticalAlignment="Center"
                 Click="OnSignOut" />
+        <TextBlock Margin="14,0,0,0" VerticalAlignment="Center" FontSize="13">
+            <Hyperlink x:Name="AdminLink" Foreground="#FF8FB8E0" Click="OnAdminClick"><Run x:Name="AdminLinkText" /></Hyperlink>
+        </TextBlock>
     </StackPanel>
 </Window>

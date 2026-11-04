@@ -19,6 +19,10 @@
                        Margin="0,16,0,0" Visibility="Collapsed" />
         </StackPanel>
 
+        <TextBlock HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="24,0,0,32" FontSize="14">
+            <Hyperlink x:Name="AdminLink" Foreground="#FF8FB8E0" Click="OnAdminClick"><Run x:Name="AdminLinkText" /></Hyperlink>
+        </TextBlock>
+
         <TextBlock x:Name="NoticeText" Foreground="#FFB0B8C0" FontSize="14" TextWrapping="Wrap"
                    TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Bottom"
                    MaxWidth="900" Margin="24,0,24,32" />

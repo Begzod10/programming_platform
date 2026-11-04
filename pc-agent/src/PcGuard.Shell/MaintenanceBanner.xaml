@@ -1,0 +1,11 @@
+<Window x:Class="PcGuard.Shell.MaintenanceBanner"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        ShowActivated="False" SizeToContent="WidthAndHeight" Background="#FF8A5A00"
+        AllowsTransparency="False" Title="PcGuard">
+    <StackPanel Orientation="Horizontal" Margin="16,8">
+        <TextBlock x:Name="BannerText" Foreground="White" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <Button x:Name="EndButton" Margin="20,0,0,0" Padding="12,4" VerticalAlignment="Center" Click="OnEnd" />
+    </StackPanel>
+</Window>

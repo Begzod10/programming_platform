@@ -82,6 +82,52 @@ public sealed class BackendClient : IDisposable
         }
     }
 
+    private static readonly TimeSpan RedeemTimeout = TimeSpan.FromSeconds(10);
+    private const int MaxRedeemResponseBytes = 4096;
+
+    /// <summary>
+    /// POST /pc/maintenance/redeem (no token: a signed-out PC only knows its machine key), at most
+    /// 10 s. Never throws except when <paramref name="ct"/> is cancelled. The code lives only in this
+    /// call's arguments and the request content; it is never logged (only the HTTP status is).
+    /// </summary>
+    public async Task<MaintenanceRedeemResult> RedeemMaintenanceCodeAsync(string machineKey, string code, CancellationToken ct)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(RedeemTimeout);
+        try
+        {
+            using var content = new StringContent(BackendProtocol.MaintenanceRedeemBody(machineKey, code), Encoding.UTF8);
+            content.Headers.ContentType = Json;
+            using var resp = await _http.PostAsync(BackendProtocol.Endpoint(_base, BackendProtocol.MaintenanceRedeemPath), content, timeout.Token)
+                .ConfigureAwait(false);
+            var status = (int)resp.StatusCode;
+            string? body = null;
+            if (status == 200 && resp.Content.Headers.ContentLength is null or <= MaxRedeemResponseBytes)
+            {
+                body = await resp.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
+                if (body.Length > MaxRedeemResponseBytes) body = null; // classified as Error
+            }
+            var result = BackendProtocol.ClassifyMaintenanceRedeem(status, body);
+            if (result.Status != MaintenanceRedeemStatus.Ok)
+                _log.LogInformation("Maintenance code redemption answered HTTP {Status} -> {Result}", status, result.Status);
+            return result;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException or OperationCanceledException or IOException)
+        {
+            _log.LogWarning("Maintenance code redemption failed: {Error}", e.GetType().Name);
+            return MaintenanceRedeemResult.Offline;
+        }
+        catch (Exception e)
+        {
+            _log.LogWarning("Maintenance code redemption failed unexpectedly: {Error}", e.GetType().Name);
+            return MaintenanceRedeemResult.Error;
+        }
+    }
+
     /// <summary>Best effort; returns false on any failure.</summary>
     public async Task<bool> LogoutAsync(string token, CancellationToken ct)
     {
