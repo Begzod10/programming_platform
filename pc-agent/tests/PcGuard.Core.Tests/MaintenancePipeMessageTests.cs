@@ -15,10 +15,11 @@ public class MaintenancePipeMessageTests
     [Fact]
     public void RedeemRoundTripsWithExactWireFormat()
     {
-        Assert.Equal("{\"t\":\"maintenance_redeem\",\"code\":\"123456\"}",
-            PipeMessage.Serialize(new MaintenanceRedeemMessage("123456")));
-        var m = RoundTrip(new MaintenanceRedeemMessage("004200"));
+        Assert.Equal("{\"t\":\"maintenance_redeem\",\"id\":7,\"code\":\"123456\"}",
+            PipeMessage.Serialize(new MaintenanceRedeemMessage(7, "123456")));
+        var m = RoundTrip(new MaintenanceRedeemMessage(42, "004200"));
         Assert.Equal("maintenance_redeem", m.T);
+        Assert.Equal(42, m.Id);
         Assert.Equal("004200", m.Code);
     }
 
@@ -26,16 +27,17 @@ public class MaintenancePipeMessageTests
     public void RedeemKeepsAnyStringForTheServiceToValidate()
     {
         // the pipe does not validate the shape: the service rejects it with invalid_code (MaintenanceCode)
-        var m = Assert.IsType<MaintenanceRedeemMessage>(PipeMessage.Parse("{\"t\":\"maintenance_redeem\",\"code\":\"12a\"}"));
+        var m = Assert.IsType<MaintenanceRedeemMessage>(PipeMessage.Parse("{\"t\":\"maintenance_redeem\",\"id\":1,\"code\":\"12a\"}"));
         Assert.Equal("12a", m.Code);
     }
 
     [Fact]
     public void RedeemToStringNeverContainsTheCode()
     {
-        var m = new MaintenanceRedeemMessage("987654");
+        var m = new MaintenanceRedeemMessage(5, "987654");
         Assert.DoesNotContain("987654", m.ToString());
         Assert.Contains("***", m.ToString());
+        Assert.Contains("Id = 5", m.ToString());
         Assert.DoesNotContain("987654", $"{new[] { m }.Single()}");
         Assert.DoesNotContain("987654", new Wrapper(m).ToString());
     }
@@ -49,10 +51,15 @@ public class MaintenancePipeMessageTests
 
     [Theory]
     [InlineData("{\"t\":\"maintenance_redeem\"}")]
-    [InlineData("{\"t\":\"maintenance_redeem\",\"code\":123456}")]
-    [InlineData("{\"t\":\"maintenance_redeem\",\"code\":null}")]
+    [InlineData("{\"t\":\"maintenance_redeem\",\"id\":1,\"code\":123456}")]
+    [InlineData("{\"t\":\"maintenance_redeem\",\"id\":1,\"code\":null}")]
+    [InlineData("{\"t\":\"maintenance_redeem\",\"code\":\"123456\"}")]
+    [InlineData("{\"t\":\"maintenance_redeem\",\"id\":\"1\",\"code\":\"123456\"}")]
+    [InlineData("{\"t\":\"maintenance_redeem\",\"id\":1.5,\"code\":\"123456\"}")]
     [InlineData("{\"t\":\"admin_result\"}")]
-    [InlineData("{\"t\":\"admin_result\",\"ok\":1}")]
+    [InlineData("{\"t\":\"admin_result\",\"id\":1,\"ok\":1}")]
+    [InlineData("{\"t\":\"admin_result\",\"ok\":true}")]
+    [InlineData("{\"t\":\"admin_result\",\"id\":null,\"ok\":true}")]
     [InlineData("{\"t\":\"maintenance\"}")]
     [InlineData("{\"t\":\"maintenance\",\"active\":\"true\"}")]
     [InlineData("{\"t\":\"maintenance\",\"active\":true}")]
@@ -73,8 +80,11 @@ public class MaintenancePipeMessageTests
     [Fact]
     public void AdminResultRoundTrips()
     {
-        Assert.Equal("{\"t\":\"admin_result\",\"ok\":true,\"error\":null,\"retry_seconds\":0}",
+        Assert.Equal("{\"t\":\"admin_result\",\"id\":0,\"ok\":true,\"error\":null,\"retry_seconds\":0}",
             PipeMessage.Serialize(new AdminResultMessage(true, null, 0)));
+        Assert.Equal("{\"t\":\"admin_result\",\"id\":9,\"ok\":false,\"error\":\"error\",\"retry_seconds\":0}",
+            PipeMessage.Serialize(new AdminResultMessage(false, AdminErrors.Error, 0) { Id = 9 }));
+        Assert.Equal(9, RoundTrip(new AdminResultMessage(false, AdminErrors.Error, 0) { Id = 9 }).Id);
         var ok = RoundTrip(new AdminResultMessage(true, null, 0));
         Assert.True(ok.Ok);
         Assert.Null(ok.Error);
@@ -86,10 +96,10 @@ public class MaintenancePipeMessageTests
     }
 
     [Theory]
-    [InlineData("{\"t\":\"admin_result\",\"ok\":false,\"error\":\"invalid_code\"}", 0)]
-    [InlineData("{\"t\":\"admin_result\",\"ok\":false,\"error\":\"locked_out\",\"retry_seconds\":-5}", 0)]
-    [InlineData("{\"t\":\"admin_result\",\"ok\":false,\"error\":\"locked_out\",\"retry_seconds\":\"9\"}", 0)]
-    [InlineData("{\"t\":\"admin_result\",\"ok\":false,\"error\":\"locked_out\",\"retry_seconds\":42,\"x\":1}", 42)]
+    [InlineData("{\"t\":\"admin_result\",\"id\":3,\"ok\":false,\"error\":\"invalid_code\"}", 0)]
+    [InlineData("{\"t\":\"admin_result\",\"id\":3,\"ok\":false,\"error\":\"locked_out\",\"retry_seconds\":-5}", 0)]
+    [InlineData("{\"t\":\"admin_result\",\"id\":3,\"ok\":false,\"error\":\"locked_out\",\"retry_seconds\":\"9\"}", 0)]
+    [InlineData("{\"t\":\"admin_result\",\"id\":3,\"ok\":false,\"error\":\"locked_out\",\"retry_seconds\":42,\"x\":1}", 42)]
     public void AdminResultRetrySecondsDefaultsSafely(string line, int expected)
         => Assert.Equal(expected, Assert.IsType<AdminResultMessage>(PipeMessage.Parse(line)).RetrySeconds);
 

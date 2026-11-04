@@ -6,11 +6,11 @@ public enum AdminAttemptKind { Allowed, Wait, LockedOut }
 public sealed record AdminAttemptDecision(AdminAttemptKind Kind, int RetrySeconds);
 
 /// <summary>
-/// Brute-force protection for the administrator maintenance unlock (in memory only, reset by a service
+/// Local brute-force protection for teacher maintenance codes (in memory only, reset by a service
 /// restart): at least <see cref="MinSpacing"/> between attempts, and <see cref="MaxFailures"/>
 /// consecutive failures lock attempts out for <see cref="Lockout"/>. A success resets the counter; so
 /// does the end of a lockout. Pure (the caller supplies "now"); not thread-safe — the service uses it
-/// from its single admin worker only.
+/// from its command loop only (MaintenanceCodeGate).
 /// </summary>
 public sealed class AdminAttemptLimiter
 {

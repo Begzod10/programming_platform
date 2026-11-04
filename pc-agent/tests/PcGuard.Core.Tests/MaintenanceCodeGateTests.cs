@@ -76,7 +76,7 @@ public class MaintenanceCodeGateTests
         var (g, mode, limiter) = New();
         Assert.Equal(new AdminResultMessage(false, "invalid_code", 0), g.Precheck(T0, code));
         Assert.Equal(1, limiter.ConsecutiveFailures);
-        Assert.False(mode.IsActive(T0));
+        Assert.False(mode.IsActive());
     }
 
     [Theory]
@@ -88,7 +88,7 @@ public class MaintenanceCodeGateTests
         var (g, mode, limiter) = New();
         limiter.RecordFailure(T0.AddSeconds(-10));
         Assert.Equal(new AdminResultMessage(true, null, 0), g.Complete(T0, MaintenanceRedeemResult.Ok(minutes)));
-        Assert.True(mode.IsActive(T0));
+        Assert.True(mode.IsActive());
         Assert.Equal(T0.AddMinutes(minutes), mode.Until);
         Assert.Equal(0, limiter.ConsecutiveFailures);
     }
@@ -102,7 +102,7 @@ public class MaintenanceCodeGateTests
     {
         var (g, mode, limiter) = New();
         Assert.Equal(new AdminResultMessage(false, "error", 0), g.Complete(T0, new MaintenanceRedeemResult(MaintenanceRedeemStatus.Ok, minutes)));
-        Assert.False(mode.IsActive(T0));
+        Assert.False(mode.IsActive());
         Assert.Equal(0, limiter.ConsecutiveFailures);
     }
 
@@ -112,7 +112,7 @@ public class MaintenanceCodeGateTests
         var (g, mode, limiter) = New();
         Assert.Equal(new AdminResultMessage(false, "invalid_code", 0), g.Complete(T0, MaintenanceRedeemResult.InvalidCode));
         Assert.Equal(1, limiter.ConsecutiveFailures);
-        Assert.False(mode.IsActive(T0));
+        Assert.False(mode.IsActive());
     }
 
     [Theory]
@@ -124,7 +124,7 @@ public class MaintenanceCodeGateTests
         var (g, mode, limiter) = New();
         Assert.Equal(new AdminResultMessage(false, code, 0), g.Complete(T0, new MaintenanceRedeemResult(status)));
         Assert.Equal(0, limiter.ConsecutiveFailures);
-        Assert.False(mode.IsActive(T0));
+        Assert.False(mode.IsActive());
     }
 
     [Fact]
@@ -152,12 +152,12 @@ public class MaintenanceCodeGateTests
 
         // during the lockout the request never reaches the backend, even with a well-formed code
         Assert.Equal(new AdminResultMessage(false, "locked_out", 60), g.Precheck(t.AddMinutes(9), "222222"));
-        Assert.False(mode.IsActive(t.AddMinutes(9)));
+        Assert.False(mode.IsActive());
 
         var after = t.AddMinutes(10);
         Assert.Null(g.Precheck(after, "222222"));
         Assert.True(g.Complete(after, MaintenanceRedeemResult.Ok(15)).Ok);
-        Assert.True(mode.IsActive(after));
+        Assert.True(mode.IsActive());
     }
 
     [Fact]
@@ -243,7 +243,6 @@ public class MaintenanceAuditTests
     [InlineData(MaintenanceEndReason.Expired, "Maintenance mode ended (expired)")]
     [InlineData(MaintenanceEndReason.EndedOnPc, "Maintenance mode ended (ended on the PC)")]
     [InlineData(MaintenanceEndReason.ServiceStopped, "Maintenance mode ended (service stopped)")]
-    [InlineData(MaintenanceEndReason.ClockSetBack, "Maintenance mode ended (expired: the clock was set back)")]
     public void EndedTextExact(MaintenanceEndReason reason, string expected)
         => Assert.Equal(expected, MaintenanceAudit.Ended(reason));
 

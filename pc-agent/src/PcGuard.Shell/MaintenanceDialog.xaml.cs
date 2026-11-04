@@ -7,12 +7,15 @@ using PcGuard.Core;
 namespace PcGuard.Shell;
 
 /// <summary>
-/// Maintenance code dialog, opened by the "Administrator" link. Takes the six-digit one-time code a
-/// teacher issued in the console and sends it to the service (maintenance_redeem); the service checks
-/// it with the backend and answers admin_result. The duration was chosen by the teacher, not here.
+/// Maintenance code dialog, opened by the "Texnik kod" / "Код обслуживания" link. Takes the six-digit
+/// one-time code a teacher issued in the console and sends it to the service (maintenance_redeem with
+/// a fresh request id); the service checks it with the backend and answers admin_result with the same
+/// id. Only that answer is shown: a late answer to a timed-out or earlier request is ignored. The
+/// duration was chosen by the teacher, not here.
 ///
 /// The code exists only in the TextBox and in one local variable for the duration of the pipe write:
-/// the box is cleared before the write is awaited and nothing keeps it in a field or property.
+/// the box is cleared before the write is awaited and nothing keeps it in a field or property. Undo
+/// is disabled on the box (UndoLimit 0), so Clear leaves nothing that Ctrl+Z could restore.
 /// Topmost, owned by the window it was opened from (so the owner's own keep-on-top never covers it)
 /// and WS_EX_TOOLWINDOW. Escape or Cancel closes it.
 /// </summary>
@@ -30,13 +33,22 @@ public partial class MaintenanceDialog : Window
 
     internal Func<PipeMessage, Task<bool>>? Sender { get; set; }
 
+    /// <summary>Request ids, shared by every dialog of this shell (see <see cref="MaintenanceRequestTracker"/>).</summary>
+    internal MaintenanceRequestTracker Requests { get; set; } = new();
+
     internal MaintenanceDialog(UiLang lang)
     {
         InitializeComponent();
         _lang = lang;
 
         _busyTimer = new DispatcherTimer { Interval = BusyTimeout };
-        _busyTimer.Tick += (_, _) => { _busyTimer.Stop(); SetBusy(false); ShowError(AdminErrors.Offline, 0); };
+        _busyTimer.Tick += (_, _) =>
+        {
+            _busyTimer.Stop();
+            Requests.Cancel(); // a later answer to this attempt is ignored
+            SetBusy(false);
+            ShowError(AdminErrors.Offline, 0);
+        };
         _countdown = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _countdown.Tick += (_, _) => CountdownTick();
 
@@ -52,6 +64,7 @@ public partial class MaintenanceDialog : Window
         };
         Closed += (_, _) =>
         {
+            Requests.Cancel(); // nothing is waiting for an answer any more
             _busyTimer.Stop();
             _countdown.Stop();
             CodeBox.Clear();
@@ -86,7 +99,7 @@ public partial class MaintenanceDialog : Window
         Apply();
     }
 
-    /// <summary>The service's answer to the last maintenance_redeem.</summary>
+    /// <summary>The service's answer to the pending maintenance_redeem (App checks the request id).</summary>
     internal void ShowResult(AdminResultMessage r)
     {
         _busyTimer.Stop();
@@ -177,10 +190,11 @@ public partial class MaintenanceDialog : Window
         _busyTimer.Stop();
         _busyTimer.Start();
 
+        var id = Requests.Begin();
         bool sent;
         try
         {
-            sent = await Sender(new MaintenanceRedeemMessage(code));
+            sent = await Sender(new MaintenanceRedeemMessage(id, code));
         }
         catch (Exception ex)
         {
@@ -190,6 +204,7 @@ public partial class MaintenanceDialog : Window
 
         if (!sent)
         {
+            if (Requests.Pending == id) Requests.Cancel();
             _busyTimer.Stop();
             SetBusy(false);
             ShowError(AdminErrors.Error, 0);

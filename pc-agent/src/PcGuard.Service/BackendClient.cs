@@ -92,6 +92,12 @@ public sealed class BackendClient : IDisposable
     /// </summary>
     public async Task<MaintenanceRedeemResult> RedeemMaintenanceCodeAsync(string machineKey, string code, CancellationToken ct)
     {
+        // only over https: over plain http anyone on the LAN could answer "ok" to any code
+        if (!BackendProtocol.AllowsMaintenanceRedeem(_base))
+        {
+            _log.LogWarning("{Audit}", MaintenanceAudit.RefusedInsecureTransport());
+            return MaintenanceRedeemResult.Error;
+        }
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(RedeemTimeout);
         try

@@ -2,9 +2,24 @@ using PcGuard.Core;
 
 namespace PcGuard.Core.Tests;
 
+/// <summary>Monotonic time the test moves by hand (like Environment.TickCount64, never tied to the wall clock).</summary>
+internal sealed class FakeMonotonic
+{
+    public TimeSpan Now { get; set; } = TimeSpan.FromHours(3);
+    public void Advance(TimeSpan by) => Now += by;
+    public Func<TimeSpan> Source => () => Now;
+}
+
 public class MaintenanceModeTests
 {
+    // wall clock: only for the displayed end time (Until) and the audit log
     private static readonly DateTimeOffset T0 = new(2026, 10, 23, 10, 0, 0, TimeSpan.Zero);
+
+    private static (MaintenanceMode Mode, FakeMonotonic Mono) New()
+    {
+        var mono = new FakeMonotonic();
+        return (new MaintenanceMode(mono.Source), mono);
+    }
 
     [Fact]
     public void AllowedDurationsAreExactly15_60_240()
@@ -16,9 +31,9 @@ public class MaintenanceModeTests
     [InlineData(240)]
     public void ActivateWithAllowedDurationSetsUntil(int minutes)
     {
-        var m = new MaintenanceMode();
+        var (m, _) = New();
         Assert.True(m.Activate(T0, minutes));
-        Assert.True(m.IsActive(T0));
+        Assert.True(m.IsActive());
         Assert.Equal(T0.AddMinutes(minutes), m.Until);
     }
 
@@ -34,56 +49,82 @@ public class MaintenanceModeTests
     [InlineData(int.MinValue)]
     public void ActivateRejectsAnyOtherDuration(int minutes)
     {
-        var m = new MaintenanceMode();
+        var (m, _) = New();
         Assert.False(m.Activate(T0, minutes));
-        Assert.False(m.IsActive(T0));
+        Assert.False(m.IsActive());
         Assert.Null(m.Until);
     }
 
     [Fact]
     public void InvalidDurationDoesNotChangeAnActiveMode()
     {
-        var m = new MaintenanceMode();
+        var (m, mono) = New();
         m.Activate(T0, 15);
+        mono.Advance(TimeSpan.FromMinutes(1));
         Assert.False(m.Activate(T0.AddMinutes(1), 9999));
         Assert.Equal(T0.AddMinutes(15), m.Until);
+        Assert.True(m.IsActive());
     }
 
     [Fact]
     public void InactiveByDefault()
     {
-        var m = new MaintenanceMode();
-        Assert.False(m.IsActive(T0));
+        var (m, _) = New();
+        Assert.False(m.IsActive());
         Assert.Null(m.Until);
     }
 
     [Fact]
     public void ActiveUntilJustBeforeExpiryThenInactive()
     {
-        var m = new MaintenanceMode();
+        var (m, mono) = New();
         m.Activate(T0, 15);
-        Assert.True(m.IsActive(T0.AddMinutes(15).AddTicks(-1)));
-        Assert.False(m.IsActive(T0.AddMinutes(15)));
-        Assert.False(m.IsActive(T0.AddHours(5)));
+        mono.Advance(TimeSpan.FromMinutes(15) - TimeSpan.FromTicks(1));
+        Assert.True(m.IsActive());
+        mono.Advance(TimeSpan.FromTicks(1));
+        Assert.False(m.IsActive());
+        mono.Advance(TimeSpan.FromHours(5));
+        Assert.False(m.IsActive());
     }
 
     [Fact]
-    public void ClockSetBackMakesItInactive()
+    public void TheWallClockPassedToActivateNeverDecidesTheDeadline()
     {
-        var m = new MaintenanceMode();
+        // wall clock set far back or far ahead at activation: the window still lasts exactly 15 monotonic minutes
+        var (m, mono) = New();
+        m.Activate(T0.AddDays(-400), 15);
+        mono.Advance(TimeSpan.FromMinutes(14));
+        Assert.True(m.IsActive());
+        mono.Advance(TimeSpan.FromMinutes(1));
+        Assert.False(m.IsActive());
+
+        var (m2, mono2) = New();
+        m2.Activate(T0.AddYears(5), 15);
+        mono2.Advance(TimeSpan.FromMinutes(15));
+        Assert.False(m2.IsActive());
+    }
+
+    [Fact]
+    public void MonotonicTimeBeforeTheStartMakesItInactive()
+    {
+        // the old "clock set back" intent, expressed with the monotonic source: a reading before the
+        // start (which a real monotonic clock never produces) is never treated as inside the window
+        var (m, mono) = New();
         m.Activate(T0, 240);
-        Assert.False(m.IsActive(T0.AddTicks(-1)));
-        Assert.False(m.IsActive(T0.AddDays(-1)));
+        mono.Advance(TimeSpan.FromTicks(-1));
+        Assert.False(m.IsActive());
+        mono.Advance(TimeSpan.FromDays(-1));
+        Assert.False(m.IsActive());
     }
 
     [Fact]
     public void EndReturnsWhetherItWasActivatedAndClears()
     {
-        var m = new MaintenanceMode();
+        var (m, _) = New();
         Assert.False(m.End());
         m.Activate(T0, 60);
         Assert.True(m.End());
-        Assert.False(m.IsActive(T0));
+        Assert.False(m.IsActive());
         Assert.Null(m.Until);
         Assert.False(m.End());
     }
@@ -91,34 +132,55 @@ public class MaintenanceModeTests
     [Fact]
     public void TryExpireEndsOnceAtExpiry()
     {
-        var m = new MaintenanceMode();
-        Assert.False(m.TryExpire(T0));
+        var (m, mono) = New();
+        Assert.False(m.TryExpire());
         m.Activate(T0, 15);
-        Assert.False(m.TryExpire(T0.AddMinutes(14)));
-        Assert.True(m.IsActive(T0.AddMinutes(14)));
-        Assert.True(m.TryExpire(T0.AddMinutes(15)));
+        mono.Advance(TimeSpan.FromMinutes(14));
+        Assert.False(m.TryExpire());
+        Assert.True(m.IsActive());
+        mono.Advance(TimeSpan.FromMinutes(1));
+        Assert.True(m.TryExpire());
         Assert.Null(m.Until);
-        Assert.False(m.TryExpire(T0.AddMinutes(16)));
+        mono.Advance(TimeSpan.FromMinutes(1));
+        Assert.False(m.TryExpire());
     }
 
     [Fact]
-    public void TryExpireOnClockSetBackEndsForGood()
+    public void TryExpireOnMonotonicTimeBeforeTheStartEndsForGood()
     {
-        var m = new MaintenanceMode();
+        var (m, mono) = New();
         m.Activate(T0, 240);
-        Assert.True(m.TryExpire(T0.AddMinutes(-1)));
-        // the clock coming back does not revive it
-        Assert.False(m.IsActive(T0.AddMinutes(1)));
+        mono.Advance(TimeSpan.FromMinutes(-1));
+        Assert.True(m.TryExpire());
+        // time coming forward again does not revive it
+        mono.Advance(TimeSpan.FromMinutes(2));
+        Assert.False(m.IsActive());
         Assert.Null(m.Until);
     }
 
     [Fact]
     public void ReactivateReplacesTheWindowFromNow()
     {
-        var m = new MaintenanceMode();
+        var (m, mono) = New();
         m.Activate(T0, 240);
+        mono.Advance(TimeSpan.FromMinutes(10));
         Assert.True(m.Activate(T0.AddMinutes(10), 15));
         Assert.Equal(T0.AddMinutes(25), m.Until);
-        Assert.False(m.IsActive(T0.AddMinutes(5))); // before the new start
+        mono.Advance(TimeSpan.FromMinutes(14));
+        Assert.True(m.IsActive());
+        mono.Advance(TimeSpan.FromMinutes(1));
+        Assert.False(m.IsActive()); // the old 240-minute window is gone
+    }
+
+    [Fact]
+    public void DefaultSourceIsTheSystemMonotonicClock()
+    {
+        var m = new MaintenanceMode();
+        Assert.True(m.Activate(DateTimeOffset.Now, 15));
+        Assert.True(m.IsActive());
+        var a = MonotonicClock.Now();
+        var b = MonotonicClock.Now();
+        Assert.True(b >= a);
+        Assert.True(a > TimeSpan.Zero);
     }
 }

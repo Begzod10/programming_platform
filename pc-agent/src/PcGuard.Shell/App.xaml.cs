@@ -20,6 +20,8 @@ public partial class App : Application
     private LockOverlay? _overlay;
     private MaintenanceBanner? _banner;
     private MaintenanceDialog? _dialog;
+    // request ids of maintenance_redeem: outlives each dialog, so a late answer never lands in a new one
+    private readonly MaintenanceRequestTracker _redeemRequests = new();
     private DateTimeOffset? _maintenanceUntil; // set while the service reports maintenance mode active
     private readonly Queue<string> _messages = new();
     private bool _popupOpen;
@@ -93,6 +95,7 @@ public partial class App : Application
         {
             _state = null; // a restarted service starts signed out; wait for its state
             _maintenanceUntil = null; // and maintenance is memory-only there: a restart re-locks
+            _redeemRequests.Cancel(); // no answer comes from a dead service connection
         }
         _login?.SetConnected(connected);
         UpdateWindows();
@@ -114,7 +117,9 @@ public partial class App : Application
                 EnqueueMessage(t.Text);
                 break;
             case AdminResultMessage r:
-                _dialog?.ShowResult(r);
+                // only the answer to the request this shell is waiting for (superseded, timed-out or
+                // cancelled requests are ignored)
+                if (_redeemRequests.Accept(r.Id)) _dialog?.ShowResult(r);
                 break;
             case MaintenanceMessage m:
                 _maintenanceUntil = m.Active ? m.UntilUtc : null;
@@ -159,6 +164,7 @@ public partial class App : Application
         {
             Owner = owner, // owned: always above the topmost owner, even when it re-asserts its z-order
             Sender = m => _pipe?.SendAsync(m) ?? Task.FromResult(false),
+            Requests = _redeemRequests,
         };
         _dialog = dialog;
         if (_login is not null) _login.DialogOpen = true;

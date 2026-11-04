@@ -7,7 +7,7 @@ namespace PcGuard.Shell;
 
 /// <summary>
 /// Small always-on-top banner (top centre) while a student is signed in. Also carries the
-/// "Administrator" link (maintenance code) because the sign-in window is hidden while signed in.
+/// "Texnik kod" / "Код обслуживания" link (teacher maintenance code) because the sign-in window is hidden while signed in.
 /// </summary>
 public partial class LockOverlay : Window
 {

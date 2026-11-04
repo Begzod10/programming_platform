@@ -52,11 +52,13 @@ public abstract record PipeMessage(string T)
                     w.WriteNumber("hwnd", m.Hwnd);
                     break;
                 case MaintenanceRedeemMessage m:
+                    w.WriteNumber("id", m.Id);
                     w.WriteString("code", m.Code);
                     break;
                 case AdminEndMessage:
                     break;
                 case AdminResultMessage m:
+                    w.WriteNumber("id", m.Id);
                     w.WriteBoolean("ok", m.Ok);
                     WriteNullableString(w, "error", m.Error);
                     w.WriteNumber("retry_seconds", m.RetrySeconds);
@@ -105,10 +107,11 @@ public abstract record PipeMessage(string T)
                         ? hv
                         : throw new FormatException("'hwnd' missing or not an integer")),
                 // any string: the service checks the shape (MaintenanceCode) before any network call
-                "maintenance_redeem" => new MaintenanceRedeemMessage(ReqString(r, "code")),
+                // id: the shell's request id, echoed in admin_result so a stale answer is ignored
+                "maintenance_redeem" => new MaintenanceRedeemMessage(ReqInt(r, "id"), ReqString(r, "code")),
                 "admin_end" => new AdminEndMessage(),
                 "admin_result" => new AdminResultMessage(ReqBool(r, "ok"), OptString(r, "error"),
-                    TryInt(r, "retry_seconds", out var retry) ? Math.Max(0, retry) : 0),
+                    TryInt(r, "retry_seconds", out var retry) ? Math.Max(0, retry) : 0) { Id = ReqInt(r, "id") },
                 "maintenance" => ParseMaintenance(r),
                 _ => throw new FormatException("Unknown pipe message kind"),
             };
@@ -208,6 +211,9 @@ public abstract record PipeMessage(string T)
     private static string ReqString(JsonElement o, string name)
         => OptString(o, name) ?? throw new FormatException($"'{name}' missing or not a string");
 
+    private static int ReqInt(JsonElement o, string name)
+        => TryInt(o, name, out var v) ? v : throw new FormatException($"'{name}' missing or not an integer");
+
     private static bool ReqBool(JsonElement o, string name)
         => o.TryGetProperty(name, out var v) && v.ValueKind is JsonValueKind.True or JsonValueKind.False
             ? v.GetBoolean()
@@ -246,15 +252,16 @@ public sealed record CloseWindowMessage(long Hwnd) : PipeMessage("close_window")
 
 /// <summary>
 /// shell -> service: redeem a one-time maintenance code that a teacher issued in the console for this
-/// PC. The code must never be logged or persisted: <see cref="PrintMembers"/> (and so ToString, also
-/// when this record is printed inside another one) redacts it.
+/// PC. <paramref name="Id"/> is the shell's request id; the service echoes it in admin_result. The code
+/// must never be logged or persisted: <see cref="PrintMembers"/> (and so ToString, also when this
+/// record is printed inside another one) redacts it.
 /// </summary>
-public sealed record MaintenanceRedeemMessage(string Code) : PipeMessage("maintenance_redeem")
+public sealed record MaintenanceRedeemMessage(int Id, string Code) : PipeMessage("maintenance_redeem")
 {
     protected override bool PrintMembers(StringBuilder builder)
     {
         base.PrintMembers(builder);
-        builder.Append(", Code = ***");
+        builder.Append(", Id = ").Append(Id.ToString(CultureInfo.InvariantCulture)).Append(", Code = ***");
         return true;
     }
 }
@@ -262,8 +269,17 @@ public sealed record MaintenanceRedeemMessage(string Code) : PipeMessage("mainte
 /// <summary>shell -> service: end maintenance mode now (no code needed: ending only re-locks).</summary>
 public sealed record AdminEndMessage() : PipeMessage("admin_end");
 
-/// <summary>service -> shell. Error is one of <see cref="AdminErrors"/>; RetrySeconds is set for locked_out.</summary>
-public sealed record AdminResultMessage(bool Ok, string? Error, int RetrySeconds) : PipeMessage("admin_result");
+/// <summary>
+/// service -> shell: the answer to the maintenance_redeem with the same <see cref="Id"/>. Error is one of
+/// <see cref="AdminErrors"/>; RetrySeconds is set for locked_out. The shell ignores an answer whose id
+/// is not its current pending request; a code replaced by a newer one before it was checked is
+/// answered ok=false, error "error".
+/// </summary>
+public sealed record AdminResultMessage(bool Ok, string? Error, int RetrySeconds) : PipeMessage("admin_result")
+{
+    /// <summary>Request id of the maintenance_redeem this answers (set by the service).</summary>
+    public int Id { get; init; }
+}
 
 /// <summary>service -> shell: maintenance state; sent on connect and on every change. UntilUtc is null when inactive.</summary>
 public sealed record MaintenanceMessage(bool Active, DateTimeOffset? UntilUtc) : PipeMessage("maintenance");

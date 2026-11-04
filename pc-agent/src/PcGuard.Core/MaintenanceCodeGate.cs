@@ -123,11 +123,11 @@ public sealed class MaintenanceCodeGate
     }
 }
 
-public enum MaintenanceEndReason { Expired, EndedOnPc, ServiceStopped, ClockSetBack }
+public enum MaintenanceEndReason { Expired, EndedOnPc, ServiceStopped }
 
 /// <summary>
-/// Texts of the maintenance audit entries in the Windows Application event log. None of them takes
-/// the code: it can never end up in a log.
+/// Texts of the maintenance audit entries in the Windows Application event log (these log lines are
+/// the PC's whole audit trail). None of them takes the code: it can never end up in a log.
 /// </summary>
 public static class MaintenanceAudit
 {
@@ -140,7 +140,6 @@ public static class MaintenanceAudit
     {
         MaintenanceEndReason.EndedOnPc => "ended on the PC",
         MaintenanceEndReason.ServiceStopped => "service stopped",
-        MaintenanceEndReason.ClockSetBack => "expired: the clock was set back",
         _ => "expired",
     } + ")";
 
@@ -155,4 +154,8 @@ public static class MaintenanceAudit
 
     /// <param name="error">One of <see cref="AdminErrors"/> other than invalid_code.</param>
     public static string NotChecked(string error) => "Maintenance code could not be checked: " + error;
+
+    /// <summary>The service refused to send a code because the backend base URL is not https.</summary>
+    public static string RefusedInsecureTransport()
+        => "Maintenance code not sent: the backend URL is not https (plain http could be forged on the LAN)";
 }

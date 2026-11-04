@@ -1,39 +1,65 @@
 namespace PcGuard.Core;
 
+/// <summary>Monotonic time for deadlines: never stepped by NTP, w32time or an administrator setting the clock.</summary>
+public static class MonotonicClock
+{
+    /// <summary>Time since boot (Environment.TickCount64, GetTickCount64 on Windows: keeps counting
+    /// during sleep, so a window also expires while the PC sleeps).</summary>
+    public static TimeSpan Now() => TimeSpan.FromMilliseconds(Environment.TickCount64);
+}
+
 /// <summary>
-/// Administrator maintenance unlock (emergency) — the one deliberate EXCEPTION to "the agent never
-/// unlocks itself". A local Windows administrator, authenticated by the SYSTEM service, can suspend
-/// enforcement for a fixed, short time. It is:
-/// - time-limited: exactly 15, 60 or 240 minutes (<see cref="AllowedMinutes"/>); nothing else activates it;
+/// Maintenance mode (teacher code) — the one deliberate EXCEPTION to "the agent never unlocks itself".
+/// A teacher issues a one-time code for this PC in the console; when the backend accepts it, the
+/// service suspends enforcement for a fixed, short time. It is:
+/// - time-limited: exactly 15, 60 or 240 minutes (<see cref="AllowedMinutes"/>), the duration the
+///   teacher chose and the backend returned; nothing else activates it;
+/// - tracked on a MONOTONIC clock (injected; <see cref="MonotonicClock"/> by default), so setting the
+///   wall clock back or forward neither ends it early nor extends it. The wall-clock time passed to
+///   <see cref="Activate"/> only gives <see cref="Until"/>, for display and the audit log;
 /// - IN MEMORY ONLY: never persisted, so a service restart always re-locks;
-/// - ended at expiry, by the administrator (admin_end), or when the clock is set back before its start.
-/// Pure and thread-safe; the caller supplies "now" (injected clock). Audit logging is the caller's job.
+/// - ended at expiry or from the PC (admin_end, the banner's End button). There is no remote end yet.
+/// Thread-safe. Audit logging is the caller's job.
 /// </summary>
 public sealed class MaintenanceMode
 {
     public static readonly IReadOnlyList<int> AllowedMinutes = new[] { 15, 60, 240 };
 
+    private readonly Func<TimeSpan> _monotonic;
     private readonly object _lock = new();
-    private DateTimeOffset? _start;
-    private DateTimeOffset? _until;
+    private TimeSpan? _start;    // monotonic
+    private TimeSpan? _deadline; // monotonic
+    private DateTimeOffset? _until; // wall clock, display only
+
+    public MaintenanceMode() : this(MonotonicClock.Now) { }
+
+    public MaintenanceMode(Func<TimeSpan> monotonic)
+    {
+        _monotonic = monotonic ?? throw new ArgumentNullException(nameof(monotonic));
+    }
 
     public static bool IsAllowedDuration(int minutes) => AllowedMinutes.Contains(minutes);
 
-    /// <summary>When the current maintenance window ends; null when none was activated (or it ended).</summary>
+    /// <summary>Wall-clock end of the current window, for display and the audit log only (the
+    /// deadline itself is monotonic); null when none was activated (or it ended).</summary>
     public DateTimeOffset? Until
     {
         get { lock (_lock) return _until; }
     }
 
-    /// <summary>Starts (or replaces) the window [now, now + minutes). False, and no change, for any
-    /// duration outside <see cref="AllowedMinutes"/>.</summary>
-    public bool Activate(DateTimeOffset now, int minutes)
+    /// <summary>Starts (or replaces) a window of <paramref name="minutes"/> monotonic minutes from now.
+    /// <paramref name="wallNow"/> only sets <see cref="Until"/>. False, and no change, for any duration
+    /// outside <see cref="AllowedMinutes"/>.</summary>
+    public bool Activate(DateTimeOffset wallNow, int minutes)
     {
         if (!IsAllowedDuration(minutes)) return false;
+        var length = TimeSpan.FromMinutes(minutes);
         lock (_lock)
         {
+            var now = _monotonic();
             _start = now;
-            _until = now.AddMinutes(minutes);
+            _deadline = now + length;
+            _until = wallNow + length;
         }
         return true;
     }
@@ -43,30 +69,37 @@ public sealed class MaintenanceMode
     {
         lock (_lock)
         {
-            var was = _until is not null;
-            _start = null;
-            _until = null;
+            var was = _deadline is not null;
+            Clear();
             return was;
         }
     }
 
-    /// <summary>Active only inside [start, until): a time before the start (clock set back) is inactive.</summary>
-    public bool IsActive(DateTimeOffset now)
+    /// <summary>Active only inside [start, deadline) on the monotonic clock; a reading before the start
+    /// (which a real monotonic clock never gives) counts as inactive.</summary>
+    public bool IsActive()
     {
-        lock (_lock) return _start is { } s && _until is { } u && now >= s && now < u;
+        lock (_lock) return Inside(_monotonic());
     }
 
-    /// <summary>Clears a window that is no longer active at <paramref name="now"/> (expired, or the
-    /// clock went back before its start). Returns true exactly once, when it did so.</summary>
-    public bool TryExpire(DateTimeOffset now)
+    /// <summary>Clears a window that is no longer active (expired). Returns true exactly once, when it did so.</summary>
+    public bool TryExpire()
     {
         lock (_lock)
         {
-            if (_start is not { } s || _until is not { } u) return false;
-            if (now >= s && now < u) return false;
-            _start = null;
-            _until = null;
+            if (_deadline is null) return false;
+            if (Inside(_monotonic())) return false;
+            Clear();
             return true;
         }
+    }
+
+    private bool Inside(TimeSpan now) => _start is { } s && _deadline is { } d && now >= s && now < d;
+
+    private void Clear()
+    {
+        _start = null;
+        _deadline = null;
+        _until = null;
     }
 }

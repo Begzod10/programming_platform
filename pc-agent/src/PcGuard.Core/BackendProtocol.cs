@@ -88,6 +88,14 @@ public static class BackendProtocol
 
     public const string MaintenanceRedeemPath = "pc/maintenance/redeem";
 
+    /// <summary>
+    /// A maintenance code is sent only over https: its whole point is "the server authorises it", and
+    /// over plain http anyone on the LAN could answer <c>{"minutes":240}</c> to any code. No loopback
+    /// exception. Other calls keep their existing behaviour (http allowed with a warning).
+    /// </summary>
+    public static bool AllowsMaintenanceRedeem(Uri? baseUrl)
+        => baseUrl is not null && baseUrl.IsAbsoluteUri && baseUrl.Scheme == Uri.UriSchemeHttps;
+
     /// <summary>Body of POST /pc/maintenance/redeem. Contains the code: never log it.</summary>
     public static string MaintenanceRedeemBody(string machineKey, string code)
         => Write(w =>

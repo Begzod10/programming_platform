@@ -10,7 +10,7 @@ namespace PcGuard.Shell;
 /// the user (Closing is always cancelled); it is only hidden after a successful sign-in.
 /// The password lives in the PasswordBox and in one local variable for the duration of the pipe
 /// write; the box is cleared before the write is awaited.
-/// The "Administrator" link opens the maintenance code dialog (owned by this window). While it is
+/// The "Texnik kod" / "Код обслуживания" link opens the maintenance code dialog (owned by this window). While it is
 /// open (<see cref="DialogOpen"/>) this window does not take the focus back.
 /// </summary>
 public partial class LoginWindow : Window

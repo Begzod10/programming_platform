@@ -18,7 +18,8 @@ public static class SessionRules
     /// <summary>
     /// Maintenance mode (teacher code) suspends enforcement: while active the rules are unlocked
     /// (reason "maintenance"), so the planner kills nothing, closes no window and never falls back to
-    /// name-only kills. Server rules keep arriving and apply again the moment it ends.
+    /// name-only kills. This overrides every server rule, a teacher's explicit lock included (there is
+    /// no remote end of maintenance yet). Server rules keep arriving and apply again the moment it ends.
     /// </summary>
     public static PcRules WithMaintenance(PcRules rules, bool active)
         => active ? rules with { Locked = false, Reason = "maintenance" } : rules;

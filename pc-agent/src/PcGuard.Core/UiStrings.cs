@@ -38,7 +38,7 @@ public static class UiStrings
     // ---- maintenance mode (one-time teacher code) ----
     // Durations are not chosen on the PC: the teacher picks 15, 60 or 240 minutes when issuing the code.
 
-    public static string AdminLink(UiLang l) => l == UiLang.Ru ? "Администратор" : "Administrator";
+    public static string AdminLink(UiLang l) => l == UiLang.Ru ? "Код обслуживания" : "Texnik kod";
     public static string AdminTitle(UiLang l) => l == UiLang.Ru ? "Режим обслуживания" : "Texnik rejim";
     public static string MaintenanceCodeLabel(UiLang l) => l == UiLang.Ru ? "Код обслуживания (6 цифр)" : "Texnik kod (6 raqam)";
     public static string AdminUnlockButton(UiLang l) => l == UiLang.Ru ? "Открыть" : "Ochish";

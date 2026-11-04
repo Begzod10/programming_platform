@@ -7,8 +7,8 @@ public class MaintenanceUiStringsTests
     [Fact]
     public void LabelsExact()
     {
-        Assert.Equal("Administrator", UiStrings.AdminLink(UiLang.Uz));
-        Assert.Equal("Администратор", UiStrings.AdminLink(UiLang.Ru));
+        Assert.Equal("Texnik kod", UiStrings.AdminLink(UiLang.Uz));
+        Assert.Equal("Код обслуживания", UiStrings.AdminLink(UiLang.Ru));
         Assert.Equal("Texnik rejim", UiStrings.AdminTitle(UiLang.Uz));
         Assert.Equal("Режим обслуживания", UiStrings.AdminTitle(UiLang.Ru));
         Assert.Equal("Texnik kod (6 raqam)", UiStrings.MaintenanceCodeLabel(UiLang.Uz));
@@ -19,6 +19,18 @@ public class MaintenanceUiStringsTests
         Assert.Equal("Отмена", UiStrings.AdminCancelButton(UiLang.Ru));
         Assert.Equal("Tugatish", UiStrings.MaintenanceEndButton(UiLang.Uz));
         Assert.Equal("Завершить", UiStrings.MaintenanceEndButton(UiLang.Ru));
+    }
+
+    [Fact]
+    public void NoMaintenanceLabelMentionsAnAdministrator()
+    {
+        // no Windows administrator is involved any more: the teacher's one-time code unlocks
+        foreach (var l in new[] { UiLang.Uz, UiLang.Ru })
+            foreach (var s in new[] { UiStrings.AdminLink(l), UiStrings.AdminTitle(l), UiStrings.MaintenanceCodeLabel(l) })
+            {
+                Assert.DoesNotContain("dministrat", s, StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain("дминистрат", s, StringComparison.OrdinalIgnoreCase);
+            }
     }
 
     [Fact]
