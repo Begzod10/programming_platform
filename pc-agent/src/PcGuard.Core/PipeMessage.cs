@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -50,6 +51,24 @@ public abstract record PipeMessage(string T)
                 case CloseWindowMessage m:
                     w.WriteNumber("hwnd", m.Hwnd);
                     break;
+                case AdminUnlockMessage m:
+                    w.WriteString("username", m.Username);
+                    w.WriteString("password", m.Password);
+                    w.WriteNumber("minutes", m.Minutes);
+                    break;
+                case AdminEndMessage:
+                    break;
+                case AdminResultMessage m:
+                    w.WriteBoolean("ok", m.Ok);
+                    WriteNullableString(w, "error", m.Error);
+                    w.WriteNumber("retry_seconds", m.RetrySeconds);
+                    break;
+                case MaintenanceMessage m:
+                    w.WriteBoolean("active", m.Active);
+                    WriteNullableString(w, "until_utc", m.Active && m.UntilUtc is { } u
+                        ? u.UtcDateTime.ToString("O", CultureInfo.InvariantCulture)
+                        : null);
+                    break;
                 default:
                     throw new FormatException($"Unknown pipe message type {message.GetType().Name}");
             }
@@ -87,9 +106,29 @@ public abstract record PipeMessage(string T)
                     r.TryGetProperty("hwnd", out var h) && h.ValueKind == JsonValueKind.Number && h.TryGetInt64(out var hv)
                         ? hv
                         : throw new FormatException("'hwnd' missing or not an integer")),
+                // minutes: anything but a 32-bit integer reads as 0, which the service rejects with
+                // invalid_duration (only 15, 60 and 240 are ever accepted)
+                "admin_unlock" => new AdminUnlockMessage(ReqString(r, "username"), ReqString(r, "password"),
+                    TryInt(r, "minutes", out var minutes) ? minutes : 0),
+                "admin_end" => new AdminEndMessage(),
+                "admin_result" => new AdminResultMessage(ReqBool(r, "ok"), OptString(r, "error"),
+                    TryInt(r, "retry_seconds", out var retry) ? Math.Max(0, retry) : 0),
+                "maintenance" => ParseMaintenance(r),
                 _ => throw new FormatException("Unknown pipe message kind"),
             };
         }
+    }
+
+    // ISO-8601 with an explicit offset or Z (what Serialize writes is the "O" round-trip form)
+    private static readonly string[] IsoFormats = { "yyyy-MM-dd'T'HH:mm:ssK", "yyyy-MM-dd'T'HH:mm:ss.FFFFFFFK" };
+
+    private static MaintenanceMessage ParseMaintenance(JsonElement r)
+    {
+        if (!ReqBool(r, "active")) return new MaintenanceMessage(false, null);
+        var raw = OptString(r, "until_utc") ?? throw new FormatException("'until_utc' missing for active maintenance");
+        if (!DateTimeOffset.TryParseExact(raw, IsoFormats, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal, out var until))
+            throw new FormatException("'until_utc' is not an ISO-8601 time");
+        return new MaintenanceMessage(true, until.ToUniversalTime());
     }
 
     private static void WriteSnapshot(Utf8JsonWriter w, Snapshot s)
@@ -208,3 +247,27 @@ public sealed record TextMessage(string Text) : PipeMessage("message");
 
 /// <summary>service -> shell: close this top-level window (browser host rule).</summary>
 public sealed record CloseWindowMessage(long Hwnd) : PipeMessage("close_window");
+
+/// <summary>
+/// shell -> service: administrator maintenance unlock request (local Windows administrator account).
+/// The password must never be logged or persisted: <see cref="PrintMembers"/> (and so ToString, also
+/// when this record is printed inside another one) redacts it.
+/// </summary>
+public sealed record AdminUnlockMessage(string Username, string Password, int Minutes) : PipeMessage("admin_unlock")
+{
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        base.PrintMembers(builder);
+        builder.Append(", Username = ").Append(Username).Append(", Password = ***, Minutes = ").Append(Minutes);
+        return true;
+    }
+}
+
+/// <summary>shell -> service: end maintenance mode now (no password needed: ending only re-locks).</summary>
+public sealed record AdminEndMessage() : PipeMessage("admin_end");
+
+/// <summary>service -> shell. Error is one of <see cref="AdminErrors"/>; RetrySeconds is set for locked_out.</summary>
+public sealed record AdminResultMessage(bool Ok, string? Error, int RetrySeconds) : PipeMessage("admin_result");
+
+/// <summary>service -> shell: maintenance state; sent on connect and on every change. UntilUtc is null when inactive.</summary>
+public sealed record MaintenanceMessage(bool Active, DateTimeOffset? UntilUtc) : PipeMessage("maintenance");
