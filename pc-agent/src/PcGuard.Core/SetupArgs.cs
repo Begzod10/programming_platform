@@ -4,10 +4,14 @@ namespace PcGuard.Core;
 public sealed record SetupArgs(
     bool Install, bool Uninstall, bool Purge, string? BackendUrl, bool NoPause, bool Help, bool AllowWritablePackage, string? Error)
 {
+    /// <summary>Extra apps kept running on this PC (<c>--allow-app</c>, repeatable), validated and normalised (see <see cref="ExtraAllowlist"/>).</summary>
+    public IReadOnlyList<string> AllowApps { get; init; } = Array.Empty<string>();
+
     public static SetupArgs Parse(string[] args)
     {
         bool install = false, uninstall = false, purge = false, noPause = false, help = false, allowWritable = false;
         string? url = null;
+        var apps = new List<string>();
 
         SetupArgs Err(string e) => new(false, false, false, null, false, false, false, e);
 
@@ -26,6 +30,11 @@ public sealed record SetupArgs(
                         return Err("--backend-url needs a value.");
                     url = args[++i];
                     break;
+                case "--allow-app":
+                    if (i + 1 >= args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal))
+                        return Err("--allow-app needs a value.");
+                    apps.Add(args[++i]);
+                    break;
                 default:
                     return Err($"Unknown argument: {args[i]}");
             }
@@ -40,6 +49,12 @@ public sealed record SetupArgs(
         if (url is not null && !install)
             return Err("--backend-url can only be used together with --install.");
 
-        return new SetupArgs(install, uninstall, purge, url, noPause, help, allowWritable, null);
+        if (apps.Count > 0 && !install)
+            return Err("--allow-app can only be used together with --install.");
+        var (allowApps, appError) = ExtraAllowlist.ValidateForInstall(apps);
+        if (appError is not null)
+            return Err(appError);
+
+        return new SetupArgs(install, uninstall, purge, url, noPause, help, allowWritable, null) { AllowApps = allowApps };
     }
 }

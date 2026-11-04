@@ -126,4 +126,73 @@ public class SetupArgsTests
         var a = SetupArgs.Parse(new[] { "--install", "--purge" });
         Assert.Equal("--install and --purge cannot be combined.", a.Error);
     }
+
+    // ---------------- --allow-app ----------------
+
+    [Fact]
+    public void No_allow_app_means_empty_list()
+    {
+        var a = SetupArgs.Parse(new[] { "--install" });
+        Assert.Null(a.Error);
+        Assert.Empty(a.AllowApps);
+    }
+
+    [Fact]
+    public void Allow_app_is_repeatable_and_normalised()
+    {
+        var a = SetupArgs.Parse(new[] { "--install", "--backend-url", "https://x.uz/api/v1", "--allow-app", "AnyDesk.exe", "--ALLOW-APP", "rustdesk.exe", "--allow-app", "anydesk.exe", "--no-pause" });
+        Assert.Null(a.Error);
+        Assert.Equal(new[] { "anydesk.exe", "rustdesk.exe" }, a.AllowApps);
+        Assert.Equal("https://x.uz/api/v1", a.BackendUrl);
+        Assert.True(a.NoPause);
+    }
+
+    [Fact]
+    public void Allow_app_without_value_is_an_error()
+    {
+        Assert.Equal("--allow-app needs a value.", SetupArgs.Parse(new[] { "--install", "--allow-app" }).Error);
+        Assert.Equal("--allow-app needs a value.", SetupArgs.Parse(new[] { "--install", "--allow-app", "--no-pause" }).Error);
+    }
+
+    [Fact]
+    public void Allow_app_without_install_is_an_error()
+    {
+        Assert.Equal("--allow-app can only be used together with --install.", SetupArgs.Parse(new[] { "--allow-app", "anydesk.exe" }).Error);
+        Assert.Equal("--allow-app can only be used together with --install.", SetupArgs.Parse(new[] { "--uninstall", "--allow-app", "anydesk.exe" }).Error);
+    }
+
+    [Theory]
+    [InlineData(@"C:\Tools\anydesk.exe")]
+    [InlineData("any desk.exe")]
+    [InlineData("anydesk")]
+    [InlineData("*.exe")]
+    [InlineData("anydesk.exe,cmd.exe")]
+    public void Invalid_allow_app_is_an_error(string name)
+    {
+        var a = SetupArgs.Parse(new[] { "--install", "--allow-app", name });
+        Assert.NotNull(a.Error);
+        Assert.Contains(name, a.Error);
+        Assert.Empty(a.AllowApps);
+        Assert.False(a.Install);
+    }
+
+    [Fact]
+    public void Seventeen_allow_apps_is_an_error()
+    {
+        var argv = new List<string> { "--install" };
+        for (var i = 1; i <= 17; i++) { argv.Add("--allow-app"); argv.Add($"app{i}.exe"); }
+        var a = SetupArgs.Parse(argv.ToArray());
+        Assert.NotNull(a.Error);
+        Assert.Contains("16", a.Error);
+    }
+
+    [Fact]
+    public void Sixteen_allow_apps_are_fine()
+    {
+        var argv = new List<string> { "--install" };
+        for (var i = 1; i <= 16; i++) { argv.Add("--allow-app"); argv.Add($"app{i}.exe"); }
+        var a = SetupArgs.Parse(argv.ToArray());
+        Assert.Null(a.Error);
+        Assert.Equal(16, a.AllowApps.Count);
+    }
 }

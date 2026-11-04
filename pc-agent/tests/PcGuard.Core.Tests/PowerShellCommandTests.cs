@@ -54,4 +54,33 @@ public class PowerShellCommandTests
         Assert.Equal("https://x.uz/api/v1 -InstallDir C:\\evil", c.Arguments[6]);
         Assert.Equal(9, c.Arguments.Count);
     }
+
+    [Fact]
+    public void Install_without_extra_apps_has_no_extra_parameter()
+    {
+        var c = PowerShellCommand.BuildInstall("s.ps1", "https://x.uz/api/v1", "d", @"C:\Windows", Array.Empty<string>());
+        Assert.DoesNotContain("-ExtraAllowedApps", c.Arguments);
+        Assert.Equal(9, c.Arguments.Count);
+    }
+
+    [Fact]
+    public void Install_with_extra_apps_passes_one_comma_joined_argument()
+    {
+        var c = PowerShellCommand.BuildInstall("s.ps1", "https://x.uz/api/v1", "d", @"C:\Windows", new[] { "anydesk.exe", "rustdesk.exe" });
+        Assert.Equal(
+            new[]
+            {
+                "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "s.ps1",
+                "-BackendBaseUrl", "https://x.uz/api/v1", "-DistDir", "d",
+                "-ExtraAllowedApps", "anydesk.exe,rustdesk.exe",
+            },
+            c.Arguments);
+    }
+
+    [Fact]
+    public void Install_with_invalid_extra_app_throws()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            PowerShellCommand.BuildInstall("s.ps1", "https://x.uz/api/v1", "d", @"C:\Windows", new[] { "a.exe -InstallDir C:\\evil" }));
+    }
 }

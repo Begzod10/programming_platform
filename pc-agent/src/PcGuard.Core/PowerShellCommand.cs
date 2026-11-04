@@ -9,11 +9,23 @@ public sealed record PowerShellCommand(string Executable, IReadOnlyList<string> 
     private static List<string> Prefix(string scriptPath) =>
         new() { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath };
 
+    /// <param name="extraApps">Extra allowed apps; passed as ONE comma-joined argument to
+    /// <c>-ExtraAllowedApps</c> (under <c>powershell -File</c> an array parameter receives a single
+    /// string, which install.ps1 splits on commas). Omitted when empty, so an upgrade keeps the extras
+    /// already configured. Every name must pass <see cref="ExtraAllowlist.IsValidName"/>.</param>
     public static PowerShellCommand BuildInstall(
-        string scriptPath, string backendUrl, string distDir, string systemRoot = @"C:\Windows")
+        string scriptPath, string backendUrl, string distDir, string systemRoot = @"C:\Windows",
+        IReadOnlyList<string>? extraApps = null)
     {
         var a = Prefix(scriptPath);
         a.AddRange(new[] { "-BackendBaseUrl", backendUrl, "-DistDir", distDir });
+        if (extraApps is { Count: > 0 })
+        {
+            if (extraApps.Any(x => !ExtraAllowlist.IsValidName(x)))
+                throw new ArgumentException("Every extra app must be " + ExtraAllowlist.Rule + ".", nameof(extraApps));
+            a.Add("-ExtraAllowedApps");
+            a.Add(string.Join(",", extraApps));
+        }
         return new PowerShellCommand(PowerShellExe(systemRoot), a);
     }
 

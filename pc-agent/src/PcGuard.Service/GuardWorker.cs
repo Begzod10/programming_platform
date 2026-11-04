@@ -46,6 +46,9 @@ internal sealed class GuardWorker : BackgroundService
 
     private readonly ILogger<GuardWorker> _log;
     private readonly Uri _baseUrl;
+    // PC-local extra allowed apps (Allowlist:ExtraApps, admin-only appsettings.json), read once at start;
+    // merged into the effective allowlist in every state, never cached or sent (see ExtraAllowlist).
+    private readonly IReadOnlyList<string> _extraApps;
     private readonly Func<DateTimeOffset> _clock = () => DateTimeOffset.Now;
     // Bounded so a flood of pipe commands cannot grow memory without limit; oldest dropped if full.
     private readonly Channel<Command> _commands = Channel.CreateBounded<Command>(
@@ -113,6 +116,21 @@ internal sealed class GuardWorker : BackgroundService
         if (u.Scheme == "http") _log.LogWarning("Backend:BaseUrl uses plain http; passwords and tokens travel unencrypted, and maintenance codes are refused");
         if (u.Host.Contains("CHANGE-ME", StringComparison.OrdinalIgnoreCase)) _log.LogCritical("Backend:BaseUrl was not configured (CHANGE-ME)");
         _baseUrl = u;
+        _extraApps = LoadExtraApps(config);
+    }
+
+    private IReadOnlyList<string> LoadExtraApps(IConfiguration config)
+    {
+        var section = config.GetSection("Allowlist:ExtraApps");
+        var raw = section.GetChildren().Select(c => c.Value).ToList();
+        if (section.Value is { Length: > 0 } single) raw.Add(single); // a plain string instead of an array: one entry, validated alike
+        var (valid, rejected) = ExtraAllowlist.Parse(raw);
+        foreach (var r in rejected)
+            _log.LogWarning("Allowlist:ExtraApps entry ignored (invalid name or more than {Max} entries): {Name}",
+                ExtraAllowlist.MaxEntries, r.Length > 80 ? r[..80] : r);
+        if (valid.Count > 0)
+            _log.LogWarning("Extra allowed apps configured on this PC (kept running even while locked): {Apps}", string.Join(", ", valid));
+        return valid;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -268,8 +286,10 @@ internal sealed class GuardWorker : BackgroundService
         _ = PushMaintenanceAsync(force: false);
     }
 
-    /// <summary>Rules as the server and the cache say, plus the maintenance override.</summary>
-    private PcRules Effective() => SessionRules.WithMaintenance(ServerRules(), _maintenance.IsActive());
+    /// <summary>Rules as the server and the cache say, plus this PC's extra allowed apps (never cached
+    /// or sent), plus the maintenance override.</summary>
+    private PcRules Effective()
+        => SessionRules.WithMaintenance(ExtraAllowlist.Apply(ServerRules(), _extraApps), _maintenance.IsActive());
 
     private PcRules ServerRules()
     {

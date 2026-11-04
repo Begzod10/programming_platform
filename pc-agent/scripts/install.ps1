@@ -20,14 +20,27 @@
   Output folder of publish.ps1 (default ..\dist relative to this script).
 .PARAMETER InstallDir
   Target folder (default: 64-bit Program Files\PcGuard).
+.PARAMETER ExtraAllowedApps
+  Optional. Exe names kept running on THIS PC in every state, even while it is locked (for example
+  anydesk.exe on a test PC), written as Allowlist:ExtraApps into the installed appsettings.json.
+  Each must be a bare file name ending in .exe, 5-64 characters, only letters A-Z, digits, '.', '-'
+  and '_' (no path, spaces or wildcards); at most 16. Accepts an array or one comma separated string
+  (Setup-PcGuard.exe passes "a.exe,b.exe"). Any invalid value stops the script with exit code 1
+  before anything is changed. Not given: an upgrade keeps the extra apps of the existing install.
+  Given as '' (empty): the extra apps are cleared.
+  SECURITY: these apps bypass the lock on this PC. Remote-control software kept running lets anyone
+  at the PC use it while the PC is locked. Use it only on test/admin PCs.
 .EXAMPLE
   .\install.ps1 -BackendBaseUrl https://example.uz/api/v1
+.EXAMPLE
+  .\install.ps1 -BackendBaseUrl https://example.uz/api/v1 -ExtraAllowedApps anydesk.exe
 #>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$BackendBaseUrl,
     [string]$DistDir = (Join-Path $PSScriptRoot '..\dist'),
-    [string]$InstallDir = (Join-Path $(if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }) 'PcGuard')
+    [string]$InstallDir = (Join-Path $(if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }) 'PcGuard'),
+    [string[]]$ExtraAllowedApps
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,6 +55,16 @@ $script:newFolderCreated = $false
 $script:target = $null
 $script:NativeExit = 0
 $script:hadSafeBoot = $false
+$MaxExtraApps = 16
+
+function Test-ExtraAppName {
+    # Same rule as PcGuard.Core ExtraAllowlist.IsValidName: bare exe file name, 5-64 chars, ASCII letters,
+    # digits, '.', '-', '_' only. -cmatch and \z: no case-folding tricks, no trailing newline.
+    param([string]$Name)
+    if ($null -eq $Name -or $Name.Length -lt 5 -or $Name.Length -gt 64) { return $false }
+    if (-not $Name.EndsWith('.exe', [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
+    return [bool]($Name -cmatch '^[A-Za-z0-9._-]+\z')
+}
 
 function Invoke-Native {
     # Runs a native program without letting stderr text turn into a terminating error (Windows PowerShell 5.1).
@@ -246,6 +269,27 @@ try {
     }
     $baseUrl = $BackendBaseUrl.TrimEnd('/')
 
+    # --- validate -ExtraAllowedApps (refuse before anything is changed) ---
+    $extraGiven = $PSBoundParameters.ContainsKey('ExtraAllowedApps')
+    $extraApps = New-Object System.Collections.Generic.List[string]
+    if ($extraGiven) {
+        foreach ($item in @($ExtraAllowedApps)) {
+            if ($null -eq $item) { continue }
+            foreach ($piece in $item.Split(',')) {
+                $name = $piece.Trim()
+                if ($name.Length -eq 0) { continue }
+                if (-not (Test-ExtraAppName $name)) {
+                    throw "Invalid -ExtraAllowedApps value '$name': it must be a bare exe file name ending in .exe, 5-64 characters, only letters A-Z, digits, '.', '-' and '_' (no path, spaces or wildcards). Nothing was changed."
+                }
+                $lower = $name.ToLowerInvariant()
+                if (-not $extraApps.Contains($lower)) { $extraApps.Add($lower) }
+            }
+        }
+        if ($extraApps.Count -gt $MaxExtraApps) {
+            throw "Too many -ExtraAllowedApps values ($($extraApps.Count)): at most $MaxExtraApps are allowed. Nothing was changed."
+        }
+    }
+
     # --- validate the dist folder and the paths ---
     if (-not (Test-Path -LiteralPath $DistDir)) { throw "DistDir not found: $DistDir. Run publish.ps1 first, or pass -DistDir." }
     $dist = (Resolve-Path -LiteralPath $DistDir).Path
@@ -263,6 +307,29 @@ try {
     $targetN = Get-NormalizedDir $target
     if ($distN.StartsWith($targetN, [System.StringComparison]::OrdinalIgnoreCase) -or $targetN.StartsWith($distN, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "DistDir ('$dist') and InstallDir ('$target') must not be the same or inside each other."
+    }
+
+    # --- upgrade without -ExtraAllowedApps: keep the extra apps of the existing install (re-validated) ---
+    if (-not $extraGiven) {
+        $oldSettings = Join-Path $target 'appsettings.json'
+        if (Test-Path -LiteralPath $oldSettings) {
+            try {
+                $oldJson = Get-Content -LiteralPath $oldSettings -Raw -Encoding UTF8 | ConvertFrom-Json
+                if ($oldJson.PSObject.Properties['Allowlist'] -and $oldJson.Allowlist.PSObject.Properties['ExtraApps']) {
+                    foreach ($name in @($oldJson.Allowlist.ExtraApps)) {
+                        if ($null -eq $name) { continue }
+                        $name = [string]$name
+                        if (-not (Test-ExtraAppName $name)) { Write-Warning "Existing extra app '$name' is not a valid name and is dropped."; continue }
+                        $lower = $name.ToLowerInvariant()
+                        if ($extraApps.Contains($lower)) { continue }
+                        if ($extraApps.Count -ge $MaxExtraApps) { Write-Warning "More than $MaxExtraApps existing extra apps; '$name' is dropped."; continue }
+                        $extraApps.Add($lower)
+                    }
+                    if ($extraApps.Count -gt 0) { Write-Host "Keeping the extra apps of the existing install: $($extraApps -join ', ')" }
+                }
+            }
+            catch { Write-Warning "Could not read the extra apps of the existing install ($($_.Exception.Message)); none are kept." }
+        }
     }
 
     # --- stop the old service and shells; abort before touching any folder if they will not die ---
@@ -311,9 +378,30 @@ try {
     else {
         $json.Backend.BaseUrl = $baseUrl
     }
+
+    # --- write Allowlist:ExtraApps (always an array, possibly empty) ---
+    [string[]]$extraArray = $extraApps.ToArray()
+    if (-not $json.PSObject.Properties['Allowlist']) {
+        $json | Add-Member -MemberType NoteProperty -Name 'Allowlist' -Value ([pscustomobject]@{ ExtraApps = $extraArray })
+    }
+    elseif (-not $json.Allowlist.PSObject.Properties['ExtraApps']) {
+        $json.Allowlist | Add-Member -MemberType NoteProperty -Name 'ExtraApps' -Value $extraArray
+    }
+    else {
+        $json.Allowlist.ExtraApps = $extraArray
+    }
+    # Windows PowerShell 5.1 can serialise arrays as {"value":[...],"Count":n} because of an extended type
+    # definition for System.Array; removing it for this process is the documented workaround.
+    if ($PSVersionTable.PSVersion.Major -lt 6) { Remove-TypeData -TypeName System.Array -ErrorAction SilentlyContinue }
     $text = $json | ConvertTo-Json -Depth 10
     # UTF-8 without BOM (Windows PowerShell 5.1 "-Encoding UTF8" would add a BOM).
     [System.IO.File]::WriteAllText($settingsPath, $text, (New-Object System.Text.UTF8Encoding($false)))
+    # read it back: the service must see exactly these names as a JSON array
+    $check = [System.IO.File]::ReadAllText($settingsPath) | ConvertFrom-Json
+    $written = @($check.Allowlist.ExtraApps | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_ })
+    if (($written -join ',') -cne ($extraArray -join ',') -or ($extraArray.Count -gt 0 -and $text -notmatch '"ExtraApps"\s*:\s*\[')) {
+        throw "Allowlist:ExtraApps was not written correctly to $settingsPath (found: $($written -join ', ')). Installation aborted."
+    }
 
     # --- lock down the install folder ---
     # Well-known SIDs avoid localized group names: S-1-5-18 SYSTEM, S-1-5-32-544 Administrators, S-1-5-32-545 Users.
@@ -373,6 +461,13 @@ try {
     Write-Host 'PC Guard installed.' -ForegroundColor Green
     Write-Host "  Install folder : $target"
     Write-Host "  Backend        : $baseUrl"
+    if ($extraApps.Count -gt 0) {
+        Write-Host "  Extra apps     : $($extraApps -join ', ')"
+        Write-Warning 'These extra apps are kept running on this PC even while it is locked. Remote-control software lets anyone at the PC use it while locked: use this only on test/admin PCs.'
+    }
+    else {
+        Write-Host '  Extra apps     : none'
+    }
     Write-Host "  Service        : $ServiceName ($((Get-Service -Name $ServiceName).Status))"
     Write-Host '  The shell is started by the service when a student is signed in to Windows.'
     exit 0

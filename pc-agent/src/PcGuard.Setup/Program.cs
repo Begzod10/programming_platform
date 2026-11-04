@@ -136,12 +136,32 @@ internal static class Program
         }
         if (result.Warning is not null) Console.WriteLine("Warning: " + result.Warning);
 
+        // Extra apps kept running on this PC (Allowlist:ExtraApps). Asked only in the interactive flow and
+        // only when no --allow-app was given. Empty = none given: install.ps1 then keeps the extras of an
+        // existing install (upgrade).
+        var extraApps = args.AllowApps;
+        if (!silent && extraApps.Count == 0)
+        {
+            while (true)
+            {
+                Console.Write("Extra apps to keep running on this PC (comma separated exe names, e.g. anydesk.exe; empty for none): ");
+                var line = SafeReadLine();
+                if (line is null) break; // no console input: none
+                var (names, error) = ExtraAllowlist.ValidateForInstall(ExtraAllowlist.SplitList(line));
+                if (error is null) { extraApps = names; break; }
+                Console.Error.WriteLine(error);
+            }
+        }
+
         var distDir = Path.Combine(packageRoot, "dist");
         Console.WriteLine();
         Console.WriteLine("About to install or upgrade PC Guard:");
         Console.WriteLine("  Backend URL : " + result.Normalized);
         Console.WriteLine("  Files from  : " + distDir);
         Console.WriteLine("  Installs to : Program Files\\PcGuard (service \"PcGuard\", LocalSystem, starts automatically)");
+        Console.WriteLine("  Extra apps  : " + (extraApps.Count > 0
+            ? string.Join(", ", extraApps) + " (kept running on this PC even while it is locked)"
+            : "none given (an upgrade keeps the extra apps configured before)"));
         if (!silent && !Confirm("Type YES to continue: "))
         {
             Console.WriteLine("Cancelled. Nothing was changed.");
@@ -149,7 +169,7 @@ internal static class Program
         }
 
         return RunScript(EmbeddedScripts.Install, script =>
-            PowerShellCommand.BuildInstall(script, result.Normalized!, distDir, WindowsDir));
+            PowerShellCommand.BuildInstall(script, result.Normalized!, distDir, WindowsDir, extraApps));
     }
 
     /// <summary>Refuses a package folder that standard users can modify (they could swap files that end up in a SYSTEM service).</summary>
@@ -317,9 +337,13 @@ internal static class Program
 
     private static void PrintUsage()
     {
-        Console.WriteLine("Usage: Setup-PcGuard.exe [--install --backend-url <https://host/api/v1>] [--uninstall [--purge]] [--allow-writable-package] [--no-pause] [--help]");
+        Console.WriteLine("Usage: Setup-PcGuard.exe [--install --backend-url <https://host/api/v1> [--allow-app <name.exe>]...] [--uninstall [--purge]] [--allow-writable-package] [--no-pause] [--help]");
         Console.WriteLine("  (no arguments)   interactive menu");
         Console.WriteLine("  --install        install or upgrade; with --backend-url it runs without questions");
+        Console.WriteLine("  --allow-app <name.exe>   with --install: keep this app running on this PC even while it is locked");
+        Console.WriteLine("                   (repeatable, at most 16; bare exe name such as anydesk.exe, letters, digits, . - _ only).");
+        Console.WriteLine("                   Without it an upgrade keeps the extra apps configured before. Use only on test/admin PCs:");
+        Console.WriteLine("                   remote-control software kept running lets anyone at the PC use it while the PC is locked.");
         Console.WriteLine("  --uninstall      uninstall without questions (add --purge to also delete ProgramData\\PcGuard)");
         Console.WriteLine("  --allow-writable-package   install even if standard users can modify the package folder, or it holds links or too many files (NOT recommended)");
         Console.WriteLine("  --no-pause       with --install/--uninstall: do not wait for Enter at the end");
