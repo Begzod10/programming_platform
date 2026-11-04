@@ -164,6 +164,7 @@ The last way out when a PC is stuck on the full-screen lock and nothing else wor
 - **WSL, Docker and virtual machine guests are out of reach.** Only host-side windowed processes are checked. The host process (wsl.exe, a VM window, Docker Desktop) is killed when it is not allowlisted, but programs inside a running guest are not seen.
 - **Safe Mode support is untested.** The installer registers the service for Safe Mode (Minimal and Network) on a best-effort basis; whether the service, the shell and enforcement work there has not been checked (see the Safe Mode test).
 - **Fallback mode is stricter** and can kill autostart and background apps (OneDrive, Teams) for a few seconds, for example right after Windows sign-in.
+- **Startup grace (accepted trade-off).** For up to 30 s after the service starts (boot, restart, upgrade), a locked PC is not enforced until the shell connects: until the first shell has connected and reported, or 30 s have passed, the name-only fallback kills and closes nothing (the shell is still launched as usual). Without it, every start killed all non-allowlisted programs (AnyDesk, Telegram, OneDrive, even Setup) seconds before the sign-in screen could appear. The sign-in screen appears as soon as the shell connects, and window-aware enforcement starts at once; if no shell connects within 30 s, name-only enforcement starts as before. The grace is measured on a monotonic clock and applies only when no shell has connected since the service started: a shell that is killed, hung or stale later gets no extra time. The event log shows `Startup grace: enforcement paused until the shell connects or 30 s pass` and then `Startup grace ended: shell connected` or `Startup grace expired without a shell: name-only enforcement`.
 - **Browser address-bar reading depends on Chrome/Edge UI Automation** (omnibox class `OmniboxViewViews`) and may break after a browser update. If the address bar cannot be read the host counts as unknown and is allowed, except for windows with no address bar at all (app-mode, PWA, popup windows), which are closed while a host list is active. Only Chrome and Edge are covered; other browsers are not restricted by the host rule.
 - **UWP edge cases**: UWP windows are hosted by ApplicationFrameHost; the real app pid is resolved from the CoreWindow child, and edge cases remain (suspended apps, Store/Settings).
 - **Fast user switching**: only the console session is enforced; a snapshot from another session is ignored and the service falls back until a new shell runs in the new console session.
@@ -1051,9 +1052,26 @@ Use a VM snapshot: a successful release leaves the PC unprotected. "The code" be
 - Expected: After the restart the counter starts again (5 more wrong codes before the lockout). During maintenance the recovery link is still available from the name banner of a signed-in student; the release works as in Test 147, and the event log also shows "Maintenance mode ended (service stopped)".
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
+#### T. Startup grace
+
+**Test 155.** Reboot with a student signed in: as the standard student, open AnyDesk (or any non-allowlisted third-party app) and Notepad, make sure the PC is locked, set Windows to sign the student in automatically (or sign in quickly after the reboot) and reboot. Watch the desktop and the Application event log.
+
+- Expected: Nothing is closed before the sign-in screen appears; the event log shows `Startup grace: enforcement paused until the shell connects or 30 s pass`, then "Shell connected" and `Startup grace ended: shell connected`, with no termination entries before it. Once the sign-in screen is up, AnyDesk is closed as usual (window-aware: background autostart apps without a window stay; Notepad is closed as a windowed non-allowlisted app). Repeat with `Restart-Service PcGuard`: same result.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 156.** No shell after start: as administrator, rename `PcGuard.Shell.exe` in the install folder (or keep ending every `PcGuard.Shell.exe` right after it starts), then `Restart-Service PcGuard` with a locked student signed in and AnyDesk open. Time it from the "PC Guard started" event.
+
+- Expected: For about 30 s nothing is killed (the service keeps trying to launch the shell); then the event log shows `Startup grace expired without a shell: name-only enforcement` and name-only enforcement starts (AnyDesk and other non-allowlisted third-party processes are killed, as in Test 49). Restore the file name afterwards.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 157.** No grace after a disconnect: with the shell connected and a locked student signed in, end `PcGuard.Shell.exe` as administrator (and, separately, suspend it in Process Explorer so its snapshots go stale) with a non-allowlisted app open.
+
+- Expected: No `Startup grace` entry is logged; fallback starts after the 6 s staleness window exactly as in Tests 49 and 51 (the app is killed by name until the shell is back). Killing or hanging the shell never gives 30 s of free time.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
 ### 3. Results
 
-Fill in after each run. Total tests: 155 (7 core, 148 additional).
+Fill in after each run. Total tests: 158 (7 core, 151 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|

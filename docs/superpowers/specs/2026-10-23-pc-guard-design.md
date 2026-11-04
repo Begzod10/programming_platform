@@ -395,6 +395,16 @@ second day. The report is limited to the calling teacher's students and 31 days.
   admin-writable only) and bypass the lock for that PC only; the server and the teacher console
   do not see them. Adding remote-control software lets someone at the PC use it while the PC is
   locked (and lets anyone with its access details control the PC). Use it only on test/admin PCs.
+- Startup grace (accepted trade-off): from service start until the first shell has connected and
+  reported (its first snapshot or alive) or 30 s have passed, whichever comes first, the name-only
+  fallback kills and closes nothing; the shell is still launched as usual. Without it every boot or
+  restart killed all non-allowlisted user programs before the sign-in screen could appear (seen on
+  a real PC). So for up to 30 s after a service start a locked PC is not enforced until the shell
+  connects; the sign-in screen and window-aware enforcement start as soon as it does. Pure logic in
+  Core (`StartupGrace`, monotonic clock, latched: it never comes back once over). It covers only
+  "no shell ever connected since this service process started": a shell that connected once and is
+  then killed, hung or stale gets no grace, so attacking the shell gains no time. A standard user
+  cannot restart the service to renew it.
 
 ## 8. Privacy
 
