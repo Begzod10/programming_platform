@@ -14,5 +14,8 @@
         <TextBlock Margin="14,0,0,0" VerticalAlignment="Center" FontSize="13">
             <Hyperlink x:Name="AdminLink" Foreground="#FF8FB8E0" Click="OnAdminClick"><Run x:Name="AdminLinkText" /></Hyperlink>
         </TextBlock>
+        <TextBlock Margin="14,0,0,0" VerticalAlignment="Center" FontSize="13">
+            <Hyperlink x:Name="RecoveryLink" Foreground="#FF8FB8E0" Click="OnRecoveryClick"><Run x:Name="RecoveryLinkText" /></Hyperlink>
+        </TextBlock>
     </StackPanel>
 </Window>

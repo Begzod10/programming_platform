@@ -18,13 +18,18 @@ internal sealed class ProcessKiller
 
     private readonly ILogger _log;
     private readonly ConcurrentDictionary<int, byte> _pending = new();
+    private volatile bool _halted;
 
     public ProcessKiller(ILogger log) => _log = log;
+
+    /// <summary>Stops all killing for good (recovery code release): nothing new is scheduled and kills
+    /// already scheduled (for example waiting out the 3 s grace) are dropped before they terminate anything.</summary>
+    public void Halt() => _halted = true;
 
     /// <param name="expectedImagePath">Image path seen at planning time, to avoid killing a reused pid; null skips the check.</param>
     public void Schedule(int pid, string? expectedImagePath, CancellationToken stopping)
     {
-        if (pid == Environment.ProcessId || !_pending.TryAdd(pid, 0)) return;
+        if (_halted || pid == Environment.ProcessId || !_pending.TryAdd(pid, 0)) return;
         _ = Task.Run(async () =>
         {
             try
@@ -45,6 +50,7 @@ internal sealed class ProcessKiller
 
     private async Task TerminateAsync(int pid, string? expectedImagePath, CancellationToken stopping)
     {
+        if (_halted) return;
         using var p = Process.GetProcessById(pid);
         _ = p.Handle; // pin the process object to this exact process from here on
         if (expectedImagePath is not null
@@ -59,7 +65,7 @@ internal sealed class ProcessKiller
             try { await p.WaitForExitAsync(cts.Token).ConfigureAwait(false); }
             catch (OperationCanceledException) { /* grace over */ }
         }
-        if (!p.HasExited)
+        if (!_halted && !p.HasExited)
         {
             p.Kill(entireProcessTree: true);
             _log.LogInformation("Terminated {Exe} (pid {Pid})", Path.GetFileName(expectedImagePath) ?? "process", pid);

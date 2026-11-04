@@ -1,3 +1,4 @@
+using PcGuard.Core;
 using System.Security.AccessControl;
 using System.Security.Principal;
 
@@ -21,6 +22,8 @@ internal sealed class SecureStore
     public string MachineKeyPath => Path.Combine(Dir, "machine.key");
     public string RulesPath => Path.Combine(Dir, "rules.json");
     public string UsageQueuePath => Path.Combine(Dir, "usage.queue");
+    /// <summary>The recovery code hash written by install.ps1 (never the code itself).</summary>
+    public string RecoveryHashPath => Path.Combine(Dir, "recovery.hash");
 
     public SecureStore(ILogger log)
     {
@@ -69,6 +72,37 @@ internal sealed class SecureStore
         return key;
     }
 
+    public enum RecoveryHashStatus { Ok, Missing, Untrusted, Malformed }
+
+    /// <summary>
+    /// Reads recovery.hash fresh (so an install or -ClearRecoveryCode needs no restart). Trusted only if
+    /// it is a regular file (not a link), small, owned by SYSTEM or Administrators and granting no one
+    /// else any access, and its content (surrounding whitespace ignored) is the stored hash form.
+    /// Never logs or returns the content on failure.
+    /// </summary>
+    public RecoveryHashStatus TryReadRecoveryHash(out string? stored)
+    {
+        stored = null;
+        try
+        {
+            var fi = new FileInfo(RecoveryHashPath);
+            if (!fi.Exists) return RecoveryHashStatus.Missing;
+            if ((fi.Attributes & FileAttributes.ReparsePoint) != 0 || fi.Length > RecoveryCode.MaxStoredLength + 8)
+                return RecoveryHashStatus.Untrusted;
+            if (!IsTrusted(fi.GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access)))
+                return RecoveryHashStatus.Untrusted;
+            var text = File.ReadAllText(fi.FullName, global::System.Text.Encoding.ASCII).Trim();
+            if (!RecoveryCode.IsWellFormedStored(text)) return RecoveryHashStatus.Malformed;
+            stored = text;
+            return RecoveryHashStatus.Ok;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException
+                                      or global::System.Security.SecurityException or ArgumentException)
+        {
+            return RecoveryHashStatus.Untrusted;
+        }
+    }
+
     private static DirectorySecurity BuildSecurity()
     {
         var sec = new DirectorySecurity();
@@ -84,19 +118,24 @@ internal sealed class SecureStore
     {
         try
         {
-            var sec = di.GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access);
-            var owner = sec.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
-            if (owner is null || !(owner.Equals(System) || owner.Equals(Admins))) return false;
-            foreach (FileSystemAccessRule r in sec.GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier)))
-            {
-                if (r.AccessControlType == AccessControlType.Deny) continue;
-                if (r.IdentityReference is not SecurityIdentifier sid || !(sid.Equals(System) || sid.Equals(Admins))) return false;
-            }
-            return true;
+            return IsTrusted(di.GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access));
         }
         catch (Exception e) when (e is UnauthorizedAccessException or IOException or InvalidOperationException)
         {
             return false;
         }
+    }
+
+    // Owner SYSTEM or Administrators, and every Allow ACE (explicit or inherited) for SYSTEM or Administrators only.
+    private static bool IsTrusted(FileSystemSecurity sec)
+    {
+        var owner = sec.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+        if (owner is null || !(owner.Equals(System) || owner.Equals(Admins))) return false;
+        foreach (FileSystemAccessRule r in sec.GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier)))
+        {
+            if (r.AccessControlType == AccessControlType.Deny) continue;
+            if (r.IdentityReference is not SecurityIdentifier sid || !(sid.Equals(System) || sid.Equals(Admins))) return false;
+        }
+        return true;
     }
 }

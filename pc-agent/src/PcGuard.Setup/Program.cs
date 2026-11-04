@@ -153,6 +153,24 @@ internal static class Program
             }
         }
 
+        // Offline recovery code (stops and disables PC Guard on this PC from the lock screen). Typed hidden,
+        // twice; only its PBKDF2 hash leaves this process (as -RecoveryCodeHash). Never on the command line.
+        string? recoveryHash = null;
+        if (args.NoRecoveryCode)
+        {
+            // explicitly none: nothing asked, nothing passed (an upgrade keeps a code set before)
+        }
+        else if (silent)
+        {
+            Console.WriteLine("Warning: no recovery code is set by a silent install (there is no offline way out of a stuck lock screen). Run Setup interactively to set one, or pass --no-recovery-code to silence this warning.");
+        }
+        else
+        {
+            var prompt = RecoveryCodePrompt.Run(ReadHidden, e => Console.Error.WriteLine(e));
+            if (prompt.Outcome == RecoveryPromptOutcome.Aborted) return ExitUsage;
+            recoveryHash = prompt.Hash;
+        }
+
         var distDir = Path.Combine(packageRoot, "dist");
         Console.WriteLine();
         Console.WriteLine("About to install or upgrade PC Guard:");
@@ -162,6 +180,15 @@ internal static class Program
         Console.WriteLine("  Extra apps  : " + (extraApps.Count > 0
             ? string.Join(", ", extraApps) + " (kept running on this PC even while it is locked)"
             : "none given (an upgrade keeps the extra apps configured before)"));
+        if (recoveryHash is not null)
+        {
+            Console.WriteLine("  Recovery code: set");
+        }
+        else
+        {
+            Console.WriteLine("  Recovery code: NOT set (no offline way out)");
+            Console.WriteLine("                 (an upgrade keeps a recovery code set before)");
+        }
         if (!silent && !Confirm("Type YES to continue: "))
         {
             Console.WriteLine("Cancelled. Nothing was changed.");
@@ -169,7 +196,7 @@ internal static class Program
         }
 
         return RunScript(EmbeddedScripts.Install, script =>
-            PowerShellCommand.BuildInstall(script, result.Normalized!, distDir, WindowsDir, extraApps));
+            PowerShellCommand.BuildInstall(script, result.Normalized!, distDir, WindowsDir, extraApps, recoveryHash));
     }
 
     /// <summary>Refuses a package folder that standard users can modify (they could swap files that end up in a SYSTEM service).</summary>
@@ -329,6 +356,33 @@ internal static class Program
         return string.Equals(a, "y", StringComparison.OrdinalIgnoreCase) || string.Equals(a, "yes", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Reads one line without echo (Console.ReadKey with intercept), Backspace supported. Returns the
+    /// characters as an exact-length char[] (the caller zeroes it) or null when there is no console.
+    /// At most MaxLength + 1 characters are kept, so a longer entry is reported as too long.
+    /// </summary>
+    private static char[]? ReadHidden(string prompt)
+    {
+        Console.Write(prompt);
+        using var editor = new HiddenLineEditor(RecoveryCode.MaxLength + 1);
+        try
+        {
+            while (true)
+            {
+                var k = Console.ReadKey(intercept: true); // intercept: the key is never echoed
+                if (editor.Process(k.Key, k.KeyChar)) break;
+            }
+        }
+        catch (Exception e) when (e is InvalidOperationException or IOException)
+        {
+            // no interactive console (input redirected)
+            Console.WriteLine();
+            return null;
+        }
+        Console.WriteLine();
+        return editor.TakeCopy();
+    }
+
     private static string? SafeReadLine()
     {
         try { return Console.ReadLine(); }
@@ -337,13 +391,17 @@ internal static class Program
 
     private static void PrintUsage()
     {
-        Console.WriteLine("Usage: Setup-PcGuard.exe [--install --backend-url <https://host/api/v1> [--allow-app <name.exe>]...] [--uninstall [--purge]] [--allow-writable-package] [--no-pause] [--help]");
+        Console.WriteLine("Usage: Setup-PcGuard.exe [--install --backend-url <https://host/api/v1> [--allow-app <name.exe>]... [--no-recovery-code]] [--uninstall [--purge]] [--allow-writable-package] [--no-pause] [--help]");
         Console.WriteLine("  (no arguments)   interactive menu");
         Console.WriteLine("  --install        install or upgrade; with --backend-url it runs without questions");
         Console.WriteLine("  --allow-app <name.exe>   with --install: keep this app running on this PC even while it is locked");
         Console.WriteLine("                   (repeatable, at most 16; bare exe name such as anydesk.exe, letters, digits, . - _ only).");
         Console.WriteLine("                   Without it an upgrade keeps the extra apps configured before. Use only on test/admin PCs:");
         Console.WriteLine("                   remote-control software kept running lets anyone at the PC use it while the PC is locked.");
+        Console.WriteLine("  --no-recovery-code   with --install: do not set an offline recovery code and do not ask for one.");
+        Console.WriteLine("                   The interactive install asks for the recovery code (typed hidden, twice); it is NEVER");
+        Console.WriteLine("                   accepted on the command line. A silent install sets none and prints a warning.");
+        Console.WriteLine("                   Without a new code an upgrade keeps the recovery code set before.");
         Console.WriteLine("  --uninstall      uninstall without questions (add --purge to also delete ProgramData\\PcGuard)");
         Console.WriteLine("  --allow-writable-package   install even if standard users can modify the package folder, or it holds links or too many files (NOT recommended)");
         Console.WriteLine("  --no-pause       with --install/--uninstall: do not wait for Enter at the end");

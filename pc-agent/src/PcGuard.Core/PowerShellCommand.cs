@@ -13,9 +13,12 @@ public sealed record PowerShellCommand(string Executable, IReadOnlyList<string> 
     /// <c>-ExtraAllowedApps</c> (under <c>powershell -File</c> an array parameter receives a single
     /// string, which install.ps1 splits on commas). Omitted when empty, so an upgrade keeps the extras
     /// already configured. Every name must pass <see cref="ExtraAllowlist.IsValidName"/>.</param>
+    /// <param name="recoveryCodeHash">The stored form of the recovery code (never the code itself), passed as
+    /// <c>-RecoveryCodeHash</c>; omitted when null, so an upgrade keeps an existing one. Must pass
+    /// <see cref="RecoveryCode.IsWellFormedStored"/>.</param>
     public static PowerShellCommand BuildInstall(
         string scriptPath, string backendUrl, string distDir, string systemRoot = @"C:\Windows",
-        IReadOnlyList<string>? extraApps = null)
+        IReadOnlyList<string>? extraApps = null, string? recoveryCodeHash = null)
     {
         var a = Prefix(scriptPath);
         a.AddRange(new[] { "-BackendBaseUrl", backendUrl, "-DistDir", distDir });
@@ -25,6 +28,14 @@ public sealed record PowerShellCommand(string Executable, IReadOnlyList<string> 
                 throw new ArgumentException("Every extra app must be " + ExtraAllowlist.Rule + ".", nameof(extraApps));
             a.Add("-ExtraAllowedApps");
             a.Add(string.Join(",", extraApps));
+        }
+        if (recoveryCodeHash is not null)
+        {
+            // the message never contains the value: it could be a plain code passed by mistake
+            if (!RecoveryCode.IsWellFormedStored(recoveryCodeHash))
+                throw new ArgumentException("The recovery code hash is not in the stored form.", nameof(recoveryCodeHash));
+            a.Add("-RecoveryCodeHash");
+            a.Add(recoveryCodeHash);
         }
         return new PowerShellCommand(PowerShellExe(systemRoot), a);
     }

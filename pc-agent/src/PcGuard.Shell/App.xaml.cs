@@ -7,6 +7,8 @@ namespace PcGuard.Shell;
 /// <summary>
 /// Entry point. Launched only by the guard service (no autostart). Single instance, never exits on
 /// user action, logs unhandled exceptions to %LocalAppData%\PcGuard\shell.log and keeps running.
+/// The one exit: the service's "released" message after an accepted recovery code (the service then
+/// disables and stops itself, so nothing launches the shell again).
 /// </summary>
 public partial class App : Application
 {
@@ -20,6 +22,9 @@ public partial class App : Application
     private LockOverlay? _overlay;
     private MaintenanceBanner? _banner;
     private MaintenanceDialog? _dialog;
+    private RecoveryDialog? _recoveryDialog;
+    // request ids of recovery_release (separate from the maintenance ones)
+    private readonly MaintenanceRequestTracker _recoveryRequests = new();
     // request ids of maintenance_redeem: outlives each dialog, so a late answer never lands in a new one
     private readonly MaintenanceRequestTracker _redeemRequests = new();
     private DateTimeOffset? _maintenanceUntil; // set while the service reports maintenance mode active
@@ -65,6 +70,8 @@ public partial class App : Application
         _overlay = new LockOverlay(_lang) { SignOutRequested = () => _ = _pipe?.SendAsync(new LogoutMessage()) };
         _login.AdminRequested += () => OpenMaintenanceDialog(_login);
         _overlay.AdminRequested = () => OpenMaintenanceDialog(_overlay);
+        _login.RecoveryRequested += () => OpenRecoveryDialog(_login);
+        _overlay.RecoveryRequested = () => OpenRecoveryDialog(_overlay);
         _banner = new MaintenanceBanner(_lang) { EndRequested = () => _ = _pipe?.SendAsync(new AdminEndMessage()) };
         _login.SetConnected(false);
         _login.Show();
@@ -85,6 +92,7 @@ public partial class App : Application
         _login?.SetLanguage(lang);
         _banner?.SetLanguage(lang);
         _dialog?.SetLanguage(lang);
+        _recoveryDialog?.SetLanguage(lang);
         UpdateWindows();
     }
 
@@ -96,6 +104,7 @@ public partial class App : Application
             _state = null; // a restarted service starts signed out; wait for its state
             _maintenanceUntil = null; // and maintenance is memory-only there: a restart re-locks
             _redeemRequests.Cancel(); // no answer comes from a dead service connection
+            _recoveryRequests.Cancel();
         }
         _login?.SetConnected(connected);
         UpdateWindows();
@@ -120,6 +129,12 @@ public partial class App : Application
                 // only the answer to the request this shell is waiting for (superseded, timed-out or
                 // cancelled requests are ignored)
                 if (_redeemRequests.Accept(r.Id)) _dialog?.ShowResult(r);
+                break;
+            case RecoveryResultMessage r:
+                if (_recoveryRequests.Accept(r.Id)) _recoveryDialog?.ShowResult(r);
+                break;
+            case ReleasedMessage:
+                Release();
                 break;
             case MaintenanceMessage m:
                 _maintenanceUntil = m.Active ? m.UntilUtc : null;
@@ -149,16 +164,56 @@ public partial class App : Application
         // the dialog is pointless once maintenance is on, without a service, or when its window went away
         if (_dialog is { } d && (maintenance || !_connected || d.Owner is not { IsVisible: true }))
             d.Close();
+        if (_recoveryDialog is { } rd && (!_connected || rd.Owner is not { IsVisible: true }))
+            rd.Close();
+    }
+
+    /// <summary>The service accepted the recovery code and is stopping for good: close everything and exit.</summary>
+    private void Release()
+    {
+        if (Quitting) return;
+        ShellLog.Info("Released with the recovery code: exiting");
+        Quitting = true; // lets the sign-in window and the banner close
+        _dialog?.Close();
+        _recoveryDialog?.Close();
+        Shutdown();
+    }
+
+    /// <summary>Activates an open maintenance or recovery dialog; true when there was one (only one at a time).</summary>
+    private bool ActivateOpenDialog()
+    {
+        Window? open = (Window?)_dialog ?? _recoveryDialog;
+        if (open is null) return false;
+        try { open.Activate(); } catch (InvalidOperationException) { }
+        return true;
+    }
+
+    private void OpenRecoveryDialog(Window owner)
+    {
+        if (!_connected || !owner.IsVisible || ActivateOpenDialog()) return;
+
+        var dialog = new RecoveryDialog(_lang)
+        {
+            Owner = owner, // owned: always above the topmost owner, even when it re-asserts its z-order
+            Sender = m => _pipe?.SendAsync(m) ?? Task.FromResult(false),
+            Requests = _recoveryRequests,
+        };
+        _recoveryDialog = dialog;
+        if (_login is not null) _login.DialogOpen = true;
+        dialog.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_recoveryDialog, dialog)) _recoveryDialog = null;
+            if (_login is null || Quitting) return;
+            _login.DialogOpen = false;
+            if (_login.IsVisible) _login.ActivateSafe();
+        };
+        dialog.Show();
     }
 
     private void OpenMaintenanceDialog(Window owner)
     {
         if (!_connected || _maintenanceUntil is not null || !owner.IsVisible) return;
-        if (_dialog is { } open)
-        {
-            try { open.Activate(); } catch (InvalidOperationException) { }
-            return;
-        }
+        if (ActivateOpenDialog()) return;
 
         var dialog = new MaintenanceDialog(_lang)
         {

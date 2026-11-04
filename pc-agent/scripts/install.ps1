@@ -30,6 +30,16 @@
   Given as '' (empty): the extra apps are cleared.
   SECURITY: these apps bypass the lock on this PC. Remote-control software kept running lets anyone
   at the PC use it while the PC is locked. Use it only on test/admin PCs.
+.PARAMETER RecoveryCodeHash
+  Optional. The HASH of this PC's offline recovery code, exactly as Setup-PcGuard.exe computes it:
+  pbkdf2-sha256$<iterations>$<salt base64>$<hash base64> (PBKDF2-HMAC-SHA256, 310000-5000000
+  iterations, 16-byte salt, 32-byte hash). NEVER the code itself: the plain code is typed hidden in
+  Setup and never reaches this script, a command line or a file. An invalid value stops the script with
+  exit code 1 before anything is changed. Written to %ProgramData%\PcGuard\recovery.hash (SYSTEM and
+  Administrators only). Not given: an upgrade keeps an existing recovery.hash.
+.PARAMETER ClearRecoveryCode
+  Removes %ProgramData%\PcGuard\recovery.hash (no offline way out any more). Cannot be combined with
+  -RecoveryCodeHash.
 .EXAMPLE
   .\install.ps1 -BackendBaseUrl https://example.uz/api/v1
 .EXAMPLE
@@ -40,7 +50,9 @@ param(
     [Parameter(Mandatory = $true)][string]$BackendBaseUrl,
     [string]$DistDir = (Join-Path $PSScriptRoot '..\dist'),
     [string]$InstallDir = (Join-Path $(if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }) 'PcGuard'),
-    [string[]]$ExtraAllowedApps
+    [string[]]$ExtraAllowedApps,
+    [string]$RecoveryCodeHash,
+    [switch]$ClearRecoveryCode
 )
 
 $ErrorActionPreference = 'Stop'
@@ -56,6 +68,121 @@ $script:target = $null
 $script:NativeExit = 0
 $script:hadSafeBoot = $false
 $MaxExtraApps = 16
+$script:oldStartDisabled = $false
+$script:recoveryTouched = $false
+$script:oldRecoveryHash = $null
+# Same folder the service uses (SecureStore): the real CommonApplicationData path, not $env:ProgramData.
+$DataDir = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'PcGuard'
+$RecoveryHashFile = Join-Path $DataDir 'recovery.hash'
+$SidSystem = 'S-1-5-18'
+$SidAdmins = 'S-1-5-32-544'
+
+function Test-Base64Exact {
+    # canonical base64 of exactly $Bytes bytes
+    param([string]$Text, [int]$Bytes)
+    try { $raw = [Convert]::FromBase64String($Text) } catch { return $false }
+    if ($raw.Length -ne $Bytes) { return $false }
+    return ([Convert]::ToBase64String($raw) -ceq $Text)
+}
+
+function Test-RecoveryHash {
+    # Same rule as PcGuard.Core RecoveryCode.IsWellFormedStored. -cmatch and \z: no case folding, no trailing newline.
+    param([string]$Value)
+    if ($null -eq $Value -or $Value.Length -gt 128) { return $false }
+    if (-not ($Value -cmatch '^pbkdf2-sha256\$([1-9][0-9]{0,6})\$([A-Za-z0-9+/=]{24})\$([A-Za-z0-9+/=]{44})\z')) { return $false }
+    $iter = [int]$Matches[1]
+    $salt = $Matches[2]
+    $hash = $Matches[3]
+    if ($iter -lt 310000 -or $iter -gt 5000000) { return $false }
+    if (-not (Test-Base64Exact $salt 16)) { return $false }
+    return (Test-Base64Exact $hash 32)
+}
+
+function New-AdminOnlySecurity {
+    # Owner Administrators, inheritance removed, SYSTEM and Administrators full control only (as the service's SecureStore).
+    param([bool]$Container)
+    if ($Container) {
+        $sec = New-Object System.Security.AccessControl.DirectorySecurity
+        $inherit = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+    }
+    else {
+        $sec = New-Object System.Security.AccessControl.FileSecurity
+        $inherit = [System.Security.AccessControl.InheritanceFlags]::None
+    }
+    $sec.SetOwner((New-Object System.Security.Principal.SecurityIdentifier($SidAdmins)))
+    $sec.SetAccessRuleProtection($true, $false)
+    foreach ($sid in @($SidSystem, $SidAdmins)) {
+        $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+            (New-Object System.Security.Principal.SecurityIdentifier($sid)),
+            [System.Security.AccessControl.FileSystemRights]::FullControl, $inherit,
+            [System.Security.AccessControl.PropagationFlags]::None, [System.Security.AccessControl.AccessControlType]::Allow)
+        $sec.AddAccessRule($rule)
+    }
+    return $sec
+}
+
+function Test-AdminOnlyAcl {
+    # True when the owner is SYSTEM or Administrators and every Allow ACE is for SYSTEM or Administrators.
+    param($Security)
+    $owner = $Security.GetOwner([System.Security.Principal.SecurityIdentifier])
+    if ($null -eq $owner -or ($owner.Value -ne $SidSystem -and $owner.Value -ne $SidAdmins)) { return $false }
+    foreach ($r in $Security.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])) {
+        if ($r.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) { continue }
+        $v = $r.IdentityReference.Value
+        if ($v -ne $SidSystem -and $v -ne $SidAdmins) { return $false }
+    }
+    return $true
+}
+
+function Initialize-DataDir {
+    # The service's data folder, secured exactly like the service does it (SecureStore.EnsureDirectory):
+    # an existing folder that is a link, or whose owner/ACL is not SYSTEM/Administrators-only, is never
+    # trusted (a standard user may have pre-created it) and is moved aside; a fresh one is created with
+    # the admin-only ACL in one step (no window with inherited ProgramData rights).
+    $di = New-Object System.IO.DirectoryInfo($DataDir)
+    if ($di.Exists) {
+        $trusted = $false
+        try {
+            if (($di.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0) {
+                $trusted = Test-AdminOnlyAcl (Get-Acl -LiteralPath $DataDir)
+            }
+        }
+        catch { $trusted = $false }
+        if (-not $trusted) {
+            $quarantine = $DataDir + '.untrusted-' + [Guid]::NewGuid().ToString('N')
+            Write-Warning "The data folder $DataDir has an unexpected owner or ACL (or is a link); moving it aside to $quarantine."
+            [System.IO.Directory]::Move($DataDir, $quarantine)
+            $di = New-Object System.IO.DirectoryInfo($DataDir)
+        }
+    }
+    $sec = New-AdminOnlySecurity $true
+    if (-not $di.Exists) {
+        if ($PSVersionTable.PSVersion.Major -lt 6) { [System.IO.Directory]::CreateDirectory($DataDir, $sec) | Out-Null }
+        else { [System.IO.FileSystemAclExtensions]::Create($di, $sec) }
+    }
+    else {
+        Set-Acl -LiteralPath $DataDir -AclObject $sec   # re-assert (as the service does at every start)
+    }
+}
+
+function Write-RecoveryHashFile {
+    # Writes $Value (a hash, never a plain code) as recovery.hash with an explicit admin-only ACL, then
+    # reads it back. Never prints the value.
+    param([string]$Value)
+    Initialize-DataDir
+    $tmp = $RecoveryHashFile + '.tmp'
+    if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force }
+    [System.IO.File]::WriteAllText($tmp, $Value, (New-Object System.Text.ASCIIEncoding))   # no BOM, no newline
+    Set-Acl -LiteralPath $tmp -AclObject (New-AdminOnlySecurity $false)
+    if (Test-Path -LiteralPath $RecoveryHashFile) { Remove-Item -LiteralPath $RecoveryHashFile -Force }
+    Move-Item -LiteralPath $tmp -Destination $RecoveryHashFile
+    if ([System.IO.File]::ReadAllText($RecoveryHashFile) -cne $Value) {
+        throw "The recovery code hash was not written correctly to $RecoveryHashFile."
+    }
+    if (-not (Test-AdminOnlyAcl (Get-Acl -LiteralPath $RecoveryHashFile))) {
+        throw "$RecoveryHashFile does not have the SYSTEM/Administrators-only permissions."
+    }
+}
 
 function Test-ExtraAppName {
     # Same rule as PcGuard.Core ExtraAllowlist.IsValidName: bare exe file name, 5-64 chars, ASCII letters,
@@ -203,6 +330,13 @@ function Assert-FolderAcl {
 function Invoke-Rollback {
     Write-Host 'Rolling back ...' -ForegroundColor Yellow
     Unregister-PcGuardSafeBoot   # best-effort; never throws
+    if ($script:recoveryTouched) {
+        try {
+            if ($null -ne $script:oldRecoveryHash) { Write-RecoveryHashFile $script:oldRecoveryHash; Write-Host 'Restored the previous recovery code hash.' }
+            elseif (Test-Path -LiteralPath $RecoveryHashFile) { Remove-Item -LiteralPath $RecoveryHashFile -Force; Write-Host 'Removed the new recovery code hash.' }
+        }
+        catch { Write-Warning "Could not restore the previous recovery code hash: $($_.Exception.Message)" }
+    }
     try {
         if ($script:oldServiceRemoved) {
             # A service that exists now is the new one (or a half-created one): remove it.
@@ -237,8 +371,14 @@ function Invoke-Rollback {
             if (Test-ServiceExists) {
                 # restore the previous install's Safe Mode registration only if it had one
                 if ($script:hadSafeBoot) { Register-PcGuardSafeBoot }
-                Start-Service -Name $ServiceName
-                Write-Host 'The previous PcGuard service was restarted.'
+                if ($script:oldStartDisabled -and -not $script:oldServiceRemoved) {
+                    # released with the recovery code or disabled by Cleanup: Start-Service would fail; leave it as it was
+                    Write-Host 'The previous PcGuard service was disabled and is left disabled and stopped (this PC is NOT protected).' -ForegroundColor Yellow
+                }
+                else {
+                    Start-Service -Name $ServiceName
+                    Write-Host 'The previous PcGuard service was restarted.'
+                }
             }
         }
     }
@@ -290,6 +430,15 @@ try {
         }
     }
 
+    # --- validate the recovery code hash (refuse before anything is changed; the value is never printed) ---
+    $recoveryGiven = $PSBoundParameters.ContainsKey('RecoveryCodeHash')
+    if ($recoveryGiven -and $ClearRecoveryCode) {
+        throw '-RecoveryCodeHash and -ClearRecoveryCode cannot be combined. Nothing was changed.'
+    }
+    if ($recoveryGiven -and -not (Test-RecoveryHash $RecoveryCodeHash)) {
+        throw ('Invalid -RecoveryCodeHash value: it must be the hash computed by Setup-PcGuard.exe (pbkdf2-sha256$<iterations>$<salt>$<hash>), never the recovery code itself. Nothing was changed.')
+    }
+
     # --- validate the dist folder and the paths ---
     if (-not (Test-Path -LiteralPath $DistDir)) { throw "DistDir not found: $DistDir. Run publish.ps1 first, or pass -DistDir." }
     $dist = (Resolve-Path -LiteralPath $DistDir).Path
@@ -333,9 +482,18 @@ try {
     }
 
     # --- stop the old service and shells; abort before touching any folder if they will not die ---
+    # remember the current recovery.hash so a failed install can put it back
+    if (($recoveryGiven -or $ClearRecoveryCode) -and (Test-Path -LiteralPath $RecoveryHashFile)) {
+        $script:oldRecoveryHash = [System.IO.File]::ReadAllText($RecoveryHashFile)
+    }
+
     $script:hadService = Test-ServiceExists
     $script:hadSafeBoot = [bool](Test-Path -LiteralPath $SafeBootKeys[0])
     if ($script:hadService) {
+        try { $script:oldStartDisabled = ([int](Get-ItemProperty -LiteralPath $ServiceKey -Name Start -ErrorAction Stop).Start -eq 4) } catch { $script:oldStartDisabled = $false }
+        if ($script:oldStartDisabled) {
+            Write-Host 'Existing PcGuard service is DISABLED (released with the recovery code, or by Cleanup): it is replaced by a new service with automatic start.'
+        }
         Write-Host 'Existing PcGuard service found: stopping it ...'
         Stop-PcGuardService
     }
@@ -418,6 +576,26 @@ try {
     # --- Safe Mode registration (best-effort, UNTESTED; warnings only, never aborts the install) ---
     Register-PcGuardSafeBoot
 
+    # --- recovery code hash (%ProgramData%\PcGuard\recovery.hash; read by the service on each attempt) ---
+    if ($recoveryGiven) {
+        $script:recoveryTouched = $true
+        Write-RecoveryHashFile $RecoveryCodeHash
+        $recoveryState = 'set (new)'
+    }
+    elseif ($ClearRecoveryCode) {
+        if (Test-Path -LiteralPath $RecoveryHashFile) {
+            $script:recoveryTouched = $true
+            Remove-Item -LiteralPath $RecoveryHashFile -Force
+        }
+        $recoveryState = 'cleared: NOT set (no offline way out)'
+    }
+    elseif (Test-Path -LiteralPath $RecoveryHashFile) {
+        $recoveryState = 'kept (set before)'
+    }
+    else {
+        $recoveryState = 'NOT set (no offline way out)'
+    }
+
     # --- start ---
     Start-Service -Name $ServiceName
     (Get-Service -Name $ServiceName).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
@@ -467,6 +645,10 @@ try {
     }
     else {
         Write-Host '  Extra apps     : none'
+    }
+    Write-Host "  Recovery code  : $recoveryState"
+    if ($recoveryState -like '*NOT set*') {
+        Write-Warning 'No recovery code: if this PC gets stuck on the lock screen without the backend, only Safe Mode or Cleanup-PcGuard.exe (administrator) can free it.'
     }
     Write-Host "  Service        : $ServiceName ($((Get-Service -Name $ServiceName).Status))"
     Write-Host '  The shell is started by the service when a student is signed in to Windows.'

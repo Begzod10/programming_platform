@@ -7,9 +7,13 @@ public sealed record SetupArgs(
     /// <summary>Extra apps kept running on this PC (<c>--allow-app</c>, repeatable), validated and normalised (see <see cref="ExtraAllowlist"/>).</summary>
     public IReadOnlyList<string> AllowApps { get; init; } = Array.Empty<string>();
 
+    /// <summary><c>--no-recovery-code</c>: install without an offline recovery code and without asking for one.
+    /// The code itself is NEVER accepted on the command line (only typed hidden in the interactive install).</summary>
+    public bool NoRecoveryCode { get; init; }
+
     public static SetupArgs Parse(string[] args)
     {
-        bool install = false, uninstall = false, purge = false, noPause = false, help = false, allowWritable = false;
+        bool install = false, uninstall = false, purge = false, noPause = false, help = false, allowWritable = false, noRecovery = false;
         string? url = null;
         var apps = new List<string>();
 
@@ -17,8 +21,12 @@ public sealed record SetupArgs(
 
         for (var i = 0; i < args.Length; i++)
         {
+            // never echo such an argument: it may carry the secret itself (--recovery-code=...)
+            if (args[i].StartsWith("--recovery-code", StringComparison.OrdinalIgnoreCase))
+                return Err("The recovery code is never accepted on the command line; run Setup-PcGuard.exe interactively to set it (it is typed hidden).");
             switch (args[i].ToLowerInvariant())
             {
+                case "--no-recovery-code": noRecovery = true; break;
                 case "--install": install = true; break;
                 case "--uninstall": uninstall = true; break;
                 case "--purge": purge = true; break;
@@ -51,10 +59,13 @@ public sealed record SetupArgs(
 
         if (apps.Count > 0 && !install)
             return Err("--allow-app can only be used together with --install.");
+        if (noRecovery && !install)
+            return Err("--no-recovery-code can only be used together with --install.");
+
         var (allowApps, appError) = ExtraAllowlist.ValidateForInstall(apps);
         if (appError is not null)
             return Err(appError);
 
-        return new SetupArgs(install, uninstall, purge, url, noPause, help, allowWritable, null) { AllowApps = allowApps };
+        return new SetupArgs(install, uninstall, purge, url, noPause, help, allowWritable, null) { AllowApps = allowApps, NoRecoveryCode = noRecovery };
     }
 }

@@ -7,7 +7,8 @@ namespace PcGuard.Shell;
 
 /// <summary>
 /// Small always-on-top banner (top centre) while a student is signed in. Also carries the
-/// "Texnik kod" / "Код обслуживания" link (teacher maintenance code) because the sign-in window is hidden while signed in.
+/// "Texnik kod" / "Код обслуживания" link (teacher maintenance code) and the "Tiklash kodi" /
+/// "Код восстановления" link (offline recovery code) because the sign-in window is hidden while signed in.
 /// </summary>
 public partial class LockOverlay : Window
 {
@@ -19,6 +20,7 @@ public partial class LockOverlay : Window
 
     internal Action? SignOutRequested { get; set; }
     internal Action? AdminRequested { get; set; }
+    internal Action? RecoveryRequested { get; set; }
 
     internal LockOverlay(UiLang lang)
     {
@@ -65,6 +67,7 @@ public partial class LockOverlay : Window
         RemainingText.Visibility = _locked ? Visibility.Visible : Visibility.Collapsed; // unlocked: name + sign-out only
         SignOutButton.Content = UiStrings.SignOut(_lang);
         AdminLinkText.Text = UiStrings.AdminLink(_lang);
+        RecoveryLinkText.Text = UiStrings.RecoveryLink(_lang);
     }
 
     private void Reposition()
@@ -85,4 +88,6 @@ public partial class LockOverlay : Window
     private void OnSignOut(object sender, RoutedEventArgs e) => SignOutRequested?.Invoke();
 
     private void OnAdminClick(object sender, RoutedEventArgs e) => AdminRequested?.Invoke();
+
+    private void OnRecoveryClick(object sender, RoutedEventArgs e) => RecoveryRequested?.Invoke();
 }

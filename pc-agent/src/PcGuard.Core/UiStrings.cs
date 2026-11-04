@@ -66,4 +66,26 @@ public static class UiStrings
             _ => ru ? "Произошла ошибка" : "Xatolik yuz berdi",
         };
     }
+
+    // ---- recovery code (offline, set at install; stops and disables PC Guard on this PC) ----
+
+    public static string RecoveryLink(UiLang l) => l == UiLang.Ru ? "Код восстановления" : "Tiklash kodi";
+    public static string RecoveryTitle(UiLang l) => l == UiLang.Ru ? "Отключение PC Guard" : "PC Guard'ni o'chirish";
+    public static string RecoveryCodeLabel(UiLang l) => l == UiLang.Ru ? "Код восстановления (задан при установке)" : "Tiklash kodi (o'rnatishda berilgan)";
+    public static string RecoveryHint(UiLang l) => l == UiLang.Ru
+        ? "Если код верный, PC Guard будет остановлен и отключён на этом компьютере до переустановки."
+        : "Kod to'g'ri bo'lsa, PC Guard bu kompyuterda qayta o'rnatilguncha to'xtatiladi va o'chiriladi.";
+
+    /// <summary>Maps a recovery_result.error code; error, null and unknown codes read as a generic error.</summary>
+    public static string RecoveryError(UiLang l, string? code, int retrySeconds)
+    {
+        var ru = l == UiLang.Ru;
+        return code switch
+        {
+            AdminErrors.InvalidCode => ru ? "Неверный код восстановления" : "Tiklash kodi noto'g'ri",
+            RecoveryErrors.NotConfigured => ru ? "На этом компьютере код восстановления не задан" : "Bu kompyuterda tiklash kodi o'rnatilmagan",
+            AdminErrors.LockedOut => AdminError(l, AdminErrors.LockedOut, retrySeconds),
+            _ => AdminError(l, AdminErrors.Error, 0),
+        };
+    }
 }

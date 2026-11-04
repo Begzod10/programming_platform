@@ -11,7 +11,8 @@ namespace PcGuard.Shell;
 /// The password lives in the PasswordBox and in one local variable for the duration of the pipe
 /// write; the box is cleared before the write is awaited.
 /// The "Texnik kod" / "Код обслуживания" link opens the maintenance code dialog (owned by this window). While it is
-/// open (<see cref="DialogOpen"/>) this window does not take the focus back.
+/// open (<see cref="DialogOpen"/>) this window does not take the focus back. Next to it, "Tiklash kodi" /
+/// "Код восстановления" opens the recovery code dialog (offline, set at install) the same way.
 /// </summary>
 public partial class LoginWindow : Window
 {
@@ -28,8 +29,9 @@ public partial class LoginWindow : Window
     internal Func<PipeMessage, Task<bool>>? Sender { get; set; }
     internal event Action<UiLang>? LanguageChanged;
     internal event Action? AdminRequested;
+    internal event Action? RecoveryRequested;
 
-    /// <summary>Set while the maintenance dialog is open: never re-activate over it.</summary>
+    /// <summary>Set while the maintenance or recovery dialog is open: never re-activate over it.</summary>
     internal bool DialogOpen { get; set; }
 
     internal LoginWindow(UiLang lang)
@@ -145,6 +147,8 @@ public partial class LoginWindow : Window
         NoticeText.Text = UiStrings.Notice(_lang);
         AdminLinkText.Text = UiStrings.AdminLink(_lang);
         AdminLink.IsEnabled = _connected;
+        RecoveryLinkText.Text = UiStrings.RecoveryLink(_lang);
+        RecoveryLink.IsEnabled = _connected;
         ConnectingText.Text = UiStrings.Connecting(_lang);
         ConnectingText.Visibility = _connected ? Visibility.Collapsed : Visibility.Visible;
         ErrorText.Text = _hasError ? UiStrings.LoginError(_lang, _errorCode) : "";
@@ -165,6 +169,11 @@ public partial class LoginWindow : Window
     private void OnAdminClick(object sender, RoutedEventArgs e)
     {
         if (_connected) AdminRequested?.Invoke();
+    }
+
+    private void OnRecoveryClick(object sender, RoutedEventArgs e)
+    {
+        if (_connected) RecoveryRequested?.Invoke();
     }
 
     private async void OnLoginClick(object sender, RoutedEventArgs e)

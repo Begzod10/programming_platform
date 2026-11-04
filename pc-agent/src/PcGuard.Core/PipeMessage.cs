@@ -69,6 +69,18 @@ public abstract record PipeMessage(string T)
                         ? u.UtcDateTime.ToString("O", CultureInfo.InvariantCulture)
                         : null);
                     break;
+                case RecoveryReleaseMessage m:
+                    w.WriteNumber("id", m.Id);
+                    w.WriteString("code", m.Code);
+                    break;
+                case RecoveryResultMessage m:
+                    w.WriteNumber("id", m.Id);
+                    w.WriteBoolean("ok", m.Ok);
+                    WriteNullableString(w, "error", m.Error);
+                    w.WriteNumber("retry_seconds", m.RetrySeconds);
+                    break;
+                case ReleasedMessage:
+                    break;
                 default:
                     throw new FormatException($"Unknown pipe message type {message.GetType().Name}");
             }
@@ -113,6 +125,11 @@ public abstract record PipeMessage(string T)
                 "admin_result" => new AdminResultMessage(ReqBool(r, "ok"), OptString(r, "error"),
                     TryInt(r, "retry_seconds", out var retry) ? Math.Max(0, retry) : 0) { Id = ReqInt(r, "id") },
                 "maintenance" => ParseMaintenance(r),
+                // any string: the service verifies it against the stored hash (RecoveryCode.Verify)
+                "recovery_release" => new RecoveryReleaseMessage(ReqInt(r, "id"), ReqString(r, "code")),
+                "recovery_result" => new RecoveryResultMessage(ReqBool(r, "ok"), OptString(r, "error"),
+                    TryInt(r, "retry_seconds", out var rretry) ? Math.Max(0, rretry) : 0) { Id = ReqInt(r, "id") },
+                "released" => new ReleasedMessage(),
                 _ => throw new FormatException("Unknown pipe message kind"),
             };
         }
@@ -283,3 +300,32 @@ public sealed record AdminResultMessage(bool Ok, string? Error, int RetrySeconds
 
 /// <summary>service -> shell: maintenance state; sent on connect and on every change. UntilUtc is null when inactive.</summary>
 public sealed record MaintenanceMessage(bool Active, DateTimeOffset? UntilUtc) : PipeMessage("maintenance");
+
+/// <summary>
+/// shell -> service: the offline recovery code typed on the lock screen (set at install, see
+/// <see cref="RecoveryCode"/>). <paramref name="Id"/> is the shell's request id, echoed in
+/// recovery_result. The code must never be logged or persisted: <see cref="PrintMembers"/> (and so
+/// ToString, also inside another record) redacts it.
+/// </summary>
+public sealed record RecoveryReleaseMessage(int Id, string Code) : PipeMessage("recovery_release")
+{
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        base.PrintMembers(builder);
+        builder.Append(", Id = ").Append(Id.ToString(CultureInfo.InvariantCulture)).Append(", Code = ***");
+        return true;
+    }
+}
+
+/// <summary>
+/// service -> shell: the answer to the recovery_release with the same <see cref="Id"/>. Error is
+/// invalid_code, locked_out (RetrySeconds set), not_configured or error.
+/// </summary>
+public sealed record RecoveryResultMessage(bool Ok, string? Error, int RetrySeconds) : PipeMessage("recovery_result")
+{
+    /// <summary>Request id of the recovery_release this answers (set by the service).</summary>
+    public int Id { get; init; }
+}
+
+/// <summary>service -> shell: PC Guard was released with the recovery code; close every window and exit.</summary>
+public sealed record ReleasedMessage() : PipeMessage("released");

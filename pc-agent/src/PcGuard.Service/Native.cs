@@ -195,6 +195,59 @@ internal static class Native
         }
     }
 
+    // ---- service configuration (recovery code release) ----
+
+    private const uint SC_MANAGER_CONNECT = 0x0001;
+    private const uint SERVICE_CHANGE_CONFIG = 0x0002;
+    private const uint SERVICE_NO_CHANGE = 0xFFFFFFFF;
+    private const uint SERVICE_DISABLED = 0x00000004;
+
+    [DllImport("advapi32.dll", EntryPoint = "OpenSCManagerW", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr OpenSCManager(string? machineName, string? databaseName, uint desiredAccess);
+
+    [DllImport("advapi32.dll", EntryPoint = "OpenServiceW", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr OpenService(IntPtr scManager, string serviceName, uint desiredAccess);
+
+    [DllImport("advapi32.dll", EntryPoint = "ChangeServiceConfigW", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool ChangeServiceConfig(IntPtr service, uint serviceType, uint startType, uint errorControl,
+        string? binaryPathName, string? loadOrderGroup, IntPtr tagId, string? dependencies,
+        string? serviceStartName, string? password, string? displayName);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool CloseServiceHandle(IntPtr handle);
+
+    /// <summary>
+    /// Sets the start type of the service <paramref name="serviceName"/> to Disabled (nothing else is
+    /// changed: SERVICE_NO_CHANGE for type and error control, null strings keep the rest). Used by the
+    /// recovery code release so that neither the SCM recovery actions nor a reboot start it again.
+    /// Returns 0 on success, otherwise the Win32 error code. Never throws.
+    /// </summary>
+    public static int DisableService(string serviceName)
+    {
+        var scm = OpenSCManager(null, null, SC_MANAGER_CONNECT);
+        if (scm == IntPtr.Zero) return Marshal.GetLastWin32Error();
+        try
+        {
+            var svc = OpenService(scm, serviceName, SERVICE_CHANGE_CONFIG);
+            if (svc == IntPtr.Zero) return Marshal.GetLastWin32Error();
+            try
+            {
+                return ChangeServiceConfig(svc, SERVICE_NO_CHANGE, SERVICE_DISABLED, SERVICE_NO_CHANGE,
+                    null, null, IntPtr.Zero, null, null, null, null)
+                    ? 0
+                    : Marshal.GetLastWin32Error();
+            }
+            finally
+            {
+                CloseServiceHandle(svc);
+            }
+        }
+        finally
+        {
+            CloseServiceHandle(scm);
+        }
+    }
+
     /// <summary>The session attached to the physical console, or null when none (e.g. at boot / during switch).</summary>
     public static uint? ActiveConsoleSessionId()
     {

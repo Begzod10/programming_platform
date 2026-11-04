@@ -18,6 +18,13 @@ namespace PcGuard.Service;
 /// for the 15, 60 or 240 minutes the server returned, measured on a monotonic clock (wall-clock steps
 /// neither end nor extend it). In memory only: it ends at expiry, on admin_end, or with the service.
 /// Every request gets exactly one admin_result with its id. The code is never logged or written to disk.
+///
+/// Recovery code (offline, set at install): the shell forwards recovery_release {id, code}; the service
+/// checks it against %ProgramData%\PcGuard\recovery.hash (PBKDF2, on a worker thread, one at a time,
+/// behind its own local limiter) and answers recovery_result with the id. On success it stops
+/// enforcing at once (flag + killer halted), writes the audit entry, tells the shell to exit
+/// (released), sets its own start type to Disabled and stops. No backend involved; the code is never
+/// logged or written anywhere.
 /// </summary>
 internal sealed class GuardWorker : BackgroundService
 {
@@ -74,11 +81,21 @@ internal sealed class GuardWorker : BackgroundService
     private int _redeemQueued;
     private MaintenanceMessage? _lastMaintenanceSent; // guarded by _stateLock
 
+    // Recovery code: one verification at a time (_recoveryLock also guards the gate and its limiter).
+    // _released is set first thing on success; from then on nothing is enforced or launched.
+    private const string ServiceName = "PcGuard";
+    private readonly IHostApplicationLifetime _lifetime;
+    private readonly RecoveryGate _recoveryGate = new(new AdminAttemptLimiter());
+    private readonly SemaphoreSlim _recoveryLock = new(1, 1);
+    private volatile bool _released;
+
     // Tag -> token for the current (ClosedAt null) and recently closed sessions, memory only.
     private readonly object _sessionsLock = new();
     private readonly Dictionary<string, SessionToken> _sessions = new();
 
     // created in ExecuteAsync (after the data folder is secured)
+    private SecureStore _store = null!;
+    private volatile bool _secured;
     private RuleCache _cache = null!;
     private UsageQueue _queue = null!;
     private UsageTracker _tracker = null!;
@@ -103,9 +120,10 @@ internal sealed class GuardWorker : BackgroundService
     private StateMessage? _lastStateSent;
     private bool _wasFallback;
 
-    public GuardWorker(ILogger<GuardWorker> log, IConfiguration config)
+    public GuardWorker(ILogger<GuardWorker> log, IConfiguration config, IHostApplicationLifetime lifetime)
     {
         _log = log;
+        _lifetime = lifetime;
         _redeemGate = new MaintenanceCodeGate(_maintenance, new AdminAttemptLimiter());
         var raw = config["Backend:BaseUrl"];
         if (!Uri.TryCreate(raw, UriKind.Absolute, out var u) || u.Scheme is not ("https" or "http"))
@@ -140,6 +158,7 @@ internal sealed class GuardWorker : BackgroundService
 
         var shellPath = Path.Combine(AppContext.BaseDirectory, "PcGuard.Shell.exe");
         var store = new SecureStore(_log);
+        _store = store;
         var secured = true;
         try { store.EnsureDirectory(); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException)
@@ -163,6 +182,7 @@ internal sealed class GuardWorker : BackgroundService
             // nothing sensitive is written to an unprotected folder.
             _machineKey = Guid.NewGuid().ToString("D");
         }
+        _secured = secured; // an unsecured data folder is never trusted for recovery.hash either
 
         _cache = new RuleCache(store.RulesPath, TimeSpan.FromMinutes(10), _clock, persist: secured);
         _queue = new UsageQueue(store.UsageQueuePath, persist: secured);
@@ -229,6 +249,7 @@ internal sealed class GuardWorker : BackgroundService
 
     private void Tick(CancellationToken stopping)
     {
+        if (_released) return; // recovery code accepted: enforcement is over for good
         var now = _clock();
         ExpireMaintenance();
         var rules = Effective();
@@ -280,6 +301,7 @@ internal sealed class GuardWorker : BackgroundService
         lock (_snapLock) lastSnap = _lastSnapshotAt;
         DateTimeOffset? lastAlive;
         lock (_snapLock) lastAlive = _lastAliveAt;
+        if (_released) return; // released during this tick: never launch a shell again
         _supervisor.Supervise(now, _shellMissingSince, lastSnap, lastAlive, console, procs.ShellPids);
 
         _ = PushStateAsync(force: false);
@@ -425,6 +447,98 @@ internal sealed class GuardWorker : BackgroundService
         }
     }
 
+    // ---------------- recovery code ----------------
+
+    /// <summary>
+    /// One recovery_release. Exactly one recovery_result with the request's id is sent (unless PC Guard
+    /// was already released). A request arriving while another is being verified is answered
+    /// locked_out (retry 1 s) without counting. The code is never logged.
+    /// </summary>
+    private async Task RecoverAsync(RecoveryReleaseMessage request)
+    {
+        var id = request.Id;
+        if (_released) return;
+        if (!await _recoveryLock.WaitAsync(0).ConfigureAwait(false))
+        {
+            await _pipe.SendAsync(new RecoveryResultMessage(false, AdminErrors.LockedOut, 1) { Id = id }).ConfigureAwait(false);
+            return;
+        }
+        var produced = false;
+        try
+        {
+            if (_released) { produced = true; return; }
+            string? stored = null;
+            var status = _secured ? _store.TryReadRecoveryHash(out stored) : SecureStore.RecoveryHashStatus.Untrusted;
+            switch (status)
+            {
+                case SecureStore.RecoveryHashStatus.Missing:
+                    _log.LogInformation("{Audit}", RecoveryAudit.NotConfigured());
+                    break;
+                case SecureStore.RecoveryHashStatus.Untrusted:
+                    _log.LogWarning("Recovery code attempt refused: recovery.hash is not trusted (data folder not secured, or the file is a link, too large, or has an unexpected owner or ACL)");
+                    break;
+                case SecureStore.RecoveryHashStatus.Malformed:
+                    _log.LogWarning("Recovery code attempt refused: recovery.hash is not in the expected hash format");
+                    break;
+            }
+
+            var pre = _recoveryGate.Precheck(_clock(), status == SecureStore.RecoveryHashStatus.Ok);
+            if (pre is not null)
+            {
+                if (pre.Error == AdminErrors.LockedOut) _log.LogInformation("{Audit}", RecoveryAudit.RefusedLockedOut(pre.RetrySeconds));
+                produced = true;
+                await _pipe.SendAsync(pre with { Id = id }).ConfigureAwait(false);
+                return;
+            }
+
+            var code = request.Code;
+            var verified = await Task.Run(() => RecoveryCode.Verify(code, stored)).ConfigureAwait(false);
+            var reply = _recoveryGate.Complete(_clock(), verified);
+            produced = true;
+            if (reply.Ok)
+            {
+                await ReleaseAsync(id).ConfigureAwait(false);
+                return;
+            }
+            _log.LogWarning("{Audit}", RecoveryAudit.Rejected(_recoveryGate.ConsecutiveFailures));
+            if (reply.Error == AdminErrors.LockedOut) _log.LogWarning("{Audit}", RecoveryAudit.LockedOut());
+            await _pipe.SendAsync(reply with { Id = id }).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _log.LogError("Recovery code handling failed: {Error}", e.GetType().Name); // type only, never the message
+        }
+        finally
+        {
+            if (!produced && !_released)
+                await _pipe.SendAsync(new RecoveryResultMessage(false, AdminErrors.Error, 0) { Id = id }).ConfigureAwait(false);
+            _recoveryLock.Release();
+        }
+    }
+
+    /// <summary>
+    /// The recovery code was accepted. Order matters: stop enforcing first (flag, killer halted), audit,
+    /// tell the shell (ok + released, so it closes its windows and exits), then Disabled start type
+    /// (neither the SCM recovery actions nor a reboot bring the service back) and a clean stop.
+    /// </summary>
+    private async Task ReleaseAsync(int id)
+    {
+        _released = true;
+        _killer.Halt();
+        _log.LogWarning("{Audit}", RecoveryAudit.Accepted());
+        try
+        {
+            await _pipe.SendAsync(new RecoveryResultMessage(true, null, 0) { Id = id }).ConfigureAwait(false);
+            await _pipe.SendAsync(new ReleasedMessage()).ConfigureAwait(false);
+        }
+        finally
+        {
+            var err = Native.DisableService(ServiceName);
+            if (err != 0) _log.LogError("{Audit}", RecoveryAudit.DisableFailed(err));
+            _lifetime.StopApplication();
+        }
+    }
+
     // ---------------- pipe ----------------
 
     private Task OnPipeMessageAsync(PipeMessage message, int clientPid)
@@ -467,6 +581,12 @@ internal sealed class GuardWorker : BackgroundService
                 if (_pendingRedeem.Offer(r) is { } superseded)
                     _ = _pipe.SendAsync(MaintenanceRedeemSlot.SupersededReply(superseded.Id));
                 if (Interlocked.Exchange(ref _redeemQueued, 1) == 0) _commands.Writer.TryWrite(new RedeemCmd());
+                break;
+            case RecoveryReleaseMessage rr:
+                // only the pinned, verified shell reaches this handler (PipeServer gate); PBKDF2 runs off
+                // the pipe reader and the tick loop
+                if (_pipe.ActiveClientPid != clientPid) break;
+                _ = Task.Run(() => RecoverAsync(rr));
                 break;
             case AdminEndMessage:
                 if (_pipe.ActiveClientPid != clientPid) break;
