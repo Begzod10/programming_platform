@@ -104,7 +104,8 @@ student's desktop, so the service is the authority and the shell is its eyes.
 
 Tables (one Alembic migration):
 - `pc_devices`: id, hostname, machine_key_hash (unique), group_id (nullable), last_seen_at,
-  last_app, created_at. There is no stored online flag: `online` is derived as `last_seen_at`
+  last_app, created_at, maintenance_until (nullable; set on a successful maintenance redeem).
+  There is no stored online flag: `online` is derived as `last_seen_at`
   within the last 90 seconds.
 - `pc_allowlists`: id, group_id (NULL = the global row), entries (exe name, optional
   publisher), updated_by, updated_at.
@@ -113,7 +114,7 @@ Tables (one Alembic migration):
 - `pc_commands`: id, scope_type (device, group, all), scope_id, type (lock, unlock, clear,
   message), payload, created_by, created_at. There is no `delivered_at`: message commands
   are pushed to sockets that are connected at that moment and are not queued for offline PCs.
-- `pc_maintenance_codes` (separate migration): id, device_id, code_hash (HMAC-SHA256 with a
+- `pc_maintenance_codes` (separate migration; `maintenance_until` was added by a third one, `e4a9c1d7b250`): id, device_id, code_hash (HMAC-SHA256 with a
   per-code salt), salt, minutes, created_by_user_id, created_at, expires_at, used_at,
   failed_attempts. See 4.4.
 
@@ -139,7 +140,7 @@ Endpoints:
 - Device token: JWT with `sub=pc:<device_id>`, `stu`, `ses`, `typ=pc`, expiry 14 h. It is
   rejected by every student and teacher API, and the `/pc/*` endpoints require it. It dies
   when its session ends (logout or a new login on that machine).
-- Teacher endpoints under `/teacher/pc` (teacher auth): `GET /devices`, `PATCH /devices/{id}`
+- Teacher endpoints under `/teacher/pc` (teacher auth): `GET /devices` (includes `maintenance_until`, ISO, or null when unset or past), `PATCH /devices/{id}`
   (set group), `POST /commands`, `GET`/`PUT /allowlist`, `GET /report`,
   `POST /devices/{id}/maintenance-code` (4.4).
   Scoping: report access and group-level actions (group commands, group allowlist, assigning a
@@ -206,10 +207,10 @@ key can NOT be unlocked by code; the only recovery for them is Safe Mode or the 
 
 Flow:
 1. A teacher creates a code for one device in the console:
-   `POST /teacher/pc/devices/{id}/maintenance-code` body `{"minutes": 15|60|240}` (default 60)
+   `POST /teacher/pc/devices/{id}/maintenance-code` body `{"minutes": 15|60|240}` (API default 60; the console preselects 15)
    -> 201 `{"code": "123456", "expires_at": ..., "minutes": ...}`. Recommended choice: 15 minutes
    (the teacher cannot end maintenance remotely yet, see 6). The code is 6 digits, lives
-   5 minutes, is single use, supersedes older codes for that device, and is stored only as an
+   5 minutes, is single use, supersedes older codes for that device (if a race leaves several active, redeem accepts any of them and retires all on success), and is stored only as an
    HMAC; at most 10 codes per hour per device (429). Any teacher may issue one (shared lab
    hardware). Nothing is pushed to the PC.
 2. On the PC the "Texnik kod" / "Код обслуживания" link (sign-in screen, and the name banner
@@ -227,8 +228,11 @@ Flow:
    `POST /pc/maintenance/redeem` body `{"machine_key": "<machine.key GUID>", "code": "123456"}`
    with a 10 s timeout. 200 `{"minutes": 15|60|240}` is success (any other value is treated as
    an error); every failure is 403 `{"detail":"invalid_code"}` (wrong, expired, used, other
-   device); 429 means the backend's own block (5 failures per machine key -> 10 minutes; there
-   is deliberately NO per-IP block, because the lab PCs share one public IP and one student could
+   device); 429 means the backend's own block (5 failures per machine key -> 10 minutes, counted only for
+   machine keys of known devices; unknown keys create no state) or the flood limit of 120
+   requests per minute per client IP on this endpoint (first `X-Forwarded-For` entry as in login;
+   shared by the lab or dodged by a spoofed header, so a coarse guard only). There is deliberately
+   NO per-IP failure block, because the lab PCs share one public IP and one student could
    otherwise turn codes off for the whole lab; the per-code limit of 5 in the database bounds
    guessing); no answer means offline. The code is consumed on success. If the answer to a
    consumed code is lost (timeout, network drop), the PC shows offline, stays locked and the code
@@ -254,7 +258,8 @@ Flow:
    nor extend it; the wall clock only gives the displayed end time and the audit text. It is
    never persisted, so a restart or reboot re-locks. A window can last up to 4 hours and the
    teacher has no remote "end maintenance" action yet (deferred); the console keeps showing the
-   server state while the PC is open.
+   server state and, from `maintenance_until`, a "Maintenance until HH:mm" badge. The badge is the
+   granted window: it does not clear if the PC ends maintenance early.
 
 Audit: log lines only. Windows Application event log entries for start (minutes, end time in
 UTC), end (reason), rejected codes (n of 5), the local lockout and the refusal over http; the
