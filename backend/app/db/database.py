@@ -240,6 +240,12 @@ async def _reconcile_indexes(conn) -> None:
         text("ALTER TABLE team_project_teams ADD COLUMN IF NOT EXISTS unmet_lessons_json TEXT"),
         # 2026-10-13: teachers archive team projects that are over.
         text("ALTER TABLE team_projects ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ"),
+        # 2026-11-04: teachers can revert a penalty; wallet part is stored so the refund is exact.
+        text("ALTER TABLE teacher_penalties ADD COLUMN IF NOT EXISTS wallet_deducted INTEGER"),
+        text("ALTER TABLE teacher_penalties ADD COLUMN IF NOT EXISTS reverted_at TIMESTAMPTZ"),
+        text("ALTER TABLE teacher_penalties ADD COLUMN IF NOT EXISTS reverted_by_id INTEGER REFERENCES students(id) ON DELETE SET NULL"),
+        text("ALTER TABLE teacher_penalties ADD COLUMN IF NOT EXISTS refunded_points INTEGER"),
+        text("ALTER TABLE teacher_penalties ADD COLUMN IF NOT EXISTS refunded_wallet INTEGER"),
         text("UPDATE projects SET points_applied = CASE WHEN status = 'Approved' "
              "THEN COALESCE(points_earned, 0) ELSE 0 END WHERE points_applied IS NULL"),
     ]

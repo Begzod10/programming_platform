@@ -25,6 +25,7 @@ const NOTE_HEADING = {
     daily_complete:    { uz: 'Kunlik vazifa bajarildi! 🎯', ru: 'Дневная норма выполнена! 🎯' },
     quota_reminder:    { uz: 'Kunlik eslatma ⏰',     ru: 'Напоминание о норме ⏰' },
     teacher_penalty:   { uz: "O'qituvchidan jarima ⚠️", ru: 'Штраф от учителя ⚠️' },
+    penalty_reverted:  { uz: 'Jarima bekor qilindi ↩️', ru: 'Штраф отменён ↩️' },
 };
 
 const LEVEL_META = {

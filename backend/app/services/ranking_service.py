@@ -326,6 +326,31 @@ class RankingService:
         await self.db.refresh(student)
         return student
 
+    async def restore_points(self, student_id: int, lifetime: int, wallet: int) -> Optional[Student]:
+        """Give back points taken by `revoke_earned_points` (a reverted penalty).
+
+        The rating (`lifetime_points`) and the spendable wallet (`total_points`) are credited
+        separately because the revoke floors each at 0 on its own, so the two amounts can
+        differ. Same lock order as an award: Student, then Ranking; no full recompute.
+        """
+        res = await self.db.execute(
+            select(Student).where(Student.id == student_id).with_for_update()
+        )
+        student = res.scalar_one_or_none()
+        if not student:
+            return None
+        student.lifetime_points = (student.lifetime_points or 0) + max(0, lifetime)
+        student.total_points = (student.total_points or 0) + max(0, wallet)
+        ranking = (await self.db.execute(
+            select(Ranking).where(Ranking.student_id == student_id).with_for_update()
+        )).scalar_one_or_none()
+        if ranking is not None:
+            ranking.total_points = student.lifetime_points
+            ranking.last_calculated_at = utcnow()
+        await self.db.commit()
+        await self.db.refresh(student)
+        return student
+
     # ========== RESET (NO CASCADE - simplified) ==========
 
     async def reset_daily_points(self):

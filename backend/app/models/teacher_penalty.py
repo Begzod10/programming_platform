@@ -50,9 +50,22 @@ class TeacherPenalty(Base):
     points_before: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     points_after: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
+    # Points actually taken off the spendable wallet (total_points). The wallet is floored
+    # at 0 separately from the rating, so this can be smaller than ``amount``. NULL = a
+    # penalty from before this was recorded (its wallet part is unknown, so it is not refunded).
+    wallet_deducted: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, index=True
     )
+
+    # Reverted ("jarimani qaytarish"): the row stays as the audit trail, marked here.
+    reverted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    reverted_by_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("students.id", ondelete="SET NULL"), nullable=True
+    )
+    refunded_points: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)   # rating given back
+    refunded_wallet: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)   # wallet given back
 
     __table_args__ = (
         Index("ix_teacher_penalties_student_created", "student_id", "created_at"),

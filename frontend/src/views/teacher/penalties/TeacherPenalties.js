@@ -4,7 +4,7 @@ import { API_URL, useHttp, headers, resolveImageUrl } from '../../../api/search/
 import { useTranslation } from '../../../i18n/useTranslation';
 import { PENALTY_TYPES, penaltyLabel } from '../../../constants/penaltyTypes';
 import {
-    Gavel, Search, AlertTriangle, Check, X, Loader2, History,
+    Gavel, Search, AlertTriangle, Check, X, Loader2, History, Undo2,
 } from 'lucide-react';
 
 const QUICK = [10, 25, 50, 100];
@@ -44,6 +44,8 @@ export default function TeacherPenalties() {
     const [msg, setMsg] = useState(null);     // { ok, text }
     const [onlyPicked, setOnlyPicked] = useState(false);
     const boxRef = useRef(null);
+    const [revertingId, setRevertingId] = useState(null);   // row asking "are you sure?"
+    const [revertBusy, setRevertBusy] = useState(false);
 
     const loadStudents = () =>
         request(`${API_URL}v1/teacher/penalties/students`, 'GET', null, headers())
@@ -117,6 +119,26 @@ export default function TeacherPenalties() {
             setConfirming(false);
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const revert = async (h) => {
+        setRevertBusy(true); setMsg(null);
+        try {
+            const res = await request(`${API_URL}v1/teacher/penalties/${h.id}/revert`, 'POST', null, headers());
+            setHistory(list => list.map(x => x.id === h.id ? { ...x, ...res } : x));
+            // the student's rating went up again: keep the picker balances in step
+            const back = res?.refunded_points || 0;
+            setStudents(list => list.map(s => s.student_id === h.student_id ? { ...s, rating_points: s.rating_points + back } : s));
+            setPicked(p => p && p.student_id === h.student_id ? { ...p, rating_points: p.rating_points + back } : p);
+            setMsg({ ok: true, text: ru
+                ? `Штраф отменён: «${h.student_name}» +${back}.`
+                : `Jarima bekor qilindi: «${h.student_name}» ga +${back} qaytarildi.` });
+        } catch (e) {
+            const detail = e?.response?.data?.detail || e?.response?.data?.error?.message;
+            setMsg({ ok: false, text: detail || (ru ? 'Не удалось отменить штраф' : 'Jarimani qaytarib boʻlmadi') });
+        } finally {
+            setRevertBusy(false); setRevertingId(null);
         }
     };
 
@@ -289,7 +311,7 @@ export default function TeacherPenalties() {
                     ) : (
                         <div className="pen-hist-list">
                             {history.map(h => (
-                                <div className="pen-hist-row" key={h.id}>
+                                <div className={`pen-hist-row ${h.reverted_at ? 'reverted' : ''}`} key={h.id}>
                                     <div className="pen-hist-main">
                                         <div className="pen-hist-top">
                                             <span className="pen-hist-name">{h.student_name || `#${h.student_id}`}</span>
@@ -304,6 +326,29 @@ export default function TeacherPenalties() {
                                             {h.teacher_name && <span>· {h.teacher_name}</span>}
                                             <span>· {timeAgo(h.created_at, ru)}</span>
                                         </div>
+                                        {h.reverted_at ? (
+                                            <div className="pen-reverted-note">
+                                                <Undo2 size={13} /> {ru ? 'Отменён' : 'Qaytarilgan'} · +{h.refunded_points ?? 0}
+                                                {h.reverted_by_name && <> · {h.reverted_by_name}</>} · {timeAgo(h.reverted_at, ru)}
+                                            </div>
+                                        ) : revertingId === h.id ? (
+                                            <div className="pen-revert-confirm">
+                                                <span>{ru
+                                                    ? <>Вернуть <b>{h.student_name}</b> очки штрафа (<b>+{Math.max(0, h.points_before - h.points_after)}</b>)?</>
+                                                    : <><b>{h.student_name}</b> ga jarima ballini (<b>+{Math.max(0, h.points_before - h.points_after)}</b>) qaytarasizmi?</>}</span>
+                                                <button className="pen-btn ghost sm" onClick={() => setRevertingId(null)} disabled={revertBusy}>
+                                                    <X size={14} /> {ru ? 'Нет' : "Yo'q"}
+                                                </button>
+                                                <button className="pen-btn ok sm" onClick={() => revert(h)} disabled={revertBusy}>
+                                                    {revertBusy ? <Loader2 size={14} className="pen-spin" /> : <Check size={14} />}
+                                                    {ru ? 'Да, вернуть' : 'Ha, qaytarish'}
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button className="pen-revert-btn" onClick={() => setRevertingId(h.id)}>
+                                                <Undo2 size={13} /> {ru ? 'Вернуть' : 'Qaytarish'}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             ))}

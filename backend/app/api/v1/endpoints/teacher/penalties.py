@@ -19,6 +19,7 @@ from app.models.teacher_penalty import TeacherPenalty, PENALTY_TYPES
 from app.services.ranking_service import RankingService
 from app.services.teacher_students import teacher_student_ids_subquery
 from app.services import notification_service
+from app.utils.datetime_utils import utcnow
 
 router = APIRouter()
 
@@ -59,6 +60,10 @@ class PenaltyRead(BaseModel):
     points_before: int
     points_after: int
     created_at: datetime
+    reverted_at: Optional[datetime] = None
+    reverted_by_name: Optional[str] = None
+    refunded_points: Optional[int] = None
+    refunded_wallet: Optional[int] = None
 
 
 class ApplyPenaltyResponse(BaseModel):
@@ -139,7 +144,8 @@ async def list_penalties(
         return []
 
     # Resolve names in one shot.
-    ids = {p.student_id for p in penalties} | {p.teacher_id for p in penalties if p.teacher_id}
+    ids = ({p.student_id for p in penalties} | {p.teacher_id for p in penalties if p.teacher_id}
+           | {p.reverted_by_id for p in penalties if p.reverted_by_id})
     name_rows = (await db.execute(
         select(Student.id, Student.full_name, Student.username).where(Student.id.in_(ids))
     )).all()
@@ -158,6 +164,10 @@ async def list_penalties(
             points_before=p.points_before,
             points_after=p.points_after,
             created_at=p.created_at,
+            reverted_at=p.reverted_at,
+            reverted_by_name=names.get(p.reverted_by_id) if p.reverted_by_id else None,
+            refunded_points=p.refunded_points,
+            refunded_wallet=p.refunded_wallet,
         )
         for p in penalties
     ]
@@ -182,11 +192,13 @@ async def apply_penalty(
         raise HTTPException(status_code=403, detail="Bu student sizning guruhingizda emas")
 
     points_before = student.lifetime_points or 0
+    wallet_before = student.total_points or 0
     # revoke_earned_points reduces BOTH wallets (spendable + career/leaderboard),
     # floored at 0 — exactly the "rating points" the student sees, dropped.
     await RankingService(db).revoke_earned_points(data.student_id, data.amount)
     await db.refresh(student)
     points_after = student.lifetime_points or 0
+    wallet_deducted = max(0, wallet_before - (student.total_points or 0))
 
     penalty = TeacherPenalty(
         student_id=data.student_id,
@@ -196,6 +208,7 @@ async def apply_penalty(
         comment=(data.comment or None),
         points_before=points_before,
         points_after=points_after,
+        wallet_deducted=wallet_deducted,
     )
     db.add(penalty)
     await db.commit()
@@ -223,4 +236,57 @@ async def apply_penalty(
             created_at=penalty.created_at,
         ),
         rating_points=points_after,
+    )
+
+
+@router.post("/{penalty_id}/revert", response_model=PenaltyRead)
+async def revert_penalty(
+    penalty_id: int,
+    current_teacher: Student = Depends(get_current_instructor),
+    db: AsyncSession = Depends(get_db),
+):
+    """Take a penalty back: the rating gets exactly what the penalty removed
+    (points_before - points_after) and the wallet exactly what it removed from the wallet
+    (wallet_deducted; unknown for older penalties -> 0, so nobody gets points from nothing).
+    Once only; any teacher whose scope includes the student may do it."""
+    penalty = (await db.execute(
+        select(TeacherPenalty).where(TeacherPenalty.id == penalty_id).with_for_update()
+    )).scalar_one_or_none()
+    if not penalty:
+        raise HTTPException(status_code=404, detail="Jarima topilmadi")
+    if not await _student_in_scope(db, penalty.student_id, current_teacher.id):
+        raise HTTPException(status_code=403, detail="Bu student sizning guruhingizda emas")
+    if penalty.reverted_at is not None:
+        raise HTTPException(status_code=409, detail="Bu jarima allaqachon qaytarilgan")
+
+    rating_back = max(0, (penalty.points_before or 0) - (penalty.points_after or 0))
+    wallet_back = max(0, penalty.wallet_deducted or 0)
+
+    penalty.reverted_at = utcnow()
+    penalty.reverted_by_id = current_teacher.id
+    penalty.refunded_points = rating_back
+    penalty.refunded_wallet = wallet_back
+    await db.flush()
+    # restore_points commits (the flag above and the credit land in one transaction).
+    student = await RankingService(db).restore_points(penalty.student_id, rating_back, wallet_back)
+    await db.refresh(penalty)
+
+    await notification_service.notify_penalty_reverted(
+        db, penalty.student_id, refunded=rating_back, penalty_type=penalty.penalty_type,
+    )
+
+    teacher = (await db.execute(
+        select(Student.full_name, Student.username).where(Student.id == penalty.teacher_id)
+    )).first() if penalty.teacher_id else None
+    return PenaltyRead(
+        id=penalty.id, student_id=penalty.student_id,
+        student_name=(student.full_name or student.username) if student else None,
+        teacher_id=penalty.teacher_id,
+        teacher_name=(teacher[0] or teacher[1]) if teacher else None,
+        amount=penalty.amount, penalty_type=penalty.penalty_type, comment=penalty.comment,
+        points_before=penalty.points_before, points_after=penalty.points_after,
+        created_at=penalty.created_at,
+        reverted_at=penalty.reverted_at,
+        reverted_by_name=(current_teacher.full_name or current_teacher.username),
+        refunded_points=penalty.refunded_points, refunded_wallet=penalty.refunded_wallet,
     )

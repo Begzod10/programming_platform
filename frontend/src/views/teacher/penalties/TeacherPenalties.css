@@ -158,6 +158,18 @@
 .pen-hist-reason { font-weight: 650; }
 .pen-hist-comment { color: var(--pen-muted); }
 .pen-hist-meta { margin-top: 5px; font-size: .76rem; color: var(--pen-faint); display: flex; flex-wrap: wrap; gap: 5px; }
+.pen-hist-row.reverted { background: #f6faf7; }
+.pen-hist-row.reverted .pen-hist-amt { color: var(--pen-faint); background: #f1f2f6; border-color: #e3e5ec; text-decoration: line-through; }
+.pen-hist-row.reverted .pen-hist-name, .pen-hist-row.reverted .pen-hist-sub { opacity: .65; }
+.pen-reverted-note { margin-top: 7px; display: inline-flex; align-items: center; gap: 5px; font-size: .78rem; font-weight: 650;
+    color: #1d7a45; background: #e7f6ed; border-radius: 8px; padding: 3px 9px; }
+.pen-revert-btn { margin-top: 8px; display: inline-flex; align-items: center; gap: 5px; font-size: .78rem; font-weight: 650;
+    color: #1d7a45; background: transparent; border: 1px solid #b9dfc8; border-radius: 8px; padding: 3px 10px; cursor: pointer; }
+.pen-revert-btn:hover { background: #e7f6ed; }
+.pen-revert-confirm { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .84rem; }
+.pen-revert-confirm > span { flex: 1 1 100%; }
+.pen-btn.sm { padding: 5px 11px; font-size: .8rem; }
+.pen-btn.ok { background: #1d7a45; color: #fff; border: 1px solid #1d7a45; }
 .pen-empty { padding: 32px; text-align: center; color: var(--pen-faint); font-size: .9rem; }
 
 .pen-hist-skel { display: flex; flex-direction: column; gap: 9px; }

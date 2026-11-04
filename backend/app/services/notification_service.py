@@ -194,6 +194,18 @@ async def notify_teacher_penalty(
     )
 
 
+async def notify_penalty_reverted(
+    db: AsyncSession, student_id: int, *, refunded: int, penalty_type: str,
+) -> Optional[Notification]:
+    """Tell the student a teacher took a penalty back; ``points`` is the rating given back."""
+    return await _emit(
+        db, student_id, type="penalty_reverted", tone="ok", title="",
+        extra=(penalty_type or "other")[:60],
+        points=abs(refunded or 0),
+        icon="↩️", link="/student/rankings",
+    )
+
+
 async def notify_quota_reminder(db: AsyncSession, student_id: int, *, remaining: int,
                                 enforcing: bool, penalty_per_lesson: int) -> Optional[Notification]:
     """Hourly "finish your quota" nudge. The dynamic count lives in `title` (the

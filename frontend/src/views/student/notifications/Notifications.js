@@ -7,7 +7,7 @@ import AppHeader from '../../../components/appheader/AppHeader';
 import './Notifications.css';
 import {
     Bell, CheckCircle2, XCircle, Clock, Award, GraduationCap,
-    CheckCheck, Inbox, ChevronRight, Sparkles, AlertTriangle,
+    CheckCheck, Inbox, ChevronRight, Sparkles, AlertTriangle, Undo2,
 } from 'lucide-react';
 import { penaltyLabel } from '../../../constants/penaltyTypes';
 
@@ -57,6 +57,12 @@ function present(n, ru) {
                 text: n.body ? `${reason} — ${n.body}` : reason,
             };
         }
+        case 'penalty_reverted':
+            return {
+                icon: Undo2, tone: n.tone || 'ok',
+                heading: ru ? 'Штраф отменён' : 'Jarima bekor qilindi',
+                text: ru ? `Баллы возвращены: ${penaltyLabel(n.extra, ru)}.` : `Ballar qaytarildi: ${penaltyLabel(n.extra, ru)}.`,
+            };
         default:
             return { icon: Bell, tone: n.tone || 'ok', heading: title, text: n.body || '' };
     }
