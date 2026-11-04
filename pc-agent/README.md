@@ -180,6 +180,10 @@ The last way out when a PC is stuck on the full-screen lock and nothing else wor
 
 Nothing below has been run yet. Use a Windows 10 or 11 VM with snapshots: one standard-account student user, one separate administrator account, a reachable backend (staging) with a student, a teacher account, `PC_PLATFORM_HOSTS` set, and a required lesson quota. Install with `install.ps1` first. Mark each test Pass or Fail and write failures in the Notes line.
 
+### Automated self-test
+
+`scripts\selftest.ps1` checks the installed PC by itself (elevated Windows PowerShell in the console session: `powershell -NoProfile -ExecutionPolicy Bypass -File .\selftest.ps1`; it also works with a dummy `http://localhost` backend and nobody signed in). It prints PASS/FAIL/SKIP per check and writes a report to the Desktop; it changes nothing, never attempts a recovery release and never prints the recovery hash or the machine key. It automates the no-human parts of tests 8 (without the reboot), 19, 22, 47, 70, 71 and 72, and parts of 1, 3, 9, 10, 15, 24, 31, 39, 41, 48, 86, 87, 138, 145, 155, 160 and 161 (static facts, process DACLs, event log lines, and probes that start Notepad, Paint and Task Manager and expect them closed). Everything with a reboot, a standard user, Safe Mode, the backend, a quota or a recovery release still needs the manual tests. See `scripts\SELFTEST.md`. Not yet run on Windows either.
+
 ### 1. Core acceptance tests
 
 **Test 1. Locked student cannot keep a non-allowlisted app open**
