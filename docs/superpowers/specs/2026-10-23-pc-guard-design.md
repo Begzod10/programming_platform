@@ -96,9 +96,9 @@ student's desktop, so the service is the authority and the shell is its eyes.
   best effort and untested.
 - **Maintenance mode (teacher code)**: the only case in which enforcement is suspended without
   the server's lock decision, and it still needs the server (see 4.4). The shell's
-  "Administrator" link sends a 6-digit code; the service checks it with the backend and, on
-  success, treats the rules as unlocked for the 15, 60 or 240 minutes the backend returned.
-  In memory only.
+  "Texnik kod" / "Код обслуживания" link sends a 6-digit code; the service checks it with the
+  backend (https only) and, on success, treats the rules as unlocked for the 15, 60 or 240
+  minutes the backend returned, measured on a monotonic clock. In memory only.
 
 ### 4.2 Backend (module `pc_control`)
 
@@ -194,50 +194,78 @@ Page `frontend/src/views/teacher/pccontrol/` with three tabs, strings in Uzbek a
 
 ### 4.4 Maintenance mode (teacher code)
 
-Purpose: a way to use a locked PC (repairs, or nobody can sign in) without stopping PC Guard
-and without any Windows account or password.
+Purpose: a way to use a locked PC (for example for repairs) without stopping PC Guard and
+without any Windows account or password.
+
+Precondition: the PC must already appear in the teacher console, i.e. a student has signed in
+on it at least once with its current `machine.key` (a `pc_devices` row is created only by a
+successful student sign-in, and redeem matches that row's machine key). A freshly installed PC,
+a PC whose `machine.key` was regenerated (read error, quarantined data folder; the console may
+still show the stale row with the same hostname) and a PC running fail-closed with a temporary
+key can NOT be unlocked by code; the only recovery for them is Safe Mode or the Cleanup tool.
 
 Flow:
 1. A teacher creates a code for one device in the console:
    `POST /teacher/pc/devices/{id}/maintenance-code` body `{"minutes": 15|60|240}` (default 60)
-   -> 201 `{"code": "123456", "expires_at": ..., "minutes": ...}`. The code is 6 digits, lives
+   -> 201 `{"code": "123456", "expires_at": ..., "minutes": ...}`. Recommended choice: 15 minutes
+   (the teacher cannot end maintenance remotely yet, see 6). The code is 6 digits, lives
    5 minutes, is single use, supersedes older codes for that device, and is stored only as an
    HMAC; at most 10 codes per hour per device (429). Any teacher may issue one (shared lab
    hardware). Nothing is pushed to the PC.
-2. On the PC the "Administrator" link (sign-in screen, and the name banner while a student is
-   signed in) opens a dialog with one 6-digit field. The shell sends
-   `{"t":"maintenance_redeem","code":"123456"}` over the pipe; only the pinned shell instance is
-   accepted (existing pipe gate), so a fake shell cannot send it.
+2. On the PC the "Texnik kod" / "Код обслуживания" link (sign-in screen, and the name banner
+   while a student is signed in) opens a dialog with one 6-digit field (undo disabled, so a
+   cleared code cannot be restored with Ctrl+Z). The shell sends
+   `{"t":"maintenance_redeem","id":7,"code":"123456"}` over the pipe, `id` being a fresh request
+   id; only the pinned shell instance is accepted (existing pipe gate), so a fake shell cannot
+   send it. The service keeps only the latest pending request; one it replaces before checking
+   it is answered `admin_result` ok=false, error `error`, with the replaced id.
 3. The service, on its command loop (serialised with sign-in; the enforcement tick is not
    blocked), checks its local limiter (at least 1 s between attempts; 5 consecutive
    `invalid_code` failures lock code entry for 10 minutes), then the shape `^[0-9]{6}$` (anything
-   else is `invalid_code` without a network call), then calls the token-less
+   else is `invalid_code` without a network call), then, only if the backend base URL is https
+   (otherwise `error`, with a warning in the event log and no network call), calls the token-less
    `POST /pc/maintenance/redeem` body `{"machine_key": "<machine.key GUID>", "code": "123456"}`
    with a 10 s timeout. 200 `{"minutes": 15|60|240}` is success (any other value is treated as
    an error); every failure is 403 `{"detail":"invalid_code"}` (wrong, expired, used, other
-   device); 429 means the backend's own block (5 failures per machine key or IP -> 10 minutes);
-   no answer means offline. The code is consumed on success.
-4. The service answers the shell `{"t":"admin_result","ok":...,"error":...,"retry_seconds":n}`
+   device); 429 means the backend's own block (5 failures per machine key -> 10 minutes; there
+   is deliberately NO per-IP block, because the lab PCs share one public IP and one student could
+   otherwise turn codes off for the whole lab; the per-code limit of 5 in the database bounds
+   guessing); no answer means offline. The code is consumed on success. If the answer to a
+   consumed code is lost (timeout, network drop), the PC shows offline, stays locked and the code
+   is gone: the teacher issues a new one.
+4. The service answers the shell
+   `{"t":"admin_result","id":7,"ok":...,"error":...,"retry_seconds":n}` (the request's id)
    with `error` one of `invalid_code`, `locked_out` (with `retry_seconds`), `rate_limited`,
    `offline`, `error`, and on success sends `{"t":"maintenance","active":true,"until_utc":...}`
-   (also to every newly connected shell and on every change).
+   (also to every newly connected shell and on every change). The shell ignores an
+   `admin_result` whose id is not its current pending request (superseded, timed out after 15 s,
+   or from a dialog that was closed), so a late answer never shows up in a later dialog.
 5. While active the effective rules are the server's rules with `locked=false`, reason
-   `maintenance`: no kills, no `close_window`, no name-only fallback kills. State frames, usage
-   and sign-in keep working but cannot re-lock; when maintenance ends the current rules apply at
-   once. The shell hides the sign-in screen and shows a banner "Texnik rejim HH:mm gacha" /
-   "Режим обслуживания до HH:mm" (local time) with an End button.
+   `maintenance`: no kills, no `close_window`, no name-only fallback kills. State frames (a
+   teacher's "lock now" included) and usage keep arriving but cannot re-lock; when maintenance
+   ends the current rules apply at once. The shell hides the sign-in screen and shows a banner
+   "Texnik rejim HH:mm gacha" / "Режим обслуживания до HH:mm" (local time) with an End button.
+   Sign-in does NOT work during maintenance: the sign-in screen is hidden. A student already
+   signed in keeps working; a signed-out PC is simply open and nobody signs in until
+   maintenance ends.
 6. It ends at expiry, on `{"t":"admin_end"}` from the shell (no code needed: ending only
-   re-locks), when the clock is set back before its start, and when the service stops. It is
-   never persisted, so a restart or reboot re-locks.
+   re-locks), and when the service stops. The deadline is kept on a monotonic clock
+   (`Environment.TickCount64`), so wall-clock steps (NTP, an administrator) neither end it early
+   nor extend it; the wall clock only gives the displayed end time and the audit text. It is
+   never persisted, so a restart or reboot re-locks. A window can last up to 4 hours and the
+   teacher has no remote "end maintenance" action yet (deferred); the console keeps showing the
+   server state while the PC is open.
 
-Audit: Windows Application event log entries for start (minutes, end time in UTC), end
-(reason), rejected codes (n of 5) and the local lockout; the backend logs issue (teacher,
-device, minutes) and redemption. The code itself is never logged, stored or shown in an
-exception message on the PC.
+Audit: log lines only. Windows Application event log entries for start (minutes, end time in
+UTC), end (reason), rejected codes (n of 5), the local lockout and the refusal over http; the
+backend writes log lines for issue (teacher, device, minutes) and redemption. There is no
+durable audit table (code rows do not record why they were consumed and are deleted after
+7 days). The code itself is never logged, stored or shown in an exception message on the PC.
 
-Accepted limitation: the check needs the backend. With the backend unreachable the PC stays
-locked and the only way out is Safe Mode or the Cleanup tool (both need a Windows
-administrator). Because codes are often read out loud, a code should be issued only when the
+Accepted limitation: the check needs the backend and a known device. With the backend
+unreachable, or for a PC the console does not know with its current machine key (see the
+precondition), the PC stays locked and the only way out is Safe Mode or the Cleanup tool (both
+need a Windows administrator). Because codes are often read out loud, a code should be issued only when the
 person at that PC is ready to type it.
 
 ## 5. Browser handling
@@ -279,10 +307,11 @@ second day. The report is limited to the calling teacher's students and 31 days.
 - The agent applies only what the server says; it never decides an unlock itself. The one
   exception, maintenance mode (4.4), is also authorised by the server: a single-use 6-digit code
   that a teacher issued for this device, valid 5 minutes, checked by the backend; the PC adds a
-  1 s spacing and a 10-minute lockout after 5 wrong codes, the backend blocks a machine key or IP
-  after 5 failures and burns a code after 5 wrong guesses. Maintenance is time-limited (15, 60
-  or 240 minutes, set by the server), memory-only (a service restart re-locks) and audited in
-  the event log. Its weak points: a code read aloud can be used by anyone at that PC within
+  1 s spacing and a 10-minute lockout after 5 wrong codes, the backend blocks a machine key
+  after 5 failures (no per-IP block: a lab shares one IP) and burns a code after 5 wrong
+  guesses. The code is sent only over https. Maintenance is time-limited (15, 60 or 240
+  minutes, set by the server, on a monotonic clock), memory-only (a service restart re-locks),
+  cannot yet be ended remotely, and audited by log lines only. Its weak points: a code read aloud can be used by anyone at that PC within
   5 minutes, and a 6-digit code is guessable only within those limits.
 - The device token is scoped to `/pc/*` (see 4.2), lives 14 h, is kept in memory only, and is
   revoked by logout or a new login on the machine.
@@ -305,7 +334,7 @@ executables ("Terminated <exe>"), and some error entries that include exception 
 (pipe, shell-launch and data-folder errors). No log call writes passwords, tokens, URLs or
 window titles (checked by reading the log calls); checklist test 87 verifies it on a PC.
 Maintenance mode adds audit entries (start with minutes and end time, end with reason,
-rejected-code count, lockout); the maintenance code is never logged or written to disk
+rejected-code count, lockout, http refusal); the maintenance code is never logged or written to disk
 (checklist test 132). Local data in
 `%ProgramData%\PcGuard` (machine key, rule cache, usage queue; the queue is purged at service start) is readable only by SYSTEM and
 Administrators. A notice in Uzbek and Russian is shown at sign-in because many students are
@@ -370,12 +399,13 @@ Tested: backend pytest (105 PC Guard tests; the whole backend suite had one fail
 `test_auth.py::test_synced_student_username_upgrades_from_synthetic_on_relogin`, a pre-existing
 shared-test-DB collision unrelated to this feature); agent Core unit tests (386); frontend
 (49 suites, 292 tests: the whole frontend suite, not only the PC console; also run under
-other time zones). Since then the agent Core suite has grown to 688 tests, including
-maintenance mode (code shape, limiter, gate, redeem protocol, pipe messages, strings, rules).
+other time zones). Since then the agent Core suite has grown to 712 tests, including
+maintenance mode (code shape, limiter, gate, monotonic deadline, request ids, https-only
+redeem, redeem protocol, pipe messages, strings, rules).
 
 Never run: the Windows service, the shell and the installer scripts (`install.ps1`,
 `uninstall.ps1`, `publish.ps1`). They compile (0-warning build) but nothing has executed on
-Windows. The 134-test VM checklist in `pc-agent/README.md` must be run before any rollout;
+Windows. The 138-test VM checklist in `pc-agent/README.md` must be run before any rollout;
 treat enforcement, shell protection, the Safe Mode registration, browser address-bar reading
 and the installer rollback as unverified until then.
 
@@ -388,8 +418,9 @@ Accepted or parked risks:
 - Same-user code injection into the shell is only partly mitigated; a compromised shell could
   under-report windows.
 - An administrator can stop the service; Safe Mode behaviour is untested.
-- Maintenance mode needs the backend: with it down, a locked PC can only be freed through
-  Safe Mode or the Cleanup tool. The maintenance service, shell dialog and banner are only
+- Maintenance mode needs the backend and a device the console knows with its current machine
+  key: otherwise a locked PC can only be freed through Safe Mode or the Cleanup tool. A window
+  lasts up to 4 hours and cannot be ended remotely yet (recommend 15 minutes). The maintenance service, shell dialog and banner are only
   compile-checked.
 - Violators are killed with no chance to save work.
 - Browser rule gaps: pages with a non-http(s) scheme or a dotless address read as no host
