@@ -108,6 +108,9 @@ student's desktop, so the service is the authority and the shell is its eyes.
   "Texnik kod" / "Код обслуживания" link sends a 6-digit code; the service checks it with the
   backend (https only) and, on success, treats the rules as unlocked for the 15, 60 or 240
   minutes the backend returned, measured on a monotonic clock. In memory only.
+- **Recovery code (offline escape)**: see 4.5. Next to "Texnik kod", the link "Tiklash kodi" /
+  "Код восстановления" sends an install-time code that the service checks locally; on success
+  PC Guard stops enforcing, sets its own start type to Disabled and stops.
 
 ### 4.2 Backend (module `pc_control`)
 
@@ -212,7 +215,8 @@ on it at least once with its current `machine.key` (a `pc_devices` row is create
 successful student sign-in, and redeem matches that row's machine key). A freshly installed PC,
 a PC whose `machine.key` was regenerated (read error, quarantined data folder; the console may
 still show the stale row with the same hostname) and a PC running fail-closed with a temporary
-key can NOT be unlocked by code; the only recovery for them is Safe Mode or the Cleanup tool.
+key can NOT be unlocked by code; the only recovery for them is the recovery code (4.5, if one
+was set at install), Safe Mode or the Cleanup tool.
 
 Flow:
 1. A teacher creates a code for one device in the console:
@@ -278,9 +282,46 @@ durable audit table (code rows do not record why they were consumed and are dele
 
 Accepted limitation: the check needs the backend and a known device. With the backend
 unreachable, or for a PC the console does not know with its current machine key (see the
-precondition), the PC stays locked and the only way out is Safe Mode or the Cleanup tool (both
+precondition), the PC stays locked and the only way out is the recovery code (4.5, if one was
+set at install; it switches PC Guard off on that PC), or Safe Mode or the Cleanup tool (both
 need a Windows administrator). Because codes are often read out loud, a code should be issued only when the
 person at that PC is ready to type it.
+
+### 4.5 Recovery code (offline escape)
+
+Purpose: the last way out when a PC is stuck on the full-screen lock and nothing else works
+(backend down, so no teacher code; Task Manager hidden behind the topmost lock window). Found
+during real-PC testing. It does not unlock temporarily: it switches PC Guard off on that PC.
+
+- Set at install, interactive Setup only: typed hidden (Console.ReadKey with intercept,
+  Backspace) and confirmed; 10-128 printable ASCII characters (inner spaces allowed, no
+  leading/trailing space), at least 3 distinct characters, not 6 digits (teacher code shape),
+  not on a short deny list. Mismatch or invalid: asked again, 3 failed tries abort the install
+  with nothing changed. Silent installs set none (`--no-recovery-code` explicit, otherwise a
+  warning). Never accepted on the command line or from environment variables.
+- Stored as `pbkdf2-sha256$<iterations>$<salt b64>$<hash b64>` (PBKDF2-HMAC-SHA256, 310000
+  iterations, 16-byte random salt, 32-byte hash) computed by Setup (Core `RecoveryCode.Hash`,
+  char buffers zeroed afterwards). Only the hash is passed to `install.ps1 -RecoveryCodeHash`,
+  which validates its format before changing anything and writes
+  `%ProgramData%\PcGuard\recovery.hash` (folder and file owner Administrators, SYSTEM and
+  Administrators only, untrusted pre-existing folder moved aside). An upgrade keeps it unless a
+  new one is given; `-ClearRecoveryCode` removes it; a failed install restores the previous one.
+- Use: shell dialog (PasswordBox, cleared right after reading) -> pipe `recovery_release {id,
+  code}` (code redacted in ToString) -> `recovery_result {id, ok, error: invalid_code |
+  locked_out | not_configured | error, retry_seconds}`, same request-id convention as
+  `admin_result`. Pinned shell only (existing pipe gate).
+- Service: no trusted `recovery.hash` (missing, data folder not secured, link, other owner or
+  ACL, malformed) -> not_configured (not counted). Otherwise its own AdminAttemptLimiter (1 s
+  spacing, 5 failures -> 10 minutes, only invalid_code counts, memory only) and
+  `RecoveryCode.Verify` (constant-time compare, false for malformed values, never throws) on a
+  worker thread, one verification at a time. On success: an internal flag stops enforcement
+  and kills at once, the event log gets `Recovery code accepted: PC Guard stopped and disabled
+  on this PC`, the shell gets `recovery_result ok` and `released` (it closes its windows and
+  exits), then ChangeServiceConfigW sets start=Disabled and the host stops cleanly. Failures log
+  the failure count only. The code and the hash are never logged.
+- After a release the PC stays unprotected until Setup install / install.ps1 runs again (it
+  deletes the Disabled service and creates a new Automatic one) or an administrator sets the
+  service back to Automatic. uninstall.ps1 and Cleanup handle a Disabled service.
 
 ## 5. Browser handling
 
@@ -336,6 +377,20 @@ second day. The report is limited to the calling teacher's students and 31 days.
   password travels from the shell to the service as a .NET string and cannot be zeroed in
   memory.
 - Publisher entries in the allowlist are metadata matches and spoofable (see section 14).
+- Recovery code (4.5), threat model: it is a deliberate offline kill switch. Anyone who knows
+  the code can switch PC Guard off on that PC (no backend, no teacher involved), so it must be
+  strong and unique per PC and never the Windows password. Guessing is bounded by the local
+  limiter (5 wrong codes -> 10 minutes, reset by a service restart, which a standard user cannot
+  trigger) and PBKDF2 with 310000 iterations; the stored hash is readable only by SYSTEM and
+  Administrators (an administrator can bypass PC Guard anyway). A fake shell cannot send a
+  release (pipe pin); a student cannot plant a `recovery.hash` (admin-only folder, and the
+  service refuses a file or folder with any other owner or ACL). The plain code is never on
+  disk, on a command line, in a log or an exception message; the hash is on install.ps1's command
+  line during the install (visible to administrators only). Residual: a release is recorded only
+  in the PC's event log (no console audit, no remote end), an administrator with physical access
+  can still remove PC Guard other ways, and the code is a .NET string in the shell and service
+  memory. A squatted pipe while the service is not running could tell the shell to exit, but
+  then nothing is enforced anyway.
 - Extra allowed apps (4.1) are local and administrator-configured (the install folder is
   admin-writable only) and bypass the lock for that PC only; the server and the teacher console
   do not see them. Adding remote-control software lets someone at the PC use it while the PC is
@@ -374,8 +429,8 @@ privacy search (checklist tests 87 and 88) has not been run.
 - The data folder cannot be secured: the service runs locked with the default allowlist and
   writes nothing to disk.
 - Maintenance code: wrong, expired or used codes show one message; the backend unreachable
-  (or no answer within 10 s) shows "no connection" and the PC stays locked (Safe Mode or the
-  Cleanup tool is then the only way out); backend 429 and the local lockout show "too many
+  (or no answer within 10 s) shows "no connection" and the PC stays locked (the recovery code,
+  if set, Safe Mode or the Cleanup tool is then the only way out); backend 429 and the local lockout show "too many
   attempts" (the local one with a countdown).
 
 ## 10. Testing
@@ -387,8 +442,8 @@ privacy search (checklist tests 87 and 88) has not been run.
   and queue, planner, pipe protocol, browser rule, ownership, shell security, UI strings).
   The Windows service, shell and scripts are only compile-checked.
 - Frontend: component tests for the console tabs, in `frontend/src/__tests__/`.
-- Manual: the 134-test Windows VM checklist in `pc-agent/README.md` (tests 120 to 133 cover
-  maintenance mode).
+- Manual: the 155-test Windows VM checklist in `pc-agent/README.md` (tests 120 to 137 cover
+  maintenance mode, 144 to 154 the recovery code).
 
 ## 11. Delivery order
 
@@ -419,11 +474,13 @@ shared-test-DB collision unrelated to this feature); agent Core unit tests (386)
 (49 suites, 292 tests: the whole frontend suite, not only the PC console; also run under
 other time zones). Since then the agent Core suite has grown to 712 tests, including
 maintenance mode (code shape, limiter, gate, monotonic deadline, request ids, https-only
-redeem, redeem protocol, pipe messages, strings, rules).
+redeem, redeem protocol, pipe messages, strings, rules); with extra allowed apps and the
+recovery code (validation, PBKDF2 vector, verify, gate, prompt, hidden input, pipe messages,
+Setup arguments) it is 872.
 
 Never run: the Windows service, the shell and the installer scripts (`install.ps1`,
 `uninstall.ps1`, `publish.ps1`). They compile (0-warning build) but nothing has executed on
-Windows. The 138-test VM checklist in `pc-agent/README.md` must be run before any rollout;
+Windows. The 155-test VM checklist in `pc-agent/README.md` must be run before any rollout;
 treat enforcement, shell protection, the Safe Mode registration, browser address-bar reading
 and the installer rollback as unverified until then.
 
@@ -437,7 +494,11 @@ Accepted or parked risks:
   under-report windows.
 - An administrator can stop the service; Safe Mode behaviour is untested.
 - Maintenance mode needs the backend and a device the console knows with its current machine
-  key: otherwise a locked PC can only be freed through Safe Mode or the Cleanup tool. A window
+  key: otherwise a locked PC can only be freed through the recovery code (if set), Safe Mode or
+  the Cleanup tool.
+- The recovery code switches PC Guard off on that PC for anyone who knows it, until it is
+  installed again; a release is visible only in the PC's event log. Its service, shell dialog,
+  Setup prompt and install.ps1 handling are only compile-checked / unrun. A window
   lasts up to 4 hours and cannot be ended remotely yet (recommend 15 minutes). The maintenance service, shell dialog and banner are only
   compile-checked.
 - Violators are killed with no chance to save work.
