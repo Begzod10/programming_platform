@@ -9,7 +9,7 @@ PC Guard is a Windows service plus a small sign-in/overlay application for compu
 - **Service (`PcGuard.Service.exe`)**: runs as LocalSystem in session 0 and is the only authority on the PC. It signs in against the backend, holds the session token in memory only, enforces every 2 s, keeps the rule cache, queues usage events on disk and talks to the backend over HTTPS and a WebSocket.
 - **Shell (`PcGuard.Shell.exe`)**: runs as the student in the console session and acts as the service's eyes and face: sign-in screen, lock banner, message popup, and a snapshot of visible windows (exe names, browser hosts) every 2 s.
 - **Pipe**: the shell talks to the service over the local named pipe `PcGuard.Pipe`. The service launches the shell itself (suspended, pins its pid and creation time, then resumes) and accepts only that exact instance.
-- **Backend**: the existing platform API (`/api/v1/pc/*`). **The server decides the lock state.** The agent never unlocks by itself; it applies the rules the server sends. If the server cannot be reached the cached rules stay for 10 minutes, then the PC locks.
+- **Backend**: the existing platform API (`/api/v1/pc/*`). **The server decides the lock state.** The agent never unlocks by itself; it applies the rules the server sends. If the server cannot be reached the cached rules stay for 10 minutes, then the PC locks. The one exception is maintenance mode, and it also needs the server: a teacher issues a one-time code in the console and the backend confirms it (see "Maintenance mode (teacher code)").
 - **Install folder**: both exes live in the same folder (`C:\Program Files\PcGuard`), writable only by SYSTEM and Administrators.
 - **Fallback**: without fresh snapshots (shell missing, hung, other desktop or session) the service enforces by process name only. This is stricter for third-party apps (background apps are killed too) but exempts Windows inbox apps; see the never-kill rule under Known limitations.
 
@@ -111,6 +111,19 @@ Switches: `--list-only` (steps 1-2 only), `--preview-only` (steps 1-3 only; cann
 - NOT recorded: screenshots, keystrokes, window titles, URLs, page contents. The browser host is read from the address bar by the shell, checked locally by the service against the host list, and never stored or sent to the backend. Student passwords are never stored on the PC.
 - **Privacy notice**: many students are minors. The learning center must inform parents. The sign-in screen shows a notice in Uzbek and Russian.
 
+## Maintenance mode (teacher code)
+
+An emergency way to use a locked PC (for example to repair it, or when no student can sign in) without stopping PC Guard. No Windows account or password is involved.
+
+- **How**: a teacher opens the device in the teacher console and creates a maintenance code for that one PC, choosing 15 minutes, 1 hour or 4 hours. The console shows a 6-digit code. On the PC, click **Administrator** (bottom left of the sign-in screen, or next to Sign out in the name banner while a student is signed in), type the code and press **Ochish / Открыть**. The PC sends the code with its machine key to the backend (`POST /api/v1/pc/maintenance/redeem`); only if the backend accepts it does the service stop enforcing.
+- **The code**: 6 digits, valid for 5 minutes, single use (consumed on success), only for the PC it was issued for. A new code for the same PC replaces the older one. The duration comes from the server (exactly 15, 60 or 240 minutes; any other answer is refused); it is not chosen on the PC.
+- **While it is active**: the sign-in screen is hidden and a small banner at the top right shows "Texnik rejim HH:mm gacha" / "Режим обслуживания до HH:mm" (local time) with a **Tugatish / Завершить** button. Nothing is killed and no browser window is closed. Rules from the server, usage tracking and sign-in keep working, but they cannot re-lock the PC until maintenance ends; then the current rules apply at once.
+- **It ends**: at the end time; when someone presses Tugatish / Завершить (no code needed, ending only re-locks); when the PC clock is set back before the start; and when the service stops or restarts (maintenance is kept in memory only, nothing is written to disk, so a restart or reboot always re-locks).
+- **Wrong codes**: every failure looks the same ("Kod noto'g'ri yoki muddati o'tgan" / "Неверный код или срок действия истёк"). The PC allows one attempt per second and locks code entry for 10 minutes after 5 wrong codes in a row (a valid code is refused during that time too). The backend separately blocks a machine key or IP for 10 minutes after 5 failures (shown as "too many attempts, try later"), and burns a code after 5 wrong guesses.
+- **Audit**: the service writes to the Windows Application event log (source PcGuard): `Maintenance mode started for N minutes (until <UTC>), redeemed with teacher code`, `Maintenance mode ended (expired|ended on the PC|service stopped)` (`expired: the clock was set back` for a clock change), `Maintenance code rejected (n of 5 consecutive failures)` and a lockout notice. The backend logs which teacher issued a code and when it was redeemed. The code itself is never logged or stored on the PC.
+- **Accepted limitation: it needs the backend.** The code is checked by the server, so if the backend cannot be reached the PC shows "Serverga ulanib bo'lmadi" / "Нет связи с сервером" and stays locked. **If the backend is down, the only way out is Safe Mode or the Cleanup tool (`Cleanup-PcGuard.exe`), both of which need a Windows administrator.**
+- **The code is often read out loud.** Anyone who hears it within the 5 minutes can use it on that PC, so give it only to the person sitting at that PC, and create it only when they are ready to type it.
+
 ## Known limitations and accepted risks
 
 - **Publisher entries are spoofable.** An allowlist entry with a publisher matches the exe's `CompanyName` file metadata, which anyone can forge. A renamed game can pass an entry that has no publisher (the default allowlist has none, so such entries match by exe name only). There is no Authenticode check.
@@ -129,7 +142,8 @@ Switches: `--list-only` (steps 1-2 only), `--preview-only` (steps 1-3 only; cann
 - The secure desktop (UAC, Ctrl+Alt+Del, lock screen) is outside the shell's reach.
 - After a service restart, usage that was waiting for upload and belonged to a session whose token is gone is dropped on purpose, so it is never filed under another student.
 - A student typing a full non-platform host into the address bar may have the window closed before pressing Enter.
-- The password travels from the shell to the service as a .NET string and cannot be zeroed in memory.
+- The password travels from the shell to the service as a .NET string and cannot be zeroed in memory. The same applies to a maintenance code.
+- **Maintenance mode needs the backend** (see "Maintenance mode (teacher code)"): with the backend down, the only way out of a locked PC is Safe Mode or the Cleanup tool.
 
 ## Manual Windows VM test checklist
 
@@ -820,9 +834,83 @@ Add-Type -AssemblyName System.Windows.Forms; [Windows.Forms.MessageBox]::Show('s
 - Expected: The preview shows FAILED/SKIPPED lines and the warning "The preview reported steps that would FAIL or be SKIPPED ..."; the YES question is STILL asked; after YES the service and shell are removed, the planted entry is reported by the removal (FAILED/SKIPPED) and the junction target is untouched. Exit code is that of the real removal.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
+#### Q. Maintenance mode (teacher code)
+
+Needs a teacher account that can create maintenance codes for the test PC in the console, and the backend reachable unless a test says otherwise.
+
+**Test 120.** Look at the sign-in screen in both languages; sign in as a student and look at the name banner.
+
+- Expected: An "Administrator" / "Администратор" link at the bottom left of the sign-in screen and next to Sign out in the name banner. Clicking it opens a small dialog on top of the sign-in screen: title, "Texnik kod (6 raqam)" / "Код обслуживания (6 цифр)", one input, Ochish / Bekor qilish. The sign-in screen does not take the focus back while the dialog is open; Escape and Cancel close it; only digits can be typed or pasted (at most 6).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 121.** Type a wrong 6-digit code (and also 5 digits) and press Ochish.
+
+- Expected: "Kod noto'g'ri yoki muddati o'tgan" / "Неверный код или срок действия истёк"; the field is empty again; the PC stays locked.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 122.** Create a 15-minute code for this PC in the console and enter it on the PC.
+
+- Expected: The dialog closes, the sign-in screen disappears and a banner at the top right says "Texnik rejim HH:mm gacha" / "Режим обслуживания до HH:mm" with the local time 15 minutes from now. Event log: "Maintenance mode started for 15 minutes (until ... UTC), redeemed with teacher code".
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 123.** During maintenance start apps that are blocked when locked (Notepad, a game, a browser on a non-platform host); also kill the shell once.
+
+- Expected: Nothing is closed for the whole period, also while the shell is missing (no name-only kills).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 124.** During maintenance press Tugatish / Завершить on the banner.
+
+- Expected: The banner disappears and the sign-in screen is back at once; within about 2 s the blocked apps from Test 123 are closed. Event log: "Maintenance mode ended (ended on the PC)".
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 125.** Redeem a new 15-minute code and wait until the end time (also try setting the clock back by an hour as administrator during another maintenance period).
+
+- Expected: At the end time the PC re-locks by itself; event log "Maintenance mode ended (expired)". Setting the clock back ends it at once with "(expired: the clock was set back)".
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 126.** Redeem a 60-minute code, then restart the service as administrator (`Restart-Service PcGuard`), and in another run reboot the PC.
+
+- Expected: The PC is locked again after the restart and after the reboot; event log "Maintenance mode ended (service stopped)". Nothing about maintenance is in `%ProgramData%\PcGuard`.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 127.** Enter the code from Test 122 or 126 again (already used).
+
+- Expected: Rejected with the invalid-code message; the PC stays locked.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 128.** Enter 5 wrong codes in a row, then create a new valid code in the console and enter it within 10 minutes; enter it again after the 10 minutes (create another one if it expired).
+
+- Expected: The 5th wrong code shows "Juda ko'p urinish. N soniyadan so'ng ..." with a countdown and the input disabled; the valid code is refused during the 10 minutes (it never reaches the backend: it stays usable); after the lockout a valid code works. Event log: "Maintenance code rejected (n of 5 ...)" entries and "Maintenance code attempts locked out for 10 minutes after 5 consecutive failures". (The backend may also answer "Juda ko'p urinish, keyinroq urinib ko'ring" for its own 10-minute block.)
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 129.** Disconnect the network (or stop the backend), create a code (on the console from another network) and enter it on the PC.
+
+- Expected: "Serverga ulanib bo'lmadi" / "Нет связи с сервером" within about 10 s; the PC stays locked; the failure does not count toward the lockout. Confirm that Safe Mode or Cleanup-PcGuard.exe is the documented way out in this case.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 130.** Sign in as a student (locked), click Administrator in the name banner and enter a valid code.
+
+- Expected: The name banner stays (no remaining-lessons line), the maintenance banner appears, nothing is closed. After Tugatish the student's normal locked state applies again at once.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 131.** Create a code and wait more than 5 minutes before entering it.
+
+- Expected: Rejected with the invalid-code message.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 132.** After Tests 121 to 131 search the Application event log (source PcGuard), shell.log and `%ProgramData%\PcGuard` for every code you typed.
+
+- Expected: The started, ended and rejected/lockout entries are present; no code appears anywhere.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 133.** As the student, run a fake shell (a copy of PcGuard.Shell.exe, or a script opening `\\.\pipe\PcGuard.Pipe`) that sends `{"t":"maintenance_redeem","code":"<valid code>"}` and `{"t":"admin_end"}`.
+
+- Expected: The connection is rejected ("Rejected pipe client ... not the shell instance this service launched" in the event log); the code is not redeemed (it still works from the real shell) and maintenance does not start or end.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
 ### 3. Results
 
-Fill in after each run. Total tests: 120 (7 core, 113 additional).
+Fill in after each run. Total tests: 134 (7 core, 127 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|
