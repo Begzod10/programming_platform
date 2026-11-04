@@ -313,12 +313,119 @@ async def test_redeem_rate_limited_per_machine_key(async_client):
     assert (await _rows(did))[-1].used_at is None
 
 
-async def test_redeem_rate_limited_per_ip(async_client):
+async def test_unknown_keys_and_spoofed_ips_do_not_block_the_lab(async_client):
+    # Lab PCs share one NAT IP and X-Forwarded-For is client-controlled: failures must not
+    # block an IP. Unknown machine keys leave no limiter state at all.
+    from app.core.rate_limit import _counters
+    _, th = await _register(async_client, UserRole.teacher)
+    did, mk = await _device()
+    code = (await _issue(async_client, th, did)).json()["code"]
+    for _ in range(10):
+        for xff in (None, "203.0.113.7"):
+            headers = {"X-Forwarded-For": xff} if xff else {}
+            r = await async_client.post(REDEEM, json={"machine_key": f"mk-unknown-{_uid()}",
+                                                      "code": "000000"}, headers=headers)
+            assert r.status_code == 403 and r.json() == INVALID
+    assert not [k for k in _counters if k[0] in ("fail", "block")]
+    r = await async_client.post(REDEEM, json={"machine_key": mk, "code": code},
+                                headers={"X-Forwarded-For": "203.0.113.7"})
+    assert r.status_code == 200 and r.json() == {"minutes": 60}
+
+
+async def test_failures_on_one_device_do_not_block_another(async_client):
+    _, th = await _register(async_client, UserRole.teacher)
+    did_a, mk_a = await _device()
+    did_b, mk_b = await _device()
+    _issue_a = (await _issue(async_client, th, did_a)).json()["code"]
+    code_b = (await _issue(async_client, th, did_b)).json()["code"]
     for _ in range(5):
+        assert (await _redeem(async_client, mk_a, _wrong(_issue_a))).status_code == 403
+    assert (await _redeem(async_client, mk_a, _issue_a)).status_code == 429
+    assert (await _redeem(async_client, mk_b, code_b)).status_code == 200
+
+
+async def test_redeem_has_a_generous_flood_limit(async_client):
+    for _ in range(120):
         r = await _redeem(async_client, f"mk-unknown-{_uid()}", "000000")
         assert r.status_code == 403
-    r = await _redeem(async_client, f"mk-unknown-{_uid()}", "000000")
-    assert r.status_code == 429
+    assert (await _redeem(async_client, f"mk-unknown-{_uid()}", "000000")).status_code == 429
+
+
+async def _add_code(device_id, user_id, code, minutes=60):
+    from app.services.pc_maintenance_service import _hash
+    now = datetime.now(timezone.utc)
+    async with AsyncSessionLocal() as db:
+        db.add(PcMaintenanceCode(device_id=device_id, code_hash=_hash("s" * 32, code), salt="s" * 32,
+                                 minutes=minutes, created_by_user_id=user_id, created_at=now,
+                                 expires_at=now + timedelta(minutes=5), failed_attempts=0))
+        await db.commit()
+
+
+async def test_two_active_codes_from_a_race_both_redeemable_once(async_client):
+    # Two concurrent issues can each supersede before the other's INSERT is visible,
+    # leaving two active codes; redeem must accept either, then neither.
+    tid, _ = await _register(async_client, UserRole.teacher)
+    did, mk = await _device()
+    await _add_code(did, tid, "111111", 15)
+    await _add_code(did, tid, "222222", 240)
+    r = await _redeem(async_client, mk, "111111")  # the OLDER code
+    assert r.status_code == 200 and r.json() == {"minutes": 15}
+    assert all(row.used_at is not None for row in await _rows(did))
+    assert (await _redeem(async_client, mk, "222222")).status_code == 403
+
+
+async def test_wrong_guess_counts_against_every_active_code(async_client):
+    tid, _ = await _register(async_client, UserRole.teacher)
+    did, mk = await _device()
+    await _add_code(did, tid, "111111")
+    await _add_code(did, tid, "222222")
+    assert (await _redeem(async_client, mk, "333333")).status_code == 403
+    assert [row.failed_attempts for row in await _rows(did)] == [1, 1]
+    for _ in range(4):
+        assert (await _redeem(async_client, mk, "333333")).status_code == 403
+    assert all(row.used_at is not None for row in await _rows(did))
+
+
+# ── maintenance_until on the device ─────────────────────────────────────────
+
+async def test_redeem_records_maintenance_until_and_devices_list_shows_it(async_client):
+    _, th = await _register(async_client, UserRole.teacher)
+    did, mk = await _device()
+    code = (await _issue(async_client, th, did, 15)).json()["code"]
+    before = datetime.now(timezone.utc)
+    assert (await _redeem(async_client, mk, code)).status_code == 200
+    async with AsyncSessionLocal() as db:
+        until = (await db.get(PcDevice, did)).maintenance_until
+    until = until if until.tzinfo else until.replace(tzinfo=timezone.utc)
+    assert before + timedelta(minutes=15) - timedelta(seconds=5) <= until \
+        <= datetime.now(timezone.utc) + timedelta(minutes=15)
+    listed = next(d for d in (await async_client.get(f"{T}/devices", headers=th)).json() if d["id"] == did)
+    got = datetime.fromisoformat(listed["maintenance_until"])
+    got = got if got.tzinfo else got.replace(tzinfo=timezone.utc)
+    assert abs((got - until).total_seconds()) < 1
+
+
+async def test_devices_list_maintenance_until_null_when_none_or_passed(async_client):
+    _, th = await _register(async_client, UserRole.teacher)
+    did_none, _ = await _device()
+    did_past, _ = await _device()
+    async with AsyncSessionLocal() as db:
+        await db.execute(update(PcDevice).where(PcDevice.id == did_past).values(
+            maintenance_until=datetime.now(timezone.utc) - timedelta(seconds=1)))
+        await db.commit()
+    listed = {d["id"]: d for d in (await async_client.get(f"{T}/devices", headers=th)).json()}
+    assert "maintenance_until" in listed[did_none]
+    assert listed[did_none]["maintenance_until"] is None
+    assert listed[did_past]["maintenance_until"] is None
+
+
+async def test_failed_redeem_does_not_set_maintenance_until(async_client):
+    _, th = await _register(async_client, UserRole.teacher)
+    did, mk = await _device()
+    code = (await _issue(async_client, th, did)).json()["code"]
+    assert (await _redeem(async_client, mk, _wrong(code))).status_code == 403
+    async with AsyncSessionLocal() as db:
+        assert (await db.get(PcDevice, did)).maintenance_until is None
 
 
 async def test_redeem_block_lasts_ten_minutes(async_client, monkeypatch):

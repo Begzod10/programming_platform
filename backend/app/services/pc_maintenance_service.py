@@ -12,6 +12,7 @@ import hashlib
 import hmac
 import logging
 import secrets
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -79,42 +80,69 @@ async def issue_code(db: AsyncSession, device: PcDevice, minutes: int, user_id: 
     return code, row
 
 
-async def redeem_code(db: AsyncSession, machine_key: str, code: str) -> Optional[int]:
-    """Minutes on success (code consumed in this call's transaction), None on any failure.
-    Commits. Every failure path does the same work: device lookup, active-code lookup,
-    one HMAC and one constant-time compare."""
+@dataclass(frozen=True)
+class RedeemResult:
+    """`minutes` is set on success only. `known_device` says whether the machine_key matched
+    a PcDevice: the endpoint records failures only for known devices, so unknown keys leave
+    no limiter state behind."""
+    known_device: bool
+    minutes: Optional[int] = None
+
+
+async def redeem_code(db: AsyncSession, machine_key: str, code: str) -> RedeemResult:
+    """Consume a code and record the device's maintenance window, in one transaction. Commits.
+
+    Every active code of the device is checked, not only the newest: two concurrent
+    issue_code calls can each run their supersede UPDATE before the other's INSERT is
+    visible, leaving two active codes (review M3). Accepting either keeps the older holder
+    working; success then retires all of them, and a wrong guess counts against each, so
+    the per-code limit still bounds guessing at MAX_FAILED_ATTEMPTS per device.
+
+    Lost response (review M4): if this commits but the HTTP response never reaches the agent
+    (timeout, dropped connection), the code is used up and the PC stays locked. The teacher
+    issues a new code (MAX_CODES_PER_HOUR allows for this); no idempotent replay is offered.
+
+    Every failure path does comparable work: device lookup, active-code lookup, at least one
+    HMAC and constant-time compare."""
     now = datetime.now(timezone.utc)
     device_id = (await db.execute(select(PcDevice.id).where(
         PcDevice.machine_key_hash == machine_key_hash(machine_key)))).scalar_one_or_none()
+    known = device_id is not None
     # Never creates a device. Unknown keys still run the code query (id -1 matches nothing).
     active = (await db.execute(
         select(PcMaintenanceCode)
-        .where(PcMaintenanceCode.device_id == (device_id if device_id is not None else -1),
+        .where(PcMaintenanceCode.device_id == (device_id if known else -1),
                PcMaintenanceCode.used_at.is_(None),
                PcMaintenanceCode.expires_at > now,
                PcMaintenanceCode.failed_attempts < MAX_FAILED_ATTEMPTS)
         .order_by(PcMaintenanceCode.id.desc())
-        .limit(1))).scalars().first()
+        .limit(MAX_CODES_PER_HOUR))).scalars().all()
 
-    if active is None:
+    if not active:
         # Dummy hash + compare so unknown key / no active code costs the same as a wrong guess.
         hmac.compare_digest(_hash(secrets.token_hex(16), code), secrets.token_hex(32))
         await db.rollback()
-        return None
+        return RedeemResult(known)
 
-    code_id, minutes = active.id, active.minutes
-    if not hmac.compare_digest(_hash(active.salt, code), active.code_hash):
+    match = None
+    for row in active:  # compare against all, so timing does not depend on which one matched
+        if hmac.compare_digest(_hash(row.salt, code), row.code_hash) and match is None:
+            match = (row.id, row.minutes)
+    active_ids = [row.id for row in active]
+
+    if match is None:
         # Atomic: both SET expressions read the pre-update failed_attempts.
         await db.execute(
             update(PcMaintenanceCode)
-            .where(PcMaintenanceCode.id == code_id, PcMaintenanceCode.used_at.is_(None))
+            .where(PcMaintenanceCode.id.in_(active_ids), PcMaintenanceCode.used_at.is_(None))
             .values(failed_attempts=PcMaintenanceCode.failed_attempts + 1,
                     used_at=case((PcMaintenanceCode.failed_attempts + 1 >= MAX_FAILED_ATTEMPTS, now),
                                  else_=PcMaintenanceCode.used_at))
             .execution_options(synchronize_session=False))
         await db.commit()
-        return None
+        return RedeemResult(True)
 
+    code_id, minutes = match
     # Conditional UPDATE: of two concurrent redeems only one sees rowcount == 1.
     res = await db.execute(
         update(PcMaintenanceCode)
@@ -124,8 +152,19 @@ async def redeem_code(db: AsyncSession, machine_key: str, code: str) -> Optional
                PcMaintenanceCode.failed_attempts < MAX_FAILED_ATTEMPTS)
         .values(used_at=now)
         .execution_options(synchronize_session=False))
-    await db.commit()
     if res.rowcount != 1:
-        return None
+        await db.rollback()
+        return RedeemResult(True)
+    # Retire any other active code of this device (left by a concurrent issue).
+    await db.execute(
+        update(PcMaintenanceCode)
+        .where(PcMaintenanceCode.device_id == device_id, PcMaintenanceCode.used_at.is_(None))
+        .values(used_at=now)
+        .execution_options(synchronize_session=False))
+    await db.execute(
+        update(PcDevice).where(PcDevice.id == device_id)
+        .values(maintenance_until=now + timedelta(minutes=minutes))
+        .execution_options(synchronize_session=False))
+    await db.commit()
     logger.info("maintenance code redeemed device=%s minutes=%s", device_id, minutes)
-    return minutes
+    return RedeemResult(True, minutes)

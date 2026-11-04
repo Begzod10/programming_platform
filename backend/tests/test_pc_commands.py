@@ -305,7 +305,7 @@ def test_devices_online_after_heartbeat_and_offline_when_stale(client, teacher, 
     assert d["student"]["id"] == sid
     assert d["locked"] is True and d["reason"] == "quota_pending"
     assert set(d) == {"id", "hostname", "group_id", "online", "student", "locked",
-                      "reason", "last_app", "last_seen_at"}
+                      "reason", "last_app", "last_seen_at", "maintenance_until"}
 
     async def _stale():
         async with AsyncSessionLocal() as db:

@@ -100,6 +100,9 @@ async def list_devices(
         # Per-device compute_state: one query batch per device; fine at lab scale (a few dozen).
         state = await compute_state(db, d)
         seen = _aware(d.last_seen_at)
+        maint = _aware(d.maintenance_until)
+        if maint is not None and maint <= now:
+            maint = None
         student = state["student"]
         if student is not None and student["id"] not in in_scope:
             student = {"id": None, "full_name": None}
@@ -113,6 +116,8 @@ async def list_devices(
             "reason": state["reason"],
             "last_app": d.last_app,
             "last_seen_at": seen.isoformat() if seen else None,
+            # Window granted by the last redeemed code; the PC may have ended it early.
+            "maintenance_until": maint.isoformat() if maint else None,
         })
     await db.commit()  # compute_state may have created today's quota rows
     return out
