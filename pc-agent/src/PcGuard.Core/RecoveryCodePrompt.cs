@@ -71,32 +71,53 @@ public sealed record RecoveryPromptResult(RecoveryPromptOutcome Outcome, string?
 /// <summary>
 /// Setup's interactive recovery code question: hidden entry, validation, a second hidden entry to
 /// confirm; an invalid code or a mismatch asks again, and after <see cref="MaxTries"/> failed tries
-/// the install is aborted with nothing changed. An empty first entry (or no console) means no code.
+/// the install is aborted with nothing changed. An empty first entry (or no console) means no code;
+/// an empty entry AFTER a failed try is confirmed first ("Install without a recovery code? (y/N)":
+/// yes = no code, anything else = ask for the code again without using a try, no console = abort).
 /// Every char[] the reader returns is zeroed here as soon as it is no longer needed. Messages passed
 /// to <c>error</c> never contain the code.
 /// </summary>
 public static class RecoveryCodePrompt
 {
     public const int MaxTries = 3;
-    public const string FirstPrompt = "Recovery code for this PC (at least 10 characters; typed hidden; empty = none): ";
+    public const string FirstPrompt = "Recovery code for this PC (at least 12 characters; typed hidden; empty = none): ";
     public const string ConfirmPrompt = "Type the recovery code again to confirm: ";
+    public const string NoCodeConfirmPrompt = "Install without a recovery code? (y/N): ";
 
     /// <param name="readHidden">Shows the prompt and returns the typed characters (exact length), or null when there is no console.</param>
     /// <param name="error">Prints one error line.</param>
     /// <param name="hash">Hashes a validated code; default <see cref="RecoveryCode.Hash(ReadOnlySpan{char})"/>.</param>
-    public static RecoveryPromptResult Run(Func<string, char[]?> readHidden, Action<string> error, Func<char[], string>? hash = null)
+    /// <param name="confirmNoCode">Asks a yes/no question: true = yes, false = no, null = no console. When
+    /// null itself, an empty entry after a failed try means no code without asking.</param>
+    public static RecoveryPromptResult Run(Func<string, char[]?> readHidden, Action<string> error,
+        Func<char[], string>? hash = null, Func<string, bool?>? confirmNoCode = null)
     {
         hash ??= c => RecoveryCode.Hash(c.AsSpan());
-        for (var attempt = 1; attempt <= MaxTries; attempt++)
+        var attempt = 1;
+        var failedBefore = false;
+        while (attempt <= MaxTries)
         {
             var first = readHidden(FirstPrompt);
             if (first is null) return new RecoveryPromptResult(RecoveryPromptOutcome.NotSet, null);
             try
             {
-                if (first.Length == 0) return new RecoveryPromptResult(RecoveryPromptOutcome.NotSet, null);
+                if (first.Length == 0)
+                {
+                    if (!failedBefore || confirmNoCode is null) return new RecoveryPromptResult(RecoveryPromptOutcome.NotSet, null);
+                    var answer = confirmNoCode(NoCodeConfirmPrompt);
+                    if (answer is null)
+                    {
+                        error("No answer. Installation aborted. Nothing was changed.");
+                        return new RecoveryPromptResult(RecoveryPromptOutcome.Aborted, null);
+                    }
+                    if (answer.Value) return new RecoveryPromptResult(RecoveryPromptOutcome.NotSet, null);
+                    continue; // ask for the code again; this does not use a try
+                }
                 if (RecoveryCode.Validate(first) is { } invalid)
                 {
                     error(invalid);
+                    failedBefore = true;
+                    attempt++;
                     continue;
                 }
 
@@ -111,6 +132,8 @@ public static class RecoveryCodePrompt
                     if (!first.AsSpan().SequenceEqual(second))
                     {
                         error("The two entries do not match.");
+                        failedBefore = true;
+                        attempt++;
                         continue;
                     }
                     return new RecoveryPromptResult(RecoveryPromptOutcome.Set, hash(first));

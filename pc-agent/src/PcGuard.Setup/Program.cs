@@ -1,5 +1,8 @@
 using System.Diagnostics;
 using System.Runtime.Versioning;
+using System.Security.AccessControl;
+using System.Security.Cryptography;
+using System.Security.Principal;
 using PcGuard.Core;
 
 [assembly: SupportedOSPlatform("windows")]
@@ -154,7 +157,8 @@ internal static class Program
         }
 
         // Offline recovery code (stops and disables PC Guard on this PC from the lock screen). Typed hidden,
-        // twice; only its PBKDF2 hash leaves this process (as -RecoveryCodeHash). Never on the command line.
+        // twice; only its PBKDF2 hash leaves this process, and only through a file in Setup's admin-only
+        // temp folder (-RecoveryCodeHashFile). Neither the code nor the hash is ever on a command line.
         string? recoveryHash = null;
         if (args.NoRecoveryCode)
         {
@@ -166,7 +170,7 @@ internal static class Program
         }
         else
         {
-            var prompt = RecoveryCodePrompt.Run(ReadHidden, e => Console.Error.WriteLine(e));
+            var prompt = RecoveryCodePrompt.Run(ReadHidden, e => Console.Error.WriteLine(e), confirmNoCode: AskYesNoOrNull);
             if (prompt.Outcome == RecoveryPromptOutcome.Aborted) return ExitUsage;
             recoveryHash = prompt.Hash;
         }
@@ -187,7 +191,8 @@ internal static class Program
         else
         {
             Console.WriteLine("  Recovery code: NOT set (no offline way out)");
-            Console.WriteLine("                 (an upgrade keeps a recovery code set before)");
+            Console.WriteLine("                 (an upgrade keeps an unused recovery code set before; a used one, or one of a");
+            Console.WriteLine("                 PC Guard that was released or disabled, is never kept)");
         }
         if (!silent && !Confirm("Type YES to continue: "))
         {
@@ -195,8 +200,16 @@ internal static class Program
             return 0;
         }
 
-        return RunScript(EmbeddedScripts.Install, script =>
-            PowerShellCommand.BuildInstall(script, result.Normalized!, distDir, WindowsDir, extraApps, recoveryHash));
+        return RunScript(EmbeddedScripts.Install, (tempDir, script) =>
+        {
+            string? hashFile = null;
+            if (recoveryHash is not null)
+            {
+                hashFile = Path.Combine(tempDir, RecoveryCode.TransferFileName);
+                WriteAdminOnlyFile(hashFile, RecoveryCode.ToTransferBytes(recoveryHash));
+            }
+            return PowerShellCommand.BuildInstall(script, result.Normalized!, distDir, WindowsDir, extraApps, hashFile);
+        });
     }
 
     /// <summary>Refuses a package folder that standard users can modify (they could swap files that end up in a SYSTEM service).</summary>
@@ -256,18 +269,65 @@ internal static class Program
         }
 
         var p = purge;
-        return RunScript(EmbeddedScripts.Uninstall, script =>
+        return RunScript(EmbeddedScripts.Uninstall, (_, script) =>
             PowerShellCommand.BuildUninstall(script, p, WindowsDir));
     }
 
+    /// <summary>
+    /// Writes a new file (it must not exist) that only SYSTEM and Administrators can access: owner
+    /// Administrators, protected DACL with SYSTEM and Administrators full control, set when the file is
+    /// created. Used for the recovery code hash handed to install.ps1.
+    /// </summary>
+    private static void WriteAdminOnlyFile(string path, byte[] content)
+    {
+        var sec = new FileSecurity();
+        var admins = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        sec.SetOwner(admins);
+        sec.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null), FileSystemRights.FullControl, AccessControlType.Allow));
+        sec.AddAccessRule(new FileSystemAccessRule(admins, FileSystemRights.FullControl, AccessControlType.Allow));
+        try
+        {
+            using var fs = new FileInfo(path).Create(FileMode.CreateNew, FileSystemRights.Write | FileSystemRights.ReadData,
+                FileShare.None, 4096, FileOptions.WriteThrough, sec);
+            fs.Write(content);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(content);
+        }
+    }
+
+    /// <summary>Overwrites a small file with zeros and deletes it (best effort; the temp folder is deleted afterwards anyway).</summary>
+    private static void WipeFile(string path)
+    {
+        try
+        {
+            var fi = new FileInfo(path);
+            if (!fi.Exists) return;
+            if ((fi.Attributes & FileAttributes.ReparsePoint) == 0 && fi.Length <= 4096)
+            {
+                using var fs = new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.None);
+                fs.Write(new byte[fs.Length]);
+                fs.Flush(flushToDisk: true);
+            }
+            fi.Delete();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // the folder delete in Cleanup removes it
+        }
+    }
+
     /// <summary>Extracts the embedded script into an admin-only folder, runs it, always deletes the folder.</summary>
-    private static int RunScript(string scriptName, Func<string, PowerShellCommand> build)
+    /// <param name="build">Gets the admin-only temp folder and the extracted script path.</param>
+    private static int RunScript(string scriptName, Func<string, string, PowerShellCommand> build)
     {
         try
         {
             lock (CleanupLock) { _temp = AdminTempDir.Create(); }
             var scriptPath = EmbeddedScripts.Extract(scriptName, _temp.Path);
-            var cmd = build(scriptPath);
+            var cmd = build(_temp.Path, scriptPath);
 
             if (!File.Exists(cmd.Executable))
             {
@@ -323,6 +383,7 @@ internal static class Program
         {
             var t = _temp;
             if (t is null) return;
+            WipeFile(Path.Combine(t.Path, RecoveryCode.TransferFileName)); // install.ps1 normally wiped it already
             if (t.TryDelete()) _temp = null;
             else Console.Error.WriteLine($"Warning: could not delete the temporary folder {t.Path}. Delete it manually.");
         }
@@ -347,6 +408,16 @@ internal static class Program
     {
         Console.Write(prompt);
         return string.Equals(SafeReadLine()?.Trim(), "YES", StringComparison.Ordinal);
+    }
+
+    /// <summary>True for y/yes, false for anything else, null when there is no console input.</summary>
+    private static bool? AskYesNoOrNull(string prompt)
+    {
+        Console.Write(prompt);
+        var a = SafeReadLine();
+        if (a is null) return null;
+        a = a.Trim();
+        return string.Equals(a, "y", StringComparison.OrdinalIgnoreCase) || string.Equals(a, "yes", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool AskYesNo(string prompt)
@@ -400,8 +471,11 @@ internal static class Program
         Console.WriteLine("                   remote-control software kept running lets anyone at the PC use it while the PC is locked.");
         Console.WriteLine("  --no-recovery-code   with --install: do not set an offline recovery code and do not ask for one.");
         Console.WriteLine("                   The interactive install asks for the recovery code (typed hidden, twice); it is NEVER");
-        Console.WriteLine("                   accepted on the command line. A silent install sets none and prints a warning.");
-        Console.WriteLine("                   Without a new code an upgrade keeps the recovery code set before.");
+        Console.WriteLine("                   accepted on the command line, and its hash never either (it goes to install.ps1 in an");
+        Console.WriteLine("                   admin-only file). At least 12 characters, 6 different ones, no common words, years,");
+        Console.WriteLine("                   keyboard runs or repeats. A silent install sets none and prints a warning.");
+        Console.WriteLine("                   The code works ONCE. Without a new code an upgrade keeps an unused code set before,");
+        Console.WriteLine("                   but never one that was used (or of a PC Guard that was released or disabled).");
         Console.WriteLine("  --uninstall      uninstall without questions (add --purge to also delete ProgramData\\PcGuard)");
         Console.WriteLine("  --allow-writable-package   install even if standard users can modify the package folder, or it holds links or too many files (NOT recommended)");
         Console.WriteLine("  --no-pause       with --install/--uninstall: do not wait for Enter at the end");

@@ -73,8 +73,16 @@ public static class UiStrings
     public static string RecoveryTitle(UiLang l) => l == UiLang.Ru ? "Отключение PC Guard" : "PC Guard'ni o'chirish";
     public static string RecoveryCodeLabel(UiLang l) => l == UiLang.Ru ? "Код восстановления (задан при установке)" : "Tiklash kodi (o'rnatishda berilgan)";
     public static string RecoveryHint(UiLang l) => l == UiLang.Ru
-        ? "Если код верный, PC Guard будет остановлен и отключён на этом компьютере до переустановки."
-        : "Kod to'g'ri bo'lsa, PC Guard bu kompyuterda qayta o'rnatilguncha to'xtatiladi va o'chiriladi.";
+        ? "Код действует один раз: если он верный, PC Guard будет остановлен и отключён на этом компьютере. Снова включить его может администратор, переустановив PC Guard с новым кодом."
+        : "Kod faqat bir marta ishlaydi: to'g'ri bo'lsa, PC Guard bu kompyuterda to'xtatiladi va o'chiriladi. Uni administrator yangi kod bilan qayta o'rnatib yoqishi mumkin.";
+
+    /// <summary>
+    /// Sent by the service as a "message" popup when the recovery code was accepted but the service
+    /// could not set its own start type to Disabled (both languages, the student's choice is unknown there).
+    /// </summary>
+    public static string RecoveryDisableFailedNotice() =>
+        "PC Guard bu kompyuterda to'xtatildi, lekin uni o'chirib bo'lmadi: kompyuter qayta yoqilsa, u yana ishga tushishi mumkin. Administratorga xabar bering.\n"
+        + "PC Guard на этом компьютере остановлен, но отключить его не удалось: после перезагрузки он может снова запуститься. Сообщите администратору.";
 
     /// <summary>Maps a recovery_result.error code; error, null and unknown codes read as a generic error.</summary>
     public static string RecoveryError(UiLang l, string? code, int retrySeconds)
@@ -84,6 +92,9 @@ public static class UiStrings
         {
             AdminErrors.InvalidCode => ru ? "Неверный код восстановления" : "Tiklash kodi noto'g'ri",
             RecoveryErrors.NotConfigured => ru ? "На этом компьютере код восстановления не задан" : "Bu kompyuterda tiklash kodi o'rnatilmagan",
+            RecoveryErrors.WrongLayout => ru
+                ? "Код состоит только из латинских букв, цифр и знаков. Переключите раскладку клавиатуры на английскую (EN) и введите код снова"
+                : "Kod faqat lotin harflari, raqamlar va belgilardan iborat. Klaviaturani inglizcha (EN) tartibga o'tkazib, kodni qayta kiriting",
             AdminErrors.LockedOut => AdminError(l, AdminErrors.LockedOut, retrySeconds),
             _ => AdminError(l, AdminErrors.Error, 0),
         };

@@ -30,16 +30,25 @@
   Given as '' (empty): the extra apps are cleared.
   SECURITY: these apps bypass the lock on this PC. Remote-control software kept running lets anyone
   at the PC use it while the PC is locked. Use it only on test/admin PCs.
-.PARAMETER RecoveryCodeHash
-  Optional. The HASH of this PC's offline recovery code, exactly as Setup-PcGuard.exe computes it:
-  pbkdf2-sha256$<iterations>$<salt base64>$<hash base64> (PBKDF2-HMAC-SHA256, 310000-5000000
-  iterations, 16-byte salt, 32-byte hash). NEVER the code itself: the plain code is typed hidden in
-  Setup and never reaches this script, a command line or a file. An invalid value stops the script with
-  exit code 1 before anything is changed. Written to %ProgramData%\PcGuard\recovery.hash (SYSTEM and
-  Administrators only). Not given: an upgrade keeps an existing recovery.hash.
+.PARAMETER RecoveryCodeHashFile
+  Optional. Full local path of a FILE holding the HASH of this PC's offline recovery code, exactly as
+  Setup-PcGuard.exe computes it: pbkdf2-sha256$<iterations>$<salt base64>$<hash base64>
+  (PBKDF2-HMAC-SHA256, 310000-5000000 iterations, 16-byte salt, 32-byte hash), ASCII, at most 136
+  bytes. NEVER the code itself: the plain code is typed hidden in Setup and never reaches this script.
+  The hash is deliberately NOT accepted on the command line: Windows PowerShell writes its command line
+  to the "Windows PowerShell" event log (events 400/600), which standard users can read, and a hash
+  allows an offline guessing attack. Setup writes the file into its own admin-only temp folder.
+  The file, its folder and every folder above it must not be links, the file and its folder must be
+  SYSTEM/Administrators-only (owner and ACL), and the content must be a valid hash; otherwise the
+  script stops with exit code 1 before anything is changed (the value is never printed). The file is
+  overwritten with zeros and deleted right after it was read. Written to
+  %ProgramData%\PcGuard\recovery.hash (SYSTEM and Administrators only); recovery.attempts (the
+  attempt counter) is reset. Not given: an upgrade keeps an existing, unused recovery.hash, but NEVER
+  one of a PcGuard service that is disabled (released with its recovery code, or disabled by
+  Cleanup): that code was used or exposed, so the PC then has no recovery code until one is set.
 .PARAMETER ClearRecoveryCode
   Removes %ProgramData%\PcGuard\recovery.hash (no offline way out any more). Cannot be combined with
-  -RecoveryCodeHash.
+  -RecoveryCodeHashFile.
 .EXAMPLE
   .\install.ps1 -BackendBaseUrl https://example.uz/api/v1
 .EXAMPLE
@@ -51,7 +60,7 @@ param(
     [string]$DistDir = (Join-Path $PSScriptRoot '..\dist'),
     [string]$InstallDir = (Join-Path $(if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }) 'PcGuard'),
     [string[]]$ExtraAllowedApps,
-    [string]$RecoveryCodeHash,
+    [string]$RecoveryCodeHashFile,
     [switch]$ClearRecoveryCode
 )
 
@@ -71,9 +80,14 @@ $MaxExtraApps = 16
 $script:oldStartDisabled = $false
 $script:recoveryTouched = $false
 $script:oldRecoveryHash = $null
+$script:oldRecoveryAttempts = $null
+$script:newRecoveryHash = $null
 # Same folder the service uses (SecureStore): the real CommonApplicationData path, not $env:ProgramData.
 $DataDir = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'PcGuard'
 $RecoveryHashFile = Join-Path $DataDir 'recovery.hash'
+$RecoveryAttemptsFile = Join-Path $DataDir 'recovery.attempts'
+$MaxHashFileBytes = 136        # RecoveryCode.MaxStoredFileBytes
+$MaxAttemptsFileBytes = 256    # SecureStore
 $SidSystem = 'S-1-5-18'
 $SidAdmins = 'S-1-5-32-544'
 
@@ -87,8 +101,10 @@ function Test-Base64Exact {
 
 function Test-RecoveryHash {
     # Same rule as PcGuard.Core RecoveryCode.IsWellFormedStored. -cmatch and \z: no case folding, no trailing newline.
-    param([string]$Value)
-    if ($null -eq $Value -or $Value.Length -gt 128) { return $false }
+    # The value comes by [ref] so that no command parameter ever carries it (module logging, event 4103).
+    param([ref]$Text)
+    $Value = [string]$Text.Value
+    if ([string]::IsNullOrEmpty($Value) -or $Value.Length -gt 128) { return $false }
     if (-not ($Value -cmatch '^pbkdf2-sha256\$([1-9][0-9]{0,6})\$([A-Za-z0-9+/=]{24})\$([A-Za-z0-9+/=]{44})\z')) { return $false }
     $iter = [int]$Matches[1]
     $salt = $Matches[2]
@@ -122,10 +138,12 @@ function New-AdminOnlySecurity {
 }
 
 function Test-AdminOnlyAcl {
-    # True when the owner is SYSTEM or Administrators and every Allow ACE is for SYSTEM or Administrators.
-    param($Security)
+    # True when the owner is SYSTEM or Administrators (or -AllowOwner, the elevated administrator running
+    # this script) and every Allow ACE is for SYSTEM or Administrators.
+    param($Security, [string]$AllowOwner)
     $owner = $Security.GetOwner([System.Security.Principal.SecurityIdentifier])
-    if ($null -eq $owner -or ($owner.Value -ne $SidSystem -and $owner.Value -ne $SidAdmins)) { return $false }
+    if ($null -eq $owner) { return $false }
+    if ($owner.Value -ne $SidSystem -and $owner.Value -ne $SidAdmins -and -not ($AllowOwner -and $owner.Value -eq $AllowOwner)) { return $false }
     foreach ($r in $Security.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])) {
         if ($r.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) { continue }
         $v = $r.IdentityReference.Value
@@ -165,22 +183,136 @@ function Initialize-DataDir {
     }
 }
 
-function Write-RecoveryHashFile {
-    # Writes $Value (a hash, never a plain code) as recovery.hash with an explicit admin-only ACL, then
-    # reads it back. Never prints the value.
-    param([string]$Value)
+function Write-DataFile {
+    # Writes the text in $Text (by [ref]: a hash or the attempt counter, never a plain code) as $Path in the
+    # data folder, with an explicit admin-only ACL, then reads it back. Never prints the value.
+    param([string]$Path, [ref]$Text)
     Initialize-DataDir
-    $tmp = $RecoveryHashFile + '.tmp'
+    $value = [string]$Text.Value
+    $tmp = $Path + '.tmp'
     if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force }
-    [System.IO.File]::WriteAllText($tmp, $Value, (New-Object System.Text.ASCIIEncoding))   # no BOM, no newline
+    [System.IO.File]::WriteAllText($tmp, $value, (New-Object System.Text.ASCIIEncoding))   # no BOM, no newline
     Set-Acl -LiteralPath $tmp -AclObject (New-AdminOnlySecurity $false)
-    if (Test-Path -LiteralPath $RecoveryHashFile) { Remove-Item -LiteralPath $RecoveryHashFile -Force }
-    Move-Item -LiteralPath $tmp -Destination $RecoveryHashFile
-    if ([System.IO.File]::ReadAllText($RecoveryHashFile) -cne $Value) {
-        throw "The recovery code hash was not written correctly to $RecoveryHashFile."
+    if (Test-Path -LiteralPath $Path) { Remove-Item -LiteralPath $Path -Force }
+    Move-Item -LiteralPath $tmp -Destination $Path
+    if ([System.IO.File]::ReadAllText($Path) -cne $value) {
+        throw "$Path was not written correctly."
     }
-    if (-not (Test-AdminOnlyAcl (Get-Acl -LiteralPath $RecoveryHashFile))) {
-        throw "$RecoveryHashFile does not have the SYSTEM/Administrators-only permissions."
+    if (-not (Test-AdminOnlyAcl (Get-Acl -LiteralPath $Path))) {
+        throw "$Path does not have the SYSTEM/Administrators-only permissions."
+    }
+}
+
+function Remove-DataFile {
+    # Deletes a file of the data folder if it exists (a link is deleted itself, never its target).
+    param([string]$Path)
+    if (Test-Path -LiteralPath $Path) { Remove-Item -LiteralPath $Path -Force }
+}
+
+function Test-NoReparseChain {
+    # True when $Path and every folder above it exist and none is a link/junction (reparse point).
+    param([string]$Path)
+    try {
+        $p = $Path
+        while (-not [string]::IsNullOrEmpty($p)) {
+            $attr = [System.IO.File]::GetAttributes($p)
+            if (($attr -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { return $false }
+            $parent = [System.IO.Path]::GetDirectoryName($p)
+            if ([string]::IsNullOrEmpty($parent) -or $parent -eq $p) { break }
+            $p = $parent
+        }
+        return $true
+    }
+    catch { return $false }
+}
+
+function Read-TrustedSmallFile {
+    # Content of a small trusted file, or $null for anything else (missing, a folder, a link, larger than
+    # $MaxBytes, an owner/ACL that is not SYSTEM/Administrators-only, unreadable). Reads at most
+    # $MaxBytes + 1 bytes, so a huge or hostile file can neither abort the script nor exhaust memory.
+    # Never prints the content.
+    param([string]$Path, [int]$MaxBytes, [string]$AllowOwner)
+    try {
+        if (-not [System.IO.File]::Exists($Path)) { return $null }
+        $attr = [System.IO.File]::GetAttributes($Path)
+        if (($attr -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) { return $null }
+        if ((New-Object System.IO.FileInfo($Path)).Length -gt $MaxBytes) { return $null }
+        if (-not (Test-AdminOnlyAcl (Get-Acl -LiteralPath $Path) $AllowOwner)) { return $null }
+        $fs = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+        try {
+            $buf = New-Object 'byte[]' ($MaxBytes + 1)
+            $n = 0
+            while ($n -lt $buf.Length) {
+                $r = $fs.Read($buf, $n, $buf.Length - $n)
+                if ($r -le 0) { break }
+                $n += $r
+            }
+            if ($n -gt $MaxBytes) { return $null }
+            $text = [System.Text.Encoding]::ASCII.GetString($buf, 0, $n)
+            [Array]::Clear($buf, 0, $buf.Length)
+            return $text
+        }
+        finally { $fs.Dispose() }
+    }
+    catch { return $null }
+}
+
+function Remove-FileSecurely {
+    # Overwrites a small regular file with zeros, then deletes it. Warns (without content) on failure.
+    param([string]$Path)
+    try {
+        if (-not [System.IO.File]::Exists($Path)) { return }
+        $attr = [System.IO.File]::GetAttributes($Path)
+        if (($attr -band [System.IO.FileAttributes]::ReparsePoint) -eq 0) {
+            $fi = New-Object System.IO.FileInfo($Path)
+            $len = [int]$fi.Length
+            if ($len -le 4096) {
+                $fs = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+                try {
+                    $fs.Write((New-Object 'byte[]' $len), 0, $len)
+                    $fs.Flush($true)
+                }
+                finally { $fs.Dispose() }
+            }
+        }
+        [System.IO.File]::Delete($Path)
+    }
+    catch { Write-Warning "Could not wipe and delete $Path ($($_.Exception.GetType().Name)); Setup deletes its temp folder afterwards." }
+}
+
+function Read-RecoveryHashTransferFile {
+    # -RecoveryCodeHashFile: checks the location, reads and validates the hash, then wipes the file.
+    # Sets $script:newRecoveryHash; throws (never with the value) when anything is wrong. Runs before
+    # anything is changed.
+    param([string]$Path)
+    if ([string]::IsNullOrEmpty($Path) -or -not ($Path -match '^[A-Za-z]:\\')) {
+        throw '-RecoveryCodeHashFile must be a local absolute path (X:\...). Nothing was changed.'
+    }
+    $full = [System.IO.Path]::GetFullPath($Path)
+    $parent = [System.IO.Path]::GetDirectoryName($full)
+    $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    if (-not [System.IO.File]::Exists($full)) { throw 'The recovery code hash file was not found. Nothing was changed.' }
+    if (-not (Test-NoReparseChain $full)) {
+        throw 'The recovery code hash file, or a folder above it, is a link or junction; refusing it. Nothing was changed.'
+    }
+    $dirOk = $false
+    try { $dirOk = Test-AdminOnlyAcl (Get-Acl -LiteralPath $parent) $me } catch { $dirOk = $false }
+    if (-not $dirOk) {
+        throw 'The folder of the recovery code hash file is not SYSTEM/Administrators-only (owner and ACL); refusing it. Nothing was changed.'
+    }
+    try {
+        $text = Read-TrustedSmallFile $full $MaxHashFileBytes $me
+        if ($null -eq $text) {
+            throw "The recovery code hash file is larger than $MaxHashFileBytes bytes, unreadable, or not SYSTEM/Administrators-only. Nothing was changed."
+        }
+        $text = $text.Trim()
+        if (-not (Test-RecoveryHash ([ref]$text))) {
+            throw 'The recovery code hash file does not hold a hash computed by Setup-PcGuard.exe (pbkdf2-sha256$<iterations>$<salt>$<hash>). Nothing was changed.'
+        }
+        $script:newRecoveryHash = $text
+    }
+    finally {
+        Remove-FileSecurely $full   # the location was checked above: never wipes through a link
     }
 }
 
@@ -332,8 +464,19 @@ function Invoke-Rollback {
     Unregister-PcGuardSafeBoot   # best-effort; never throws
     if ($script:recoveryTouched) {
         try {
-            if ($null -ne $script:oldRecoveryHash) { Write-RecoveryHashFile $script:oldRecoveryHash; Write-Host 'Restored the previous recovery code hash.' }
-            elseif (Test-Path -LiteralPath $RecoveryHashFile) { Remove-Item -LiteralPath $RecoveryHashFile -Force; Write-Host 'Removed the new recovery code hash.' }
+            # validated again before it is written back; never the code of a disabled (released) service
+            $restore = $null
+            if (-not $script:oldStartDisabled -and $null -ne $script:oldRecoveryHash) {
+                $candidate = [string]$script:oldRecoveryHash
+                if (Test-RecoveryHash ([ref]$candidate)) { $restore = $candidate }
+            }
+            if ($null -ne $restore) { Write-DataFile $RecoveryHashFile ([ref]$restore); Write-Host 'Restored the previous recovery code hash.' }
+            elseif (Test-Path -LiteralPath $RecoveryHashFile) { Remove-DataFile $RecoveryHashFile; Write-Host 'Removed the new recovery code hash.' }
+            if ($null -ne $script:oldRecoveryAttempts) {
+                $attempts = [string]$script:oldRecoveryAttempts
+                Write-DataFile $RecoveryAttemptsFile ([ref]$attempts)
+                Write-Host 'Restored the previous recovery code attempt counter.'
+            }
         }
         catch { Write-Warning "Could not restore the previous recovery code hash: $($_.Exception.Message)" }
     }
@@ -430,14 +573,12 @@ try {
         }
     }
 
-    # --- validate the recovery code hash (refuse before anything is changed; the value is never printed) ---
-    $recoveryGiven = $PSBoundParameters.ContainsKey('RecoveryCodeHash')
+    # --- read the recovery code hash file (refuse before anything is changed; the value is never printed) ---
+    $recoveryGiven = $PSBoundParameters.ContainsKey('RecoveryCodeHashFile')
     if ($recoveryGiven -and $ClearRecoveryCode) {
-        throw '-RecoveryCodeHash and -ClearRecoveryCode cannot be combined. Nothing was changed.'
+        throw '-RecoveryCodeHashFile and -ClearRecoveryCode cannot be combined. Nothing was changed.'
     }
-    if ($recoveryGiven -and -not (Test-RecoveryHash $RecoveryCodeHash)) {
-        throw ('Invalid -RecoveryCodeHash value: it must be the hash computed by Setup-PcGuard.exe (pbkdf2-sha256$<iterations>$<salt>$<hash>), never the recovery code itself. Nothing was changed.')
-    }
+    if ($recoveryGiven) { Read-RecoveryHashTransferFile $RecoveryCodeHashFile }   # sets $script:newRecoveryHash or throws
 
     # --- validate the dist folder and the paths ---
     if (-not (Test-Path -LiteralPath $DistDir)) { throw "DistDir not found: $DistDir. Run publish.ps1 first, or pass -DistDir." }
@@ -482,17 +623,13 @@ try {
     }
 
     # --- stop the old service and shells; abort before touching any folder if they will not die ---
-    # remember the current recovery.hash so a failed install can put it back
-    if (($recoveryGiven -or $ClearRecoveryCode) -and (Test-Path -LiteralPath $RecoveryHashFile)) {
-        $script:oldRecoveryHash = [System.IO.File]::ReadAllText($RecoveryHashFile)
-    }
-
     $script:hadService = Test-ServiceExists
     $script:hadSafeBoot = [bool](Test-Path -LiteralPath $SafeBootKeys[0])
     if ($script:hadService) {
         try { $script:oldStartDisabled = ([int](Get-ItemProperty -LiteralPath $ServiceKey -Name Start -ErrorAction Stop).Start -eq 4) } catch { $script:oldStartDisabled = $false }
         if ($script:oldStartDisabled) {
             Write-Host 'Existing PcGuard service is DISABLED (released with the recovery code, or by Cleanup): it is replaced by a new service with automatic start.'
+            Write-Host 'Its recovery code (if any) is NOT kept: a used code is burned. Set a new one (Setup asks for it).'
         }
         Write-Host 'Existing PcGuard service found: stopping it ...'
         Stop-PcGuardService
@@ -500,6 +637,28 @@ try {
     $left = @(Stop-PcGuardProcesses)
     if ($left.Count -gt 0) {
         throw "Could not stop: $($left -join ', '). Nothing was changed. Stop them manually (Task Manager as administrator) and run again."
+    }
+
+    # --- data folder first (an untrusted one is moved aside), then the existing recovery state ---
+    # Only a trusted, small, well-formed recovery.hash is ever remembered (for "kept" and for the rollback);
+    # anything else counts as none, so a file planted by a standard user can never be kept or restored.
+    $dataDirOk = $true
+    try { Initialize-DataDir }
+    catch {
+        # without a recovery code change the install goes on (the service secures the folder itself);
+        # nothing from the folder is trusted, and recovery.hash is left untouched
+        $dataDirOk = $false
+        Write-Warning "Could not check or secure the data folder ${DataDir}: $($_.Exception.Message)"
+        if ($null -ne $script:newRecoveryHash -or $ClearRecoveryCode) { throw }
+    }
+    if ($dataDirOk) {
+        $oldHashText = Read-TrustedSmallFile $RecoveryHashFile $MaxHashFileBytes
+        if ($null -ne $oldHashText) {
+            $oldHashText = $oldHashText.Trim()
+            if (Test-RecoveryHash ([ref]$oldHashText)) { $script:oldRecoveryHash = $oldHashText }
+        }
+        $oldHashText = $null
+        $script:oldRecoveryAttempts = Read-TrustedSmallFile $RecoveryAttemptsFile $MaxAttemptsFileBytes
     }
 
     # --- move the old folder aside ---
@@ -577,20 +736,37 @@ try {
     Register-PcGuardSafeBoot
 
     # --- recovery code hash (%ProgramData%\PcGuard\recovery.hash; read by the service on each attempt) ---
-    if ($recoveryGiven) {
+    # and its attempt counter (recovery.attempts; read by the service at start). The code is single use:
+    # the service deletes recovery.hash on a release, and a hash of a disabled service is never kept.
+    if ($null -ne $script:newRecoveryHash) {
         $script:recoveryTouched = $true
-        Write-RecoveryHashFile $RecoveryCodeHash
+        Write-DataFile $RecoveryHashFile ([ref]$script:newRecoveryHash)
+        Remove-DataFile $RecoveryAttemptsFile   # new code: fresh attempt counter
+        $script:newRecoveryHash = $null
         $recoveryState = 'set (new)'
     }
     elseif ($ClearRecoveryCode) {
-        if (Test-Path -LiteralPath $RecoveryHashFile) {
-            $script:recoveryTouched = $true
-            Remove-Item -LiteralPath $RecoveryHashFile -Force
-        }
+        $script:recoveryTouched = $true
+        Remove-DataFile $RecoveryHashFile
+        Remove-DataFile $RecoveryAttemptsFile
         $recoveryState = 'cleared: NOT set (no offline way out)'
     }
+    elseif (-not $dataDirOk) {
+        $recoveryState = 'unchanged (the data folder could not be checked; see the warning above)'
+    }
+    elseif ($script:oldStartDisabled) {
+        $script:recoveryTouched = $true
+        Remove-DataFile $RecoveryHashFile
+        Remove-DataFile $RecoveryAttemptsFile
+        $recoveryState = 'NOT set: the previous PC Guard was released with its recovery code or disabled, so no code is kept (run Setup again to set a new one)'
+    }
+    elseif ($null -ne $script:oldRecoveryHash) {
+        $recoveryState = 'kept (set before, not used yet)'
+    }
     elseif (Test-Path -LiteralPath $RecoveryHashFile) {
-        $recoveryState = 'kept (set before)'
+        $script:recoveryTouched = $true
+        Remove-DataFile $RecoveryHashFile
+        $recoveryState = 'NOT set (the existing recovery.hash was invalid or untrusted and was removed)'
     }
     else {
         $recoveryState = 'NOT set (no offline way out)'

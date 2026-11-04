@@ -1,6 +1,8 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
+using PcGuard.Core;
 
 namespace PcGuard.Shell;
 
@@ -113,6 +115,83 @@ internal static class Native
         finally
         {
             CloseHandle(h);
+        }
+    }
+
+    // ---- who serves the pipe, and what the SCM says about PcGuard (read-only; standard users have this) ----
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetNamedPipeServerProcessId(SafePipeHandle pipe, out uint serverProcessId);
+
+    /// <summary>Process id of the server end of a connected pipe, or null when it cannot be read.</summary>
+    public static int? TryGetPipeServerProcessId(SafePipeHandle pipe)
+        => !pipe.IsInvalid && GetNamedPipeServerProcessId(pipe, out var pid) ? (int)pid : null;
+
+    private const uint SC_MANAGER_CONNECT = 0x0001;
+    private const uint SERVICE_QUERY_CONFIG = 0x0001;
+    private const uint SERVICE_QUERY_STATUS = 0x0004;
+    private const int SC_STATUS_PROCESS_INFO = 0;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct SERVICE_STATUS_PROCESS
+    {
+        public uint dwServiceType, dwCurrentState, dwControlsAccepted, dwWin32ExitCode, dwServiceSpecificExitCode,
+            dwCheckPoint, dwWaitHint, dwProcessId, dwServiceFlags;
+    }
+
+    [DllImport("advapi32.dll", EntryPoint = "OpenSCManagerW", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr OpenSCManager(string? machineName, string? databaseName, uint desiredAccess);
+
+    [DllImport("advapi32.dll", EntryPoint = "OpenServiceW", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr OpenService(IntPtr scManager, string serviceName, uint desiredAccess);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool QueryServiceStatusEx(IntPtr service, int infoLevel, out SERVICE_STATUS_PROCESS buffer, int bufferSize, out int bytesNeeded);
+
+    [DllImport("advapi32.dll", EntryPoint = "QueryServiceConfigW", SetLastError = true)]
+    private static extern bool QueryServiceConfig(IntPtr service, IntPtr buffer, int bufferSize, out int bytesNeeded);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool CloseServiceHandle(IntPtr handle);
+
+    /// <summary>
+    /// State, start type and process id of a service (QueryServiceStatusEx + QueryServiceConfigW with
+    /// SERVICE_QUERY_STATUS | SERVICE_QUERY_CONFIG only), or null when any call fails. Never throws.
+    /// </summary>
+    public static ServiceProbe? TryProbeService(string serviceName)
+    {
+        var scm = OpenSCManager(null, null, SC_MANAGER_CONNECT);
+        if (scm == IntPtr.Zero) return null;
+        try
+        {
+            var svc = OpenService(scm, serviceName, SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS);
+            if (svc == IntPtr.Zero) return null;
+            try
+            {
+                if (!QueryServiceStatusEx(svc, SC_STATUS_PROCESS_INFO, out var status, Marshal.SizeOf<SERVICE_STATUS_PROCESS>(), out _))
+                    return null;
+                QueryServiceConfig(svc, IntPtr.Zero, 0, out var needed); // fails with ERROR_INSUFFICIENT_BUFFER, sets needed
+                if (needed < 8 || needed > 64 * 1024) return null;
+                var buffer = Marshal.AllocHGlobal(needed);
+                try
+                {
+                    if (!QueryServiceConfig(svc, buffer, needed, out _)) return null;
+                    var startType = (uint)Marshal.ReadInt32(buffer, 4); // QUERY_SERVICE_CONFIGW: dwServiceType, dwStartType, ...
+                    return new ServiceProbe(status.dwCurrentState, startType, (int)status.dwProcessId);
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(buffer);
+                }
+            }
+            finally
+            {
+                CloseServiceHandle(svc);
+            }
+        }
+        finally
+        {
+            CloseServiceHandle(scm);
         }
     }
 

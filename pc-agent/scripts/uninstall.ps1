@@ -4,8 +4,9 @@
 .PARAMETER InstallDir
   Install folder (default: 64-bit Program Files\PcGuard).
 .PARAMETER Purge
-  Also delete %ProgramData%\PcGuard (machine key, cached rules, usage queue, recovery code hash). Without
-  it they are kept (a later install then keeps the recovery code).
+  Also delete %ProgramData%\PcGuard (machine key, cached rules, usage queue, recovery code hash and its
+  attempt counter). Without it they are kept (a later install then keeps a recovery code that was not
+  used; a used one was already deleted by the service).
   Works the same when the service is Disabled (after a recovery code release or Cleanup): a stopped
   service is not stopped again, it is just deleted.
   NOT TESTED: written without PowerShell available; run the VM checklist in README.md.
@@ -110,7 +111,7 @@ try {
         }
     }
     elseif (Test-Path -LiteralPath $data) {
-        Write-Host "Kept $data (machine key, rules, usage queue, recovery code hash if set). Use -Purge to delete it."
+        Write-Host "Kept $data (machine key, rules, usage queue, recovery code hash and attempt counter if set). Use -Purge to delete it."
     }
 
     Write-Host 'PC Guard uninstalled.' -ForegroundColor Green

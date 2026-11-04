@@ -21,10 +21,14 @@ namespace PcGuard.Service;
 ///
 /// Recovery code (offline, set at install): the shell forwards recovery_release {id, code}; the service
 /// checks it against %ProgramData%\PcGuard\recovery.hash (PBKDF2, on a worker thread, one at a time,
-/// behind its own local limiter) and answers recovery_result with the id. On success it stops
-/// enforcing at once (flag + killer halted), writes the audit entry, tells the shell to exit
-/// (released), sets its own start type to Disabled and stops. No backend involved; the code is never
-/// logged or written anywhere.
+/// behind its own limiter, persisted in recovery.attempts: every attempt is recorded as a failure
+/// before it is verified, lockouts escalate 10 min / 1 h / 24 h and survive restarts and reboots) and
+/// answers recovery_result with the id. On success it stops enforcing at once (flag + killer halted),
+/// writes the audit entry, deletes recovery.hash (single use), sets its own start type to Disabled,
+/// tells the shell to exit (released), terminates every shell it launched in any session after
+/// 1.5 s, and stops. If the start type cannot be changed it does NOT stop: it stays running without
+/// enforcing, tells the student and the event log, and retries every 30 s. No backend involved; the
+/// code is never logged or written anywhere.
 ///
 /// Startup grace (<see cref="StartupGrace"/>): from service start until the first shell has connected
 /// and reported (its first snapshot or alive) or 30 s have passed, a name-only fallback plan kills and
@@ -90,9 +94,13 @@ internal sealed class GuardWorker : BackgroundService
     // _released is set first thing on success; from then on nothing is enforced or launched.
     private const string ServiceName = "PcGuard";
     private readonly IHostApplicationLifetime _lifetime;
-    private readonly RecoveryGate _recoveryGate = new(new AdminAttemptLimiter());
+    private static readonly TimeSpan ShellExitGrace = TimeSpan.FromSeconds(1.5);
+    private static readonly TimeSpan DisableFailedNoticeTime = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan DisableRetryEvery = TimeSpan.FromSeconds(30);
+    private RecoveryGate _recoveryGate = null!; // created in ExecuteAsync (needs the secured data folder)
     private readonly SemaphoreSlim _recoveryLock = new(1, 1);
     private volatile bool _released;
+    private CancellationToken _stopping;
 
     // Tag -> token for the current (ClosedAt null) and recently closed sessions, memory only.
     private readonly object _sessionsLock = new();
@@ -190,6 +198,13 @@ internal sealed class GuardWorker : BackgroundService
             _machineKey = Guid.NewGuid().ToString("D");
         }
         _secured = secured; // an unsecured data folder is never trusted for recovery.hash either
+        _stopping = stoppingToken;
+
+        // recovery code limiter, persisted in recovery.attempts (read once, now)
+        var limiter = new RecoveryAttemptLimiter(
+            secured ? new RecoveryAttemptFileStore(store) : new NoRecoveryAttemptStore(), _clock());
+        if (limiter.LoadProblem is { } problem) _log.LogWarning("{Audit}", RecoveryAudit.AttemptsUntrusted(problem));
+        _recoveryGate = new RecoveryGate(limiter);
 
         _cache = new RuleCache(store.RulesPath, TimeSpan.FromMinutes(10), _clock, persist: secured);
         _queue = new UsageQueue(store.UsageQueuePath, persist: secured);
@@ -502,12 +517,22 @@ internal sealed class GuardWorker : BackgroundService
                     break;
             }
 
-            var pre = _recoveryGate.Precheck(_clock(), status == SecureStore.RecoveryHashStatus.Ok);
+            var now = _clock();
+            var pre = _recoveryGate.Precheck(now, status == SecureStore.RecoveryHashStatus.Ok);
             if (pre is not null)
             {
                 if (pre.Error == AdminErrors.LockedOut) _log.LogInformation("{Audit}", RecoveryAudit.RefusedLockedOut(pre.RetrySeconds));
                 produced = true;
                 await _pipe.SendAsync(pre with { Id = id }).ConfigureAwait(false);
+                return;
+            }
+
+            // recorded (as a failure) on disk BEFORE the check: pulling the power during it still counts
+            if (!_recoveryGate.Begin(now))
+            {
+                _log.LogError("{Audit}", RecoveryAudit.AttemptNotRecorded());
+                produced = true;
+                await _pipe.SendAsync(new RecoveryResultMessage(false, AdminErrors.Error, 0) { Id = id }).ConfigureAwait(false);
                 return;
             }
 
@@ -521,7 +546,7 @@ internal sealed class GuardWorker : BackgroundService
                 return;
             }
             _log.LogWarning("{Audit}", RecoveryAudit.Rejected(_recoveryGate.ConsecutiveFailures));
-            if (reply.Error == AdminErrors.LockedOut) _log.LogWarning("{Audit}", RecoveryAudit.LockedOut());
+            if (reply.Error == AdminErrors.LockedOut) _log.LogWarning("{Audit}", RecoveryAudit.LockedOut(_recoveryGate.CurrentLockout));
             await _pipe.SendAsync(reply with { Id = id }).ConfigureAwait(false);
         }
         catch (Exception e)
@@ -538,25 +563,76 @@ internal sealed class GuardWorker : BackgroundService
 
     /// <summary>
     /// The recovery code was accepted. Order matters: stop enforcing first (flag, killer halted), audit,
-    /// tell the shell (ok + released, so it closes its windows and exits), then Disabled start type
-    /// (neither the SCM recovery actions nor a reboot bring the service back) and a clean stop.
+    /// burn the code (delete recovery.hash: single use), set the start type to Disabled (so neither the
+    /// SCM recovery actions nor a reboot bring the service back), tell the shell (ok + released, so it
+    /// closes its windows and exits), give it 1.5 s, then terminate every shell this service launched
+    /// in any session (one that missed "released" would otherwise sit there full-screen), and stop.
+    /// If Disabled cannot be set the service does NOT stop (a stop could be followed by the SCM
+    /// restart actions, and a reboot would bring enforcement back silently): it stays up without
+    /// enforcing, shows the student a notice, logs the error and retries every 30 s.
     /// </summary>
     private async Task ReleaseAsync(int id)
     {
         _released = true;
         _killer.Halt();
         _log.LogWarning("{Audit}", RecoveryAudit.Accepted());
+
+        if (_store.TryBurnRecoveryHash(out var burnError)) _log.LogWarning("{Audit}", RecoveryAudit.CodeBurned());
+        else _log.LogError("{Audit}", RecoveryAudit.BurnFailed(burnError ?? "unknown"));
+
+        var disableError = Native.DisableService(ServiceName);
+        if (disableError != 0) _log.LogError("{Audit}", RecoveryAudit.DisableFailed(disableError));
         try
         {
             await _pipe.SendAsync(new RecoveryResultMessage(true, null, 0) { Id = id }).ConfigureAwait(false);
+            if (disableError != 0)
+            {
+                await _pipe.SendAsync(new TextMessage(UiStrings.RecoveryDisableFailedNotice())).ConfigureAwait(false);
+                await Task.Delay(DisableFailedNoticeTime).ConfigureAwait(false); // time to read it before the shell exits
+            }
             await _pipe.SendAsync(new ReleasedMessage()).ConfigureAwait(false);
+            await Task.Delay(ShellExitGrace).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _log.LogError("Recovery release: telling the shell failed ({Error})", e.GetType().Name);
         }
         finally
         {
-            var err = Native.DisableService(ServiceName);
-            if (err != 0) _log.LogError("{Audit}", RecoveryAudit.DisableFailed(err));
-            _lifetime.StopApplication();
+            try
+            {
+                _log.LogWarning("{Audit}", RecoveryAudit.ShellsTerminated(_supervisor.TerminateAll()));
+            }
+            catch (Exception e)
+            {
+                _log.LogError("Recovery release: terminating the shells failed ({Error})", e.GetType().Name);
+            }
+            if (disableError == 0) _lifetime.StopApplication();
+            else _ = Task.Run(() => RetryDisableAsync(_stopping));
         }
+    }
+
+    /// <summary>Released but still Automatic: retry Disabled every 30 s, then stop (never stop before).</summary>
+    private async Task RetryDisableAsync(CancellationToken ct)
+    {
+        var attempts = 0;
+        try
+        {
+            using var timer = new PeriodicTimer(DisableRetryEvery);
+            while (await timer.WaitForNextTickAsync(ct).ConfigureAwait(false))
+            {
+                attempts++;
+                var err = Native.DisableService(ServiceName);
+                if (err == 0)
+                {
+                    _log.LogWarning("{Audit}", RecoveryAudit.DisableRetried(attempts));
+                    _lifetime.StopApplication();
+                    return;
+                }
+                if (attempts % 20 == 0) _log.LogError("{Audit}", RecoveryAudit.DisableFailed(err)); // every 10 minutes
+            }
+        }
+        catch (OperationCanceledException) { }
     }
 
     // ---------------- pipe ----------------

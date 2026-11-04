@@ -7,10 +7,10 @@ public class RecoveryCodeValidationTests
 {
     [Theory]
     [InlineData("Lab-PC-07 recovery")]
-    [InlineData("abcdefghi1")]               // exactly 10
-    [InlineData("a b c d e f")]              // inner spaces are allowed
-    [InlineData("!~#$%^&*()_+=-")]           // ASCII punctuation
-    [InlineData("1234567891")]               // ten digits, not on the deny list
+    [InlineData("Xq7!mZ2#pL9v")]             // exactly 12
+    [InlineData("a b c d e f g")]            // inner spaces are allowed
+    [InlineData("9r!Kt2#Wq8@z~")]            // ASCII punctuation
+    [InlineData("Test-Recovery 42")]
     public void GoodCodesPass(string code)
     {
         Assert.Null(RecoveryCode.Validate(code));
@@ -18,36 +18,41 @@ public class RecoveryCodeValidationTests
     }
 
     [Fact]
-    public void LengthLimitsAreTenAndHundredTwentyEight()
+    public void LengthLimitsAreTwelveAndHundredTwentyEight()
     {
-        Assert.Contains("at least 10", RecoveryCode.Validate("abcdefgh1"));
-        Assert.Null(RecoveryCode.Validate(new string('a', 64) + new string('b', 63) + "c"));
-        Assert.Contains("at most 128", RecoveryCode.Validate(new string('a', 64) + new string('b', 64) + "c"));
-        Assert.Contains("at least 10", RecoveryCode.Validate(""));
-        Assert.Contains("at least 10", RecoveryCode.Validate((string?)null));
+        Assert.Contains("at least 12", RecoveryCode.Validate("Xq7!mZ2#pL9"));
+        Assert.Null(RecoveryCode.Validate("Xq7!mZ2#pL9v"));
+        var longOk = string.Concat(Enumerable.Range(0, 128).Select(i => (char)(' ' + 1 + (i * 37) % 94)));
+        Assert.Equal(128, longOk.Length);
+        Assert.Null(RecoveryCode.Validate(longOk));
+        Assert.Contains("at most 128", RecoveryCode.Validate(longOk + "x"));
+        Assert.Contains("at least 12", RecoveryCode.Validate(""));
+        Assert.Contains("at least 12", RecoveryCode.Validate((string?)null));
     }
 
     [Theory]
-    [InlineData("abcdefghij\u00e9")]   // non-ASCII letter
-    [InlineData("abcdefghij\t")]        // control character
-    [InlineData("abcdef\nghij")]
-    [InlineData("abcdefghij\u007f")]   // DEL
-    [InlineData("\u0430bcdefghijk")]   // Cyrillic a
-    [InlineData("abcdefghij\u3000k")]  // ideographic space
+    [InlineData("Xq7!mZ2#pL9v\u00e9")]   // non-ASCII letter
+    [InlineData("Xq7!mZ2#pL9v\t")]        // control character
+    [InlineData("Xq7!mZ\n2#pL9v")]
+    [InlineData("Xq7!mZ2#pL9v\u007f")]   // DEL
+    [InlineData("\u0430q7!mZ2#pL9vw")]   // Cyrillic a
+    [InlineData("Xq7!mZ2#pL9v\u3000k")]  // ideographic space
     public void OnlyPrintableAsciiAndSpace(string code)
         => Assert.Contains("printable ASCII", RecoveryCode.Validate(code));
 
     [Theory]
-    [InlineData(" abcdefghij")]
-    [InlineData("abcdefghij ")]
+    [InlineData(" Xq7!mZ2#pL9v")]
+    [InlineData("Xq7!mZ2#pL9v ")]
     public void NoLeadingOrTrailingSpace(string code)
         => Assert.Contains("start or end with a space", RecoveryCode.Validate(code));
 
     [Theory]
     [InlineData("aaaaaaaaaaaa")]
-    [InlineData("ababababab")]
-    public void AtLeastThreeDistinctCharacters(string code)
-        => Assert.Contains("3 different", RecoveryCode.Validate(code));
+    [InlineData("abababababab")]
+    [InlineData("aaaaaaaabcde")]
+    [InlineData("Xq7Xq7Xq7Xq7Xq")]
+    public void AtLeastSixDistinctCharacters(string code)
+        => Assert.Contains("6 different", RecoveryCode.Validate(code));
 
     [Theory]
     [InlineData("123456")]
@@ -56,21 +61,32 @@ public class RecoveryCodeValidationTests
         => Assert.Contains("6 digits", RecoveryCode.Validate(code));
 
     [Theory]
-    [InlineData("0123456789")]
-    [InlineData("1234567890")]
-    [InlineData("password12")]
-    [InlineData("PASSWORD12")]
-    [InlineData("qwertyuiop")]
-    [InlineData("QwertyUiop")]
-    [InlineData("password123")]
-    [InlineData("1q2w3e4r5t")]
-    public void CommonWeakValuesAreRefused(string code)
-        => Assert.Contains("too common", RecoveryCode.Validate(code));
+    [InlineData("012345678901")]
+    [InlineData("password1234")]
+    [InlineData("PASSWORD1234")]
+    [InlineData("qwertyuiop12")]
+    [InlineData("QwertyUiop!!")]
+    [InlineData("1q2w3e4r5t6y")]
+    [InlineData("Maktab2024!!")]          // common word + year
+    [InlineData("Kompyuter-2026")]
+    [InlineData("Admin-2025-PC")]
+    [InlineData("parol_2023_ok")]
+    [InlineData("School#2027#")]
+    [InlineData("zxcvbnm.2024")]
+    [InlineData("asdfgh-12345")]
+    [InlineData("Abc12!Abc12!")]          // repeated block
+    [InlineData("xy7#Q-xy7#Q-z")]
+    [InlineData("abcdefghijklm")]         // alphabet run
+    [InlineData("9876543210ab")]
+    [InlineData("PcGuard-Recovery")]
+    [InlineData("Toshkent1999!")]
+    public void CommonOrGuessableValuesAreRefused(string code)
+        => Assert.Contains("too easy to guess", RecoveryCode.Validate(code));
 
     [Fact]
     public void ErrorMessagesNeverContainTheCode()
     {
-        foreach (var code in new[] { "short1", "abcdefghij\u00e9", " abcdefghijk", "aaaaaaaaaaaa", "password12", new string('z', 140) + "xy" })
+        foreach (var code in new[] { "short1", "Xq7!mZ2#pL9v\u00e9", " Xq7!mZ2#pL9vk", "aaaaaaaaaaaa", "password1234", new string('z', 140) + "xy" })
         {
             var e = RecoveryCode.Validate(code);
             Assert.NotNull(e);
@@ -175,10 +191,14 @@ public class RecoveryGateTests
 {
     private static readonly DateTimeOffset T0 = new(2026, 11, 4, 10, 0, 0, TimeSpan.Zero);
 
+    private static RecoveryGate NewGate(MemoryAttemptStore? store = null)
+        => new(new RecoveryAttemptLimiter(store ?? new MemoryAttemptStore(), T0));
+
     [Fact]
     public void NotConfiguredIsAnsweredFirstAndNotCounted()
     {
-        var gate = new RecoveryGate(new AdminAttemptLimiter());
+        var store = new MemoryAttemptStore();
+        var gate = NewGate(store);
         for (var i = 0; i < 10; i++)
         {
             var r = gate.Precheck(T0.AddSeconds(i * 0.1), configured: false);
@@ -187,26 +207,32 @@ public class RecoveryGateTests
             Assert.Equal(RecoveryErrors.NotConfigured, r.Error);
         }
         Assert.Equal(0, gate.ConsecutiveFailures);
+        Assert.Equal(0, store.Writes);
         Assert.Null(gate.Precheck(T0, configured: true));
     }
 
     [Fact]
-    public void SuccessIsOkAndResetsTheCounter()
+    public void SuccessIsOkAndResetsTheCounterAndClearsTheFile()
     {
-        var gate = new RecoveryGate(new AdminAttemptLimiter());
+        var store = new MemoryAttemptStore();
+        var gate = NewGate(store);
+        Assert.True(gate.Begin(T0));
         Assert.Equal(AdminErrors.InvalidCode, gate.Complete(T0, verified: false).Error);
         Assert.Equal(1, gate.ConsecutiveFailures);
         Assert.Null(gate.Precheck(T0.AddSeconds(2), true));
+        Assert.True(gate.Begin(T0.AddSeconds(2)));
         var ok = gate.Complete(T0.AddSeconds(2), verified: true);
         Assert.True(ok.Ok);
         Assert.Null(ok.Error);
         Assert.Equal(0, gate.ConsecutiveFailures);
+        Assert.Null(store.Text); // cleared on success
     }
 
     [Fact]
-    public void OneSecondSpacingBetweenFailures()
+    public void OneSecondSpacingBetweenAttempts()
     {
-        var gate = new RecoveryGate(new AdminAttemptLimiter());
+        var gate = NewGate();
+        gate.Begin(T0);
         gate.Complete(T0, false);
         var wait = gate.Precheck(T0.AddMilliseconds(400), true);
         Assert.NotNull(wait);
@@ -219,26 +245,39 @@ public class RecoveryGateTests
     [Fact]
     public void FiveFailuresLockOutForTenMinutesEvenForTheRightCode()
     {
-        var gate = new RecoveryGate(new AdminAttemptLimiter());
+        var gate = NewGate();
         var t = T0;
         for (var i = 1; i <= 4; i++)
         {
             Assert.Null(gate.Precheck(t, true));
+            Assert.True(gate.Begin(t));
             Assert.Equal(AdminErrors.InvalidCode, gate.Complete(t, false).Error);
             t = t.AddSeconds(2);
         }
         Assert.Null(gate.Precheck(t, true));
+        gate.Begin(t);
         var fifth = gate.Complete(t, false);
         Assert.Equal(AdminErrors.LockedOut, fifth.Error);
         Assert.Equal(600, fifth.RetrySeconds);
         Assert.Equal(5, gate.ConsecutiveFailures);
+        Assert.Equal(TimeSpan.FromMinutes(10), gate.CurrentLockout);
 
         var during = gate.Precheck(t.AddMinutes(9), true);
         Assert.Equal(AdminErrors.LockedOut, during!.Error);
         Assert.Equal(60, during.RetrySeconds);
 
         Assert.Null(gate.Precheck(t.AddMinutes(10), true)); // over: counting starts again
+        Assert.True(gate.Begin(t.AddMinutes(10)));
         Assert.True(gate.Complete(t.AddMinutes(10), true).Ok);
+    }
+
+    [Fact]
+    public void AnAttemptThatCannotBeRecordedIsNotVerified()
+    {
+        var store = new MemoryAttemptStore { FailWrites = true };
+        var gate = NewGate(store);
+        Assert.Null(gate.Precheck(T0, true));
+        Assert.False(gate.Begin(T0));
     }
 }
 
@@ -247,13 +286,21 @@ public class RecoveryAuditTests
     [Fact]
     public void TextsAreFixedAndCarryNoCode()
     {
-        Assert.Equal("Recovery code accepted: PC Guard stopped and disabled on this PC", RecoveryAudit.Accepted());
+        Assert.Equal("Recovery code accepted: PC Guard stops enforcing, disables itself and stops on this PC", RecoveryAudit.Accepted());
         Assert.Equal("Recovery code rejected (3 of 5 consecutive failures)", RecoveryAudit.Rejected(3));
-        Assert.Equal("Recovery code attempts locked out for 10 minutes after 5 consecutive failures", RecoveryAudit.LockedOut());
+        Assert.Equal("Recovery code attempts locked out for 10 minutes after 5 consecutive failures", RecoveryAudit.LockedOut(TimeSpan.FromMinutes(10)));
+        Assert.Equal("Recovery code attempts locked out for 1 hour after 5 consecutive failures", RecoveryAudit.LockedOut(TimeSpan.FromHours(1)));
+        Assert.Equal("Recovery code attempts locked out for 24 hours after 5 consecutive failures", RecoveryAudit.LockedOut(TimeSpan.FromHours(24)));
         Assert.Equal("Recovery code attempt refused: locked out for another 42 s", RecoveryAudit.RefusedLockedOut(42));
         Assert.Equal("Recovery code attempt refused: no recovery code is configured on this PC", RecoveryAudit.NotConfigured());
         Assert.Contains("error 5", RecoveryAudit.DisableFailed(5));
-        Assert.Contains("start again after a reboot", RecoveryAudit.DisableFailed(5));
+        Assert.Contains("keeps running without enforcing", RecoveryAudit.DisableFailed(5));
+        Assert.Contains("retries", RecoveryAudit.DisableFailed(5));
+        Assert.DoesNotContain("pbkdf2", RecoveryAudit.AttemptsUntrusted("corrupt"));
+        Assert.Contains("24 hours", RecoveryAudit.AttemptsUntrusted("corrupt"));
+        Assert.Contains("could not be recorded", RecoveryAudit.AttemptNotRecorded());
+        Assert.Contains("single use", RecoveryAudit.CodeBurned());
+        Assert.Contains("3", RecoveryAudit.ShellsTerminated(3));
     }
 }
 
@@ -441,7 +488,7 @@ public class RecoveryCodePromptTests
         Assert.Null(r.Hash);
         Assert.Single(s.Prompts);
         Assert.Equal(RecoveryCodePrompt.FirstPrompt, s.Prompts[0]);
-        Assert.Equal("Recovery code for this PC (at least 10 characters; typed hidden; empty = none): ", RecoveryCodePrompt.FirstPrompt);
+        Assert.Equal("Recovery code for this PC (at least 12 characters; typed hidden; empty = none): ", RecoveryCodePrompt.FirstPrompt);
     }
 
     [Fact]
@@ -454,10 +501,10 @@ public class RecoveryCodePromptTests
     [Fact]
     public void MatchingEntriesAreHashedAndWiped()
     {
-        var s = new Script("Fake-Recovery 1", "Fake-Recovery 1");
+        var s = new Script("Fake-Recovery 11", "Fake-Recovery 11");
         var r = RecoveryCodePrompt.Run(s.Read, s.Errors.Add, FakeHash);
         Assert.Equal(RecoveryPromptOutcome.Set, r.Outcome);
-        Assert.Equal("HASH(15)", r.Hash);
+        Assert.Equal("HASH(16)", r.Hash);
         Assert.Equal(new[] { RecoveryCodePrompt.FirstPrompt, RecoveryCodePrompt.ConfirmPrompt }, s.Prompts);
         Assert.Empty(s.Errors);
         s.AssertAllWiped();
@@ -466,17 +513,17 @@ public class RecoveryCodePromptTests
     [Fact]
     public void RealHasherProducesAVerifiableHash()
     {
-        var s = new Script("Fake-Recovery 2", "Fake-Recovery 2");
+        var s = new Script("Fake-Recovery 22", "Fake-Recovery 22");
         var r = RecoveryCodePrompt.Run(s.Read, s.Errors.Add);
         Assert.Equal(RecoveryPromptOutcome.Set, r.Outcome);
-        Assert.True(RecoveryCode.Verify("Fake-Recovery 2", r.Hash));
+        Assert.True(RecoveryCode.Verify("Fake-Recovery 22", r.Hash));
         s.AssertAllWiped();
     }
 
     [Fact]
     public void MismatchAsksAgain()
     {
-        var s = new Script("Fake-Recovery 1", "Fake-Recovery 2", "Fake-Recovery 3", "Fake-Recovery 3");
+        var s = new Script("Fake-Recovery 11", "Fake-Recovery 22", "Fake-Recovery 33", "Fake-Recovery 33");
         var r = RecoveryCodePrompt.Run(s.Read, s.Errors.Add, FakeHash);
         Assert.Equal(RecoveryPromptOutcome.Set, r.Outcome);
         Assert.Single(s.Errors);
@@ -487,19 +534,19 @@ public class RecoveryCodePromptTests
     [Fact]
     public void WeakOrShortCodesAreRefusedWithTheReason()
     {
-        var s = new Script("short", "password12", "Fake-Recovery 4", "Fake-Recovery 4");
+        var s = new Script("short", "password1234", "Fake-Recovery 44", "Fake-Recovery 44");
         var r = RecoveryCodePrompt.Run(s.Read, s.Errors.Add, FakeHash);
         Assert.Equal(RecoveryPromptOutcome.Set, r.Outcome);
         Assert.Equal(2, s.Errors.Count);
-        Assert.Contains("at least 10", s.Errors[0]);
-        Assert.Contains("too common", s.Errors[1]);
+        Assert.Contains("at least 12", s.Errors[0]);
+        Assert.Contains("too easy to guess", s.Errors[1]);
         s.AssertAllWiped();
     }
 
     [Fact]
     public void ThreeFailedTriesAbort()
     {
-        var s = new Script("Fake-Recovery 1", "Fake-Recovery 9", "short", "Fake-Recovery 5", "Fake-recovery 5");
+        var s = new Script("Fake-Recovery 11", "Fake-Recovery 99", "short", "Fake-Recovery 55", "Fake-recovery 55");
         var r = RecoveryCodePrompt.Run(s.Read, s.Errors.Add, FakeHash);
         Assert.Equal(RecoveryPromptOutcome.Aborted, r.Outcome);
         Assert.Null(r.Hash);
@@ -511,7 +558,7 @@ public class RecoveryCodePromptTests
     [Fact]
     public void NoConsoleAtTheConfirmationAborts()
     {
-        var s = new Script("Fake-Recovery 1", null);
+        var s = new Script("Fake-Recovery 11", null);
         Assert.Equal(RecoveryPromptOutcome.Aborted, RecoveryCodePrompt.Run(s.Read, s.Errors.Add, FakeHash).Outcome);
         s.AssertAllWiped();
     }
@@ -548,37 +595,51 @@ public class RecoverySetupArgsTests
 public class RecoveryPowerShellCommandTests
 {
     private const string Vector = "pbkdf2-sha256$310000$AAECAwQFBgcICQoLDA0ODw==$duxe5MpHJzrKAJIOu300msU8tL1k5g1aLDYDaY0ssFY=";
+    private const string HashFile = @"C:\ProgramData\PcGuard-setup-0123abcd\recovery-hash.in";
 
     [Fact]
-    public void HashIsPassedAsOneArgument()
+    public void OnlyThePathOfTheHashFileIsPassedNeverTheHash()
     {
         var c = PowerShellCommand.BuildInstall(@"C:\t\install.ps1", "https://x.uz/api/v1", @"C:\P\dist", @"C:\Windows",
-            new[] { "anydesk.exe" }, Vector);
+            new[] { "anydesk.exe" }, HashFile);
         Assert.Equal(
             new[]
             {
                 "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", @"C:\t\install.ps1",
                 "-BackendBaseUrl", "https://x.uz/api/v1", "-DistDir", @"C:\P\dist",
-                "-ExtraAllowedApps", "anydesk.exe", "-RecoveryCodeHash", Vector,
+                "-ExtraAllowedApps", "anydesk.exe", "-RecoveryCodeHashFile", HashFile,
             },
             c.Arguments);
+        Assert.DoesNotContain("-RecoveryCodeHash", c.Arguments);
+        Assert.All(c.Arguments, a => Assert.DoesNotContain("pbkdf2", a));
     }
 
     [Fact]
     public void OmittedWhenNull()
     {
         var c = PowerShellCommand.BuildInstall(@"C:\t\install.ps1", "https://x.uz/api/v1", @"C:\P\dist", @"C:\Windows", null, null);
+        Assert.DoesNotContain("-RecoveryCodeHashFile", c.Arguments);
         Assert.DoesNotContain("-RecoveryCodeHash", c.Arguments);
     }
 
     [Theory]
     [InlineData("")]
-    [InlineData("Fake-Plain-Code-1")]
-    [InlineData("pbkdf2-sha256$1$AAECAwQFBgcICQoLDA0ODw==$duxe5MpHJzrKAJIOu300msU8tL1k5g1aLDYDaY0ssFY=")]
-    public void ANonHashIsRefusedWithoutEchoingIt(string value)
+    [InlineData(Vector)]                                   // a hash passed by mistake
+    [InlineData("Fake-Plain-Code-1")]                      // not an absolute path
+    [InlineData(@"relative\recovery-hash.in")]
+    [InlineData(@"\\server\share\recovery-hash.in")]      // UNC
+    [InlineData(@"C:\x$y\recovery-hash.in")]               // '$' never appears in a hash-file path
+    [InlineData("C:\\a\"b")]
+    [InlineData("C:\\a\nb")]
+    public void ANonPathIsRefusedWithoutEchoingIt(string value)
     {
         var e = Assert.Throws<ArgumentException>(() =>
             PowerShellCommand.BuildInstall(@"C:\t\install.ps1", "https://x.uz/api/v1", @"C:\P\dist", @"C:\Windows", null, value));
         if (value.Length > 0) Assert.DoesNotContain(value, e.Message);
     }
+
+    [Fact]
+    public void TooLongPathIsRefused()
+        => Assert.Throws<ArgumentException>(() => PowerShellCommand.BuildInstall("s.ps1", "https://x.uz/api/v1", "d", @"C:\Windows", null,
+            @"C:\" + new string('a', 260)));
 }

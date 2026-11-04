@@ -13,9 +13,12 @@ namespace PcGuard.Core;
 /// </summary>
 public static class RecoveryCode
 {
-    public const int MinLength = 10;
+    public const int MinLength = 12;
     public const int MaxLength = 128;
-    public const int MinDistinct = 3;
+    public const int MinDistinct = 6;
+    /// <summary>Characters that must remain after the guessable parts (common words, years, keyboard and
+    /// alphabet runs, repeated characters and repeated blocks) are taken out.</summary>
+    public const int MinUnguessable = 8;
     /// <summary>Iterations used for new hashes (OWASP 2021 minimum for PBKDF2-HMAC-SHA256).</summary>
     public const int Iterations = 310_000;
     public const int MinIterations = 310_000;
@@ -26,16 +29,36 @@ public static class RecoveryCode
     public const string Scheme = "pbkdf2-sha256";
     /// <summary>Longest stored value accepted (the real form is about 91 characters).</summary>
     public const int MaxStoredLength = 128;
+    /// <summary>Largest recovery.hash (or transfer file) accepted: the stored form plus a little whitespace.</summary>
+    public const int MaxStoredFileBytes = MaxStoredLength + 8;
+    /// <summary>
+    /// Name of the file Setup writes the hash into, inside its admin-only temp folder, for install.ps1
+    /// (-RecoveryCodeHashFile). The hash is never put on a command line: Windows PowerShell logs its
+    /// command line (event 400/600 "HostApplication") to a log that standard users can read.
+    /// </summary>
+    public const string TransferFileName = "recovery-hash.in";
 
-    // Compared case-insensitively. Short on purpose: the length and distinct-character rules do the rest.
-    private static readonly string[] DenyList =
+    // Guessable parts, matched case-insensitively ANYWHERE in the code and taken out before counting
+    // what is left (see Validate). Words a school PC's installer is likely to reach for (uz/ru/en).
+    private static readonly string[] CommonWords =
     {
-        "0123456789", "1234567890", "12345678910", "0987654321", "9876543210", "1111111111",
-        "password12", "password123", "password1234", "passw0rd12", "parol12345", "parol123456",
-        "qwertyuiop", "qwerty1234", "qwerty12345", "1q2w3e4r5t", "1qaz2wsx3edc", "asdfghjkl1", "zxcvbnm123",
-        "abcdefghij", "abcd123456", "abc1234567", "admin12345", "administrator", "iloveyou12",
-        "pcguard123", "pcguard1234", "recovery12", "recovery123",
+        "maktab", "kompyuter", "komputer", "kompiuter", "computer", "admin", "parol", "password", "passw0rd",
+        "p@ssw0rd", "qwerty", "school", "shkola", "sinf", "klass", "ustoz", "teacher", "uchitel", "student",
+        "talaba", "oquvchi", "o'quvchi", "uchenik", "pcguard", "guard", "recovery", "tiklash", "letmein",
+        "welcome", "iloveyou", "secret", "sekret", "windows", "microsoft", "uzbekistan", "ozbekiston",
+        "o'zbekiston", "toshkent", "tashkent", "samarqand", "informatika", "dastur", "salom", "privet", "login",
     };
+
+    // Keyboard rows (US layout, plain and shifted, plus the usual column walks); any 4+ character
+    // stretch of one of them, forwards or backwards, is guessable.
+    private static readonly string[] KeyboardRuns =
+    {
+        "`1234567890-=", "~!@#$%^&*()_+", "qwertyuiop[]\\", "asdfghjkl;'", "zxcvbnm,./",
+        "1qaz2wsx3edc4rfv5tgb6yhn7ujm8ik,9ol.0p;/", "1q2w3e4r5t6y7u8i9o0p", "qazwsxedcrfvtgbyhnujmikolp",
+    };
+
+    private const int MinRun = 4;
+    private const int MinRepeatedBlock = 3;
 
     /// <summary>Null when <paramref name="code"/> is acceptable as a new recovery code; otherwise the reason (never containing the code).</summary>
     public static string? Validate(string? code) => Validate((code ?? "").AsSpan());
@@ -47,15 +70,35 @@ public static class RecoveryCode
             return "The recovery code must not be 6 digits (that is the shape of a teacher maintenance code).";
         if (code.Length < MinLength) return $"The recovery code must be at least {MinLength} characters long.";
         if (code.Length > MaxLength) return $"The recovery code must be at most {MaxLength} characters long.";
-        foreach (var c in code)
-            if (c is < ' ' or > '~')
-                return "The recovery code may contain only printable ASCII characters (letters A-Z, digits, punctuation and spaces).";
+        if (!IsPrintableAscii(code))
+            return "The recovery code may contain only printable ASCII characters (letters A-Z, digits, punctuation and spaces).";
         if (code[0] == ' ' || code[^1] == ' ') return "The recovery code must not start or end with a space.";
         if (Distinct(code) < MinDistinct) return $"The recovery code must contain at least {MinDistinct} different characters.";
-        foreach (var weak in DenyList)
-            if (code.Equals(weak.AsSpan(), StringComparison.OrdinalIgnoreCase))
-                return "The recovery code is too common; choose another one.";
+        if (Unguessable(code) < MinUnguessable)
+            return "The recovery code is too easy to guess (it is mostly common words, years, keyboard or alphabet runs, or repeated parts); "
+                   + $"choose another one with at least {MinUnguessable} characters that are not such parts.";
         return null;
+    }
+
+    /// <summary>
+    /// True when every character is printable ASCII (0x20-0x7E), the only characters a valid code can
+    /// contain. The shell's dialog uses it to refuse, without sending or counting, text typed on a
+    /// non-English keyboard layout.
+    /// </summary>
+    public static bool IsPrintableAscii(ReadOnlySpan<char> text)
+    {
+        foreach (var c in text)
+            if (c is < ' ' or > '~')
+                return false;
+        return true;
+    }
+
+    /// <summary>The bytes Setup writes into <see cref="TransferFileName"/>: exactly the ASCII stored form, no BOM, no newline.</summary>
+    public static byte[] ToTransferBytes(string stored)
+    {
+        // the message never contains the value: it could be a plain code passed by mistake
+        if (!IsWellFormedStored(stored)) throw new ArgumentException("The recovery code hash is not in the stored form.", nameof(stored));
+        return Encoding.ASCII.GetBytes(stored);
     }
 
     /// <summary>Hashes a valid code with a fresh random salt. Throws ArgumentException (without the code) for an invalid one.</summary>
@@ -171,6 +214,121 @@ public static class RecoveryCode
         return true;
     }
 
+    // Number of characters that are NOT part of a guessable piece. Works on a lower-cased copy that is
+    // zeroed afterwards.
+    private static int Unguessable(ReadOnlySpan<char> code)
+    {
+        var n = code.Length;
+        var lower = new char[n];
+        var weak = new bool[n];
+        try
+        {
+            for (var i = 0; i < n; i++) lower[i] = char.ToLowerInvariant(code[i]);
+            var text = lower.AsSpan();
+
+            foreach (var word in CommonWords) MarkAll(text, word.AsSpan(), weak);
+            MarkYears(text, weak);
+            foreach (var row in KeyboardRuns) MarkKeyboardRun(text, row, weak);
+            MarkSequences(text, weak);
+            MarkRepeatedChars(text, weak);
+            MarkRepeatedBlocks(text, weak);
+
+            var left = 0;
+            foreach (var w in weak) if (!w) left++;
+            return left;
+        }
+        finally
+        {
+            Array.Clear(lower);
+        }
+    }
+
+    private static void MarkAll(ReadOnlySpan<char> text, ReadOnlySpan<char> part, bool[] weak)
+    {
+        if (part.Length == 0 || part.Length > text.Length) return;
+        for (var i = 0; i + part.Length <= text.Length; i++)
+            if (text.Slice(i, part.Length).SequenceEqual(part))
+                Array.Fill(weak, true, i, part.Length);
+    }
+
+    // 19xx and 20xx (school years, birth years).
+    private static void MarkYears(ReadOnlySpan<char> text, bool[] weak)
+    {
+        for (var i = 0; i + 4 <= text.Length; i++)
+        {
+            if (!(IsDigit(text[i]) && IsDigit(text[i + 1]) && IsDigit(text[i + 2]) && IsDigit(text[i + 3]))) continue;
+            if ((text[i] == '1' && text[i + 1] == '9') || (text[i] == '2' && text[i + 1] == '0'))
+                Array.Fill(weak, true, i, 4);
+        }
+    }
+
+    // Every stretch of MinRun or more characters that appears in a keyboard row, forwards or backwards.
+    private static void MarkKeyboardRun(ReadOnlySpan<char> text, string row, bool[] weak)
+    {
+        var reversed = new string(row.Reverse().ToArray());
+        foreach (var r in new[] { row, reversed })
+        {
+            for (var i = 0; i < text.Length; i++)
+            {
+                var best = 0;
+                for (var len = MinRun; i + len <= text.Length; len++)
+                {
+                    if (r.AsSpan().IndexOf(text.Slice(i, len)) < 0) break;
+                    best = len;
+                }
+                if (best >= MinRun) Array.Fill(weak, true, i, best);
+            }
+        }
+    }
+
+    // abcd, 4321, xyz... : letters or digits stepping by +1 or -1.
+    private static void MarkSequences(ReadOnlySpan<char> text, bool[] weak)
+    {
+        for (var start = 0; start < text.Length - 1;)
+        {
+            var step = text[start + 1] - text[start];
+            if (!(step is 1 or -1) || !IsAlnum(text[start]) || !IsAlnum(text[start + 1]))
+            {
+                start++;
+                continue;
+            }
+            var end = start + 1;
+            while (end + 1 < text.Length && IsAlnum(text[end + 1]) && text[end + 1] - text[end] == step) end++;
+            if (end - start + 1 >= MinRun) Array.Fill(weak, true, start, end - start + 1);
+            start = end;
+        }
+    }
+
+    // aaa, 111, !!!: three or more of the same character.
+    private static void MarkRepeatedChars(ReadOnlySpan<char> text, bool[] weak)
+    {
+        for (var start = 0; start < text.Length;)
+        {
+            var end = start;
+            while (end + 1 < text.Length && text[end + 1] == text[start]) end++;
+            if (end - start + 1 >= 3) Array.Fill(weak, true, start, end - start + 1);
+            start = end + 1;
+        }
+    }
+
+    // A block of MinRepeatedBlock or more characters that already appeared earlier: the later copy adds nothing.
+    private static void MarkRepeatedBlocks(ReadOnlySpan<char> text, bool[] weak)
+    {
+        var n = text.Length;
+        for (var j = 1; j < n; j++)
+        {
+            for (var i = 0; i < j; i++)
+            {
+                var k = 0;
+                while (j + k < n && i + k < j && text[i + k] == text[j + k]) k++;
+                if (k >= MinRepeatedBlock) Array.Fill(weak, true, j, k);
+            }
+        }
+    }
+
+    private static bool IsDigit(char c) => c is >= '0' and <= '9';
+    private static bool IsAlnum(char c) => c is >= '0' and <= '9' or >= 'a' and <= 'z';
+
     private static int Distinct(ReadOnlySpan<char> s)
     {
         Span<bool> seen = stackalloc bool[128];
@@ -190,29 +348,42 @@ public static class RecoveryErrors
 {
     /// <summary>No recovery code was set at install (no recovery.hash on this PC).</summary>
     public const string NotConfigured = "not_configured";
+
+    /// <summary>Shell-local only (never sent): the typed text has characters a code can never contain,
+    /// usually because the keyboard layout is not English. Nothing is sent and nothing is counted.</summary>
+    public const string WrongLayout = "wrong_layout";
 }
 
 /// <summary>
 /// Decision logic around one recovery_release in the service: not configured first (never counted),
-/// then the local limiter (1 s spacing, 5 failures -> 10 minutes, shared rules with maintenance
-/// codes but its own instance), then the PBKDF2 verification happens in the caller, then
-/// <see cref="Complete"/>. Only a wrong code counts. Not thread-safe: the service serialises calls.
+/// then the persistent limiter (<see cref="RecoveryAttemptLimiter"/>: 1 s spacing, 5 failures ->
+/// escalating lockout 10 min / 1 h / 24 h, kept in recovery.attempts across restarts and reboots).
+/// <see cref="Begin"/> records the attempt as a failure on disk BEFORE the PBKDF2 verification (so
+/// cutting the power during the check still counts); <see cref="Complete"/> clears it on success.
+/// Not thread-safe: the service serialises calls.
 /// </summary>
 public sealed class RecoveryGate
 {
-    private readonly AdminAttemptLimiter _limiter;
+    private readonly RecoveryAttemptLimiter _limiter;
 
-    public RecoveryGate(AdminAttemptLimiter limiter) => _limiter = limiter;
+    public RecoveryGate(RecoveryAttemptLimiter limiter) => _limiter = limiter;
 
     public int ConsecutiveFailures => _limiter.ConsecutiveFailures;
 
-    /// <summary>Null: verify the code now. Otherwise answer with this and do NOT verify.</summary>
+    /// <summary>Length of the lockout in force (or the last one started).</summary>
+    public TimeSpan CurrentLockout => _limiter.CurrentLockout;
+
+    /// <summary>Null: call <see cref="Begin"/> and verify the code. Otherwise answer with this and do NOT verify.</summary>
     public RecoveryResultMessage? Precheck(DateTimeOffset now, bool configured)
     {
         if (!configured) return new RecoveryResultMessage(false, RecoveryErrors.NotConfigured, 0);
         var d = _limiter.Check(now);
         return d.Kind == AdminAttemptKind.Allowed ? null : new RecoveryResultMessage(false, AdminErrors.LockedOut, d.RetrySeconds);
     }
+
+    /// <summary>Records the attempt (as a failure until <see cref="Complete"/> says otherwise). False: it could
+    /// not be persisted; answer "error" and do NOT verify.</summary>
+    public bool Begin(DateTimeOffset now) => _limiter.BeginAttempt(now);
 
     public RecoveryResultMessage Complete(DateTimeOffset now, bool verified)
     {
@@ -221,7 +392,6 @@ public sealed class RecoveryGate
             _limiter.RecordSuccess();
             return new RecoveryResultMessage(true, null, 0);
         }
-        _limiter.RecordFailure(now);
         var d = _limiter.Check(now);
         return d.Kind == AdminAttemptKind.LockedOut
             ? new RecoveryResultMessage(false, AdminErrors.LockedOut, d.RetrySeconds)
@@ -232,19 +402,42 @@ public sealed class RecoveryGate
 /// <summary>Event-log texts of the recovery code. None takes the code (or its hash).</summary>
 public static class RecoveryAudit
 {
-    public static string Accepted() => "Recovery code accepted: PC Guard stopped and disabled on this PC";
+    public static string Accepted() => "Recovery code accepted: PC Guard stops enforcing, disables itself and stops on this PC";
 
     public static string Rejected(int consecutiveFailures)
-        => $"Recovery code rejected ({consecutiveFailures.ToString(CultureInfo.InvariantCulture)} of {AdminAttemptLimiter.MaxFailures} consecutive failures)";
+        => $"Recovery code rejected ({consecutiveFailures.ToString(CultureInfo.InvariantCulture)} of {RecoveryAttemptLimiter.MaxFailures} consecutive failures)";
 
-    public static string LockedOut()
-        => $"Recovery code attempts locked out for {(int)AdminAttemptLimiter.Lockout.TotalMinutes} minutes after {AdminAttemptLimiter.MaxFailures} consecutive failures";
+    public static string LockedOut(TimeSpan lockout)
+        => $"Recovery code attempts locked out for {Duration(lockout)} after {RecoveryAttemptLimiter.MaxFailures} consecutive failures";
 
     public static string RefusedLockedOut(int retrySeconds)
         => $"Recovery code attempt refused: locked out for another {retrySeconds.ToString(CultureInfo.InvariantCulture)} s";
 
     public static string NotConfigured() => "Recovery code attempt refused: no recovery code is configured on this PC";
 
+    public static string AttemptsUntrusted(string problem)
+        => $"Recovery code attempt counter recovery.attempts is {problem}; recovery code attempts are locked out for 24 hours (an administrator can delete the file and restart the service)";
+
+    public static string AttemptNotRecorded()
+        => "Recovery code attempt refused: the attempt could not be recorded in recovery.attempts (nothing was checked)";
+
+    public static string CodeBurned() => "Recovery code used: recovery.hash deleted (the code is single use; reinstall with a new code)";
+
+    public static string BurnFailed(string error) => $"Recovery code used, but recovery.hash could not be deleted ({error})";
+
     public static string DisableFailed(int win32Error)
-        => $"Recovery release: could not set the PcGuard service start type to Disabled (error {win32Error.ToString(CultureInfo.InvariantCulture)}); PC Guard will start again after a reboot";
+        => $"Recovery release: could not set the PcGuard service start type to Disabled (error {win32Error.ToString(CultureInfo.InvariantCulture)}); PC Guard keeps running without enforcing and retries every 30 s. Until that works a reboot starts it again with enforcement";
+
+    public static string DisableRetried(int attempts)
+        => $"Recovery release: PcGuard service start type set to Disabled after {attempts.ToString(CultureInfo.InvariantCulture)} retries; stopping";
+
+    public static string ShellsTerminated(int count)
+        => $"Recovery release: {count.ToString(CultureInfo.InvariantCulture)} PC Guard shell process(es) terminated";
+
+    private static string Duration(TimeSpan t)
+    {
+        if (t < TimeSpan.FromHours(1)) return ((int)t.TotalMinutes).ToString(CultureInfo.InvariantCulture) + " minutes";
+        var h = (int)t.TotalHours;
+        return h == 1 ? "1 hour" : h.ToString(CultureInfo.InvariantCulture) + " hours";
+    }
 }

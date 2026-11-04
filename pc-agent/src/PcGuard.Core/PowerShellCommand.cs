@@ -13,12 +13,16 @@ public sealed record PowerShellCommand(string Executable, IReadOnlyList<string> 
     /// <c>-ExtraAllowedApps</c> (under <c>powershell -File</c> an array parameter receives a single
     /// string, which install.ps1 splits on commas). Omitted when empty, so an upgrade keeps the extras
     /// already configured. Every name must pass <see cref="ExtraAllowlist.IsValidName"/>.</param>
-    /// <param name="recoveryCodeHash">The stored form of the recovery code (never the code itself), passed as
-    /// <c>-RecoveryCodeHash</c>; omitted when null, so an upgrade keeps an existing one. Must pass
-    /// <see cref="RecoveryCode.IsWellFormedStored"/>.</param>
+    /// <param name="recoveryCodeHashFile">Full path of the file holding the stored form of the recovery code
+    /// (<see cref="RecoveryCode.ToTransferBytes"/>), written by Setup into its admin-only temp folder;
+    /// passed as <c>-RecoveryCodeHashFile</c>. The hash itself is NEVER put on the command line: Windows
+    /// PowerShell writes its command line to the "Windows PowerShell" event log (events 400/600), which
+    /// standard users can read. Omitted when null, so an upgrade keeps an existing, unused code. Must
+    /// be a local absolute path (<c>X:\...</c>, at most 260 characters) without '$', '"' or control
+    /// characters, so neither a hash nor a code can ever be passed here by mistake.</param>
     public static PowerShellCommand BuildInstall(
         string scriptPath, string backendUrl, string distDir, string systemRoot = @"C:\Windows",
-        IReadOnlyList<string>? extraApps = null, string? recoveryCodeHash = null)
+        IReadOnlyList<string>? extraApps = null, string? recoveryCodeHashFile = null)
     {
         var a = Prefix(scriptPath);
         a.AddRange(new[] { "-BackendBaseUrl", backendUrl, "-DistDir", distDir });
@@ -29,15 +33,24 @@ public sealed record PowerShellCommand(string Executable, IReadOnlyList<string> 
             a.Add("-ExtraAllowedApps");
             a.Add(string.Join(",", extraApps));
         }
-        if (recoveryCodeHash is not null)
+        if (recoveryCodeHashFile is not null)
         {
-            // the message never contains the value: it could be a plain code passed by mistake
-            if (!RecoveryCode.IsWellFormedStored(recoveryCodeHash))
-                throw new ArgumentException("The recovery code hash is not in the stored form.", nameof(recoveryCodeHash));
-            a.Add("-RecoveryCodeHash");
-            a.Add(recoveryCodeHash);
+            // the message never contains the value: it could be a hash or a plain code passed by mistake
+            if (!IsLocalAbsolutePath(recoveryCodeHashFile))
+                throw new ArgumentException("The recovery code hash file must be a local absolute path.", nameof(recoveryCodeHashFile));
+            a.Add("-RecoveryCodeHashFile");
+            a.Add(recoveryCodeHashFile);
         }
         return new PowerShellCommand(PowerShellExe(systemRoot), a);
+    }
+
+    private static bool IsLocalAbsolutePath(string p)
+    {
+        if (p.Length is < 4 or > 260) return false;
+        if (!(p[0] is >= 'A' and <= 'Z' or >= 'a' and <= 'z') || p[1] != ':' || p[2] != '\\') return false;
+        foreach (var c in p)
+            if (c < ' ' || c is '$' or '"' or '\u007f') return false;
+        return !RecoveryCode.IsWellFormedStored(p);
     }
 
     public static PowerShellCommand BuildUninstall(

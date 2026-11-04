@@ -162,6 +162,14 @@ public partial class RecoveryDialog : Window
             CodeBox.Focus();
             return;
         }
+        if (!RecoveryCode.IsPrintableAscii(code))
+        {
+            // typed on a non-English layout (or with other characters a code never has): it can never
+            // match, so it is not sent and costs no attempt
+            ShowError(RecoveryErrors.WrongLayout, 0);
+            CodeBox.Focus();
+            return;
+        }
 
         ClearError();
         SetBusy(true);

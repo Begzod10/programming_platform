@@ -7,8 +7,10 @@ namespace PcGuard.Shell;
 /// <summary>
 /// Entry point. Launched only by the guard service (no autostart). Single instance, never exits on
 /// user action, logs unhandled exceptions to %LocalAppData%\PcGuard\shell.log and keeps running.
-/// The one exit: the service's "released" message after an accepted recovery code (the service then
-/// disables and stops itself, so nothing launches the shell again).
+/// It exits only (a) on the service's "released" message after an accepted recovery code, and only
+/// when the pipe server was verified to be the PcGuard service process, or (b) when the connection is
+/// gone and the SCM reports PcGuard stopped AND disabled (a missed "released"; the service also
+/// terminates every shell it launched 1.5 s after sending it).
 /// </summary>
 public partial class App : Application
 {
@@ -76,9 +78,10 @@ public partial class App : Application
         _login.SetConnected(false);
         _login.Show();
 
-        _pipe = new PipeClient();
+        _pipe = new PipeClient(VerifyServer, ServiceStoppedAndDisabled);
         _pipe.ConnectionChanged += c => Dispatcher.BeginInvoke(() => OnConnection(c));
-        _pipe.MessageReceived += m => Dispatcher.BeginInvoke(() => OnMessage(m));
+        _pipe.MessageReceived += (m, trust) => Dispatcher.BeginInvoke(() => OnMessage(m, trust));
+        _pipe.GaveUp += () => Dispatcher.BeginInvoke(() => Release("The PcGuard service is stopped and disabled: exiting"));
         _sender = new SnapshotSender(_pipe);
         _pipe.Start();
         _sender.Start();
@@ -110,7 +113,13 @@ public partial class App : Application
         UpdateWindows();
     }
 
-    private void OnMessage(PipeMessage message)
+    private static PipeServerTrust VerifyServer(Microsoft.Win32.SafeHandles.SafePipeHandle pipe)
+        => ShellServiceCheck.ClassifyServer(Native.TryGetPipeServerProcessId(pipe), Native.TryProbeService(ShellServiceCheck.ServiceName));
+
+    private static bool ServiceStoppedAndDisabled()
+        => ShellServiceCheck.ShouldExit(Native.TryProbeService(ShellServiceCheck.ServiceName));
+
+    private void OnMessage(PipeMessage message, PipeServerTrust trust)
     {
         switch (message)
         {
@@ -134,7 +143,9 @@ public partial class App : Application
                 if (_recoveryRequests.Accept(r.Id)) _recoveryDialog?.ShowResult(r);
                 break;
             case ReleasedMessage:
-                Release();
+                // the only message that makes the shell exit: never from a server not proven to be the service
+                if (ShellServiceCheck.HonourReleased(trust)) Release("Released with the recovery code: exiting");
+                else ShellLog.Info("Ignored 'released' from a pipe server that could not be verified");
                 break;
             case MaintenanceMessage m:
                 _maintenanceUntil = m.Active ? m.UntilUtc : null;
@@ -169,10 +180,10 @@ public partial class App : Application
     }
 
     /// <summary>The service accepted the recovery code and is stopping for good: close everything and exit.</summary>
-    private void Release()
+    private void Release(string reason)
     {
         if (Quitting) return;
-        ShellLog.Info("Released with the recovery code: exiting");
+        ShellLog.Info(reason);
         Quitting = true; // lets the sign-in window and the banner close
         _dialog?.Close();
         _recoveryDialog?.Close();
