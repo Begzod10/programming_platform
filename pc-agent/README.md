@@ -39,7 +39,7 @@ Copy `dist` and `scripts` to the PC (for example to a USB stick), open PowerShel
 .\scripts\install.ps1 -BackendBaseUrl https://example.uz/api/v1
 ```
 
-Parameters: `-BackendBaseUrl` (required; includes the `/api/v1` prefix; must be https unless the host is localhost), `-DistDir` (default `..\dist`), `-InstallDir` (default `C:\Program Files\PcGuard`).
+Parameters: `-BackendBaseUrl` (required; includes the `/api/v1` prefix; must be https unless the host is localhost), `-DistDir` (default `..\dist`), `-InstallDir` (default `C:\Program Files\PcGuard`), `-ExtraAllowedApps` (optional; see "Extra allowed apps on one PC" below).
 
 The script: stops and removes an existing PcGuard service (upgrade), kills leftover shells, copies the files, writes the URL into the installed `appsettings.json`, removes inheritance from the install folder and grants SYSTEM and Administrators full control and Users read/execute only, creates the service (`LocalSystem`, automatic start, quoted binary path verified by reading `ImagePath` back; a wrong path aborts and removes the service), sets the description, sets recovery to restart after 5 s on every failure (`sc.exe failure PcGuard reset= 0 actions= restart/5000/restart/5000/restart/5000` plus `failureflag 1`) and starts it. It deliberately does NOT register a Run key, scheduled task or Startup shortcut for the shell: only the service starts the shell. Running it again upgrades: the old folder is renamed to `PcGuard.old-<timestamp>`, and if any step fails the new files and service are removed and the old version is restored; the old folder is deleted only after the new service started. `%ProgramData%\PcGuard` is kept.
 
@@ -65,6 +65,7 @@ PcGuard\
 Double-click it (Windows shows the UAC prompt; it needs Administrator) and choose `[1] Install or upgrade`, `[2] Uninstall` or `[3] Quit`. For install it asks for the backend URL (`https://host/api/v1`; http is accepted only for localhost, 127.0.0.1 and [::1]; a URL not ending in `/api/v1` gives a warning only), shows a summary and waits for you to type `YES`. Then it runs `install.ps1` / `uninstall.ps1` with Windows PowerShell, shows the script output live, reports the exit code and waits for Enter. The exit code of the script is the exit code of the exe.
 
 - The two scripts are EMBEDDED in the exe. At run time they are written to a new folder `%ProgramData%\PcGuard-setup-<guid>` that only SYSTEM and Administrators can access (ACL applied when the folder is created, inheritance removed), checked by SHA-256 against the embedded bytes, run, and the folder is deleted afterwards (also after errors and Ctrl+C). The loose `scripts\` folder is never executed by the exe (so a changed file there has no effect on it). The app files are taken from `dist\` next to the exe, so keep the folder together; if `dist\PcGuard.Service.exe`, `dist\PcGuard.Shell.exe` or `dist\appsettings.json` is missing it stops with a clear error.
+- Extra apps: after the backend URL the interactive install asks `Extra apps to keep running on this PC (comma separated exe names, e.g. anydesk.exe; empty for none):` and shows the answer in the summary before YES (an invalid name or more than 16 repeats the question). Silent: add `--allow-app anydesk.exe` (repeatable; only with `--install`; an invalid name or more than 16 is a usage error, exit code 2, before anything runs). See "Extra allowed apps on one PC".
 - Silent use: `Setup-PcGuard.exe --install --backend-url https://host/api/v1 --no-pause` (no questions), `Setup-PcGuard.exe --uninstall --no-pause`, `--uninstall --purge` (also deletes `%ProgramData%\PcGuard`), `--help`. `--backend-url` works only with `--install`, and `--purge` only as `--uninstall --purge`.
 - **Copy the PcGuard folder to an admin-only location such as `C:\PcGuardSetup` and lock it before running the install.** The installer turns `dist\PcGuard.Service.exe` (and every DLL in `dist\`) into a service that runs as SYSTEM, so it refuses a package folder that standard users can modify: before doing anything it reads the permissions of the package folder and of EVERY folder and file under `dist\` (at most 5000 entries; links or junctions inside `dist\` and a bigger tree are refused too) and stops with exit code 4 if Users, Authenticated Users, Everyone or INTERACTIVE can write, append, delete or change permissions. Typical offenders: `C:\Users\Public`, a USB stick or FAT/exFAT drive, a non-system drive root, shared folders, and a folder copied under the `C:\` root, because on a default Windows `C:\` gives Authenticated Users Modify and a plain copy inherits it. A default user-profile folder such as the administrator's own Downloads or Desktop passes. So after copying to `C:\PcGuardSetup`, run this from an elevated prompt (it removes the inherited permissions and gives only Administrators and SYSTEM access):
 
@@ -74,7 +75,7 @@ Double-click it (Windows shows the UAC prompt; it needs Administrator) and choos
 
   Alternatively run the package from the administrator's own profile folder (Desktop or Downloads). `--allow-writable-package` overrides the check with a loud warning; use it only if you accept the risk. The exe prints the package path at every install, and the refusal message repeats these commands.
 - It is NOT code-signed, so Windows SmartScreen may show "Windows protected your PC" (More info, Run anyway), and a downloaded zip may need Unblock in the file properties.
-- It has NEVER been run on Windows. Run tests 93-107 below before relying on it.
+- It has NEVER been run on Windows. Run tests 93-107 and 138-143 below before relying on it.
 - Build: `dotnet publish src/PcGuard.Setup/PcGuard.Setup.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist-setup` (works on macOS too).
 
 ## Cleanup-PcGuard.exe (no terminal needed)
@@ -102,6 +103,17 @@ Switches: `--list-only` (steps 1-2 only), `--preview-only` (steps 1-3 only; cann
 - **PC side**: `Backend:BaseUrl` in `appsettings.json` next to the exes (written by `install.ps1`). Edit it only as administrator and restart the service (`Restart-Service PcGuard`).
 - **Backend side**: `PC_PLATFORM_HOSTS` (setting in `backend/app/config.py`, default empty) is a comma-separated list of platform hosts (for example `example.uz,www.example.uz`). While a PC is locked, browser windows are allowed only on these hosts. **If it is empty the browser host rule is DISABLED and browsers run unrestricted while locked, so it must be set before rollout.** Set it in the SERVER's own `.env` file (a server-local file, not part of the repository); it takes effect after the backend restarts. Pushing backend changes to the `server` branch auto-deploys: the workflow `.github/workflows/deploy-backend.yml` triggers on pushes to `server` that touch `backend/**` (or the workflow file) and restarts the backend service. That deploy does not change `.env`, so edit it on the server and restart the backend.
 - The default app allowlist comes from the server. Publisher entries in the allowlist are not used by default.
+- **PC side, optional**: `Allowlist:ExtraApps` in the same `appsettings.json` (see the next section).
+
+## Extra allowed apps on one PC
+
+For test and admin PCs only: a way to keep chosen programs (for example `anydesk.exe`, so a developer keeps remote access while testing) running on ONE PC although they are not on the server's allowlist.
+
+- **Where**: `Allowlist:ExtraApps` in the installed `appsettings.json` next to the exes, an array of exe file names, for example `"Allowlist": { "ExtraApps": ["anydesk.exe"] }`. Default: empty. The install folder is writable by administrators only, so only an administrator can set it. It is read when the service starts: after editing it by hand, run `Restart-Service PcGuard`.
+- **How to set it**: `install.ps1 -ExtraAllowedApps anydesk.exe` (an array, or one comma separated string such as `"anydesk.exe,rustdesk.exe"`), `Setup-PcGuard.exe --install --backend-url https://host/api/v1 --allow-app anydesk.exe --no-pause` (repeat `--allow-app` for more), or the question in the interactive Setup install. An upgrade without the parameter keeps the extra apps of the existing install; `install.ps1 -ExtraAllowedApps ''` clears them. (Setup-PcGuard.exe never clears them: with no extra apps given it omits the parameter, so they are kept.)
+- **Name rule**: a bare file name ending in `.exe`, 5-64 characters, only letters A-Z, digits, `.`, `-` and `_`; no path, no spaces, no wildcards; at most 16 entries; matched case-insensitively. `install.ps1` and Setup refuse an invalid value or more than 16 with a clear message before anything is changed (install.ps1 exit code 1, Setup exit code 2). If the file is edited by hand, the service ignores each invalid entry, and every entry beyond the 16th, with a warning in the event log (the name only); valid entries are logged at start as a warning too.
+- **What it does**: the service adds these names (without publisher) to the EFFECTIVE allowlist in every state: signed out, default allowlist, signed-in student rules, offline cache and fail-closed. They are added locally at enforcement time only: never written into the rule cache (`rules.json`) and never sent to the backend. An extra app is treated exactly like an allowlisted app: it is not closed while locked, also not in fallback mode, and its use is recorded in usage like any other app. The protected-process rule and the browser host rule are unchanged (an extra browser is still subject to the host rule).
+- **Security**: extra apps are local, administrator-configured and bypass the lock for that PC only. **Adding remote-control software (AnyDesk, TeamViewer, RustDesk ...) lets someone at the PC use it while the PC is locked** (for example to reach another computer where nothing is blocked), and anyone who knows its access details can control the PC from outside. Use it only on test/admin PCs, never on student PCs.
 
 ## Data locations and what is recorded
 
@@ -145,6 +157,7 @@ An emergency way to use a locked PC (for example to repair it) without stopping 
 - After a service restart, usage that was waiting for upload and belonged to a session whose token is gone is dropped on purpose, so it is never filed under another student.
 - A student typing a full non-platform host into the address bar may have the window closed before pressing Enter.
 - The password travels from the shell to the service as a .NET string and cannot be zeroed in memory. The same applies to a maintenance code.
+- **Extra allowed apps bypass the lock on that PC** (`Allowlist:ExtraApps`, see "Extra allowed apps on one PC"). They are set by an administrator on the PC itself, are not visible in the teacher console, and remote-control software kept this way can be used by anyone at the locked PC. Test/admin PCs only.
 - **Maintenance mode needs the backend and a known device** (see "Maintenance mode (teacher code)"): with the backend down, on a PC the console does not list yet, or after its `machine.key` changed, the only way out of a locked PC is Safe Mode or the Cleanup tool. Maintenance can last up to 4 hours and cannot be ended remotely yet.
 
 ## Manual Windows VM test checklist
@@ -930,9 +943,43 @@ Needs a teacher account that can create maintenance codes for the test PC in the
 - Expected: The fresh PC is not listed, so no code can be created for it. The code for the old row is rejected with the invalid-code message (the key changed). Recovery for both is Safe Mode or Cleanup-PcGuard.exe, as the README says. After a student signs in once, the PC is listed (again) with its new key and a new code works.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
+#### R. Extra allowed apps (Allowlist:ExtraApps)
+
+Needs AnyDesk (or another app that is not on the allowlist) installed on the test PC.
+
+**Test 138.** Install with `Setup-PcGuard.exe --install --backend-url https://example.uz/api/v1 --allow-app anydesk.exe --no-pause` (and once interactively: answer `anydesk.exe` to the extra apps question; the summary before YES shows it). Start AnyDesk, then sign a student in on a locked account, sign out, and lock the PC from the teacher console.
+
+- Expected: The installed `appsettings.json` has `"Allowlist": { "ExtraApps": [ "anydesk.exe" ] }` (a JSON array, also with Windows PowerShell 5.1); install.ps1 prints `Extra apps : anydesk.exe` and the security warning; the event log shows the extra-apps warning at service start. AnyDesk stays open (and a remote session through it keeps working) while signed out, while locked with a student signed in, after "lock now", and during fallback (kill the shell as administrator); Notepad and other non-allowlisted apps are still closed. `%ProgramData%\PcGuard\rules.json` does not contain anydesk.exe.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 139.** Invalid names: `install.ps1 -BackendBaseUrl https://example.uz/api/v1 -ExtraAllowedApps "C:\Tools\anydesk.exe"`, then `-ExtraAllowedApps "any desk.exe"`, `"*.exe"` and `"anydesk"`; and `Setup-PcGuard.exe --install --backend-url https://example.uz/api/v1 --allow-app "C:\Tools\anydesk.exe" --no-pause`; over an existing install.
+
+- Expected: install.ps1 prints `Invalid -ExtraAllowedApps value ...` with the rule and "Nothing was changed.", exit code 1; Setup prints the error and usage, exit code 2. In both cases the service was not stopped, the install folder and its `appsettings.json` are unchanged (compare the file hash before and after) and no `PcGuard.old-*` folder exists.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 140.** 17 entries: `install.ps1 ... -ExtraAllowedApps "a1.exe,a2.exe,...,a17.exe"` and Setup with 17 `--allow-app`; then, as administrator, edit the installed `appsettings.json` by hand to hold 17 valid names plus one invalid entry (`"bad name.exe"`) and run `Restart-Service PcGuard`.
+
+- Expected: install.ps1 refuses ("Too many ... at most 16", exit code 1, nothing changed); Setup refuses (exit code 2). With the hand-edited file the service starts, logs one warning per ignored entry (`bad name.exe` and the 17th name, names only) and keeps the first 16 valid names as extra apps; the 17th name is not allowed (an app with that name is closed while locked).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 141.** Upgrade keeps extras: with anydesk.exe configured (Test 138), run `Setup-PcGuard.exe --install --backend-url https://example.uz/api/v1 --no-pause` (no `--allow-app`), then `install.ps1 -BackendBaseUrl ... -ExtraAllowedApps rustdesk.exe`, then `install.ps1 -BackendBaseUrl ... -ExtraAllowedApps ''`.
+
+- Expected: After the first upgrade `appsettings.json` still lists anydesk.exe (the script prints "Keeping the extra apps of the existing install"); after the second only rustdesk.exe; after the third the list is empty (`[]`) and AnyDesk is closed while locked again.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 142.** Extras survive a service restart and a reboot: with anydesk.exe configured and AnyDesk open on a locked PC, run `Restart-Service PcGuard` as administrator, then reboot and start AnyDesk again before and after a student signs in.
+
+- Expected: AnyDesk is never closed (during and after the restart, after the reboot before anyone signs in, and with a student signed in); the same extra-apps warning is in the event log after every start.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 143.** Everything else is still allowlist-bound: with anydesk.exe configured, sign in a student whose PC is locked, open Notepad, a game and a Chrome window on a non-platform host; then disconnect the network until the cache is too old (offline_timeout).
+
+- Expected: Notepad and the game are closed and the non-platform Chrome window is closed (host rule unchanged) while AnyDesk stays open; the same holds offline. The teacher console allowlist does not show anydesk.exe, and the usage report lists AnyDesk time like any other app.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
 ### 3. Results
 
-Fill in after each run. Total tests: 138 (7 core, 131 additional).
+Fill in after each run. Total tests: 144 (7 core, 137 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|

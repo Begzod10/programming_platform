@@ -90,6 +90,15 @@ student's desktop, so the service is the authority and the shell is its eyes.
 - **Allowlist matching**: by exe name. An entry with a publisher also compares the exe's
   `CompanyName` file metadata, which is NOT a signature check and can be forged; the default
   allowlist has no publishers.
+- **Extra allowed apps (PC-local)**: `Allowlist:ExtraApps` in the installed `appsettings.json`
+  (written by `install.ps1 -ExtraAllowedApps` / `Setup-PcGuard.exe --allow-app`, default empty,
+  read at service start) lists exe names kept running on that PC. Each must be a bare name ending
+  in `.exe`, 5-64 characters of ASCII letters, digits, `.`, `-`, `_`; at most 16; invalid or
+  surplus entries are ignored with a warning (name only). The service merges them as
+  publisher-free entries into the effective allowlist in every state (signed out, defaults,
+  student rules, offline cache, fail-closed) where the effective rules are built, before the
+  planner; they are never stored in the rule cache or sent to the backend. Protected-process and
+  browser-host handling is unchanged. An upgrade without the parameter keeps them.
 - **Other desktops**: while the student is on a second desktop, UAC or the lock screen, no
   snapshots arrive and the service uses fallback enforcement without relaunching the shell.
 - **Safe Mode**: the installer registers the service for Safe Mode (Minimal and Network),
@@ -327,6 +336,10 @@ second day. The report is limited to the calling teacher's students and 31 days.
   password travels from the shell to the service as a .NET string and cannot be zeroed in
   memory.
 - Publisher entries in the allowlist are metadata matches and spoofable (see section 14).
+- Extra allowed apps (4.1) are local and administrator-configured (the install folder is
+  admin-writable only) and bypass the lock for that PC only; the server and the teacher console
+  do not see them. Adding remote-control software lets someone at the PC use it while the PC is
+  locked (and lets anyone with its access details control the PC). Use it only on test/admin PCs.
 
 ## 8. Privacy
 
