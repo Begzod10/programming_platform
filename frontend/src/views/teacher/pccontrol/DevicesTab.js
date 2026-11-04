@@ -5,6 +5,7 @@ import { listDevices, patchDevice, sendCommand } from './pcApi';
 import { formatSeen } from './pcReportMath';
 import useMyGroups from './useMyGroups';
 import { errorMessage } from './pcErrors';
+import MaintenanceCodeModal from './MaintenanceCodeModal';
 import { pcStrings, REASON_KEYS } from './pcStrings';
 
 const POLL_MS = 5000;
@@ -29,6 +30,7 @@ export default function DevicesTab() {
     const [target, setTarget] = useState('all');
     const [targetDevice, setTargetDevice] = useState('');
     const [text, setText] = useState('');
+    const [maintDevice, setMaintDevice] = useState(null);
     const confirmTimer = useRef(null);
     const armedAt = useRef(0);
     const busyRef = useRef(false);
@@ -275,9 +277,17 @@ export default function DevicesTab() {
                                 aria-label={`${t.resume} ${d.hostname}`}
                                 onClick={() => command('device', d.id, 'clear')}>{t.resume}</button>
                         </div>
+                        <div className="pc-btn-row">
+                            <button type="button" className="pc-btn" aria-label={`${t.maintCode} ${d.hostname}`}
+                                onClick={() => setMaintDevice(d)}>{t.maintCode}</button>
+                        </div>
                     </article>
                 ))}
             </div>
+            {maintDevice && (
+                <MaintenanceCodeModal request={request} device={maintDevice} t={t}
+                    onClose={() => setMaintDevice(null)} />
+            )}
         </div>
     );
 }

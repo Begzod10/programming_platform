@@ -61,3 +61,11 @@
 .pc-btn-fixed { min-width: 150px; }
 .pc-resume-row { margin-top: 10px; }
 .pc-notice.warn { background: #fef3c7; color: #92400e; }
+
+.pc-modal-back { position: fixed; inset: 0; background: rgba(17, 24, 39, .5); display: grid; place-items: center; padding: 16px; z-index: 1000; }
+.pc-modal { background: var(--pc-card, #fff); color: var(--pc-ink, #1b2130); border-radius: 16px; padding: 18px; width: 100%; max-width: 400px; max-height: 100%; overflow-y: auto; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; }
+.pc-modal h3 { margin: 0; font-size: 1.05rem; }
+.pc-maint-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: clamp(2rem, 11vw, 2.8rem); font-weight: 800; letter-spacing: .08em; text-align: center; padding: 12px 8px; border-radius: 12px; background: #eef2ff; color: #3730a3; user-select: all; }
+.pc-maint-code.expired { background: #eef0f6; color: #9aa1b2; text-decoration: line-through; }
+.pc-maint-left { text-align: center; font-weight: 600; }
+.pc-maint-left.expired { color: var(--pc-muted, #6b7384); }

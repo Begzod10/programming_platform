@@ -12,3 +12,11 @@ export function errorMessage(e, fallback) {
     // No e.message: axios/fetch network errors carry raw English text with URLs.
     return str(data?.error?.message) || fallback;
 }
+
+// Maintenance-code errors are mapped by status, never by server text.
+export function maintenanceError(e, t) {
+    const status = e?.status ?? e?.response?.status;
+    if (status === 429) return t.maintTooMany;
+    if (status === 404) return t.maintNoDevice;
+    return t.maintFailed;
+}

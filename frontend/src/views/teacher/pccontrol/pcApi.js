@@ -10,6 +10,11 @@ export const listDevices = (request) =>
 export const patchDevice = (request, id, groupId) =>
     request(`${BASE}/devices/${id}`, 'PATCH', { group_id: groupId }, headers());
 
+// The plain code is returned only by this response; callers must keep it in
+// memory only.
+export const createMaintenanceCode = (request, deviceId, minutes) =>
+    request(`${BASE}/devices/${deviceId}/maintenance-code`, 'POST', { minutes }, headers());
+
 export const sendCommand = (request, { scope_type, scope_id, type, payload }) =>
     request(`${BASE}/commands`, 'POST',
         { scope_type, scope_id: scope_id ?? null, type, ...(payload ? { payload } : {}) }, headers());

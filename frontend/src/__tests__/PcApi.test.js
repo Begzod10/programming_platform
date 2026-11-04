@@ -52,4 +52,8 @@ describe('pcApi request building', () => {
         const r = fake(); await api.listMyGroups(r);
         expect(r).toHaveBeenCalledWith('/api/v1/groups/', 'GET', null, { H: '1' });
     });
+    it('createMaintenanceCode posts minutes', async () => {
+        const r = fake(); await api.createMaintenanceCode(r, 7, 15);
+        expect(r).toHaveBeenCalledWith(`${BASE}/devices/7/maintenance-code`, 'POST', { minutes: 15 }, { H: '1' });
+    });
 });
