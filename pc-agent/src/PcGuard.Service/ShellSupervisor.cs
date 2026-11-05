@@ -14,6 +14,9 @@ internal sealed class ShellSupervisor
     private readonly ShellPin _pin;
     private readonly ILogger _log;
     private DateTimeOffset? _lastLaunchAt;
+    private readonly ShellRelaunchBackoff _backoff = new();
+    private uint? _backoffSession;
+    private int _loggedFailures;
     // every shell instance this service launched (pid + creation time), newest last; bounded
     private readonly object _launchedLock = new();
     private readonly List<(int Pid, long CreatedAt)> _launched = new();
@@ -30,11 +33,24 @@ internal sealed class ShellSupervisor
     public void Supervise(DateTimeOffset now, DateTimeOffset? shellMissingSince, DateTimeOffset? lastSnapshotAt,
         DateTimeOffset? lastAliveAt, uint? consoleSession, IReadOnlyList<int> runningShellPids)
     {
+        // a new console session (or nobody signed in) starts a fresh back-off episode
+        if (consoleSession != _backoffSession)
+        {
+            _backoffSession = consoleSession;
+            _backoff.Reset();
+        }
+        _backoff.ObserveLiveness(Latest(lastSnapshotAt, lastAliveAt));
+
         var action = ShellLaunchPolicy.Decide(now, shellMissingSince, _lastLaunchAt,
             consoleSession is not null, runningShellPids.Count > 0, lastSnapshotAt, lastAliveAt);
         switch (action)
         {
             case ShellAction.Launch:
+                // back-off: a shell that keeps dying/hanging without ever connecting is relaunched after
+                // 15, 30, 60, 120, then 300 s instead of every ~33 s forever (name-only enforcement meanwhile)
+                var mayLaunch = _backoff.MayLaunch(now);
+                LogBackoff(_backoff.TakeWarning());
+                if (!mayLaunch) return;
                 _lastLaunchAt = now; // also on failure: retry at most every 15 s
                 if (!File.Exists(_shellPath))
                 {
@@ -51,11 +67,13 @@ internal sealed class ShellSupervisor
                             _pin.Set(p, createdAt);
                             Remember(p, createdAt);
                         }, _log);
+                    _backoff.Started(now);
                     _log.LogInformation("Launched shell (pid {Pid}) in session {Session}", pid, consoleSession);
                 }
                 catch (Win32Exception e) when (e.NativeErrorCode == 1008)
                 {
                     // ERROR_NO_TOKEN: nobody signed in on the console yet / secure desktop (logon, UAC). Normal; try later.
+                    _backoff.Reset(); // the next sign-in gets its shell without a back-off delay
                     _log.LogDebug("Shell launch deferred in session {Session}: no interactive token yet", consoleSession);
                 }
                 catch (Win32Exception e)
@@ -78,9 +96,23 @@ internal sealed class ShellSupervisor
                         _log.LogDebug("Could not kill shell pid {Pid}: {Error}", pid, e.GetType().Name);
                     }
                 }
+                LogBackoff(_backoff.KilledUnresponsive(now));
                 break;
         }
     }
+
+    // Information line for every new back-off delay, plus the one-time Warning (with the shell.log path).
+    private void LogBackoff(bool warningDue)
+    {
+        if (warningDue)
+            _log.LogWarning("{Message}", ShellDiagnostics.BackoffWarning(_backoff.ConsecutiveFailures, ShellRelaunchBackoff.Delay(_backoff.ConsecutiveFailures)));
+        if (_backoff.ConsecutiveFailures > 0 && _backoff.ConsecutiveFailures != _loggedFailures)
+            _log.LogInformation("{Message}", ShellDiagnostics.BackoffInfo(_backoff.ConsecutiveFailures, ShellRelaunchBackoff.Delay(_backoff.ConsecutiveFailures)));
+        _loggedFailures = _backoff.ConsecutiveFailures;
+    }
+
+    private static DateTimeOffset? Latest(DateTimeOffset? a, DateTimeOffset? b)
+        => a is null ? b : b is null ? a : (a > b ? a : b);
 
     private void Remember(int pid, long createdAt)
     {

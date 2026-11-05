@@ -204,18 +204,21 @@ internal sealed class PipeServer
         // ShellSupervisor launched. This defeats a fake shell, the genuine exe started by hand, and
         // PID reuse. We never fall back to "newest client wins" or an image-path string match.
         var createdAt = Native.TryGetProcessCreationTime(pid.Value);
-        if (!_pin.Matches(pid.Value, createdAt))
+        var check = _pin.Check(pid.Value, createdAt, out var pinnedPid);
+        if (check != PinCheck.Match)
         {
-            _log.LogWarning("Rejected pipe client pid {Pid}: not the shell instance this service launched", pid);
+            // the exact reason (no pin / other pid / creation time unreadable / pid reuse); pids only
+            _log.LogWarning("{Reason}", ShellDiagnostics.PinRejectLine(check, pid.Value, pinnedPid));
             return null;
         }
 
         // Fast user switching: a pinned shell may still be running in a now-disconnected session.
         // It must not keep feeding the service: require the client's session == the active console.
         var console = Native.ActiveConsoleSessionId();
-        if (console is null || Native.SessionIdOf(pid.Value) != console)
+        var clientSession = Native.SessionIdOf(pid.Value);
+        if (console is null || clientSession != console)
         {
-            _log.LogWarning("Rejected pipe client pid {Pid}: not in the active console session", pid);
+            _log.LogWarning("{Reason}", ShellDiagnostics.SessionRejectLine(pid.Value, clientSession, console));
             return null;
         }
 

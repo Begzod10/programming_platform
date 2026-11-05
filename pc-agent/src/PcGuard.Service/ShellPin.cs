@@ -1,3 +1,5 @@
+using PcGuard.Core;
+
 namespace PcGuard.Service;
 
 /// <summary>
@@ -32,12 +34,17 @@ internal sealed class ShellPin
         lock (_lock) _set = false;
     }
 
-    public bool Matches(int pid, long? createdAt)
+    public bool Matches(int pid, long? createdAt) => Check(pid, createdAt, out _) == PinCheck.Match;
+
+    /// <summary>Why a client does or does not match the pin (for the rejection log line);
+    /// <paramref name="pinnedPid"/> is the pinned pid (0 when no pin is set). The creation times are
+    /// never logged.</summary>
+    public PinCheck Check(int pid, long? createdAt, out int pinnedPid)
     {
-        if (createdAt is null) return false;
         lock (_lock)
         {
-            return _set && pid == _pid && createdAt.Value == _createdAt;
+            pinnedPid = _set ? _pid : 0;
+            return PinCheckRules.Classify(_set, _pid, _createdAt, pid, createdAt);
         }
     }
 }

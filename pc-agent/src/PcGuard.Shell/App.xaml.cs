@@ -6,7 +6,11 @@ namespace PcGuard.Shell;
 
 /// <summary>
 /// Entry point. Launched only by the guard service (no autostart). Single instance, never exits on
-/// user action, logs unhandled exceptions to %LocalAppData%\PcGuard\shell.log and keeps running.
+/// user action, logs unhandled exceptions to %LocalAppData%\PcGuard\shell.log and keeps running once
+/// started. A failure BEFORE startup completed (or a startup that hangs past the watchdog) ends the
+/// process with a non-zero exit code after logging, so no windowless shell is left behind; a second
+/// instance of the same install in the same session exits with code 0. shell.log carries a one-line
+/// startup trail (single-instance result, windows created, pipe connect attempts with Win32 codes).
 /// It exits only (a) on the service's "released" message after an accepted recovery code, and only
 /// when the pipe server was verified to be the PcGuard service process, or (b) when the connection is
 /// gone and the SCM reports PcGuard stopped AND disabled (a missed "released"; the service also
@@ -17,7 +21,9 @@ public partial class App : Application
     private const string MutexName = @"Local\PcGuard.Shell.SingleInstance";
     private const int MaxQueuedMessages = 20;
 
-    private Mutex? _mutex;
+    private Microsoft.Win32.SafeHandles.SafeWaitHandle? _instance; // single-instance name, held open for the process lifetime
+    private bool _startupComplete; // Volatile: read by the dispatcher handler and the watchdog thread
+    private Timer? _startupWatchdog;
     private PipeClient? _pipe;
     private SnapshotSender? _sender;
     private LoginWindow? _login;
@@ -45,6 +51,10 @@ public partial class App : Application
         DispatcherUnhandledException += (_, args) =>
         {
             ShellLog.Error("Dispatcher", args.Exception);
+            // before startup completed: never mask the failure (a windowless shell is a zombie the
+            // service kills and relaunches forever); after it: log and keep the lock screen up
+            if (StartupFailurePolicy.ShouldTerminate(Volatile.Read(ref _startupComplete)))
+                ExitAfterStartupFailure(args.Exception);
             args.Handled = true;
         };
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
@@ -57,15 +67,52 @@ public partial class App : Application
             args.SetObserved();
         };
 
-        _mutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
-        if (!createdNew)
+        // startup watchdog: a startup that hangs (never throws) must not leave a windowless process either
+        _startupWatchdog = new Timer(_ =>
         {
-            _mutex.Dispose();
-            _mutex = null;
+            if (Volatile.Read(ref _startupComplete)) return;
+            ShellLog.Info(ShellDiagnostics.WatchdogLine(StartupFailurePolicy.WatchdogTimeout, StartupFailurePolicy.WatchdogExitCode));
+            Environment.Exit(StartupFailurePolicy.WatchdogExitCode);
+        }, null, StartupFailurePolicy.WatchdogTimeout, Timeout.InfiniteTimeSpan);
+
+        try
+        {
+            StartUp();
+        }
+        catch (Exception ex)
+        {
+            ShellLog.Error("Startup", ex);
+            ExitAfterStartupFailure(ex);
+        }
+    }
+
+    private static void ExitAfterStartupFailure(Exception ex)
+    {
+        ShellLog.Info(ShellDiagnostics.StartupFailedLine(ex.GetType().FullName ?? "Exception", StartupFailurePolicy.StartupFailedExitCode));
+        Environment.Exit(StartupFailurePolicy.StartupFailedExitCode);
+    }
+
+    private void StartUp()
+    {
+        int session;
+        using (var me = System.Diagnostics.Process.GetCurrentProcess()) session = me.SessionId;
+        ShellLog.Info(ShellDiagnostics.Step(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"pid {Environment.ProcessId}, session {session}, Administrators enabled: {Native.AdministratorsEnabled()}")));
+
+        var (result, win32, handle) = Native.CreateSingleInstanceMutex(MutexName);
+        var another = result != MutexOpenResult.CreatedNew && Native.AnotherShellInstanceRunning();
+        var action = SingleInstancePolicy.Decide(result, another);
+        ShellLog.Info(ShellDiagnostics.SingleInstanceLine(result, win32, action));
+        if (action == SingleInstanceAction.ExitDuplicate)
+        {
+            // another genuine shell of this install runs in this session: leave quietly (no window was
+            // created, nothing to clean up; the handle closes with the process)
+            handle?.Dispose();
             Quitting = true;
-            Shutdown();
+            Environment.Exit(StartupFailurePolicy.DuplicateExitCode);
             return;
         }
+        _instance = handle; // RunWithoutLock: null or an opened (squatted/stale) name; never stops the lock screen
 
         _login = new LoginWindow(_lang) { Sender = m => _pipe?.SendAsync(m) ?? Task.FromResult(false) };
         _login.LanguageChanged += OnLanguageChanged;
@@ -77,6 +124,7 @@ public partial class App : Application
         _banner = new MaintenanceBanner(_lang) { EndRequested = () => _ = _pipe?.SendAsync(new AdminEndMessage()) };
         _login.SetConnected(false);
         _login.Show();
+        ShellLog.Info(ShellDiagnostics.Step("windows created"));
 
         _pipe = new PipeClient(VerifyServer, ServiceStoppedAndDisabled);
         _pipe.ConnectionChanged += c => Dispatcher.BeginInvoke(() => OnConnection(c));
@@ -85,6 +133,11 @@ public partial class App : Application
         _sender = new SnapshotSender(_pipe);
         _pipe.Start();
         _sender.Start();
+        ShellLog.Info(ShellDiagnostics.Step("pipe client and snapshot sender started"));
+
+        Volatile.Write(ref _startupComplete, true);
+        _startupWatchdog?.Dispose();
+        _startupWatchdog = null;
         ShellLog.Info("Shell started");
     }
 
@@ -269,11 +322,8 @@ public partial class App : Application
     {
         _sender?.Dispose();
         _pipe?.Dispose();
-        if (_mutex is not null)
-        {
-            try { _mutex.ReleaseMutex(); } catch (ApplicationException) { }
-            _mutex.Dispose();
-        }
+        _startupWatchdog?.Dispose();
+        _instance?.Dispose();
         base.OnExit(e);
     }
 }

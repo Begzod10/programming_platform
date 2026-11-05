@@ -57,8 +57,10 @@ internal sealed class PipeClient : IDisposable
     private async Task RunAsync(CancellationToken ct)
     {
         var attempt = 0;
+        var tries = 0; // connect attempts since the last stable connection (diagnostics in shell.log)
         while (!ct.IsCancellationRequested)
         {
+            tries++;
             var connectedAt = DateTimeOffset.MinValue;
             NamedPipeClientStream? s = null;
             try
@@ -75,6 +77,7 @@ internal sealed class PipeClient : IDisposable
                 {
                     lock (_gate) _stream = s;
                     connectedAt = DateTimeOffset.UtcNow;
+                    if (ShellDiagnostics.ShouldLogConnectAttempt(tries)) ShellLog.Info(ShellDiagnostics.ConnectedLine(tries, trust.ToString()));
                     if (trust == PipeServerTrust.Unknown) ShellLog.Info("Pipe server could not be verified: 'released' will be ignored on this connection");
                     Raise(true);
 
@@ -99,10 +102,13 @@ internal sealed class PipeClient : IDisposable
             catch (Exception e)
             {
                 // not connectable yet / connection dropped / anything unexpected: the loop must never
-                // end. Log the type only, then fall through to the backoff.
+                // end. Log the type and Win32 code only (rate-limited), then fall through to the backoff.
                 if (e is not (IOException or TimeoutException or UnauthorizedAccessException
                               or ObjectDisposedException or InvalidOperationException))
                     ShellLog.Info("Pipe loop error: " + e.GetType().FullName);
+                else if (connectedAt == DateTimeOffset.MinValue && ShellDiagnostics.ShouldLogConnectAttempt(tries))
+                    ShellLog.Info(ShellDiagnostics.ConnectFailedLine(tries, e.GetType().FullName ?? "Exception",
+                        e is TimeoutException ? 0 : ShellDiagnostics.Win32FromHResult(e.HResult)));
             }
             finally
             {
@@ -117,7 +123,12 @@ internal sealed class PipeClient : IDisposable
 
             // A connection that died within seconds (e.g. the service rejected us because the pin was
             // not set yet) keeps counting up, so we do not hammer the service; a stable one resets.
-            attempt = connectedAt != DateTimeOffset.MinValue && DateTimeOffset.UtcNow - connectedAt > StableAfter ? 1 : attempt + 1;
+            var stable = connectedAt != DateTimeOffset.MinValue && DateTimeOffset.UtcNow - connectedAt > StableAfter;
+            if (connectedAt != DateTimeOffset.MinValue && !stable && !ct.IsCancellationRequested
+                && ShellDiagnostics.ShouldLogConnectAttempt(tries))
+                ShellLog.Info(ShellDiagnostics.ClosedByServiceLine(DateTimeOffset.UtcNow - connectedAt, tries));
+            if (stable) tries = 0;
+            attempt = stable ? 1 : attempt + 1;
             if (ServiceIsGone())
             {
                 try { GaveUp?.Invoke(); }
