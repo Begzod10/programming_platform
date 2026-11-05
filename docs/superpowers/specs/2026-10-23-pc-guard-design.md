@@ -454,6 +454,7 @@ second day. The report is limited to the calling teacher's students and 31 days.
   packaged (build guards, .gitignore). Single use still holds per PC (a release burns that PC's
   hash; a reinstall with the file re-applies the same code), so one use in front of students
   must be treated as exposing the code for every PC that has it.
+  Packaging never includes the file unless the owner opts in with `tools/package-zip.sh --default-code-file` (separate `-WITH-DEFAULT-CODE` zip, confirmation prompt, file outside the repo); that zip is as sensitive as the code itself.
 - Extra allowed apps (4.1) are local and administrator-configured (the install folder is
   admin-writable only) and bypass the lock for that PC only; the server and the teacher console
   do not see them. Adding remote-control software lets someone at the PC use it while the PC is

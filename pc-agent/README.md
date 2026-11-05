@@ -31,7 +31,7 @@ On the build machine, in PowerShell from the `pc-agent` folder:
 
 This runs `dotnet publish` for the service and the shell (self-contained, win-x64) into one folder, `pc-agent\dist`, so `PcGuard.Service.exe` and `PcGuard.Shell.exe` sit side by side. It is a plain folder (no single-file, no trimming), which keeps WPF working and `StartupHookSupport=false` in effect. Use `-OutputDir` to choose another folder. It fails if a `default-recovery-code.txt` is in the output folder or next to it (see "Default recovery code file").
 
-The package zip (`PcGuard-win-x64.zip`, top folder `PcGuard\`) is built with `tools/package-zip.sh --dist <dist> --setup <Setup-PcGuard.exe> --cleanup <Cleanup-PcGuard.exe> --stage <empty folder> --out <zip>` (macOS/Linux; README.md and scripts\ come from the repository). It excludes `default-recovery-code.txt` explicitly and FAILS if one is found in any source, in the staging folder or in the finished zip. `default-recovery-code.txt` is also in `.gitignore`, so it cannot be committed.
+The package zip (`PcGuard-win-x64.zip`, top folder `PcGuard\`) is built with `tools/package-zip.sh --dist <dist> --setup <Setup-PcGuard.exe> --cleanup <Cleanup-PcGuard.exe> --stage <empty folder> --out <zip>` (macOS/Linux; README.md and scripts\ come from the repository). By default it excludes `default-recovery-code.txt` explicitly and FAILS if one is found in any source, in the staging folder or in the finished zip. `default-recovery-code.txt` is also in `.gitignore`, so it cannot be committed. The only way to ship a default code is the explicit opt-in `--default-code-file` (see "Default recovery code file", "Shipping the code inside the zip"); `scripts\publish.ps1` only builds the dist folder, never the zip, so it has no opt-in and always refuses a code file. Test the packaging with `tools/test-package-zip.sh`.
 
 ## Install
 
@@ -170,7 +170,20 @@ For installing many PCs with ONE known code without typing it each time. The cod
   - The code is still **single use per PC**: a release on a PC deletes the hash there (the code is burned on that PC only; other PCs installed with the same file still accept it). A reinstall on that PC with the file present applies the same default code again, which then works there again once.
   - The code is typed on the student's desktop when it is used (see "Honest limits" above), so a code used once in front of students must be assumed known: and with a default code it is known for every PC that has it. Replace it (new file, reinstall) after any use.
   - **Recommended**: a unique code per PC (typed at the install) for student PCs; the default code file only for test or admin PCs.
-- Never commit or package the file: it is in `.gitignore`, `scripts\publish.ps1` and `tools/package-zip.sh` refuse to build when it is present, and the release zip never contains it.
+- Never commit the file: it is in `.gitignore`, and `tools/package-zip.sh` refuses a path inside the git repository. `scripts\publish.ps1` and `tools/package-zip.sh` refuse to build when the file is present in the build output or sources, and the normal release zip (`PcGuard-win-x64.zip`) never contains it.
+
+#### Shipping the code inside the zip (opt-in)
+
+For installing many test/admin PCs without typing, the owner can build a SEPARATE zip that contains their own file. Only `tools/package-zip.sh` can do this (macOS/Linux); `publish.ps1` cannot and still refuses.
+
+1. On the Mac create the file OUTSIDE the repository, for example in your home folder, with a code only you know (12-128 characters, see the code rules). Nobody else (and no script) should see it:
+   `mkdir -p ~/pcguard-secret && chmod 700 ~/pcguard-secret && printf '%s\n' 'YOUR-OWN-CODE' > ~/pcguard-secret/default-recovery-code.txt && chmod 600 ~/pcguard-secret/default-recovery-code.txt`
+   (type the real code instead of YOUR-OWN-CODE; the shell history may keep the line, so use a leading space or `unset HISTFILE` first, or write the file with a text editor).
+2. Build:
+   `tools/package-zip.sh --dist <dist> --setup <Setup-PcGuard.exe> --cleanup <Cleanup-PcGuard.exe> --stage <empty folder> --out <folder>/PcGuard-win-x64-WITH-DEFAULT-CODE.zip --default-code-file ~/pcguard-secret/default-recovery-code.txt`
+   The script checks the file without reading it (exists, regular file, not a symbolic link, 12 to 130 bytes, not inside the git repository), copies it to `PcGuard/default-recovery-code.txt` in the staging folder only (mode 600, folder 700), prints a warning and asks `Type YES:` (skip with `--yes`). The zip must be named `PcGuard-win-x64-WITH-DEFAULT-CODE.zip`; without the flag that name is refused, so a clean build cannot be mistaken for it. At the end it prints the path, size, SHA-256 and `contains default-recovery-code.txt: yes`.
+3. **Risk**: the zip holds the code in plain text. Anyone with the zip can disable PC Guard on every PC installed from it. Keep it off shared drives, chat and e-mail; use it only for test/admin PCs; delete it when the PCs are installed.
+4. Setup still reads the file only when the extracted package folder passed the admin-only check. If the zip is extracted into a folder that standard users can read or write (Downloads, Desktop of a shared account, a public share), Setup ignores the file and says so, and the normal question is asked. Extract to `C:\PcGuardSetup` and lock it with icacls first (test 105). The extracted file also has to satisfy the file ACL rule (no read for Users).
 
 ## Known limitations and accepted risks
 
@@ -1204,9 +1217,29 @@ Use only fake codes such as `Fake-Test-Code-0001`. Unless a test says otherwise,
 - Expected: The zip has no `default-recovery-code.txt` anywhere. publish.ps1 fails with `default-recovery-code.txt found in the build output or package folder ...` (exit code 1); package-zip.sh stops with `REFUSED: default-recovery-code.txt found ...` (exit code 3) and writes no zip. `git status` never shows the file (it is in .gitignore).
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
+**Test 179.** Opted-in zip installs with Enter and no typing: build `PcGuard-win-x64-WITH-DEFAULT-CODE.zip` on the Mac with `--default-code-file` (your own file, outside the repository), copy it to the VM, extract it to `C:\PcGuardSetup`, lock the folder (test 105), then run `Setup-PcGuard.exe` and at the recovery code question press only Enter; type YES. Then repeat with `--install --backend-url https://host/api/v1 --default-recovery-code --no-pause`.
+
+- Expected: The question is the default-file question; Enter (no typing of any code) gives `Recovery code: set (from default-recovery-code.txt)`; the release works with your code. The silent run exits 0.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 180.** The clean zip ignores and refuses: extract the normal `PcGuard-win-x64.zip` into a locked folder (no file there): Setup asks the normal question. Then extract the WITH-DEFAULT-CODE zip into a folder standard users can write (for example `C:\Users\Public\pkg`) and run Setup.
+
+- Expected: Normal zip: no default-file question, `unzip -l` shows no default-recovery-code.txt. Writable folder: the file is ignored with `... the package folder did not pass the admin-only permission check ... It was not read.` and the normal question is asked.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 181.** Zip name and refusals on the build machine: run `tools/test-package-zip.sh` (all checks pass); try `--default-code-file` with `--out .../PcGuard-win-x64.zip`, and without the flag with `--out .../PcGuard-win-x64-WITH-DEFAULT-CODE.zip`.
+
+- Expected: Both name mismatches are refused (exit code 2) and no zip is written. The test script ends with `ALL PASSED`.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 182.** The warning: run the opt-in build without `--yes`; answer `no`, then run again and answer `YES`.
+
+- Expected: A boxed warning says the zip contains a plain-text recovery code, that anyone holding it can disable PC Guard on every PC installed from it, to keep it off shared drives and chat and use it only for test/admin PCs. `no` aborts with exit code 4 and nothing is built; `YES` builds. The output never shows the code.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
 ### 3. Results
 
-Fill in after each run. Total tests: 179 (7 core, 172 additional).
+Fill in after each run. Total tests: 183 (7 core, 176 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|
