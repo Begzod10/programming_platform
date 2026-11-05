@@ -75,6 +75,29 @@ student's desktop, so the service is the authority and the shell is its eyes.
   OWNER RIGHTS ACE, environment variables `DOTNET_`, `COMPlus_`, `CORECLR_`, `COR_` stripped
   from its environment, and `StartupHookSupport=false` in the published build. The install
   folder is writable only by SYSTEM and Administrators.
+  Consequence of the restricted default DACL (real-PC bug, 2026-11-05): it grants the user no
+  `MUTEX_MODIFY_STATE`/`EVENT_MODIFY_STATE` (bit 0x0001 is also THREAD/PROCESS_TERMINATE), so a
+  NAMED kernel object the shell creates without an explicit security descriptor is unusable for a
+  standard user or a UAC-filtered administrator (`CreateMutex` fails with ACCESS_DENIED; the
+  built-in Administrator, whose Administrators group is enabled, was not affected). Every named
+  object of the shell therefore carries an explicit SD: the single-instance mutex
+  `Local\PcGuard.Shell.SingleInstance` grants only the user and SYSTEM. If the name exists or
+  cannot be opened, the shell exits (code 0) only when another process with this install's shell
+  image runs in the same session; otherwise the name is squatted or stale and the shell runs anyway
+  (a user-creatable name must never suppress the lock screen; the pipe pin still rejects any
+  instance the service did not launch).
+- **Shell startup failures**: an exception before the shell is fully initialised (windows shown,
+  pipe client started), or a startup that does not complete within 20 s (watchdog), ends the shell
+  with exit code 3 or 4 after a shell.log line; it never stays alive without windows. After startup,
+  UI exceptions are logged and the shell keeps running. shell.log carries a one-line startup trail
+  (pid, session, whether Administrators is enabled, single-instance result with Win32 code, windows
+  created, pipe connect attempts with Win32 codes, rate-limited) and no personal data.
+- **Relaunch back-off**: a shell that ends or is killed as unresponsive without ever connecting
+  counts as a failed start; the next launch waits 15, 30, 60, 120, then 300 s after the failure
+  (reset by a connection, a console session change, or nobody signed in). One Warning per episode
+  names `%LocalAppData%\PcGuard\shell.log`. Enforcement is unchanged: name-only fallback after the
+  startup grace for as long as no shell reports. The pipe server logs the exact rejection reason
+  (no pin, other pid, creation time unreadable or different, wrong session) with pids only.
 - **Fallback**: if no fresh snapshot arrived for 6 seconds (shell missing, hung, other
   desktop or session), the service enforces by process name only. This is stricter for
   third-party apps (background and autostart apps are killed too) and also closes allowlisted

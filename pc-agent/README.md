@@ -1237,9 +1237,39 @@ Use only fake codes such as `Fake-Test-Code-0001`. Unless a test says otherwise,
 - Expected: A boxed warning says the zip contains a plain-text recovery code, that anyone holding it can disable PC Guard on every PC installed from it, to keep it off shared drives and chat and use it only for test/admin PCs. `no` aborts with exit code 4 and nothing is built; `YES` builds. The output never shows the code.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
+**Test 183.** Two shell instances of the same user: signed in as a standard user with the service running and the lock screen up, start a second copy by hand: `"C:\Program Files\PcGuard\PcGuard.Shell.exe"` (from a non-elevated prompt as that user; `echo %ERRORLEVEL%` is not available for a WinExe, so use `start /wait "" "C:\Program Files\PcGuard\PcGuard.Shell.exe" & echo %ERRORLEVEL%`). Then list the processes: `tasklist /fi "imagename eq PcGuard.Shell.exe"`.
+
+- Expected: The second copy exits at once with code 0 and shows no window; exactly one PcGuard.Shell.exe remains (the service's). `%LocalAppData%\PcGuard\shell.log` gets `Startup: single-instance mutex AlreadyExists (Win32 183): ExitDuplicate` for the copy (never an `ERROR Dispatcher: System.UnauthorizedAccessException`). The first shell keeps working (sign-in, snapshots: self-test C03/C05 pass).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 184.** Shell under the hardened token default DACL (the real-PC bug of 2026-11-05, Windows build 26300, UAC administrator): install, sign in as a standard user, and as an administrator inspect the shell's mutex with Sysinternals `handle.exe -a -p PcGuard.Shell.exe | findstr SingleInstance` and WinObj (`\Sessions\<n>\BaseNamedObjects\PcGuard.Shell.SingleInstance`, Security tab). Also check a shell thread in Process Explorer (Threads tab, Permissions).
+
+- Expected: The mutex exists, its DACL grants only the shell user and SYSTEM (MUTEX_ALL_ACCESS), shell.log shows `Startup: single-instance mutex CreatedNew (Win32 0): RunAsPrimary`, `Startup: windows created`, `Startup: pipe client and snapshot sender started`, `Shell started`, then `Pipe: connected on attempt 1 (server Verified)`. Thread objects still grant the user only query/synchronize/read-control (the default DACL protection is unchanged, VM 39/41).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 185.** UAC administrator account (split token): repeat tests 10 and 184 signed in as a local administrator with UAC on (default), NOT the built-in Administrator; then once more with the built-in Administrator.
+
+- Expected: Both accounts get the lock screen within about 10 s of signing in; shell.log shows `Administrators enabled: no` for the UAC administrator (filtered token) and `yes` for the built-in Administrator; event log `Shell connected (pid ...)`; self-test C03 and C05 pass; no `Killed unresponsive shell` entry.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 186.** Repeated failure back-off: make the shell fail on purpose (as an administrator, temporarily rename `C:\Program Files\PcGuard\PcGuard.Shell.dll` to `PcGuard.Shell.dll.off`, so the shell process starts but cannot run: it exits at once or only shows a .NET error box), watch the PC Guard event log for 10 minutes, then rename it back.
+
+- Expected: `Launched shell` entries spaced by growing gaps (about 15, 30, 60, 120 s, then every 5 minutes plus the launch/timeout time), `Shell relaunch delayed N s after M failed start(s)` information entries, and exactly one Warning `The shell started 2 times in a row without connecting to the service ... Look at %LocalAppData%\PcGuard\shell.log ...` for this episode. Enforcement stays name-only the whole time (notepad started is killed; Test 155). After renaming back, the next launch connects and the gaps reset (a later failure starts at 15 s again).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 187.** shell.log trail: after tests 183 to 186 open `%LocalAppData%\PcGuard\shell.log` of the test user; then stop the service (`sc stop PcGuard` as administrator), wait 30 s, start it again.
+
+- Expected: Every shell start writes one `Startup: pid N, session S, Administrators enabled: ...` line, the single-instance line, `Startup: windows created`, the pipe line and `Shell started`. While the service is stopped: `Pipe: connect attempt N failed: System.TimeoutException (Win32 0)` lines (attempts 1 to 10, then every 30th), then `Pipe: connected ...` after the restart. A shell rejected by the service writes `Pipe: the service closed the connection after ... s ... see the PC Guard event log`, and the event log names the reason (`no pin`, `pinned pid`, `creation time`, or `in session S, the active console session is C`). No line holds a user name, password, URL or window title.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 188.** No zombie processes after 5 minutes: on the PC of test 185 (and once with test 186's broken shell), leave the PC signed in for 5 minutes, then `tasklist /v /fi "imagename eq PcGuard.Shell.exe"` and run the self-test.
+
+- Expected: At most one PcGuard.Shell.exe in the console session, and it owns a visible window (sign-in screen or overlay; the "Window Title" column is not `N/A`) or it is a just-launched instance younger than 20 s. A shell that failed during startup ends itself (`Startup failed (...): exiting with code 3` or `Startup did not complete within 20 s: exiting with code 4` in shell.log) instead of staying alive without windows. Self-test B02 reports one shell.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
 ### 3. Results
 
-Fill in after each run. Total tests: 183 (7 core, 176 additional).
+Fill in after each run. Total tests: 189 (7 core, 182 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|
