@@ -119,9 +119,12 @@ else
   (cd "$stage" && zip -r -X -q "$out" PcGuard -x "*/$SECRET" -x "*.DS_Store")
 fi
 
-count="$(unzip -Z1 "$out" | grep -ic "$SECRET" || true)"
+# Capture the listing first: with `set -o pipefail`, `unzip -Z1 | grep -q` fails with SIGPIPE (141)
+# on a big zip because grep -q exits at the first match.
+listing="$(unzip -Z1 "$out")"
+count="$(grep -ic "$SECRET" <<<"$listing" || true)"
 if [ -n "$codefile" ]; then
-  if [ "$count" != 1 ] || ! unzip -Z1 "$out" | grep -qx "PcGuard/$SECRET"; then
+  if [ "$count" != 1 ] || ! grep -qx "PcGuard/$SECRET" <<<"$listing"; then
     echo "REFUSED: $SECRET is not exactly once at PcGuard/$SECRET in $out; deleting the zip." >&2
     rm -f "$out"; exit 3
   fi
