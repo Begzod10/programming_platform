@@ -29,7 +29,9 @@ On the build machine, in PowerShell from the `pc-agent` folder:
 .\scripts\publish.ps1
 ```
 
-This runs `dotnet publish` for the service and the shell (self-contained, win-x64) into one folder, `pc-agent\dist`, so `PcGuard.Service.exe` and `PcGuard.Shell.exe` sit side by side. It is a plain folder (no single-file, no trimming), which keeps WPF working and `StartupHookSupport=false` in effect. Use `-OutputDir` to choose another folder.
+This runs `dotnet publish` for the service and the shell (self-contained, win-x64) into one folder, `pc-agent\dist`, so `PcGuard.Service.exe` and `PcGuard.Shell.exe` sit side by side. It is a plain folder (no single-file, no trimming), which keeps WPF working and `StartupHookSupport=false` in effect. Use `-OutputDir` to choose another folder. It fails if a `default-recovery-code.txt` is in the output folder or next to it (see "Default recovery code file").
+
+The package zip (`PcGuard-win-x64.zip`, top folder `PcGuard\`) is built with `tools/package-zip.sh --dist <dist> --setup <Setup-PcGuard.exe> --cleanup <Cleanup-PcGuard.exe> --stage <empty folder> --out <zip>` (macOS/Linux; README.md and scripts\ come from the repository). It excludes `default-recovery-code.txt` explicitly and FAILS if one is found in any source, in the staging folder or in the finished zip. `default-recovery-code.txt` is also in `.gitignore`, so it cannot be committed.
 
 ## Install
 
@@ -78,7 +80,8 @@ Double-click it (Windows shows the UAC prompt; it needs Administrator) and choos
 
   Alternatively run the package from the administrator's own profile folder (Desktop or Downloads). `--allow-writable-package` overrides the check with a loud warning; use it only if you accept the risk. The exe prints the package path at every install, and the refusal message repeats these commands.
 - It is NOT code-signed, so Windows SmartScreen may show "Windows protected your PC" (More info, Run anyway), and a downloaded zip may need Unblock in the file properties.
-- It has NEVER been run on Windows. Run tests 93-107, 138-143, 144-154 and 158-168 below before relying on it.
+- Default recovery code file: if `default-recovery-code.txt` is next to Setup-PcGuard.exe, the recovery code question becomes `A default recovery code file was found (default-recovery-code.txt). Press Enter to use it, type another code, or type - (a single dash) to install without a recovery code:`; silent: `--default-recovery-code`. See "Default recovery code file" below.
+- It has NEVER been run on Windows. Run tests 93-107, 138-143, 144-154, 158-168 and 169-178 below before relying on it.
 - Build: `dotnet publish src/PcGuard.Setup/PcGuard.Setup.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o dist-setup` (works on macOS too).
 
 ## Cleanup-PcGuard.exe (no terminal needed)
@@ -151,6 +154,23 @@ The last way out when a PC is stuck on the full-screen lock and nothing else wor
 - **Effect of the right code**: the service stops enforcing at once (nothing is closed from that moment), writes `Recovery code accepted: PC Guard stops enforcing, disables itself and stops on this PC` to the Application event log, **deletes `recovery.hash`** (overwritten with zeros first; `Recovery code used: recovery.hash deleted ...`) so the code cannot be used again, sets its own start type to **Disabled**, tells the shell to close all its windows and exit, waits 1.5 s, then terminates every PcGuard.Shell.exe it launched in any session (a shell in another fast-user-switching session, or one that missed the message, would otherwise stay full-screen), and stops. Enforcement is gone, the shell is not started again, and neither the recovery actions nor a reboot bring it back. A shell that still runs exits by itself when its connection is gone and Windows reports the PcGuard service stopped and Disabled. **If setting Disabled fails**, the service does NOT stop (stopping could let a reboot bring enforcement back without anyone noticing): it stays running without enforcing anything, shows the student a notice (uz/ru) for 8 s before the shell exits, logs the error and retries every 30 s; once Disabled is set it stops (`... set to Disabled after N retries; stopping`). Until then a reboot starts PC Guard again with enforcement (and without a recovery code, since that was used). **The PC stays unprotected until Setup-PcGuard.exe install (or install.ps1) is run again with a NEW code**: the reinstall creates a new service with automatic start, and because the old service was Disabled it never keeps an old code (empty answer = no code, the summary says `NOT set`). An administrator can also set the service back to Automatic (`sc.exe config PcGuard start= auto`, then `Start-Service PcGuard`), but then there is no recovery code until one is installed. Safe Mode keys are not changed.
 - **Wrong codes**: "Tiklash kodi noto'g'ri" / "Неверный код восстановления"; one attempt per second, and 5 wrong codes in a row lock code entry, for 10 minutes the first time, 1 hour the second time and 24 hours every further time (the dialog shows a countdown; a right code is refused during that time too). Only a successful release (or an administrator deleting `recovery.attempts` and restarting the service, or installing a new code) resets the escalation. The counter is kept in `%ProgramData%\PcGuard\recovery.attempts` (SYSTEM and Administrators only, same trust checks as `recovery.hash`) and **survives a service restart and a reboot** (a standard user can reboot the PC, so a memory-only counter would not limit anything). Every attempt is written there as a failure BEFORE the code is checked, so cutting the power during the check still counts; an attempt that cannot be written is refused ("error"). The flip side: anyone at the PC can block the recovery code on purpose with wrong codes (10 min, then 1 h, then 24 h at a time); an administrator clears that by deleting `recovery.attempts` and restarting the service. A `recovery.attempts` that is untrusted (link, other owner or ACL, too large) or corrupt at service start never resets anything: attempts are then locked out for 24 hours and the event log says so. Each failure writes `Recovery code rejected (n of 5 consecutive failures)` (and a lockout notice with its length) to the event log, with the count only. A PC without a recovery code answers "Bu kompyuterda tiklash kodi o'rnatilmagan" / "На этом компьютере код восстановления не задан" (not counted).
 - **Honest limits**: anyone who knows the code can switch PC Guard off on that PC, so choose a strong code that is unique per PC, do not reuse the Windows password (or any other password), and do not write it on the PC. **The code is typed on the student's own desktop**, in the student's Windows session: anything running there can capture it (a keyboard hook needs no administrator rights, and an allowed remote-control or screen-recording app sees the screen), and a person watching can read the keys. That is why it works only once and a reinstall needs a new code; still, assume that a code typed in front of students is known. An administrator with physical access can still remove PC Guard other ways (Cleanup, Safe Mode, stopping the service). The hash is readable by SYSTEM and Administrators only; with it, guessing is offline and only PBKDF2 (310000 iterations) slows it down, which is why the code rules are strict. There is no remote "end" or audit in the teacher console for a release yet: the only trace is the PC's event log (and the PC going offline in the console). The code travels from the shell to the service as a .NET string and cannot be zeroed in memory there (as for passwords).
+
+### Default recovery code file (default-recovery-code.txt)
+
+For installing many PCs with ONE known code without typing it each time. The code is never built into Setup or any script: it is read at install time from a file the administrator puts next to `Setup-PcGuard.exe` (in the package root, beside `dist\` and `scripts\`).
+
+- **The file**: `default-recovery-code.txt`, the code alone on one line, plain ASCII (Notepad: Save as, Encoding ANSI; UTF-8 without BOM also works if the code is ASCII). One trailing line end (CR LF, LF or CR) is removed, nothing else: no other trimming, so a leading or trailing space makes the code invalid (the code rules forbid them anyway). At most 130 bytes. The same rules as a typed code apply (12-128 characters, at least 6 different, nothing easy to guess, see "Recovery code (offline escape)").
+- **When it is read**: only during an install, only after the package folder passed the admin-only permission check (so it must be in `C:\PcGuardSetup` locked with icacls, or in the administrator's own profile folder), and the file itself must not be readable or changeable by Users, Authenticated Users, Everyone or INTERACTIVE, must be a regular file (not a link or junction) and at most 130 bytes. With `--allow-writable-package` the file is NEVER read: Setup says it is ignored. A file that breaks a rule is ignored with the reason (never the code), and the interactive install falls back to the normal question.
+- **Interactive install**: the recovery code question becomes `A default recovery code file was found (default-recovery-code.txt). Press Enter to use it, type another code, or type - (a single dash) to install without a recovery code:`. Enter on an empty line = the code from the file; `-` = no recovery code; anything else = a typed code (hidden, asked twice, as without the file; an invalid code or a mismatch asks the question again, 3 failed tries abort). The summary before YES shows `Recovery code: set (from default-recovery-code.txt)`, `set (typed)` or `NOT set (no offline way out)`.
+- **Silent install**: `Setup-PcGuard.exe --install --backend-url https://host/api/v1 --default-recovery-code --no-pause` uses the file without asking; if it is missing, ignored or invalid the install stops before anything changes, with exit code 64. `--default-recovery-code` takes no value (the code is never accepted on the command line) and cannot be combined with `--no-recovery-code`. A silent install without the switch still sets no code (warning as before) and notes that the file is present but not used.
+- **What happens to the code**: Setup reads it into a byte buffer and a char buffer (both zeroed after hashing) and hashes it exactly like a typed code; only the hash goes to install.ps1, through the admin-only `recovery-hash.in` file (see "Recovery code (offline escape)"). The code and the hash are never printed, never on a command line, in an environment variable, an event log or a PowerShell log. Setup never copies, moves or deletes the file.
+- **Honest limits** (read before using it):
+  - The code sits **in plain text** in the package folder on the administrator's media (USB stick, shared folder, `C:\PcGuardSetup`). Anyone who can read that folder, or the package zip if the administrator put the file into it, can switch PC Guard off on **every PC installed with it**. One leaked file = all those PCs.
+  - **Delete the file after installing**, or keep it only on an admin-only drive that students never get to (not a stick that is left in a lab PC, not a shared folder). The admin-only check protects it on the PC being installed, not on the stick or network share it was copied from.
+  - The code is still **single use per PC**: a release on a PC deletes the hash there (the code is burned on that PC only; other PCs installed with the same file still accept it). A reinstall on that PC with the file present applies the same default code again, which then works there again once.
+  - The code is typed on the student's desktop when it is used (see "Honest limits" above), so a code used once in front of students must be assumed known: and with a default code it is known for every PC that has it. Replace it (new file, reinstall) after any use.
+  - **Recommended**: a unique code per PC (typed at the install) for student PCs; the default code file only for test or admin PCs.
+- Never commit or package the file: it is in `.gitignore`, `scripts\publish.ps1` and `tools/package-zip.sh` refuse to build when it is present, and the release zip never contains it.
 
 ## Known limitations and accepted risks
 
@@ -1130,9 +1150,63 @@ Use a VM snapshot: a successful release leaves the PC unprotected. "The code" be
 - Expected: After the empty line Setup asks `Install without a recovery code? (y/N):`; `n` asks for the code again (still 2 tries left) and the summary shows `Recovery code: set`; `y` shows `Recovery code: NOT set (no offline way out)`.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
+#### V. Default recovery code file
+
+Use only fake codes such as `Fake-Test-Code-0001`. Unless a test says otherwise, the package is in `C:\PcGuardSetup` locked with icacls (test 105) and `default-recovery-code.txt` was created there by the administrator with Notepad (`Fake-Test-Code-0001` and one Enter, saved as ANSI).
+
+**Test 169.** File present, Enter uses it: run Setup interactively, install, at the recovery code question press Enter on an empty line; type YES. Afterwards lock the PC and release it with `Fake-Test-Code-0001` (Test 146).
+
+- Expected: The question is exactly `A default recovery code file was found (default-recovery-code.txt). Press Enter to use it, type another code, or type - (a single dash) to install without a recovery code:`; no confirmation is asked; the summary shows `Recovery code: set (from default-recovery-code.txt)`; the release works with the code from the file. The file is still there, unchanged.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 170.** Typed alternative: at the same question type `Fake-Test-Code-0002` (hidden), then confirm it; repeat with `short` first, then Enter.
+
+- Expected: Nothing is echoed; the first run asks `Type the recovery code again to confirm:` and the summary shows `Recovery code: set (typed)`; only `Fake-Test-Code-0002` releases the PC, not the file's code. The second run says "at least 12 characters", asks the default question again, and Enter then uses the file (`set (from default-recovery-code.txt)`).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 171.** Dash installs without: answer `-`.
+
+- Expected: The summary shows `Recovery code: NOT set (no offline way out)`; after the install the shell answers "Bu kompyuterda tiklash kodi o'rnatilmagan" for the file's code (after `install.ps1 -ClearRecoveryCode` or on a fresh PC: an upgrade keeps an unused earlier code).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 172.** Invalid file falls back: in turn put into the file (a) `Fake-Test-1` (too short), (b) `password1234`, (c) the code saved as UTF-8 with BOM (Notepad "UTF-8 with BOM"), (d) saved as "Unicode" (UTF-16), (e) two lines, (f) the code with a trailing space, (g) a valid code but `icacls default-recovery-code.txt /grant *S-1-5-32-545:R`, (h) a symbolic link `mklink default-recovery-code.txt C:\other.txt` to a file with a valid code, (i) a folder of that name.
+
+- Expected: Each time Setup prints the reason (too short / too easy to guess / byte order mark / printable ASCII on one line / can be read or changed by standard users / link / not a regular file), never the code, then `The default recovery code file is not used; type a code instead.` and the normal question `Recovery code for this PC (at least 12 characters; typed hidden; empty = none):`. Nothing is installed with the file's content.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 173.** Oversize file ignored: a file of 131 bytes or more (for example 200 characters on one line), and a 2 GB file (`fsutil file createnew default-recovery-code.txt 2147483648`).
+
+- Expected: `default-recovery-code.txt is larger than 130 bytes; it is ignored (not read).` and the normal question; the 2 GB file causes no delay (it is not read).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 174.** Writable package folder ignores the file: copy the package with a valid file to `C:\Users\Public\PcGuard` and run `Setup-PcGuard.exe --allow-writable-package` (interactive install); then also from the locked `C:\PcGuardSetup` with `--allow-writable-package`.
+
+- Expected: Both times `default-recovery-code.txt was found but is ignored: the package folder did not pass the admin-only permission check (--allow-writable-package). It was not read.` and the normal question. With Process Monitor (filter Path ends with `default-recovery-code.txt`) there is no ReadFile on it.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 175.** Silent switch: `Setup-PcGuard.exe --install --backend-url https://host/api/v1 --default-recovery-code --no-pause`; then without the file; then with an invalid file; then `--default-recovery-code --no-recovery-code`; then `--default-recovery-code Fake-Test-Code-0001` and `--default-recovery-code=Fake-Test-Code-0001`; then the silent install without the switch, file present.
+
+- Expected: The first run prints `Using the recovery code from default-recovery-code.txt (--default-recovery-code).`, the summary shows `set (from default-recovery-code.txt)`, exit code 0, the release works. Missing or invalid file: the reason, `Installation aborted. Nothing was changed.`, exit code 64 (`echo %ERRORLEVEL%`), the service unchanged. The combination and the two value forms: usage error, exit code 2, and the value is NOT echoed. Without the switch: the no-recovery-code warning plus `Note: default-recovery-code.txt is present but not used; pass --default-recovery-code to use it.`, summary `NOT set`.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 176.** Summary text: compare the three summaries of tests 169, 170 and 171, and `--help`.
+
+- Expected: `Recovery code: set (from default-recovery-code.txt)`, `Recovery code: set (typed)`, `Recovery code: NOT set (no offline way out)` (with the two upgrade lines below it); `--help` lists `--default-recovery-code`.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 177.** The code and the hash do not leak: with PowerShell module logging, script block logging and transcription on (Test 158) and the console output captured (`Setup-PcGuard.exe --install --backend-url ... --default-recovery-code --no-pause > C:\setup-out.txt 2>&1`, plus an interactive run, select-all copy of the console window), search for `Fake-Test-Code-0001` and for the salt and hash parts of `recovery.hash` (Test 158) in: the captured output, the Application, "Windows PowerShell" and PowerShell/Operational event logs, the transcript folder, Security event 4688 (if process auditing is on), and the process environment of powershell.exe while it runs (Process Explorer, Environment tab).
+
+- Expected: No hit anywhere; event 400/600 shows only `-RecoveryCodeHashFile C:\ProgramData\PcGuard-setup-...\recovery-hash.in`; the `PcGuard-setup-*` folder is gone after the install.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 178.** The package never contains the file: on the build machine list the release zip (`unzip -l PcGuard-win-x64.zip`, or open it in Explorer); then put a `default-recovery-code.txt` into `pc-agent\dist` and run `scripts\publish.ps1`, and put one into the dist folder passed to `tools/package-zip.sh`.
+
+- Expected: The zip has no `default-recovery-code.txt` anywhere. publish.ps1 fails with `default-recovery-code.txt found in the build output or package folder ...` (exit code 1); package-zip.sh stops with `REFUSED: default-recovery-code.txt found ...` (exit code 3) and writes no zip. `git status` never shows the file (it is in .gitignore).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
 ### 3. Results
 
-Fill in after each run. Total tests: 169 (7 core, 162 additional).
+Fill in after each run. Total tests: 179 (7 core, 172 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|

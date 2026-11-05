@@ -305,6 +305,23 @@ and it works once.
   changed; an empty answer after a failed try asks "Install without a recovery code? (y/N)".
   Silent installs set none (`--no-recovery-code` explicit, otherwise a warning). Never accepted
   on the command line or from environment variables.
+- Optional default code file (one known code for many installs, never hardcoded): if
+  `default-recovery-code.txt` is in the package root next to Setup-PcGuard.exe, Setup reads it
+  (Core `DefaultRecoveryCode`) only when the package folder passed the admin-only ACL check and
+  `--allow-writable-package` is NOT given (otherwise: ignored, said so, not read); the file must
+  be a regular file (no reparse point), at most 130 bytes, with no allow ACE for Users,
+  Authenticated Users, Everyone or INTERACTIVE that grants read or write-like rights; content
+  plain printable ASCII on one line, exactly one trailing CR LF / LF / CR removed, no other
+  trimming, then the normal code rules. Bytes and chars are read into buffers that are zeroed
+  after hashing; the hash takes the same `recovery-hash.in` path. Interactive: "A default
+  recovery code file was found (default-recovery-code.txt). Press Enter to use it, type another
+  code, or type - (a single dash) to install without a recovery code:" (hidden; Enter = file,
+  `-` = none, otherwise a typed code confirmed as usual). An invalid file prints the reason only
+  and falls back to the normal question. Silent: `--default-recovery-code` (no value; exit code
+  64 if missing/ignored/invalid; exclusive with `--no-recovery-code`); without it a silent
+  install still sets none. Summary: "set (from default-recovery-code.txt)" / "set (typed)" /
+  "NOT set". publish.ps1 and tools/package-zip.sh fail if the file is present; it is in
+  .gitignore.
 - Stored as `pbkdf2-sha256$<iterations>$<salt b64>$<hash b64>` (PBKDF2-HMAC-SHA256, 310000
   iterations, 16-byte random salt, 32-byte hash) computed by Setup (Core `RecoveryCode.Hash`,
   char buffers zeroed afterwards). The hash is never on a command line (Windows PowerShell 5.1
@@ -427,6 +444,16 @@ second day. The report is limited to the calling teacher's students and 31 days.
   message. Residual: a release is recorded only in the PC's event log (no console audit, no
   remote end), an administrator with physical access can still remove PC Guard other ways, and
   the code is a .NET string in the shell and service memory (and the hash in Setup's).
+- Default recovery code file (4.5), accepted risk: the code sits in plain text on the
+  administrator's media; anyone who can read the package folder (or a zip the administrator
+  put it into) can switch PC Guard off on every PC installed with it. Mitigations are
+  procedural (delete the file after installing or keep it on an admin-only drive; unique typed
+  codes for student PCs, the default code only on test/admin PCs) plus: read only from a package
+  folder that passed the admin-only check, never with --allow-writable-package, file ACL without
+  standard-user read/write, no links, size cap, never echoed/logged/on a command line, never
+  packaged (build guards, .gitignore). Single use still holds per PC (a release burns that PC's
+  hash; a reinstall with the file re-applies the same code), so one use in front of students
+  must be treated as exposing the code for every PC that has it.
 - Extra allowed apps (4.1) are local and administrator-configured (the install folder is
   admin-writable only) and bypass the lock for that PC only; the server and the teacher console
   do not see them. Adding remote-control software lets someone at the PC use it while the PC is
