@@ -18,6 +18,8 @@
   processes in the console session like any other user process, so no scheduled task is needed. Only
   test processes started by this script are ever closed by it (cleanup at the end of section D).
   -NoProbes skips section D.
+  -ProbeShellRelaunch (opt-in, off by default) additionally ends the running PcGuard.Shell.exe ONCE at
+  the very end (check B04) and expects the service to start a new one within 40 s.
 
   It never prints or writes secrets: the content of recovery.hash (only "present, format ok, N bytes"),
   the recovery code, or the machine key value (only "GUID ok"). It never attempts a recovery release
@@ -31,6 +33,10 @@
   Console shows only FAIL lines and the summary (the report file still gets everything).
 .PARAMETER NoProbes
   Skip the enforcement probes (section D): nothing is started.
+.PARAMETER ProbeShellRelaunch
+  Opt-in check B04: end the shell once (Stop-Process, as this elevated session) after all other checks
+  and expect a new shell in the console session within 40 s. The sign-in screen disappears for a few
+  seconds and name-only enforcement applies meanwhile. Without it B04 is SKIPPED.
 .PARAMETER OutFile
   Report file path. Default: $env:USERPROFILE\Desktop\pcguard-selftest-<yyyyMMdd-HHmmss>.txt.
 .PARAMETER InstallDir
@@ -51,6 +57,7 @@
 param(
     [switch]$Quiet,
     [switch]$NoProbes,
+    [switch]$ProbeShellRelaunch,
     [string]$OutFile,
     [string]$InstallDir = (Join-Path $(if ($env:ProgramW6432) { $env:ProgramW6432 } else { $env:ProgramFiles }) 'PcGuard'),
     [string]$ExpectedBaseUrl,
@@ -1013,37 +1020,9 @@ Invoke-Check 'B03' 'Named pipe \\.\pipe\PcGuard.Pipe exists (not connected to)' 
     return (Fail 'the service is running but its pipe does not exist (event log: "Pipe server error" or pipe squatting, VM 34)')
 }
 
-Invoke-Check 'B04' 'Shell process DACL denies terminate/suspend/inject to the user (VM 39, 41)' {
-    if ($null -eq $script:ShellPid) { return (Skip 'no shell in the console session (see B02)') }
-    if (-not $script:ShellUserSid) { return (Skip 'the shell user could not be read') }
-    $sd = Get-ProcessSd $script:ShellPid
-    if ($sd -is [string]) { return (Skip $sd) }
-    $problems = @()
-    $owner = ''
-    if ($null -ne $sd.Owner) { $owner = $sd.Owner.Value }
-    if ($owner -ne $SidAdmins) { $problems += ('process owner is {0}, expected Administrators (the user could rewrite the DACL)' -f (Get-SidName $owner)) }
-    $aces = @()
-    if ($null -ne $sd.DiscretionaryAcl) { $aces = @($sd.DiscretionaryAcl) }
-    if ($aces.Count -eq 0) { return (Fail 'the shell process has no DACL entries (launched unprotected? event log "Shell process protection skipped")') }
-    $denyMask = 0x0001 -bor 0x0002 -bor 0x0008 -bor 0x0020 -bor 0x0800   # ShellSecurity.ProcessDeniedRights
-    $first = $aces[0]
-    $firstOk = ($first -is [System.Security.AccessControl.CommonAce] -and
-        $first.AceQualifier -eq [System.Security.AccessControl.AceQualifier]::AccessDenied -and
-        $first.SecurityIdentifier.Value -eq $script:ShellUserSid -and
-        (($first.AccessMask -band $denyMask) -eq $denyMask))
-    if (-not $firstOk) { $problems += 'the first entry is not a deny of terminate/suspend/inject (0x82B) for the shell user' }
-    $grant = 0x0001 -bor 0x0800 -bor 0x10000000 -bor 0x40000000 -bor 0x00040000   # terminate, suspend, GA, GW, WRITE_DAC
-    foreach ($a in $aces) {
-        if (-not ($a -is [System.Security.AccessControl.CommonAce])) { continue }
-        if ($a.AceQualifier -ne [System.Security.AccessControl.AceQualifier]::AccessAllowed) { continue }
-        $v = $a.SecurityIdentifier.Value
-        if (($v -eq $script:ShellUserSid -or $BroadSids -contains $v) -and (($a.AccessMask -band $grant) -ne 0)) {
-            $problems += ('{0} is allowed 0x{1:X}' -f (Get-SidName $v), $a.AccessMask)
-        }
-    }
-    if ($problems.Count -gt 0) { return (Fail ($problems -join '; ')) }
-    return (Pass 'owner Administrators, deny 0x82B for the user first, no terminate/suspend grant (DACL structure only: a real standard-user attempt is VM 39)')
-}
+# B04 (informational, opt-in: -ProbeShellRelaunch) runs at the very end, after section D, because it
+# ends the shell. The shell is no longer protected against termination (2026-11-05): a student can end
+# it, gains nothing (the service relaunches it; the name-only fallback applies meanwhile).
 
 Invoke-Check 'B05' 'Service process DACL gives standard users no terminate right (VM 3)' {
     if ($null -eq $script:ServicePid) { return (Skip 'service process not found') }
@@ -1374,6 +1353,36 @@ else {
         if (@($probe.ExtraLeft).Count -gt 0 -or $ev.Count -gt 0) { return (Fail ('AnyDesk pid(s) gone: {0}; {1} "Terminated AnyDesk.exe" entries' -f (@($probe.ExtraLeft) -join ','), $ev.Count)) }
         return (Pass ('pid(s) {0}' -f ($extraBefore -join ',')))
     }
+}
+
+# ===================================================================================================
+# B04 (runs last: it ends the shell)
+# ===================================================================================================
+
+Invoke-Check 'B04' 'Informational: an ended shell is relaunched within 40 s (VM 39, 192)' {
+    if (-not $ProbeShellRelaunch) { return (Skip 'opt-in: run with -ProbeShellRelaunch to end the shell once and time its relaunch (the shell may be ended by anyone; the service relaunches it)') }
+    if (-not $script:SvcRunning) { return (Skip 'service not running') }
+    if ($null -eq $script:ShellPid) { return (Skip 'no shell in the console session (see B02)') }
+    $oldPid = $script:ShellPid
+    if ($null -eq (Get-Process -Id $oldPid -ErrorAction SilentlyContinue)) { return (Skip ('shell pid {0} has already exited' -f $oldPid)) }
+    $endedAt = Get-Date
+    Stop-Process -Id $oldPid -Force -ErrorAction Stop
+    $new = $null
+    for ($i = 0; $i -lt 40 -and $null -eq $new; $i++) {
+        Start-Sleep -Seconds 1
+        $new = @(Get-Process -Name 'PcGuard.Shell' -ErrorAction SilentlyContinue |
+                Where-Object { $_.SessionId -eq $script:ConsoleSession -and $_.Id -ne $oldPid }) | Select-Object -First 1
+    }
+    $secs = [int][Math]::Round(((Get-Date) - $endedAt).TotalSeconds)
+    if ($null -eq $new) {
+        return (Fail ('no new PcGuard.Shell.exe in console session {0} within 40 s after ending pid {1} (event log: "Shell relaunch delayed", "Could not launch shell"; shell.log of the user)' -f $script:ConsoleSession, $oldPid))
+    }
+    $note = ''
+    Start-Sleep -Seconds 3
+    $ev = @(Get-PgEvents $endedAt.AddSeconds(-2))
+    if (Find-LastEvent $ev ('Shell connected (pid {0})' -f $new.Id)) { $note = '; "Shell connected" logged' }
+    else { $note = '; no "Shell connected" entry yet (check C03 on the next run)' }
+    return (Pass ('pid {0} ended, new shell pid {1} seen after about {2} s{3}' -f $oldPid, $new.Id, $secs, $note))
 }
 
 # ===================================================================================================

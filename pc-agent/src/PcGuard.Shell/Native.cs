@@ -199,67 +199,28 @@ internal static class Native
         GetSystemMetrics(SM_XVIRTUALSCREEN), GetSystemMetrics(SM_YVIRTUALSCREEN),
         GetSystemMetrics(SM_CXVIRTUALSCREEN), GetSystemMetrics(SM_CYVIRTUALSCREEN));
 
-    // ---- single instance (named mutex with an EXPLICIT security descriptor) ----
+    // ---- single instance (named mutex, default security) ----
 
-    private const uint SDDL_REVISION_1 = 1;
     private const uint MUTEX_MODIFY_STATE = 0x0001;
     private const uint SYNCHRONIZE = 0x00100000;
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct SECURITY_ATTRIBUTES
-    {
-        public int nLength;
-        public IntPtr lpSecurityDescriptor;
-        public int bInheritHandle;
-    }
-
-    [DllImport("advapi32.dll", EntryPoint = "ConvertStringSecurityDescriptorToSecurityDescriptorW", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern bool ConvertStringSecurityDescriptorToSecurityDescriptor(string sddl, uint revision, out IntPtr sd, out uint size);
-
-    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr LocalFree(IntPtr mem);
-
     [DllImport("kernel32.dll", EntryPoint = "CreateMutexExW", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern SafeWaitHandle CreateMutexEx(ref SECURITY_ATTRIBUTES attributes, string name, uint flags, uint desiredAccess);
-
-    [DllImport("kernel32.dll", EntryPoint = "CreateMutexExW", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern SafeWaitHandle CreateMutexExDefault(IntPtr attributes, string name, uint flags, uint desiredAccess);
+    private static extern SafeWaitHandle CreateMutexEx(IntPtr attributes, string name, uint flags, uint desiredAccess);
 
     /// <summary>
-    /// Creates (or opens) the named single-instance mutex with an explicit security descriptor
-    /// (<see cref="SingleInstancePolicy.MutexSddl"/>: the current user and SYSTEM), so it does NOT inherit
-    /// the restricted token default DACL the service sets (with that DACL CreateMutex fails with
-    /// ACCESS_DENIED for a standard user or a UAC-filtered administrator). The mutex is not owned: holding
-    /// the handle keeps the name alive for the process lifetime. Returns the classified outcome, the
-    /// Win32 code, and the handle (null unless valid; the caller keeps it open). Never throws.
+    /// Creates (or opens) the named single-instance mutex with DEFAULT security. The service launches
+    /// the shell with the user's ordinary token, whose default DACL grants the user full control of
+    /// its own objects, so this works for every account type (see <see cref="SingleInstancePolicy"/>).
+    /// No explicit descriptor is built on purpose: that needed the user SID from the shell's own token,
+    /// which is exactly what failed on the real PC (2026-11-05). The mutex is not owned: holding the
+    /// handle keeps the name alive for the process lifetime. Returns the classified outcome, the Win32
+    /// code, and the handle (null unless valid; the caller keeps it open). Never throws.
     /// </summary>
     public static (MutexOpenResult Result, int Win32, SafeWaitHandle? Handle) CreateSingleInstanceMutex(string name)
     {
-        IntPtr sd = IntPtr.Zero;
         try
         {
-            string? sid = null;
-            try
-            {
-                using var id = System.Security.Principal.WindowsIdentity.GetCurrent();
-                sid = id.User?.Value;
-            }
-            catch (Exception e) when (e is System.Security.SecurityException or UnauthorizedAccessException or InvalidOperationException)
-            {
-                sid = null;
-            }
-            if (sid is not null && !ConvertStringSecurityDescriptorToSecurityDescriptor(SingleInstancePolicy.MutexSddl(sid), SDDL_REVISION_1, out sd, out _))
-                sd = IntPtr.Zero;
-
-            SafeWaitHandle h;
-            if (sd != IntPtr.Zero)
-            {
-                var sa = new SECURITY_ATTRIBUTES { nLength = Marshal.SizeOf<SECURITY_ATTRIBUTES>(), lpSecurityDescriptor = sd, bInheritHandle = 0 };
-                h = CreateMutexEx(ref sa, name, 0, MUTEX_MODIFY_STATE | SYNCHRONIZE);
-            }
-            else
-            {
-                h = CreateMutexExDefault(IntPtr.Zero, name, 0, MUTEX_MODIFY_STATE | SYNCHRONIZE); // last resort: default DACL
-            }
+            var h = CreateMutexEx(IntPtr.Zero, name, 0, MUTEX_MODIFY_STATE | SYNCHRONIZE);
             var err = Marshal.GetLastWin32Error(); // also set on success (ERROR_ALREADY_EXISTS)
             var valid = !h.IsInvalid;
             if (!valid) h.Dispose();
@@ -268,10 +229,6 @@ internal static class Native
         catch (Exception e) when (e is ArgumentException or ExternalException or EntryPointNotFoundException or DllNotFoundException)
         {
             return (MutexOpenResult.Failed, 0, null);
-        }
-        finally
-        {
-            if (sd != IntPtr.Zero) LocalFree(sd);
         }
     }
 
@@ -332,18 +289,31 @@ internal static class Native
         }
     }
 
+    private const uint TOKEN_QUERY = 0x0008;
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr process, uint desiredAccess, out IntPtr token);
+
+    [DllImport("kernel32.dll")] private static extern IntPtr GetCurrentProcess();
+
     /// <summary>"yes"/"no": whether this process token has the Administrators group ENABLED (false for a
-    /// standard user and for a UAC-filtered administrator). Diagnostics only.</summary>
+    /// standard user and for a UAC-filtered administrator); "unknown (own token not readable, Win32 N)"
+    /// when the shell cannot open its own token. Diagnostics only (startup trail), never throws.</summary>
     public static string AdministratorsEnabled()
     {
         try
         {
+            if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, out var token))
+                return ShellDiagnostics.OwnTokenText(null, Marshal.GetLastWin32Error());
+            CloseHandle(token);
             using var id = System.Security.Principal.WindowsIdentity.GetCurrent();
-            return new System.Security.Principal.WindowsPrincipal(id).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator) ? "yes" : "no";
+            var enabled = new System.Security.Principal.WindowsPrincipal(id).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            return ShellDiagnostics.OwnTokenText(enabled, 0);
         }
-        catch (Exception e) when (e is System.Security.SecurityException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception e) when (e is System.Security.SecurityException or UnauthorizedAccessException or InvalidOperationException
+                                       or ExternalException or EntryPointNotFoundException)
         {
-            return "unknown";
+            return ShellDiagnostics.OwnTokenText(null, e.HResult);
         }
     }
 }

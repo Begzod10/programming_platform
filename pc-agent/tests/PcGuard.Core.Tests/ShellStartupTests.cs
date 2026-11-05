@@ -34,25 +34,6 @@ public class SingleInstancePolicyTests
     public void SquattedOrStaleNameWithoutAnotherShellStillRuns(MutexOpenResult r)
         // a name held by something that is not a running genuine shell must never stop the lock screen
         => Assert.Equal(SingleInstanceAction.RunWithoutLock, SingleInstancePolicy.Decide(r, anotherShellRunning: false));
-
-    [Fact]
-    public void MutexSddlGrantsTheUserAndSystemFullMutexAccess()
-    {
-        var sddl = SingleInstancePolicy.MutexSddl("S-1-5-21-1-2-3-1001");
-        Assert.Equal("D:(A;;0x1F0001;;;S-1-5-21-1-2-3-1001)(A;;0x1F0001;;;SY)", sddl);
-        Assert.Throws<ArgumentException>(() => SingleInstancePolicy.MutexSddl(" "));
-    }
-
-    [Fact]
-    public void TheTokenDefaultDaclCannotServeANamedMutex()
-    {
-        // the root cause: the restricted default DACL grants the user no MUTEX_MODIFY_STATE (0x0001,
-        // the same bit as PROCESS/THREAD_TERMINATE), so a named mutex created without an explicit SD is
-        // unusable for a standard user or a UAC-filtered administrator
-        Assert.Equal(0u, ShellSecurity.UserAllowedRights & 0x0001u);
-        Assert.Contains("(A;;0x121400;;;S-1-5-21-1-2-3-1001)", ShellSecurity.DefaultDaclSddl("S-1-5-21-1-2-3-1001"));
-        Assert.Contains("0x1F0001;;;S-1-5-21-1-2-3-1001", SingleInstancePolicy.MutexSddl("S-1-5-21-1-2-3-1001"));
-    }
 }
 
 public class StartupFailurePolicyTests

@@ -33,6 +33,13 @@ public static class UiStrings
     public static string LoginButton(UiLang l) => l == UiLang.Ru ? "Войти" : "Kirish";
     public static string UsernameLabel(UiLang l) => l == UiLang.Ru ? "Логин" : "Login";
     public static string PasswordLabel(UiLang l) => l == UiLang.Ru ? "Пароль" : "Parol";
+    /// <summary>Text of the minimal fallback lock window (both languages at once: it has no language
+    /// switch, see <see cref="ShellUiFallback"/>).</summary>
+    public static string FallbackLock() =>
+        "Kompyuter bloklangan. Kirish oynasini ochib bo'lmadi: o'qituvchi yoki administratorga murojaat qiling."
+        + "\n\n"
+        + "Компьютер заблокирован. Не удалось открыть окно входа: обратитесь к преподавателю или администратору.";
+
     public static string Connecting(UiLang l) => l == UiLang.Ru ? "Подключение к службе…" : "Xizmatga ulanmoqda…";
 
     // ---- maintenance mode (one-time teacher code) ----

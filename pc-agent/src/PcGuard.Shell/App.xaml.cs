@@ -10,7 +10,10 @@ namespace PcGuard.Shell;
 /// started. A failure BEFORE startup completed (or a startup that hangs past the watchdog) ends the
 /// process with a non-zero exit code after logging, so no windowless shell is left behind; a second
 /// instance of the same install in the same session exits with code 0. shell.log carries a one-line
-/// startup trail (single-instance result, windows created, pipe connect attempts with Win32 codes).
+/// startup trail (own-token readability, single-instance result, UI mode, pipe connect attempts with
+/// Win32 codes). If the main windows cannot be built, the full exception is logged, a text-input-free
+/// fallback lock window is shown (or none, if even that fails) and the pipe client starts anyway, so the
+/// service sees a live shell (<see cref="ShellUiFallback"/> says what is and is not covered).
 /// It exits only (a) on the service's "released" message after an accepted recovery code, and only
 /// when the pipe server was verified to be the PcGuard service process, or (b) when the connection is
 /// gone and the SCM reports PcGuard stopped AND disabled (a missed "released"; the service also
@@ -29,6 +32,7 @@ public partial class App : Application
     private LoginWindow? _login;
     private LockOverlay? _overlay;
     private MaintenanceBanner? _banner;
+    private FallbackLockWindow? _fallback; // only when the main windows could not be built
     private MaintenanceDialog? _dialog;
     private RecoveryDialog? _recoveryDialog;
     // request ids of recovery_release (separate from the maintenance ones)
@@ -114,17 +118,12 @@ public partial class App : Application
         }
         _instance = handle; // RunWithoutLock: null or an opened (squatted/stale) name; never stops the lock screen
 
-        _login = new LoginWindow(_lang) { Sender = m => _pipe?.SendAsync(m) ?? Task.FromResult(false) };
-        _login.LanguageChanged += OnLanguageChanged;
-        _overlay = new LockOverlay(_lang) { SignOutRequested = () => _ = _pipe?.SendAsync(new LogoutMessage()) };
-        _login.AdminRequested += () => OpenMaintenanceDialog(_login);
-        _overlay.AdminRequested = () => OpenMaintenanceDialog(_overlay);
-        _login.RecoveryRequested += () => OpenRecoveryDialog(_login);
-        _overlay.RecoveryRequested = () => OpenRecoveryDialog(_overlay);
-        _banner = new MaintenanceBanner(_lang) { EndRequested = () => _ = _pipe?.SendAsync(new AdminEndMessage()) };
-        _login.SetConnected(false);
-        _login.Show();
-        ShellLog.Info(ShellDiagnostics.Step("windows created"));
+        // The UI must never keep the pipe client from starting: if the windows cannot be built (the
+        // 2026-11-05 bug: TSF threw OutOfMemoryException inside the TextBox constructor), log the full
+        // exception, show the text-input-free fallback lock window, and connect anyway (ShellUiFallback).
+        var mode = ShellUiFallback.Mode(TryBuildMainWindows(), fallbackShown: false);
+        if (mode != ShellUiMode.Full) mode = ShellUiFallback.Mode(false, TryShowFallbackWindow());
+        ShellLog.Info(ShellDiagnostics.UiModeLine(mode));
 
         _pipe = new PipeClient(VerifyServer, ServiceStoppedAndDisabled);
         _pipe.ConnectionChanged += c => Dispatcher.BeginInvoke(() => OnConnection(c));
@@ -139,6 +138,70 @@ public partial class App : Application
         _startupWatchdog?.Dispose();
         _startupWatchdog = null;
         ShellLog.Info("Shell started");
+    }
+
+    /// <summary>Sign-in window, overlay and banner. False (after logging the full exception) when any
+    /// of them could not be built or shown; then none of them is used.</summary>
+    private bool TryBuildMainWindows()
+    {
+        try
+        {
+            _login = new LoginWindow(_lang) { Sender = m => _pipe?.SendAsync(m) ?? Task.FromResult(false) };
+            _login.LanguageChanged += OnLanguageChanged;
+            _overlay = new LockOverlay(_lang) { SignOutRequested = () => _ = _pipe?.SendAsync(new LogoutMessage()) };
+            _login.AdminRequested += () => OpenMaintenanceDialog(_login);
+            _overlay.AdminRequested = () => OpenMaintenanceDialog(_overlay);
+            _login.RecoveryRequested += () => OpenRecoveryDialog(_login);
+            _overlay.RecoveryRequested = () => OpenRecoveryDialog(_overlay);
+            _banner = new MaintenanceBanner(_lang) { EndRequested = () => _ = _pipe?.SendAsync(new AdminEndMessage()) };
+            _login.SetConnected(false);
+            _login.Show();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ShellLog.Error("Startup: building the main windows", ex);
+            DropMainWindows();
+            return false;
+        }
+    }
+
+    private void DropMainWindows()
+    {
+        var windows = new Window?[] { _login, _overlay, _banner };
+        _login = null;
+        _overlay = null;
+        _banner = null;
+        var quitting = Quitting;
+        Quitting = true; // lets the half-built windows close (their Closing handlers cancel otherwise)
+        try
+        {
+            foreach (var w in windows)
+            {
+                try { w?.Close(); }
+                catch (Exception ex) { ShellLog.Error("Startup: closing a half-built window", ex); }
+            }
+        }
+        finally
+        {
+            Quitting = quitting;
+        }
+    }
+
+    private bool TryShowFallbackWindow()
+    {
+        try
+        {
+            _fallback = new FallbackLockWindow();
+            _fallback.SetVisible(true);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ShellLog.Error("Startup: showing the fallback lock window", ex);
+            _fallback = null;
+            return false;
+        }
     }
 
     private void OnLanguageChanged(UiLang lang)
@@ -214,6 +277,7 @@ public partial class App : Application
     {
         var signedIn = _connected && _state?.Student is not null;
         var maintenance = _connected && _maintenanceUntil is not null;
+        _fallback?.SetVisible(ShellUiFallback.FallbackVisible(_connected, signedIn, maintenance));
         // maintenance mode: no sign-in lock at all (a signed-in student keeps the name banner)
         if (signedIn || maintenance || forceHideLogin) _login?.HideLogin();
         else _login?.ShowLogin();

@@ -16,8 +16,10 @@ internal static class ShellLog
 
     public static void Info(string message) => Write("INFO", message);
 
+    /// <summary>Full report: type, HRESULT and stack of the exception and its inner exceptions, never
+    /// the messages (<see cref="PcGuard.Core.ShellDiagnostics.ExceptionReport"/>).</summary>
     public static void Error(string where, Exception e)
-        => Write("ERROR", $"{where}: {e.GetType().FullName}{Environment.NewLine}{e.StackTrace}");
+        => Write("ERROR", $"{where}: {PcGuard.Core.ShellDiagnostics.ExceptionReport(e)}");
 
     private static void Write(string level, string text)
     {

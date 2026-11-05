@@ -18,25 +18,20 @@ public enum SingleInstanceAction
 }
 
 /// <summary>
-/// Single-instance rules of the shell. Background (real-PC bug, 2026-11-05): the service gives the
-/// shell token a restricted DEFAULT DACL (user: query/synchronize/read-control only, see
-/// <see cref="ShellSecurity.DefaultDaclSddl"/>). A named mutex created WITHOUT an explicit security
-/// descriptor gets that DACL, which does not grant the user MUTEX_MODIFY_STATE; for a standard user or a
-/// UAC-filtered administrator (Administrators deny-only) CreateMutex then fails with ACCESS_DENIED, the
-/// exception was swallowed, and the shell stayed alive windowless. The mutex is therefore created with
-/// the explicit <see cref="MutexSddl"/>, and ACCESS_DENIED is treated as "the name exists".
+/// Single-instance rules of the shell. The mutex <c>Local\PcGuard.Shell.SingleInstance</c> is created
+/// with DEFAULT security: since 2026-11-05 the service launches the shell with the console user's
+/// ordinary token, whose default DACL grants the user full control of the objects it creates, so a
+/// default-security named mutex works for the built-in Administrator, a UAC administrator (split token)
+/// and a standard user alike. (Background, real-PC bug: the service used to give the shell token a
+/// restricted default DACL; every named object the shell or Windows text input (TSF) created then got
+/// ACCESS_DENIED. That customization was removed, see <see cref="ShellTokenSecurity"/>.) ACCESS_DENIED
+/// or any other failure is still treated as "the name exists": the shell exits only when another
+/// genuine shell runs, otherwise it runs without the lock (a squatted name never stops the lock screen).
 /// </summary>
 public static class SingleInstancePolicy
 {
     public const int ErrorAccessDenied = 5;
     public const int ErrorAlreadyExists = 183;
-
-    /// <summary>MUTEX_ALL_ACCESS (0x001F0001) for the shell user and SYSTEM. Nothing else.</summary>
-    public static string MutexSddl(string userSid)
-    {
-        if (string.IsNullOrWhiteSpace(userSid)) throw new ArgumentException("A user SID is required", nameof(userSid));
-        return $"D:(A;;0x1F0001;;;{userSid})(A;;0x1F0001;;;SY)";
-    }
 
     /// <summary>Classifies CreateMutexEx: whether it returned a handle and GetLastError.</summary>
     public static MutexOpenResult Classify(bool handleValid, int win32Error)
@@ -190,7 +185,7 @@ public static class PinCheckRules
 /// rejections and relaunch back-off (event log). PRIVACY: only pids, session ids, enum names, exception
 /// TYPE names and Win32 codes; never user names, passwords, URLs, window titles or exception messages.
 /// </summary>
-public static class ShellDiagnostics
+public static partial class ShellDiagnostics
 {
     public const string ShellLogHint = @"%LocalAppData%\PcGuard\shell.log of the signed-in user (C:\Users\<name>\AppData\Local\PcGuard\shell.log)";
 
