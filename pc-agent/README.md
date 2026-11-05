@@ -7,7 +7,7 @@ PC Guard is a Windows service plus a small sign-in/overlay application for compu
 ## Architecture
 
 - **Service (`PcGuard.Service.exe`)**: runs as LocalSystem in session 0 and is the only authority on the PC. It signs in against the backend, holds the session token in memory only, enforces every 2 s, keeps the rule cache, queues usage events on disk and talks to the backend over HTTPS and a WebSocket.
-- **Shell (`PcGuard.Shell.exe`)**: runs as the student in the console session and acts as the service's eyes and face: sign-in screen, lock banner, message popup, and a snapshot of visible windows (exe names, browser hosts) every 2 s.
+- **Shell (`PcGuard.Shell.exe`)**: runs as the student in the console session and acts as the service's eyes and face: sign-in screen, lock banner, message popup, and a snapshot of visible windows (exe names, browser hosts) every 2 s. It is an ordinary WPF app started with the console user's unmodified token (no custom token default DACL, no deny-terminate process DACL). The student CAN end it; that gains nothing (see "Threat model: ending the shell" under Known limitations). If its windows cannot be built, it logs the full exception, shows a minimal text-input-free lock window and still connects to the service.
 - **Pipe**: the shell talks to the service over the local named pipe `PcGuard.Pipe`. The service launches the shell itself (suspended, pins its pid and creation time, then resumes) and accepts only that exact instance.
 - **Backend**: the existing platform API (`/api/v1/pc/*`). **The server decides the lock state.** The agent never unlocks by itself; it applies the rules the server sends. If the server cannot be reached the cached rules stay for 10 minutes, then the PC locks. The one exception is maintenance mode, and it also needs the server: a teacher issues a one-time code in the console and the backend confirms it (see "Maintenance mode (teacher code)"). The only offline way out is the install-time recovery code, which does not unlock but switches PC Guard off on that PC (see "Recovery code (offline escape)").
 - **Install folder**: both exes live in the same folder (`C:\Program Files\PcGuard`), writable only by SYSTEM and Administrators.
@@ -188,7 +188,7 @@ For installing many test/admin PCs without typing, the owner can build a SEPARAT
 ## Known limitations and accepted risks
 
 - **Publisher entries are spoofable.** An allowlist entry with a publisher matches the exe's `CompanyName` file metadata, which anyone can forge. A renamed game can pass an entry that has no publisher (the default allowlist has none, so such entries match by exe name only). There is no Authenticode check.
-- **Same-user code injection into the shell is only partly mitigated.** The shell is protected by a process security descriptor, a restricted token default DACL, a startup-hook-free build and a cleaned environment, and the pipe accepts only the launched instance. Other same-user vectors are not covered; a compromised shell could under-report windows.
+- **Threat model: ending the shell (accepted).** The shell runs with the student's ordinary token, so the student can end it (Task Manager, `taskkill`), suspend it, or inject code into it like into any of their own programs. This was a deliberate change on 2026-11-05: the earlier hardening (deny-terminate process DACL plus a restricted token default DACL) broke every object the shell created for UAC administrators and standard users (even a new named mutex got access denied, and Windows text input threw OutOfMemoryException in the TextBox constructor), so the lock screen never appeared on a real PC. Ending the shell gains nothing that matters: the service relaunches it (normally within about 15-20 s; a shell that is killed again and again before it ever connects is relaunched with a back-off of up to 5 minutes), a suspended shell is killed after about 30 s and relaunched, and while no shell reports, the stricter name-only fallback closes every non-allowlisted third-party app (allowlisted browsers too while a host list is active). Nobody can sign in while the shell is gone, so the PC stays locked. Honest limits: during fallback Windows inbox apps under C:\Windows (Notepad, classic tools) are spared (see "Inbox apps in fallback mode"), so a student who keeps ending the shell can keep such an app open; a shell under the student's control could under-report windows (it can only make enforcement window-blind, i.e. move it towards the same name-only rules). The pipe still accepts only the exact instance the service launched (pid + creation time + installed image path), the environment is cleaned of `DOTNET_`/`COMPlus_`/`CORECLR_`/`COR_` variables and the build has startup hooks disabled.
 - **An administrator can stop the service** (and so can anyone with administrator rights). Standard accounts are required.
 - **Violators are killed at once** with no chance to save their work (no graceful close from session 0).
 - **Never-kill rule.** While locked, a console-session process is never killed if its exe name is in the protected set (explorer, dwm, csrss, winlogon, ctfmon, sihost, taskhostw, runtimebroker, shellexperiencehost, searchhost, startmenuexperiencehost, textinputhost, conhost, applicationframehost, searchapp, searchui, lockapp, shellhost, widgets, and the PC Guard shell and service), or if it is allowlisted, or if it counts as service-owned. Service-owned means: its process token belongs to SYSTEM, LOCAL SERVICE or NETWORK SERVICE; or its token owner cannot be read AND its image is under %SystemRoot% and owned by TrustedInstaller, SYSTEM or Administrators; or even its image path cannot be read (the service cannot open the process at all, despite SeDebugPrivilege, for example protected system processes). A process whose token owner cannot be read but whose image is anywhere else (for example a user-writable folder) counts as the student's and is killed. That is the whole rule in normal (fresh) mode. In fallback mode (no fresh snapshot from the shell) processes whose image is under %SystemRoot% and owned by TrustedInstaller, SYSTEM or Administrators are also spared.
@@ -215,7 +215,7 @@ Nothing below has been run yet. Use a Windows 10 or 11 VM with snapshots: one st
 
 ### Automated self-test
 
-`scripts\selftest.ps1` checks the installed PC by itself (elevated Windows PowerShell in the console session: `powershell -NoProfile -ExecutionPolicy Bypass -File .\selftest.ps1`; it also works with a dummy `http://localhost` backend and nobody signed in). It prints PASS/FAIL/SKIP per check and writes a report to the Desktop; it changes nothing, never attempts a recovery release and never prints the recovery hash or the machine key. It automates the no-human parts of tests 8 (without the reboot), 19, 22, 47, 70, 71 and 72, and parts of 1, 3, 9, 10, 15, 24, 31, 39, 41, 48, 86, 87, 138, 145, 155, 160 and 161 (static facts, process DACLs, event log lines, and probes that start Notepad, Paint and Task Manager and expect them closed). Everything with a reboot, a standard user, Safe Mode, the backend, a quota or a recovery release still needs the manual tests. See `scripts\SELFTEST.md`. Not yet run on Windows either.
+`scripts\selftest.ps1` checks the installed PC by itself (elevated Windows PowerShell in the console session: `powershell -NoProfile -ExecutionPolicy Bypass -File .\selftest.ps1`; it also works with a dummy `http://localhost` backend and nobody signed in). It prints PASS/FAIL/SKIP per check and writes a report to the Desktop; it changes nothing (except, only with `-ProbeShellRelaunch`, ending the shell once at the end to time its relaunch, check B04), never attempts a recovery release and never prints the recovery hash or the machine key. It automates the no-human parts of tests 8 (without the reboot), 19, 22, 47, 70, 71 and 72, and parts of 1, 3, 9, 10, 15, 24, 31, 39, 41, 48, 86, 87, 138, 145, 155, 160 and 161 (static facts, the service process DACL, event log lines, and probes that start Notepad, Paint and Task Manager and expect them closed). Everything with a reboot, a standard user, Safe Mode, the backend, a quota or a recovery release still needs the manual tests. See `scripts\SELFTEST.md`. Not yet run on Windows either.
 
 ### 1. Core acceptance tests
 
@@ -471,31 +471,31 @@ Add-Type -AssemblyName System.Windows.Forms; [Windows.Forms.MessageBox]::Show('s
 - Expected: `Restart-Service PcGuard` while the shell runs: the shell reconnects within seconds.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-#### D. Shell protection (process DACL, thread kill attempts, token default DACL)
+#### D. Ending the shell, ordinary token (changed 2026-11-05: the shell is no longer protected against termination)
 
-**Test 39.** As the standard student: `taskkill /f /pid <shell pid>`, Process Explorer Kill, Task Manager End task, and a suspend attempt on PcGuard.Shell.exe.
+**Test 39.** As the standard student: `taskkill /f /pid <shell pid>`, Task Manager End task, and Process Explorer Kill on PcGuard.Shell.exe, while locked with Notepad and a non-allowlisted third-party app (for example a portable game) open.
 
-- Expected: All four fail with access denied. An elevated admin or SYSTEM can still terminate it, and the service relaunches it.
+- Expected: Ending the shell SUCCEEDS (this is by design now; it used to be denied). Within about 6 s the event log shows name-only fallback and the third-party app is closed; Notepad survives the fallback (accepted, inbox app). A new PcGuard.Shell.exe appears within about 20 s (`Launched shell (pid ...)`, then `Shell connected (pid ...)`), the sign-in screen is back, and Notepad is closed again once the shell reports. Nobody can sign in while the shell is gone. Repeat 5 times in a row: each relaunch still happens (a shell killed before it ever connected may be delayed by the back-off, Test 186; enforcement stays name-only meanwhile).
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 40.** As the student: suspend or kill the shell's individual threads (Process Explorer, Threads, Kill; or OpenThread with THREAD_TERMINATE).
+**Test 40.** As the student: suspend PcGuard.Shell.exe (Process Explorer, Suspend) or kill one of its threads (Threads tab, Kill).
 
-- Expected: All denied.
+- Expected: The suspend succeeds; after about 30 s the service logs `Killed unresponsive shell (pid ...)` and a new shell starts (as Test 12); name-only fallback in between (after about 6 s without a snapshot). A killed thread either crashes the shell (relaunched as in Test 39) or leaves it running; it never leaves the PC unlocked with no enforcement: the event log shows either fresh snapshots or name-only fallback the whole time.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 41.** As the student: open the shell with WRITE_DAC and try to rewrite its DACL, then terminate or suspend (owner-rights ACE).
+**Test 41.** The shell's token is ordinary: in Process Explorer as an administrator, compare PcGuard.Shell.exe with the user's explorer.exe (Properties, Security tab: user, groups, integrity level, privileges; and the process Permissions).
 
-- Expected: The DACL rewrite is denied, so terminate/suspend stay denied. The service log has NO error about the restricted default DACL or process security descriptor. If it has one (for example the `OW` alias in `(A;;0x0;;;OW)` was rejected), the shell started unprotected: change `ShellSecurity.DefaultDaclSddl` to the literal `S-1-3-4` form.
+- Expected: Same user, same groups (for a UAC administrator: Administrators "Deny"), integrity Medium, same privileges, no restricted SIDs. The process permissions grant the user full control (ordinary default), not a deny entry. The PC Guard event log has no `Shell protection skipped`, `Shell thread protection skipped` or `Shell process protection skipped` line (those messages no longer exist), and no `Shell token object SDDL conversion failed` or `Could not read the interactive user SID` warning.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 42.** The shell works normally under the restricted process SD and token default DACL (WPF, GDI, pipe client, single-instance mutex).
+**Test 42.** The shell works normally under the ordinary token (WPF, text input, GDI, pipe client, single-instance mutex), for a standard user and a UAC administrator: type a user name with the Uzbek/Russian/English keyboard layouts (switch with Win+Space), use the maintenance and recovery dialogs, sign in and out.
 
-- Expected: Sign-in, banner, popup and snapshots work through a full session; no access-denied on its own objects.
+- Expected: Sign-in, banner, popup, dialogs and snapshots work through a full session; shell.log has no `ERROR` line, no `OutOfMemoryException`, no `AccessDenied`/`Win32 5`, and its startup line says `Administrators enabled: no` (not `unknown`).
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 43.** Windows Error Reporting for a crashed shell: force a crash of the shell as the student (for example with an admin tool that injects a crash) and check Reliability Monitor / %LocalAppData%\CrashDumps.
+**Test 43.** Windows Error Reporting for a crashed shell: force a crash of the shell (for example with an admin tool that injects a crash) and check Reliability Monitor / %LocalAppData%\CrashDumps.
 
-- Expected: A WER entry for PcGuard.Shell.exe exists. If none exists, mark Fail and note it as an accepted loss caused by the deny ACE.
+- Expected: A WER entry for PcGuard.Shell.exe exists (nothing blocks WER from opening the process any more), and the service relaunches the shell.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 44.** Failure paths of the suspended launch: a failing pin callback or GetProcessTimes must leave no orphaned suspended PcGuard.Shell.exe (review or force if feasible).
@@ -503,7 +503,7 @@ Add-Type -AssemblyName System.Windows.Forms; [Windows.Forms.MessageBox]::Show('s
 - Expected: Process Explorer never shows a suspended PcGuard.Shell.exe after many relaunches.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 45.** Many launches do not leak handles (security descriptor LocalFree, token, environment block).
+**Test 45.** Many launches do not leak handles (token, token-object security descriptor LocalFree, environment block).
 
 - Expected: End the shell as admin 50 times: the handle count of PcGuard.Service.exe stays flat.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
@@ -1242,9 +1242,9 @@ Use only fake codes such as `Fake-Test-Code-0001`. Unless a test says otherwise,
 - Expected: The second copy exits at once with code 0 and shows no window; exactly one PcGuard.Shell.exe remains (the service's). `%LocalAppData%\PcGuard\shell.log` gets `Startup: single-instance mutex AlreadyExists (Win32 183): ExitDuplicate` for the copy (never an `ERROR Dispatcher: System.UnauthorizedAccessException`). The first shell keeps working (sign-in, snapshots: self-test C03/C05 pass).
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
-**Test 184.** Shell under the hardened token default DACL (the real-PC bug of 2026-11-05, Windows build 26300, UAC administrator): install, sign in as a standard user, and as an administrator inspect the shell's mutex with Sysinternals `handle.exe -a -p PcGuard.Shell.exe | findstr SingleInstance` and WinObj (`\Sessions\<n>\BaseNamedObjects\PcGuard.Shell.SingleInstance`, Security tab). Also check a shell thread in Process Explorer (Threads tab, Permissions).
+**Test 184.** Shell single-instance mutex under the ordinary token (follow-up of the real-PC bug of 2026-11-05, Windows build 26300, UAC administrator): install, sign in as a standard user, and as an administrator inspect the shell's mutex with Sysinternals `handle.exe -a -p PcGuard.Shell.exe | findstr SingleInstance` and WinObj (`\Sessions\<n>\BaseNamedObjects\PcGuard.Shell.SingleInstance`, Security tab).
 
-- Expected: The mutex exists, its DACL grants only the shell user and SYSTEM (MUTEX_ALL_ACCESS), shell.log shows `Startup: single-instance mutex CreatedNew (Win32 0): RunAsPrimary`, `Startup: windows created`, `Startup: pipe client and snapshot sender started`, `Shell started`, then `Pipe: connected on attempt 1 (server Verified)`. Thread objects still grant the user only query/synchronize/read-control (the default DACL protection is unchanged, VM 39/41).
+- Expected: The mutex exists with the user's ordinary default security (the user and SYSTEM have full control; the mutex is created with default security since the token is no longer customized), shell.log shows `Startup: single-instance mutex CreatedNew (Win32 0): RunAsPrimary`, `Startup: windows created`, `Startup: pipe client and snapshot sender started`, `Shell started`, then `Pipe: connected on attempt 1 (server Verified)`.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 **Test 185.** UAC administrator account (split token): repeat tests 10 and 184 signed in as a local administrator with UAC on (default), NOT the built-in Administrator; then once more with the built-in Administrator.
@@ -1264,12 +1264,37 @@ Use only fake codes such as `Fake-Test-Code-0001`. Unless a test says otherwise,
 
 **Test 188.** No zombie processes after 5 minutes: on the PC of test 185 (and once with test 186's broken shell), leave the PC signed in for 5 minutes, then `tasklist /v /fi "imagename eq PcGuard.Shell.exe"` and run the self-test.
 
-- Expected: At most one PcGuard.Shell.exe in the console session, and it owns a visible window (sign-in screen or overlay; the "Window Title" column is not `N/A`) or it is a just-launched instance younger than 20 s. A shell that failed during startup ends itself (`Startup failed (...): exiting with code 3` or `Startup did not complete within 20 s: exiting with code 4` in shell.log) instead of staying alive without windows. Self-test B02 reports one shell.
+- Expected: At most one PcGuard.Shell.exe in the console session, and it owns a visible window (sign-in screen or overlay; the "Window Title" column is not `N/A`) or it is a just-launched instance younger than 20 s. A shell that failed during startup ends itself (`Startup failed (...): exiting with code 3` or `Startup did not complete within 20 s: exiting with code 4` in shell.log) instead of staying alive without windows; the one exception is a failure while building the windows, which shows the minimal fallback lock window (`Startup: main windows failed ...`) and keeps the shell connected (Test 193). Self-test B02 reports one shell.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 189.** Lock screen as the built-in Administrator (no split token): enable the built-in Administrator (`net user Administrator /active:yes` and a password), sign in to Windows with it on a PC with PC Guard installed.
+
+- Expected: The sign-in screen covers all monitors within about 10 s and you can type into the user name and password boxes. shell.log (`C:\Users\Administrator\AppData\Local\PcGuard\shell.log`) shows `Startup: pid N, session S, Administrators enabled: yes`, `Startup: single-instance mutex CreatedNew (Win32 0): RunAsPrimary`, `Startup: windows created`, `Shell started`, `Pipe: connected on attempt 1 (server Verified)`. Event log `Shell connected (pid ...)`. Self-test B02, C03 and C05 pass.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 190.** Lock screen as a UAC administrator (split token): a local administrator account with UAC on (the default), NOT the built-in Administrator; the account of the 2026-11-05 bug, if possible on Windows build 26300.
+
+- Expected: As Test 189, but the startup line says `Administrators enabled: no` (filtered token); it must never say `unknown (own token not readable, Win32 ...)`. You can type into the boxes (TSF works). No `Killed unresponsive shell` entry.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 191.** Lock screen as a standard user: sign in to Windows as the standard student account.
+
+- Expected: As Test 190 (`Administrators enabled: no`, `CreatedNew`, `windows created`, connected); a full sign-in to PC Guard with a real student works.
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 192.** Ending the shell as the student gains nothing: signed in to Windows as the standard student, PC locked, Notepad and a portable non-allowlisted app open; end PcGuard.Shell.exe with Task Manager; also once run the self-test as administrator with `-ProbeShellRelaunch`.
+
+- Expected: The shell ends (allowed). Within about 6 s the event log shows name-only fallback, and the non-allowlisted third-party app (and any non-allowlisted app started now) is closed; inbox apps such as Notepad survive the fallback (accepted). A new shell is launched within about 20 s and connects; the sign-in screen is back, window-aware enforcement resumes (Notepad closed). Self-test B04 passes (`new shell pid N seen after about X s`, X at most 40).
+- Result: [ ] Pass  [ ] Fail   Notes: ______
+
+**Test 193.** No OutOfMemoryException or AccessDenied in shell.log: after tests 189 to 192, search every tested account's shell.log: `findstr /i /c:"OutOfMemoryException" /c:"AccessDenied" /c:"Win32 5)" /c:"Startup failed" /c:"main windows failed" /c:"no window could be created" %LocalAppData%\PcGuard\shell.log`.
+
+- Expected: No match (for logs written by this build; delete the old shell.log before Test 189 to be sure). If `main windows failed: showing the fallback lock window` ever appears, the shell fell back to the minimal lock window (no sign-in possible) but still connected: the `ERROR Startup: building the main windows: <type> (HRESULT 0x...)` lines above it name the cause; record them, that is a Fail of this test.
 - Result: [ ] Pass  [ ] Fail   Notes: ______
 
 ### 3. Results
 
-Fill in after each run. Total tests: 189 (7 core, 182 additional).
+Fill in after each run. Total tests: 194 (7 core, 187 additional).
 
 | Date | Tester | Windows build (winver) | Agent commit | Passed | Failed | Not run | Notes |
 |------|--------|------------------------|--------------|--------|--------|---------|-------|

@@ -71,23 +71,42 @@ student's desktop, so the service is the authority and the shell is its eyes.
   pins its pid and creation time, then resumes) and accepts only that instance. There is no
   Run key, scheduled task or Startup shortcut for the shell; if the shell dies the service
   relaunches it (at most once per 15 s; a hung shell is killed after about 30 s).
-- **Shell protection**: deny-terminate process DACL, restricted token default DACL with an
-  OWNER RIGHTS ACE, environment variables `DOTNET_`, `COMPlus_`, `CORECLR_`, `COR_` stripped
-  from its environment, and `StartupHookSupport=false` in the published build. The install
-  folder is writable only by SYSTEM and Administrators.
-  Consequence of the restricted default DACL (real-PC bug, 2026-11-05): it grants the user no
-  `MUTEX_MODIFY_STATE`/`EVENT_MODIFY_STATE` (bit 0x0001 is also THREAD/PROCESS_TERMINATE), so a
-  NAMED kernel object the shell creates without an explicit security descriptor is unusable for a
-  standard user or a UAC-filtered administrator (`CreateMutex` fails with ACCESS_DENIED; the
-  built-in Administrator, whose Administrators group is enabled, was not affected). Every named
-  object of the shell therefore carries an explicit SD: the single-instance mutex
-  `Local\PcGuard.Shell.SingleInstance` grants only the user and SYSTEM. If the name exists or
-  cannot be opened, the shell exits (code 0) only when another process with this install's shell
-  image runs in the same session; otherwise the name is squatted or stale and the shell runs anyway
-  (a user-creatable name must never suppress the lock screen; the pipe pin still rejects any
-  instance the service did not launch).
-- **Shell startup failures**: an exception before the shell is fully initialised (windows shown,
-  pipe client started), or a startup that does not complete within 20 s (watchdog), ends the shell
+- **Shell token (changed 2026-11-05, real-PC bug)**: the shell runs with the console user's
+  ORDINARY token from WTSQueryUserToken. Nothing inside the token is changed (no custom default
+  DACL, no privilege, integrity, group or session change, no restricted token) and the process and
+  thread get default security (no deny-terminate/suspend/inject ACEs, no owner change, no OWNER
+  RIGHTS entry). The token is duplicated only to give the token OBJECT an explicit descriptor
+  (SYSTEM, Administrators, the user: `ShellTokenSecurity.TokenObjectSddl`) so the shell can open its
+  own token like any normal process. Kept: environment variables `DOTNET_`, `COMPlus_`, `CORECLR_`,
+  `COR_` stripped from its environment, `StartupHookSupport=false` in the published build, the
+  suspended start and pin (the pipe accepts only that instance: pid + creation time + installed image
+  path), and the install folder writable only by SYSTEM and Administrators.
+  Why the earlier hardening was removed: it restricted the token's default DACL so the user got only
+  query/synchronize/read-control on every object the shell created. For a UAC administrator (split
+  token, Administrators deny-only) or a standard user, every NAMED object the shell or Windows created
+  for it without an explicit descriptor became unusable: the single-instance mutex got ACCESS_DENIED
+  and Windows text input (TSF, `TF_CreateInputProcessorProfiles`) failed with E_OUTOFMEMORY, which
+  WPF raised as OutOfMemoryException in the TextBox constructor, so the sign-in window was never
+  built (shell.log of 2026-11-05: `single-instance mutex AccessDenied (Win32 5)`, then the
+  OutOfMemoryException stack, `Administrators enabled: unknown`). The built-in Administrator (BA
+  enabled, BA had full control in that DACL) was not affected. Hardening the shell against
+  termination is not required (see 7). The single-instance mutex
+  `Local\PcGuard.Shell.SingleInstance` uses default security. If the name exists or cannot be
+  opened, the shell exits (code 0) only when another process with this install's shell image runs in
+  the same session; otherwise the name is squatted or stale and the shell runs anyway (a
+  user-creatable name must never suppress the lock screen; the pipe pin still rejects any instance
+  the service did not launch).
+- **Shell UI fallback (defence in depth)**: if building or showing the sign-in window, overlay or
+  banner throws during startup (OutOfMemoryException, COMException, anything), the shell logs the
+  full exception (type, HRESULT, stack, inner exceptions; never messages), shows a minimal
+  full-screen topmost lock window built in code from a Border and a TextBlock only (no text input,
+  so no TSF; fixed uz/ru notice; nobody can sign in through it), or no window if even that fails,
+  and in every case starts the pipe client, so the service sees a live shell and keeps
+  window-aware enforcement. Not covered: uncatchable crashes (stack overflow, access violation,
+  native fail-fast), failures before `OnStartup`, and dialogs opened later (logged by the dispatcher
+  handler; the shell keeps running).
+- **Shell startup failures**: an exception before the shell is fully initialised (pipe client
+  started; a window failure is handled by the UI fallback above), or a startup that does not complete within 20 s (watchdog), ends the shell
   with exit code 3 or 4 after a shell.log line; it never stays alive without windows. After startup,
   UI exceptions are logged and the shell keeps running. shell.log carries a one-line startup trail
   (pid, session, whether Administrators is enabled, single-instance result with Win32 code, windows
@@ -439,8 +458,18 @@ second day. The report is limited to the calling teacher's students and 31 days.
   5 minutes, and a 6-digit code is guessable only within those limits.
 - The device token is scoped to `/pc/*` (see 4.2), lives 14 h, is kept in memory only, and is
   revoked by logout or a new login on the machine.
-- The shell is launched only by the service and protected as described in 4.1; the pipe
-  accepts only that instance.
+- The shell is launched only by the service with the user's ordinary token (4.1); the pipe
+  accepts only that instance. Threat model of the shell process: the student CAN end, suspend or
+  inject into it like any of their own programs. That gains nothing that matters: the service
+  relaunches it (MinLaunchInterval 15 s; back-off up to 5 min only for shells that never connect), a
+  hung or suspended shell is killed after about 30 s, and while no shell reports the stricter
+  name-only fallback closes every non-allowlisted third-party app (and allowlisted browsers while a
+  host list is active); nobody can sign in meanwhile, so the PC stays locked. Residual, accepted: in
+  fallback the Windows inbox apps under %SystemRoot% are spared, so a student who keeps ending the
+  shell can keep such an app (Notepad) open; a shell under the student's control can under-report
+  windows, which only pushes enforcement towards the same name-only rules. The earlier
+  deny-terminate process DACL and restricted token default DACL were removed on 2026-11-05 because
+  they broke the shell for UAC administrators and standard users (4.1).
 - A device that stops sending heartbeats is shown as offline within 90 s.
 - Student passwords are never stored on the PC or in the backend by this feature. The
   password travels from the shell to the service as a .NET string and cannot be zeroed in
@@ -536,11 +565,13 @@ privacy search (checklist tests 87 and 88) has not been run.
   binding), device-token scoping, WebSocket flow, usage rules, allowlist, commands, scoping
   and report.
 - Agent: unit tests of the pure logic in `PcGuard.Core` (matcher, rule cache, usage tracker
-  and queue, planner, pipe protocol, browser rule, ownership, shell security, UI strings).
+  and queue, planner, pipe protocol, browser rule, ownership, shell startup and UI fallback rules, shell token
+  object descriptor, UI strings).
   The Windows service, shell and scripts are only compile-checked.
 - Frontend: component tests for the console tabs, in `frontend/src/__tests__/`.
-- Manual: the 169-test Windows VM checklist in `pc-agent/README.md` (tests 120 to 137 cover
-  maintenance mode, 144 to 154 and 158 to 168 the recovery code, 155 to 157 the startup grace).
+- Manual: the 194-test Windows VM checklist in `pc-agent/README.md` (tests 120 to 137 cover
+  maintenance mode, 144 to 154 and 158 to 168 the recovery code, 155 to 157 the startup grace,
+  39 to 43 and 189 to 193 the ordinary shell token and ending the shell).
 
 ## 11. Delivery order
 
@@ -579,7 +610,7 @@ Setup confirmation) 965.
 
 Never run: the Windows service, the shell and the installer scripts (`install.ps1`,
 `uninstall.ps1`, `publish.ps1`). They compile (0-warning build) but nothing has executed on
-Windows. The 169-test VM checklist in `pc-agent/README.md` must be run before any rollout;
+Windows. The 194-test VM checklist in `pc-agent/README.md` must be run before any rollout;
 treat enforcement, shell protection, the Safe Mode registration, browser address-bar reading
 and the installer rollback as unverified until then.
 
@@ -589,8 +620,9 @@ Accepted or parked risks:
 - Allowlisted interpreters (`python.exe`, `node.exe`) own any windows they open (pygame,
   Electron), so those windows are not closed.
 - WSL, Docker and VM guests are not seen; only the host-side window is checked.
-- Same-user code injection into the shell is only partly mitigated; a compromised shell could
-  under-report windows.
+- The student can end, suspend or inject into the shell (ordinary token since 2026-11-05); the
+  service relaunches it and the name-only fallback applies meanwhile (inbox apps spared, see 7); a
+  compromised shell could under-report windows.
 - An administrator can stop the service; Safe Mode behaviour is untested.
 - Maintenance mode needs the backend and a device the console knows with its current machine
   key: otherwise a locked PC can only be freed through the recovery code (if set), Safe Mode or

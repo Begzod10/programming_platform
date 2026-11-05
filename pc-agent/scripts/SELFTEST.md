@@ -16,7 +16,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\selftest.ps1
 ```
 
 Options: `-Quiet` (console shows only FAIL lines and the summary), `-NoProbes` (skip section D: nothing
-is started), `-OutFile <path>`, `-ExpectedBaseUrl <url>` and `-ExpectedExtraApps <names>` (compare the
+is started), `-ProbeShellRelaunch` (opt-in check B04: end the shell once at the very end and expect a
+new one within 40 s), `-OutFile <path>`, `-ExpectedBaseUrl <url>` and `-ExpectedExtraApps <names>` (compare the
 installed `appsettings.json` with what you installed), `-InstallDir`, `-LogHours` (default 2).
 
 Output: one line per check, `[PASS] id title` (details on the next line), `[FAIL] id title - detail`
@@ -51,7 +52,8 @@ checks need a recent service start: if the service has run longer than `-LogHour
 | E01-E03 | BaseUrl scheme (http only for localhost, with a warning); no secret-like keys/values in `appsettings.json`; `machine.key` not readable by standard users | 22, 69, 135 |
 | B01-B02 | `PcGuard.Service.exe` as SYSTEM in session 0; one `PcGuard.Shell.exe` in the console session as the console user | 8, 10, 86 |
 | B03 | Pipe `\\.\pipe\PcGuard.Pipe` exists (it is not connected to) | 34 (indirect) |
-| B04-B05 | Process DACLs read with READ_CONTROL: shell owner Administrators, first ACE denies 0x82B to the user, no terminate/suspend grant; service grants standard users no terminate | 3, 39, 41 (structure only) |
+| B04 | Informational, opt-in (`-ProbeShellRelaunch`, otherwise SKIP), runs after section D: ends the shell once and expects a new `PcGuard.Shell.exe` in the console session within 40 s (the shell is no longer protected against termination; ending it gains nothing) | 39, 192 |
+| B05 | Service process DACL read with READ_CONTROL: standard users get no terminate right | 3 (structure only) |
 | C01-C09 | Application log (provider `PcGuard.Service`, last `-LogHours`): service start, `SeDebugPrivilege enabled`, shell launched + connected, startup grace lines with no kills before the shell connected, window-aware mode (`Shell snapshots resumed` is logged only after a fallback period, so its absence is not a failure), no Error/Critical entries, warnings listed, extra-apps warning; privacy scan for `pbkdf2`, the recovery hash parts, the machine key and `?token=` (counts only) | 9, 10, 24, 31, 41, 87, 138, 155 |
 | D01-D03 | `notepad.exe`, `mspaint.exe`, `taskmgr.exe` started from this elevated window are gone within 20 s and the log shows `Terminated <exe>` | 1, 15, 19 |
 | D04-D07 | An allowlisted `cmd.exe` window started by the test, `explorer.exe`, this `powershell.exe` and AnyDesk (if it is an extra app and running) survive the 20 s | 15, 138 |
@@ -62,7 +64,7 @@ no current name-only fallback. Processes are started with plain `Start-Process` 
 window: the service treats an elevated administrator's processes in the console session like any
 student process (their token owner is Administrators, not a service account). Afterwards the script
 closes only the test processes it started (new instances since the probe began, and its cmd.exe).
-`Add-Type` compiles a small helper (console session id, process security descriptors) with csc.exe,
+`Add-Type` compiles a small helper (console session id, the service's process security descriptor) with csc.exe,
 which runs without a window and is not affected by PC Guard.
 
 ## Expected results on the dummy-backend test setup
@@ -71,7 +73,8 @@ Installed with `Setup-PcGuard.exe --install --backend-url http://localhost:8001/
 no backend running, nobody signed in to PC Guard (locked, `no_student`), sign-in screen up, service
 started within the last 2 hours:
 
-- All A, B, E and F checks PASS. E01 passes with the plain-http WARNING. A13 shows `[anydesk.exe]`.
+- All A, B, E and F checks PASS, except B04, which is SKIP unless `-ProbeShellRelaunch` was given
+  (then PASS: a new shell within about 15-20 s). E01 passes with the plain-http WARNING. A13 shows `[anydesk.exe]`.
   A17 is SKIP (no `rules.json` without a backend) or PASS. F01/F02 PASS as "absent" or "present, format ok".
 - C01-C06, C08, C09 PASS; C07 lists the warnings, at least `Backend:BaseUrl uses plain http ...` and
   `Extra allowed apps configured on this PC ...`. If the service started at the Windows logon screen,
@@ -82,7 +85,7 @@ started within the last 2 hours:
 ## What still needs a human or the VM
 
 Reboot behaviour (8, 78, 142, 153, 155 reboot part, 160), anything as a standard user (3, 22 `type`,
-39-41, 48, 71 replace/delete attempts, 158), Safe Mode (92), backend sign-in and everything that
+39-41, 48, 189-193, 71 replace/delete attempts, 158), Safe Mode (92), backend sign-in and everything that
 depends on it (2, 4-7, 25-30, 52-54, 120-137), lesson quota (1 and 2 with a real student), the browser
 host rule (55-61, 89-90), UWP / desktops / fast user switching (62-67), the shell UI (79-86), Setup and
 Cleanup (93-119, 144, 150, 167, 168), fake shells and pipe squatting (32-37, 133, 149, 164), and the
