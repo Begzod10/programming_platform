@@ -65,8 +65,15 @@ public sealed class HiddenLineEditor : IDisposable
 
 public enum RecoveryPromptOutcome { NotSet, Set, Aborted }
 
+/// <summary>Where the recovery code of an install came from (shown in Setup's summary).</summary>
+public enum RecoveryCodeSource { None, Typed, Default }
+
 /// <param name="Hash">The stored form (see <see cref="RecoveryCode"/>) when <see cref="Outcome"/> is Set; otherwise null.</param>
-public sealed record RecoveryPromptResult(RecoveryPromptOutcome Outcome, string? Hash);
+public sealed record RecoveryPromptResult(RecoveryPromptOutcome Outcome, string? Hash)
+{
+    /// <summary>Typed or Default when <see cref="Outcome"/> is Set; otherwise None.</summary>
+    public RecoveryCodeSource Source { get; init; } = Outcome == RecoveryPromptOutcome.Set ? RecoveryCodeSource.Typed : RecoveryCodeSource.None;
+}
 
 /// <summary>
 /// Setup's interactive recovery code question: hidden entry, validation, a second hidden entry to
@@ -83,6 +90,71 @@ public static class RecoveryCodePrompt
     public const string FirstPrompt = "Recovery code for this PC (at least 12 characters; typed hidden; empty = none): ";
     public const string ConfirmPrompt = "Type the recovery code again to confirm: ";
     public const string NoCodeConfirmPrompt = "Install without a recovery code? (y/N): ";
+    public const string DefaultPrompt = "A default recovery code file was found (" + DefaultRecoveryCode.FileName + "). Press Enter to use it, type another code, or type - (a single dash) to install without a recovery code: ";
+
+    /// <summary>The value after "Recovery code:" in Setup's summary before YES.</summary>
+    public static string SummaryText(RecoveryCodeSource source) => source switch
+    {
+        RecoveryCodeSource.Default => "set (from " + DefaultRecoveryCode.FileName + ")",
+        RecoveryCodeSource.Typed => "set (typed)",
+        _ => "NOT set (no offline way out)",
+    };
+
+    /// <summary>
+    /// The question when a valid <see cref="DefaultRecoveryCode.FileName"/> was loaded: hidden entry;
+    /// empty = use <paramref name="defaultCode"/>; exactly "-" = no code; anything else is a typed code
+    /// (validated and confirmed as in <see cref="Run"/>; an invalid one or a mismatch asks this question
+    /// again, <see cref="MaxTries"/> failed tries abort). No console = no code. Every typed char[] is
+    /// zeroed here; <paramref name="defaultCode"/> belongs to the caller and is not zeroed here.
+    /// </summary>
+    public static RecoveryPromptResult RunWithDefault(char[] defaultCode, Func<string, char[]?> readHidden, Action<string> error,
+        Func<char[], string>? hash = null)
+    {
+        ArgumentNullException.ThrowIfNull(defaultCode);
+        hash ??= c => RecoveryCode.Hash(c.AsSpan());
+        for (var attempt = 1; attempt <= MaxTries; attempt++)
+        {
+            var first = readHidden(DefaultPrompt);
+            if (first is null) return new RecoveryPromptResult(RecoveryPromptOutcome.NotSet, null);
+            try
+            {
+                if (first.Length == 0)
+                    return new RecoveryPromptResult(RecoveryPromptOutcome.Set, hash(defaultCode)) { Source = RecoveryCodeSource.Default };
+                if (first.Length == 1 && first[0] == '-')
+                    return new RecoveryPromptResult(RecoveryPromptOutcome.NotSet, null);
+                if (RecoveryCode.Validate(first) is { } invalid)
+                {
+                    error(invalid);
+                    continue;
+                }
+                var second = readHidden(ConfirmPrompt);
+                if (second is null)
+                {
+                    error("No input for the confirmation. Installation aborted. Nothing was changed.");
+                    return new RecoveryPromptResult(RecoveryPromptOutcome.Aborted, null);
+                }
+                try
+                {
+                    if (!first.AsSpan().SequenceEqual(second))
+                    {
+                        error("The two entries do not match.");
+                        continue;
+                    }
+                    return new RecoveryPromptResult(RecoveryPromptOutcome.Set, hash(first)) { Source = RecoveryCodeSource.Typed };
+                }
+                finally
+                {
+                    Array.Clear(second);
+                }
+            }
+            finally
+            {
+                Array.Clear(first);
+            }
+        }
+        error($"No valid recovery code after {MaxTries} tries. Installation aborted. Nothing was changed.");
+        return new RecoveryPromptResult(RecoveryPromptOutcome.Aborted, null);
+    }
 
     /// <param name="readHidden">Shows the prompt and returns the typed characters (exact length), or null when there is no console.</param>
     /// <param name="error">Prints one error line.</param>

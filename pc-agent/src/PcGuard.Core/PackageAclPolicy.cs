@@ -26,6 +26,7 @@ public enum AceRights : uint
     FullControl = 0x1F01FF,
     GenericAll = 0x10000000,
     GenericWrite = 0x40000000,
+    GenericRead = 0x80000000,
 }
 
 /// <summary>One access-control entry of a package path (path, trustee SID string, allow/deny, rights).</summary>
@@ -81,14 +82,17 @@ public static class PackageAclPolicy
     }
 
     /// <summary>Allow entries for Users, Authenticated Users, Everyone or INTERACTIVE that grant write-like rights. Deny entries are ignored.</summary>
-    public static IReadOnlyList<UnsafeGrant> FindUnsafeGrants(IEnumerable<AceInfo> aces)
+    public static IReadOnlyList<UnsafeGrant> FindUnsafeGrants(IEnumerable<AceInfo> aces) => FindLowPrivilegeGrants(aces, Dangerous);
+
+    /// <summary>Allow entries for Users, Authenticated Users, Everyone or INTERACTIVE with any of <paramref name="rights"/>. Deny entries are ignored.</summary>
+    public static IReadOnlyList<UnsafeGrant> FindLowPrivilegeGrants(IEnumerable<AceInfo> aces, AceRights rights)
     {
         var result = new List<UnsafeGrant>();
         foreach (var a in aces)
         {
             if (!a.Allow) continue;
             if (!LowPrivilegeGroups.TryGetValue(a.Sid, out var name)) continue;
-            if ((a.Rights & Dangerous) != 0)
+            if ((a.Rights & rights) != 0)
                 result.Add(new UnsafeGrant(a.Path, a.Sid, name));
         }
         return result;

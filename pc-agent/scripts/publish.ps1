@@ -31,6 +31,8 @@ try {
         if (-not (Test-Path $p)) { throw "Project not found: $p" }
     }
 
+    # A default recovery code file holds a plain-text secret: it must never end up in a built package.
+    $secretName = 'default-recovery-code.txt'
     $out = [System.IO.Path]::GetFullPath($OutputDir)
     # Safety: refuse to wipe a drive root or the repo root.
     if ($out.TrimEnd('\') -eq [System.IO.Path]::GetPathRoot($out).TrimEnd('\') -or $out.TrimEnd('\') -eq $root.TrimEnd('\')) {
@@ -50,6 +52,14 @@ try {
 
     foreach ($exe in @('PcGuard.Service.exe', 'PcGuard.Shell.exe', 'appsettings.json')) {
         if (-not (Test-Path (Join-Path $out $exe))) { throw "Expected file missing in output: $exe" }
+    }
+
+    # Guard: fail the build if a default recovery code file is anywhere in the output (or next to it in the package root).
+    $leak = @(Get-ChildItem -LiteralPath $out -Recurse -Force -Filter $secretName -ErrorAction SilentlyContinue)
+    $pkgRoot = Split-Path -Parent $out
+    if (Test-Path -LiteralPath (Join-Path $pkgRoot $secretName)) { $leak += (Join-Path $pkgRoot $secretName) }
+    if ($leak.Count -gt 0) {
+        throw "$secretName found in the build output or package folder ($($leak.Count) entr$(if ($leak.Count -eq 1) {'y'} else {'ies'})). It holds a plain-text recovery code and must never be packaged: delete it and build again."
     }
 
     # The shell must keep startup hooks disabled (injection hardening): fail the build otherwise.

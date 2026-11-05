@@ -5,3 +5,6 @@ dist/
 *.zip
 dist-setup/
 dist-cleanup/
+
+# plain-text default recovery code: never commit, never package
+default-recovery-code.txt

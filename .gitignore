@@ -45,3 +45,6 @@ backend/alembic/versions/
 # Browser profile captured during local testing — 241 MB of cookies,
 # sessions and cache. Never belongs in the repo.
 antigravity-browser-profile/
+
+# PC Guard: plain-text default recovery code (never commit, never package)
+default-recovery-code.txt

@@ -52,6 +52,14 @@ internal static class PackageAcl
         return new PackageScan(aces, reparse, count);
     }
 
+    /// <summary>The ACEs of one file (the default recovery code file in the package root).</summary>
+    public static IReadOnlyList<AceInfo> ReadFile(string path)
+    {
+        var aces = new List<AceInfo>();
+        AddAces(aces, path, new FileInfo(path).GetAccessControl(AccessControlSections.Access));
+        return aces;
+    }
+
     private static void AddAces(List<AceInfo> aces, string path, FileSystemSecurity sec)
     {
         foreach (FileSystemAccessRule r in sec.GetAccessRules(true, true, typeof(SecurityIdentifier)))

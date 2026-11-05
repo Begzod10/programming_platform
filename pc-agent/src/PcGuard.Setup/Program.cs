@@ -16,6 +16,7 @@ internal static class Program
     private const int ExitUnsafePackage = 4;
     private const int ExitNotElevated = 1;
     private const int ExitCancelled = 130;
+    private const int ExitDefaultCode = 64;
 
     // Real Windows folder from the OS API, never from an environment variable.
     private static readonly string WindowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
@@ -113,8 +114,11 @@ internal static class Program
             return ExitUsage;
         }
 
-        if (!CheckPackageAcl(packageRoot, args.AllowWritablePackage))
+        if (!CheckPackageAcl(packageRoot, args.AllowWritablePackage, out var packageVerified))
             return ExitUnsafePackage;
+        // The default recovery code file is read only from a package folder that really passed the check.
+        var defaultCodeAllowed = packageVerified && !args.AllowWritablePackage;
+        var defaultCodePath = Path.Combine(packageRoot, DefaultRecoveryCode.FileName);
 
         var silent = args.Install && args.BackendUrl is not null;
         var urlInput = args.BackendUrl;
@@ -159,20 +163,55 @@ internal static class Program
         // Offline recovery code (stops and disables PC Guard on this PC from the lock screen). Typed hidden,
         // twice; only its PBKDF2 hash leaves this process, and only through a file in Setup's admin-only
         // temp folder (-RecoveryCodeHashFile). Neither the code nor the hash is ever on a command line.
+        // An optional default-recovery-code.txt in the package folder can supply the code (never hardcoded,
+        // never on a command line); it goes through the same hash and the same admin-only hash file.
         string? recoveryHash = null;
+        var recoverySource = RecoveryCodeSource.None;
         if (args.NoRecoveryCode)
         {
             // explicitly none: nothing asked, nothing passed (an upgrade keeps a code set before)
+            if (DefaultCodeEntryExists(defaultCodePath))
+                Console.WriteLine($"Note: {DefaultRecoveryCode.FileName} is present but not used (--no-recovery-code).");
+        }
+        else if (args.DefaultRecoveryCode)
+        {
+            using var def = LoadDefaultCode(defaultCodePath, defaultCodeAllowed);
+            if (def.Status != DefaultCodeStatus.Loaded || def.Code is null)
+            {
+                Console.Error.WriteLine(def.Message ?? $"--default-recovery-code: {DefaultRecoveryCode.FileName} was not found next to Setup-PcGuard.exe ({packageRoot}).");
+                Console.Error.WriteLine("Installation aborted. Nothing was changed.");
+                return ExitDefaultCode;
+            }
+            Console.WriteLine($"Using the recovery code from {DefaultRecoveryCode.FileName} (--default-recovery-code).");
+            recoveryHash = RecoveryCode.Hash(def.Code.AsSpan());
+            recoverySource = RecoveryCodeSource.Default;
         }
         else if (silent)
         {
             Console.WriteLine("Warning: no recovery code is set by a silent install (there is no offline way out of a stuck lock screen). Run Setup interactively to set one, or pass --no-recovery-code to silence this warning.");
+            if (DefaultCodeEntryExists(defaultCodePath))
+                Console.WriteLine($"Note: {DefaultRecoveryCode.FileName} is present but not used; pass --default-recovery-code to use it.");
         }
         else
         {
-            var prompt = RecoveryCodePrompt.Run(ReadHidden, e => Console.Error.WriteLine(e), confirmNoCode: AskYesNoOrNull);
+            using var def = LoadDefaultCode(defaultCodePath, defaultCodeAllowed);
+            RecoveryPromptResult prompt;
+            if (def.Status == DefaultCodeStatus.Loaded && def.Code is not null)
+            {
+                prompt = RecoveryCodePrompt.RunWithDefault(def.Code, ReadHidden, e => Console.Error.WriteLine(e));
+            }
+            else
+            {
+                if (def.Message is not null)
+                {
+                    Console.Error.WriteLine(def.Message);
+                    Console.Error.WriteLine("The default recovery code file is not used; type a code instead.");
+                }
+                prompt = RecoveryCodePrompt.Run(ReadHidden, e => Console.Error.WriteLine(e), confirmNoCode: AskYesNoOrNull);
+            }
             if (prompt.Outcome == RecoveryPromptOutcome.Aborted) return ExitUsage;
             recoveryHash = prompt.Hash;
+            recoverySource = prompt.Source;
         }
 
         var distDir = Path.Combine(packageRoot, "dist");
@@ -184,13 +223,9 @@ internal static class Program
         Console.WriteLine("  Extra apps  : " + (extraApps.Count > 0
             ? string.Join(", ", extraApps) + " (kept running on this PC even while it is locked)"
             : "none given (an upgrade keeps the extra apps configured before)"));
-        if (recoveryHash is not null)
+        Console.WriteLine("  Recovery code: " + RecoveryCodePrompt.SummaryText(recoveryHash is null ? RecoveryCodeSource.None : recoverySource));
+        if (recoveryHash is null)
         {
-            Console.WriteLine("  Recovery code: set");
-        }
-        else
-        {
-            Console.WriteLine("  Recovery code: NOT set (no offline way out)");
             Console.WriteLine("                 (an upgrade keeps an unused recovery code set before; a used one, or one of a");
             Console.WriteLine("                 PC Guard that was released or disabled, is never kept)");
         }
@@ -212,9 +247,64 @@ internal static class Program
         });
     }
 
-    /// <summary>Refuses a package folder that standard users can modify (they could swap files that end up in a SYSTEM service).</summary>
-    private static bool CheckPackageAcl(string packageRoot, bool allowWritable)
+    /// <summary>True when something (file, folder or link) named default-recovery-code.txt is in the package folder. Never reads it.</summary>
+    private static bool DefaultCodeEntryExists(string path)
     {
+        try
+        {
+            File.GetAttributes(path);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Windows side of <see cref="DefaultRecoveryCode.Load"/>: link/folder/size from the entry itself (a link
+    /// is never opened), the file's own ACL, then at most MaxFileBytes + 1 bytes through an unbuffered
+    /// stream (no FileStream buffer keeps a copy). The bytes are zeroed in Core.
+    /// </summary>
+    private static DefaultCodeLoad LoadDefaultCode(string path, bool allowed)
+    {
+        DefaultCodeFile? entry;
+        try
+        {
+            var attrs = File.GetAttributes(path); // does not follow a link
+            var isDir = (attrs & FileAttributes.Directory) != 0;
+            var isLink = (attrs & FileAttributes.ReparsePoint) != 0;
+            entry = new DefaultCodeFile(isDir, isLink, isDir || isLink ? 0 : new FileInfo(path).Length);
+        }
+        catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
+        {
+            entry = null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            entry = new DefaultCodeFile(false, false, 0); // exists but cannot be inspected: Load reports the read error
+        }
+
+        return DefaultRecoveryCode.Load(allowed, entry, () => PackageAcl.ReadFile(path), max =>
+        {
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 0, FileOptions.None);
+            if (fs.Length > DefaultRecoveryCode.MaxFileBytes) return new byte[max]; // grew since the check: report as too large
+            var buf = new byte[max];
+            var total = 0;
+            int n;
+            while (total < max && (n = fs.Read(buf, total, max - total)) > 0) total += n;
+            if (total == max) return buf;
+            var exact = buf.AsSpan(0, total).ToArray();
+            CryptographicOperations.ZeroMemory(buf);
+            return exact;
+        });
+    }
+
+    /// <summary>Refuses a package folder that standard users can modify (they could swap files that end up in a SYSTEM service).</summary>
+    /// <param name="verified">True only when the permissions were read and found safe (not when --allow-writable-package let an unsafe or unreadable folder pass).</param>
+    private static bool CheckPackageAcl(string packageRoot, bool allowWritable, out bool verified)
+    {
+        verified = false;
         Console.WriteLine("Package folder: " + packageRoot);
         Console.WriteLine("Install refuses a package folder that standard users can modify (see the README: copy it to C:\\PcGuardSetup and lock it with icacls).");
 
@@ -231,7 +321,11 @@ internal static class Program
             return true;
         }
 
-        if (verdict.IsSafe) return true;
+        if (verdict.IsSafe)
+        {
+            verified = true;
+            return true;
+        }
 
         foreach (var line in PackageAclPolicy.DescribeGrants(verdict.Grants))
             Console.Error.WriteLine("  " + line);
@@ -462,7 +556,7 @@ internal static class Program
 
     private static void PrintUsage()
     {
-        Console.WriteLine("Usage: Setup-PcGuard.exe [--install --backend-url <https://host/api/v1> [--allow-app <name.exe>]... [--no-recovery-code]] [--uninstall [--purge]] [--allow-writable-package] [--no-pause] [--help]");
+        Console.WriteLine("Usage: Setup-PcGuard.exe [--install --backend-url <https://host/api/v1> [--allow-app <name.exe>]... [--no-recovery-code | --default-recovery-code]] [--uninstall [--purge]] [--allow-writable-package] [--no-pause] [--help]");
         Console.WriteLine("  (no arguments)   interactive menu");
         Console.WriteLine("  --install        install or upgrade; with --backend-url it runs without questions");
         Console.WriteLine("  --allow-app <name.exe>   with --install: keep this app running on this PC even while it is locked");
@@ -476,6 +570,12 @@ internal static class Program
         Console.WriteLine("                   keyboard runs or repeats. A silent install sets none and prints a warning.");
         Console.WriteLine("                   The code works ONCE. Without a new code an upgrade keeps an unused code set before,");
         Console.WriteLine("                   but never one that was used (or of a PC Guard that was released or disabled).");
+        Console.WriteLine("  --default-recovery-code   with --install: use the code in default-recovery-code.txt next to");
+        Console.WriteLine("                   Setup-PcGuard.exe without asking (exit code 64 if it is missing or invalid). The file is");
+        Console.WriteLine("                   read only from a package folder that passed the admin-only check (never with");
+        Console.WriteLine("                   --allow-writable-package), at most 130 bytes, the code alone on one line. The");
+        Console.WriteLine("                   interactive install offers it too (Enter = use it, - = none). The code sits in plain");
+        Console.WriteLine("                   text: delete the file after installing. Cannot be combined with --no-recovery-code.");
         Console.WriteLine("  --uninstall      uninstall without questions (add --purge to also delete ProgramData\\PcGuard)");
         Console.WriteLine("  --allow-writable-package   install even if standard users can modify the package folder, or it holds links or too many files (NOT recommended)");
         Console.WriteLine("  --no-pause       with --install/--uninstall: do not wait for Enter at the end");
