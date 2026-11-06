@@ -103,3 +103,72 @@ async def chat_students(db: AsyncSession, chat_row_id: int) -> list[dict]:
         ).order_by(Student.full_name, Student.username)
     )).scalars().all()
     return [{"id": s.id, "name": _name(s.full_name, s.username)} for s in rows]
+
+
+class LinkCodeInvalid(Exception):
+    """Unknown, already used or expired link code."""
+
+
+class ChatTakenError(Exception):
+    """The chat is already linked (and active) under another teacher."""
+
+
+def _aware(dt):
+    from datetime import timezone
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)   # SQLite returns naive datetimes
+
+
+async def link_chat(db: AsyncSession, code: str, chat_id: int, title: Optional[str]) -> tuple[TelegramChat, str]:
+    """Attach `chat_id` to the teacher who owns `code` and burn the code. Returns (chat, teacher name).
+
+    A chat that is active under another teacher is refused WITHOUT burning the code. A chat the bot was removed
+    from (is_active False) is reactivated; if its owner changes the old selection is dropped."""
+    row = (await db.execute(
+        select(TelegramLinkCode).where(TelegramLinkCode.code == code).with_for_update()
+    )).scalar_one_or_none()
+    now = utcnow()
+    if row is None or row.used_at is not None or _aware(row.expires_at) <= now:
+        raise LinkCodeInvalid()
+
+    chat = (await db.execute(
+        select(TelegramChat).where(TelegramChat.chat_id == chat_id).with_for_update()
+    )).scalar_one_or_none()
+    if chat is not None and chat.is_active and chat.teacher_id != row.teacher_id:
+        raise ChatTakenError()
+
+    if chat is None:
+        chat = TelegramChat(chat_id=chat_id, title=title, teacher_id=row.teacher_id, is_active=True)
+        db.add(chat)
+        await db.flush()
+    else:
+        if chat.teacher_id != row.teacher_id:
+            await db.execute(delete(TelegramChatStudent).where(TelegramChatStudent.chat_row_id == chat.id))
+        chat.teacher_id = row.teacher_id
+        chat.is_active = True
+        chat.title = title or chat.title
+        chat.last_error = None
+        chat.linked_at = now
+    row.used_at = now
+    teacher = (await db.execute(select(Student).where(Student.id == row.teacher_id))).scalar_one()
+    teacher_name = _name(teacher.full_name, teacher.username)
+    await db.commit()
+    await db.refresh(chat)
+    return chat, teacher_name
+
+
+async def bot_chats(db: AsyncSession) -> list[dict]:
+    """Active chats with the students each one reports on, for the bot's daily report."""
+    chats = (await db.execute(
+        select(TelegramChat).where(TelegramChat.is_active.is_(True)).order_by(TelegramChat.id)
+    )).scalars().all()
+    return [{"chat_id": c.chat_id, "title": c.title, "students": await chat_students(db, c.id)} for c in chats]
+
+
+async def deactivate_chat(db: AsyncSession, chat_id: int) -> bool:
+    """The bot was removed from the chat: keep the row (the teacher sees why reports stopped), stop reporting."""
+    chat = (await db.execute(select(TelegramChat).where(TelegramChat.chat_id == chat_id))).scalar_one_or_none()
+    if chat is None:
+        return False
+    chat.is_active = False
+    await db.commit()
+    return True

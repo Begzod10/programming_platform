@@ -33,6 +33,7 @@ from app.api.v1.endpoints import team_project
 from app.api.v1.endpoints import lesson_questions
 from app.api.v1.endpoints import parent
 from app.api.v1.endpoints import bot_stats
+from app.api.v1.endpoints import bot_telegram
 from app.api.v1.endpoints import store
 from app.api.v1.endpoints import early_learning
 from app.api.v1.endpoints import duel, summative
@@ -73,6 +74,7 @@ api_router.include_router(lesson_questions.router, prefix="", tags=["Lesson Ques
 api_router.include_router(parent.router, prefix="/parent", tags=["Parent MiniApp"])
 api_router.include_router(activity_analytics.router, prefix="/teacher/activity", tags=["Teacher Activity"])
 api_router.include_router(bot_stats.router, prefix="/bot", tags=["Bot Stats"])
+api_router.include_router(bot_telegram.router, prefix="/bot", tags=["Bot Telegram"])
 api_router.include_router(store.router, prefix="/store", tags=["Store"])
 api_router.include_router(
     early_learning.router, prefix="/early-learning", tags=["Early Learning"],
