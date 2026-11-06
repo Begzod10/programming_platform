@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.daily_quota import QuotaShieldUse
 from app.models.store import StoreItem, StudentInventoryItem
+from app.models.user import Student
 from app.services.wallet_service import QUOTA_SHIELD_SLUG
 
 
@@ -28,11 +29,13 @@ async def try_use_shield(db: AsyncSession, student_id: int, day: date, *,
 
     True: the stock went down by one and a QuotaShieldUse row was added (flushed, not committed).
     False: nothing changed."""
+    # Same lock order as a purchase (Student, then the inventory row) so the two can never deadlock.
+    await db.execute(select(Student.id).where(Student.id == student_id).with_for_update())
     row = (await db.execute(
         select(StudentInventoryItem)
         .join(StoreItem, StoreItem.id == StudentInventoryItem.store_item_id)
         .where(StudentInventoryItem.student_id == student_id, StoreItem.slug == QUOTA_SHIELD_SLUG)
-        .with_for_update()
+        .with_for_update(of=StudentInventoryItem)
     )).scalar_one_or_none()
     if row is None or row.quantity < 1:
         return False

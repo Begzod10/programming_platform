@@ -189,3 +189,18 @@ async def test_notify_quota_shield_used_creates_the_notification():
         n = (await db.execute(select(Notification).where(
             Notification.student_id == sid, Notification.type == "quota_shield_used"))).scalar_one()
     assert n.tone == "ok" and n.icon == "🛡️" and n.link == "/student/daily-rules"
+
+
+async def test_a_shield_day_with_the_base_met_still_grows_the_streak(lessons):
+    """Debt makes the day 'harmful' even though the base quota was met: the shield saves the penalty
+    but the streak must still extend exactly as it would without a shield."""
+    lessons["completed"] = 2                                  # base (2) met, but yesterday's debt makes required 4
+    sid = await _student(shields=1, streak=5, streak_last=MON - timedelta(days=1))
+    async with AsyncSessionLocal() as db:
+        db.add(StudentDailyProgress(student_id=sid, quota_date=MON, base_required=2, carried_in=2, required=4))
+        await db.commit()
+    result = await _eod(sid, MON)
+    st = await _state(sid, MON)
+    assert result is not None and st["qty"] == 0
+    assert st["points"] == 1000 and st["penalties"] == 0 and st["row"].carried_out == 0
+    assert st["tracker"].active and st["tracker"].length == 6 and st["tracker"].last_qualified_date == MON

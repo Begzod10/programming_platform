@@ -210,7 +210,13 @@ async def record_earn(
 
 
 async def _load_student_for_update(db: AsyncSession, student_id: int) -> Student:
-    res = await db.execute(select(Student).where(Student.id == student_id))
+    """The student row, locked (FOR UPDATE) and refreshed: a copy the session loaded earlier may be stale,
+    and the balance written by _write_ledger is computed from it. Lock order everywhere is Student, then
+    the student's inventory row (see quota_shield_service.try_use_shield)."""
+    res = await db.execute(
+        select(Student).where(Student.id == student_id).with_for_update()
+        .execution_options(populate_existing=True)
+    )
     student = res.scalar_one_or_none()
     if student is None:
         raise ItemNotFoundError(f"student {student_id} not found")

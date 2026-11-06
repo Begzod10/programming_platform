@@ -95,6 +95,15 @@ describe('quota_shield_used notification', () => {
     });
 });
 
+describe('quota_shield_used notification without a streak', () => {
+    it('does not claim a streak was saved when there was none', () => {
+        const n = { type: 'quota_shield_used', tone: 'ok', title: '', extra: '0', points: 0 };
+        expect(present(n, false).text).toMatch(/jarima yechilmadi/i);
+        expect(present(n, false).text).not.toMatch(/seriya/i);
+        expect(present(n, true).text).not.toMatch(/серия/i);
+    });
+});
+
 describe('shield badge on the daily-rules page', () => {
     it('shows how many shields are in stock', async () => {
         global.fetch = jest.fn((url) => {

@@ -132,3 +132,28 @@ async def test_cosmetics_are_still_one_per_student(async_client):
     item = await _cosmetic_id()
     assert (await _buy(async_client, h, item)).status_code == 201
     assert (await _buy(async_client, h, item)).status_code == 409
+
+
+async def test_a_purchase_uses_the_fresh_wallet_not_a_stale_copy():
+    """Two purchases racing: the loser must debit from the winner's committed balance, never from the
+    stale copy its session loaded earlier (otherwise 2 shields cost 500)."""
+    from app.services import wallet_service
+    uid = uuid.uuid4().hex[:8]
+    async with AsyncSessionLocal() as db:
+        s = Student(username=f"qs_{uid}", email=f"qs_{uid}@example.com", hashed_password="x",
+                    total_points=1000, lifetime_points=1000)
+        db.add(s)
+        await db.commit()
+        sid = s.id
+    item = await _shield_id()
+    async with AsyncSessionLocal() as db1:
+        stale = await db1.get(Student, sid)                           # db1 holds (and keeps) a copy with 1000
+        assert stale.total_points == 1000
+        async with AsyncSessionLocal() as db2:                        # the "winner" commits first
+            winner = (await db2.execute(select(Student).where(Student.id == sid))).scalar_one()
+            winner.total_points = 500
+            await db2.commit()
+        _, ledger, _ = await wallet_service.purchase_item(db1, student_id=sid, store_item_id=item)
+        await db1.commit()
+    assert ledger.balance_after == 0
+    assert (await _balances(sid))[0] == 0

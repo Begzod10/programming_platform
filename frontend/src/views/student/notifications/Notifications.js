@@ -67,9 +67,10 @@ export function present(n, ru) {
             return {
                 icon: Shield, tone: n.tone || 'ok',
                 heading: ru ? 'Защита нормы использована' : 'Norma himoyasi ishlatildi',
-                text: ru
-                    ? `Штраф не списан, серия сохранена${n.extra && n.extra !== '0' ? ` (${n.extra} дн.)` : ''}.`
-                    : `Jarima yechilmadi, seriya saqlandi${n.extra && n.extra !== '0' ? ` (${n.extra} kun)` : ''}.`,
+                text: n.extra && n.extra !== '0'
+                    ? (ru ? `Штраф не списан, серия сохранена (${n.extra} дн.).`
+                          : `Jarima yechilmadi, seriya saqlandi (${n.extra} kun).`)
+                    : (ru ? 'Штраф не списан.' : 'Jarima yechilmadi.'),
             };
         default:
             return { icon: Bell, tone: n.tone || 'ok', heading: title, text: n.body || '' };

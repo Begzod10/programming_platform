@@ -373,8 +373,8 @@ async def process_eod_for_student(db: AsyncSession, ranking_service, student: St
         # Saved day: no penalty, no debt; the streak neither grows nor breaks (it just bridges today).
         row.penalty_points = 0
         row.carried_out = 0
-        if tracker is not None and tracker.active:
-            tracker.last_qualified_date = day
+        if tracker is not None and tracker.active and completed < cfg.base_lessons:
+            tracker.last_qualified_date = day     # bridge a sub-base day; a base-met day extends below
     elif enforce and missed > 0:
         # 1) penalty — floored at 0 by revoke_earned_points (no negative balances)
         before = student.lifetime_points
@@ -400,6 +400,9 @@ async def process_eod_for_student(db: AsyncSession, ranking_service, student: St
             await _extend_streak(db, ranking_service, student, day)
         elif not rest:
             await _break_streak(db, student)
+    elif completed >= cfg.base_lessons:
+        # The shield saved the debt penalty of a day whose BASE quota was met: the streak grows as usual.
+        await _extend_streak(db, ranking_service, student, day)
 
     # 3) seed tomorrow with the carried debt (0 on grace days)
     await seed_next_day(db, student.id, day + timedelta(days=1),
