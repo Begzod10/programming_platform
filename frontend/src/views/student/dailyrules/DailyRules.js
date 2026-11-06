@@ -25,6 +25,7 @@ export default function DailyRules({ chrome = true }) {
     const [saving, setSaving] = useState(false);
     const [penalties, setPenalties] = useState([]);
     const [streak, setStreak] = useState(null);
+    const [shields, setShields] = useState(0);   // quota shields in stock (store item)
 
     const base = status?.base_required ?? cfg?.base_lessons ?? 2;
     const penalty = status?.penalty_per_lesson ?? cfg?.penalty_per_lesson ?? 100;
@@ -73,6 +74,14 @@ export default function DailyRules({ chrome = true }) {
         try {
             const rs = await fetch(`${API_URL}v1/daily/streak`, { headers: headers() });
             if (rs.ok) setStreak(await rs.json());
+        } catch { /* ignore */ }
+        try {
+            const ri = await fetch(`${API_URL}v1/store/inventory`, { headers: headers() });
+            if (ri.ok) {
+                const rows = await ri.json();
+                const row = (Array.isArray(rows) ? rows : []).find(r => r.slug === 'quota_shield');
+                setShields(row?.quantity || 0);
+            }
         } catch { /* ignore */ }
     }, []);
     useEffect(() => { load(); }, [load]);
@@ -262,6 +271,12 @@ export default function DailyRules({ chrome = true }) {
                                 <div className="dr-ms-val">🔥 {streakLen}</div>
                                 <div className="dr-ms-lbl">{ru ? 'Серия (дней)' : 'Seriya (kun)'}</div>
                             </div>
+                            {shields > 0 && (
+                                <div className="dr-ms-tile dr-ms-violet">
+                                    <div className="dr-ms-val" data-testid="shield-count">🛡️ {shields}</div>
+                                    <div className="dr-ms-lbl">{ru ? 'Защита нормы (запас)' : 'Norma himoyasi (zaxira)'}</div>
+                                </div>
+                            )}
                         </div>
 
                         {totalYield > 0 && (

@@ -26,6 +26,7 @@ const NOTE_HEADING = {
     quota_reminder:    { uz: 'Kunlik eslatma ⏰',     ru: 'Напоминание о норме ⏰' },
     teacher_penalty:   { uz: "O'qituvchidan jarima ⚠️", ru: 'Штраф от учителя ⚠️' },
     penalty_reverted:  { uz: 'Jarima bekor qilindi ↩️', ru: 'Штраф отменён ↩️' },
+    quota_shield_used: { uz: 'Norma himoyasi ishlatildi 🛡️', ru: 'Защита нормы использована 🛡️' },
 };
 
 const LEVEL_META = {

@@ -7,7 +7,7 @@ import AppHeader from '../../../components/appheader/AppHeader';
 import './Notifications.css';
 import {
     Bell, CheckCircle2, XCircle, Clock, Award, GraduationCap,
-    CheckCheck, Inbox, ChevronRight, Sparkles, AlertTriangle, Undo2,
+    CheckCheck, Inbox, ChevronRight, Sparkles, AlertTriangle, Undo2, Shield,
 } from 'lucide-react';
 import { penaltyLabel } from '../../../constants/penaltyTypes';
 
@@ -16,7 +16,7 @@ const POLL_MS = 25000;
 
 /* Presentation per notification type — the heading is localized here so the
    server stays language-neutral (it only stores entity text). */
-function present(n, ru) {
+export function present(n, ru) {
     const title = n.title || '';
     switch (n.type) {
         case 'project_approved':
@@ -62,6 +62,14 @@ function present(n, ru) {
                 icon: Undo2, tone: n.tone || 'ok',
                 heading: ru ? 'Штраф отменён' : 'Jarima bekor qilindi',
                 text: ru ? `Баллы возвращены: ${penaltyLabel(n.extra, ru)}.` : `Ballar qaytarildi: ${penaltyLabel(n.extra, ru)}.`,
+            };
+        case 'quota_shield_used':
+            return {
+                icon: Shield, tone: n.tone || 'ok',
+                heading: ru ? 'Защита нормы использована' : 'Norma himoyasi ishlatildi',
+                text: ru
+                    ? `Штраф не списан, серия сохранена${n.extra && n.extra !== '0' ? ` (${n.extra} дн.)` : ''}.`
+                    : `Jarima yechilmadi, seriya saqlandi${n.extra && n.extra !== '0' ? ` (${n.extra} kun)` : ''}.`,
             };
         default:
             return { icon: Bell, tone: n.tone || 'ok', heading: title, text: n.body || '' };

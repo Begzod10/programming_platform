@@ -375,3 +375,6 @@ html.store-theme-dark .store-card--skeleton {
     .store-header { flex-direction: column; align-items: flex-start; }
     .store-wallet { align-items: flex-start; }
 }
+
+.store-card__stock { margin: 6px 0 2px; font-size: .85rem; opacity: .85; }
+.store-card__note { margin-top: 6px; font-size: .78rem; opacity: .7; text-align: center; }

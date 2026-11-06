@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { API_URL, headers, useHttp } from '../../../api/search/base';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { useStore } from '../../../context/StoreContext';
-import { Coins, Palette, Music4, Type, Check, Lock, Play } from 'lucide-react';
+import { Coins, Palette, Music4, Type, Check, Lock, Play, Shield } from 'lucide-react';
 import { playSoundAsset } from '../../../utils/soundSynth';
 import './Store.css';
 
@@ -11,9 +11,10 @@ const KIND_META = {
     theme:      { key: 'theme',      Icon: Palette, uz: 'Ranglar',  ru: 'Темы'   },
     font:       { key: 'font',       Icon: Type,    uz: 'Shriftlar', ru: 'Шрифты' },
     sound_pack: { key: 'sound_pack', Icon: Music4,  uz: 'Ovozlar',   ru: 'Звуки'  },
+    boost:      { key: 'boost',      Icon: Shield,  uz: 'Himoya',    ru: 'Защита' },
 };
 
-const TAB_ORDER = ['theme', 'font', 'sound_pack'];
+const TAB_ORDER = ['theme', 'font', 'sound_pack', 'boost'];
 
 
 function localise(row, field, lang) {
@@ -70,7 +71,39 @@ function SoundProbe({ assetRef }) {
 // ─── item card ────────────────────────────────────────────────────────────
 
 
+// Stackable item (the quota shield): shows the stock, can be bought until the stock is full, is never equipped.
+function ShieldCard({ item, lang, onBuy, buying, inventoryRow, isRu }) {
+    const stock = inventoryRow?.quantity ?? 0;
+    const max = item.asset_ref?.max_owned ?? 2;
+    const full = stock >= max;
+    const priceLabel = `${item.price_coins} ${isRu ? 'монет' : 'tanga'}`;
+    const blocked = full || !item.can_afford || buying;
+    return (
+        <div className={`store-card ${stock > 0 ? 'is-owned' : ''}`}>
+            <div className="store-card__head">
+                <span className="store-card__icon"><Shield size={18} /></span>
+                <span className="store-card__kind">{isRu ? KIND_META.boost.ru : KIND_META.boost.uz}</span>
+            </div>
+            <h3 className="store-card__title">{localise(item, 'title', lang)}</h3>
+            <p className="store-card__desc">{localise(item, 'description', lang)}</p>
+            <div className="store-card__stock">
+                {isRu ? 'В запасе' : 'Zaxira'}: <b>{stock}/{max}</b>
+            </div>
+            <div className="store-card__foot">
+                <button type="button" className="store-cta store-cta--buy" onClick={() => onBuy(item)} disabled={blocked}>
+                    {buying ? '…' : (!full && !item.can_afford ? <><Lock size={14} /> {priceLabel}</> : priceLabel)}
+                </button>
+                {full && <div className="store-card__note">{isRu ? 'Запас полон' : "Zaxira to'lgan"}</div>}
+            </div>
+        </div>
+    );
+}
+
+
 function ItemCard({ item, lang, onBuy, buying, inventoryRow, onEquip, onUnequip, isRu }) {
+    if (item.kind === 'boost') {
+        return <ShieldCard item={item} lang={lang} onBuy={onBuy} buying={buying} inventoryRow={inventoryRow} isRu={isRu} />;
+    }
     const title = localise(item, 'title', lang);
     const description = localise(item, 'description', lang);
     const Icon = KIND_META[item.kind]?.Icon || Coins;
@@ -189,7 +222,11 @@ export default function Store() {
             const msg = e?.message || '';
             let human;
             if (msg.includes('402')) human = isRu ? 'Недостаточно монет' : 'Tanga yetarli emas';
-            else if (msg.includes('409')) human = isRu ? 'Уже куплено' : 'Allaqachon sizniki';
+            else if (msg.includes('409')) {
+                human = item.kind === 'boost'
+                    ? (isRu ? 'Запас полон' : "Zaxira to'lgan")
+                    : (isRu ? 'Уже куплено' : 'Allaqachon sizniki');
+            }
             else human = isRu ? 'Ошибка покупки' : 'Xatolik yuz berdi';
             showFlash('err', human);
         } finally {
