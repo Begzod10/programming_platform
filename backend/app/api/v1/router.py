@@ -22,6 +22,7 @@ from app.api.v1.endpoints.teacher import course_access as teacher_course_access
 from app.api.v1.endpoints.teacher import activity_analytics
 from app.api.v1.endpoints.teacher import error_log as teacher_error_log
 from app.api.v1.endpoints.teacher import penalties as teacher_penalties
+from app.api.v1.endpoints.teacher import telegram as teacher_telegram
 from app.api.v1.endpoints.teacher import pc_control as teacher_pc_control
 from app.api.v1.endpoints import code_checks
 from app.api.v1.endpoints import translations_admin
@@ -86,6 +87,7 @@ api_router.include_router(summative.router, prefix="/summative", tags=["Summativ
 api_router.include_router(teacher_error_log.router, prefix="/teacher/error-log", tags=["Teacher - Error Log"])
 api_router.include_router(translations_admin.router, prefix="/admin", tags=["Admin"])
 api_router.include_router(teacher_penalties.router, prefix="/teacher/penalties", tags=["Teacher - Penalties"])
+api_router.include_router(teacher_telegram.router, prefix="/teacher/telegram", tags=["Teacher - Telegram"])
 api_router.include_router(teacher_pc_control.router, prefix="/teacher/pc", tags=["Teacher - PC Control"])
 api_router.include_router(code_checks.router, prefix="/code-checks", tags=["Code Checks"])
 api_router.include_router(code_checks.teacher_router, prefix="/teacher/code-checks", tags=["Teacher - Code Checks"])

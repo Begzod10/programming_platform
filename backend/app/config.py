@@ -166,6 +166,7 @@ class Settings(BaseSettings):
     # error, just no outbound push.
     PARENT_BOT_URL: str = ""  # e.g. http://127.0.0.1:8064
     PARENT_BOT_SECRET: str = ""
+    PARENT_BOT_USERNAME: str = "gennis_parent_bot"  # without @; used for the t.me/<bot>?startgroup=<code> link
 
     # ─── classroom_v2 progress-pull integration (request #47, 2026-09-14) ──
     # classroom reads GET /integrations/progress?source=&ext_id= server-to-
