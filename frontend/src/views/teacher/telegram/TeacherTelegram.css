@@ -1,0 +1,52 @@
+/* Teacher "Telegram bot" page — same light style as the Penalties page. */
+.tg-page {
+    --tg-border: #e6e8ef; --tg-ink: #1b2130; --tg-muted: #6b7384; --tg-faint: #9aa1b1;
+    --tg-accent: #229ed9; --tg-danger: #e5484d; --tg-ok: #16a34a;
+    padding: clamp(14px, 3vw, 28px); max-width: 900px; margin: 0 auto; color: var(--tg-ink);
+}
+.tg-head { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 18px; }
+.tg-head-ico {
+    width: 48px; height: 48px; flex: none; border-radius: 14px; display: grid; place-items: center; color: #fff;
+    background: linear-gradient(135deg, #38bdf8, #229ed9);
+}
+.tg-head h1 { margin: 0; font-size: clamp(1.3rem, 3vw, 1.6rem); font-weight: 800; letter-spacing: -.02em; }
+.tg-head p { margin: 4px 0 0; color: var(--tg-muted); font-size: .9rem; max-width: 62ch; line-height: 1.5; }
+.tg-parents a { color: var(--tg-accent); font-weight: 650; }
+.tg-card { background: #fff; border: 1px solid var(--tg-border); border-radius: 16px; padding: 16px; }
+.tg-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.tg-card-head h2 { margin: 0; font-size: 1.05rem; }
+.tg-btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 10px; font-weight: 650;
+    font-size: .85rem; border: 1px solid var(--tg-border); background: #f2f3f8; color: var(--tg-ink); cursor: pointer; text-decoration: none;
+}
+.tg-btn:hover { background: #e9ebf3; }
+.tg-btn.primary { background: var(--tg-accent); border-color: var(--tg-accent); color: #fff; }
+.tg-btn.open { background: #e8f5fc; border-color: #b6e0f4; color: #0e7bb0; }
+.tg-btn.danger { background: var(--tg-danger); border-color: var(--tg-danger); color: #fff; }
+.tg-btn.ghost { background: transparent; }
+.tg-btn:disabled { opacity: .6; cursor: not-allowed; }
+.tg-code { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px; margin-bottom: 12px;
+    border: 1px dashed #b6e0f4; border-radius: 12px; background: #f5fbfe; }
+.tg-code p { flex: 1 1 100%; margin: 4px 0 0; font-size: .82rem; color: var(--tg-muted); }
+.tg-chat { border: 1px solid var(--tg-border); border-radius: 12px; padding: 12px 14px; margin-top: 10px; }
+.tg-chat.off { background: #fafafa; }
+.tg-chat-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.tg-chat-title { font-weight: 750; }
+.tg-chat-meta { display: flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--tg-muted); margin-top: 3px; }
+.tg-flag { margin-left: 8px; padding: 2px 8px; border-radius: 8px; background: #fef1f1; color: var(--tg-danger); font-weight: 650; }
+.tg-chat-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tg-select { margin-top: 12px; border-top: 1px solid var(--tg-border); padding-top: 12px; }
+.tg-input { width: 100%; padding: 9px 12px; border: 1px solid var(--tg-border); border-radius: 10px; font-size: .9rem; box-sizing: border-box; }
+.tg-classes { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.tg-chip { padding: 4px 10px; border-radius: 999px; border: 1px solid #b6e0f4; background: #f5fbfe; color: #0e7bb0; font-size: .78rem; font-weight: 650; cursor: pointer; }
+.tg-list { max-height: 300px; overflow-y: auto; border: 1px solid var(--tg-border); border-radius: 10px; }
+.tg-row { display: flex; align-items: center; gap: 10px; padding: 7px 12px; border-bottom: 1px solid #f0f1f5; font-size: .9rem; }
+.tg-row small { margin-left: auto; color: var(--tg-faint); }
+.tg-select-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.tg-select-foot span { margin-right: auto; color: var(--tg-muted); font-size: .85rem; }
+.tg-empty { padding: 28px; text-align: center; color: var(--tg-faint); font-size: .9rem; }
+.tg-msg { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px; margin-bottom: 12px; font-size: .88rem; }
+.tg-msg.ok { background: #e7f6ed; color: #1d7a45; }
+.tg-msg.err { background: #fef1f1; color: var(--tg-danger); }
+.tg-spin { animation: tg-spin 1s linear infinite; }
+@keyframes tg-spin { to { transform: rotate(360deg); } }
