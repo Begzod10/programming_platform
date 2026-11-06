@@ -150,3 +150,22 @@ class StreakBonusLog(Base):
     bonus_points: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class QuotaShieldUse(Base):
+    """One spent quota shield (store item `quota_shield`): that day cost the student no penalty,
+    no debt and no streak. The unique (student, day) key is the idempotency guard; the dates
+    also drive the "one shield per calendar week" limit."""
+    __tablename__ = "quota_shield_uses"
+    __table_args__ = (UniqueConstraint("student_id", "quota_date", name="uq_quota_shield_student_day"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True)
+    quota_date: Mapped[date] = mapped_column(Date, nullable=False)
+
+    lessons_missed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    penalty_saved: Mapped[int] = mapped_column(Integer, nullable=False, default=0)   # nominal, info only
+    streak_length: Mapped[int] = mapped_column(Integer, nullable=False, default=0)   # streak that was kept
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

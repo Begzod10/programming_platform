@@ -624,6 +624,22 @@ CATALOGUE: list[dict] = [
             "synth": "fanfare",
         },
     },
+    # ─── boosts ──────────────────────────────────────────────────────
+    # Stackable: one inventory row per student, `quantity` = stock (max_owned).
+    # Spent automatically at end of day when the daily quota was missed.
+    {
+        "slug": "quota_shield",
+        "kind": StoreItemKind.boost,
+        "title": "Norma himoyasi",
+        "title_ru": "Защита нормы",
+        "description": "Kunlik normani bajara olmagan kuningizda jarima yechilmaydi va seriyangiz uzilmaydi. "
+                       "Haftada 1 marta, o'zi ishlaydi. Zaxirada ko'pi bilan 2 ta.",
+        "description_ru": "В день, когда вы не выполнили дневную норму, штраф не списывается, а серия не прерывается. "
+                          "1 раз в неделю, срабатывает сама. В запасе не больше 2.",
+        "price_coins": 500,
+        "sort_order": 900,
+        "asset_ref": {"effect": "quota_shield", "max_owned": 2},
+    },
 ]
 
 

@@ -66,6 +66,13 @@ class AlreadyOwnedError(WalletError):
     pass
 
 
+class OwnedLimitError(WalletError):
+    """A stackable item (the quota shield) is already at its max stock."""
+
+
+QUOTA_SHIELD_SLUG = "quota_shield"
+
+
 class DuplicatePurchaseError(WalletError):
     """The idempotency key was already used."""
 
@@ -215,6 +222,7 @@ async def _load_student_for_update(db: AsyncSession, student_id: int) -> Student
 
 PURCHASABLE_KINDS: frozenset[StoreItemKind] = frozenset({
     StoreItemKind.theme, StoreItemKind.font, StoreItemKind.sound_pack,
+    StoreItemKind.boost,   # stackable: the quota shield (asset_ref.max_owned)
 })
 
 
@@ -252,6 +260,22 @@ async def purchase_item(
             f"requires {item.min_lifetime_points} lifetime points"
         )
 
+    # Stackable items (boost): one inventory row whose `quantity` is the stock.
+    # A used-up row stays at quantity 0 (unique per student+item) and is refilled here.
+    stack_row = None
+    if item.kind == StoreItemKind.boost:
+        stack_row = (
+            await db.execute(
+                select(StudentInventoryItem).where(
+                    StudentInventoryItem.student_id == student_id,
+                    StudentInventoryItem.store_item_id == store_item_id,
+                ).with_for_update()
+            )
+        ).scalar_one_or_none()
+        max_owned = (item.asset_ref or {}).get("max_owned", 1)
+        if stack_row is not None and stack_row.quantity >= max_owned:
+            raise OwnedLimitError(f"Zaxirada ko'pi bilan {max_owned} ta bo'lishi mumkin")
+
     # Already-owned check. Cosmetics are singletons — buying a theme you
     # already own would silently mint a duplicate inventory row.
     existing = (
@@ -262,7 +286,7 @@ async def purchase_item(
             )
         )
     ).scalar_one_or_none()
-    if existing is not None:
+    if existing is not None and item.kind != StoreItemKind.boost:
         raise AlreadyOwnedError(f"student already owns item {store_item_id}")
 
     purchase = StudentPurchase(
@@ -284,6 +308,11 @@ async def purchase_item(
         idempotency_key=idempotency_key,
         note=f"buy {item.slug}",
     )
+
+    if stack_row is not None:
+        stack_row.quantity += 1
+        await db.flush()
+        return purchase, ledger, stack_row
 
     inv = StudentInventoryItem(
         student_id=student_id,

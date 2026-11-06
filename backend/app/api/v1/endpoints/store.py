@@ -195,7 +195,7 @@ async def purchase(
         )
     except wallet_service.ItemNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except wallet_service.AlreadyOwnedError as exc:
+    except (wallet_service.AlreadyOwnedError, wallet_service.OwnedLimitError) as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except wallet_service.DuplicatePurchaseError as exc:
         raise HTTPException(
