@@ -265,9 +265,14 @@ async def job_process_quota_eod():
         )).scalars().all()
         for student in students:
             try:
-                await dq.process_eod_for_student(db, rs, student, day)
+                shield = await dq.process_eod_for_student(db, rs, student, day)
                 await db.commit()
                 processed += 1
+                if shield:   # AFTER the commit: the notification helper commits on its own and never raises
+                    from app.services import notification_service
+                    await notification_service.notify_quota_shield_used(
+                        db, student.id, penalty_saved=shield["penalty_saved"],
+                        streak_length=shield["streak_length"])
             except Exception as e:  # noqa: BLE001
                 logger.warning("quota EOD failed for student %s: %s", student.id, e)
                 try:

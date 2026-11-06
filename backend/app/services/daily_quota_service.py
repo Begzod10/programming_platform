@@ -322,23 +322,27 @@ async def on_lesson_completed(db: AsyncSession, student_id: int, lesson_id: int)
 
 
 # ── end-of-day (nightly job, one student) ────────────────────────────────────
-async def process_eod_for_student(db: AsyncSession, ranking_service, student: Student, day: date) -> None:
+async def process_eod_for_student(db: AsyncSession, ranking_service, student: Student, day: date) -> Optional[dict]:
     """Idempotent. Penalize missed lessons, carry the debt forward, update the
     streak + yield, and seed tomorrow. No-ops when the feature is off; during the
     grace window (day < enforce_from) the streak still accrues but NO penalty or
-    debt is applied. Skips demo/inactive students."""
+    debt is applied. Skips demo/inactive students.
+
+    A stored quota shield (see quota_shield_service) saves a harmful day: no penalty, no debt, the
+    streak is kept. Returns {lessons_missed, penalty_saved, streak_length} when one was spent, so the
+    caller can notify AFTER its commit; None otherwise."""
     if student.is_demo or not student.is_active:
-        return
+        return None
     cfg = await get_config(db)
     if not cfg.enabled:
-        return
+        return None
     rest = is_rest_day(day, cfg)
     # rest days never penalize or grow debt; penalties also wait for enforce_from
     enforce = (not rest) and (cfg.enforce_from is None or day >= cfg.enforce_from)
 
     row = await _get_or_create(db, student.id, day, cfg.base_lessons)
     if row.processed:
-        return
+        return None
 
     completed = await count_completed_on(db, student.id, day)
     available = await uncompleted_available(db, student.id)
@@ -349,7 +353,29 @@ async def process_eod_for_student(db: AsyncSession, ranking_service, student: St
     if completed >= _unlock_threshold(row.required, row.base_required, cfg.unlock_mode):
         row.unlocked = True
 
-    if enforce and missed > 0:
+    # A harmful day = a penalty would be charged, or a live streak would break. A stored shield saves it.
+    tracker = (await db.execute(
+        select(StreakTracker).where(StreakTracker.student_id == student.id)
+    )).scalar_one_or_none()
+    penalty_applies = enforce and missed > 0
+    streak_at_risk = (not rest) and completed < cfg.base_lessons and tracker is not None \
+        and tracker.active and tracker.length > 0
+    shield: Optional[dict] = None
+    if penalty_applies or streak_at_risk:
+        from app.services import quota_shield_service
+        kept = tracker.length if tracker is not None and tracker.active else 0
+        saved = missed * cfg.penalty_per_lesson
+        if await quota_shield_service.try_use_shield(
+                db, student.id, day, lessons_missed=missed, penalty_saved=saved, streak_length=kept):
+            shield = {"lessons_missed": missed, "penalty_saved": saved, "streak_length": kept}
+
+    if shield is not None:
+        # Saved day: no penalty, no debt; the streak neither grows nor breaks (it just bridges today).
+        row.penalty_points = 0
+        row.carried_out = 0
+        if tracker is not None and tracker.active:
+            tracker.last_qualified_date = day
+    elif enforce and missed > 0:
         # 1) penalty — floored at 0 by revoke_earned_points (no negative balances)
         before = student.lifetime_points
         await ranking_service.revoke_earned_points(student.id, missed * cfg.penalty_per_lesson)
@@ -368,16 +394,18 @@ async def process_eod_for_student(db: AsyncSession, ranking_service, student: St
     row.processed = True
 
     # 2) streak — met the BASE quota today? A rest day can only HELP the streak
-    #    (extend if they studied), never break it.
-    if completed >= cfg.base_lessons:
-        await _extend_streak(db, ranking_service, student, day)
-    elif not rest:
-        await _break_streak(db, student)
+    #    (extend if they studied), never break it. A shield-saved day leaves it untouched.
+    if shield is None:
+        if completed >= cfg.base_lessons:
+            await _extend_streak(db, ranking_service, student, day)
+        elif not rest:
+            await _break_streak(db, student)
 
     # 3) seed tomorrow with the carried debt (0 on grace days)
     await seed_next_day(db, student.id, day + timedelta(days=1),
                         carried_in=row.carried_out, base=cfg.base_lessons)
     await db.flush()
+    return shield
 
 
 async def seed_next_day(db: AsyncSession, student_id: int, day: date, carried_in: int, base: int) -> None:

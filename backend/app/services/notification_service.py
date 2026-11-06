@@ -206,6 +206,17 @@ async def notify_penalty_reverted(
     )
 
 
+async def notify_quota_shield_used(
+    db: AsyncSession, student_id: int, *, penalty_saved: int, streak_length: int,
+) -> Optional[Notification]:
+    """A quota shield was spent at end of day: no penalty, streak kept. `extra` carries the kept streak length."""
+    return await _emit(
+        db, student_id, type="quota_shield_used", tone="ok", title="",
+        extra=str(streak_length or 0), points=0,
+        icon="🛡️", link="/student/daily-rules",
+    )
+
+
 async def notify_quota_reminder(db: AsyncSession, student_id: int, *, remaining: int,
                                 enforcing: bool, penalty_per_lesson: int) -> Optional[Notification]:
     """Hourly "finish your quota" nudge. The dynamic count lives in `title` (the
