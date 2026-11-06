@@ -73,6 +73,30 @@ async def test_a_used_or_expired_code_is_404_and_changes_nothing(async_client):
     assert (await _link(async_client, "no-such-code-at-all-xx", _chat_id())).status_code == 404
 
 
+async def test_a_redelivered_start_for_the_same_chat_is_idempotent(async_client):
+    """Telegram re-sends an update the webhook did not answer in time: the second /start <code> from the SAME chat
+    must succeed (the chat is already linked), not claim the code is used up."""
+    tid, _ = await _teacher(async_client)
+    code, chat_id = await _code(tid), _chat_id()
+    first = await _link(async_client, code, chat_id)
+    again = await _link(async_client, code, chat_id)
+    assert first.status_code == 200 and again.status_code == 200
+    assert again.json()["chat_row_id"] == first.json()["chat_row_id"]
+    other = await _link(async_client, code, _chat_id())          # but the used code still cannot attach ANOTHER chat
+    assert other.status_code == 404
+
+
+async def test_a_redelivered_start_does_not_resurrect_a_chat_that_was_since_taken_or_removed(async_client):
+    a, _ = await _teacher(async_client)
+    b, _ = await _teacher(async_client)
+    code, chat_id = await _code(a), _chat_id()
+    assert (await _link(async_client, code, chat_id)).status_code == 200
+    async with AsyncSessionLocal() as db:
+        await svc.deactivate_chat(db, chat_id)                    # the bot was removed in between
+    assert (await _link(async_client, code, chat_id)).status_code == 404
+    assert not (await _row(chat_id)).is_active
+
+
 async def test_a_chat_linked_to_another_teacher_is_409(async_client):
     a, _ = await _teacher(async_client)
     b, _ = await _teacher(async_client)

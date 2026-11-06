@@ -127,12 +127,19 @@ async def link_chat(db: AsyncSession, code: str, chat_id: int, title: Optional[s
         select(TelegramLinkCode).where(TelegramLinkCode.code == code).with_for_update()
     )).scalar_one_or_none()
     now = utcnow()
-    if row is None or row.used_at is not None or _aware(row.expires_at) <= now:
+    if row is None or _aware(row.expires_at) <= now:
         raise LinkCodeInvalid()
 
     chat = (await db.execute(
         select(TelegramChat).where(TelegramChat.chat_id == chat_id).with_for_update()
     )).scalar_one_or_none()
+    if row.used_at is not None:
+        # Telegram re-delivers an update the webhook was slow to answer: the same code for the chat it already
+        # linked (still active, same owner) succeeds again. Any other use of a spent code is refused.
+        if chat is not None and chat.is_active and chat.teacher_id == row.teacher_id:
+            teacher = (await db.execute(select(Student).where(Student.id == row.teacher_id))).scalar_one()
+            return chat, _name(teacher.full_name, teacher.username)
+        raise LinkCodeInvalid()
     if chat is not None and chat.is_active and chat.teacher_id != row.teacher_id:
         raise ChatTakenError()
 
