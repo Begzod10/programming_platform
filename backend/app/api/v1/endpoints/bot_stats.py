@@ -1,5 +1,7 @@
 import hmac
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +16,16 @@ from app.models.course import Course, student_courses
 from app.models.ranking import Ranking
 
 router = APIRouter()
+
+_TASHKENT = ZoneInfo("Asia/Tashkent")
+
+
+def _week_start_utc(now: Optional[datetime] = None) -> datetime:
+    """Monday 00:00 Asia/Tashkent of the current week, as an aware UTC datetime — the same moment the weekly
+    points reset (scheduler `job_reset_weekly`), so lessons/exercises cover exactly the points' week."""
+    local = (now or datetime.now(timezone.utc)).astimezone(_TASHKENT)
+    monday = (local - timedelta(days=local.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    return monday.astimezone(timezone.utc)
 
 
 # request #47 §5 (2026-09-14): these two endpoints had NO auth at all —
@@ -169,6 +181,19 @@ async def get_student_stats(
     )
     ranking = ranking_q.scalar_one_or_none()
 
+    # This week's activity (all courses, published or not — it is the student's effort that counts).
+    week_start = _week_start_utc()
+    weekly_lessons = (await db.execute(
+        select(func.count(LessonCompletion.id)).where(
+            LessonCompletion.student_id == student_id, LessonCompletion.completed_at >= week_start)
+    )).scalar() or 0
+    ex_row = (await db.execute(
+        select(func.count(ExerciseSubmission.id),
+               func.sum(case((ExerciseSubmission.is_correct == True, 1), else_=0)))
+        .where(ExerciseSubmission.student_id == student_id, ExerciseSubmission.submitted_at >= week_start)
+    )).one()
+    weekly_exercises = {"total": int(ex_row[0] or 0), "correct": int(ex_row[1] or 0)}
+
     courses_data = []
     for c in courses:
         cid = c.id
@@ -187,6 +212,11 @@ async def get_student_stats(
         "name": student.full_name or student.username or "",
         "total_points": ranking.total_points if ranking else 0,
         "global_rank": ranking.global_rank if ranking else 0,
-        "weekly_points": ranking.weekly_points if ranking else 0,
+        # weekly_points only receives the day's points at the nightly rollover; weekly_rank is ordered by
+        # weekly + daily, so the two must be reported together or the number and the place disagree.
+        "weekly_points": (ranking.weekly_points + ranking.daily_points) if ranking else 0,
+        "weekly_rank": ranking.weekly_rank if ranking else 0,
+        "weekly_lessons": weekly_lessons,
+        "weekly_exercises": weekly_exercises,
         "courses": courses_data,
     }
