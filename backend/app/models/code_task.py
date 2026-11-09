@@ -6,7 +6,7 @@ See docs/superpowers/specs/2026-11-09-teacher-code-tasks-design.md.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base_class import Base
@@ -46,6 +46,7 @@ class CodeTask(Base):
 class CodeTaskSubmission(Base):
     """One submitted attempt. The integrity numbers are client-reported hints for the teacher, never for the student."""
     __tablename__ = "code_task_submissions"
+    __table_args__ = (UniqueConstraint("task_id", "attempt_no", name="uq_code_task_attempt"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     task_id: Mapped[int] = mapped_column(

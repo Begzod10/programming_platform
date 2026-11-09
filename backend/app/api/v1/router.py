@@ -25,6 +25,7 @@ from app.api.v1.endpoints.teacher import penalties as teacher_penalties
 from app.api.v1.endpoints.teacher import telegram as teacher_telegram
 from app.api.v1.endpoints.teacher import pc_control as teacher_pc_control
 from app.api.v1.endpoints import code_checks
+from app.api.v1.endpoints import code_tasks
 from app.api.v1.endpoints.teacher import code_tasks as teacher_code_tasks
 from app.api.v1.endpoints import translations_admin
 from app.api.v1.endpoints import dictionary
@@ -95,6 +96,7 @@ api_router.include_router(teacher_pc_control.router, prefix="/teacher/pc", tags=
 api_router.include_router(code_checks.router, prefix="/code-checks", tags=["Code Checks"])
 api_router.include_router(code_checks.teacher_router, prefix="/teacher/code-checks", tags=["Teacher - Code Checks"])
 api_router.include_router(teacher_code_tasks.router, prefix="/teacher/code-tasks", tags=["Teacher - Code Tasks"])
+api_router.include_router(code_tasks.router, prefix="/code-tasks", tags=["Code Tasks"])
 api_router.include_router(team_project.router, prefix="/team-projects", tags=["Team Projects"])
 api_router.include_router(classroom_integration.router, prefix="/integrations", tags=["Classroom Integration"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])

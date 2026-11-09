@@ -166,3 +166,116 @@ async def test_patch_and_delete_only_before_submission(async_client):
         db.add(CodeTaskSubmission(task_id=returned["id"], attempt_no=1, code="x"))
         await db.commit()
     assert (await async_client.delete(f"{TEACHER_API}/{returned['id']}", headers=_h(tid))).status_code == 409
+
+
+# ── Task 3: student side ────────────────────────────────────────────────────
+
+async def _task(async_client, **over):
+    tid, sid = await _teacher_with_student()
+    task = await _create(async_client, tid, sid, **over)
+    return tid, sid, task["id"]
+
+
+def _submit_body(**over):
+    return {"code": "print('hi')", "active_seconds": 90, "typed_chars": 8, "pasted_chars": 3, "paste_events": 1, **over}
+
+
+async def test_student_lists_and_reads_only_own_tasks(async_client):
+    tid, sid, task_id = await _task(async_client, title="Mine")
+    _, other_sid = await _teacher_with_student()
+    rows = (await async_client.get(f"{STUDENT_API}/", headers=_h(sid))).json()
+    assert [r["title"] for r in rows] == ["Mine"]
+    assert (await async_client.get(f"{STUDENT_API}/", headers=_h(other_sid))).json() == []
+    h = _h(other_sid)
+    assert (await async_client.get(f"{STUDENT_API}/{task_id}", headers=h)).status_code == 404
+    assert (await async_client.put(f"{STUDENT_API}/{task_id}/draft", headers=h, json={"code": "x"})).status_code == 404
+    assert (await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=h, json=_submit_body())).status_code == 404
+
+
+async def test_read_returns_starter_then_draft(async_client):
+    tid, sid, task_id = await _task(async_client, starter_code="# start here")
+    assert (await async_client.get(f"{STUDENT_API}/{task_id}", headers=_h(sid))).json()["code"] == "# start here"
+    r = await async_client.put(f"{STUDENT_API}/{task_id}/draft", headers=_h(sid), json={"code": "x = 1"})
+    assert r.status_code == 200
+    assert (await async_client.get(f"{STUDENT_API}/{task_id}", headers=_h(sid))).json()["code"] == "x = 1"
+
+
+async def test_student_response_has_no_ai_or_integrity_fields(async_client):
+    tid, sid, task_id = await _task(async_client)
+    assert (await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body())).status_code == 200
+    async with AsyncSessionLocal() as db:
+        sub = (await db.execute(select(CodeTaskSubmission).where(CodeTaskSubmission.task_id == task_id))).scalar_one()
+        sub.ai_review = {"summary": "secret"}
+        sub.ai_status = "done"
+        await db.commit()
+    for url in (f"{STUDENT_API}/", f"{STUDENT_API}/{task_id}"):
+        text = (await async_client.get(url, headers=_h(sid))).text
+        for key in ("ai_review", "ai_status", "pasted_chars", "typed_chars", "paste_events", "active_seconds", "secret"):
+            assert key not in text, (url, key)
+
+
+async def test_submit_moves_to_submitted_and_stores_attempt(async_client):
+    tid, sid, task_id = await _task(async_client)
+    await async_client.put(f"{STUDENT_API}/{task_id}/draft", headers=_h(sid), json={"code": "draft"})
+    r = await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body())
+    assert r.status_code == 200 and r.json()["status"] == "submitted"
+    async with AsyncSessionLocal() as db:
+        sub = (await db.execute(select(CodeTaskSubmission).where(CodeTaskSubmission.task_id == task_id))).scalar_one()
+        assert (sub.attempt_no, sub.code, sub.typed_chars, sub.pasted_chars, sub.paste_events, sub.active_seconds) == \
+               (1, "print('hi')", 8, 3, 1, 90)
+        task = await db.get(CodeTask, task_id)
+        assert task.status == "submitted" and task.draft_code is None
+
+
+async def test_cannot_edit_or_resubmit_when_submitted(async_client):
+    tid, sid, task_id = await _task(async_client)
+    await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body())
+    assert (await async_client.put(f"{STUDENT_API}/{task_id}/draft", headers=_h(sid), json={"code": "x"})).status_code == 409
+    assert (await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body())).status_code == 409
+
+
+async def test_double_submit_only_one_wins(async_client):
+    tid, sid, task_id = await _task(async_client)
+    rs = await asyncio.gather(*[
+        async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body()) for _ in range(2)])
+    assert sorted(r.status_code for r in rs) == [200, 409]
+    async with AsyncSessionLocal() as db:
+        n = (await db.execute(select(func.count(CodeTaskSubmission.id)).where(CodeTaskSubmission.task_id == task_id))).scalar()
+        assert n == 1
+
+
+async def test_empty_whitespace_and_oversized_code_are_rejected(async_client):
+    tid, sid, task_id = await _task(async_client)
+    h = _h(sid)
+    for code in ("", " \n\t "):
+        assert (await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=h, json=_submit_body(code=code))).status_code == 422
+    assert (await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=h, json=_submit_body(code="x" * 100_001))).status_code == 422
+    assert (await async_client.put(f"{STUDENT_API}/{task_id}/draft", headers=h, json={"code": "x" * 100_001})).status_code == 422
+    assert (await async_client.put(f"{STUDENT_API}/{task_id}/draft", headers=h, json={"code": ""})).status_code == 200
+    assert (await async_client.put(f"{STUDENT_API}/{task_id}/draft", headers=h, json={"code": "x" * 100_000})).status_code == 200
+    assert (await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=h, json=_submit_body(code="x" * 100_000))).status_code == 200
+
+
+async def test_markup_like_code_round_trips_verbatim(async_client):
+    tid, sid, task_id = await _task(async_client)
+    code = "<script>alert(1)</script></pre>"
+    await async_client.put(f"{STUDENT_API}/{task_id}/draft", headers=_h(sid), json={"code": code})
+    assert (await async_client.get(f"{STUDENT_API}/{task_id}", headers=_h(sid))).json()["code"] == code
+
+
+async def test_resubmit_after_return(async_client):
+    tid, sid, task_id = await _task(async_client)
+    await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body())
+    await _set(task_id, status="returned")
+    r = await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body(code="v2"))
+    assert r.status_code == 200
+    async with AsyncSessionLocal() as db:
+        nos = (await db.execute(select(CodeTaskSubmission.attempt_no).where(CodeTaskSubmission.task_id == task_id)
+                                .order_by(CodeTaskSubmission.attempt_no))).scalars().all()
+        assert nos == [1, 2]
+
+
+async def test_late_submission_is_allowed(async_client):
+    past = (utcnow() - timedelta(days=2)).isoformat()
+    tid, sid, task_id = await _task(async_client, deadline=past)
+    assert (await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body())).status_code == 200
