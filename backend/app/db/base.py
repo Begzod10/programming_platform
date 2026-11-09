@@ -59,6 +59,7 @@ from app.models.telegram_chat import (  # noqa: F401  registers tables for creat
     TelegramChatStudent,
     TelegramLinkCode,
 )
+from app.models.code_task import CodeTask, CodeTaskSubmission  # noqa: F401  registers tables for create_all
 from app.models.pc_control import (  # noqa: F401  registers tables for create_all
     PcDevice,
     PcAllowlist,
