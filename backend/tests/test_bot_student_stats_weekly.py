@@ -11,7 +11,9 @@ from app.db.database import AsyncSessionLocal
 from app.models.course import Course, student_courses
 from app.models.exercise import Exercise, ExerciseSubmission
 from app.models.lesson import Lesson, LessonCompletion
+from app.models.project import Project
 from app.models.ranking import Ranking
+from app.models.submission import Submission
 from app.models.user import Student
 from app.utils.datetime_utils import utcnow
 
@@ -26,6 +28,8 @@ async def _cleanup():
         for sid, cid in _made:
             lesson_ids = (await db.execute(select(Lesson.id).where(Lesson.course_id == cid))).scalars().all()
             ex_ids = (await db.execute(select(Exercise.id).where(Exercise.lesson_id.in_(lesson_ids)))).scalars().all()
+            await db.execute(delete(Submission).where(Submission.student_id == sid))
+            await db.execute(delete(Project).where(Project.student_id == sid))
             await db.execute(delete(ExerciseSubmission).where(ExerciseSubmission.exercise_id.in_(ex_ids)))
             await db.execute(delete(Exercise).where(Exercise.id.in_(ex_ids)))
             await db.execute(delete(LessonCompletion).where(LessonCompletion.lesson_id.in_(lesson_ids)))
@@ -127,3 +131,57 @@ def test_the_week_starts_on_monday_midnight_tashkent():
     assert _week_start_utc(datetime(2026, 11, 1, 19, 30, tzinfo=timezone.utc)) == datetime(2026, 11, 1, 19, tzinfo=timezone.utc)
     # Sun 2026-11-01 23:00 Tashkent (= 18:00 UTC) still belongs to the previous week
     assert _week_start_utc(datetime(2026, 11, 1, 18, tzinfo=timezone.utc)) == datetime(2026, 10, 25, 19, tzinfo=timezone.utc)
+
+
+async def _project_submission(sid, *, submitted, points, updated=None):
+    async with AsyncSessionLocal() as db:
+        p = Project(student_id=sid, title="P", description="d", difficulty_level="Beginner")
+        db.add(p)
+        await db.flush()
+        db.add(Submission(project_id=p.id, student_id=sid, status="Graded" if points else "Submitted",
+                          points_earned=points, submitted_at=submitted, updated_at=updated or submitted))
+        await db.commit()
+
+
+async def _scored(sid, ex_id, score, when):
+    async with AsyncSessionLocal() as db:
+        db.add(ExerciseSubmission(exercise_id=ex_id, student_id=sid, student_answer="x",
+                                  is_correct=score > 0, score=score, submitted_at=when))
+        await db.commit()
+
+
+async def test_todays_exercises_report_correct_total_and_points_actually_awarded(async_client, monkeypatch):
+    sid, _, ex = await _setup()
+    now = utcnow()
+    await _scored(sid, ex, 10, now)          # solved today, +10
+    await _scored(sid, ex, 0, now)           # wrong / repeat today, +0
+    await _scored(sid, ex, 10, now - timedelta(days=3))   # an earlier day: not today's
+    body = await _stats(async_client, monkeypatch, sid)
+    assert body["daily_exercises"] == {"total": 2, "correct": 1, "points": 10}
+
+
+async def test_todays_projects_count_submissions_and_points_graded_today(async_client, monkeypatch):
+    sid, _, _ = await _setup()
+    now = utcnow()
+    await _project_submission(sid, submitted=now, points=90)                      # submitted + graded today
+    await _project_submission(sid, submitted=now, points=0)                       # submitted today, not graded yet
+    await _project_submission(sid, submitted=now - timedelta(days=3), points=70, updated=now)   # graded today
+    await _project_submission(sid, submitted=now - timedelta(days=3), points=50)  # old, graded long ago
+    body = await _stats(async_client, monkeypatch, sid)
+    assert body["daily_projects"] == {"submitted": 2, "points": 160}
+
+
+async def test_no_activity_today_gives_zero_daily_blocks(async_client, monkeypatch):
+    sid, _, _ = await _setup()
+    body = await _stats(async_client, monkeypatch, sid)
+    assert body["daily_exercises"] == {"total": 0, "correct": 0, "points": 0}
+    assert body["daily_projects"] == {"submitted": 0, "points": 0}
+
+
+def test_the_day_starts_at_midnight_tashkent():
+    from datetime import datetime, timezone
+    from app.api.v1.endpoints.bot_stats import _day_start_utc
+    # 2026-11-09 14:00 UTC = 19:00 Tashkent -> that day's 00:00 Tashkent = 2026-11-08 19:00 UTC
+    assert _day_start_utc(datetime(2026, 11, 9, 14, tzinfo=timezone.utc)) == datetime(2026, 11, 8, 19, tzinfo=timezone.utc)
+    # 2026-11-08 20:00 UTC = 01:00 Tashkent on the 9th -> still the 9th
+    assert _day_start_utc(datetime(2026, 11, 8, 20, tzinfo=timezone.utc)) == datetime(2026, 11, 8, 19, tzinfo=timezone.utc)

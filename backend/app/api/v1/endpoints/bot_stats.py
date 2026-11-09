@@ -20,6 +20,12 @@ router = APIRouter()
 _TASHKENT = ZoneInfo("Asia/Tashkent")
 
 
+def _day_start_utc(now: Optional[datetime] = None) -> datetime:
+    """Today's 00:00 Asia/Tashkent as an aware UTC datetime ("today" for the group report)."""
+    local = (now or datetime.now(timezone.utc)).astimezone(_TASHKENT)
+    return local.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+
 def _week_start_utc(now: Optional[datetime] = None) -> datetime:
     """Monday 00:00 Asia/Tashkent of the current week, as an aware UTC datetime — the same moment the weekly
     points reset (scheduler `job_reset_weekly`), so lessons/exercises cover exactly the points' week."""
@@ -194,6 +200,27 @@ async def get_student_stats(
     )).one()
     weekly_exercises = {"total": int(ex_row[0] or 0), "correct": int(ex_row[1] or 0)}
 
+    # Today's activity for the group report. Exercise points are what was ACTUALLY awarded (score is 0 on a
+    # repeat solve); project points are those graded today, whenever the project was submitted.
+    day_start = _day_start_utc()
+    dx = (await db.execute(
+        select(func.count(ExerciseSubmission.id),
+               func.sum(case((ExerciseSubmission.is_correct == True, 1), else_=0)),
+               func.sum(func.coalesce(ExerciseSubmission.score, 0)))
+        .where(ExerciseSubmission.student_id == student_id, ExerciseSubmission.submitted_at >= day_start)
+    )).one()
+    daily_exercises = {"total": int(dx[0] or 0), "correct": int(dx[1] or 0), "points": int(dx[2] or 0)}
+    submitted_today = (await db.execute(
+        select(func.count(Submission.id)).where(
+            Submission.student_id == student_id, Submission.submitted_at >= day_start)
+    )).scalar() or 0
+    graded_points = (await db.execute(
+        select(func.sum(Submission.points_earned)).where(
+            Submission.student_id == student_id, Submission.points_earned > 0,
+            Submission.updated_at >= day_start)
+    )).scalar() or 0
+    daily_projects = {"submitted": int(submitted_today), "points": int(graded_points)}
+
     courses_data = []
     for c in courses:
         cid = c.id
@@ -218,5 +245,7 @@ async def get_student_stats(
         "weekly_rank": ranking.weekly_rank if ranking else 0,
         "weekly_lessons": weekly_lessons,
         "weekly_exercises": weekly_exercises,
+        "daily_exercises": daily_exercises,
+        "daily_projects": daily_projects,
         "courses": courses_data,
     }
