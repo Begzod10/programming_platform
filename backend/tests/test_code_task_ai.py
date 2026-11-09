@@ -57,6 +57,11 @@ def test_parse_review_accepts_a_valid_answer():
                  "looks_complete": True, "suggested_points": 15}
 
 
+def test_parse_review_rejects_non_finite_points():
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        assert svc.parse_review({**VALID, "suggested_points": bad}, 20) is None
+
+
 def test_parse_review_clips_and_rejects():
     assert svc.parse_review({**VALID, "suggested_points": 999}, 20)["suggested_points"] == 20
     assert svc.parse_review({**VALID, "suggested_points": -5}, 20)["suggested_points"] == 0
@@ -114,3 +119,11 @@ async def test_review_never_changes_task_state_or_points_even_when_the_code_give
         task = await db.get(CodeTask, task_id)
         assert task.status == "submitted" and task.graded_points is None
     assert await _balances(sid) == before
+
+
+async def test_a_non_finite_suggestion_ends_as_failed_not_pending_forever(async_client, monkeypatch):
+    bad = {**VALID, "suggested_points": float("nan")}
+    _patch_chain(monkeypatch, [bad, bad])
+    tid, sid, task_id = await _task(async_client)
+    await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body())
+    assert (await _only_submission(task_id)).ai_status == "failed"

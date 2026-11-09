@@ -6,6 +6,7 @@ The teacher side works on the tasks the teacher created; the student side on the
 docs/superpowers/specs/2026-11-09-teacher-code-tasks-design.md.
 """
 import logging
+import math
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -131,6 +132,13 @@ async def last_return_feedback(db: AsyncSession, task_id: int) -> Optional[str]:
         .order_by(CodeTaskSubmission.attempt_no.desc()).limit(1))).scalar_one_or_none()
 
 
+async def last_submission_code(db: AsyncSession, task_id: int) -> Optional[str]:
+    """The code of the student's latest attempt: what the editor reopens with once the draft was cleared by a submit."""
+    return (await db.execute(
+        select(CodeTaskSubmission.code).where(CodeTaskSubmission.task_id == task_id)
+        .order_by(CodeTaskSubmission.attempt_no.desc()).limit(1))).scalar_one_or_none()
+
+
 def _check_length(code: str) -> None:
     if len(code) > MAX_CODE_CHARS:
         raise InvalidInput("code too long")
@@ -197,9 +205,8 @@ async def grade(db: AsyncSession, task: CodeTask, *, points: int, feedback: Opti
         raise WrongState()
     if points > 0:
         from app.services.ranking_service import RankingService
-        await RankingService(db).add_points_to_student(task.student_id, points)    # commits
-    else:
-        await db.commit()
+        await RankingService(db).add_points_to_student(task.student_id, points)    # commits, except for a demo student
+    await db.commit()                                                              # always: the flip must not ride on that
     await db.refresh(task)
     return task
 
@@ -297,6 +304,8 @@ def parse_review(parsed: Any, max_points: int) -> Optional[dict]:
         except ValueError:
             return None
     elif isinstance(points, float):
+        if not math.isfinite(points):          # NaN / Infinity are valid JSON numbers but not points
+            return None
         points = int(points)
     elif not isinstance(points, int):
         return None
@@ -323,10 +332,10 @@ async def run_ai_review(submission_id: int) -> None:
             for _ in range(_AI_ATTEMPTS):
                 try:
                     _, parsed, _, _ = await call_chain(prompt, max_tokens=1200, validator=parse_ai_json)
-                except Exception as e:  # noqa: BLE001 — any provider failure just means "try again, then give up"
-                    logger.warning("code-task review %s: provider failed (%s)", submission_id, type(e).__name__)
+                    review = parse_review(parsed, task.max_points)
+                except Exception as e:  # noqa: BLE001 — any failure (provider, odd answer) means "try again, then give up"
+                    logger.warning("code-task review %s: attempt failed (%s)", submission_id, type(e).__name__)
                     continue
-                review = parse_review(parsed, task.max_points)
                 if review:
                     break
             sub.ai_status = "done" if review else "failed"

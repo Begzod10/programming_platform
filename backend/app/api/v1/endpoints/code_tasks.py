@@ -49,11 +49,13 @@ class SubmitBody(BaseModel):
 
 
 async def _read(db: AsyncSession, task: CodeTask) -> TaskRead:
+    # the draft if there is one, else the latest submitted attempt (a submit clears the draft), else the starter code
+    code = task.draft_code if task.draft_code is not None else await svc.last_submission_code(db, task.id)
     return TaskRead(
         id=task.id, title=task.title, language=task.language, status=task.status, max_points=task.max_points,
         deadline=task.deadline, graded_points=task.graded_points, description=task.description,
         starter_code=task.starter_code,
-        code=task.draft_code if task.draft_code is not None else (task.starter_code or ""),
+        code=code if code is not None else (task.starter_code or ""),
         draft_saved_at=task.draft_saved_at, teacher_feedback=task.teacher_feedback, graded_at=task.graded_at,
         returned_feedback=await svc.last_return_feedback(db, task.id))
 

@@ -420,3 +420,36 @@ async def test_a_failing_notification_never_fails_the_request(async_client, monk
     task_id = r.json()["id"]
     assert (await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body())).status_code == 200
     assert (await async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(tid), json={"points": 5})).status_code == 200
+
+
+# ── review fixes ────────────────────────────────────────────────────────────
+
+async def test_after_submitting_or_returning_the_student_still_sees_their_own_code(async_client):
+    tid, sid, task_id = await _task(async_client, starter_code="# start")
+    await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body(code="my solution"))
+    assert (await async_client.get(f"{STUDENT_API}/{task_id}", headers=_h(sid))).json()["code"] == "my solution"
+    await async_client.post(f"{TEACHER_API}/{task_id}/return", headers=_h(tid), json={"feedback": "Funksiyaga ajrating"})
+    back = (await async_client.get(f"{STUDENT_API}/{task_id}", headers=_h(sid))).json()
+    assert back["status"] == "returned" and back["code"] == "my solution"          # edit the attempt, do not retype it
+    await async_client.put(f"{STUDENT_API}/{task_id}/draft", headers=_h(sid), json={"code": "my solution v2"})
+    assert (await async_client.get(f"{STUDENT_API}/{task_id}", headers=_h(sid))).json()["code"] == "my solution v2"
+
+
+async def test_the_graded_result_persists_even_when_the_points_call_does_not_commit(async_client, monkeypatch):
+    """add_points_to_student returns early (no commit) for a demo student; the grade must not depend on the
+    notification that follows happening to commit."""
+    from app.services import notification_service
+
+    async def quiet(*a, **k):
+        return None
+
+    monkeypatch.setattr(notification_service, "_emit", quiet)
+    tid, sid, task_id = await _submitted(async_client)
+    async with AsyncSessionLocal() as db:
+        (await db.get(Student, sid)).is_demo = True
+        await db.commit()
+    r = await async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(tid), json={"points": 10})
+    assert r.status_code == 200
+    async with AsyncSessionLocal() as db:
+        task = await db.get(CodeTask, task_id)
+        assert task.status == "graded" and task.graded_points == 10
