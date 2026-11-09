@@ -9,7 +9,7 @@ jest.mock('../api/search/base', () => ({
   headers: () => ({}),
 }));
 
-import StudentDictionary, { hardness, isHard, checkState, looksLikeCode } from '../views/teacher/mystudents/StudentDictionary';
+import StudentDictionary, { hardness, isHard, checkState, looksLikeCode, paginate, pageWindow } from '../views/teacher/mystudents/StudentDictionary';
 
 const word = (o) => ({
   id: 1, word: 'closure', context: 'A closure remembers its scope.', lang: 'uz', lesson_id: 5,
@@ -19,6 +19,9 @@ const word = (o) => ({
 const dictionary = (words) => ({ student_id: 9, total: words.length, words });
 
 beforeEach(() => mockRequest.mockReset());
+
+// The tally is a row of status chips: "Hammasi N", "Biladi N", "Bilmaydi N", "So'ralmagan N".
+const chip = (label) => screen.getByRole('button', { name: new RegExp(`^${label}`) });
 
 test('hardness: more wrong than right answers marks a word as hard', () => {
   expect(isHard(word({ correct_count: 1, incorrect_count: 3 }))).toBe(true);
@@ -96,7 +99,7 @@ describe("the teacher's oral checks", () => {
     ]));
     const { container } = render(<StudentDictionary studentId={9} />);
     await screen.findByText('a');
-    expect(container.querySelector('.sdict-tally')).toHaveTextContent("Biladi 1 · Bilmaydi 1 · So'ralmagan 1");
+    expect(container.querySelector('.sdict-tally')).toHaveTextContent("Biladi 1 Bilmaydi 1 So'ralmagan 1");
     expect(container.querySelector('.sdict-state--known')).toBeInTheDocument();
     expect(container.querySelector('.sdict-state--unknown')).toHaveTextContent('2x');
   });
@@ -109,10 +112,10 @@ describe("the teacher's oral checks", () => {
     ]));
     render(<StudentDictionary studentId={9} />);
     await screen.findByText('knownword');
-    fireEvent.change(screen.getByLabelText('Holat'), { target: { value: 'unknown' } });
+    fireEvent.click(chip('Bilmaydi'));
     expect(screen.getByText('unknownword')).toBeInTheDocument();
     expect(screen.queryByText('knownword')).toBeNull();
-    fireEvent.change(screen.getByLabelText('Holat'), { target: { value: 'unchecked' } });
+    fireEvent.click(chip("So'ralmagan"));
     expect(screen.getByText('freshword')).toBeInTheDocument();
     expect(screen.queryByText('unknownword')).toBeNull();
   });
@@ -128,7 +131,7 @@ describe("the teacher's oral checks", () => {
     expect(call[0]).toBe('http://test/api/v1/teacher/students/9/dictionary/7/check');
     expect(call[1]).toBe('POST');
     expect(JSON.parse(call[2])).toEqual({ knows: true });
-    expect(container.querySelector('.sdict-tally')).toHaveTextContent('Biladi 1 · Bilmaydi 0');
+    expect(container.querySelector('.sdict-tally')).toHaveTextContent('Biladi 1 Bilmaydi 0');
   });
 
   test('on the random card, a verdict is saved and the next word comes up', async () => {
@@ -152,7 +155,7 @@ describe("the teacher's oral checks", () => {
     mockRequest.mockRejectedValueOnce(new Error('boom'));
     fireEvent.click(screen.getByLabelText('closure: bilmaydi'));
     expect(await screen.findByRole('alert')).toHaveTextContent("saqlab bo'lmadi");
-    expect(container.querySelector('.sdict-tally')).toHaveTextContent("Biladi 0 · Bilmaydi 0 · So'ralmagan 1");
+    expect(container.querySelector('.sdict-tally')).toHaveTextContent("Biladi 0 Bilmaydi 0 So'ralmagan 1");
   });
 });
 
@@ -257,7 +260,7 @@ describe('the random card is for words that were not asked yet', () => {
     mockRequest.mockResolvedValue(mixed());
     const { container } = render(<StudentDictionary studentId={9} />);
     await screen.findByText('alpha');
-    fireEvent.change(screen.getByLabelText('Holat'), { target: { value: 'unknown' } });
+    fireEvent.click(chip('Bilmaydi'));
     fireEvent.click(screen.getByText(/Tasodifiy so'z/));
     expect(container.querySelector('.sdict-picked-word')).toHaveTextContent('bravo');
   });
@@ -271,5 +274,153 @@ describe('the random card is for words that were not asked yet', () => {
     fireEvent.click(screen.getByText('✓ Biladi'));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent("Hamma so'zlar so'ralgan"));
     expect(container.querySelector('.sdict-picked-word')).toBeNull();
+  });
+});
+
+
+// ── pagination ───────────────────────────────────────────────────────────────
+
+const many = (n) => Array.from({ length: n }, (_, i) => word({
+  id: i + 1, word: `kalit${String.fromCharCode(97 + Math.floor(i / 26))}${String.fromCharCode(97 + (i % 26))}`,
+}));
+const listed = (container) => [...container.querySelectorAll('.sdict-word')].map((n) => n.textContent);
+const pager = () => screen.queryByRole('navigation', { name: 'Sahifalash' });
+
+describe('paginate / pageWindow', () => {
+  test('paginate gives the slice bounds and clamps the page into range', () => {
+    expect(paginate(45, 1, 20)).toEqual({ page: 1, pages: 3, from: 0, to: 20 });
+    expect(paginate(45, 3, 20)).toEqual({ page: 3, pages: 3, from: 40, to: 45 });      // last page is short
+    expect(paginate(45, 9, 20).page).toBe(3);                                         // past the end -> last page
+    expect(paginate(45, 0, 20).page).toBe(1);
+    expect(paginate(0, 1, 20)).toEqual({ page: 1, pages: 1, from: 0, to: 0 });         // nothing: still one (empty) page
+    expect(paginate(20, 1, 20).pages).toBe(1);                                        // exactly one full page
+    expect(paginate(21, 1, 20).pages).toBe(2);
+  });
+
+  test('pageWindow shows the first, the last and the neighbours of the current page, with gaps as null', () => {
+    expect(pageWindow(1, 3)).toEqual([1, 2, 3]);
+    expect(pageWindow(1, 9)).toEqual([1, 2, null, 9]);
+    expect(pageWindow(5, 9)).toEqual([1, null, 4, 5, 6, null, 9]);
+    expect(pageWindow(9, 9)).toEqual([1, null, 8, 9]);
+    expect(pageWindow(1, 1)).toEqual([1]);
+  });
+});
+
+describe('the word list is paged', () => {
+  test('shows 20 words per page with a pager and the range', async () => {
+    mockRequest.mockResolvedValue(dictionary(many(45)));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('kalitaa');
+    expect(listed(container)).toHaveLength(20);
+    expect(listed(container)[0]).toBe('kalitaa');
+    expect(pager()).toBeInTheDocument();
+    expect(screen.getByText("1–20 / 45 so'z")).toBeInTheDocument();
+    expect(screen.getByLabelText('1-sahifa')).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: '‹ Oldingi' })).toBeDisabled();
+  });
+
+  test('next, a page number and previous move through the pages; the last page is short', async () => {
+    mockRequest.mockResolvedValue(dictionary(many(45)));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('kalitaa');
+    fireEvent.click(screen.getByRole('button', { name: 'Keyingi ›' }));
+    expect(listed(container)[0]).toBe('kalitau');                                    // the 21st word
+    expect(screen.getByText("21–40 / 45 so'z")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('3-sahifa'));
+    expect(listed(container)).toHaveLength(5);
+    expect(screen.getByText("41–45 / 45 so'z")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keyingi ›' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '‹ Oldingi' }));
+    expect(screen.getByLabelText('2-sahifa')).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('no pager when everything fits on one page', async () => {
+    mockRequest.mockResolvedValue(dictionary(many(20)));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('kalitaa');
+    expect(listed(container)).toHaveLength(20);
+    expect(pager()).toBeNull();
+    expect(screen.queryByLabelText('Sahifada')).toBeNull();
+  });
+
+  test('searching or filtering goes back to the first page', async () => {
+    mockRequest.mockResolvedValue(dictionary(many(45)));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('kalitaa');
+    fireEvent.click(screen.getByLabelText('3-sahifa'));
+    fireEvent.change(screen.getByLabelText("So'z qidirish"), { target: { value: 'kalita' } });
+    expect(listed(container)).toHaveLength(20);                                      // 26 matches, first page again
+    expect(listed(container)[0]).toBe('kalitaa');
+    expect(screen.getByLabelText('1-sahifa')).toHaveAttribute('aria-current', 'page');
+  });
+
+  test('the page size can be raised, which also brings back the single page', async () => {
+    mockRequest.mockResolvedValue(dictionary(many(45)));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('kalitaa');
+    fireEvent.change(screen.getByLabelText('Sahifada'), { target: { value: '50' } });
+    expect(listed(container)).toHaveLength(45);
+    expect(pager()).toBeNull();
+  });
+
+  test('when a saved verdict removes the only word of the last page, the list falls back to the last page left', async () => {
+    mockRequest.mockResolvedValueOnce(dictionary(many(21)));
+    const { container } = render(<StudentDictionary studentId={9} />);
+    await screen.findByText('kalitaa');
+    fireEvent.click(chip("So'ralmagan"));                                            // 21 unasked words, 2 pages
+    fireEvent.click(screen.getByLabelText('2-sahifa'));
+    expect(listed(container)).toEqual(['kalitau']);
+    mockRequest.mockResolvedValueOnce(word({ id: 21, word: 'kalitau', last_check_knows: true, checks_count: 1 }));
+    fireEvent.click(screen.getByLabelText('kalitau: biladi'));
+    await waitFor(() => expect(listed(container)).toHaveLength(20));                 // not an empty page 2
+    expect(pager()).toBeNull();
+  });
+});
+
+describe('status chips and the hidden-code hint', () => {
+  test('the chips show the counts, filter on click and say which one is on', async () => {
+    mockRequest.mockResolvedValue(dictionary([
+      word({ id: 1, word: 'knownword', last_check_knows: true }),
+      word({ id: 2, word: 'unknownword', last_check_knows: false }),
+      word({ id: 3, word: 'freshword' }),
+    ]));
+    render(<StudentDictionary studentId={9} />);
+    await screen.findByText('knownword');
+    expect(chip('Hammasi')).toHaveTextContent('Hammasi 3');
+    expect(chip('Hammasi')).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(chip('Biladi'));
+    expect(chip('Biladi')).toHaveAttribute('aria-pressed', 'true');
+    expect(chip('Hammasi')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByText('freshword')).toBeNull();
+    fireEvent.click(chip('Hammasi'));
+    expect(screen.getByText('freshword')).toBeInTheDocument();
+  });
+
+  test('says how many code fragments are hidden, and drops the note when they are shown', async () => {
+    mockRequest.mockResolvedValue(dictionary([
+      word({ id: 1, word: 'closure' }), word({ id: 2, word: 'contract_test.py' }), word({ id: 3, word: '/api/admin/users' }),
+    ]));
+    render(<StudentDictionary studentId={9} />);
+    await screen.findByText('closure');
+    expect(screen.getByText("2 ta kod bo'lagi yashirilgan")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Kod bo'laklarini yashirish (2)"));
+    expect(screen.queryByText(/kod bo'lagi yashirilgan/)).toBeNull();
+  });
+
+  test('the chip counts follow the list: hidden code fragments are not counted, shown ones are', async () => {
+    mockRequest.mockResolvedValue(dictionary([
+      word({ id: 1, word: 'closure', last_check_knows: false }),
+      word({ id: 2, word: 'contract_test.py', last_check_knows: false }),
+      word({ id: 3, word: '/api/admin/users' }),
+    ]));
+    render(<StudentDictionary studentId={9} />);
+    await screen.findByText('closure');
+    expect(chip('Hammasi')).toHaveTextContent('Hammasi 1');
+    expect(chip('Bilmaydi')).toHaveTextContent('Bilmaydi 1');
+    expect(chip("So'ralmagan")).toHaveTextContent("So'ralmagan 0");
+    fireEvent.click(screen.getByLabelText("Kod bo'laklarini yashirish (2)"));
+    expect(chip('Hammasi')).toHaveTextContent('Hammasi 3');
+    expect(chip('Bilmaydi')).toHaveTextContent('Bilmaydi 2');
+    expect(chip("So'ralmagan")).toHaveTextContent("So'ralmagan 1");
   });
 });
