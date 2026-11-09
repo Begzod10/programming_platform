@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import './StudentProfile.css';
 import StudentDictionary from './StudentDictionary';
+import StudentCodeTasks from './StudentCodeTasks';
 import DictionarySummaryCard from './DictionarySummaryCard';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { Star, Trophy } from 'lucide-react';
+
+export const TAB_IDS = ['overview', 'courses', 'achievements', 'dictionary', 'tasks'];
+/** The tab named by `?tab=` (a notification can deep-link to "tasks"); anything unknown opens the overview. */
+export const tabFromQuery = (value) => (TAB_IDS.includes(value) ? value : 'overview');
 
 /* ─── Helpers ─── */
 const LEVEL_MAP = {
@@ -94,7 +99,8 @@ const StudentProfilePage = () => {
   const [progress, setProgress] = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
-  const [tab,      setTab]      = useState('overview');
+  const [search] = useSearchParams();
+  const [tab,      setTab]      = useState(() => tabFromQuery(search.get('tab')));
 
   const load = useCallback(() => {
     if (!studentId) return;
@@ -359,6 +365,7 @@ const StudentProfilePage = () => {
               { id:'courses',      label:'Kurslar',  icon:'📚', count: courses.length },
               { id:'achievements', label:'Yutuqlar', Icon: Trophy, count: achievements.length },
               { id:'dictionary',   label:"Lug'at",   icon:'📖', count: null },
+              { id:'tasks',        label:'Vazifalar', icon:'📝', count: null },
             ].map(({ id, label, icon, Icon, count }) => (
               <button key={id}
                 className={`spp-tab ${tab === id ? 'active' : ''}`}
@@ -431,6 +438,13 @@ const StudentProfilePage = () => {
           {tab === 'dictionary' && (
             <div className="spp-tab-body">
               <StudentDictionary studentId={studentId} />
+            </div>
+          )}
+
+          {/* ── Code tasks: give the student a coding task, review what comes back ── */}
+          {tab === 'tasks' && (
+            <div className="spp-tab-body">
+              <StudentCodeTasks studentId={studentId} />
             </div>
           )}
 
