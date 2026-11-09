@@ -8,7 +8,7 @@ import StreakBadge from './StreakBadge';
 import {
     LayoutDashboard, User, BookOpen, Map, Monitor, BookMarked,
     ClipboardCheck, BarChart2, Trophy, Construction, GraduationCap, Award, Puzzle,
-    HelpCircle, Users2, Zap,
+    HelpCircle, Users2, Zap, Code,
 } from 'lucide-react';
 
 const COLLAPSED_KEY = 'sidebar:collapsed';
@@ -63,6 +63,7 @@ function Sidebar({ activeTab, onLogout, role, earlyLearningEligible = true }) {
         { id: 'roadmap',        label: t('roadmap') || 'Roadmap',       Icon: Map,             section: 'main' },
         { id: 'projects',       label: t('my_projects'),                Icon: Monitor,         section: 'main' },
         { id: 'dictionary',     label: t('dictionary'),                 Icon: BookMarked,      section: 'main' },
+        { id: 'code-tasks',     label: t('codeTasks'),                  Icon: Code,            section: 'main' },
         { id: 'team-game',      label: t('team_game'),                  Icon: ClipboardCheck,  section: 'main' },
         { id: 'team-projects',  label: t('team_projects') || 'Jamoaviy loyihalar', Icon: Users2, section: 'main' },
         { id: 'quiz',           label: t('quiz'),                       Icon: HelpCircle,      section: 'main' },

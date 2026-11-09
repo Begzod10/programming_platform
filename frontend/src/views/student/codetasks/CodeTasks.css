@@ -1,0 +1,27 @@
+.ct-page { min-height: 100vh; }
+.ct-body { max-width: 900px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.ct-h1 { margin: 0; font-size: 24px; }
+.ct-h2 { margin: 0 0 8px; font-size: 15px; color: #777; text-transform: uppercase; letter-spacing: .04em; }
+.ct-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ct-item { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; text-align: left; padding: 12px 14px; border: 1px solid #ececf6; border-radius: 12px; background: #fff; cursor: pointer; font: inherit; color: #23233a; }
+.ct-item:hover { border-color: #6c5ce7; }
+.ct-name { font-weight: 600; margin-right: auto; }
+.ct-chip { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: #eef; color: #55a; }
+.ct-flag { font-size: 12px; padding: 2px 8px; border-radius: 8px; background: #ffe9e3; color: #c4452b; }
+.ct-pts { font-weight: 700; color: #3b2fa0; }
+.ct-meta { display: flex; gap: 12px; align-items: center; font-size: 13px; color: #777; flex-wrap: wrap; }
+.ct-desc { margin: 0; white-space: pre-wrap; }
+.ct-returned { margin: 0; padding: 10px 12px; border-radius: 10px; background: #fff2ee; color: #8a2d18; }
+.ct-info { margin: 0; padding: 10px 12px; border-radius: 10px; background: #fff8e1; color: #7a5b00; }
+.ct-result { padding: 10px 12px; border-radius: 10px; background: #e6faf5; color: #00664f; }
+.ct-result p { margin: 6px 0 0; }
+.ct-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: flex-end; }
+.ct-saved { margin-right: auto; font-size: 13px; color: #888; }
+.ct-error { margin: 0; color: #c4452b; font-size: 13px; }
+.ct-confirm { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; }
+.ct-btn { padding: 8px 16px; border: 1px solid #d8d8ea; border-radius: 10px; background: #fff; color: #23233a; cursor: pointer; font: inherit; }
+.ct-btn--accent { background: #6c5ce7; border-color: #6c5ce7; color: #fff; }
+.ct-btn:disabled { opacity: .5; cursor: default; }
+.ct-link { background: none; border: 0; padding: 0; color: #6c5ce7; cursor: pointer; font: inherit; align-self: flex-start; }
+.ct-empty { text-align: center; padding: 32px 12px; color: #888; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.ct-empty span { font-size: 32px; }

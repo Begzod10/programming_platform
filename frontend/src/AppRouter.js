@@ -27,6 +27,8 @@ import EarlyLearning      from './views/student/early-learning/EarlyLearning';
 import Quiz               from './views/student/quiz/Quiz';
 import Duel               from './views/student/duel/Duel';
 import CodeCheck          from './views/student/codecheck/CodeCheck';
+import CodeTasks          from './views/student/codetasks/CodeTasks';
+import CodeTaskPage       from './views/student/codetasks/CodeTaskPage';
 import DailyChallenge     from './views/student/early-learning/DailyChallenge';
 import Summative          from './views/student/summative/Summative';
 // import TeacherSummative   from './views/teacher/summative/TeacherSummative'; // disabled: teacher-built summative tests
@@ -145,6 +147,8 @@ function AppRouter() {
                 <Route path="early-learning/:moduleId"                    element={<EarlyLearning />} />
                 <Route path="statistics"                                  element={<StudentCourseStats />} />
                 <Route path="code-check/:id"                              element={<CodeCheck />} />
+                <Route path="code-tasks"                                  element={<CodeTasks />} />
+                <Route path="code-tasks/:id"                              element={<CodeTaskPage />} />
                 <Route path="notifications"                                element={<Notifications />} />
                 <Route path="daily-rules"                                  element={<DailyRules />} />
 
