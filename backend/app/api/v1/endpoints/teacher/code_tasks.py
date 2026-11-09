@@ -10,6 +10,7 @@ from app.dependencies import get_current_instructor, get_db
 from app.models.code_task import MAX_CODE_CHARS, CodeTask
 from app.models.user import Student
 from app.services import code_task_service as svc
+from app.services import notification_service as notes
 
 router = APIRouter()
 
@@ -105,12 +106,14 @@ def _http(exc: Exception) -> HTTPException:
 async def create_task(body: TaskCreate, teacher: Student = Depends(get_current_instructor),
                       db: AsyncSession = Depends(get_db)):
     try:
-        return await svc.create_task(
+        task = await svc.create_task(
             db, teacher.id, student_id=body.student_id, title=body.title, description=body.description,
             language=body.language, starter_code=body.starter_code, max_points=body.max_points,
             deadline=body.deadline, review_lang=body.lang)
     except (svc.TaskNotFound, svc.InvalidInput) as e:
         raise _http(e)
+    await svc.notify_safely(notes.notify_code_task_assigned, db, task)
+    return task
 
 
 # declared before "/{task_id}" so "student" is never parsed as an id
@@ -167,9 +170,11 @@ async def grade_task(task_id: int, body: GradeBody, teacher: Student = Depends(g
                      db: AsyncSession = Depends(get_db)):
     try:
         task = await svc.get_teacher_task(db, teacher.id, task_id, for_update=True)
-        return await svc.grade(db, task, points=body.points, feedback=body.feedback)
+        task = await svc.grade(db, task, points=body.points, feedback=body.feedback)
     except (svc.TaskNotFound, svc.WrongState, svc.InvalidInput) as e:
         raise _http(e)
+    await svc.notify_safely(notes.notify_code_task_graded, db, task)
+    return task
 
 
 @router.post("/{task_id}/return", response_model=TaskRead)
@@ -177,6 +182,8 @@ async def return_task(task_id: int, body: ReturnBody, teacher: Student = Depends
                       db: AsyncSession = Depends(get_db)):
     try:
         task = await svc.get_teacher_task(db, teacher.id, task_id, for_update=True)
-        return await svc.return_task(db, task, feedback=body.feedback)
+        task = await svc.return_task(db, task, feedback=body.feedback)
     except (svc.TaskNotFound, svc.WrongState, svc.InvalidInput) as e:
         raise _http(e)
+    await svc.notify_safely(notes.notify_code_task_returned, db, task, body.feedback.strip())
+    return task

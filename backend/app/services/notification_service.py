@@ -229,3 +229,39 @@ async def notify_quota_reminder(db: AsyncSession, student_id: int, *, remaining:
         db, student_id, type="quota_reminder", tone="wait", title=title, body=body,
         icon="⏰", link="/student/daily-rules",
     )
+
+
+# ── teacher code tasks ───────────────────────────────────────────────────────
+
+async def notify_code_task_assigned(db: AsyncSession, task) -> Optional[Notification]:
+    """Tell the student a teacher gave them a coding task (the title is the task's, localized text lives on the client)."""
+    return await _emit(
+        db, task.student_id, type="code_task_assigned", tone="wait", title=task.title,
+        icon="📝", link=f"/student/code-tasks/{task.id}",
+    )
+
+
+async def notify_code_task_graded(db: AsyncSession, task) -> Optional[Notification]:
+    """The teacher graded the task: `points` is what was earned, `extra` the task's maximum, `body` the teacher's note."""
+    return await _emit(
+        db, task.student_id, type="code_task_graded", tone="ok", title=task.title,
+        body=(task.teacher_feedback or None), extra=str(task.max_points), points=task.graded_points or 0,
+        icon="✅", link=f"/student/code-tasks/{task.id}",
+    )
+
+
+async def notify_code_task_returned(db: AsyncSession, task, feedback: str) -> Optional[Notification]:
+    """The teacher sent the attempt back for another go; `body` says what to change."""
+    return await _emit(
+        db, task.student_id, type="code_task_returned", tone="bad", title=task.title,
+        body=(feedback or None), icon="↩️", link=f"/student/code-tasks/{task.id}",
+    )
+
+
+async def notify_code_task_submitted(db: AsyncSession, task, student_name: str) -> Optional[Notification]:
+    """To the TEACHER: a student handed in code. The teacher notifications page shows title/body as stored (Uzbek)."""
+    return await _emit(
+        db, task.teacher_id, type="code_task_submitted", tone="wait",
+        title=f"{student_name}: «{task.title}»", body="Kod topshirildi va tekshirishni kutmoqda",
+        icon="📝", link=f"/teacher/students/{task.student_id}?tab=tasks",
+    )

@@ -10,6 +10,7 @@ from app.dependencies import get_current_student, get_db
 from app.models.code_task import MAX_CODE_CHARS, CodeTask
 from app.models.user import Student
 from app.services import code_task_service as svc
+from app.services import notification_service as notes
 
 router = APIRouter()
 
@@ -98,4 +99,5 @@ async def submit(task_id: int, body: SubmitBody, background: BackgroundTasks,
         raise _http(e)
     background.add_task(svc.run_ai_review, sub.id)
     await db.refresh(task)
+    await svc.notify_safely(notes.notify_code_task_submitted, db, task, student.full_name or student.username)
     return await _read(db, task)

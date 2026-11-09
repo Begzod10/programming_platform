@@ -372,3 +372,51 @@ async def test_another_teacher_cannot_grade_or_return(async_client):
     other = await _user(teacher=True)
     assert (await async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(other), json={"points": 5})).status_code == 404
     assert (await async_client.post(f"{TEACHER_API}/{task_id}/return", headers=_h(other), json={"feedback": "x"})).status_code == 404
+
+
+# ── Task 6: notifications ───────────────────────────────────────────────────
+
+async def _notes(recipient_id, type_):
+    from app.models.notification import Notification
+    async with AsyncSessionLocal() as db:
+        return list((await db.execute(select(Notification).where(
+            Notification.student_id == recipient_id, Notification.type == type_))).scalars().all())
+
+
+async def test_creating_a_task_notifies_the_student(async_client):
+    tid, sid, task_id = await _task(async_client, title="Bubble sort")
+    notes = await _notes(sid, "code_task_assigned")
+    assert len(notes) == 1 and notes[0].title == "Bubble sort" and notes[0].link == f"/student/code-tasks/{task_id}"
+
+
+async def test_submitting_notifies_the_teacher(async_client):
+    tid, sid, task_id = await _submitted(async_client, title="Bubble sort")
+    notes = await _notes(tid, "code_task_submitted")
+    assert len(notes) == 1 and "Bubble sort" in notes[0].title
+    assert notes[0].link == f"/teacher/students/{sid}?tab=tasks"
+
+
+async def test_grading_and_returning_notify_the_student(async_client):
+    tid, sid, task_id = await _submitted(async_client)
+    await async_client.post(f"{TEACHER_API}/{task_id}/return", headers=_h(tid), json={"feedback": "Qayta urinib ko'ring"})
+    returned = await _notes(sid, "code_task_returned")
+    assert len(returned) == 1 and returned[0].body == "Qayta urinib ko'ring"
+    await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body(code="v2"))
+    await async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(tid), json={"points": 12, "feedback": "Barakalla"})
+    graded = await _notes(sid, "code_task_graded")
+    assert len(graded) == 1 and graded[0].points == 12 and graded[0].body == "Barakalla" and graded[0].extra == "20"
+
+
+async def test_a_failing_notification_never_fails_the_request(async_client, monkeypatch):
+    from app.services import notification_service
+
+    async def boom(*a, **k):
+        raise RuntimeError("socket layer down")
+
+    monkeypatch.setattr(notification_service, "_emit", boom)
+    tid, sid = await _teacher_with_student()
+    r = await async_client.post(f"{TEACHER_API}/", headers=_h(tid), json=_body(sid))
+    assert r.status_code == 201
+    task_id = r.json()["id"]
+    assert (await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body())).status_code == 200
+    assert (await async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(tid), json={"points": 5})).status_code == 200

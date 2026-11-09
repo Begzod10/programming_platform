@@ -227,6 +227,14 @@ async def return_task(db: AsyncSession, task: CodeTask, *, feedback: str) -> Cod
     return task
 
 
+async def notify_safely(fn, *args, **kwargs) -> None:
+    """A notification must never fail the request that caused it."""
+    try:
+        await fn(*args, **kwargs)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("code-task notification failed (%s)", type(e).__name__)
+
+
 # ── AI preliminary review (advisory: it never grades and never changes the task) ──
 
 AI_CODE_LIMIT = 12_000

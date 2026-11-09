@@ -63,6 +63,24 @@ export function present(n, ru) {
                 heading: ru ? 'Штраф отменён' : 'Jarima bekor qilindi',
                 text: ru ? `Баллы возвращены: ${penaltyLabel(n.extra, ru)}.` : `Ballar qaytarildi: ${penaltyLabel(n.extra, ru)}.`,
             };
+        case 'code_task_assigned':
+            return {
+                icon: Sparkles, tone: n.tone || 'wait',
+                heading: ru ? 'Новое задание по коду' : 'Yangi kod vazifasi',
+                text: `«${title}»`,
+            };
+        case 'code_task_graded':
+            return {
+                icon: CheckCircle2, tone: n.tone || 'ok',
+                heading: ru ? 'Задание оценено' : 'Vazifa baholandi',
+                text: `«${title}» · ${n.points || 0}/${n.extra || '?'}${n.body ? ` — ${n.body}` : ''}`,
+            };
+        case 'code_task_returned':
+            return {
+                icon: Undo2, tone: n.tone || 'bad',
+                heading: ru ? 'Задание возвращено' : 'Vazifa qaytarildi',
+                text: n.body ? `«${title}» — ${n.body}` : `«${title}» ${ru ? 'нужно доработать.' : 'qayta yozilishi kerak.'}`,
+            };
         case 'quota_shield_used':
             return {
                 icon: Shield, tone: n.tone || 'ok',
