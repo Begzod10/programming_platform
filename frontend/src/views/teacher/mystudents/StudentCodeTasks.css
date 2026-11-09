@@ -33,3 +33,5 @@
 .sct-result { margin: 0; font-weight: 600; color: #00846a; }
 .sct-empty { text-align: center; padding: 28px 12px; color: #888; display: flex; flex-direction: column; gap: 8px; align-items: center; }
 .sct-empty span { font-size: 32px; }
+.sct-btn--danger { color: #c4452b; border-color: #f3b4a6; }
+.sct-confirm { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 14px; }

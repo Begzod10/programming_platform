@@ -22,6 +22,7 @@ const TXT = {
         points: 'Ball', feedback: 'Izoh', grade: 'Baholash', ret: 'Qaytarish',
         needFeedback: "Qaytarish uchun izoh yozing", badPoints: (m) => `Ball 0 dan ${m} gacha bo'lishi kerak`,
         gradedAs: (p, m) => `Baho: ${p}/${m}`, stateChanged: "Vazifa holati o'zgargan, ro'yxat yangilandi.", saveErr: "Saqlab bo'lmadi, qayta urinib ko'ring.",
+        edit: 'Tahrirlash', save: 'Saqlash', del: "O'chirish", delConfirm: "Vazifa o'chirilsin? Qaytarib bo'lmaydi.", delYes: "Ha, o'chirish", delNo: "Yo'q",
     },
     ru: {
         newTask: 'Новое задание', fTitle: 'Название', fDesc: 'Условие', fLang: 'Язык', fStarter: 'Стартовый код',
@@ -37,6 +38,7 @@ const TXT = {
         points: 'Балл', feedback: 'Комментарий', grade: 'Оценить', ret: 'Вернуть',
         needFeedback: 'Напишите комментарий, чтобы вернуть', badPoints: (m) => `Балл должен быть от 0 до ${m}`,
         gradedAs: (p, m) => `Оценка: ${p}/${m}`, stateChanged: 'Статус задания изменился, список обновлён.', saveErr: 'Не удалось сохранить, попробуйте ещё раз.',
+        edit: 'Редактировать', save: 'Сохранить', del: 'Удалить', delConfirm: 'Удалить задание? Это нельзя отменить.', delYes: 'Да, удалить', delNo: 'Нет',
     },
 };
 
@@ -47,6 +49,14 @@ export const pasteShare = (s) => {
 };
 
 const whenText = (iso) => (iso ? new Date(iso).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
+
+/** An ISO instant as the value of a datetime-local input (local time, minutes). */
+const toLocalInput = (iso) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
 const EMPTY_FORM = { title: '', description: '', language: 'python', starter: '', maxPoints: '20', deadline: '' };
 
@@ -68,6 +78,8 @@ export default function StudentCodeTasks({ studentId }) {
     const [note, setNote] = useState('');
     const [busy, setBusy] = useState(false);
     const [notice, setNotice] = useState(null);
+    const [editing, setEditing] = useState(false);
+    const [confirmDel, setConfirmDel] = useState(false);
 
     const base = `${API_URL}v1/teacher/code-tasks`;
     const loadList = useCallback(() => (
@@ -84,12 +96,12 @@ export default function StudentCodeTasks({ studentId }) {
     ), [request, base, t.loadErr]);
 
     const open = (id) => {
-        setOpenId(id); setDetail(null); setPoints(''); setNote(''); setNotice(null);
+        setOpenId(id); setDetail(null); setPoints(''); setNote(''); setNotice(null); setEditing(false); setConfirmDel(false);
         loadDetail(id);
     };
 
     const fail = (e) => {
-        if (e && e.status === 409) { setNotice(t.stateChanged); loadList(); if (openId) loadDetail(openId); }
+        if (e && e.status === 409) { setNotice(t.stateChanged); setEditing(false); setConfirmDel(false); loadList(); if (openId) loadDetail(openId); }
         else setNotice(t.saveErr);
     };
 
@@ -104,6 +116,42 @@ export default function StudentCodeTasks({ studentId }) {
             setForm(EMPTY_FORM); setShowForm(false);
             await loadList();
         } catch (e) { fail(e); } finally { setBusy(false); }
+    };
+
+    const startEdit = () => {
+        setForm({
+            title: detail.title, description: detail.description, language: detail.language, starter: detail.starter_code || '',
+            maxPoints: String(detail.max_points), deadline: toLocalInput(detail.deadline),
+        });
+        setEditing(true); setShowForm(false); setConfirmDel(false); setNotice(null);
+    };
+
+    /** Sends only the fields that differ from the task as loaded; nothing changed = no request. */
+    const saveEdit = async () => {
+        const patch = {};
+        const title = form.title.trim(), description = form.description.trim(), max = Number(form.maxPoints) || detail.max_points;
+        if (title !== detail.title) patch.title = title;
+        if (description !== detail.description) patch.description = description;
+        if (form.language !== detail.language) patch.language = form.language;
+        if (form.starter !== (detail.starter_code || '')) patch.starter_code = form.starter || null;
+        if (max !== detail.max_points) patch.max_points = max;
+        if (form.deadline !== toLocalInput(detail.deadline)) patch.deadline = form.deadline ? new Date(form.deadline).toISOString() : null;
+        if (Object.keys(patch).length === 0) { setEditing(false); return; }
+        setBusy(true); setNotice(null);
+        try {
+            await request(`${base}/${openId}`, 'PATCH', JSON.stringify(patch), headers());
+            setEditing(false);
+            await Promise.all([loadList(), loadDetail(openId)]);
+        } catch (e) { fail(e); } finally { setBusy(false); }
+    };
+
+    const removeTask = async () => {
+        setBusy(true); setNotice(null);
+        try {
+            await request(`${base}/${openId}`, 'DELETE', null, headers());
+            setOpenId(null); setDetail(null); setConfirmDel(false);
+            await loadList();
+        } catch (e) { setConfirmDel(false); fail(e); } finally { setBusy(false); }
     };
 
     const verdict = async (kind) => {
@@ -122,6 +170,9 @@ export default function StudentCodeTasks({ studentId }) {
 
     const sel = detail && attempt !== null ? detail.submissions[attempt] : null;
     const late = useMemo(() => Boolean(sel && detail && detail.deadline && new Date(sel.submitted_at) > new Date(detail.deadline)), [sel, detail]);
+    const canEdit = Boolean(detail && (detail.status === 'assigned' || detail.status === 'returned'));
+    const canDelete = Boolean(detail && detail.status === 'assigned' && detail.submissions.length === 0);
+    const closeForm = () => { setShowForm(false); setEditing(false); };
     const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
     if (error) return <div className="sct-empty"><p>{error}</p><button className="sct-btn" onClick={loadList}>{t.retry}</button></div>;
@@ -130,10 +181,10 @@ export default function StudentCodeTasks({ studentId }) {
     return (
         <div className="sct">
             <div className="sct-head">
-                <button className="sct-btn sct-btn--accent" onClick={() => setShowForm((v) => !v)}>{t.newTask}</button>
+                <button className="sct-btn sct-btn--accent" onClick={() => { setEditing(false); setForm(EMPTY_FORM); setShowForm((v) => !v); }}>{t.newTask}</button>
             </div>
 
-            {showForm && (
+            {(showForm || editing) && (
                 <div className="sct-form">
                     <label className="sct-field">{t.fTitle}
                         <input value={form.title} onChange={set('title')} maxLength={200} />
@@ -158,8 +209,9 @@ export default function StudentCodeTasks({ studentId }) {
                         <textarea rows={4} className="sct-mono" value={form.starter} onChange={set('starter')} />
                     </label>
                     <div className="sct-actions">
-                        <button className="sct-btn sct-btn--accent" disabled={busy || !form.title.trim() || !form.description.trim()} onClick={create}>{t.give}</button>
-                        <button className="sct-btn" onClick={() => setShowForm(false)}>{t.cancel}</button>
+                        <button className="sct-btn sct-btn--accent" disabled={busy || !form.title.trim() || !form.description.trim()}
+                                onClick={editing ? saveEdit : create}>{editing ? t.save : t.give}</button>
+                        <button className="sct-btn" onClick={closeForm}>{t.cancel}</button>
                     </div>
                 </div>
             )}
@@ -186,6 +238,22 @@ export default function StudentCodeTasks({ studentId }) {
                     <h3>{detail.title}</h3>
                     <p className="sct-desc">{detail.description}</p>
                     {detail.deadline && <p className="sct-meta">{t.deadline}: {whenText(detail.deadline)}</p>}
+
+                    {(canEdit || canDelete) && !editing && (
+                        <div className="sct-actions">
+                            {canEdit && <button className="sct-btn sct-btn--sm" disabled={busy} onClick={startEdit}>{t.edit}</button>}
+                            {canDelete && !confirmDel && (
+                                <button className="sct-btn sct-btn--sm sct-btn--danger" disabled={busy} onClick={() => setConfirmDel(true)}>{t.del}</button>
+                            )}
+                            {canDelete && confirmDel && (
+                                <span className="sct-confirm">
+                                    {t.delConfirm}{' '}
+                                    <button className="sct-btn sct-btn--sm sct-btn--danger" disabled={busy} onClick={removeTask}>{t.delYes}</button>{' '}
+                                    <button className="sct-btn sct-btn--sm" disabled={busy} onClick={() => setConfirmDel(false)}>{t.delNo}</button>
+                                </span>
+                            )}
+                        </div>
+                    )}
 
                     {detail.submissions.length > 1 && (
                         <div className="sct-attempts">

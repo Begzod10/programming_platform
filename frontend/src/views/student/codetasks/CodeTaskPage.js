@@ -14,6 +14,7 @@ const TXT = {
         saveErr: "Saqlab bo'lmadi (tarmoq xatosi).", retry: 'Qayta urinish',
         waiting: "Tekshirishni kutmoqda — o'qituvchi ko'rib chiqadi.", returned: "Qayta yozing. O'qituvchi izohi:",
         graded: (p, m) => `Baho: ${p}/${m}`, stateChanged: "Vazifa holati o'zgargan, sahifa yangilandi.",
+        gone: "Vazifa topilmadi — o'qituvchi uni o'chirgan bo'lishi mumkin.",
         emptyCode: "Kod bo'sh bo'lmasligi kerak.", loadErr: "Vazifani yuklab bo'lmadi.", submitErr: "Topshirib bo'lmadi, qayta urinib ko'ring.",
     },
     ru: {
@@ -22,6 +23,7 @@ const TXT = {
         saveErr: 'Не удалось сохранить (ошибка сети).', retry: 'Повторить',
         waiting: 'Ждёт проверки — учитель посмотрит.', returned: 'Перепишите. Комментарий учителя:',
         graded: (p, m) => `Оценка: ${p}/${m}`, stateChanged: 'Статус задания изменился, страница обновлена.',
+        gone: 'Задание не найдено — возможно, учитель его удалил.',
         emptyCode: 'Код не должен быть пустым.', loadErr: 'Не удалось загрузить задание.', submitErr: 'Не удалось сдать, попробуйте ещё раз.',
     },
 };
@@ -40,6 +42,7 @@ export default function CodeTaskPage() {
 
     const [task, setTask] = useState(null);
     const [loadErr, setLoadErr] = useState(false);
+    const [gone, setGone] = useState(false);              // the teacher deleted the task
     const [code, setCode] = useState('');
     const [savedCode, setSavedCode] = useState('');
     const [saveState, setSaveState] = useState('idle');           // idle | saving | saved | error
@@ -54,7 +57,7 @@ export default function CodeTaskPage() {
     const load = useCallback(() => (
         request(base, 'GET', null, headers())
             .then((x) => { setTask(x); setCode(x.code); codeRef.current = x.code; setSavedCode(x.code); setLoadErr(false); })
-            .catch(() => setLoadErr(true))
+            .catch((e) => { if (e && e.status === 404) setGone(true); else setLoadErr(true); })
     ), [request, base]);
     useEffect(() => { load(); }, [load]);
 
@@ -70,7 +73,7 @@ export default function CodeTaskPage() {
             await request(`${base}/draft`, 'PUT', JSON.stringify({ code: sending }), headers());
             setSavedCode(sending); setSavedAt(new Date()); setSaveState('saved');
         } catch (e) {
-            setSaveState('error');
+            if (e && e.status === 404) setGone(true); else setSaveState('error');
         }
     }, [request, base]);
 
@@ -112,12 +115,18 @@ export default function CodeTaskPage() {
             setTask(done); setSavedCode(code); setConfirming(false);
         } catch (e) {
             setConfirming(false);
-            if (e && e.status === 409) { setNotice(t.stateChanged); load(); }
+            if (e && e.status === 404) setGone(true);
+            else if (e && e.status === 409) { setNotice(t.stateChanged); load(); }
             else if (e && e.status === 422) setNotice(t.emptyCode);
             else setNotice(t.submitErr);
         } finally { setBusy(false); }
     };
 
+    if (gone) return (
+        <div className="ct-page"><AppHeader /><div className="ct-body ct-empty">
+            <p>{t.gone}</p><button className="ct-btn" onClick={() => navigate('/student/code-tasks')}>← {t.back}</button>
+        </div></div>
+    );
     if (loadErr) return <div className="ct-page"><AppHeader /><div className="ct-body ct-empty"><p>{t.loadErr}</p><button className="ct-btn" onClick={load}>{t.retry}</button></div></div>;
     if (!task) return <div className="ct-page"><AppHeader /><div className="ct-body ct-empty"><p>…</p></div></div>;
 

@@ -190,3 +190,142 @@ test('a task that is not submitted has no grading controls', async () => {
   await screen.findByText('Saralang');
   expect(screen.queryByRole('button', { name: 'Baholash' })).toBeNull();
 });
+
+// ── edit and delete ──────────────────────────────────────────────────────────
+
+const openTask = async (t, subs = []) => {
+  const view = render(<StudentCodeTasks studentId="9" />);
+  fireEvent.click(await screen.findByText(t.title));
+  await screen.findByText(t.description);
+  return view;
+};
+
+test('Tahrirlash shows for assigned and returned tasks, not for submitted or graded ones', async () => {
+  for (const [status, subs, visible] of [['assigned', [], true], ['returned', [sub()], true], ['submitted', [sub()], false], ['graded', [sub()], false]]) {
+    mockRequest.mockReset();
+    const t = task({ status });
+    serve({ [LIST]: [t], 'GET v1/teacher/code-tasks/1': detail(t, subs) });
+    const { unmount } = await openTask(t);
+    expect(!!screen.queryByRole('button', { name: 'Tahrirlash' })).toBe(visible);
+    unmount();
+  }
+});
+
+test("O'chirish shows only for an assigned task that was never submitted", async () => {
+  for (const [status, subs, visible] of [['assigned', [], true], ['returned', [sub()], false], ['submitted', [sub()], false], ['graded', [sub()], false]]) {
+    mockRequest.mockReset();
+    const t = task({ status });
+    serve({ [LIST]: [t], 'GET v1/teacher/code-tasks/1': detail(t, subs) });
+    const { unmount } = await openTask(t);
+    expect(!!screen.queryByRole('button', { name: "O'chirish" })).toBe(visible);
+    unmount();
+  }
+});
+
+test('editing opens the form filled in, and saving sends only what changed', async () => {
+  let current = task({ status: 'assigned', starter_code: '# start', deadline: null });
+  serve({
+    [LIST]: () => [current],
+    'GET v1/teacher/code-tasks/1': () => detail(current, []),
+    'PATCH v1/teacher/code-tasks/1': (b) => { current = { ...current, ...b }; return current; },
+  });
+  await openTask(current);
+  fireEvent.click(screen.getByRole('button', { name: 'Tahrirlash' }));
+  expect(screen.getByLabelText('Sarlavha')).toHaveValue('Bubble sort');
+  expect(screen.getByLabelText('Shart')).toHaveValue('Saralang');
+  expect(screen.getByLabelText('Til')).toHaveValue('python');
+  expect(screen.getByLabelText("Boshlang'ich kod")).toHaveValue('# start');
+  expect(screen.getByLabelText("Eng ko'p ball")).toHaveValue(20);
+  fireEvent.change(screen.getByLabelText('Sarlavha'), { target: { value: 'New title' } });
+  fireEvent.change(screen.getByLabelText("Eng ko'p ball"), { target: { value: '25' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Saqlash' }));
+  await waitFor(() => expect(screen.getAllByText('New title').length).toBeGreaterThan(0));   // list row and panel heading
+  const patch = mockRequest.mock.calls.find((c) => c[1] === 'PATCH');
+  expect(patch[0]).toBe('http://test/api/v1/teacher/code-tasks/1');
+  expect(JSON.parse(patch[2])).toEqual({ title: 'New title', max_points: 25 });
+  expect(screen.queryByLabelText('Sarlavha')).toBeNull();                      // the form closed
+});
+
+test('clearing the starter code sends null; saving with no change sends nothing', async () => {
+  const current = task({ status: 'assigned', starter_code: '# start' });
+  serve({
+    [LIST]: [current], 'GET v1/teacher/code-tasks/1': detail(current, []),
+    'PATCH v1/teacher/code-tasks/1': () => ({ ...current, starter_code: null }),
+  });
+  await openTask(current);
+  fireEvent.click(screen.getByRole('button', { name: 'Tahrirlash' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Saqlash' }));               // nothing changed
+  expect(mockRequest.mock.calls.some((c) => c[1] === 'PATCH')).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: 'Tahrirlash' }));
+  fireEvent.change(screen.getByLabelText("Boshlang'ich kod"), { target: { value: '' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Saqlash' }));
+  await waitFor(() => expect(mockRequest.mock.calls.some((c) => c[1] === 'PATCH')).toBe(true));
+  expect(JSON.parse(mockRequest.mock.calls.find((c) => c[1] === 'PATCH')[2])).toEqual({ starter_code: null });
+});
+
+test('cancelling an edit closes the form without a request', async () => {
+  const current = task({ status: 'assigned' });
+  serve({ [LIST]: [current], 'GET v1/teacher/code-tasks/1': detail(current, []) });
+  await openTask(current);
+  fireEvent.click(screen.getByRole('button', { name: 'Tahrirlash' }));
+  fireEvent.change(screen.getByLabelText('Sarlavha'), { target: { value: 'zzz' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Bekor qilish' }));
+  expect(screen.queryByLabelText('Sarlavha')).toBeNull();
+  expect(mockRequest.mock.calls.some((c) => c[1] === 'PATCH')).toBe(false);
+});
+
+test('a 409 on save says the task changed and refreshes it', async () => {
+  let current = task({ status: 'assigned' });
+  serve({
+    [LIST]: () => [current], 'GET v1/teacher/code-tasks/1': () => detail(current, []),
+    'PATCH v1/teacher/code-tasks/1': () => { current = task({ status: 'submitted' }); return Promise.reject({ status: 409 }); },
+  });
+  await openTask(current);
+  fireEvent.click(screen.getByRole('button', { name: 'Tahrirlash' }));
+  fireEvent.change(screen.getByLabelText('Sarlavha'), { target: { value: 'New title' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Saqlash' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(/holati o'zgargan/);
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Tahrirlash' })).toBeNull());   // now submitted
+});
+
+test('deleting asks first, can be declined, and removes the task from the list', async () => {
+  let rows = [task({ status: 'assigned' })];
+  serve({
+    [LIST]: () => rows, 'GET v1/teacher/code-tasks/1': () => detail(rows[0], []),
+    'DELETE v1/teacher/code-tasks/1': () => { rows = []; return undefined; },
+  });
+  await openTask(rows[0]);
+  fireEvent.click(screen.getByRole('button', { name: "O'chirish" }));
+  expect(screen.getByText(/Qaytarib bo'lmaydi/)).toBeInTheDocument();
+  expect(mockRequest.mock.calls.some((c) => c[1] === 'DELETE')).toBe(false);           // not yet: it asks first
+  fireEvent.click(screen.getByRole('button', { name: "Yo'q" }));
+  expect(screen.queryByText(/Qaytarib bo'lmaydi/)).toBeNull();
+  expect(mockRequest.mock.calls.some((c) => c[1] === 'DELETE')).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: "O'chirish" }));
+  fireEvent.click(screen.getByRole('button', { name: "Ha, o'chirish" }));
+  await waitFor(() => expect(screen.queryByText('Bubble sort')).toBeNull());
+  expect(mockRequest.mock.calls.find((c) => c[1] === 'DELETE')[0]).toBe('http://test/api/v1/teacher/code-tasks/1');
+  expect(screen.getByText('Hali vazifa berilmagan')).toBeInTheDocument();
+});
+
+test('a 409 on delete says the task changed instead of deleting', async () => {
+  let current = task({ status: 'assigned' });
+  serve({
+    [LIST]: () => [current], 'GET v1/teacher/code-tasks/1': () => detail(current, current.status === 'assigned' ? [] : [sub()]),
+    'DELETE v1/teacher/code-tasks/1': () => { current = task({ status: 'submitted' }); return Promise.reject({ status: 409 }); },
+  });
+  await openTask(current);
+  fireEvent.click(screen.getByRole('button', { name: "O'chirish" }));
+  fireEvent.click(screen.getByRole('button', { name: "Ha, o'chirish" }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(/holati o'zgargan/);
+  expect(screen.getAllByText('Bubble sort').length).toBeGreaterThan(0);              // still there, not deleted
+});
+
+test('the edit and delete labels exist in Russian too', async () => {
+  localStorage.setItem('lang', 'ru');
+  const current = task({ status: 'assigned' });
+  serve({ [LIST]: [current], 'GET v1/teacher/code-tasks/1': detail(current, []) });
+  await openTask(current);
+  expect(screen.getByRole('button', { name: 'Редактировать' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Удалить' })).toBeInTheDocument();
+});

@@ -196,3 +196,22 @@ test('the menu label exists in uz and ru', () => {
   expect(translations.uz.codeTasks).toBe('Kod vazifalari');
   expect(translations.ru.codeTasks).toBe('Задания по коду');
 });
+
+test('a task the teacher deleted says so, with a way back, instead of a useless retry', async () => {
+  serve({ [GET]: () => Promise.reject({ status: 404 }) });
+  renderPage();
+  expect(await screen.findByText(/o'chirgan bo'lishi mumkin/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Qayta urinish' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /Orqaga/ }));
+  expect(mockNavigate).toHaveBeenCalledWith('/student/code-tasks');
+});
+
+test('a task deleted while the student is typing is reported as deleted, not as a network error', async () => {
+  serve({ [GET]: task(), [PUT]: () => Promise.reject({ status: 404 }) });
+  renderPage();
+  await screen.findByTestId('editor');
+  type('x = 1');
+  fireEvent.blur(screen.getByTestId('editor'));
+  expect(await screen.findByText(/o'chirgan bo'lishi mumkin/)).toBeInTheDocument();
+  expect(screen.queryByText(/tarmoq xatosi/)).toBeNull();
+});
