@@ -279,3 +279,96 @@ async def test_late_submission_is_allowed(async_client):
     past = (utcnow() - timedelta(days=2)).isoformat()
     tid, sid, task_id = await _task(async_client, deadline=past)
     assert (await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body())).status_code == 200
+
+
+# ── Task 4: grade and return ────────────────────────────────────────────────
+
+async def _submitted(async_client, **over):
+    tid, sid, task_id = await _task(async_client, **over)
+    r = await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body())
+    assert r.status_code == 200, r.text
+    return tid, sid, task_id
+
+
+async def _balances(sid):
+    async with AsyncSessionLocal() as db:
+        s = await db.get(Student, sid)
+        return s.total_points, s.lifetime_points
+
+
+async def test_grade_awards_points_once(async_client):
+    tid, sid, task_id = await _submitted(async_client)
+    before = await _balances(sid)
+    r = await async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(tid), json={"points": 15, "feedback": "Yaxshi"})
+    assert r.status_code == 200 and r.json()["status"] == "graded" and r.json()["graded_points"] == 15
+    assert r.json()["teacher_feedback"] == "Yaxshi"
+    assert await _balances(sid) == (before[0] + 15, before[1] + 15)
+    mine = (await async_client.get(f"{STUDENT_API}/{task_id}", headers=_h(sid))).json()
+    assert mine["status"] == "graded" and mine["graded_points"] == 15 and mine["teacher_feedback"] == "Yaxshi"
+
+
+async def test_grade_zero_awards_nothing(async_client):
+    tid, sid, task_id = await _submitted(async_client)
+    before = await _balances(sid)
+    r = await async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(tid), json={"points": 0})
+    assert r.status_code == 200 and r.json()["status"] == "graded"
+    assert await _balances(sid) == before
+
+
+async def test_double_grade_is_409_and_points_are_added_once(async_client):
+    tid, sid, task_id = await _submitted(async_client)
+    before = await _balances(sid)
+    rs = await asyncio.gather(*[
+        async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(tid), json={"points": 10}) for _ in range(2)])
+    assert sorted(r.status_code for r in rs) == [200, 409]
+    again = await async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(tid), json={"points": 10})
+    assert again.status_code == 409
+    assert await _balances(sid) == (before[0] + 10, before[1] + 10)
+
+
+async def test_points_above_max_or_negative_are_422_and_only_submitted_can_be_graded(async_client):
+    tid, sid, task_id = await _submitted(async_client, max_points=20)
+    for points in (21, -1):
+        r = await async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(tid), json={"points": points})
+        assert r.status_code == 422, points
+    assert (await async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(tid), json={"points": 20})).status_code == 200
+    _, _, fresh = await _task(async_client)                 # never submitted
+    tid2 = await _owner_of(fresh)
+    assert (await async_client.post(f"{TEACHER_API}/{fresh}/grade", headers=_h(tid2), json={"points": 5})).status_code == 409
+
+
+async def _owner_of(task_id):
+    async with AsyncSessionLocal() as db:
+        return (await db.get(CodeTask, task_id)).teacher_id
+
+
+async def test_return_needs_feedback_and_reopens_for_the_student(async_client):
+    tid, sid, task_id = await _submitted(async_client)
+    for fb in ("", "   "):
+        assert (await async_client.post(f"{TEACHER_API}/{task_id}/return", headers=_h(tid), json={"feedback": fb})).status_code == 422
+    r = await async_client.post(f"{TEACHER_API}/{task_id}/return", headers=_h(tid), json={"feedback": "Funksiyaga ajrating"})
+    assert r.status_code == 200 and r.json()["status"] == "returned"
+    mine = (await async_client.get(f"{STUDENT_API}/{task_id}", headers=_h(sid))).json()
+    assert mine["status"] == "returned" and mine["returned_feedback"] == "Funksiyaga ajrating"
+    assert (await async_client.post(f"{STUDENT_API}/{task_id}/submit", headers=_h(sid), json=_submit_body(code="v2"))).status_code == 200
+    assert (await async_client.post(f"{TEACHER_API}/{task_id}/return", headers=_h(tid), json={"feedback": "again"})).status_code == 200
+
+
+async def test_grading_does_not_touch_the_daily_quota(async_client):
+    from app.models.daily_quota import StudentDailyProgress
+    tid, sid, task_id = await _submitted(async_client)
+    async with AsyncSessionLocal() as db:
+        before = (await db.execute(select(func.count()).select_from(StudentDailyProgress)
+                                   .where(StudentDailyProgress.student_id == sid))).scalar()
+    await async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(tid), json={"points": 10})
+    async with AsyncSessionLocal() as db:
+        after = (await db.execute(select(func.count()).select_from(StudentDailyProgress)
+                                  .where(StudentDailyProgress.student_id == sid))).scalar()
+    assert after == before
+
+
+async def test_another_teacher_cannot_grade_or_return(async_client):
+    tid, sid, task_id = await _submitted(async_client)
+    other = await _user(teacher=True)
+    assert (await async_client.post(f"{TEACHER_API}/{task_id}/grade", headers=_h(other), json={"points": 5})).status_code == 404
+    assert (await async_client.post(f"{TEACHER_API}/{task_id}/return", headers=_h(other), json={"feedback": "x"})).status_code == 404

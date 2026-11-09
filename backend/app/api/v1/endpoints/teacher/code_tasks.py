@@ -151,3 +151,32 @@ async def delete_task(task_id: int, teacher: Student = Depends(get_current_instr
     except (svc.TaskNotFound, svc.WrongState) as e:
         raise _http(e)
     return Response(status_code=204)
+
+
+class GradeBody(BaseModel):
+    points: int = Field(ge=0, le=100)
+    feedback: Optional[str] = Field(default=None, max_length=5000)
+
+
+class ReturnBody(BaseModel):
+    feedback: str = Field(max_length=5000)
+
+
+@router.post("/{task_id}/grade", response_model=TaskRead)
+async def grade_task(task_id: int, body: GradeBody, teacher: Student = Depends(get_current_instructor),
+                     db: AsyncSession = Depends(get_db)):
+    try:
+        task = await svc.get_teacher_task(db, teacher.id, task_id, for_update=True)
+        return await svc.grade(db, task, points=body.points, feedback=body.feedback)
+    except (svc.TaskNotFound, svc.WrongState, svc.InvalidInput) as e:
+        raise _http(e)
+
+
+@router.post("/{task_id}/return", response_model=TaskRead)
+async def return_task(task_id: int, body: ReturnBody, teacher: Student = Depends(get_current_instructor),
+                      db: AsyncSession = Depends(get_db)):
+    try:
+        task = await svc.get_teacher_task(db, teacher.id, task_id, for_update=True)
+        return await svc.return_task(db, task, feedback=body.feedback)
+    except (svc.TaskNotFound, svc.WrongState, svc.InvalidInput) as e:
+        raise _http(e)

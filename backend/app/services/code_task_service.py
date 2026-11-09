@@ -14,7 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.code_task import (
-    ASSIGNED, CODE_TASK_LANGUAGES, MAX_CODE_CHARS, RETURNED, SUBMITTED, CodeTask, CodeTaskSubmission,
+    ASSIGNED, CODE_TASK_LANGUAGES, GRADED, MAX_CODE_CHARS, RETURNED, SUBMITTED, CodeTask, CodeTaskSubmission,
 )
 from app.services.teacher_students import teacher_student_ids_subquery
 
@@ -174,6 +174,55 @@ async def submit(db: AsyncSession, task: CodeTask, *, code: str, active_seconds:
         raise WrongState()
     await db.refresh(sub)
     return sub
+
+
+# ── the teacher's verdict ────────────────────────────────────────────────────
+
+async def grade(db: AsyncSession, task: CodeTask, *, points: int, feedback: Optional[str]) -> CodeTask:
+    """submitted -> graded, once. The points go to the student through the platform's single award point in the
+    same transaction as the status flip, and the flip is a conditional UPDATE, so a double click or two tabs
+    can never award twice."""
+    if task.status != SUBMITTED:
+        raise WrongState()
+    if not 0 <= points <= task.max_points:
+        raise InvalidInput("points")
+    flipped = await db.execute(
+        update(CodeTask).where(CodeTask.id == task.id, CodeTask.status == SUBMITTED)
+        .values(status=GRADED, graded_points=points, teacher_feedback=(feedback or "").strip() or None,
+                graded_at=datetime.now(timezone.utc)))
+    if flipped.rowcount != 1:
+        await db.rollback()
+        raise WrongState()
+    if points > 0:
+        from app.services.ranking_service import RankingService
+        await RankingService(db).add_points_to_student(task.student_id, points)    # commits
+    else:
+        await db.commit()
+    await db.refresh(task)
+    return task
+
+
+async def return_task(db: AsyncSession, task: CodeTask, *, feedback: str) -> CodeTask:
+    """submitted -> returned: the teacher asks for another attempt and says why."""
+    if task.status != SUBMITTED:
+        raise WrongState()
+    note = (feedback or "").strip()
+    if not note:
+        raise InvalidInput("feedback")
+    flipped = await db.execute(
+        update(CodeTask).where(CodeTask.id == task.id, CodeTask.status == SUBMITTED).values(status=RETURNED))
+    if flipped.rowcount != 1:
+        await db.rollback()
+        raise WrongState()
+    latest = (await db.execute(
+        select(CodeTaskSubmission).where(CodeTaskSubmission.task_id == task.id)
+        .order_by(CodeTaskSubmission.attempt_no.desc()).limit(1))).scalar_one_or_none()
+    if latest is not None:
+        latest.return_feedback = note
+        latest.returned_at = datetime.now(timezone.utc)
+    await db.commit()
+    await db.refresh(task)
+    return task
 
 
 async def run_ai_review(submission_id: int) -> None:
