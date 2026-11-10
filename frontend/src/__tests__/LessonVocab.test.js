@@ -72,6 +72,68 @@ describe('LessonVocabCard', () => {
   });
 });
 
+describe('LessonVocabCard: add every word at once', () => {
+  const words = [
+    { id: 1, word: 'selector', definition: 'tanlagich', definition_ru: 'селектор' },
+    { id: 2, word: 'property', definition: 'xossa', definition_ru: null },
+  ];
+  const LIST = 'http://test/api/v1/courses/3/lessons/7/vocabulary';
+  const ALL = (lang) => `${LIST}/add-all-to-dict?lang=${lang}`;
+  const open = async (routes = {}, props = {}) => {
+    mockFetch({ [`GET ${LIST}`]: () => json(words), ...routes });
+    render(<LessonVocabCard courseId={3} lessonId={7} {...props} />);
+    await screen.findByText('selector');
+  };
+
+  test('one click adds the whole lesson, says how many, and tells the side panel', async () => {
+    const heard = jest.fn();
+    window.addEventListener('dict:word-added', heard);
+    await open({ [`POST ${ALL('uz')}`]: () => json({ added: 2, total: 2 }) });
+    fireEvent.click(screen.getByRole('button', { name: /Hammasini lug'atimga qo'shish/ }));
+    expect(await screen.findByText("2 ta so'z lug'atingizga qo'shildi")).toBeInTheDocument();
+    expect(sent('POST', ALL('uz'))).toHaveLength(1);
+    expect(heard).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: /Qo'shildi/ })).toBeDisabled();
+    window.removeEventListener('dict:word-added', heard);
+  });
+
+  test('Russian reader: Russian button, Russian request, Russian result', async () => {
+    mockLang = 'ru';
+    await open({ [`POST ${ALL('ru')}`]: () => json({ added: 1, total: 2 }) });
+    fireEvent.click(screen.getByRole('button', { name: /Добавить все в словарь/ }));
+    expect(await screen.findByText('Добавлено слов: 1')).toBeInTheDocument();
+  });
+
+  test('says so when everything was already there', async () => {
+    await open({ [`POST ${ALL('uz')}`]: () => json({ added: 0, total: 2 }) });
+    fireEvent.click(screen.getByRole('button', { name: /Hammasini lug'atimga qo'shish/ }));
+    expect(await screen.findByText("Bu so'zlarning hammasi lug'atingizda bor")).toBeInTheDocument();
+  });
+
+  test('a second click while the first is in flight sends nothing more', async () => {
+    let finish;
+    await open({ [`POST ${ALL('uz')}`]: () => new Promise((res) => { finish = () => res({ ok: true, status: 200, json: () => Promise.resolve({ added: 2, total: 2 }) }); }) });
+    const btn = screen.getByRole('button', { name: /Hammasini lug'atimga qo'shish/ });
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    expect(sent('POST', ALL('uz'))).toHaveLength(1);
+    finish();
+    await screen.findByText("2 ta so'z lug'atingizga qo'shildi");
+  });
+
+  test('a failure is shown and the button can be tried again', async () => {
+    await open({ [`POST ${ALL('uz')}`]: () => json({ success: false, error: { code: 500, message: 'x' } }, false, 500) });
+    fireEvent.click(screen.getByRole('button', { name: /Hammasini lug'atimga qo'shish/ }));
+    expect(await screen.findByText(/Qo'shib bo'lmadi/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Hammasini lug'atimga qo'shish/ })).not.toBeDisabled();
+  });
+
+  test('a demo visitor gets no such button', async () => {
+    await open({}, { canAddAll: false });
+    expect(screen.queryByRole('button', { name: /Hammasini lug'atimga qo'shish/ })).not.toBeInTheDocument();
+  });
+});
+
 describe('LessonVocabEditor', () => {
   const existing = [{ id: 1, word: 'selector', definition: 'tanlagich', definition_ru: 'селектор', source: 'manual', order: 4 }];
   const generated = [

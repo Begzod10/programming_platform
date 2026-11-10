@@ -663,7 +663,7 @@ const StudentLessonPage = ({lesson, course, allLessons, onBack, onNavigate, onCo
             </div>
 
             {/* ──────────── VOCABULARY PREP CARD ──────────── */}
-            <LessonVocabCard courseId={lesson.course_id} lessonId={lesson.id} />
+            <LessonVocabCard courseId={lesson.course_id} lessonId={lesson.id} canAddAll={!isDemo} />
 
             {/* ──────────── CONTENT BLOCKS ──────────── */}
             <LessonContentBlocks

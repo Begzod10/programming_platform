@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { API_URL, headers } from '../../../../api/search/base';
 import { useTranslation } from '../../../../i18n/useTranslation';
 import './LessonVocabCard.css';
@@ -9,13 +9,17 @@ export function pickDefinition(word, ru) {
     return ru && russian ? russian : word.definition;
 }
 
-export default function LessonVocabCard({ courseId, lessonId }) {
+export default function LessonVocabCard({ courseId, lessonId, canAddAll = true }) {
     const { lang } = useTranslation();
     const ru = lang === 'ru';
     const [words, setWords] = useState([]);
     const [known, setKnown] = useState({});   // vocab_id -> true/false
     const [added, setAdded] = useState({});   // vocab_id -> true (added to dict)
     const [loading, setLoading] = useState(true);
+    // "add every word of this lesson": idle | busy | done, plus the line shown under the header
+    const [allState, setAllState] = useState('idle');
+    const [allNote, setAllNote] = useState(null);     // { ok, text }
+    const allBusy = useRef(false);                    // a ref: a second click lands before React re-renders
 
     useEffect(() => {
         if (!lessonId) return;
@@ -40,6 +44,38 @@ export default function LessonVocabCard({ courseId, lessonId }) {
         setKnown(prev => ({ ...prev, [vocab.id]: false }));
     };
 
+    const handleAddAll = async () => {
+        if (allBusy.current) return;
+        allBusy.current = true;
+        setAllState('busy');
+        setAllNote(null);
+        const failed = () => {
+            setAllState('idle');
+            setAllNote({ ok: false, text: ru ? 'Не удалось добавить, попробуйте ещё раз' : "Qo'shib bo'lmadi, qayta urinib ko'ring" });
+        };
+        try {
+            const r = await fetch(
+                `${API_URL}/courses/${courseId}/lessons/${lessonId}/vocabulary/add-all-to-dict?lang=${ru ? 'ru' : 'uz'}`,
+                { method: 'POST', headers: headers() }
+            );
+            if (!r.ok) { failed(); return; }
+            const { added = 0 } = await r.json();
+            setAllState('done');
+            setAllNote({
+                ok: true,
+                text: added > 0
+                    ? (ru ? `Добавлено слов: ${added}` : `${added} ta so'z lug'atingizga qo'shildi`)
+                    : (ru ? 'Все эти слова уже есть в вашем словаре' : "Bu so'zlarning hammasi lug'atingizda bor"),
+            });
+            // the lesson's side panel and the dictionary drawer listen for this and reload
+            window.dispatchEvent(new CustomEvent('dict:word-added'));
+        } catch {
+            failed();
+        } finally {
+            allBusy.current = false;
+        }
+    };
+
     const handleKnown = (id) => {
         setKnown(prev => ({ ...prev, [id]: true }));
     };
@@ -56,7 +92,21 @@ export default function LessonVocabCard({ courseId, lessonId }) {
                     <div className="lvc-subtitle">{doneCount}/{words.length} {ru ? 'проверено' : 'tekshirildi'}</div>
                 </div>
                 {allDone && <span className="lvc-badge-done">{ru ? '✓ Готово' : '✓ Tayyor'}</span>}
+                {canAddAll && (
+                    <button className="lvc-btn-all" onClick={handleAddAll} disabled={allState !== 'idle'}>
+                        {allState === 'done'
+                            ? (ru ? '✓ Добавлено' : "✓ Qo'shildi")
+                            : allState === 'busy'
+                                ? (ru ? 'Добавляем…' : "Qo'shilmoqda…")
+                                : (ru ? '📚 Добавить все в словарь' : "📚 Hammasini lug'atimga qo'shish")}
+                    </button>
+                )}
             </div>
+            {allNote && (
+                <div className={`lvc-all-note ${allNote.ok ? 'lvc-all-note--ok' : 'lvc-all-note--bad'}`} role="status">
+                    {allNote.text}
+                </div>
+            )}
 
             <div className="lvc-progress">
                 <div className="lvc-progress-bar" style={{ width: `${(doneCount / words.length) * 100}%` }} />

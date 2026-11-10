@@ -13,7 +13,7 @@ from app.models.dictionary import UserDictionary
 from app.models.course import Course
 from app.models.lesson import Lesson, LessonVocabulary
 from app.models.user import Student
-from app.services import lesson_vocab_ai_service
+from app.services import lesson_vocab_ai_service, vocab_seed_service
 from app.services.grok_ai_client import ProviderError
 
 router = APIRouter()
@@ -144,6 +144,26 @@ async def delete_vocab_word(
     return {"ok": True}
 
 
+@router.post("/courses/{course_id}/lessons/{lesson_id}/vocabulary/add-all-to-dict")
+async def add_all_vocab_to_dict(
+        lesson_id: int,
+        course_id: int,
+        lang: Optional[str] = None,
+        db: AsyncSession = Depends(get_db),
+        current_user: Student = Depends(get_current_student),
+):
+    """One button: every word of this lesson goes into the student's dictionary, in the language they read in.
+    Same rules as the automatic seeding when a lesson is finished (one row per word, nothing the student already
+    has is touched, not counted as words they saved themselves)."""
+    lesson = await db.get(Lesson, lesson_id)
+    if lesson is None or lesson.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Dars topilmadi")
+    total = (await db.execute(
+        select(func.count(LessonVocabulary.id)).where(LessonVocabulary.lesson_id == lesson_id))).scalar() or 0
+    added = await vocab_seed_service.seed_lesson_words_strict(current_user.id, lesson_id, lang=lang)
+    return {"added": added, "total": total}
+
+
 @router.post("/courses/{course_id}/lessons/{lesson_id}/vocabulary/{vocab_id}/add-to-dict")
 async def add_vocab_to_dict(
         lesson_id: int,
@@ -161,6 +181,7 @@ async def add_vocab_to_dict(
     if not vocab:
         raise HTTPException(status_code=404, detail="Topilmadi")
 
+    await vocab_seed_service.lock_student_dictionary(db, current_user.id)   # no double row on a double click
     existing = (await db.execute(
         select(UserDictionary).where(
             UserDictionary.student_id == current_user.id,

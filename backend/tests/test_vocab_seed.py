@@ -384,3 +384,95 @@ async def test_broken_seeding_does_not_break_the_ai_review(monkeypatch):
             result = await run_ai_review_for_project(db, project, raise_on_error=False, skip_integrity_check=True)
         assert result["success"] is True and result["project_id"] == pid, result
     assert await _completed(sid, lid)
+
+
+# ── "add every word of this lesson to my dictionary" button ─────────────────
+
+def _all_url(cid, lid, lang=None):
+    return f"/api/v1/courses/{cid}/lessons/{lid}/vocabulary/add-all-to-dict" + (f"?lang={lang}" if lang else "")
+
+
+async def test_add_all_puts_every_lesson_word_into_the_dictionary_once(async_client):
+    _, sid, cid, lid = await _world()
+    r = await async_client.post(_all_url(cid, lid), headers=H.h(sid))
+    assert r.status_code == 200, r.text
+    assert r.json() == {"added": 2, "total": 2}
+    rows = await H.dict_rows(sid)
+    assert _shape(rows) == _expected(lid) and all(r.seeded for r in rows)
+    r = await async_client.post(_all_url(cid, lid), headers=H.h(sid))
+    assert r.json() == {"added": 0, "total": 2} and len(await H.dict_rows(sid)) == 2
+    assert not await _completed(sid, lid)                       # adding words does not finish the lesson
+
+
+async def test_add_all_uses_the_language_of_the_request_over_the_stored_one(async_client):
+    _, sid, cid, lid = await _world()
+    await _set_lang(sid, "uz")
+    r = await async_client.post(_all_url(cid, lid, "ru"), headers=H.h(sid))
+    assert r.status_code == 200, r.text
+    assert _shape(await H.dict_rows(sid)) == [("property", "ru", "xossa", lid), ("selector", "ru", "селектор", lid)]
+
+
+async def test_add_all_skips_words_the_student_already_has(async_client):
+    _, sid, cid, lid = await _world()
+    async with AsyncSessionLocal() as db:
+        db.add(UserDictionary(student_id=sid, word="selector", context="o'zim", lang="uz"))
+        await db.commit()
+    r = await async_client.post(_all_url(cid, lid), headers=H.h(sid))
+    assert r.json() == {"added": 1, "total": 2}
+
+
+async def test_add_all_404_for_a_lesson_outside_the_course_and_401_without_login(async_client):
+    tid, sid, cid, lid = await _world()
+    _, (other,) = await H.make_course(tid)
+    assert (await async_client.post(_all_url(cid, other), headers=H.h(sid))).status_code == 404
+    assert (await async_client.post(_all_url(cid, 987654321), headers=H.h(sid))).status_code == 404
+    assert (await async_client.post(_all_url(cid, lid))).status_code in (401, 403)
+    assert await H.dict_rows(sid) == []
+
+
+async def test_add_all_gives_a_demo_student_nothing(async_client):
+    _, sid, cid, lid = await _world(demo=True)
+    r = await async_client.post(_all_url(cid, lid), headers=H.h(sid))
+    assert r.status_code == 403                                  # demo accounts are read-only everywhere
+    assert await H.dict_rows(sid) == []
+
+
+# ── a word never lands in a student's dictionary twice, whichever buttons they press ──
+
+async def _count(sid, word):
+    return sum(1 for r in await H.dict_rows(sid) if r.word.lower() == word)
+
+
+async def test_no_duplicate_when_single_add_then_add_all_then_finish(async_client):
+    _, sid, cid, lid = await _world()
+    vid = (await H.words(lid))[0].id                              # "selector"
+    one = f"/api/v1/courses/{cid}/lessons/{lid}/vocabulary/{vid}/add-to-dict"
+    assert (await async_client.post(one, headers=H.h(sid))).json()["already_exists"] is False
+    assert (await async_client.post(_all_url(cid, lid), headers=H.h(sid))).json() == {"added": 1, "total": 2}
+    assert (await async_client.post(f"/api/v1/lessons/{lid}/complete", headers=H.h(sid))).status_code == 200
+    assert (await async_client.post(one, headers=H.h(sid))).json()["already_exists"] is True
+    assert (await async_client.post(_all_url(cid, lid), headers=H.h(sid))).json()["added"] == 0
+    assert await _count(sid, "selector") == 1 and await _count(sid, "property") == 1
+    assert len(await H.dict_rows(sid)) == 2
+
+
+async def test_no_duplicate_when_the_same_word_is_in_two_lessons(async_client):
+    tid, sid = await H.make_user(teacher=True), await H.make_user()
+    cid, (l1, l2) = await H.make_course(tid, lessons=2)
+    await H.enroll(sid, cid)
+    await H.add_word(l1, "selector", "tanlagich", "селектор")
+    await H.add_word(l2, "Selector ", "boshqa ta'rif", "другое")
+    assert (await async_client.post(_all_url(cid, l1), headers=H.h(sid))).json()["added"] == 1
+    assert (await async_client.post(_all_url(cid, l2, "ru"), headers=H.h(sid))).json()["added"] == 0
+    assert await _seed(sid, l2) == 0
+    assert await _count(sid, "selector") == 1
+
+
+async def test_no_duplicate_when_the_student_saved_the_word_by_hand_first(async_client):
+    _, sid, cid, lid = await _world()
+    r = await async_client.post("/api/v1/dictionary/", headers=H.h(sid),
+                                json={"word": "SELECTOR", "context": "o'zim yozdim", "lang": "uz"})
+    assert r.status_code in (200, 201), r.text
+    assert (await async_client.post(_all_url(cid, lid), headers=H.h(sid))).json() == {"added": 1, "total": 2}
+    assert await _seed(sid, lid) == 0
+    assert await _count(sid, "selector") == 1

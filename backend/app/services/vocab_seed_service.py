@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import logging
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import AsyncSessionLocal
@@ -51,6 +51,17 @@ async def resolve_lang(db: AsyncSession, student: Student) -> str:
     return "ru" if counts.get("ru", 0) > counts.get("uz", 0) else "uz"
 
 
+async def lock_student_dictionary(db: AsyncSession, student_id: int) -> None:
+    """Make "look what the student has, then add what is missing" safe against itself: two requests for one student
+    (a double click, the button racing the automatic seeding) take turns instead of both adding the same word.
+    Holds the student's row until the caller's transaction ends. (PostgreSQL; SQLite has no row locks.)"""
+    if db.get_bind().dialect.name == "postgresql":
+        # never wait long: if the row is held (it should not be — callers commit first), give up and let the
+        # caller's best-effort handling take over rather than hang a student's request
+        await db.execute(text("SET LOCAL lock_timeout = '3000ms'"))
+    await db.execute(select(Student.id).where(Student.id == student_id).with_for_update())
+
+
 def _new_rows(student_id: int, lesson_id: int, vocab: list, existing: set, lang: str) -> list[UserDictionary]:
     """Dictionary rows to insert. `existing` holds the lowercased words the student already has (any language)."""
     seen, rows = set(existing), []
@@ -66,8 +77,10 @@ def _new_rows(student_id: int, lesson_id: int, vocab: list, existing: set, lang:
     return rows
 
 
-async def plan_rows(db: AsyncSession, student_id: int, lesson_id: int) -> list[UserDictionary]:
-    """The dictionary rows seeding would add right now (nothing is written). Demo students get none."""
+async def plan_rows(db: AsyncSession, student_id: int, lesson_id: int, *,
+                    lang: str | None = None) -> list[UserDictionary]:
+    """The dictionary rows seeding would add right now (nothing is written). Demo students get none.
+    `lang` (from the student's own request) wins over the remembered language."""
     student = await db.get(Student, student_id)
     if student is None or student.is_demo:
         return []
@@ -78,14 +91,16 @@ async def plan_rows(db: AsyncSession, student_id: int, lesson_id: int) -> list[U
         return []
     existing = set((await db.execute(
         select(func.lower(UserDictionary.word)).where(UserDictionary.student_id == student_id))).scalars().all())
-    return _new_rows(student_id, lesson_id, vocab, existing, await resolve_lang(db, student))
+    return _new_rows(student_id, lesson_id, vocab, existing,
+                     normalize_lang(lang) or await resolve_lang(db, student))
 
 
-async def seed_lesson_words_strict(student_id: int, lesson_id: int) -> int:
+async def seed_lesson_words_strict(student_id: int, lesson_id: int, *, lang: str | None = None) -> int:
     """Add the lesson's words to the student's dictionary in a session of its own; returns the rows added.
     Raises on failure — for the backfill script, which has to count failures."""
     async with AsyncSessionLocal() as db:
-        rows = await plan_rows(db, student_id, lesson_id)
+        await lock_student_dictionary(db, student_id)
+        rows = await plan_rows(db, student_id, lesson_id, lang=lang)
         if rows:
             db.add_all(rows)
             await db.commit()

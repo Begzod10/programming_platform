@@ -102,3 +102,16 @@
     margin-left: auto;
 }
 .lvc-status-icon--added { color: var(--color-primary); font-weight: 400; }
+
+/* "add every word of this lesson to my dictionary" */
+.lvc-btn-all {
+    margin-left: auto; border: 1px solid #6c5ce7; background: transparent; color: #6c5ce7;
+    border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.lvc-badge-done + .lvc-btn-all { margin-left: 8px; }
+.lvc-btn-all:hover:not(:disabled) { background: rgba(108, 92, 231, .12); }
+.lvc-btn-all:disabled { opacity: .65; cursor: default; }
+.lvc-all-note { font-size: 13px; padding: 7px 10px; border-radius: 8px; margin-bottom: 10px; }
+.lvc-all-note--ok { background: rgba(34, 197, 94, .15); color: #16a34a; }
+.lvc-all-note--bad { background: rgba(239, 68, 68, .15); color: #dc2626; }
+@media (max-width: 560px) { .lvc-header { flex-wrap: wrap; } .lvc-btn-all { margin-left: 0; width: 100%; } }
