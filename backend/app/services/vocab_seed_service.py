@@ -42,24 +42,29 @@ def _new_rows(student_id: int, lesson_id: int, vocab: list, existing: set) -> li
     return rows
 
 
+async def plan_rows(db: AsyncSession, student_id: int, lesson_id: int) -> list[UserDictionary]:
+    """The dictionary rows seeding would add right now (nothing is written). Demo students get none."""
+    student = await db.get(Student, student_id)
+    if student is None or student.is_demo:
+        return []
+    vocab = list((await db.execute(
+        select(LessonVocabulary).where(LessonVocabulary.lesson_id == lesson_id)
+        .order_by(LessonVocabulary.order, LessonVocabulary.id))).scalars().all())
+    if not vocab:
+        return []
+    existing = {(w, lang) for w, lang in (await db.execute(
+        select(func.lower(UserDictionary.word), UserDictionary.lang)
+        .where(UserDictionary.student_id == student_id))).all()}
+    return _new_rows(student_id, lesson_id, vocab, existing)
+
+
 async def seed_lesson_words(db: AsyncSession, student_id: int, lesson_id: int) -> int:
     """Add the lesson's words to the student's dictionary; returns how many rows were added. Never raises.
 
     Call it only after the caller's own work is committed: on success it commits, on failure it rolls back.
     """
     try:
-        student = await db.get(Student, student_id)
-        if student is None or student.is_demo:
-            return 0
-        vocab = list((await db.execute(
-            select(LessonVocabulary).where(LessonVocabulary.lesson_id == lesson_id)
-            .order_by(LessonVocabulary.order, LessonVocabulary.id))).scalars().all())
-        if not vocab:
-            return 0
-        existing = {(w, lang) for w, lang in (await db.execute(
-            select(func.lower(UserDictionary.word), UserDictionary.lang)
-            .where(UserDictionary.student_id == student_id))).all()}
-        rows = _new_rows(student_id, lesson_id, vocab, existing)
+        rows = await plan_rows(db, student_id, lesson_id)
         if not rows:
             return 0
         async with db.begin_nested():
