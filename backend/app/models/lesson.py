@@ -133,7 +133,11 @@ class LessonVocabulary(Base):
         ForeignKey("lessons.id", ondelete="CASCADE"), nullable=False, index=True
     )
     word: Mapped[str] = mapped_column(String(120), nullable=False)
-    definition: Mapped[str] = mapped_column(Text, nullable=False)
+    definition: Mapped[str] = mapped_column(Text, nullable=False)  # Uzbek definition
+    # Russian definition. The term itself stays as written (an English IT term); only the definition is bilingual.
+    definition_ru: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # 'manual' (a teacher wrote it) | 'ai' (generated). Generation never changes or removes a manual row.
+    source: Mapped[str] = mapped_column(String(10), default="manual", server_default="manual", nullable=False)
     order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     lesson: Mapped["Lesson"] = relationship("Lesson", back_populates="vocabulary")

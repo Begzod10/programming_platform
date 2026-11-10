@@ -246,6 +246,9 @@ async def _reconcile_indexes(conn) -> None:
         text("ALTER TABLE teacher_penalties ADD COLUMN IF NOT EXISTS reverted_by_id INTEGER REFERENCES students(id) ON DELETE SET NULL"),
         text("ALTER TABLE teacher_penalties ADD COLUMN IF NOT EXISTS refunded_points INTEGER"),
         text("ALTER TABLE teacher_penalties ADD COLUMN IF NOT EXISTS refunded_wallet INTEGER"),
+        # 2026-11-10: lesson vocabulary is bilingual and can be AI-generated.
+        text("ALTER TABLE lesson_vocabulary ADD COLUMN IF NOT EXISTS definition_ru TEXT"),
+        text("ALTER TABLE lesson_vocabulary ADD COLUMN IF NOT EXISTS source VARCHAR(10) NOT NULL DEFAULT 'manual'"),
         text("UPDATE projects SET points_applied = CASE WHEN status = 'Approved' "
              "THEN COALESCE(points_earned, 0) ELSE 0 END WHERE points_applied IS NULL"),
     ]

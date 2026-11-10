@@ -1,7 +1,7 @@
 """Lesson vocabulary endpoints (teacher manages, students check and save words)."""
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -19,6 +19,7 @@ router = APIRouter()
 class VocabIn(BaseModel):
     word: str
     definition: str
+    definition_ru: Optional[str] = None
     order: int = 0
 
 
@@ -26,6 +27,8 @@ class VocabOut(BaseModel):
     id: int
     word: str
     definition: str
+    definition_ru: Optional[str] = None
+    source: str = "manual"
     order: int
 
     class Config:
@@ -59,7 +62,8 @@ async def add_vocab_word(
     definition = data.definition.strip()
     if not word or not definition:
         raise HTTPException(status_code=422, detail="So'z va ta'rif bo'sh bo'lishi mumkin emas")
-    vocab = LessonVocabulary(lesson_id=lesson_id, word=word, definition=definition, order=data.order)
+    vocab = LessonVocabulary(lesson_id=lesson_id, word=word, definition=definition,
+                             definition_ru=(data.definition_ru or "").strip() or None, order=data.order)
     db.add(vocab)
     await db.commit()
     await db.refresh(vocab)
@@ -85,6 +89,8 @@ async def update_vocab_word(
         raise HTTPException(status_code=404, detail="Topilmadi")
     vocab.word = data.word.strip()
     vocab.definition = data.definition.strip()
+    if data.definition_ru is not None:  # omitted = keep the Russian definition as it is
+        vocab.definition_ru = data.definition_ru.strip() or None
     vocab.order = data.order
     await db.commit()
     await db.refresh(vocab)
