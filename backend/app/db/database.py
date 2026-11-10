@@ -249,6 +249,8 @@ async def _reconcile_indexes(conn) -> None:
         # 2026-11-10: lesson vocabulary is bilingual and can be AI-generated.
         text("ALTER TABLE lesson_vocabulary ADD COLUMN IF NOT EXISTS definition_ru TEXT"),
         text("ALTER TABLE lesson_vocabulary ADD COLUMN IF NOT EXISTS source VARCHAR(10) NOT NULL DEFAULT 'manual'"),
+        text("ALTER TABLE students ADD COLUMN IF NOT EXISTS ui_lang VARCHAR(4)"),
+        text("ALTER TABLE user_dictionary ADD COLUMN IF NOT EXISTS seeded BOOLEAN NOT NULL DEFAULT FALSE"),
         text("UPDATE projects SET points_applied = CASE WHEN status = 'Approved' "
              "THEN COALESCE(points_earned, 0) ELSE 0 END WHERE points_applied IS NULL"),
     ]

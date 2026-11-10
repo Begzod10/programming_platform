@@ -341,8 +341,10 @@ async def check_and_award_achievements(db: AsyncSession, student_id: int) -> Lis
                 should_award = True
         elif ach.criteria_type == "word_count":
             wc_res = await db.execute(
+                # words the student saved themselves; lesson vocabulary seeded automatically is not their effort
                 select(func.count(UserDictionary.id)).where(
-                    UserDictionary.student_id == student_id
+                    UserDictionary.student_id == student_id,
+                    UserDictionary.seeded.is_not(True),
                 )
             )
             saved_words = wc_res.scalar() or 0

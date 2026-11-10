@@ -87,6 +87,9 @@ class Student(Base):
     # the student does meaningful work (exercise submit, lesson complete,
     # project submit, dictionary quiz). Read-heavy field — denormalized on
     # the row so the FE streak widget renders without a join.
+    # 'uz' | 'ru': the language the student last used the site in, remembered from their own requests
+    # (exercise_service.submit_exercise). NULL until first seen. Read by vocab_seed_service.resolve_lang.
+    ui_lang: Mapped[Optional[str]] = mapped_column(String(4), nullable=True)
     current_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     longest_streak: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     last_activity_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)

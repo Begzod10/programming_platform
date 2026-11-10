@@ -396,7 +396,7 @@ async def run_ai_review_for_project(
         from app.services import daily_quota_service
         await daily_quota_service.on_lesson_completed(db, quota_completed[0], quota_completed[1])
         from app.services.vocab_seed_service import seed_lesson_words
-        await seed_lesson_words(db, quota_completed[0], quota_completed[1])
+        await seed_lesson_words(quota_completed[0], quota_completed[1])
 
     # A ZIP project that arrived faster than anyone can write that much code (or a random
     # sample) gets a short quiz on its own code — a signal for the teacher, never a penalty.

@@ -25,6 +25,10 @@ class UserDictionary(Base):
     # Language of the definition ('uz' or 'ru'). One entry per (student, word, lang).
     lang = Column(String(4), nullable=False, server_default="uz", default="uz")
 
+    # True when the row was put here automatically from a finished lesson's vocabulary (vocab_seed_service), not
+    # saved by the student. Such rows do not count as the student's own saved words (achievements).
+    seeded = Column(Boolean, nullable=False, server_default="false", default=False)
+
     # AI-extracted grammatical category — nullable since old rows pre-date
     # this and not every entry maps cleanly (code identifiers, phrases).
     part_of_speech = Column(String(40), nullable=True)

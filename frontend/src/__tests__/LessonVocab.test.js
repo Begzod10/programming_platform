@@ -60,6 +60,16 @@ describe('LessonVocabCard', () => {
     expect(screen.queryByText('tanlagich')).not.toBeInTheDocument();
     expect(screen.getByText('xossa')).toBeInTheDocument();
   });
+
+  test('"add to dictionary" saves the word in the language the student reads in', async () => {
+    mockLang = 'ru';
+    mockFetch(routes);
+    render(<LessonVocabCard courseId={3} lessonId={7} />);
+    await screen.findByText('селектор');
+    fireEvent.click(screen.getAllByRole('button', { name: /В словарь/ })[0]);
+    await waitFor(() => expect(
+      sent('POST', 'http://test/api/v1/courses/3/lessons/7/vocabulary/1/add-to-dict?lang=ru')).toHaveLength(1));
+  });
 });
 
 describe('LessonVocabEditor', () => {

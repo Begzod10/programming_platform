@@ -32,7 +32,7 @@ export default function LessonVocabCard({ courseId, lessonId }) {
         if (added[vocab.id]) return;
         try {
             await fetch(
-                `${API_URL}/courses/${courseId}/lessons/${lessonId}/vocabulary/${vocab.id}/add-to-dict`,
+                `${API_URL}/courses/${courseId}/lessons/${lessonId}/vocabulary/${vocab.id}/add-to-dict?lang=${ru ? 'ru' : 'uz'}`,
                 { method: 'POST', headers: headers() }
             );
             setAdded(prev => ({ ...prev, [vocab.id]: true }));

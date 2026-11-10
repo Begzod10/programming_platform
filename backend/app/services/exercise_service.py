@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 from typing import List, Optional
@@ -11,6 +11,7 @@ import re
 from app.models.exercise import Exercise, ExerciseSubmission
 from app.models.lesson import Lesson, LessonCompletion
 from app.models.course import Course
+from app.models.user import Student
 from app.schemas.exercise import ExerciseCreate, ExerciseUpdate, ExerciseSubmitRequest
 from app.services.grok_service import ProviderError, call_chain, parse_ai_json
 
@@ -519,6 +520,15 @@ async def submit_exercise(
     if not exercise:
         raise HTTPException(status_code=404, detail="Mashq topilmadi")
 
+    # Remember which language the student uses the site in: the server has no other way to know it, and things done
+    # for the student outside their own requests (lesson vocabulary seeded when a teacher approves a project) need
+    # it. Saved by this function's own commit below.
+    from app.services.vocab_seed_service import normalize_lang
+    ui_lang = normalize_lang(data.lang)
+    if ui_lang:
+        await db.execute(update(Student).where(Student.id == student_id, Student.ui_lang.is_distinct_from(ui_lang))
+                         .values(ui_lang=ui_lang))
+
     # Fetch lesson + course for AI grading context
     lesson_row = (await db.execute(
         select(Lesson, Course.title.label("course_title"))
@@ -675,7 +685,7 @@ async def _maybe_auto_complete_lesson(
     from app.services import daily_quota_service
     await daily_quota_service.on_lesson_completed(db, student_id, lesson_id)
     from app.services.vocab_seed_service import seed_lesson_words
-    await seed_lesson_words(db, student_id, lesson_id)
+    await seed_lesson_words(student_id, lesson_id)
 
 
 async def get_my_submissions(db: AsyncSession, student_id: int, exercise_id: int) -> List[ExerciseSubmission]:

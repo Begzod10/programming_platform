@@ -149,12 +149,14 @@ async def add_vocab_to_dict(
         lesson_id: int,
         course_id: int,
         vocab_id: int,
+        lang: str = "uz",
         db: AsyncSession = Depends(get_db),
         current_user: Student = Depends(get_current_student),
 ):
-    """Student marks a vocab word as unknown — add it to their personal dictionary."""
+    """Student marks a vocab word as unknown — add it to their personal dictionary, in the language they read in."""
+    lang = lang if lang in ("uz", "ru") else "uz"
     vocab = (await db.execute(
-        select(LessonVocabulary).where(LessonVocabulary.id == vocab_id)
+        select(LessonVocabulary).where(LessonVocabulary.id == vocab_id, LessonVocabulary.lesson_id == lesson_id)
     )).scalar_one_or_none()
     if not vocab:
         raise HTTPException(status_code=404, detail="Topilmadi")
@@ -164,15 +166,16 @@ async def add_vocab_to_dict(
             UserDictionary.student_id == current_user.id,
             func.lower(UserDictionary.word) == vocab.word.lower(),
         )
-    )).scalar_one_or_none()
+    )).scalars().first()      # a word saved in both languages is two rows
     if existing:
         return {"ok": True, "already_exists": True}
 
     db.add(UserDictionary(
         student_id=current_user.id,
         word=vocab.word,
-        context=vocab.definition,
+        context=(vocab.definition_ru if lang == "ru" and (vocab.definition_ru or "").strip() else vocab.definition),
         lesson_id=lesson_id,
+        lang=lang,
     ))
     await db.commit()
     return {"ok": True, "already_exists": False}

@@ -75,8 +75,10 @@ async def get_achievement_progress(db: AsyncSession, student_id: int) -> List[di
             pct = min(100, int((current / target) * 100))
         elif ach.criteria_type == "word_count":
             wc_res = await db.execute(
+                # words the student saved themselves; lesson vocabulary seeded automatically is not their effort
                 select(func.count(UserDictionary.id)).where(
-                    UserDictionary.student_id == student_id
+                    UserDictionary.student_id == student_id,
+                    UserDictionary.seeded.is_not(True),
                 )
             )
             current = wc_res.scalar() or 0
