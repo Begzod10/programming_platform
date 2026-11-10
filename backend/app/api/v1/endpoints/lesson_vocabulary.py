@@ -10,8 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_current_student, get_current_instructor
 from app.models.dictionary import UserDictionary
-from app.models.lesson import LessonVocabulary
+from app.models.course import Course
+from app.models.lesson import Lesson, LessonVocabulary
 from app.models.user import Student
+from app.services import lesson_vocab_ai_service
+from app.services.grok_ai_client import ProviderError
 
 router = APIRouter()
 
@@ -68,6 +71,29 @@ async def add_vocab_word(
     await db.commit()
     await db.refresh(vocab)
     return vocab
+
+
+@router.post("/courses/{course_id}/lessons/{lesson_id}/vocabulary/generate")
+async def generate_vocabulary(
+        lesson_id: int,
+        course_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_user: Student = Depends(get_current_instructor),
+):
+    """AI adds the lesson's key terms (UZ + RU). Only the course owner; words already there are left alone."""
+    course = await db.get(Course, course_id)
+    if course is None:
+        raise HTTPException(status_code=404, detail="Kurs topilmadi")
+    if course.instructor_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Bu kurs sizga tegishli emas")
+    lesson = await db.get(Lesson, lesson_id)
+    if lesson is None or lesson.course_id != course_id:
+        raise HTTPException(status_code=404, detail="Dars topilmadi")
+    try:
+        added = await lesson_vocab_ai_service.generate_for_lesson(db, lesson_id)
+    except ProviderError:
+        raise HTTPException(status_code=502, detail="AI hozircha ishlamayapti, keyinroq urinib ko'ring")
+    return {"added": added}
 
 
 @router.put("/courses/{course_id}/lessons/{lesson_id}/vocabulary/{vocab_id}", response_model=VocabOut)
