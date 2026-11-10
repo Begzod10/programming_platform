@@ -447,6 +447,8 @@ async def review_project(
                     from app.services import daily_quota_service
                     await daily_quota_service.on_lesson_completed(
                         db, project.student_id, submission.lesson_id)
+                    from app.services.vocab_seed_service import seed_lesson_words
+                    await seed_lesson_words(db, project.student_id, submission.lesson_id)
 
             cert = await achievement_service.award_certificate(
                 db, project.student_id, lesson.course_id

@@ -149,6 +149,9 @@ async def complete_lesson(db: AsyncSession, lesson_id: int, student_id: int) -> 
     # sections the instant the quota is met (best-effort; never breaks a lesson).
     from app.services import daily_quota_service
     await daily_quota_service.on_lesson_completed(db, student_id, lesson_id)
+    # the lesson's vocabulary goes into the student's dictionary (best-effort, never breaks finishing)
+    from app.services.vocab_seed_service import seed_lesson_words
+    await seed_lesson_words(db, student_id, lesson_id)
 
     # Student total points olish
     student_res = await db.execute(select(Student).where(Student.id == student_id))

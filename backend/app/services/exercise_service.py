@@ -674,6 +674,8 @@ async def _maybe_auto_complete_lesson(
     # completion bonus). Best-effort — never breaks the submission flow.
     from app.services import daily_quota_service
     await daily_quota_service.on_lesson_completed(db, student_id, lesson_id)
+    from app.services.vocab_seed_service import seed_lesson_words
+    await seed_lesson_words(db, student_id, lesson_id)
 
 
 async def get_my_submissions(db: AsyncSession, student_id: int, exercise_id: int) -> List[ExerciseSubmission]:
