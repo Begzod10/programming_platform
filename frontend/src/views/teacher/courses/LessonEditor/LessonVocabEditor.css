@@ -90,3 +90,21 @@
 .lve-btn-edit:hover, .lve-btn-del:hover, .lve-btn-save:hover, .lve-btn-cancel:hover { opacity: 0.75; }
 
 .lve-edit-row { display: flex; gap: 8px; align-items: center; flex: 1; flex-wrap: wrap; }
+
+/* bilingual definitions + AI generation */
+.lve-btn-gen {
+    border: 1px solid var(--color-primary, #6c5ce7); background: #fff; color: var(--color-primary, #6c5ce7);
+    border-radius: 8px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.lve-btn-gen:hover:not(:disabled) { background: #ede9ff; }
+.lve-btn-gen:disabled { opacity: .6; cursor: default; }
+.lve-gen-note { font-size: 13px; padding: 8px 10px; border-radius: 8px; margin-bottom: 10px; }
+.lve-gen-note--ok { background: #dcfce7; color: #166534; }
+.lve-gen-note--bad { background: #fef2f2; color: #b91c1c; }
+.lve-item-defs { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lve-item-def--ru { color: #777; }
+.lve-item-def--missing { color: #c2410c; font-size: 12px; }
+.lve-badge-ai {
+    margin-left: 6px; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+    background: #ede9ff; color: var(--color-primary, #6c5ce7); vertical-align: middle;
+}

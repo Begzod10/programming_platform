@@ -3,6 +3,12 @@ import { API_URL, headers } from '../../../../api/search/base';
 import { useTranslation } from '../../../../i18n/useTranslation';
 import './LessonVocabCard.css';
 
+/** The definition in the reader's language: Russian when there is one, otherwise the Uzbek original. */
+export function pickDefinition(word, ru) {
+    const russian = (word.definition_ru || '').trim();
+    return ru && russian ? russian : word.definition;
+}
+
 export default function LessonVocabCard({ courseId, lessonId }) {
     const { lang } = useTranslation();
     const ru = lang === 'ru';
@@ -80,7 +86,7 @@ export default function LessonVocabCard({ courseId, lessonId }) {
                                     </span>
                                 )}
                             </div>
-                            <div className="lvc-definition">{w.definition}</div>
+                            <div className="lvc-definition">{pickDefinition(w, ru)}</div>
                         </div>
                     );
                 })}
