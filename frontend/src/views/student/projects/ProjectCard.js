@@ -49,11 +49,14 @@ function ProjectCard({ title, status, difficulty, points, techStack, grade, gith
             </div>
 
             <div className="pc-actions">
-                <button className="pc-btn pc-btn--code" disabled={!githubUrl}
-                    onClick={() => githubUrl && onViewCode?.(githubUrl)}>
-                    <Code2 size={15} /> {ru ? 'Код' : 'Kod'}
-                </button>
-                <button className="pc-btn pc-btn--details" onClick={onDetails}>
+                {githubUrl && (
+                    <button className="pc-btn pc-btn--code"
+                        onClick={() => onViewCode?.(githubUrl)}>
+                        <Code2 size={15} /> {ru ? 'Код' : 'Kod'}
+                    </button>
+                )}
+                <button className={`pc-btn pc-btn--details ${githubUrl ? '' : 'pc-btn--full'}`}
+                    onClick={onDetails}>
                     {ru ? 'Детали' : 'Batafsil'} <ArrowRight size={15} />
                 </button>
             </div>
