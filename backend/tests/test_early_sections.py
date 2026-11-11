@@ -100,3 +100,10 @@ async def test_public_list_has_section_and_zero_progress(async_client, db_sessio
     item = await _item(async_client, {}, module.id, path="public/modules")
     assert item["section"] == "letters"
     assert item["completed_count"] == 0 and item["last_played_at"] is None
+
+
+def test_non_string_mode_is_ignored():
+    """A malformed content_json (mode as a list/dict) must not take the whole
+    module list down with a TypeError."""
+    assert section_for_modes([["count"], {"a": 1}, 5, "count"]) == "world"
+    assert section_for_modes([["count"], "count", "count", "count"]) == "logic"

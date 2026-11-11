@@ -164,6 +164,10 @@ export default function EarlyLearning({ guest = false }) {
     const [detailLoading, setDetailLoading] = useState(!!moduleId);
 
     const [playingActivityId, setPlayingActivityId] = useState(null);
+    // Which module's detail is final for this visit — the network answered,
+    // or it could not and the cached copy is all there is. Autoplay waits
+    // for this so it never picks "the next game" from a stale cache.
+    const [detailSettledFor, setDetailSettledFor] = useState(null);
 
     // Offline page load (see public/play-sw.js) — scoped to this feature's
     // own route only, registered once on first mount.
@@ -233,6 +237,7 @@ export default function EarlyLearning({ guest = false }) {
             ? `${API_URL}v1/early-learning/public/modules/${id}?lang=${lang}`
             : `${API_URL}v1/early-learning/modules/${id}?lang=${lang}`;
         const cached = elCacheGet(detailKey);
+        setDetailSettledFor(null);
         if (cached) {
             setModuleDetail(guest ? applyGuestActivityStars(cached) : cached);
             setDetailLoading(false);
@@ -242,14 +247,14 @@ export default function EarlyLearning({ guest = false }) {
             setDetailLoading(true);
         }
         const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
-        if (offline && cached) return;
+        if (offline && cached) { setDetailSettledFor(String(id)); return; }
         withTimeout(request(url, 'GET', null, headers()))
             .then((data) => {
                 elCacheSet(detailKey, data);
                 setModuleDetail(guest ? applyGuestActivityStars(data) : data);
             })
             .catch(console.error)
-            .finally(() => setDetailLoading(false));
+            .finally(() => { setDetailLoading(false); setDetailSettledFor(String(id)); });
     }, [request, lang, guest, userId]);
 
     // Independent of the module list — a leaderboard or sticker fetch
@@ -282,16 +287,20 @@ export default function EarlyLearning({ guest = false }) {
     }, [moduleId, fetchModules, fetchModuleDetail]);
 
     // "Continue" on the home page lands here with state.autoplay: open the
-    // kid's next unplayed game straight away. Once per arrival — leaving the
-    // game must show the path, not reopen the game.
-    const autoplayedFor = useRef(null);
+    // kid's next unplayed game straight away — once per arrival. The guard
+    // is the navigation entry's key (so a second "continue" for the same
+    // module works), and the state is cleared so a reload, or leaving the
+    // game, shows the path instead of reopening a game.
+    const autoplayedKey = useRef(null);
     useEffect(() => {
         if (!location.state?.autoplay || !moduleId || !moduleDetail) return;
-        if (String(moduleDetail.id) !== String(moduleId) || autoplayedFor.current === moduleId) return;
-        autoplayedFor.current = moduleId;
+        if (String(moduleDetail.id) !== String(moduleId) || detailSettledFor !== String(moduleId)) return;
+        if (autoplayedKey.current === location.key) return;
+        autoplayedKey.current = location.key;
         const next = nextActivity(moduleDetail.activities);
         if (next) setPlayingActivityId(next.id);
-    }, [location.state, moduleId, moduleDetail]);
+        navigate(location.pathname, { replace: true, state: null });
+    }, [location.state, location.key, location.pathname, moduleId, moduleDetail, detailSettledFor, navigate]);
 
     // Stars earned while offline are parked in localStorage (see below) and
     // sent as soon as the connection is back — on load and on the `online` event.
@@ -309,14 +318,32 @@ export default function EarlyLearning({ guest = false }) {
         // A real server reply carries activity_id; the offline fallback in the
         // play screens does not, so that's the "didn't save" signal.
         if (!guest && result.activity_id === undefined) queueCompletion(activityId, result.stars_earned);
-        setModuleDetail((prev) => {
-            if (!prev) return prev;
-            const activities = prev.activities.map((a) =>
+        if (moduleDetail) {
+            const before = moduleDetail.activities.find((a) => a.id === activityId);
+            const activities = moduleDetail.activities.map((a) =>
                 a.id === activityId ? { ...a, best_stars: result.stars_earned, attempts: result.attempts } : a
             );
             const earned_stars = activities.reduce((sum, a) => sum + a.best_stars, 0);
-            return { ...prev, activities, earned_stars };
-        });
+            const updated = { ...moduleDetail, activities, earned_stars };
+            setModuleDetail(updated);
+            // Keep the offline copies in step, so the path, the home's
+            // "continue" card and the finished marks are right the moment the
+            // kid goes back — before (or without) the network. A guest's
+            // progress lives in its own store and is re-applied on read.
+            if (!guest) {
+                elCacheSet(elCacheKey(guest, userId, 'module', lang, moduleDetail.id), updated);
+                const listKey = elCacheKey(guest, userId, 'modules', lang);
+                const list = elCacheGet(listKey);
+                if (Array.isArray(list)) {
+                    elCacheSet(listKey, list.map((m) => (m.id !== moduleDetail.id ? m : {
+                        ...m,
+                        earned_stars,
+                        completed_count: (m.completed_count || 0) + (before && !before.attempts ? 1 : 0),
+                        last_played_at: new Date().toISOString(),
+                    })));
+                }
+            }
+        }
         setPlayingActivityId(null);
         if (stickersEnabled && result.new_stickers?.length) setReveal(result.new_stickers);
     };

@@ -29,6 +29,9 @@ def section_for_modes(modes: List[Optional[str]]) -> str:
     world."""
     if not modes:
         return DEFAULT_SECTION
-    votes = Counter(_MODE_SECTION.get(mode, DEFAULT_SECTION) for mode in modes)
+    votes = Counter(
+        _MODE_SECTION.get(mode, DEFAULT_SECTION) if isinstance(mode, str) else DEFAULT_SECTION
+        for mode in modes
+    )
     best = max(votes.values())
     return next(section for section in TIE_PRIORITY if votes.get(section) == best)

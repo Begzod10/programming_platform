@@ -1,7 +1,7 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import EarlyLearning from '../views/student/early-learning/EarlyLearning';
-import { elCacheKey, elCacheSet } from '../views/student/early-learning/earlyLearningUtils';
+import { elCacheKey, elCacheSet, elCacheGet } from '../views/student/early-learning/earlyLearningUtils';
 
 jest.mock('../api/search/base', () => {
     const request = jest.fn();
@@ -16,17 +16,19 @@ const mockNavigate = jest.fn();
 let mockPath = '/student/early-learning';
 let mockParams = {};
 let mockState = null;
+let mockKey = 'k1';
 jest.mock('react-router-dom', () => ({
     useNavigate: () => mockNavigate,
-    useLocation: () => ({ pathname: mockPath, search: '', hash: '', state: mockState }),
+    useLocation: () => ({ pathname: mockPath, search: '', hash: '', state: mockState, key: mockKey }),
     useParams: () => mockParams,
 }), { virtual: true });
 jest.mock('../hooks/useDailyQuota', () => ({ useDailyQuota: () => ({ loading: false, unlocked: true }) }));
 jest.mock('../components/QuotaLockScreen', () => () => null);
-jest.mock('../views/student/early-learning/MatchingActivity', () => ({ activity, onBack }) => (
+jest.mock('../views/student/early-learning/MatchingActivity', () => ({ activity, onBack, onComplete }) => (
     <div>
         <span>{`playing-${activity.id}`}</span>
         <button onClick={onBack}>leave-game</button>
+        <button onClick={() => onComplete({ activity_id: activity.id, stars_earned: 3, attempts: 1, new_stickers: [] })}>win-game</button>
     </div>
 ));
 
@@ -70,6 +72,7 @@ beforeEach(() => {
     mockPath = '/student/early-learning';
     mockParams = {};
     mockState = null;
+    mockKey = 'k1';
 });
 
 const renderHome = ({ guest = false } = {}) => {
@@ -181,5 +184,73 @@ describe('module page path', () => {
         expect(await screen.findByText('Qizil 11')).toBeInTheDocument();
         expect(screen.queryByText(/^playing-/)).not.toBeInTheDocument();
         expect(screen.queryByText("Keyingi o'yin ▶")).not.toBeInTheDocument();
+    });
+});
+
+describe('continue, repeatedly and from a stale cache', () => {
+    test('finishing the auto-opened game shows the path, not another game', async () => {
+        renderModule({ autoplay: true });
+        fireEvent.click(await screen.findByText('win-game'));
+        expect(await screen.findByText('Qizil 13')).toBeInTheDocument();
+        expect(screen.queryByText(/^playing-/)).not.toBeInTheDocument();
+    });
+
+    test('autoplay clears the navigation state so a reload does not reopen the game', async () => {
+        renderModule({ autoplay: true });
+        await screen.findByText('playing-12');
+        expect(mockNavigate).toHaveBeenCalledWith('/student/early-learning/1', { replace: true, state: null });
+    });
+
+    test('a second continue for the same module opens the next game again', async () => {
+        const view = renderModule({ autoplay: true });
+        fireEvent.click(await screen.findByText('win-game'));           // game 12 done
+        await screen.findByText('Qizil 13');
+        // back on the home page (same component instance)…
+        mockPath = '/student/early-learning'; mockParams = {}; mockState = null; mockKey = 'k2';
+        view.rerender(<EarlyLearning />);
+        await screen.findByText('Davom et');
+        // …and "continue" again for module 1
+        moduleDetail = detail([1, 1, 0]);
+        mockPath = '/student/early-learning/1'; mockParams = { moduleId: '1' }; mockState = { autoplay: true }; mockKey = 'k3';
+        view.rerender(<EarlyLearning />);
+        expect(await screen.findByText('playing-13')).toBeInTheDocument();
+    });
+
+    test('autoplay waits for the fresh module instead of a stale cached copy', async () => {
+        elCacheSet(elCacheKey(false, 7, 'module', 'uz', '1'), detail([0, 0, 0]));   // cached before any play
+        let release;
+        const fresh = new Promise((resolve) => { release = resolve; });
+        request.mockImplementation((url) => (/modules\/\d+/.test(url) ? fresh : route(url)));
+        renderModule({ autoplay: true });
+        expect(await screen.findByText('Qizil 11')).toBeInTheDocument();           // path from the cache
+        expect(screen.queryByText(/^playing-/)).not.toBeInTheDocument();
+        await act(async () => { release(detail([1, 0, 0])); });
+        expect(await screen.findByText('playing-12')).toBeInTheDocument();
+    });
+
+    test('offline autoplay falls back to the cached module', async () => {
+        elCacheSet(elCacheKey(false, 7, 'module', 'uz', '1'), detail([1, 1, 0]));
+        request.mockImplementation((url) => (/modules\/\d+/.test(url) ? Promise.reject(new Error('offline')) : route(url)));
+        renderModule({ autoplay: true });
+        expect(await screen.findByText('playing-13')).toBeInTheDocument();
+    });
+
+    test('finishing a game updates the cached module and the cached list', async () => {
+        elCacheSet(elCacheKey(false, 7, 'modules', 'uz'), modules);
+        renderModule();
+        fireEvent.click((await screen.findByText('Qizil 12')).closest('button'));
+        fireEvent.click(await screen.findByText('win-game'));
+        await screen.findByText('Qizil 13');
+        const cachedDetail = elCacheGet(elCacheKey(false, 7, 'module', 'uz', '1'));
+        expect(cachedDetail.activities.find((a) => a.id === 12).attempts).toBe(1);
+        const cachedItem = elCacheGet(elCacheKey(false, 7, 'modules', 'uz')).find((m) => m.id === 1);
+        expect(cachedItem.completed_count).toBe(4);                               // was 3
+        expect(cachedItem.earned_stars).toBe(6);                                  // the module's two played games, 3 stars each
+        expect(cachedItem.last_played_at).toBeTruthy();
+        // replaying an already-played game does not count it twice
+        fireEvent.click(screen.getByText('Qizil 12').closest('button'));
+        fireEvent.click(await screen.findByText('win-game'));
+        await screen.findByText('Qizil 13');
+        expect(elCacheGet(elCacheKey(false, 7, 'modules', 'uz')).find((m) => m.id === 1).completed_count).toBe(4);
     });
 });
