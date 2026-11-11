@@ -258,6 +258,26 @@ describe('games home', () => {
         await waitFor(() => expect(screen.queryByText('Yangi stiker!')).not.toBeInTheDocument());
     });
 
+    test('teacher preview gets the games and leaderboard but no strip', async () => {
+        request.mockImplementation(route(() => Promise.resolve(STRIP)));
+        mockPath = '/teacher/early-learning';
+        render(<EarlyLearning />);
+        expect(await screen.findByText('Rang olami')).toBeInTheDocument();
+        await screen.findByText(/Ali/);
+        expect(urls('/stickers')).toHaveLength(0);
+        expect(screen.queryByText(/Kolleksiyam/)).not.toBeInTheDocument();
+    });
+
+    test('an offline completion (no server reply) shows no reveal', async () => {
+        global.__completionResult = { stars_earned: 3, attempts: 1 };
+        request.mockImplementation(route(() => Promise.resolve(STRIP)));
+        renderHome({ moduleId: 5 });
+        fireEvent.click(await screen.findByText('Qizil'));
+        fireEvent.click(await screen.findByText('finish-game'));
+        await screen.findByText('Qizil');
+        expect(screen.queryByText('Yangi stiker!')).not.toBeInTheDocument();
+    });
+
     test('finishing a game without stickers shows no reveal', async () => {
         global.__completionResult = { activity_id: 1, stars_earned: 3, attempts: 1, new_stickers: [] };
         request.mockImplementation(route(() => Promise.resolve(STRIP)));

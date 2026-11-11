@@ -129,3 +129,53 @@ async def test_teacher_gets_album_but_no_awards(async_client, db_session, teache
 async def test_stickers_require_auth(async_client):
     assert (await async_client.get(f"{BASE}/stickers")).status_code in (401, 403)
     assert (await async_client.post(f"{BASE}/stickers/seen")).status_code in (401, 403)
+
+
+async def test_age_gated_module_is_not_in_album(async_client, db_session, teacher):
+    from datetime import date
+    from sqlalchemy import update
+    from app.models.user import Student
+
+    student_id, headers = await make_student(async_client, db_session)
+    module, _ = await make_module(db_session, teacher, n_activities=1)     # ages 4-12
+    key = f"module:{module.id}"
+    album = (await async_client.get(f"{BASE}/stickers", headers=headers)).json()
+    assert key in _by_key(album)
+    await db_session.execute(update(Student).where(Student.id == student_id).values(birth_date=date(1990, 1, 1)))
+    await db_session.commit()
+    album = (await async_client.get(f"{BASE}/stickers", headers=headers)).json()
+    assert key not in _by_key(album)
+
+
+async def test_album_survives_sync_failure(async_client, db_session, monkeypatch):
+    from app.api.v1.endpoints import early_learning as endpoints
+
+    async def boom(*args, **kwargs):
+        raise RuntimeError("sync down")
+
+    monkeypatch.setattr(endpoints, "sync_awards", boom)
+    _, headers = await make_student(async_client, db_session)
+    res = await async_client.get(f"{BASE}/stickers", headers=headers)
+    assert res.status_code == 200 and res.json()["owned_count"] == 0
+
+
+async def test_complete_survives_failure_after_awards_were_written(async_client, db_session, teacher, monkeypatch):
+    """Failure AFTER the award pass touched the database: the reply is still
+    200, and the session is healthy enough for the next request."""
+    from app.api.v1.endpoints import early_learning as endpoints
+
+    _, headers = await make_student(async_client, db_session)
+    _, acts = await make_module(db_session, teacher, n_activities=5)
+    for a in acts[:3]:
+        await _complete(async_client, headers, a.id)
+
+    async def boom(*args, **kwargs):
+        raise RuntimeError("payload down")
+
+    monkeypatch.setattr(endpoints, "sticker_payload", boom)
+    body = await _complete(async_client, headers, acts[3].id)             # crosses 10 stars
+    assert body["new_stickers"] == [] and body["stars_earned"] == 3
+    monkeypatch.undo()
+    album = (await async_client.get(f"{BASE}/stickers", headers=headers)).json()
+    assert _by_key(album)["star:10"]["owned"] is True
+    assert _by_key(album)["star:10"]["is_new"] is True

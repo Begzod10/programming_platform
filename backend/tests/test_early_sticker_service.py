@@ -226,3 +226,45 @@ async def test_duplicate_insert_is_swallowed(db_session, kid):
     assert await svc._insert(db_session, kid, "daily:02", daily_date=D) is False
     await db_session.commit()
     assert await _award_count(db_session, kid) == 2
+
+
+async def test_module_filter_hides_badge(db_session, teacher, kid):
+    """A module the student may not open (age gate) must not show up as an
+    uncollectable badge, nor be awarded."""
+    module, acts = await make_module(db_session, teacher, n_activities=1)
+    await add_completion(db_session, kid, acts[0].id)
+    key = f"module:{module.id}"
+    hide = lambda m: m.id != module.id
+    assert key not in await svc.sync_awards(db_session, kid, D, module_ok=hide)
+    hidden = await svc.album(db_session, kid, "uz", D, module_ok=hide)
+    shown = await svc.album(db_session, kid, "uz", D)
+    assert key not in _by_key(hidden) and key in _by_key(shown)
+    assert hidden["total"] == shown["total"] - 1
+
+
+async def test_sync_with_stale_owned_snapshot(db_session, teacher, kid, monkeypatch):
+    """The shape of a real race: this request read "owns nothing" while a
+    parallel one already inserted the rows."""
+    _, acts = await make_module(db_session, teacher, n_activities=4)
+    for a in acts:
+        await add_completion(db_session, kid, a.id)
+        await add_daily(db_session, kid, a.id, D)
+    first = await svc.sync_awards(db_session, kid, D)
+    assert "star:10" in first and "daily:01" in first
+    count = await _award_count(db_session, kid)
+
+    async def stale(db, student_id):
+        return {}
+
+    real_owned = svc._owned
+    monkeypatch.setattr(svc, "_owned", stale)
+    assert await svc.sync_awards(db_session, kid, D) == []
+    monkeypatch.setattr(svc, "_owned", real_owned)
+    assert await _award_count(db_session, kid) == count
+    assert _by_key(await svc.album(db_session, kid, "uz", D))["star:10"]["owned"] is True
+
+
+async def test_russian_streak_hint_grammar(db_session, kid):
+    ru = _by_key(await svc.album(db_session, kid, "ru", D))
+    assert ru["streak:3"]["hint"] == "Играй 3 дня подряд"
+    assert ru["streak:14"]["hint"] == "Играй 14 дней подряд"

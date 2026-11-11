@@ -214,11 +214,17 @@ def _is_age_eligible(student: Student, module: EarlyModule) -> bool:
     TeacherSidebar.js) — the point of gating is keeping the feature scoped
     to young kids among *students*, not hiding it from staff previewing it.
     """
-    if student.role != UserRole.student:
+    return _is_age_eligible_for(student.role, student.birth_date, module)
+
+
+def _is_age_eligible_for(role, birth_date: date | None, module: EarlyModule) -> bool:
+    """_is_age_eligible on plain values — usable after the Student object
+    may have been expired by a rollback (see the sticker pass)."""
+    if role != UserRole.student:
         return True
-    if student.birth_date is None:
+    if birth_date is None:
         return True
-    age = _age_from_birth_date(student.birth_date)
+    age = _age_from_birth_date(birth_date)
     return (module.age_min - _AGE_GRACE_YEARS) <= age <= (module.age_max + _AGE_GRACE_YEARS)
 
 
@@ -472,6 +478,8 @@ async def complete_early_activity(
     # session back, which expires these objects.
     student_id = current_student.id
     is_student = current_student.role == UserRole.student
+    birth_date = current_student.birth_date
+    module_ok = lambda m: _is_age_eligible_for(UserRole.student, birth_date, m)  # noqa: E731
 
     await db.commit()
     await db.refresh(existing)
@@ -481,7 +489,7 @@ async def complete_early_activity(
     # goes wrong here, the kid's stars stay recorded and the call succeeds.
     if is_student:
         try:
-            new_keys = await sync_awards(db, student_id, today)
+            new_keys = await sync_awards(db, student_id, today, module_ok=module_ok)
             if new_keys:
                 out.new_stickers = [EarlyStickerOut(**item) for item in await sticker_payload(db, new_keys)]
         except Exception:
@@ -504,9 +512,17 @@ async def get_sticker_album(
     Staff previewing the games get the album but are never awarded anything.
     """
     today = _today()
-    if current_student.role == UserRole.student:
-        await sync_awards(db, current_student.id, today)
-    return EarlyAlbumOut(**await sticker_album(db, current_student.id, lang, today))
+    student_id = current_student.id
+    role, birth_date = current_student.role, current_student.birth_date
+    module_ok = lambda m: _is_age_eligible_for(role, birth_date, m)  # noqa: E731
+    if role == UserRole.student:
+        # A failed sync must not hide the album: what is already owned still renders.
+        try:
+            await sync_awards(db, student_id, today, module_ok=module_ok)
+        except Exception:
+            logger.exception("early stickers: sync failed for student %s", student_id)
+            await db.rollback()
+    return EarlyAlbumOut(**await sticker_album(db, student_id, lang, today, module_ok=module_ok))
 
 
 @router.post("/stickers/seen", response_model=EarlyStickersSeenOut, dependencies=[Depends(require_games_unlocked)])

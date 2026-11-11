@@ -13,7 +13,7 @@ boundary in one place and the rules testable.
   module  every visible activity of a live module completed
 """
 from datetime import date, timedelta
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -30,6 +30,10 @@ from app.services.early_sticker_catalog import (
 
 MODULE_FALLBACK_EMOJI = "🏅"
 
+# Lets the caller hide modules a student may not open (the endpoints pass
+# their age gate), so a badge nobody can earn is never listed or awarded.
+ModuleFilter = Optional[Callable[[EarlyModule], bool]]
+
 _HINTS = {
     "star": ("{n} yulduz yig'", "Собери {n} звёзд"),
     "daily": ("Bir kunda {n} ta o'yin o'yna", "Сыграй {n} игры за день"),
@@ -40,6 +44,8 @@ _HINTS = {
 
 def _hint(kind: str, n, lang: str) -> str:
     uz, ru = _HINTS[kind]
+    if lang == "ru" and kind == "streak" and n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
+        ru = "Играй {n} дня подряд"
     return (ru if lang == "ru" else uz).format(n=n)
 
 
@@ -51,8 +57,9 @@ def _visible(module: EarlyModule) -> List[EarlyActivity]:
     return [a for a in module.activities if a.is_active and a.is_published]
 
 
-async def _live_modules(db: AsyncSession) -> List[EarlyModule]:
-    """Published, active modules that have at least one visible activity."""
+async def _live_modules(db: AsyncSession, module_ok: ModuleFilter = None) -> List[EarlyModule]:
+    """Published, active modules that have at least one visible activity
+    (and pass the caller's filter, if any)."""
     modules = (
         await db.execute(
             select(EarlyModule)
@@ -62,7 +69,7 @@ async def _live_modules(db: AsyncSession) -> List[EarlyModule]:
             .execution_options(populate_existing=True)
         )
     ).scalars().all()
-    return [m for m in modules if _visible(m)]
+    return [m for m in modules if _visible(m) and (module_ok is None or module_ok(m))]
 
 
 async def _owned(db: AsyncSession, student_id: int) -> Dict[str, EarlyStickerAward]:
@@ -151,13 +158,13 @@ async def _insert(db: AsyncSession, student_id: int, key: str, daily_date: Optio
         return False
 
 
-async def sync_awards(db: AsyncSession, student_id: int, today: date) -> List[str]:
+async def sync_awards(db: AsyncSession, student_id: int, today: date, module_ok: ModuleFilter = None) -> List[str]:
     """Grant every sticker the student is entitled to but does not own yet.
     Returns the newly granted keys. Commits."""
     owned = await _owned(db, student_id)
     stars = await total_stars(db, student_id)
     streak = await current_streak(db, student_id, today)
-    modules = await _live_modules(db)
+    modules = await _live_modules(db, module_ok)
 
     wanted = [s.key for s in STAR_STICKERS if _threshold(s.key) <= stars]
     wanted += [s.key for s in STREAK_STICKERS if _threshold(s.key) <= streak]
@@ -211,9 +218,9 @@ async def sticker_payload(db: AsyncSession, keys: List[str]) -> List[dict]:
     return out
 
 
-async def album(db: AsyncSession, student_id: int, lang: str, today: date) -> dict:
+async def album(db: AsyncSession, student_id: int, lang: str, today: date, module_ok: ModuleFilter = None) -> dict:
     owned = await _owned(db, student_id)
-    modules = await _live_modules(db)
+    modules = await _live_modules(db, module_ok)
     stars = await total_stars(db, student_id)
     played = await plays_on(db, student_id, today)
 
