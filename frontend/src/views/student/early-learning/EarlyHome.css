@@ -1,0 +1,272 @@
+/* Kids' games home (continue card, "new for you" row, sections, module
+   cards) and the module's activity path. Uses the --el-* palette defined on
+   .el-shell in EarlyLearning.css. */
+
+/* ── Continue card ───────────────────────────────────────────────────── */
+.eh-continue {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    width: 100%;
+    margin: 0 0 16px;
+    padding: 18px 22px;
+    border: 0;
+    border-radius: 28px;
+    background: linear-gradient(135deg, var(--el-sunset), var(--el-coral));
+    color: #fff;
+    text-align: left;
+    cursor: pointer;
+    box-shadow: 0 14px 30px rgba(255, 107, 138, 0.35);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.eh-continue:hover { transform: translateY(-3px); box-shadow: 0 18px 36px rgba(255, 107, 138, 0.45); }
+.eh-continue:active { transform: translateY(0) scale(0.99); }
+.eh-continue:focus-visible { outline: 4px solid var(--el-violet); outline-offset: 3px; }
+.eh-continue-emoji {
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    width: 84px;
+    height: 84px;
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.28);
+    font-size: 3.2rem;
+    line-height: 1;
+}
+.eh-continue-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 auto; }
+.eh-continue-label {
+    font-family: var(--el-font-display);
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+}
+.eh-continue-title { font-size: 1.05rem; font-weight: 700; opacity: 0.95; overflow-wrap: anywhere; }
+.eh-continue-progress { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; font-weight: 800; }
+.eh-continue-bar {
+    flex: 1 1 80px;
+    max-width: 260px;
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.35);
+    overflow: hidden;
+}
+.eh-continue-bar span { display: block; height: 100%; border-radius: 999px; background: #fff; }
+
+/* ── Sections and the "new" row ──────────────────────────────────────── */
+.eh-section { margin: 0 0 26px; }
+.eh-section-title {
+    margin: 0 0 12px;
+    font-family: var(--el-font-display);
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--el-ink);
+}
+.eh-new-row {
+    display: flex;
+    gap: 14px;
+    padding: 4px 4px 12px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+}
+.eh-new-row .eh-card { flex: 0 0 150px; scroll-snap-align: start; }
+
+/* ── Module card (extends .el-module-card) ───────────────────────────── */
+.eh-card { position: relative; gap: 8px; }
+.eh-card .el-module-card-emoji { font-size: 3.6rem; }
+.eh-progress { display: flex; align-items: center; gap: 8px; width: 100%; }
+.eh-bar {
+    flex: 1 1 auto;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--el-border);
+    overflow: hidden;
+}
+.eh-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--el-amber), var(--el-sunset));
+}
+.eh-progress-text { font-size: 0.72rem; font-weight: 800; color: var(--el-ink-soft); white-space: nowrap; }
+.eh-done {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--el-success);
+    color: #fff;
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+.eh-card-done { opacity: 0.85; }
+
+/* ── Activity path ───────────────────────────────────────────────────── */
+.ep-wrap { --ep-step: clamp(18px, 6vw, 44px); display: flex; flex-direction: column; align-items: center; }
+.ep-path {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin: 8px 0 0;
+    padding: 0 0 24px;
+    list-style: none;
+    width: 100%;
+}
+.ep-step {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 22px;
+    transform: translateX(calc(var(--ep-shift) * var(--ep-step)));
+}
+/* dashed connector up to the previous step */
+.ep-step::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    height: 20px;
+    border-left: 4px dashed var(--el-border-strong);
+    transform: translateX(-50%);
+}
+.ep-step:first-child { padding-top: 0; }
+.ep-step:first-child::before { display: none; }
+
+.ep-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    font-family: var(--el-font-body);
+    color: var(--el-ink);
+}
+.ep-node:focus-visible .ep-circle { outline: 4px solid var(--el-violet); outline-offset: 3px; }
+.ep-circle {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 4px solid var(--el-border-strong);
+    background: var(--el-surface);
+    box-shadow: 0 6px 0 var(--el-border-strong);
+    transition: transform 0.15s ease;
+}
+.ep-node:hover .ep-circle { transform: translateY(-2px); }
+.ep-node:active .ep-circle { transform: translateY(3px); box-shadow: 0 2px 0 var(--el-border-strong); }
+.ep-emoji { font-size: 2.1rem; line-height: 1; }
+.ep-number {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    display: grid;
+    place-items: center;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--el-violet);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+.ep-title {
+    max-width: 160px;
+    font-family: var(--el-font-display);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+.ep-played .ep-circle { border-color: var(--el-amber); box-shadow: 0 6px 0 var(--el-amber); background: var(--el-surface-alt); }
+.ep-played .ep-number { background: var(--el-amber-deep); }
+
+.ep-next .ep-circle {
+    width: 92px;
+    height: 92px;
+    border-color: var(--el-coral);
+    box-shadow: 0 6px 0 var(--el-coral);
+    animation: ep-pulse 1.6s ease-in-out infinite;
+}
+.ep-next .ep-emoji { font-size: 2.8rem; }
+.ep-next .ep-number { background: var(--el-coral); }
+.ep-next .ep-title { font-size: 0.95rem; color: var(--el-violet-deep); }
+.ep-play {
+    position: absolute;
+    right: -8px;
+    bottom: -6px;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--el-coral);
+    color: #fff;
+    font-size: 0.8rem;
+}
+
+.ep-badge {
+    display: grid;
+    place-items: center;
+    width: 84px;
+    height: 84px;
+    border-radius: 24px;
+    border: 4px dashed var(--el-border-strong);
+    background: var(--el-surface);
+    font-size: 2.6rem;
+    filter: grayscale(1);
+    opacity: 0.45;
+}
+.ep-badge-owned {
+    border-style: solid;
+    border-color: var(--el-amber);
+    background: var(--el-surface-alt);
+    filter: none;
+    opacity: 1;
+    box-shadow: 0 8px 20px rgba(245, 158, 11, 0.35);
+}
+
+.ep-next-btn {
+    position: sticky;
+    bottom: 16px;
+    z-index: 2;
+    margin-top: 8px;
+    padding: 14px 30px;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--el-sunset), var(--el-coral));
+    color: #fff;
+    font-family: var(--el-font-display);
+    font-size: 1.1rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 12px 26px rgba(255, 107, 138, 0.45);
+}
+.ep-next-btn:focus-visible { outline: 4px solid var(--el-violet); outline-offset: 3px; }
+
+@keyframes ep-pulse {
+    0%, 100% { box-shadow: 0 6px 0 var(--el-coral), 0 0 0 0 rgba(255, 107, 138, 0.55); }
+    50% { box-shadow: 0 6px 0 var(--el-coral), 0 0 0 14px rgba(255, 107, 138, 0); }
+}
+
+@media (max-width: 520px) {
+    .eh-continue { padding: 14px 16px; gap: 14px; }
+    .eh-continue-emoji { width: 64px; height: 64px; font-size: 2.4rem; border-radius: 18px; }
+    .eh-continue-label { font-size: 1.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ep-next .ep-circle { animation: none; }
+    .eh-continue, .ep-circle { transition: none; }
+}

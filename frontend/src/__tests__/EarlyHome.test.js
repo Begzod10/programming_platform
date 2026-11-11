@@ -1,3 +1,9 @@
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react';
+import ModuleCard from '../views/student/early-learning/ModuleCard';
+import ContinueCard from '../views/student/early-learning/ContinueCard';
+import ActivityPath from '../views/student/early-learning/ActivityPath';
+import translations from '../i18n/translations';
 import {
     SECTIONS, isFinished, pickContinue, pickNew, groupBySection, nextActivity,
 } from '../views/student/early-learning/earlyHome';
@@ -7,6 +13,8 @@ const m = (id, over) => ({
     id, title: `M${id}`, display_order: id, activities_count: 10, completed_count: 0,
     last_played_at: null, section: 'world', earned_stars: 0, max_stars: 30, ...over,
 });
+
+const t = (key) => translations.uz[key] || key;
 
 beforeEach(() => { localStorage.clear(); });
 
@@ -103,5 +111,89 @@ describe('home selection logic', () => {
         const [patched] = applyGuestModuleStars([{ id: 1, activity_ids: [11, 12] }]);
         expect(patched.completed_count).toBe(1);
         expect(patched.earned_stars).toBe(2);
+    });
+});
+
+const act = (id, order, attempts, over) => ({
+    id, order, attempts, best_stars: attempts ? 3 : 0, title: `Game ${id}`,
+    content: { character: { emoji: '🍎', label: `Qizil ${id}` } }, ...over,
+});
+
+describe('home components', () => {
+    test('module card shows progress and no description', () => {
+        const onOpen = jest.fn();
+        render(<ModuleCard t={t} onOpen={onOpen} index={0} module={m(9, {
+            title: 'Rang olami', description: 'Rangni tanla.', icon_emoji: '🎨', earned_stars: 15, max_stars: 30,
+        })} />);
+        expect(screen.getByText('Rang olami')).toBeInTheDocument();
+        expect(screen.getByText('15 / 30')).toBeInTheDocument();
+        expect(screen.queryByText('Rangni tanla.')).not.toBeInTheDocument();
+        expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
+        expect(screen.queryByLabelText('Tugallandi')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button'));
+        expect(onOpen).toHaveBeenCalledTimes(1);
+    });
+
+    test('module card marks a finished module', () => {
+        render(<ModuleCard t={t} onOpen={() => {}} index={0} module={m(9, { completed_count: 10, earned_stars: 30 })} />);
+        expect(screen.getByLabelText('Tugallandi')).toBeInTheDocument();
+    });
+
+    test('module card with zero max stars shows an empty bar', () => {
+        render(<ModuleCard t={t} onOpen={() => {}} index={0} module={m(9, { max_stars: 0 })} />);
+        expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0');
+    });
+
+    test('continue card shows the label for started and for fresh', () => {
+        const onOpen = jest.fn();
+        const module = m(4, { title: 'Fasllar', icon_emoji: '🍂', completed_count: 3 });
+        const { rerender } = render(<ContinueCard t={t} onOpen={onOpen} pick={{ module, started: true }} />);
+        expect(screen.getByText('Davom et')).toBeInTheDocument();
+        expect(screen.getByText('Fasllar')).toBeInTheDocument();
+        expect(screen.getByText("3 / 10 o'yin")).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button'));
+        expect(onOpen).toHaveBeenCalledTimes(1);
+        rerender(<ContinueCard t={t} onOpen={onOpen} pick={{ module: m(4), started: false }} />);
+        expect(screen.getByText('Boshlash')).toBeInTheDocument();
+        expect(screen.queryByText('Davom et')).not.toBeInTheDocument();
+    });
+
+    test('path highlights the next game and plays it from the sticky button', () => {
+        const onPlay = jest.fn();
+        const { container } = render(
+            <ActivityPath t={t} moduleEmoji="🎨" onPlay={onPlay} activities={[act(13, 2, 0), act(11, 0, 1), act(12, 1, 0)]} />
+        );
+        const nodes = container.querySelectorAll('.ep-node');
+        expect(nodes).toHaveLength(3);
+        expect([...nodes].map((n) => n.classList.contains('ep-next'))).toEqual([false, true, false]);
+        expect(nodes[1]).toHaveTextContent('Qizil 12');
+        fireEvent.click(screen.getByText("Keyingi o'yin ▶"));
+        expect(onPlay).toHaveBeenLastCalledWith(12);
+        fireEvent.click(nodes[2]);
+        expect(onPlay).toHaveBeenLastCalledWith(13);
+        fireEvent.click(nodes[0]);
+        expect(onPlay).toHaveBeenLastCalledWith(11);
+        expect(container.querySelector('.ep-badge')).not.toHaveClass('ep-badge-owned');
+    });
+
+    test('finished path has no next button', () => {
+        const { container } = render(
+            <ActivityPath t={t} moduleEmoji="🎨" onPlay={() => {}} activities={[act(11, 0, 2), act(12, 1, 1)]} />
+        );
+        expect(screen.queryByText("Keyingi o'yin ▶")).not.toBeInTheDocument();
+        expect(container.querySelector('.ep-next')).toBeNull();
+        expect(container.querySelector('.ep-badge')).toHaveClass('ep-badge-owned');
+    });
+
+    test('empty path renders nothing clickable and an unowned badge', () => {
+        const { container } = render(<ActivityPath t={t} moduleEmoji="🎨" onPlay={() => {}} activities={[]} />);
+        expect(screen.queryAllByRole('button')).toHaveLength(0);
+        expect(container.querySelector('.ep-badge')).not.toHaveClass('ep-badge-owned');
+    });
+
+    test('path falls back to the activity title and a dice emoji', () => {
+        render(<ActivityPath t={t} moduleEmoji="🎨" onPlay={() => {}} activities={[act(11, 0, 0, { content: {} })]} />);
+        expect(screen.getByText('Game 11')).toBeInTheDocument();
+        expect(screen.getByText('🎲')).toBeInTheDocument();
     });
 });
