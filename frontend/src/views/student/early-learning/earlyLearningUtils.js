@@ -103,6 +103,9 @@ export function applyGuestModuleStars(modules) {
         earned_stars: (m.activity_ids || []).reduce(
             (sum, id) => sum + (progress[id]?.stars_earned || 0), 0
         ),
+        // Lets the home's "continue" card and finished marks work for a
+        // guest too (see earlyHome.js) — the public endpoint always says 0.
+        completed_count: (m.activity_ids || []).filter((id) => progress[id]).length,
     }));
 }
 
