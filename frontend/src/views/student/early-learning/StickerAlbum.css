@@ -1,0 +1,101 @@
+/* Sticker tiles, the album page, the home-page strip and the reveal overlay
+   of the kids' games. Uses the --el-* palette defined on .el-shell (see
+   EarlyLearning.css); the reveal overlay is portalled to <body>, outside
+   .el-shell, so it carries literal fallbacks. */
+
+.stk-count {
+    font-family: var(--el-font-display);
+    font-weight: 800;
+    font-size: 1.3rem;
+    color: var(--el-amber-deep);
+}
+
+.stk-section {
+    background: var(--el-surface, #fffdf8);
+    border: 2px solid var(--el-border, #efe6ff);
+    border-radius: 24px;
+    padding: 18px;
+    margin-bottom: 18px;
+}
+.stk-section h2 {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0 0 14px;
+    font-family: var(--el-font-display);
+    font-size: 1.1rem;
+    color: var(--el-ink);
+}
+.stk-section h2 span { font-size: 0.9rem; color: var(--el-ink-soft); }
+
+.stk-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: 12px;
+}
+
+.stk-card {
+    --stk-frame: #94a3b8;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 112px;
+    padding: 12px 8px;
+    border-radius: 20px;
+    border: 3px solid var(--stk-frame);
+    background: #fff;
+    text-align: center;
+    box-shadow: 0 6px 14px rgba(54, 47, 92, 0.08);
+}
+.stk-rare { --stk-frame: #3b82f6; }
+.stk-epic { --stk-frame: #f59e0b; background: linear-gradient(160deg, #fffbeb, #fff); }
+
+.stk-emoji { font-size: 2.6rem; line-height: 1; }
+.stk-label {
+    font-family: var(--el-font-display, 'Comfortaa', 'Nunito', system-ui, sans-serif);
+    font-weight: 700;
+    font-size: 0.8rem;
+    line-height: 1.2;
+    color: var(--el-ink, #362f5c);
+    overflow-wrap: anywhere;
+}
+
+.stk-locked {
+    border-style: dashed;
+    border-color: #d5d0e6;
+    background: #f7f5fc;
+    box-shadow: none;
+}
+.stk-locked .stk-emoji { filter: grayscale(1); opacity: 0.35; }
+.stk-locked .stk-label { font-weight: 600; font-size: 0.72rem; color: var(--el-ink-soft, #6f6795); }
+
+.stk-new {
+    position: absolute;
+    top: -9px;
+    right: -6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--el-coral, #ff6b8a);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 800;
+    animation: stk-pop 0.5s ease-out;
+}
+
+.stk-size-lg { min-height: 150px; min-width: 120px; }
+.stk-size-lg .stk-emoji { font-size: 4rem; }
+.stk-size-lg .stk-label { font-size: 0.95rem; }
+
+@keyframes stk-pop {
+    0% { transform: scale(0); }
+    70% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .stk-new { animation: none; }
+}

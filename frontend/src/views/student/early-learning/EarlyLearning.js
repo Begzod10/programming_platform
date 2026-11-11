@@ -29,6 +29,7 @@ import MergeActivity from './MergeActivity';
 import SudokuActivity from './SudokuActivity';
 import PicturePuzzleActivity from './PicturePuzzleActivity';
 import LangToggle from './LangToggle';
+import Sky from './Sky';
 import { getDaily, queueCompletion, flushCompletionQueue, applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
 
@@ -103,24 +104,6 @@ function Leaderboard({ entries, hasClass, t }) {
     );
 }
 
-
-/** Decorative sky background — sun, drifting clouds, a paper plane — the
- * whole feature runs full-bleed with no sidebar (see StudentLayout.js /
- * TeacherLayout.js "isImmersive" branch), so this owns the entire
- * backdrop instead of the app's usual glass-panel chrome. Purely
- * decorative (aria-hidden), same spirit as the reference kids' game. */
-function Sky() {
-    return (
-        <div className="el-sky" aria-hidden="true">
-            <span className="el-sun" />
-            <span className="el-cloud el-cloud-1">☁️</span>
-            <span className="el-cloud el-cloud-2">☁️</span>
-            <span className="el-cloud el-cloud-3">☁️</span>
-            <span className="el-plane">🛩️</span>
-            <span className="el-kite">🪁</span>
-        </div>
-    );
-}
 
 // A request that hangs (dead DNS, captive wifi) should fall through to the
 // offline cache after a few seconds instead of leaving "Yuklanmoqda…" up
