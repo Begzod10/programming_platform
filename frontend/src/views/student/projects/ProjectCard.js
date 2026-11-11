@@ -27,33 +27,33 @@ const TECH_CLS = (t) => {
 function ProjectCard({ title, status, difficulty, points, techStack, grade, githubUrl, onDetails, onViewCode, ru }) {
     const st = STATUS_META[status] || { cls: 'draft', ru: status, uz: status };
     return (
-        <div className="pc-card">
-            <div className="pc-glow" />
-            <div className="pc-head">
-                <span className={`pc-diff pc-diff--${DIFF_CLS[difficulty] || 'easy'}`}>{difficulty || 'Easy'}</span>
-                <div className="pc-head-right">
-                    {grade && <span className={`pc-grade pc-grade--${grade}`}>{grade}</span>}
-                    <span className="pc-pts">+{points ?? 0} pts</span>
+        <div className="pcard-card">
+            <div className="pcard-glow" />
+            <div className="pcard-head">
+                <span className={`pcard-diff pcard-diff--${DIFF_CLS[difficulty] || 'easy'}`}>{difficulty || 'Easy'}</span>
+                <div className="pcard-head-right">
+                    {grade && <span className={`pcard-grade pcard-grade--${grade}`}>{grade}</span>}
+                    <span className="pcard-pts">+{points ?? 0} pts</span>
                 </div>
             </div>
 
-            <h3 className="pc-title">{title}</h3>
+            <h3 className="pcard-title">{title}</h3>
 
-            <div className="pc-row">
-                <div className="pc-tech">
+            <div className="pcard-row">
+                <div className="pcard-tech">
                     {(techStack || []).slice(0, 3).map((t, i) => (
-                        <span key={i} className={`pc-tag ${TECH_CLS(t)}`}>{t}</span>
+                        <span key={i} className={`pcard-tag ${TECH_CLS(t)}`}>{t}</span>
                     ))}
                 </div>
-                <span className={`pc-status pc-status--${st.cls}`}>{ru ? st.ru : st.uz}</span>
+                <span className={`pcard-status pcard-status--${st.cls}`}>{ru ? st.ru : st.uz}</span>
             </div>
 
-            <div className="pc-actions">
-                <button className="pc-btn pc-btn--code" disabled={!githubUrl}
+            <div className="pcard-actions">
+                <button className="pcard-btn pcard-btn--code" disabled={!githubUrl}
                     onClick={() => githubUrl && onViewCode?.(githubUrl)}>
                     <Code2 size={15} /> {ru ? 'Код' : 'Kod'}
                 </button>
-                <button className="pc-btn pc-btn--details" onClick={onDetails}>
+                <button className="pcard-btn pcard-btn--details" onClick={onDetails}>
                     {ru ? 'Детали' : 'Batafsil'} <ArrowRight size={15} />
                 </button>
             </div>
