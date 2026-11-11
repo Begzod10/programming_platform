@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import './EarlyHome.css';
 import StarRow from './StarRow';
 import { nextActivity } from './earlyHome';
@@ -42,10 +43,14 @@ export default function ActivityPath({ activities, moduleEmoji, onPlay, t }) {
                     <span className={`ep-badge ${finished ? 'ep-badge-owned' : ''}`} aria-hidden="true">{moduleEmoji || '🏅'}</span>
                 </li>
             </ol>
-            {next && (
+            {/* Pinned to the viewport. Portalled to <body>: the page wrapper
+                is neither the scroll container (so `sticky` never sticks)
+                nor transform-free (so `fixed` would not be viewport-fixed). */}
+            {next && ReactDOM.createPortal(
                 <button type="button" className="ep-next-btn" onClick={() => onPlay(next.id)}>
                     {t('el.pathNext')}
-                </button>
+                </button>,
+                document.body
             )}
         </div>
     );

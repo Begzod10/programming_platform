@@ -113,7 +113,7 @@
     align-items: center;
     gap: 6px;
     margin: 8px 0 0;
-    padding: 0 0 24px;
+    padding: 0 0 96px; /* room for the pinned next-game button */
     list-style: none;
     width: 100%;
 }
@@ -237,23 +237,27 @@
     box-shadow: 0 8px 20px rgba(245, 158, 11, 0.35);
 }
 
+/* Portalled to <body> (see ActivityPath.js), so outside .el-shell: literal
+   colours, not the --el-* variables. */
 .ep-next-btn {
-    position: sticky;
-    bottom: 16px;
-    z-index: 2;
-    margin-top: 8px;
+    position: fixed;
+    left: 50%;
+    bottom: max(18px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    z-index: 50;
     padding: 14px 30px;
     border: 0;
     border-radius: 999px;
-    background: linear-gradient(135deg, var(--el-sunset), var(--el-coral));
+    background: linear-gradient(135deg, #ff8a5c, #ff6b8a);
     color: #fff;
-    font-family: var(--el-font-display);
+    font-family: 'Comfortaa', 'Nunito', system-ui, sans-serif;
     font-size: 1.1rem;
     font-weight: 800;
+    white-space: nowrap;
     cursor: pointer;
     box-shadow: 0 12px 26px rgba(255, 107, 138, 0.45);
 }
-.ep-next-btn:focus-visible { outline: 4px solid var(--el-violet); outline-offset: 3px; }
+.ep-next-btn:focus-visible { outline: 4px solid #7c5cff; outline-offset: 3px; }
 
 @keyframes ep-pulse {
     0%, 100% { box-shadow: 0 6px 0 var(--el-coral), 0 0 0 0 rgba(255, 107, 138, 0.55); }

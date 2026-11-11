@@ -32,6 +32,10 @@ import LangToggle from './LangToggle';
 import Sky from './Sky';
 import StickerStrip from './StickerStrip';
 import StickerReveal from './StickerReveal';
+import ModuleCard from './ModuleCard';
+import ContinueCard from './ContinueCard';
+import ActivityPath from './ActivityPath';
+import { pickContinue, pickNew, groupBySection, nextActivity } from './earlyHome';
 import { getDaily, queueCompletion, flushCompletionQueue, applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
 
@@ -60,17 +64,6 @@ function TodayStarBadge({ earned, t }) {
         <span className="el-star-badge el-star-badge-today">
             <Sparkles size={14} />
             {t('el.today')}: {earned}
-        </span>
-    );
-}
-
-/** Three-star row for one activity's best score — filled up to `stars`. */
-function StarRow({ stars, size = 16 }) {
-    return (
-        <span className="el-star-row">
-            {[0, 1, 2].map((i) => (
-                <Star key={i} size={size} fill={i < stars ? 'currentColor' : 'none'} className={i < stars ? 'el-star-filled' : 'el-star-empty'} />
-            ))}
         </span>
     );
 }
@@ -288,6 +281,18 @@ export default function EarlyLearning({ guest = false }) {
         }
     }, [moduleId, fetchModules, fetchModuleDetail]);
 
+    // "Continue" on the home page lands here with state.autoplay: open the
+    // kid's next unplayed game straight away. Once per arrival — leaving the
+    // game must show the path, not reopen the game.
+    const autoplayedFor = useRef(null);
+    useEffect(() => {
+        if (!location.state?.autoplay || !moduleId || !moduleDetail) return;
+        if (String(moduleDetail.id) !== String(moduleId) || autoplayedFor.current === moduleId) return;
+        autoplayedFor.current = moduleId;
+        const next = nextActivity(moduleDetail.activities);
+        if (next) setPlayingActivityId(next.id);
+    }, [location.state, moduleId, moduleDetail]);
+
     // Stars earned while offline are parked in localStorage (see below) and
     // sent as soon as the connection is back — on load and on the `online` event.
     useEffect(() => {
@@ -442,23 +447,12 @@ export default function EarlyLearning({ guest = false }) {
                             <TodayStarBadge earned={moduleDetail.earned_stars_today} t={t} />
                         </div>
                     </div>
-                    <div className="el-activity-grid">
-                        {moduleDetail.activities.map((activity, i) => {
-                            const character = activity.content?.character;
-                            return (
-                                <button
-                                    key={activity.id}
-                                    className="el-activity-card"
-                                    style={{ animationDelay: `${i * 0.05}s` }}
-                                    onClick={() => setPlayingActivityId(activity.id)}
-                                >
-                                    <span className="el-activity-emoji">{character?.emoji || '🎲'}</span>
-                                    <span className="el-activity-title">{character?.label || activity.title}</span>
-                                    <StarRow stars={activity.best_stars} />
-                                </button>
-                            );
-                        })}
-                    </div>
+                    <ActivityPath
+                        activities={moduleDetail.activities}
+                        moduleEmoji={moduleDetail.icon_emoji}
+                        onPlay={setPlayingActivityId}
+                        t={t}
+                    />
                 </div>
                 {reveal && (
                     <StickerReveal
@@ -486,6 +480,9 @@ export default function EarlyLearning({ guest = false }) {
     const totalEarned = modules.reduce((sum, m) => sum + m.earned_stars, 0);
     const totalMax = modules.reduce((sum, m) => sum + m.max_stars, 0);
     const totalEarnedToday = modules.reduce((sum, m) => sum + (m.earned_stars_today || 0), 0);
+    const continuePick = pickContinue(modules);
+    const newModules = pickNew(modules, continuePick?.module);
+    const openModule = (m) => navigate(`${routeBase}/${m.id}`);
 
     return (
         <div className="el-shell">
@@ -507,6 +504,13 @@ export default function EarlyLearning({ guest = false }) {
                         </div>
                     )}
                 </div>
+                {continuePick && (
+                    <ContinueCard
+                        pick={continuePick}
+                        t={t}
+                        onOpen={() => navigate(`${routeBase}/${continuePick.module.id}`, { state: { autoplay: true } })}
+                    />
+                )}
                 {stickersEnabled && album && (
                     <StickerStrip album={album} t={t} onOpen={() => navigate('/student/stickers')} />
                 )}
@@ -526,24 +530,29 @@ export default function EarlyLearning({ guest = false }) {
                         </button>
                     </div>
                 )}
-                <div className="el-module-grid">
-                    {modules.map((module, i) => (
-                        <button
-                            key={module.id}
-                            className="el-module-card"
-                            style={{ '--el-accent': module.color_accent || '#7c5cff', animationDelay: `${i * 0.08}s` }}
-                            onClick={() => navigate(`${routeBase}/${module.id}`)}
-                        >
-                            <span className="el-module-card-emoji">{module.icon_emoji}</span>
-                            <span className="el-module-card-title">{module.title}</span>
-                            {module.description && <span className="el-module-card-desc">{module.description}</span>}
-                            <StarBadge earned={module.earned_stars} max={module.max_stars} />
-                        </button>
-                    ))}
-                    {modules.length === 0 && (
-                        <div className="el-empty">{t('el.empty')}</div>
-                    )}
-                </div>
+                {newModules.length > 0 && (
+                    <section className="eh-section">
+                        <h2 className="eh-section-title">✨ {t('el.homeNew')}</h2>
+                        <div className="eh-new-row">
+                            {newModules.map((module, i) => (
+                                <ModuleCard key={module.id} module={module} index={i} t={t} onOpen={() => openModule(module)} />
+                            ))}
+                        </div>
+                    </section>
+                )}
+                {groupBySection(modules).map((group) => (
+                    <section key={group.key} className="eh-section">
+                        <h2 className="eh-section-title">{group.emoji} {t(group.titleKey)}</h2>
+                        <div className="el-module-grid">
+                            {group.modules.map((module, i) => (
+                                <ModuleCard key={module.id} module={module} index={i} t={t} onOpen={() => openModule(module)} />
+                            ))}
+                        </div>
+                    </section>
+                ))}
+                {modules.length === 0 && (
+                    <div className="el-empty">{t('el.empty')}</div>
+                )}
                 {leaderboard && (
                     <Leaderboard
                         entries={leaderboard.entries}
