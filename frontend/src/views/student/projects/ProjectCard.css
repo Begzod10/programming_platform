@@ -44,14 +44,10 @@
 .pc-actions { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:auto; padding-top:4px; position:relative; z-index:1; }
 .pc-btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; padding:11px; border-radius:12px;
     font-size:.84rem; font-weight:700; cursor:pointer; transition:.2s; border:1px solid transparent; }
-.pc-btn--code { color:#c9c0ff; background:rgba(139,123,242,.16); border-color:rgba(139,123,242,.4); }
-.pc-btn--code:hover { background:rgba(139,123,242,.28); transform:translateY(-2px); }
-/* Details is the primary action — a clear, filled accent button so it never
-   reads as disabled (ZIP projects have no GitHub link, so Code is hidden and
-   this spans the full row). */
-.pc-btn--details { color:#fff; background:linear-gradient(135deg,#6d5ef0,#8b7bf2);
-    border-color:transparent; box-shadow:0 6px 16px -8px rgba(109,94,240,.8); }
-.pc-btn--details:hover { filter:brightness(1.08); transform:translateY(-2px); }
-.pc-btn--full { grid-column:1 / -1; }
+.pc-btn--code { color:#b7adfb; background:rgba(139,123,242,.12); border-color:rgba(139,123,242,.28); }
+.pc-btn--code:hover:not(:disabled) { background:rgba(139,123,242,.22); transform:translateY(-2px); }
+.pc-btn--code:disabled { opacity:.5; cursor:not-allowed; }
+.pc-btn--details { color:#eef1ff; background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.18); }
+.pc-btn--details:hover { background:rgba(255,255,255,.14); transform:translateY(-2px); }
 .pc-btn--details svg { transition:transform .2s; }
 .pc-btn--details:hover svg { transform:translateX(3px); }
