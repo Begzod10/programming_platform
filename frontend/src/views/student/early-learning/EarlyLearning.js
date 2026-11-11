@@ -30,6 +30,8 @@ import SudokuActivity from './SudokuActivity';
 import PicturePuzzleActivity from './PicturePuzzleActivity';
 import LangToggle from './LangToggle';
 import Sky from './Sky';
+import StickerStrip from './StickerStrip';
+import StickerReveal from './StickerReveal';
 import { getDaily, queueCompletion, flushCompletionQueue, applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
 
@@ -79,7 +81,7 @@ function StarRow({ stars, size = 16 }) {
  * schools over, and a global ranking would just be discouraging noise for
  * most of them. Shows a friendly empty state instead of a lonely
  * one-person list when the student has no class assigned yet. */
-function Leaderboard({ entries, hasClass, t }) {
+function Leaderboard({ entries, hasClass, period, onPeriod, t }) {
     if (!hasClass) {
         return (
             <div className="el-leaderboard el-leaderboard-empty">
@@ -91,6 +93,19 @@ function Leaderboard({ entries, hasClass, t }) {
     return (
         <div className="el-leaderboard">
             <h2><Trophy size={20} /> {t('el.leaderboardTitle')}</h2>
+            <div className="el-lb-tabs">
+                {[['today', 'el.lbToday'], ['all_time', 'el.lbAll']].map(([value, key]) => (
+                    <button
+                        key={value}
+                        type="button"
+                        className={`el-lb-tab ${period === value ? 'el-lb-tab-active' : ''}`}
+                        aria-pressed={period === value}
+                        onClick={() => onPeriod(value)}
+                    >
+                        {t(key)}
+                    </button>
+                ))}
+            </div>
             <div className="el-leaderboard-list">
                 {entries.map((entry) => (
                     <div key={entry.student_id} className={`el-leaderboard-row ${entry.is_me ? 'el-leaderboard-me' : ''}`}>
@@ -143,6 +158,14 @@ export default function EarlyLearning({ guest = false }) {
     const [modules, setModules] = useState([]);
     const [modulesLoading, setModulesLoading] = useState(true);
     const [leaderboard, setLeaderboard] = useState(null);
+    // "today" first: every kid starts from zero each morning, so a late
+    // joiner can still win (the all-time board is one tab away).
+    const [lbPeriod, setLbPeriod] = useState('today');
+    // Sticker collection (signed-in students only) — the home strip's data,
+    // and the stickers the game just finished earned, if any.
+    const stickersEnabled = !guest && basePath === '/student';
+    const [album, setAlbum] = useState(null);
+    const [reveal, setReveal] = useState(null);
 
     const [moduleDetail, setModuleDetail] = useState(null);
     const [detailLoading, setDetailLoading] = useState(!!moduleId);
@@ -209,17 +232,6 @@ export default function EarlyLearning({ guest = false }) {
                 .catch(console.error)
                 .finally(() => setModulesLoading(false));
         }
-        // A guest has no classmates (no account at all) to rank against —
-        // skip the fetch entirely rather than hitting the authed endpoint
-        // and eating an avoidable 401. leaderboard stays null, which the
-        // render below already treats as "don't show the section".
-        if (guest) return;
-        // Independent of the module list — a leaderboard fetch failing
-        // shouldn't block the games themselves from loading. Names aren't
-        // translated (they're student profile data), so no ?lang here.
-        request(`${API_URL}v1/early-learning/leaderboard`, 'GET', null, headers())
-            .then(setLeaderboard)
-            .catch(console.error);
     }, [request, lang, guest, userId, prefetchAllModules]);
 
     const fetchModuleDetail = useCallback((id) => {
@@ -246,6 +258,27 @@ export default function EarlyLearning({ guest = false }) {
             .catch(console.error)
             .finally(() => setDetailLoading(false));
     }, [request, lang, guest, userId]);
+
+    // Independent of the module list — a leaderboard or sticker fetch
+    // failing must never block the games themselves. A guest has no account,
+    // so neither applies; a teacher previewing gets the leaderboard only.
+    // Names aren't translated (student profile data), so no ?lang there.
+    const fetchLeaderboard = useCallback(() => {
+        if (guest) return;
+        request(`${API_URL}v1/early-learning/leaderboard?period=${lbPeriod}`, 'GET', null, headers())
+            .then(setLeaderboard)
+            .catch(console.error);
+    }, [request, guest, lbPeriod]);
+
+    const fetchAlbum = useCallback(() => {
+        if (!stickersEnabled) return;
+        request(`${API_URL}v1/early-learning/stickers?lang=${lang}`, 'GET', null, headers())
+            .then(setAlbum)
+            .catch(() => setAlbum(null));
+    }, [request, stickersEnabled, lang]);
+
+    useEffect(() => { if (!moduleId) fetchLeaderboard(); }, [moduleId, fetchLeaderboard]);
+    useEffect(() => { if (!moduleId) fetchAlbum(); }, [moduleId, fetchAlbum]);
 
     useEffect(() => {
         if (!moduleId) {
@@ -280,12 +313,7 @@ export default function EarlyLearning({ guest = false }) {
             return { ...prev, activities, earned_stars };
         });
         setPlayingActivityId(null);
-        if (guest) return;
-        // Refresh the leaderboard so a completion shows up right away
-        // instead of only after the next full page load.
-        request(`${API_URL}v1/early-learning/leaderboard`, 'GET', null, headers())
-            .then(setLeaderboard)
-            .catch(console.error);
+        if (stickersEnabled && result.new_stickers?.length) setReveal(result.new_stickers);
     };
 
     // ── Daily-quota lock — block the whole kids' area until today's quota is met ──
@@ -432,6 +460,15 @@ export default function EarlyLearning({ guest = false }) {
                         })}
                     </div>
                 </div>
+                {reveal && (
+                    <StickerReveal
+                        stickers={reveal}
+                        lang={lang}
+                        t={t}
+                        onClose={() => setReveal(null)}
+                        onOpenAlbum={() => { setReveal(null); navigate('/student/stickers'); }}
+                    />
+                )}
             </div>
         );
     }
@@ -470,13 +507,22 @@ export default function EarlyLearning({ guest = false }) {
                         </div>
                     )}
                 </div>
+                {stickersEnabled && album && (
+                    <StickerStrip album={album} t={t} onOpen={() => navigate('/student/stickers')} />
+                )}
+                {guest && (
+                    <div className="stk-guest">
+                        <span>🎁 {t('el.stickerGuest')}</span>
+                        <button type="button" onClick={() => navigate('/login')}>{t('el.stickerLogin')}</button>
+                    </div>
+                )}
                 {(guest || basePath === '/student') && (
                     <div className="el-entry-row">
                         <button className="el-duel-btn" onClick={() => navigate(guest ? '/play/duel' : '/student/duel')}>
                             ⚔️ {lang === 'ru' ? 'Гонка' : 'Poyga'}
                         </button>
                         <button className="el-duel-btn el-daily-btn" onClick={() => navigate(guest ? '/play/daily' : '/student/daily')}>
-                            📅 {lang === 'ru' ? 'Задание дня' : 'Kunlik vazifa'} {getDaily().streak > 0 ? `🔥${getDaily().streak}` : ''}
+                            📅 {lang === 'ru' ? 'Задание дня' : 'Kunlik vazifa'} {guest && getDaily().streak > 0 ? `🔥${getDaily().streak}` : ''}
                         </button>
                     </div>
                 )}
@@ -498,7 +544,15 @@ export default function EarlyLearning({ guest = false }) {
                         <div className="el-empty">{t('el.empty')}</div>
                     )}
                 </div>
-                {leaderboard && <Leaderboard entries={leaderboard.entries} hasClass={leaderboard.has_class} t={t} />}
+                {leaderboard && (
+                    <Leaderboard
+                        entries={leaderboard.entries}
+                        hasClass={leaderboard.has_class}
+                        period={lbPeriod}
+                        onPeriod={setLbPeriod}
+                        t={t}
+                    />
+                )}
             </div>
         </div>
     );

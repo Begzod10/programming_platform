@@ -99,3 +99,147 @@
 @media (prefers-reduced-motion: reduce) {
     .stk-new { animation: none; }
 }
+
+/* ── Home-page strip ─────────────────────────────────────────────────── */
+.stk-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px 16px;
+    width: 100%;
+    margin: 0 0 18px;
+    padding: 14px 18px;
+    border: 2px solid var(--el-border-strong);
+    border-radius: 22px;
+    background: var(--el-surface);
+    color: var(--el-ink);
+    font-family: var(--el-font-body);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.stk-strip:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(124, 92, 255, 0.18); }
+.stk-strip:focus-visible { outline: 3px solid var(--el-violet); outline-offset: 2px; }
+.stk-strip-title {
+    position: relative;
+    font-family: var(--el-font-display);
+    font-weight: 800;
+    font-size: 1.05rem;
+    color: var(--el-violet-deep);
+}
+.stk-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: var(--el-coral);
+    vertical-align: super;
+}
+.stk-strip-next { display: flex; align-items: center; gap: 8px; flex: 1 1 200px; min-width: 0; }
+.stk-bar {
+    flex: 1 1 60px;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--el-border);
+    overflow: hidden;
+}
+.stk-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--el-amber), var(--el-sunset));
+}
+.stk-strip-text { font-size: 0.85rem; font-weight: 700; color: var(--el-ink-soft); white-space: nowrap; }
+.stk-chip {
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--el-border);
+    color: var(--el-violet-deep);
+    font-size: 0.85rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.stk-chip-done { background: var(--el-success-bg); color: var(--el-success); }
+.stk-chip-streak { background: var(--el-surface-alt); color: var(--el-amber-deep); }
+
+.stk-guest {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 0 0 18px;
+    font-weight: 800;
+    color: var(--el-ink-soft);
+}
+.stk-guest button {
+    padding: 6px 16px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--el-violet);
+    color: #fff;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+/* ── Leaderboard period tabs ─────────────────────────────────────────── */
+.el-lb-tabs { display: flex; gap: 8px; margin: 0 0 12px; }
+.el-lb-tab {
+    padding: 6px 16px;
+    border: 2px solid var(--el-border-strong);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--el-ink-soft);
+    font-weight: 800;
+    cursor: pointer;
+}
+.el-lb-tab-active { background: var(--el-violet); border-color: var(--el-violet); color: #fff; }
+
+/* ── Reveal overlay (portalled to <body>) ────────────────────────────── */
+.stk-reveal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(54, 47, 92, 0.55);
+    font-family: 'Nunito', system-ui, sans-serif;
+}
+.stk-reveal-card {
+    width: min(460px, 100%);
+    padding: 26px 22px;
+    border-radius: 28px;
+    background: #fffdf8;
+    text-align: center;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+    animation: stk-pop 0.45s ease-out;
+}
+.stk-reveal-title {
+    margin-bottom: 18px;
+    font-family: 'Comfortaa', 'Nunito', system-ui, sans-serif;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #5b3fe0;
+}
+.stk-reveal-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; }
+.stk-reveal-more { font-size: 1.6rem; font-weight: 800; color: #6f6795; }
+.stk-reveal-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 22px; }
+.stk-reveal-btn {
+    padding: 10px 22px;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #ff8a5c, #ff6b8a);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+.stk-reveal-btn-alt { background: #efe6ff; color: #5b3fe0; }
+
+@media (prefers-reduced-motion: reduce) {
+    .stk-reveal-card { animation: none; }
+    .stk-strip { transition: none; }
+}
