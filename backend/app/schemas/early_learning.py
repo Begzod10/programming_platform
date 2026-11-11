@@ -66,6 +66,52 @@ class EarlyActivityCompleteIn(BaseModel):
     stars: int = Field(ge=0, le=3)
 
 
+class EarlyStickerOut(BaseModel):
+    """A sticker just earned — both names travel together so the play
+    screens need not pass their language to the completion call."""
+    key: str
+    emoji: str
+    name: str
+    name_ru: str
+    kind: str
+    rarity: str
+
+
+class EarlyAlbumStickerOut(BaseModel):
+    key: str
+    emoji: str
+    name: str
+    kind: str
+    rarity: str
+    owned: bool
+    is_new: bool
+    hint: Optional[str] = None
+
+
+class EarlyAlbumToday(BaseModel):
+    played: int
+    needed: int
+    earned: bool
+
+
+class EarlyAlbumNextStar(BaseModel):
+    at: int
+    have: int
+
+
+class EarlyAlbumOut(BaseModel):
+    owned_count: int
+    total: int
+    streak: int
+    today: EarlyAlbumToday
+    next_star: Optional[EarlyAlbumNextStar] = None
+    stickers: List[EarlyAlbumStickerOut]
+
+
+class EarlyStickersSeenOut(BaseModel):
+    marked: int
+
+
 class EarlyActivityCompleteOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -73,6 +119,7 @@ class EarlyActivityCompleteOut(BaseModel):
     stars_earned: int
     attempts: int
     first_completed_at: datetime
+    new_stickers: List[EarlyStickerOut] = []
 
 
 class EarlyLeaderboardEntry(BaseModel):

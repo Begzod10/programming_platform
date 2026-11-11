@@ -5,22 +5,27 @@ from the points/achievements system) and
 backend/scripts/_seed_early_learning.py for how content gets in.
 """
 import json
+import logging
 from datetime import date, datetime, timezone
 from typing import Dict, List, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_db, get_current_student, require_games_unlocked
 from app.models.early_learning import (
     EarlyActivity, EarlyActivityCompletion, EarlyActivityDailyStars, EarlyModule,
+    EarlyStickerAward,
 )
 from app.models.user import Student, UserRole
 from app.schemas.early_learning import (
     EarlyActivityCompleteIn,
     EarlyActivityCompleteOut,
+    EarlyAlbumOut,
+    EarlyStickerOut,
+    EarlyStickersSeenOut,
     EarlyActivityOut,
     EarlyLeaderboardEntry,
     EarlyLeaderboardOut,
@@ -29,7 +34,10 @@ from app.schemas.early_learning import (
     EarlyPublicModuleDetail,
     EarlyPublicModuleListItem,
 )
+from app.services.early_sticker_service import album as sticker_album, sticker_payload, sync_awards
 from app.services.teacher_students import classmate_ids_subquery
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -460,9 +468,61 @@ async def complete_early_activity(
         today_row.attempts += 1
         today_row.stars_earned = max(today_row.stars_earned, payload.stars)
 
+    # Read everything needed later now: a failed sticker pass rolls the
+    # session back, which expires these objects.
+    student_id = current_student.id
+    is_student = current_student.role == UserRole.student
+
     await db.commit()
     await db.refresh(existing)
-    return EarlyActivityCompleteOut.model_validate(existing)
+    out = EarlyActivityCompleteOut.model_validate(existing)
+
+    # Stickers are a bonus on top of an already-saved completion — whatever
+    # goes wrong here, the kid's stars stay recorded and the call succeeds.
+    if is_student:
+        try:
+            new_keys = await sync_awards(db, student_id, today)
+            if new_keys:
+                out.new_stickers = [EarlyStickerOut(**item) for item in await sticker_payload(db, new_keys)]
+        except Exception:
+            logger.exception("early stickers: award pass failed for student %s", student_id)
+            await db.rollback()
+            out.new_stickers = []
+    return out
+
+
+@router.get("/stickers", response_model=EarlyAlbumOut, dependencies=[Depends(require_games_unlocked)])
+async def get_sticker_album(
+    lang: str = _LangQuery,
+    current_student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+) -> EarlyAlbumOut:
+    """The whole sticker album — owned and still-locked — plus what the
+    home-page strip needs (streak, today's plays, distance to the next star
+    sticker). Syncs awards first, which is also how a kid who earned stars
+    before stickers existed gets them: on their first visit, no backfill job.
+    Staff previewing the games get the album but are never awarded anything.
+    """
+    today = _today()
+    if current_student.role == UserRole.student:
+        await sync_awards(db, current_student.id, today)
+    return EarlyAlbumOut(**await sticker_album(db, current_student.id, lang, today))
+
+
+@router.post("/stickers/seen", response_model=EarlyStickersSeenOut, dependencies=[Depends(require_games_unlocked)])
+async def mark_stickers_seen(
+    current_student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
+) -> EarlyStickersSeenOut:
+    """Clear the "new" mark on every sticker the student has not seen yet
+    (called when the album is opened)."""
+    result = await db.execute(
+        update(EarlyStickerAward)
+        .where(EarlyStickerAward.student_id == current_student.id, EarlyStickerAward.seen_at.is_(None))
+        .values(seen_at=datetime.now(timezone.utc))
+    )
+    await db.commit()
+    return EarlyStickersSeenOut(marked=result.rowcount or 0)
 
 
 @router.get("/leaderboard", response_model=EarlyLeaderboardOut, dependencies=[Depends(require_games_unlocked)])
