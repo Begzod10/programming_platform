@@ -220,3 +220,32 @@ class EarlyActivityDailyStars(Base):
             name="uq_student_early_activity_day",
         ),
     )
+
+
+class EarlyStickerAward(Base):
+    """One collectible sticker a student owns (see
+    app/services/early_sticker_catalog.py for the catalog and
+    early_sticker_service.py for when each one is granted).
+
+    Only the key is stored: the emoji/name come from the catalog (or, for
+    "module:{id}" keys, from the EarlyModule row). daily_date is filled only
+    for "daily" stickers — its unique constraint is what caps them at one
+    per day even under concurrent completions (NULLs never collide).
+    seen_at NULL means the kid has not opened the album since earning it.
+    Awards are never revoked.
+    """
+    __tablename__ = "early_sticker_awards"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sticker_key: Mapped[str] = mapped_column(String(32), nullable=False)
+    daily_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    awarded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("student_id", "sticker_key", name="uq_early_sticker_student_key"),
+        UniqueConstraint("student_id", "daily_date", name="uq_early_sticker_student_daily"),
+    )

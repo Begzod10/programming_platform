@@ -32,7 +32,7 @@ from app.models.store import (
     StudentPurchase,
     StudentInventoryItem,
 )
-from app.models.early_learning import EarlyModule, EarlyActivity, EarlyActivityCompletion
+from app.models.early_learning import EarlyModule, EarlyActivity, EarlyActivityCompletion, EarlyStickerAward
 from app.models.error_log import AppErrorLog
 from app.models.duel_stat import DuelStat
 from app.models.summative import SummativeAttempt, SummativeSet
