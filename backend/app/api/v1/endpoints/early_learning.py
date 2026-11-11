@@ -34,6 +34,7 @@ from app.schemas.early_learning import (
     EarlyPublicModuleDetail,
     EarlyPublicModuleListItem,
 )
+from app.services.early_sections import section_for_modes
 from app.services.early_sticker_service import album as sticker_album, sticker_payload, sync_awards
 from app.services.teacher_students import classmate_ids_subquery
 
@@ -228,6 +229,14 @@ def _is_age_eligible_for(role, birth_date: date | None, module: EarlyModule) -> 
     return (module.age_min - _AGE_GRACE_YEARS) <= age <= (module.age_max + _AGE_GRACE_YEARS)
 
 
+def _activity_mode(activity: EarlyActivity) -> str | None:
+    try:
+        content = json.loads(activity.content_json)
+    except (TypeError, ValueError):
+        return None
+    return content.get("mode") if isinstance(content, dict) else None
+
+
 def _list_item(
     module: EarlyModule,
     completions: Dict[int, EarlyActivityCompletion],
@@ -238,6 +247,8 @@ def _list_item(
     earned = sum(completions[a.id].stars_earned for a in activities if a.id in completions)
     daily = daily or {}
     earned_today = sum(daily[a.id].stars_earned for a in activities if a.id in daily)
+    played = [completions[a.id] for a in activities if a.id in completions]
+    last_played = [c.last_attempt_at for c in played if c.last_attempt_at is not None]
     return EarlyModuleListItem(
         id=module.id,
         title=_localized(module.title, module.title_ru, lang),
@@ -250,6 +261,9 @@ def _list_item(
         earned_stars=earned,
         max_stars=sum(a.max_stars for a in activities),
         earned_stars_today=earned_today,
+        section=section_for_modes([_activity_mode(a) for a in activities]),
+        completed_count=len(played),
+        last_played_at=max(last_played) if last_played else None,
     )
 
 

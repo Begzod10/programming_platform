@@ -40,7 +40,8 @@ async def make_student(async_client: AsyncClient, db_session, role: UserRole = U
 
 
 async def make_module(db_session, instructor_id: int, n_activities: int = 3, published: bool = True,
-                      title_ru: str | None = None, icon_emoji: str | None = None):
+                      title_ru: str | None = None, icon_emoji: str | None = None,
+                      modes: list[str] | None = None):
     uid = uuid.uuid4().hex[:8]
     module = EarlyModule(
         title=f"stk-module-{uid}", title_ru=title_ru, icon_emoji=icon_emoji,
@@ -54,7 +55,8 @@ async def make_module(db_session, instructor_id: int, n_activities: int = 3, pub
         activity = EarlyActivity(
             module_id=module.id, title=f"stk-activity-{uid}-{i}", order=i,
             activity_type=EarlyActivityType.match,
-            content_json=json.dumps({"mode": "select", "correct_items": [], "distractor_items": []}),
+            content_json=json.dumps({"mode": modes[i] if modes else "select",
+                                     "correct_items": [], "distractor_items": []}),
             max_stars=3, is_published=True, is_active=True,
         )
         db_session.add(activity)

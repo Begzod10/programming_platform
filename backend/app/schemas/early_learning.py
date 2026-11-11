@@ -26,6 +26,12 @@ class EarlyModuleListItem(BaseModel):
     earned_stars: int
     max_stars: int
     earned_stars_today: int = 0
+    # Home-page helpers: which section the module is filed under (derived
+    # from its games, see services/early_sections.py), how many of its games
+    # this student has played at least once, and when they last played one.
+    section: str = "world"
+    completed_count: int = 0
+    last_played_at: Optional[datetime] = None
 
 
 class EarlyActivityOut(BaseModel):
