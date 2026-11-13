@@ -271,6 +271,12 @@
     margin-bottom: 0.75rem;
 }
 .tg-quiz-header h4 { margin: 0; font-size: 0.9rem; color: #374151; }
+.tg-quiz-header-titles { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.tg-quiz-maxpoints {
+    font-size: 0.78rem; font-weight: 700; color: #92400e;
+    background: #fef3c7; border: 1px solid #fcd34d;
+    padding: 0.2rem 0.65rem; border-radius: 999px; white-space: nowrap;
+}
 .tg-btn-sm { padding: 0.3rem 0.7rem; font-size: 0.8rem; }
 .tg-quiz-loading, .tg-quiz-empty { color: #6b7280; font-size: 0.85rem; padding: 0.5rem 0; }
 

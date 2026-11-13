@@ -561,6 +561,12 @@ function QuizManager({ session }) {
 
     useEffect(() => { loadQuestions(); }, [loadQuestions]);
 
+    // Max score a single student can reach = sum of every question's points.
+    // Scoring floors each correct answer between points*0.5 and points (the
+    // speed bonus never exceeds the base), so the fastest-perfect run earns
+    // exactly this sum — the ceiling teachers want to show students.
+    const maxPoints = questions.reduce((s, q) => s + (q.points || 0), 0);
+
     // Listen for progress updates on existing WS connection
     useEffect(() => {
         const handler = (e) => {
@@ -613,7 +619,15 @@ function QuizManager({ session }) {
                 </div>
             )}
             <div className="tg-quiz-header">
-                <h4>📝 Вопросы ({questions.length})</h4>
+                <div className="tg-quiz-header-titles">
+                    <h4>📝 Вопросы ({questions.length})</h4>
+                    {maxPoints > 0 && (
+                        <span className="tg-quiz-maxpoints"
+                              title="Максимум баллов, который может набрать один ученик (сумма баллов всех вопросов)">
+                            🏆 Макс. балл: {maxPoints}
+                        </span>
+                    )}
+                </div>
                 {session.status !== 'completed' && !session.auto_mode && (
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                         <button className="tg-btn-secondary tg-btn-sm" onClick={() => setShowImport(true)}>
@@ -752,6 +766,8 @@ export function SessionSummary({ sessionId }) {
 
     const { leaderboard = [], questions = [], answers = [], totals = {}, completed_at } = data;
     const completedDate = completed_at ? new Date(completed_at).toLocaleString('ru-RU') : '—';
+    // Ceiling for one student — sum of every question's points (see QuizManager).
+    const maxPoints = questions.reduce((s, q) => s + (q.points || 0), 0);
     const answersByQ = answers.reduce((acc, a) => {
         (acc[a.question_id] ||= []).push(a);
         return acc;
@@ -767,6 +783,7 @@ export function SessionSummary({ sessionId }) {
                     <span>✅ Завершено: <b>{completedDate}</b></span>
                     <span>👥 Участников: <b>{activeLeaders.length}</b></span>
                     <span>❓ Вопросов: <b>{totals.questions ?? questions.length}</b></span>
+                    {maxPoints > 0 && <span>🏆 Макс. балл: <b>{maxPoints}</b></span>}
                     <span>📝 Ответов: <b>{totals.total_answers ?? answers.length}</b></span>
                 </div>
                 <button className="tg-btn-primary tg-btn-sm" disabled={downloading} onClick={downloadCsv}>
