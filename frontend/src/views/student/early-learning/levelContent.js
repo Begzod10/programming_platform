@@ -69,15 +69,33 @@ function take(list, n) {
     return n > 0 ? list.slice(0, n) : [];
 }
 
+/** Pictures (emoji / icon) of a list — a borrowed item that looks like one
+ * of these would be the same picture as a game's own piece. */
+const picturesOf = (...lists) => new Set(lists.flat().filter(Boolean).flatMap((x) => [x.emoji, x.icon]).filter(Boolean));
+
+/** Drop borrowed items whose name or picture matches anything in `lists`. */
+function unlike(items, ...lists) {
+    const names = keysOf(...lists);
+    const pics = picturesOf(...lists);
+    return items.filter((x) => !names.has(itemKey(x)) && !(x.emoji && pics.has(x.emoji)) && !(x.icon && pics.has(x.icon)));
+}
+
 function harderSelect(c, level, m, siblings, rand) {
     const correct = c.correct_items || [];
     const distractors = c.distractor_items || [];
     const base = distractors.length || correct.length;
     const want = base * m;
-    const exclude = keysOf(correct, distractors);
-    const fromD = pool(siblings, c.mode || 'select', 'distractor_items', exclude);
-    const fromC = pool(siblings, c.mode || 'select', 'correct_items', new Set([...exclude, ...fromD.map(itemKey)]));
-    const extra = [...shuffled(fromD, rand), ...shuffled(fromC, rand)].slice(0, want).map((x, i) => borrow(x, level, i));
+    const mode = c.mode || 'select';
+    // Only things that are a wrong answer everywhere in the module: games of
+    // one module share a theme, so another game's right answer (or the same
+    // picture under another name — a "white cloud" next to this game's
+    // "cloud") would very likely be right here too.
+    const rightAnywhere = (siblings || [])
+        .filter((s) => s && (s.mode || 'select') === mode)
+        .flatMap((s) => s.correct_items || []);
+    const fromD = unlike(pool(siblings, mode, 'distractor_items', keysOf(correct, distractors)),
+        correct, distractors, rightAnywhere);
+    const extra = shuffled(fromD, rand).slice(0, want).map((x, i) => borrow(x, level, i));
     const out = { ...c, distractor_items: [...distractors, ...extra] };
     const all = [...correct, ...out.distractor_items];
     // Pictures only — but never for a game whose items have nothing to show.
@@ -209,7 +227,7 @@ function harderSort(c, level, m, siblings, rand) {
 
 function harderSequence(c, level, m, siblings, rand) {
     const steps = c.steps || [];
-    const extra = pool(siblings, 'sequence', 'steps', keysOf(steps)).filter((x) => x && !x.distractor);
+    const extra = unlike(pool(siblings, 'sequence', 'steps', keysOf(steps)).filter((x) => x && !x.distractor), steps);
     const decoys = take(shuffled(extra, rand), m).map((x, i) => ({ ...borrow(x, level, i), distractor: true }));
     return decoys.length ? { ...c, steps: [...steps, ...decoys] } : { ...c };
 }
@@ -217,7 +235,8 @@ function harderSequence(c, level, m, siblings, rand) {
 function harderBuild(c, level, m, siblings, rand) {
     const distractors = c.distractor_items || [];
     const base = distractors.length || (c.slots || []).length;
-    const extra = pool(siblings, 'build', 'distractor_items', keysOf(distractors, c.slots || []));
+    const extra = unlike(pool(siblings, 'build', 'distractor_items', keysOf(distractors, c.slots || [])),
+        distractors, c.slots || []);
     return {
         ...c,
         distractor_items: [...distractors, ...take(shuffled(extra, rand), base * m).map((x, i) => borrow(x, level, i))],
@@ -274,8 +293,14 @@ export function levelContent(content, level, siblings = [], seed = 0) {
         if (kind === 'money') out.max = (c.max || 2000) * (1 + m);
         return out;
     }
-    case 'sort':
-        return harderSort(c, level, m, siblings, rand);
+    case 'sort': {
+        // Borrowed items only fit when another sort game has the same bins,
+        // which authored content rarely does — so level 3 is also pictures only.
+        const out = harderSort(c, level, m, siblings, rand);
+        const items = out.items || [];
+        if (level === 3 && items.length && items.every((x) => x && x.emoji)) out.hide_labels = true;
+        return out;
+    }
     case 'sequence':
         return harderSequence(c, level, m, siblings, rand);
     case 'pattern':
@@ -296,7 +321,8 @@ export function levelContent(content, level, siblings = [], seed = 0) {
     case 'wordbuild':
         return harderWords(c, m, siblings, rand, 5);
     case 'hangman':
-        return harderWords(c, m, siblings, rand, 4);
+        // Fewer wrong letters allowed: harder even when no new words exist.
+        return { ...harderWords(c, m, siblings, rand, 4), lives: 6 - m };
     case 'simon':
         return plusRounds(c, m, 5);
     case 'merge':

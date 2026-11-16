@@ -34,7 +34,8 @@ const selectSiblings = () => [
     {
         mode: 'select',
         correct_items: [item('c0', 'Olma', '🍎'), item('c1', 'Mushuk', '🐱'), item('c2', 'It', '🐶')],
-        distractor_items: [item('d0', 'Mashina', '🚗'), item('d1', 'Kitob', '📕'), item('d2', 'Qalam', '✏️')],
+        distractor_items: [item('d0', 'Mashina', '🚗'), item('d1', 'Kitob', '📕'), item('d2', 'Qalam', '✏️'),
+            item('d3', 'Stul', '🪑'), item('d4', 'Soat', '⏰')],
     },
     { mode: 'count', rounds: [{ emoji: '⭐', count: 3, options: [2, 3, 4] }] },
 ];
@@ -212,4 +213,51 @@ test('SequenceActivity shows distractor steps in the tray but not as slots', () 
     } }} {...base} />);
     expect(container.querySelectorAll('.sq-slot')).toHaveLength(2);
     expect(container.querySelectorAll('.sq-item')).toHaveLength(3);
+});
+
+// ---- final review fixes ----------------------------------------------------
+
+test('select never borrows an item that is a right answer anywhere in the module', () => {
+    // A module of colour games: a white cloud is a right answer in the "white" game,
+    // so it must never come back as a wrong answer there (or anywhere it fits).
+    const white = { mode: 'select', correct_items: [item('c0', 'Bulut', '☁️'), item('c1', 'Qor', '❄️')],
+        distractor_items: [item('d0', 'Olma', '🍎')] };
+    const siblings = [
+        { mode: 'select', correct_items: [item('c0', 'Oq bulut', '☁️'), item('c1', 'Qor to\'pi', '⛄')],
+            distractor_items: [item('d0', 'Mashina', '🚗'), item('d1', 'Bulutcha', '☁️')] },
+        { mode: 'select', correct_items: [item('c0', 'Pomidor', '🍅')],
+            distractor_items: [item('d0', 'Kit', '🐳'), item('d1', 'Pomidorcha', '🍅'), item('d2', 'Uy', '🏠')] },
+    ];
+    for (let seed = 0; seed < 20; seed += 1) {
+        for (const level of [2, 3]) {
+            const out = levelContent(white, level, siblings, seed);
+            const borrowed = out.distractor_items.slice(1);
+            const emojis = borrowed.map((x) => x.emoji);
+            expect(emojis).not.toContain('☁️');
+            expect(emojis).not.toContain('⛄');
+            expect(emojis).not.toContain('🍅');
+            expect(borrowed).toHaveLength(level === 2 ? 1 : 2);
+            for (const x of borrowed) expect(['🚗', '🐳', '🏠']).toContain(x.emoji);
+        }
+    }
+});
+
+test('build and sequence never borrow a piece that looks like one of the game\'s own', () => {
+    const build = { mode: 'build', slots: [item('s0', 'Tom', '🔺'), item('s1', 'Devor', '🧱')], distractor_items: [item('d0', 'Baliq', '🐟')] };
+    const bsib = [{ mode: 'build', slots: [item('s0', 'Tom', '🔺')], distractor_items: [item('d0', 'Qizil tom', '🔺'), item('d1', 'Gul', '🌸')] }];
+    const b3 = levelContent(build, 3, bsib);
+    expect(b3.distractor_items.map((x) => x.emoji)).toEqual(['🐟', '🌸']);
+    const seq = { mode: 'sequence', steps: [item('a', 'Uyg\'on', '⏰'), item('b', 'Yuvin', '🚿')] };
+    const ssib = [{ mode: 'sequence', steps: [item('a', 'Turish', '⏰'), item('b', 'Uxla', '😴')] }];
+    const s3 = levelContent(seq, 3, ssib);
+    expect(s3.steps.filter((x) => x.distractor).map((x) => x.emoji)).toEqual(['😴']);
+});
+
+test('sort and hangman get harder at level 3 even with nothing to borrow', () => {
+    const sort = { mode: 'sort', bins: [{ id: 'katta', label: 'Katta', emoji: '🐘' }],
+        items: [{ id: 'i', bin: 'katta', label: 'Fil', emoji: '🐘' }] };
+    expect(levelContent(sort, 2, []).hide_labels).toBeFalsy();
+    expect(levelContent(sort, 3, []).hide_labels).toBe(true);
+    expect(levelContent({ mode: 'hangman', words: [] }, 2, []).lives).toBe(5);
+    expect(levelContent({ mode: 'hangman', words: [] }, 3, []).lives).toBe(4);
 });

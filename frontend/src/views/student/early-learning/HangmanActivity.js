@@ -34,7 +34,8 @@ export default function HangmanActivity(props) {
     const word = entry ? String((lang === 'ru' && entry.ru ? entry.ru : entry.uz || entry.ru)).toUpperCase() : '';
     const keys = /[А-ЯЁ]/.test(word) ? RU_KEYS : UZ_KEYS;
     const solved = word && word.split('').every((ch) => guessed.includes(ch));
-    const lost = wrongLetters >= MAX_LIVES;
+    const lives = content.lives || MAX_LIVES; // game levels 2-3 lower it (levelContent.js)
+    const lost = wrongLetters >= lives;
 
     const next = () => {
         setGuessed([]);
@@ -58,7 +59,7 @@ export default function HangmanActivity(props) {
             setTotalWrong((n) => n + 1);
             const w = wrongLetters + 1;
             setWrongLetters(w);
-            if (w >= MAX_LIVES) {
+            if (w >= lives) {
                 setRevealed(true);
                 setTimeout(next, 1800);
             }
@@ -81,7 +82,7 @@ export default function HangmanActivity(props) {
     return (
         <ActivityShell {...props} emoji="🔤" completion={completion}>
             <div className="wc-picture">{entry.emoji}</div>
-            <div className="wc-lives">{'❤️'.repeat(MAX_LIVES - wrongLetters)}{'🖤'.repeat(wrongLetters)}</div>
+            <div className="wc-lives">{'❤️'.repeat(Math.max(0, lives - wrongLetters))}{'🖤'.repeat(wrongLetters)}</div>
             <div className="wc-slots">
                 {word.split('').map((ch, i) => {
                     const shown = guessed.includes(ch) || revealed;

@@ -175,10 +175,11 @@ export default function SortActivity({ activity, onBack, onComplete, lang, toggl
                         className={`so-item ${selectedId === item.id ? 'so-item-selected' : ''}`}
                         style={{ '--i': i, animationDelay: `${i * 0.06}s` }}
                         onClick={() => handleSelectItem(item)}
+                        aria-label={content.hide_labels ? item.label : undefined}
                         disabled={submitting}
                     >
                         <span className="so-item-emoji">{item.emoji}</span>
-                        <span className="so-item-label">{item.label}</span>
+                        {!content.hide_labels && <span className="so-item-label">{item.label}</span>}
                     </button>
                 ))}
             </div>
