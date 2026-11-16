@@ -1,5 +1,6 @@
 import React from 'react';
 import './EarlyLearning.css';
+import VoiceToggle from './VoiceToggle';
 
 /** UZ/RU pill toggle, matching the sidebar's own lang switch
  * (sidebar-lang__pill) — repeated here because this whole feature runs
@@ -30,6 +31,7 @@ export default function LangToggle({ lang, toggleLang }) {
             >
                 RU
             </button>
+            <VoiceToggle />
         </div>
     );
 }
