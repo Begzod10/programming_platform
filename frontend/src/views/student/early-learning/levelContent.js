@@ -4,13 +4,17 @@
  * levelContent(content, level, siblings, seed) returns a NEW object (the
  * input is never touched). Level 1 returns the input itself. `siblings` are
  * the other activities' contents of the same module; extra items are only
- * borrowed from siblings of the same mode. Randomness is seeded (activity
+ * borrowed from siblings of the same mode (or, for the select family —
+ * select and the active games built from select content — of any family
+ * mode). Randomness is seeded (activity
  * id + level), so the same level of the same game looks the same every
  * time it is built — e.g. after a language switch re-fetches the module,
  * the maze walls do not move under the kid's character.
  */
 
 const HOME_ROW = 'asdfghjkl'.split('');
+/** How long one catch item takes to cross the field, per level (ms). */
+export const CATCH_FALL_MS = [5000, 4000, 3300];
 const MAZE_MAX = 9;
 
 function rng(seed) {
@@ -42,13 +46,24 @@ function itemKey(x) {
     return String(x.label || x.uz || x.emoji || x.icon || x.id || JSON.stringify(x)).toLowerCase();
 }
 
+/** select and the active games that play select content another way
+ * (no mode = select). Their items are one pool: a module mixed by
+ * scripts/convert_select_modules.py keeps borrowing as before. */
+export const SELECT_FAMILY = new Set(['select', 'collect', 'connect', 'catch', 'dragsort']);
+
+/** Does sibling `sib` count as the same kind of game as `mode`? */
+function sameKind(sib, mode) {
+    if (SELECT_FAMILY.has(mode)) return SELECT_FAMILY.has(sib.mode || 'select');
+    return sib.mode === mode;
+}
+
 /** Items under `key` in same-mode siblings, without repeats and without
  * anything whose key is in `exclude` (a Set of itemKey values). */
 function pool(siblings, mode, key, exclude) {
     const seen = new Set(exclude);
     const out = [];
     for (const sib of siblings || []) {
-        if (!sib || sib.mode !== mode || !Array.isArray(sib[key])) continue;
+        if (!sib || !sameKind(sib, mode) || !Array.isArray(sib[key])) continue;
         for (const x of sib[key]) {
             const k = itemKey(x);
             if (!k || seen.has(k)) continue;
@@ -91,7 +106,7 @@ function harderSelect(c, level, m, siblings, rand) {
     // picture under another name — a "white cloud" next to this game's
     // "cloud") would very likely be right here too.
     const rightAnywhere = (siblings || [])
-        .filter((s) => s && (s.mode || 'select') === mode)
+        .filter((s) => s && sameKind(s, mode))
         .flatMap((s) => s.correct_items || []);
     const fromD = unlike(pool(siblings, mode, 'distractor_items', keysOf(correct, distractors)),
         correct, distractors, rightAnywhere);
@@ -266,6 +281,7 @@ const plusRounds = (c, m, def, step = 2) => ({ ...c, rounds_count: (c.rounds_cou
 export const LEVELED_MODES = new Set([
     'select', 'maze', 'count', 'compare', 'bubbles', 'arithmetic', 'rounds', 'keyboard',
     'hangman', 'simon', 'merge', 'sudoku', 'chart', 'trace', 'pattern', 'cause_effect',
+    'collect', 'connect', 'catch', 'dragsort',
 ]);
 
 /** 3 for a game that gets harder, else 1. No mode = select. */
@@ -283,6 +299,20 @@ export function levelContent(content, level, siblings = [], seed = 0) {
     case null:
     case 'select':
         return harderSelect(c, level, m, siblings, rand);
+    case 'connect':
+        return harderSelect(c, level, m, siblings, rand);
+    case 'collect': {
+        // Pictures-only is connect's level 3; walking and catching keep names.
+        const { hide_labels: _h, ...out } = harderSelect(c, level, m, siblings, rand);
+        return { ...out, grid_size: 5 + m };
+    }
+    case 'catch': {
+        const { hide_labels: _h, ...out } = harderSelect(c, level, m, siblings, rand);
+        return { ...out, fall_ms: CATCH_FALL_MS[m] };
+    }
+    case 'dragsort':
+        // Level 1 = 3 pieces per basket (see dragsortSetup.js), 2 = all, 3 = a third basket.
+        return { ...c, per_basket: m === 0 ? 3 : null, use_partner2: level === 3 };
     case 'maze':
         return harderMaze(c, m, rand);
     case 'count':

@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { levelContent, levelActivity } from '../views/student/early-learning/levelContent';
+import { levelContent, levelActivity, levelCountFor } from '../views/student/early-learning/levelContent';
 import { starsForCoverage } from '../views/student/early-learning/earlyLearningUtils';
 import MatchingActivity from '../views/student/early-learning/MatchingActivity';
 import SequenceActivity from '../views/student/early-learning/SequenceActivity';
@@ -260,4 +260,73 @@ test('sort and hangman get harder at level 3 even with nothing to borrow', () =>
     expect(levelContent(sort, 3, []).hide_labels).toBe(true);
     expect(levelContent({ mode: 'hangman', words: [] }, 2, []).lives).toBe(5);
     expect(levelContent({ mode: 'hangman', words: [] }, 3, []).lives).toBe(4);
+});
+
+// ---- Active games (collect, connect, catch, dragsort): the select family ----
+
+const familySiblings = () => ['collect', 'connect', 'catch', 'dragsort'].map((mode, i) => ({
+    mode,
+    correct_items: [item(`c${i}`, `Right${i}`, ['🦊', '🦁', '🐯', '🐻'][i])],
+    distractor_items: [item(`d${i}`, `Wrong${i}`, ['🚀', '🎸', '🧲', '🪁'][i])],
+}));
+
+test('select levels still borrow distractors after the module is mixed', () => {
+    const l2 = levelContent(select(), 2, familySiblings(), 1);
+    expect(l2.distractor_items).toHaveLength(4);
+    const l3 = levelContent(select(), 3, familySiblings(), 1);
+    expect(l3.distractor_items).toHaveLength(6);
+    for (const x of l3.distractor_items.slice(2)) expect(['🚀', '🎸', '🧲', '🪁']).toContain(x.emoji);
+});
+
+test('a right answer of any family game is never borrowed as a wrong one', () => {
+    const sibs = [
+        { mode: 'connect', correct_items: [item('c', 'Tulki', '🦊')], distractor_items: [] },
+        { mode: 'select', correct_items: [], distractor_items: [item('d', 'Tulki', '🦊'), item('e', 'Raketa', '🚀')] },
+    ];
+    for (let seed = 0; seed < 10; seed += 1) {
+        const l3 = levelContent(select(), 3, sibs, seed);
+        const emojis = l3.distractor_items.map((x) => x.emoji);
+        expect(emojis).not.toContain('🦊');
+        expect(emojis).toContain('🚀');
+    }
+});
+
+test('collect grows the grid and borrows distractors', () => {
+    const base = { ...select(), mode: 'collect' };
+    const l2 = levelContent(base, 2, familySiblings(), 3);
+    expect(l2.grid_size).toBe(6);
+    expect(l2.distractor_items).toHaveLength(4);
+    const l3 = levelContent(base, 3, familySiblings(), 3);
+    expect(l3.grid_size).toBe(7);
+    expect(l3.distractor_items).toHaveLength(6);
+    expect(levelContent(base, 1, familySiblings())).toBe(base);
+});
+
+test('connect borrows distractors and hides labels at level 3', () => {
+    const base = { ...select(), mode: 'connect' };
+    expect(levelContent(base, 2, familySiblings(), 2).distractor_items).toHaveLength(4);
+    expect(levelContent(base, 2, familySiblings(), 2).hide_labels).toBeFalsy();
+    expect(levelContent(base, 3, familySiblings(), 2).hide_labels).toBe(true);
+});
+
+test('catch falls faster each level', () => {
+    const base = { ...select(), mode: 'catch' };
+    expect(levelContent(base, 2, familySiblings()).fall_ms).toBe(4000);
+    expect(levelContent(base, 3, familySiblings()).fall_ms).toBe(3300);
+    expect(levelContent(base, 3, familySiblings()).distractor_items).toHaveLength(6);
+});
+
+test('dragsort level settings', () => {
+    const base = { ...select(), mode: 'dragsort', partner: { character: { label: 'B' }, correct_items: [] } };
+    const l2 = levelContent(base, 2, familySiblings());
+    expect(l2.per_basket).toBeNull();
+    expect(l2.use_partner2).toBe(false);
+    expect(l2.distractor_items).toEqual(base.distractor_items);
+    const l3 = levelContent(base, 3, familySiblings());
+    expect(l3.per_basket).toBeNull();
+    expect(l3.use_partner2).toBe(true);
+});
+
+test('new modes are leveled', () => {
+    for (const mode of ['collect', 'connect', 'catch', 'dragsort']) expect(levelCountFor(mode)).toBe(3);
 });
