@@ -129,7 +129,9 @@ export default function DragSortActivity(props) {
                 </div>
                 <div className="ag-tray">
                     {pieces.filter((p) => !placed.has(p.key)).map((p) => {
-                        const moving = drag?.key === p.key;
+                        // Only a real drag lifts the piece (pointer-events: none): a press
+                        // that never moves must stay a click on the button.
+                        const moving = drag?.key === p.key && drag.moved;
                         return (
                             <button
                                 key={p.key}

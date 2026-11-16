@@ -17,7 +17,9 @@ export const LANES = 3;
 export const MAX_FALLING = 2;
 const SPAWN_GAP = 0.5;
 // Lanes the items fall in, in turn: varied, but never random in tests.
-const LANE_ORDER = [1, 0, 2, 2, 0, 1, 0, 2, 1];
+// The first is never the basket's starting lane (1): nothing is caught
+// (or counted as a mistake) before the kid has moved at all.
+const LANE_ORDER = [0, 2, 1, 1, 2, 0, 2, 0, 1];
 
 export function startFalling(pieces, fallMs) {
     return { queue: [...pieces], falling: [], fallMs, basketLane: 1, spawned: 0, caught: 0, events: [] };

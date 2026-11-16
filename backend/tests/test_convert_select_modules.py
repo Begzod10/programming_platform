@@ -236,3 +236,25 @@ def test_main_dry_run_prints_and_reminds(monkeypatch, capsys):
     conv.main(["--dry-run", "--module", "7"])
     printed = capsys.readouterr().out
     assert "Kasblar" in printed and "collect" in printed
+
+
+async def test_modeless_draft_modules_are_neither_converted_nor_partners(async_client, db_session, monkeypatch):
+    """The seed's draft modules have no `mode` and no select content
+    ({"targets": ...}, {"pairs": ...}): they are not select games."""
+    ids = await _modules(async_client, db_session, count=3, base_order=800000)
+    teacher = await make_teacher(async_client, db_session)
+    draft, acts = await make_module(db_session, teacher, n_activities=10)
+    draft.display_order = 800010  # right after the select modules: would be M3 of the ring
+    for a in acts:
+        a.content_json = json.dumps({"targets": [{"id": "a", "label": "A"}]}, ensure_ascii=False)
+    await db_session.commit()
+    _limit_to(monkeypatch, set(ids) | {draft.id})
+    before = await _state(draft.id)
+    out = await conv.run(dry_run=False, module_id=None, revert=False)
+    assert draft.id not in [m["id"] for m in out["modules"]]
+    assert await _state(draft.id) == before
+    # The last select module wraps around to the first select module, not to the draft.
+    last = [json.loads(c) for c, _, _ in await _state(ids[2])]
+    first = [json.loads(c) for c, _, _ in await _state(ids[0])]
+    assert last[4]["partner"]["character"] == first[4]["character"]
+    assert "partner2" in last[4]

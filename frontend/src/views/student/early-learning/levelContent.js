@@ -299,8 +299,13 @@ export function levelContent(content, level, siblings = [], seed = 0) {
     case null:
     case 'select':
         return harderSelect(c, level, m, siblings, rand);
-    case 'connect':
-        return harderSelect(c, level, m, siblings, rand);
+    case 'connect': {
+        // Pictures only when every item has an emoji: an icon-only item keeps its name.
+        const out = harderSelect(c, level, m, siblings, rand);
+        const all = [...(out.correct_items || []), ...(out.distractor_items || [])];
+        if (out.hide_labels && !all.every((x) => x && x.emoji)) delete out.hide_labels;
+        return out;
+    }
     case 'collect': {
         // Pictures-only is connect's level 3; walking and catching keep names.
         const { hide_labels: _h, ...out } = harderSelect(c, level, m, siblings, rand);

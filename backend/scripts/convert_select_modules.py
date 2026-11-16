@@ -96,11 +96,17 @@ async def load_modules(db) -> list[tuple[EarlyModule, list[EarlyActivity]]]:
 
 
 def _all_select(activities: list[EarlyActivity]) -> bool:
+    """Every game is a select game: mode select (or none) AND select-shaped
+    content (a character and right items). Draft modules with no mode and
+    other content ({"targets": ...}, {"pairs": ...}) are not select games."""
     if not activities:
         return False
     for a in activities:
         content = _content(a)
         if "converted_from" in content or (content.get("mode") or "select") != "select":
+            return False
+        items = content.get("correct_items")
+        if not isinstance(content.get("character"), dict) or not isinstance(items, list) or not items:
             return False
     return True
 

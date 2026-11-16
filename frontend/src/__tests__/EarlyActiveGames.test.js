@@ -4,7 +4,8 @@ import CollectActivity from '../views/student/early-learning/CollectActivity';
 import ConnectActivity from '../views/student/early-learning/ConnectActivity';
 import CatchActivity from '../views/student/early-learning/CatchActivity';
 import DragSortActivity from '../views/student/early-learning/DragSortActivity';
-import { stepFalling } from '../views/student/early-learning/catchGame';
+import { stepFalling, startFalling } from '../views/student/early-learning/catchGame';
+import { levelContent } from '../views/student/early-learning/levelContent';
 import { makeBaskets } from '../views/student/early-learning/dragsortSetup';
 import translations from '../i18n/translations';
 
@@ -39,6 +40,7 @@ const base = { onBack: jest.fn(), onComplete: jest.fn(), lang: 'uz', toggleLang:
 const item = (id, label, emoji) => ({ id, label, emoji });
 const right = [item('a', 'Olma', '🍎'), item('b', 'Nok', '🍐')];
 const wrong = [item('x', 'Mashina', '🚗')];
+const select = () => ({ mode: 'select', correct_items: right, distractor_items: wrong });
 const game = (mode, over = {}) => ({
     id: 41, title: 'Savat', level: 1, instruction_text: 'Yig\'.',
     content: { mode, character: { emoji: '🧺', label: 'Savat' }, correct_items: right, distractor_items: wrong, ...over },
@@ -382,4 +384,26 @@ test('dragsort: tapping a piece and then a basket places it too', () => {
     fireEvent.click(screen.getByRole('button', { name: 'osh0' }));
     fireEvent.click(screen.getByRole('button', { name: 'Oshpaz' }));
     expect(voice.cheer).toHaveBeenLastCalledWith('correct');
+});
+
+test('dragsort: pressing a piece without moving keeps it clickable (mouse tap path)', () => {
+    render(<DragSortActivity activity={{ ...game('dragsort'), content: sortContent() }} {...base} />);
+    const pieceBtn = screen.getByRole('button', { name: 'osh0' });
+    fireEvent.pointerDown(pieceBtn, { clientX: 30, clientY: 330, pointerId: 1 });
+    // .ag-piece-dragging sets pointer-events: none — only a real drag may get it
+    expect(pieceBtn).not.toHaveClass('ag-piece-dragging');
+    fireEvent.pointerMove(pieceBtn, { clientX: 80, clientY: 330, pointerId: 1 });
+    expect(pieceBtn).toHaveClass('ag-piece-dragging');
+});
+
+test('connect keeps labels at level 3 when an item has only an icon', () => {
+    const content = { ...select(), mode: 'connect', correct_items: [item('a', 'Olma', '🍎'), { id: 'b', label: 'Kitob', icon: 'Book' }] };
+    expect(levelContent(content, 3, [], 1).hide_labels).toBeFalsy();
+    const all = { ...select(), mode: 'connect' };
+    expect(levelContent(all, 3, [], 1).hide_labels).toBe(true);
+});
+
+test('catch: the first item never falls straight into the starting basket', () => {
+    const s = stepFalling(startFalling([piece('w', false)], 1000), 0);
+    expect(s.falling[0].lane).not.toBe(s.basketLane);
 });
