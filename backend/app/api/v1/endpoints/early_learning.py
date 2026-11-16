@@ -36,7 +36,9 @@ from app.schemas.early_learning import (
     EarlyPublicModuleListItem,
     EarlyVoiceOut,
 )
-from app.services.early_levels import UNLOCK_STARS, best_stars_at
+from app.services.early_levels import (
+    LEVELS, UNLOCK_STARS, best_stars_at, level_daily, level_rows, levels_payload,
+)
 from app.services.early_sections import section_for_modes
 from app.services.early_voice import audio_url, norm_lang, phrase_urls
 from app.services.early_sticker_service import album as sticker_album, sticker_payload, sync_awards
@@ -246,13 +248,23 @@ def _list_item(
     completions: Dict[int, EarlyActivityCompletion],
     lang: str = "uz",
     daily: Dict[int, EarlyActivityDailyStars] | None = None,
+    levels: Dict[int, Dict[int, EarlyActivityLevelCompletion]] | None = None,
+    levels_daily: Dict[int, Dict[int, EarlyActivityLevelDailyStars]] | None = None,
 ) -> EarlyModuleListItem:
+    """Module card numbers. Stars and plays count all three levels (levels
+    2-3 come from `levels`/`levels_daily`); completed_count stays level 1."""
     activities = _visible_activities(module)
-    earned = sum(completions[a.id].stars_earned for a in activities if a.id in completions)
     daily = daily or {}
+    levels = levels or {}
+    levels_daily = levels_daily or {}
+    higher = [row for a in activities for row in levels.get(a.id, {}).values()]
+    higher_today = [row for a in activities for row in levels_daily.get(a.id, {}).values()]
+    earned = sum(completions[a.id].stars_earned for a in activities if a.id in completions)
+    earned += sum(row.stars_earned for row in higher)
     earned_today = sum(daily[a.id].stars_earned for a in activities if a.id in daily)
+    earned_today += sum(row.stars_earned for row in higher_today)
     played = [completions[a.id] for a in activities if a.id in completions]
-    last_played = [c.last_attempt_at for c in played if c.last_attempt_at is not None]
+    last_played = [c.last_attempt_at for c in played + higher if c.last_attempt_at is not None]
     return EarlyModuleListItem(
         id=module.id,
         title=_localized(module.title, module.title_ru, lang),
@@ -263,11 +275,13 @@ def _list_item(
         display_order=module.display_order,
         activities_count=len(activities),
         earned_stars=earned,
-        max_stars=sum(a.max_stars for a in activities),
+        max_stars=sum(a.max_stars for a in activities) * len(LEVELS),
         earned_stars_today=earned_today,
         section=section_for_modes([_activity_mode(a) for a in activities]),
         completed_count=len(played),
         last_played_at=max(last_played) if last_played else None,
+        level_plays=len(played) + len(higher),
+        max_level_plays=len(activities) * len(LEVELS),
     )
 
 
@@ -276,6 +290,9 @@ def _activity_out(
     completion: EarlyActivityCompletion | None,
     lang: str = "uz",
     daily: EarlyActivityDailyStars | None = None,
+    higher: Dict[int, EarlyActivityLevelCompletion] | None = None,
+    higher_today: Dict[int, EarlyActivityLevelDailyStars] | None = None,
+    unlock_all: bool = False,
 ) -> EarlyActivityOut:
     try:
         content = json.loads(activity.content_json)
@@ -293,7 +310,9 @@ def _activity_out(
         max_stars=activity.max_stars,
         best_stars=completion.stars_earned if completion else 0,
         attempts=completion.attempts if completion else 0,
-        today_stars=daily.stars_earned if daily else 0,
+        today_stars=(daily.stars_earned if daily else 0)
+        + sum(row.stars_earned for row in (higher_today or {}).values()),
+        levels=levels_payload(completion, higher, unlock_all),
     )
 
 
@@ -318,7 +337,9 @@ async def list_early_modules(
     activity_ids = [a.id for m in modules for a in _visible_activities(m)]
     completions = await _completions_by_activity(db, current_student.id, activity_ids)
     daily = await _daily_stars_by_activity(db, current_student.id, activity_ids, _today())
-    return [_list_item(m, completions, lang, daily) for m in modules]
+    levels = await level_rows(db, current_student.id, activity_ids)
+    levels_today = await level_daily(db, current_student.id, activity_ids, _today())
+    return [_list_item(m, completions, lang, daily, levels, levels_today) for m in modules]
 
 
 @router.get("/modules/{module_id}", response_model=EarlyModuleDetail, dependencies=[Depends(require_games_unlocked)])
@@ -349,11 +370,20 @@ async def get_early_module(
     activity_ids = [a.id for a in activities]
     completions = await _completions_by_activity(db, current_student.id, activity_ids)
     daily = await _daily_stars_by_activity(db, current_student.id, activity_ids, _today())
+    levels = await level_rows(db, current_student.id, activity_ids)
+    levels_today = await level_daily(db, current_student.id, activity_ids, _today())
+    unlock_all = current_student.role != UserRole.student
 
-    base = _list_item(module, completions, lang, daily)
+    base = _list_item(module, completions, lang, daily, levels, levels_today)
     return EarlyModuleDetail(
         **base.model_dump(),
-        activities=[_activity_out(a, completions.get(a.id), lang, daily.get(a.id)) for a in activities],
+        activities=[
+            _activity_out(
+                a, completions.get(a.id), lang, daily.get(a.id),
+                levels.get(a.id), levels_today.get(a.id), unlock_all,
+            )
+            for a in activities
+        ],
     )
 
 
@@ -678,6 +708,22 @@ async def get_early_learning_leaderboard(
                 .group_by(EarlyActivityDailyStars.student_id)
             )
         ).all()
+        level_rows_ = (
+            await db.execute(
+                select(
+                    EarlyActivityLevelDailyStars.student_id,
+                    func.sum(EarlyActivityLevelDailyStars.stars_earned).label("total_stars"),
+                )
+                .join(EarlyActivity, EarlyActivity.id == EarlyActivityLevelDailyStars.activity_id)
+                .where(
+                    EarlyActivityLevelDailyStars.student_id.in_(classmate_ids),
+                    EarlyActivityLevelDailyStars.activity_date == _today(),
+                    EarlyActivity.is_published.is_(True),
+                    EarlyActivity.is_active.is_(True),
+                )
+                .group_by(EarlyActivityLevelDailyStars.student_id)
+            )
+        ).all()
     else:
         stars_rows = (
             await db.execute(
@@ -694,7 +740,25 @@ async def get_early_learning_leaderboard(
                 .group_by(EarlyActivityCompletion.student_id)
             )
         ).all()
-    stars_by_student = {row.student_id: row.total_stars for row in stars_rows}
+        level_rows_ = (
+            await db.execute(
+                select(
+                    EarlyActivityLevelCompletion.student_id,
+                    func.sum(EarlyActivityLevelCompletion.stars_earned).label("total_stars"),
+                )
+                .join(EarlyActivity, EarlyActivity.id == EarlyActivityLevelCompletion.activity_id)
+                .where(
+                    EarlyActivityLevelCompletion.student_id.in_(classmate_ids),
+                    EarlyActivity.is_published.is_(True),
+                    EarlyActivity.is_active.is_(True),
+                )
+                .group_by(EarlyActivityLevelCompletion.student_id)
+            )
+        ).all()
+    # Level 1 and levels 2-3 live in separate tables; a kid's total is both.
+    stars_by_student: Dict[int, int] = {}
+    for row in list(stars_rows) + list(level_rows_):
+        stars_by_student[row.student_id] = stars_by_student.get(row.student_id, 0) + int(row.total_stars or 0)
 
     classmates = (
         await db.execute(

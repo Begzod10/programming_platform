@@ -32,6 +32,17 @@ class EarlyModuleListItem(BaseModel):
     section: str = "world"
     completed_count: int = 0
     last_played_at: Optional[datetime] = None
+    # Game levels: (activity, level) pairs played at least once, out of
+    # activities_count x 3. completed_count stays level-1 only.
+    level_plays: int = 0
+    max_level_plays: int = 0
+
+
+class EarlyLevelOut(BaseModel):
+    level: int
+    best_stars: int
+    attempts: int
+    unlocked: bool
 
 
 class EarlyActivityOut(BaseModel):
@@ -48,6 +59,8 @@ class EarlyActivityOut(BaseModel):
     best_stars: int
     attempts: int
     today_stars: int = 0
+    # Always three entries (levels 1-3); best_stars/attempts above stay level 1.
+    levels: List[EarlyLevelOut] = []
 
 
 class EarlyModuleDetail(EarlyModuleListItem):

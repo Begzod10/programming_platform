@@ -111,3 +111,96 @@ async def test_level_out_of_range_rejected(async_client, db_session, teacher):
     _, acts = await make_module(db_session, teacher, n_activities=1)
     assert (await _post(async_client, headers, acts[0].id, 2, level=4)).status_code == 422
     assert (await _post(async_client, headers, acts[0].id, 2, level=0)).status_code == 422
+
+
+# ---- Task 2: reading levels back ------------------------------------------
+
+async def _add_level(db_session, student_id, activity_id, level, stars, day=None):
+    from app.models.early_learning import EarlyActivityLevelDailyStars
+    db_session.add(EarlyActivityLevelCompletion(
+        student_id=student_id, activity_id=activity_id, level=level, stars_earned=stars, attempts=1,
+    ))
+    if day is not None:
+        db_session.add(EarlyActivityLevelDailyStars(
+            student_id=student_id, activity_id=activity_id, level=level, activity_date=day,
+            stars_earned=stars, attempts=1,
+        ))
+    await db_session.commit()
+
+
+def _levels(activity):
+    return [(lv["level"], lv["best_stars"], lv["attempts"], lv["unlocked"]) for lv in activity["levels"]]
+
+
+async def test_activity_levels_in_detail(async_client, db_session, teacher):
+    student_id, headers = await make_student(async_client, db_session)
+    module, acts = await make_module(db_session, teacher, n_activities=1)
+    await add_completion(db_session, student_id, acts[0].id, stars=2)
+    await _add_level(db_session, student_id, acts[0].id, 2, 1)
+    detail = (await async_client.get(f"{BASE}/modules/{module.id}", headers=headers)).json()
+    act = detail["activities"][0]
+    assert _levels(act) == [(1, 2, 1, True), (2, 1, 1, True), (3, 0, 0, False)]
+    assert act["best_stars"] == 2 and act["attempts"] == 1
+
+
+async def test_teacher_sees_all_unlocked(async_client, db_session, teacher):
+    _, headers = await make_student(async_client, db_session, role=UserRole.teacher)
+    module, _ = await make_module(db_session, teacher, n_activities=1)
+    detail = (await async_client.get(f"{BASE}/modules/{module.id}", headers=headers)).json()
+    assert [lv["unlocked"] for lv in detail["activities"][0]["levels"]] == [True, True, True]
+
+
+async def test_public_detail_levels_locked(async_client, db_session, teacher):
+    module, _ = await make_module(db_session, teacher, n_activities=1)
+    detail = (await async_client.get(f"{BASE}/public/modules/{module.id}")).json()
+    assert _levels(detail["activities"][0]) == [(1, 0, 0, True), (2, 0, 0, False), (3, 0, 0, False)]
+    assert detail["max_level_plays"] == 3 and detail["level_plays"] == 0 and detail["max_stars"] == 9
+
+
+async def test_list_counts_levels(async_client, db_session, teacher):
+    student_id, headers = await make_student(async_client, db_session)
+    module, acts = await make_module(db_session, teacher, n_activities=2)
+    await _post(async_client, headers, acts[0].id, 3)
+    await _post(async_client, headers, acts[1].id, 2)
+    assert (await _post(async_client, headers, acts[0].id, 1, level=2)).status_code == 200
+    items = (await async_client.get(f"{BASE}/modules", headers=headers)).json()
+    item = next(i for i in items if i["id"] == module.id)
+    assert item["max_stars"] == 18
+    assert item["earned_stars"] == 6
+    assert item["earned_stars_today"] == 6
+    assert item["level_plays"] == 3 and item["max_level_plays"] == 6
+    assert item["completed_count"] == 2
+    detail = (await async_client.get(f"{BASE}/modules/{module.id}", headers=headers)).json()
+    assert detail["earned_stars"] == 6 and detail["level_plays"] == 3
+    assert detail["activities"][0]["today_stars"] == 4
+
+
+async def test_total_stars_and_leaderboards_include_levels(async_client, db_session, teacher):
+    from app.services.early_sticker_service import total_stars
+    student_id, headers = await make_student(async_client, db_session)
+    _, acts = await make_module(db_session, teacher, n_activities=1)
+    await _post(async_client, headers, acts[0].id, 3)
+    await _post(async_client, headers, acts[0].id, 2, level=2)
+    await _post(async_client, headers, acts[0].id, 1, level=3)
+    assert await total_stars(db_session, student_id) == 6
+    for period in ("all_time", "today"):
+        board = (await async_client.get(f"{BASE}/leaderboard?period={period}", headers=headers)).json()
+        me = next(e for e in board["entries"] if e["is_me"])
+        assert me["total_stars"] == 6, period
+
+
+async def test_plays_on_counts_activity_once(async_client, db_session, teacher):
+    from app.api.v1.endpoints.early_learning import _today
+    from app.services.early_sticker_service import current_streak, plays_on
+    student_id, headers = await make_student(async_client, db_session)
+    _, acts = await make_module(db_session, teacher, n_activities=3)
+    await _post(async_client, headers, acts[0].id, 3)
+    await _post(async_client, headers, acts[0].id, 3, level=2)
+    assert await plays_on(db_session, student_id, _today()) == 1
+    # A level-2-only play still counts as one play of that activity that day.
+    await add_completion(db_session, student_id, acts[1].id, stars=3)
+    await _add_level(db_session, student_id, acts[1].id, 2, 3, day=_today())
+    assert await plays_on(db_session, student_id, _today()) == 2
+    await _post(async_client, headers, acts[2].id, 1)
+    assert await plays_on(db_session, student_id, _today()) == 3
+    assert await current_streak(db_session, student_id, _today()) == 1

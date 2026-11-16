@@ -15,13 +15,14 @@ boundary in one place and the rules testable.
 from datetime import date, timedelta
 from typing import Callable, Dict, List, Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, union
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.early_learning import (
     EarlyActivity, EarlyActivityCompletion, EarlyActivityDailyStars,
+    EarlyActivityLevelCompletion, EarlyActivityLevelDailyStars,
     EarlyModule, EarlyStickerAward,
 )
 from app.services.early_sticker_catalog import (
@@ -84,29 +85,42 @@ async def _owned(db: AsyncSession, student_id: int) -> Dict[str, EarlyStickerAwa
 
 
 async def total_stars(db: AsyncSession, student_id: int) -> int:
-    total = (
-        await db.execute(
-            select(func.coalesce(func.sum(EarlyActivityCompletion.stars_earned), 0))
-            .join(EarlyActivity, EarlyActivity.id == EarlyActivityCompletion.activity_id)
-            .join(EarlyModule, EarlyModule.id == EarlyActivity.module_id)
-            .where(
-                EarlyActivityCompletion.student_id == student_id,
-                EarlyActivity.is_published.is_(True), EarlyActivity.is_active.is_(True),
-                EarlyModule.is_published.is_(True), EarlyModule.is_active.is_(True),
+    """Stars across every level (level 1 table + levels 2-3 table) of live games."""
+    total = 0
+    for table in (EarlyActivityCompletion, EarlyActivityLevelCompletion):
+        part = (
+            await db.execute(
+                select(func.coalesce(func.sum(table.stars_earned), 0))
+                .join(EarlyActivity, EarlyActivity.id == table.activity_id)
+                .join(EarlyModule, EarlyModule.id == EarlyActivity.module_id)
+                .where(
+                    table.student_id == student_id,
+                    EarlyActivity.is_published.is_(True), EarlyActivity.is_active.is_(True),
+                    EarlyModule.is_published.is_(True), EarlyModule.is_active.is_(True),
+                )
             )
-        )
-    ).scalar_one()
-    return int(total or 0)
+        ).scalar_one()
+        total += int(part or 0)
+    return total
+
+
+def _played_days(student_id: int):
+    """(activity_id, activity_date) rows from both daily tables — two levels
+    of one game on one day are one play of that game."""
+    return union(
+        select(EarlyActivityDailyStars.activity_id, EarlyActivityDailyStars.activity_date)
+        .where(EarlyActivityDailyStars.student_id == student_id),
+        select(EarlyActivityLevelDailyStars.activity_id, EarlyActivityLevelDailyStars.activity_date)
+        .where(EarlyActivityLevelDailyStars.student_id == student_id),
+    ).subquery()
 
 
 async def plays_on(db: AsyncSession, student_id: int, day: date) -> int:
-    """Distinct activities played that day (one daily row per activity)."""
+    """Distinct activities played that day, at any level."""
+    played = _played_days(student_id)
     return (
         await db.execute(
-            select(func.count()).select_from(EarlyActivityDailyStars).where(
-                EarlyActivityDailyStars.student_id == student_id,
-                EarlyActivityDailyStars.activity_date == day,
-            )
+            select(func.count()).select_from(played).where(played.c.activity_date == day)
         )
     ).scalar_one()
 
@@ -114,15 +128,13 @@ async def plays_on(db: AsyncSession, student_id: int, day: date) -> int:
 async def current_streak(db: AsyncSession, student_id: int, today: date) -> int:
     """Consecutive play days ending today — or yesterday, when today is not
     a play day yet (the streak is still alive until the day is over)."""
+    played = _played_days(student_id)
     days = set(
         (
             await db.execute(
-                select(EarlyActivityDailyStars.activity_date)
-                .where(
-                    EarlyActivityDailyStars.student_id == student_id,
-                    EarlyActivityDailyStars.activity_date <= today,
-                )
-                .group_by(EarlyActivityDailyStars.activity_date)
+                select(played.c.activity_date)
+                .where(played.c.activity_date <= today)
+                .group_by(played.c.activity_date)
                 .having(func.count() >= DAILY_PLAYS_NEEDED)
             )
         ).scalars().all()
