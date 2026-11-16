@@ -635,8 +635,9 @@ async def test_public_endpoints_have_no_write_route():
     exposing an unauthenticated write endpoint here."""
     from app.api.v1.endpoints.early_learning import router
 
-    public_paths = {r.path for r in router.routes if r.path.startswith("/public")}
-    assert public_paths == {"/public/modules", "/public/modules/{module_id}"}
+    public = [r for r in router.routes if r.path.startswith("/public")]
+    assert {r.path for r in public} == {"/public/modules", "/public/modules/{module_id}", "/public/voice"}
+    assert all(r.methods == {"GET"} for r in public)
 
 
 @pytest.mark.asyncio
