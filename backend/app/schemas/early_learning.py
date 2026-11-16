@@ -71,6 +71,7 @@ class EarlyPublicModuleDetail(EarlyPublicModuleListItem):
 
 class EarlyActivityCompleteIn(BaseModel):
     stars: int = Field(ge=0, le=3)
+    level: int = Field(1, ge=1, le=3)
 
 
 class EarlyStickerOut(BaseModel):
@@ -126,6 +127,7 @@ class EarlyActivityCompleteOut(BaseModel):
     stars_earned: int
     attempts: int
     first_completed_at: datetime
+    level: int = 1
     new_stickers: List[EarlyStickerOut] = []
 
 

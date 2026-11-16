@@ -16,7 +16,8 @@ from sqlalchemy.orm import selectinload
 
 from app.dependencies import get_db, get_current_student, require_games_unlocked
 from app.models.early_learning import (
-    EarlyActivity, EarlyActivityCompletion, EarlyActivityDailyStars, EarlyModule,
+    EarlyActivity, EarlyActivityCompletion, EarlyActivityDailyStars,
+    EarlyActivityLevelCompletion, EarlyActivityLevelDailyStars, EarlyModule,
     EarlyStickerAward,
 )
 from app.models.user import Student, UserRole
@@ -35,6 +36,7 @@ from app.schemas.early_learning import (
     EarlyPublicModuleListItem,
     EarlyVoiceOut,
 )
+from app.services.early_levels import UNLOCK_STARS, best_stars_at
 from app.services.early_sections import section_for_modes
 from app.services.early_voice import audio_url, norm_lang, phrase_urls
 from app.services.early_sticker_service import album as sticker_album, sticker_payload, sync_awards
@@ -420,6 +422,105 @@ async def get_public_early_module(
     )
 
 
+async def _record_level_one(
+    db: AsyncSession, student_id: int, activity_id: int, stars: int
+) -> EarlyActivityCompletion:
+    """Level 1 upsert into the original tables (unchanged behaviour)."""
+    existing = (
+        await db.execute(
+            select(EarlyActivityCompletion).where(
+                EarlyActivityCompletion.student_id == student_id,
+                EarlyActivityCompletion.activity_id == activity_id,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if existing is None:
+        existing = EarlyActivityCompletion(
+            student_id=student_id,
+            activity_id=activity_id,
+            stars_earned=stars,
+            attempts=1,
+        )
+        db.add(existing)
+    else:
+        existing.attempts += 1
+        existing.stars_earned = max(existing.stars_earned, stars)
+
+    # Same upsert, scoped to today — this is the resettable counterpart
+    # (see EarlyActivityDailyStars docstring). Kept as its own row/query
+    # rather than derived from `existing` so a kid's first play of the day
+    # on an activity they already mastered weeks ago still logs today's
+    # attempt instead of being silently absorbed into the all-time row.
+    today = _today()
+    today_row = (
+        await db.execute(
+            select(EarlyActivityDailyStars).where(
+                EarlyActivityDailyStars.student_id == student_id,
+                EarlyActivityDailyStars.activity_id == activity_id,
+                EarlyActivityDailyStars.activity_date == today,
+            )
+        )
+    ).scalar_one_or_none()
+    if today_row is None:
+        db.add(EarlyActivityDailyStars(
+            student_id=student_id,
+            activity_id=activity_id,
+            activity_date=today,
+            stars_earned=stars,
+            attempts=1,
+        ))
+    else:
+        today_row.attempts += 1
+        today_row.stars_earned = max(today_row.stars_earned, stars)
+    return existing
+
+
+async def _record_higher_level(
+    db: AsyncSession, student_id: int, activity_id: int, level: int, stars: int
+) -> EarlyActivityLevelCompletion:
+    """Level 2/3 upsert — same rule as level 1, in the level tables."""
+    existing = (
+        await db.execute(
+            select(EarlyActivityLevelCompletion).where(
+                EarlyActivityLevelCompletion.student_id == student_id,
+                EarlyActivityLevelCompletion.activity_id == activity_id,
+                EarlyActivityLevelCompletion.level == level,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        existing = EarlyActivityLevelCompletion(
+            student_id=student_id, activity_id=activity_id, level=level,
+            stars_earned=stars, attempts=1,
+        )
+        db.add(existing)
+    else:
+        existing.attempts += 1
+        existing.stars_earned = max(existing.stars_earned, stars)
+
+    today = _today()
+    today_row = (
+        await db.execute(
+            select(EarlyActivityLevelDailyStars).where(
+                EarlyActivityLevelDailyStars.student_id == student_id,
+                EarlyActivityLevelDailyStars.activity_id == activity_id,
+                EarlyActivityLevelDailyStars.level == level,
+                EarlyActivityLevelDailyStars.activity_date == today,
+            )
+        )
+    ).scalar_one_or_none()
+    if today_row is None:
+        db.add(EarlyActivityLevelDailyStars(
+            student_id=student_id, activity_id=activity_id, level=level,
+            activity_date=today, stars_earned=stars, attempts=1,
+        ))
+    else:
+        today_row.attempts += 1
+        today_row.stars_earned = max(today_row.stars_earned, stars)
+    return existing
+
+
 @router.post("/activities/{activity_id}/complete", response_model=EarlyActivityCompleteOut, dependencies=[Depends(require_games_unlocked)])
 async def complete_early_activity(
     activity_id: int,
@@ -450,53 +551,17 @@ async def complete_early_activity(
     ):
         raise HTTPException(status_code=404, detail="Faoliyat topilmadi")
 
-    existing = (
-        await db.execute(
-            select(EarlyActivityCompletion).where(
-                EarlyActivityCompletion.student_id == current_student.id,
-                EarlyActivityCompletion.activity_id == activity_id,
-            )
-        )
-    ).scalar_one_or_none()
-
-    if existing is None:
-        existing = EarlyActivityCompletion(
-            student_id=current_student.id,
-            activity_id=activity_id,
-            stars_earned=payload.stars,
-            attempts=1,
-        )
-        db.add(existing)
+    if payload.level == 1:
+        existing = await _record_level_one(db, current_student.id, activity_id, payload.stars)
     else:
-        existing.attempts += 1
-        existing.stars_earned = max(existing.stars_earned, payload.stars)
-
-    # Same upsert, scoped to today — this is the resettable counterpart
-    # (see EarlyActivityDailyStars docstring). Kept as its own row/query
-    # rather than derived from `existing` so a kid's first play of the day
-    # on an activity they already mastered weeks ago still logs today's
-    # attempt instead of being silently absorbed into the all-time row.
+        if current_student.role == UserRole.student and (
+            await best_stars_at(db, current_student.id, activity_id, payload.level - 1)
+        ) < UNLOCK_STARS:
+            raise HTTPException(status_code=409, detail="level_locked")
+        existing = await _record_higher_level(
+            db, current_student.id, activity_id, payload.level, payload.stars
+        )
     today = _today()
-    today_row = (
-        await db.execute(
-            select(EarlyActivityDailyStars).where(
-                EarlyActivityDailyStars.student_id == current_student.id,
-                EarlyActivityDailyStars.activity_id == activity_id,
-                EarlyActivityDailyStars.activity_date == today,
-            )
-        )
-    ).scalar_one_or_none()
-    if today_row is None:
-        db.add(EarlyActivityDailyStars(
-            student_id=current_student.id,
-            activity_id=activity_id,
-            activity_date=today,
-            stars_earned=payload.stars,
-            attempts=1,
-        ))
-    else:
-        today_row.attempts += 1
-        today_row.stars_earned = max(today_row.stars_earned, payload.stars)
 
     # Read everything needed later now: a failed sticker pass rolls the
     # session back, which expires these objects.
@@ -508,6 +573,7 @@ async def complete_early_activity(
     await db.commit()
     await db.refresh(existing)
     out = EarlyActivityCompleteOut.model_validate(existing)
+    out.level = payload.level
 
     # Stickers are a bonus on top of an already-saved completion — whatever
     # goes wrong here, the kid's stars stay recorded and the call succeeds.

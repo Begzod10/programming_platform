@@ -222,6 +222,66 @@ class EarlyActivityDailyStars(Base):
     )
 
 
+class EarlyActivityLevelCompletion(Base):
+    """Best-attempt record for levels 2 and 3 of an activity. Level 1 stays in
+    EarlyActivityCompletion (one row per student+activity is read in many
+    places); the harder levels live here so that table's unique key never
+    has to change. Same write rule: attempts +1, stars_earned only goes up.
+    """
+    __tablename__ = "early_activity_level_completions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    activity_id: Mapped[int] = mapped_column(
+        ForeignKey("early_activities.id", ondelete="CASCADE"), nullable=False
+    )
+    level: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    stars_earned: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    first_completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_attempt_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint("student_id", "activity_id", "level", name="uq_student_early_activity_level"),
+        CheckConstraint("level IN (2, 3)", name="ck_early_activity_level_2_3"),
+    )
+
+
+class EarlyActivityLevelDailyStars(Base):
+    """Per-day counterpart of EarlyActivityLevelCompletion (levels 2-3), the
+    same way EarlyActivityDailyStars is for level 1."""
+    __tablename__ = "early_activity_level_daily_stars"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    student_id: Mapped[int] = mapped_column(
+        ForeignKey("students.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    activity_id: Mapped[int] = mapped_column(
+        ForeignKey("early_activities.id", ondelete="CASCADE"), nullable=False
+    )
+    level: Mapped[int] = mapped_column(Integer, nullable=False)
+    activity_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+
+    stars_earned: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "student_id", "activity_id", "level", "activity_date",
+            name="uq_student_early_activity_level_day",
+        ),
+    )
+
+
 class EarlyStickerAward(Base):
     """One collectible sticker a student owns (see
     app/services/early_sticker_catalog.py for the catalog and

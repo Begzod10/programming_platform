@@ -32,7 +32,10 @@ from app.models.store import (
     StudentPurchase,
     StudentInventoryItem,
 )
-from app.models.early_learning import EarlyModule, EarlyActivity, EarlyActivityCompletion, EarlyStickerAward
+from app.models.early_learning import (
+    EarlyModule, EarlyActivity, EarlyActivityCompletion, EarlyStickerAward,
+    EarlyActivityLevelCompletion, EarlyActivityLevelDailyStars,
+)
 from app.models.error_log import AppErrorLog
 from app.models.duel_stat import DuelStat
 from app.models.summative import SummativeAttempt, SummativeSet
@@ -111,6 +114,8 @@ __all__ = [
     "EarlyModule",
     "EarlyActivity",
     "EarlyActivityCompletion",
+    "EarlyActivityLevelCompletion",
+    "EarlyActivityLevelDailyStars",
     "AppErrorLog",
     "TeamProject",
     "TeamProjectTeam",
