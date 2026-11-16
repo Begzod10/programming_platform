@@ -214,7 +214,7 @@ export default function RoundsActivity(props) {
         if (completion.celebration !== null || completion.submitting || locked) return;
         if (key === round.answer) {
             playSynth('chime');
-            cheer('correct');
+            if (!round.speakText) cheer('correct');
             setLocked(true);
             setCorrect(key);
             setTimeout(() => {
@@ -225,7 +225,7 @@ export default function RoundsActivity(props) {
             }, PULSE_MS);
         } else {
             playSynth('laser');
-            cheer('wrong');
+            if (!round.speakText) cheer('wrong');
             setWrongCount((c) => c + 1);
             const token = Date.now();
             setFlash({ token, key });
@@ -237,7 +237,9 @@ export default function RoundsActivity(props) {
     const title = TITLES[kind] || TITLES.mult;
 
     return (
-        <ActivityShell {...props} emoji={title.emoji} completion={completion}>
+        // Listen rounds: the browser speaks the letter/number, so the instruction only plays on 🔊 and no
+        // praise is spoken over the next word.
+        <ActivityShell {...props} emoji={title.emoji} completion={completion} autoplayInstruction={kind !== 'listen'}>
             {round.visual}
             {round.speakText && (
                 <div className="wc-listen">

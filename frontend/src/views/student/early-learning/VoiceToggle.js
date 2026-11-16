@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useTranslation } from '../../../i18n/useTranslation';
+import { Volume2, VolumeX } from 'lucide-react';
 import { isVoiceOn, setVoiceOn } from './earlyVoice';
 
-/** 🔊/🔇 switch for the games' voice; remembered on this device. */
+/** Voice on/off switch, remembered on this device. A small grey line icon on purpose: the big yellow 🔊
+ * beside an instruction means "listen", and a child must not mistake one for the other. */
 export default function VoiceToggle() {
     const { t } = useTranslation();
     const [on, setOn] = useState(isVoiceOn);
@@ -18,7 +20,7 @@ export default function VoiceToggle() {
             aria-pressed={!on}
             aria-label={on ? t('el.voiceOn') : t('el.voiceOff')}
         >
-            {on ? '🔊' : '🔇'}
+            {on ? <Volume2 size={16} /> : <VolumeX size={16} />}
         </button>
     );
 }

@@ -6,6 +6,7 @@ import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
 import { cheer } from './earlyVoice';
+import InstructionVoice from './InstructionVoice';
 import { starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
@@ -167,6 +168,8 @@ export default function ChartActivity({ activity, onBack, onComplete, lang, togg
                 <span className="aa-character-emoji">{character.emoji || '📊'}</span>
                 <h2>{character.label || activity.title}</h2>
             </div>
+
+            <InstructionVoice activity={activity} className="aa-instruction" />
 
             <div className="wc-chart">
                 {round.bars.map((b) => (

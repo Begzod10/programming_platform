@@ -461,14 +461,17 @@
 
 /* Voice (D): mute switch inside the lang toggle, listen button beside an instruction */
 .el-voice-btn {
+    display: inline-flex;
+    align-items: center;
     border: none;
     background: transparent;
+    color: #64748b;
     border-radius: 999px;
     padding: 4px 8px;
-    font-size: 1rem;
     line-height: 1;
     cursor: pointer;
 }
+.el-voice-btn[aria-pressed="true"] { color: #ef4444; }
 .el-voice-btn:hover { background: rgba(255, 255, 255, 0.8); }
 .el-listen-btn {
     display: inline-flex;

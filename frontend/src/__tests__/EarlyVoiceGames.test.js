@@ -4,6 +4,9 @@ import MatchingActivity from '../views/student/early-learning/MatchingActivity';
 import BuildActivity from '../views/student/early-learning/BuildActivity';
 import CompareActivity from '../views/student/early-learning/CompareActivity';
 import EarlyActivityCelebration from '../views/student/early-learning/EarlyActivityCelebration';
+import RoundsActivity from '../views/student/early-learning/RoundsActivity';
+import MergeActivity from '../views/student/early-learning/MergeActivity';
+import ChartActivity from '../views/student/early-learning/ChartActivity';
 import translations from '../i18n/translations';
 
 jest.mock('../api/search/base', () => ({
@@ -72,4 +75,26 @@ test('ActivityShell games keep the instruction class name', () => {
 test('celebration says the phrase for its star count', () => {
     render(<EarlyActivityCelebration stars={2} onDone={jest.fn()} t={t} />);
     expect(voice.cheerStars).toHaveBeenCalledWith(2);
+});
+
+test('listen rounds do not read the instruction over the spoken letter and do not cheer', () => {
+    window.speechSynthesis = { speak: jest.fn(), cancel: jest.fn(), getVoices: () => [] };
+    global.SpeechSynthesisUtterance = function U(text) { this.text = text; };
+    render(<RoundsActivity activity={{ id: 8, title: 'Eshit', ...instruction, content: { mode: 'rounds', kind: 'listen', set: 'numbers', rounds_count: 1 } }} {...base} />);
+    expect(screen.getByText('Mevalarni top.')).toBeInTheDocument();
+    expect(voice.playVoice).not.toHaveBeenCalled();
+    fireEvent.click(screen.getAllByRole('button').find((b) => /^\d$/.test(b.textContent)));
+    expect(voice.cheer).not.toHaveBeenCalled();
+});
+
+test('a merge slide is not praised as an answer', () => {
+    render(<MergeActivity activity={{ id: 9, title: '2048', content: { mode: 'merge', goal: 64 } }} {...base} />);
+    ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].forEach((key) => fireEvent.keyDown(window, { key }));
+    expect(voice.cheer).not.toHaveBeenCalledWith('correct');
+});
+
+test('ChartActivity shows and reads its instruction', () => {
+    render(<ChartActivity activity={{ id: 10, title: 'Diagramma', ...instruction, instruction_text: 'Diagrammaga qara.', content: { mode: 'chart' } }} {...base} />);
+    expect(screen.getByText('Diagrammaga qara.')).toBeInTheDocument();
+    expect(voice.playVoice).toHaveBeenCalled();
 });

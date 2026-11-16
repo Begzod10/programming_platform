@@ -38,6 +38,7 @@ export function useActivityCompletion(activity, guest, onComplete) {
  * celebration overlay) around a game body. */
 export default function ActivityShell({
     activity, onBack, lang, toggleLang, t, emoji, completion, children, hideInstruction = false,
+    autoplayInstruction = true,
 }) {
     const character = (activity.content || {}).character || {};
     return (
@@ -54,7 +55,9 @@ export default function ActivityShell({
                 <h2>{character.label || activity.title}</h2>
             </div>
 
-            {!hideInstruction && <InstructionVoice activity={activity} className="aa-instruction" />}
+            {!hideInstruction && (
+                <InstructionVoice activity={activity} className="aa-instruction" autoplay={autoplayInstruction} />
+            )}
 
             {children}
 

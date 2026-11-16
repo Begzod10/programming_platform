@@ -72,8 +72,7 @@ export default function MergeActivity(props) {
         const nb = addTile(res.board);
         setBoard(nb);
         setMoves((m) => m + 1);
-        playSynth('chime');
-        cheer('correct');
+        playSynth('chime');  // every slide, not an answer: no spoken praise
         if (nb.some((row) => row.some((v) => v >= goal))) {
             playSynth('fanfare');
             const total = moves + 1;

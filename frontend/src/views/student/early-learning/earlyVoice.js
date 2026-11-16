@@ -10,21 +10,17 @@ const CORRECT = ['correct1', 'correct2', 'correct3', 'correct4'];
 const WRONG = ['wrong1', 'wrong2'];
 
 let audio = null;
-let playing = false;
-let playingKind = null;
+let playingKind = null;  // kind of the clip the element currently holds
+let token = 0;           // bumped by every play/stop so late events of an older clip are ignored
 let lastCheerAt = -Infinity;
 const phrases = {};      // lang -> {key: url} once loaded
 const loading = {};      // lang -> Promise
 let generation = 0;      // bumped by the test reset so a stale request cannot refill the cache
+let pendingStars = null; // {cleanup} while the star phrase waits for the praise to finish
+let detach = null;       // removes the end/error listeners of the current clip
 
 function player() {
-    if (!audio) {
-        audio = new Audio();
-        const stopped = () => { playing = false; playingKind = null; };
-        audio.addEventListener('ended', stopped);
-        audio.addEventListener('pause', stopped);
-        audio.addEventListener('error', stopped);
-    }
+    if (!audio) audio = new Audio();
     return audio;
 }
 
@@ -48,30 +44,44 @@ export function currentLang() {
     try { return localStorage.getItem('lang') === 'ru' ? 'ru' : 'uz'; } catch { return 'uz'; }
 }
 
-export function stopVoice() {
+function cancelPendingStars() {
+    if (pendingStars) { pendingStars.cleanup(); pendingStars = null; }
+}
+
+/** Stop the voice. With `kind`, only when the current clip is of that kind (leaving a game stops its
+ * instruction but lets the star phrase finish). */
+export function stopVoice(kind) {
     if (!audio) return;
+    if (kind && playingKind !== kind) return;
+    token += 1;
+    cancelPendingStars();
+    if (detach) { detach(); detach = null; }
     try { audio.pause(); } catch { /* ignore */ }
-    playing = false;
     playingKind = null;
 }
 
 export function isPlaying(kind) {
-    return playing && (!kind || playingKind === kind);
+    if (!playingKind) return false;
+    return !kind || playingKind === kind;
 }
 
 export async function playVoice(url, { force = false, kind = 'instruction' } = {}) {
     if (!url || (!force && !isVoiceOn())) return false;
     const a = player();
     stopVoice();
+    const my = ++token;
+    // Only this clip's own end/error clears the flag; a late pause or rejection of an older clip cannot.
+    const finished = () => { if (my === token) { playingKind = null; if (detach) { detach(); detach = null; } } };
+    a.addEventListener('ended', finished);
+    a.addEventListener('error', finished);
+    detach = () => { a.removeEventListener('ended', finished); a.removeEventListener('error', finished); };
     try {
         a.src = absolute(url);
         playingKind = kind;
-        playing = true;
         await a.play();
-        return true;
+        return my === token;
     } catch {
-        playing = false;
-        playingKind = null;
+        finished();
         return false;
     }
 }
@@ -107,18 +117,34 @@ export function cheer(kind) {
     return true;
 }
 
-/** The end-of-game phrase for 1-3 stars; ignores the gap and interrupts whatever is playing. */
+/** The end-of-game phrase for 1-3 stars; ignores the gap. If a praise phrase is still playing it waits for
+ * it to end (at most STAR_WAIT_MS) instead of cutting it off; an instruction is interrupted. */
+export const STAR_WAIT_MS = 2500;
 export function cheerStars(stars) {
     if (!isVoiceOn()) return false;
     const urls = phraseUrls([`star${Math.min(3, Math.max(1, stars || 1))}`]);
     if (!urls || !urls.length) return false;
     lastCheerAt = Date.now();
-    playVoice(urls[0], { kind: 'cheer' });
+    cancelPendingStars();
+    if (!isPlaying('cheer')) {
+        playVoice(urls[0], { kind: 'cheer' });
+        return true;
+    }
+    const a = audio;
+    const my = token;
+    const go = () => {
+        cancelPendingStars();
+        if (my === token || !playingKind) playVoice(urls[0], { kind: 'cheer' });
+    };
+    const timer = setTimeout(go, STAR_WAIT_MS);
+    a.addEventListener('ended', go);
+    pendingStars = { cleanup: () => { clearTimeout(timer); a.removeEventListener('ended', go); } };
     return true;
 }
 
 export function __resetVoiceForTests() {
     stopVoice();
+    cancelPendingStars();
     audio = null;
     lastCheerAt = -Infinity;
     generation += 1;

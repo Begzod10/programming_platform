@@ -141,6 +141,8 @@ test('cheerStars plays the matching star phrase even inside the 4 second gap', a
     jest.spyOn(Date, 'now').mockReturnValue(100000);
     await loadPhrases('uz');
     expect(cheer('correct')).toBe(true);
+    await flush();
+    act(() => { __audioForTests().dispatchEvent(new Event('ended')); });   // praise finished, still within 4 s
     expect(cheerStars(2)).toBe(true);
     await flush();
     expect(__audioForTests().src).toContain('/s2.mp3');
@@ -150,4 +152,69 @@ test('phrases follow the app language', async () => {
     localStorage.setItem('lang', 'ru');
     cheer('correct');
     expect(global.fetch).toHaveBeenCalledWith('http://api.test/api/v1/early-learning/public/voice?lang=ru');
+});
+
+/* ── review fixes ── */
+
+test('a late pause event from the stopped clip does not mark the new instruction as finished', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(500000);
+    await loadPhrases('uz');
+    await playVoice('/uploads/early-audio/uz/a.mp3');
+    await playVoice('/uploads/early-audio/uz/a.mp3', { force: true });      // child taps 🔊 again
+    act(() => { __audioForTests().dispatchEvent(new Event('pause')); });   // queued pause of the first clip
+    expect(cheer('correct')).toBe(false);
+});
+
+test('a rejected older play does not clear the newer clip', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(600000);
+    await loadPhrases('uz');
+    let rejectFirst;
+    play.mockImplementationOnce(() => new Promise((_, rej) => { rejectFirst = rej; }));
+    const first = playVoice('/uploads/early-audio/uz/a.mp3');
+    await playVoice('/uploads/early-audio/uz/b.mp3');
+    rejectFirst(new Error('AbortError'));
+    await first;
+    expect(cheer('correct')).toBe(false);
+});
+
+test('cheerStars waits for the praise that is still playing', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(700000);
+    await loadPhrases('uz');
+    expect(cheer('correct')).toBe(true);
+    await flush();
+    play.mockClear();
+    expect(cheerStars(2)).toBe(true);
+    await flush();
+    expect(play).not.toHaveBeenCalled();
+    act(() => { __audioForTests().dispatchEvent(new Event('ended')); });
+    await flush();
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(__audioForTests().src).toContain('/s2.mp3');
+});
+
+test('leaving a game does not cut the star phrase', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(800000);
+    await loadPhrases('uz');
+    const { unmount } = render(<InstructionVoice activity={activity({ instruction_audio_url: null })} className="x" />);
+    cheerStars(3);
+    await flush();
+    pause.mockClear();
+    unmount();
+    expect(pause).not.toHaveBeenCalled();
+});
+
+test('InstructionVoice with autoplay off waits for the button', async () => {
+    render(<InstructionVoice activity={activity()} className="x" autoplay={false} />);
+    await flush();
+    expect(play).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Eshitish' }));
+    await flush();
+    expect(play).toHaveBeenCalledTimes(1);
+});
+
+test('the mute switch does not look like the listen button', () => {
+    render(<VoiceToggle />);
+    const btn = screen.getByRole('button', { name: "Ovozni o'chirish" });
+    expect(btn.textContent).not.toContain('🔊');
+    expect(btn.querySelector('svg')).not.toBeNull();
 });
