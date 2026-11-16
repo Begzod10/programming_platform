@@ -180,13 +180,14 @@ export default function MatchingActivity({ activity, onBack, onComplete, lang, t
                             style={{ '--i': i, animationDelay: `${i * 0.06}s` }}
                             onClick={() => handleTap(item)}
                             disabled={isFound}
+                            aria-label={content.hide_labels ? item.label : undefined}
                         >
                             <span className="ma-item-icon">
                                 {isFlashing
                                     ? <span className="ma-item-sad" aria-hidden="true">😕</span>
                                     : <ItemIcon emoji={item.emoji} icon={item.icon} size={56} />}
                             </span>
-                            <span className="ma-item-label">{item.label}</span>
+                            {!content.hide_labels && <span className="ma-item-label">{item.label}</span>}
                             {isFound && <span className="ma-item-check" aria-hidden="true">✓</span>}
                         </button>
                     );

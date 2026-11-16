@@ -16,10 +16,10 @@ const CORRECT_PULSE_MS = 550;
  * first) — a kid at this level hasn't met negative numbers yet. */
 function randInt(max) { return Math.floor(Math.random() * (max + 1)); }
 
-function makeRound(operations) {
+function makeRound(operations, max = 9) {
     const op = operations[randInt(operations.length - 1)];
-    let a = randInt(9);
-    let b = randInt(9);
+    let a = randInt(max);
+    let b = randInt(max);
     let answer;
     if (op === 'subtract') {
         if (a < b) [a, b] = [b, a]; // keep it non-negative
@@ -38,7 +38,7 @@ function makeRound(operations) {
         if (candidate >= 0 && candidate !== answer) wrongs.add(candidate);
     }
     while (wrongs.size < 3) {
-        const candidate = randInt(18);
+        const candidate = randInt(max * 2);
         if (candidate !== answer) wrongs.add(candidate);
     }
 
@@ -51,7 +51,7 @@ function makeRound(operations) {
 
 /** One "solve the equation" round. activity.content shape (mode:
  * "arithmetic"): { character: {emoji,label}, operations: ["add","subtract"],
- * rounds_count: 8 } — everything optional, rounds are generated on the fly
+ * rounds_count: 8, max: 9 } — everything optional, rounds are generated on the fly
  * (not authored) so every play-through is a fresh set of problems. Sibling
  * of CountActivity.js, same round-cycle/scoring/celebration shape, only the
  * "what am I solving" and "what do the options mean" parts differ. */
@@ -61,9 +61,10 @@ export default function ArithmeticActivity({ activity, onBack, onComplete, lang,
     const character = content.character || {};
     const operations = content.operations?.length ? content.operations : ['add', 'subtract'];
     const roundsCount = content.rounds_count || 8;
+    const max = content.max || 9; // game levels 2-3 raise it (levelContent.js)
 
     const rounds = useMemo(
-        () => Array.from({ length: roundsCount }, () => makeRound(operations)),
+        () => Array.from({ length: roundsCount }, () => makeRound(operations, max)),
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [activity.id, activity.content]
     );

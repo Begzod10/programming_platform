@@ -26,13 +26,16 @@ export default function SequenceActivity({ activity, onBack, onComplete, lang, t
     const { request } = useHttp();
     const content = activity.content || {};
     const character = content.character || {};
-    const steps = content.steps || []; // canonical (correct) order
+    // canonical (correct) order; `distractor` steps (game levels 2-3, see
+    // levelContent.js) only sit in the tray and are always a wrong tap.
+    const allSteps = content.steps || [];
+    const steps = allSteps.filter((s) => !s.distractor);
 
     // Depend on activity.content, not just activity.id — see
     // MatchingActivity.js's pool useMemo for why (lang toggle mid-play
     // re-fetches translated content; only the content reference actually
     // changes when that happens).
-    const shuffledSteps = useMemo(() => shuffle(steps),
+    const shuffledSteps = useMemo(() => shuffle(allSteps),
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [activity.id, activity.content]);
 

@@ -356,7 +356,7 @@ export default function TraceActivity({ activity, onBack, onComplete, lang, togg
             playSynth('fanfare');
             const avg = results.reduce((s, v) => s + v, 0) / results.length;
             setCoverageResults(results);
-            setCelebration(starsForCoverage(avg));
+            setCelebration(starsForCoverage(avg, activity.level || 1));
         }
     };
 

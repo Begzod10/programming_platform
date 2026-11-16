@@ -39,10 +39,13 @@ export function starsForWrongCount(wrongCount) {
 
 /** Same idea as starsForWrongCount, for TraceActivity.js's coverage-based
  * scoring (% of a shape's outline actually traced) — never below 1 star,
- * same "a kid who tried shouldn't score zero" floor. */
-export function starsForCoverage(pct) {
-    if (pct >= 0.85) return 3;
-    if (pct >= 0.55) return 2;
+ * same "a kid who tried shouldn't score zero" floor. Game levels 2 and 3
+ * ask for a neater trace (the shapes themselves stay the same). */
+const COVERAGE_BARS = { 1: [0.85, 0.55], 2: [0.9, 0.65], 3: [0.94, 0.75] };
+export function starsForCoverage(pct, level = 1) {
+    const [three, two] = COVERAGE_BARS[level] || COVERAGE_BARS[1];
+    if (pct >= three) return 3;
+    if (pct >= two) return 2;
     return 1;
 }
 
