@@ -28,6 +28,8 @@ import HangmanActivity from './HangmanActivity';
 import MergeActivity from './MergeActivity';
 import SudokuActivity from './SudokuActivity';
 import PicturePuzzleActivity from './PicturePuzzleActivity';
+import CollectActivity from './CollectActivity';
+import ConnectActivity from './ConnectActivity';
 import LangToggle from './LangToggle';
 import Sky from './Sky';
 import StickerStrip from './StickerStrip';
@@ -470,6 +472,9 @@ export default function EarlyLearning({ guest = false }) {
                 mode === 'merge' ? MergeActivity :
                 mode === 'sudoku' ? SudokuActivity :
                 mode === 'puzzle' ? PicturePuzzleActivity :
+                // The active games play select content another way.
+                mode === 'collect' ? CollectActivity :
+                mode === 'connect' ? ConnectActivity :
                 MatchingActivity;
             return (
                 <div className="el-shell">

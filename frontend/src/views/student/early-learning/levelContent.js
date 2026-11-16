@@ -17,7 +17,7 @@ const HOME_ROW = 'asdfghjkl'.split('');
 export const CATCH_FALL_MS = [5000, 4000, 3300];
 const MAZE_MAX = 9;
 
-function rng(seed) {
+export function rng(seed) {
     // mulberry32
     let a = (seed >>> 0) || 1;
     return () => {
@@ -29,7 +29,7 @@ function rng(seed) {
     };
 }
 
-function shuffled(list, rand) {
+export function shuffled(list, rand) {
     const out = [...list];
     for (let i = out.length - 1; i > 0; i -= 1) {
         const j = Math.floor(rand() * (i + 1));

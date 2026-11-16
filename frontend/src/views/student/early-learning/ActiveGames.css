@@ -1,0 +1,143 @@
+/* Active kids' games: collect, connect, catch, dragsort. Lives inside
+ * ActivityShell's .aa-page. Everything fits a 375px phone without
+ * horizontal scrolling. */
+
+.ag-counter {
+    font-family: var(--el-font-display);
+    font-weight: 700;
+    color: var(--el-ink-soft);
+    margin: 4px 0 10px;
+    text-align: center;
+}
+
+.ag-pic { line-height: 1; display: inline-block; }
+
+@keyframes ag-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+}
+.ag-shake { animation: ag-shake 0.45s ease both; }
+
+/* ---- collect ---- */
+.ag-board {
+    display: grid;
+    gap: 4px;
+    width: min(100%, 420px);
+    aspect-ratio: 1;
+    padding: 8px;
+    box-sizing: border-box;
+    background: rgba(124, 92, 255, 0.08);
+    border-radius: 20px;
+    user-select: none;
+    -webkit-user-select: none;
+}
+.ag-cell {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border-radius: 10px;
+    min-width: 0;
+    min-height: 0;
+}
+.ag-cell-wall { background: #8d7bd8; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.15); }
+.ag-cell-collected { background: #e6f8ea; }
+.ag-cell-item { display: flex; }
+.ag-hero {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(18px, 6vw, 30px);
+    transition: transform 0.15s ease;
+}
+
+.ag-pad { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 14px; }
+.ag-pad-row { display: flex; gap: 56px; }
+.ag-pad-btn {
+    width: 56px;
+    height: 56px;
+    border-radius: 18px;
+    border: none;
+    background: var(--el-primary, #7c5cff);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.ag-pad-btn:disabled { opacity: 0.5; }
+
+/* ---- connect ---- */
+.ag-connect {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    gap: 12px;
+    width: min(100%, 640px);
+    user-select: none;
+    -webkit-user-select: none;
+}
+.ag-lines {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 2;
+}
+.ag-line { stroke-width: 5; stroke-linecap: round; }
+.ag-line-live { stroke: #7c5cff; stroke-dasharray: 2 10; }
+.ag-line-done { stroke: #3cb46e; }
+.ag-line-bad { stroke: #e5484d; }
+
+.ag-connect-items {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    gap: 8px;
+    align-content: start;
+}
+.ag-piece {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 4px;
+    border-radius: 16px;
+    border: 2px solid rgba(124, 92, 255, 0.25);
+    background: #fff;
+    cursor: grab;
+    touch-action: none;
+    min-width: 0;
+}
+.ag-piece-label { font-size: 0.78rem; font-weight: 600; color: var(--el-ink); overflow-wrap: anywhere; text-align: center; }
+.ag-piece-selected { border-color: #7c5cff; box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.25); }
+.ag-piece-done { border-color: #3cb46e; background: #e6f8ea; cursor: default; }
+
+.ag-connect-target {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 24px;
+    border: 3px dashed rgba(124, 92, 255, 0.4);
+    background: rgba(255, 255, 255, 0.9);
+    min-height: 220px;
+    cursor: pointer;
+    min-width: 0;
+}
+.ag-target-emoji { font-size: clamp(48px, 14vw, 84px); line-height: 1; }
+.ag-target-label { font-weight: 700; color: var(--el-ink); text-align: center; overflow-wrap: anywhere; }
+
+@media (prefers-reduced-motion: reduce) {
+    .ag-shake { animation: none; }
+    .ag-hero { transition: none; }
+}
