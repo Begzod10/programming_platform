@@ -172,11 +172,11 @@ describe('home components', () => {
         expect([...nodes].map((n) => n.classList.contains('ep-next'))).toEqual([false, true, false]);
         expect(nodes[1]).toHaveTextContent('Qizil 12');
         fireEvent.click(screen.getByText("Keyingi o'yin ▶"));
-        expect(onPlay).toHaveBeenLastCalledWith(12);
+        expect(onPlay).toHaveBeenLastCalledWith(expect.objectContaining({ id: 12 }), 1);
         fireEvent.click(nodes[2]);
-        expect(onPlay).toHaveBeenLastCalledWith(13);
+        expect(onPlay).toHaveBeenLastCalledWith(expect.objectContaining({ id: 13 }), 1);
         fireEvent.click(nodes[0]);
-        expect(onPlay).toHaveBeenLastCalledWith(11);
+        expect(onPlay).toHaveBeenLastCalledWith(expect.objectContaining({ id: 11 }), 1);
         expect(container.querySelector('.ep-badge')).not.toHaveClass('ep-badge-owned');
     });
 

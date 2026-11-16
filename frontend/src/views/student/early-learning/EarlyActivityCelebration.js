@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
 import '../courses/LessonPage/CelebrationOverlay.css';
 import './EarlyActivityCelebration.css';
@@ -20,6 +20,11 @@ const PIECES = Array.from({ length: 40 }, (_, i) => ({
     shape: i % 3 === 0 ? 'circle' : i % 3 === 1 ? 'square' : 'rect',
 }));
 
+/** Game levels: the play wrapper (EarlyLearning.js) says which level this
+ * play would open (`nextLevel`, null when none) and how to start it. Given
+ * through context so none of the game screens has to pass it along. */
+export const LevelUnlockContext = createContext({ nextLevel: null, onPlayNext: null });
+
 /**
  * Kids' star-based sibling of CelebrationOverlay — that component is
  * score-shaped (0-100, 3 message tiers) which doesn't map cleanly onto a
@@ -28,18 +33,22 @@ const PIECES = Array.from({ length: 40 }, (_, i) => ({
  */
 const EarlyActivityCelebration = ({ stars, onDone, t }) => {
     const [visible, setVisible] = useState(true);
+    const unlock = useContext(LevelUnlockContext);
+    // 2+ stars open the next level — offer it, and wait for the kid's choice.
+    const unlockedLevel = unlock?.nextLevel && stars >= 2 ? unlock.nextLevel : null;
 
     // Say the matching star phrase once, when the overlay opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { cheerStars(stars); }, []);
 
     useEffect(() => {
+        if (unlockedLevel) return undefined;
         const timer = setTimeout(() => {
             setVisible(false);
             setTimeout(onDone, 400);
         }, 3200);
         return () => clearTimeout(timer);
-    }, [onDone]);
+    }, [onDone, unlockedLevel]);
 
     const messages = stars === 3
         ? [t('el.star3Title'), t('el.star3Sub')]
@@ -48,6 +57,7 @@ const EarlyActivityCelebration = ({ stars, onDone, t }) => {
         : [t('el.star1Title'), t('el.star1Sub')];
 
     const close = () => { setVisible(false); setTimeout(onDone, 400); };
+    const playNext = () => { unlock.onPlayNext?.(); close(); };
 
     return ReactDOM.createPortal(
         <div className={`cel-overlay ${visible ? 'cel-visible' : 'cel-hidden'}`} onClick={close}>
@@ -74,6 +84,12 @@ const EarlyActivityCelebration = ({ stars, onDone, t }) => {
                 </div>
                 <div className="cel-headline">{messages[0]}</div>
                 <div className="cel-sub">{messages[1]}</div>
+                {unlockedLevel && (
+                    <div className="eac-unlock">{t('el.levelUnlocked').replace('{n}', unlockedLevel)}</div>
+                )}
+                {unlockedLevel && (
+                    <button className="cel-btn eac-play-next" onClick={playNext}>{t('el.playNext')}</button>
+                )}
                 <button className="cel-btn" onClick={close}>{t('el.continueBtn')}</button>
             </div>
         </div>,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import './EarlyLearning.css';
 import { API_URL, useHttp, headers, getCurrentUser } from '../../../api/search/base';
@@ -35,7 +35,10 @@ import StickerReveal from './StickerReveal';
 import ModuleCard from './ModuleCard';
 import ContinueCard from './ContinueCard';
 import ActivityPath from './ActivityPath';
-import { pickContinue, pickNew, groupBySection, nextStep } from './earlyHome';
+import { pickContinue, pickNew, groupBySection, nextStep, levelsOf, UNLOCK_STARS } from './earlyHome';
+import { levelActivity } from './levelContent';
+import LevelBadge from './LevelBadge';
+import { LevelUnlockContext } from './EarlyActivityCelebration';
 import { getDaily, queueCompletion, flushCompletionQueue, applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
 
@@ -163,7 +166,12 @@ export default function EarlyLearning({ guest = false }) {
     const [moduleDetail, setModuleDetail] = useState(null);
     const [detailLoading, setDetailLoading] = useState(!!moduleId);
 
-    const [playingActivityId, setPlayingActivityId] = useState(null);
+    // The game being played and at which level (1-3) — or null on the path.
+    // Kept across a language switch: only the module's content is re-fetched.
+    const [playing, setPlaying] = useState(null);
+    // Set by the celebration's "play the level you just opened" button; read
+    // once the finished play has been recorded.
+    const playNextRef = useRef(null);
     // Which module's detail is final for this visit — the network answered,
     // or it could not and the cached copy is all there is. Autoplay waits
     // for this so it never picks "the next game" from a stale cache.
@@ -298,7 +306,7 @@ export default function EarlyLearning({ guest = false }) {
         if (autoplayedKey.current === location.key) return;
         autoplayedKey.current = location.key;
         const next = nextStep(moduleDetail.activities);
-        if (next) setPlayingActivityId(next.activity.id);
+        if (next) setPlaying({ id: next.activity.id, level: next.level });
         navigate(location.pathname, { replace: true, state: null });
     }, [location.state, location.key, location.pathname, moduleId, moduleDetail, detailSettledFor, navigate]);
 
@@ -314,17 +322,40 @@ export default function EarlyLearning({ guest = false }) {
         return () => window.removeEventListener('online', flush);
     }, [guest, request]);
 
-    const handleActivityComplete = (activityId, result) => {
+    const handleActivityComplete = (activityId, level, result) => {
+        const playNext = playNextRef.current;
+        playNextRef.current = null;
+        // 409 level_locked: this level was not open after all (an old cache,
+        // say). Nothing to save or queue — quietly reload the real path.
+        if (result.locked) {
+            setPlaying(null);
+            if (moduleId) fetchModuleDetail(moduleId);
+            return;
+        }
         // A real server reply carries activity_id; the offline fallback in the
         // play screens does not, so that's the "didn't save" signal.
-        if (!guest && result.activity_id === undefined) queueCompletion(activityId, result.stars_earned);
+        if (!guest && result.activity_id === undefined) queueCompletion(activityId, result.stars_earned, level);
         if (moduleDetail) {
             const before = moduleDetail.activities.find((a) => a.id === activityId);
-            const activities = moduleDetail.activities.map((a) =>
-                a.id === activityId ? { ...a, best_stars: result.stars_earned, attempts: result.attempts } : a
-            );
-            const earned_stars = activities.reduce((sum, a) => sum + a.best_stars, 0);
-            const updated = { ...moduleDetail, activities, earned_stars };
+            const activities = moduleDetail.activities.map((a) => {
+                if (a.id !== activityId) return a;
+                const levels = levelsOf(a).map((l) => ({ ...l }));
+                const row = levels[level - 1];
+                row.best_stars = Math.max(row.best_stars || 0, result.stars_earned || 0);
+                row.attempts = Math.max(result.attempts || 0, (row.attempts || 0) + 1);
+                if (level < 3 && row.best_stars >= UNLOCK_STARS) levels[level].unlocked = true;
+                return {
+                    ...a,
+                    levels,
+                    best_stars: levels[0].best_stars,
+                    attempts: levels[0].attempts,
+                };
+            });
+            const allLevels = activities.flatMap((a) => levelsOf(a));
+            const earned_stars = allLevels.reduce((sum, l) => sum + (l.best_stars || 0), 0);
+            const level_plays = allLevels.filter((l) => l.attempts).length;
+            const firstPlay = before && !levelsOf(before)[level - 1].attempts;
+            const updated = { ...moduleDetail, activities, earned_stars, level_plays };
             setModuleDetail(updated);
             // Keep the offline copies in step, so the path, the home's
             // "continue" card and the finished marks are right the moment the
@@ -338,15 +369,39 @@ export default function EarlyLearning({ guest = false }) {
                     elCacheSet(listKey, list.map((m) => (m.id !== moduleDetail.id ? m : {
                         ...m,
                         earned_stars,
-                        completed_count: (m.completed_count || 0) + (before && !before.attempts ? 1 : 0),
+                        level_plays: (m.level_plays || 0) + (firstPlay ? 1 : 0),
+                        completed_count: (m.completed_count || 0) + (level === 1 && firstPlay ? 1 : 0),
                         last_played_at: new Date().toISOString(),
                     })));
                 }
             }
         }
-        setPlayingActivityId(null);
+        setPlaying(playNext ? { id: activityId, level: playNext } : null);
         if (stickersEnabled && result.new_stickers?.length) setReveal(result.new_stickers);
     };
+
+    // The game being played, at its level: levels 2-3 get harder content
+    // built from the module's other games (levelContent.js). Memoised on the
+    // module detail, so a game never reshuffles mid-play unless the module
+    // itself was re-fetched (a language switch) — and that rebuild is seeded.
+    const playingActivity = useMemo(() => {
+        if (!playing || !moduleDetail) return null;
+        const raw = moduleDetail.activities.find((a) => a.id === playing.id);
+        if (!raw) return null;
+        const siblings = moduleDetail.activities.filter((a) => a.id !== raw.id).map((a) => a.content);
+        return levelActivity(raw, playing.level, siblings);
+    }, [playing, moduleDetail]);
+
+    // The level this play would open (2+ stars), for the celebration's offer.
+    const unlockValue = useMemo(() => {
+        if (!playing || !moduleDetail || playing.level >= 3) return { nextLevel: null, onPlayNext: null };
+        const raw = moduleDetail.activities.find((a) => a.id === playing.id);
+        // An activity from an old cache knows nothing about levels: no offer.
+        if (!raw || !Array.isArray(raw.levels)) return { nextLevel: null, onPlayNext: null };
+        if (levelsOf(raw)[playing.level].unlocked) return { nextLevel: null, onPlayNext: null };
+        const nextLevel = playing.level + 1;
+        return { nextLevel, onPlayNext: () => { playNextRef.current = nextLevel; } };
+    }, [playing, moduleDetail]);
 
     // ── Daily-quota lock — block the whole kids' area until today's quota is met ──
     if (quotaGated && !quota.loading && !quota.unlocked) {
@@ -363,8 +418,8 @@ export default function EarlyLearning({ guest = false }) {
     }
 
     // ── Playing a single activity ──
-    if (moduleId && playingActivityId) {
-        const activity = moduleDetail?.activities.find((a) => a.id === playingActivityId);
+    if (moduleId && playing) {
+        const activity = playingActivity;
         if (activity) {
             // content.mode picks the mechanic: "build" drags pieces onto
             // their own spot (BuildActivity.js), "trace" draws a shape's
@@ -418,15 +473,19 @@ export default function EarlyLearning({ guest = false }) {
             return (
                 <div className="el-shell">
                     <Sky />
-                    <ActivityScreen
-                        activity={activity}
-                        onBack={() => setPlayingActivityId(null)}
-                        onComplete={(result) => handleActivityComplete(activity.id, result)}
-                        lang={lang}
-                        toggleLang={toggleLang}
-                        t={t}
-                        guest={guest}
-                    />
+                    <LevelBadge level={activity.level} t={t} />
+                    <LevelUnlockContext.Provider value={unlockValue}>
+                        <ActivityScreen
+                            key={`${activity.id}:${activity.level}`}
+                            activity={activity}
+                            onBack={() => setPlaying(null)}
+                            onComplete={(result) => handleActivityComplete(activity.id, activity.level, result)}
+                            lang={lang}
+                            toggleLang={toggleLang}
+                            t={t}
+                            guest={guest}
+                        />
+                    </LevelUnlockContext.Provider>
                 </div>
             );
         }
@@ -477,7 +536,7 @@ export default function EarlyLearning({ guest = false }) {
                     <ActivityPath
                         activities={moduleDetail.activities}
                         moduleEmoji={moduleDetail.icon_emoji}
-                        onPlay={setPlayingActivityId}
+                        onPlay={(activity, level) => setPlaying({ id: activity.id, level: level || 1 })}
                         t={t}
                     />
                 </div>

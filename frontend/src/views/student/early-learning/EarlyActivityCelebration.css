@@ -8,3 +8,7 @@
     from { transform: scale(0.4) rotate(-10deg); opacity: 0; }
     to   { transform: scale(1) rotate(0deg);     opacity: 1; }
 }
+
+/* game levels: "🔓 2-daraja ochildi!" and its play button */
+.eac-unlock { margin-top: 10px; font-size: 1.1rem; font-weight: 800; color: #7c3aed; }
+.eac-play-next { margin-top: 10px; margin-right: 8px; }

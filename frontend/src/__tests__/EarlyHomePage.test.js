@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import EarlyLearning from '../views/student/early-learning/EarlyLearning';
 import { elCacheKey, elCacheSet, elCacheGet } from '../views/student/early-learning/earlyLearningUtils';
 
@@ -24,13 +24,24 @@ jest.mock('react-router-dom', () => ({
 }), { virtual: true });
 jest.mock('../hooks/useDailyQuota', () => ({ useDailyQuota: () => ({ loading: false, unlocked: true }) }));
 jest.mock('../components/QuotaLockScreen', () => () => null);
-jest.mock('../views/student/early-learning/MatchingActivity', () => ({ activity, onBack, onComplete }) => (
+jest.mock('../views/student/early-learning/MatchingActivity', () => function MockGame({ activity, onBack, onComplete, toggleLang }) {
+    const { LevelUnlockContext } = require('../views/student/early-learning/EarlyActivityCelebration');
+    const unlock = require('react').useContext(LevelUnlockContext);
+    return (
     <div>
+        <span>{`opens-${unlock.nextLevel}`}</span>
+        <button onClick={() => { unlock.onPlayNext?.(); onComplete({ activity_id: activity.id, stars_earned: 2, attempts: 1 }); }}>play-next</button>
         <span>{`playing-${activity.id}`}</span>
+        <span>{`level-${activity.level}`}</span>
+        <span>{`distractors-${(activity.content?.distractor_items || []).length}`}</span>
         <button onClick={onBack}>leave-game</button>
+        <button onClick={toggleLang}>toggle-lang</button>
         <button onClick={() => onComplete({ activity_id: activity.id, stars_earned: 3, attempts: 1, new_stickers: [] })}>win-game</button>
+        <button onClick={() => onComplete({ stars_earned: 2, attempts: 1 })}>offline-win</button>
+        <button onClick={() => onComplete({ stars_earned: 3, attempts: 1, locked: true })}>locked-win</button>
     </div>
-));
+    );
+});
 
 const { useHttp } = require('../api/search/base');
 
@@ -99,7 +110,7 @@ describe('games home page', () => {
         expect(all.some((h) => h.includes('Harf va klaviatura'))).toBe(true);
         expect(all.some((h) => h.includes('Chizish va yasash'))).toBe(false);
         expect(screen.queryByText('Tavsif 2')).not.toBeInTheDocument();
-        expect(screen.getByLabelText('Tugallandi')).toBeInTheDocument();
+        expect(screen.getByLabelText("Hamma darajalar o'ynaldi")).toBeInTheDocument(); // D: every level played
         // untouched modules appear in the "new" row and in their own section
         expect(screen.getAllByText('Sanash')).toHaveLength(2);
         // the continue module: once on the card, once in its section
@@ -252,5 +263,86 @@ describe('continue, repeatedly and from a stale cache', () => {
         fireEvent.click(await screen.findByText('win-game'));
         await screen.findByText('Qizil 13');
         expect(elCacheGet(elCacheKey(false, 7, 'modules', 'uz')).find((m) => m.id === 1).completed_count).toBe(4);
+    });
+});
+
+const leveled = (id, order, levels) => ({
+    ...activity(id, order, levels[0].attempts), best_stars: levels[0].best_stars, levels,
+    content: { mode: 'select', character: { emoji: '🍎', label: `Qizil ${id}` },
+        correct_items: [{ id: 'c', label: 'Olma', emoji: '🍎' }], distractor_items: [{ id: 'd', label: 'Uy', emoji: '🏠' }] },
+});
+const lvl = (level, best, attempts, unlocked) => ({ level, best_stars: best, attempts, unlocked });
+const levelDetail = () => ({ ...A, activities: [
+    leveled(11, 0, [lvl(1, 3, 1, true), lvl(2, 0, 0, true), lvl(3, 0, 0, false)]),
+    leveled(12, 1, [lvl(1, 0, 0, true), lvl(2, 0, 0, false), lvl(3, 0, 0, false)]),
+] });
+
+describe('game levels on the module page', () => {
+    test('play screen shows the level badge and sends the level on finish', async () => {
+        moduleDetail = levelDetail();
+        renderModule();
+        fireEvent.click((await screen.findByText('Qizil 11')).closest('button'));   // starts level 2
+        expect(await screen.findByText('level-2')).toBeInTheDocument();
+        expect(screen.getByText('2-daraja')).toBeInTheDocument();
+        expect(document.querySelector('.el-level-badge')).not.toBeNull();
+        fireEvent.click(screen.getByText('offline-win'));
+        await screen.findByText('Qizil 12');
+        expect(JSON.parse(localStorage.getItem('el_star_queue_v1'))).toEqual([{ activityId: 11, stars: 2, level: 2 }]);
+        // level 2 now has two stars, so level 3 opened on the path
+        expect(within(screen.getByText('Qizil 11').closest('li')).getByRole('button', { name: '3-daraja' })).toBeEnabled();
+        await act(async () => { window.dispatchEvent(new Event('online')); });
+        expect(request).toHaveBeenCalledWith('/api/v1/early-learning/activities/11/complete', 'POST', { stars: 2, level: 2 }, {});
+    });
+
+    test('celebration offers the newly opened level and starts it', async () => {
+        moduleDetail = levelDetail();
+        renderModule();
+        fireEvent.click((await screen.findByText('Qizil 11')).closest('button'));   // level 2; level 3 still locked
+        expect(await screen.findByText('opens-3')).toBeInTheDocument();
+        fireEvent.click(screen.getByText('play-next'));
+        expect(await screen.findByText('level-3')).toBeInTheDocument();
+        expect(screen.getByText('playing-11')).toBeInTheDocument();
+        expect(screen.getByText('opens-null')).toBeInTheDocument();
+    });
+
+    test('level 1 has no badge and plays the original content', async () => {
+        moduleDetail = levelDetail();
+        renderModule();
+        fireEvent.click(within((await screen.findByText('Qizil 11')).closest('li')).getByRole('button', { name: '1-daraja' }));
+        expect(await screen.findByText('level-1')).toBeInTheDocument();
+        expect(screen.getByText('distractors-1')).toBeInTheDocument();
+        expect(document.querySelector('.el-level-badge')).toBeNull();
+    });
+
+    test('an old cached module without levels still plays level 1', async () => {
+        moduleDetail = detail([1, 0, 0]);
+        renderModule();
+        fireEvent.click((await screen.findByText('Qizil 11')).closest('button'));
+        expect(await screen.findByText('level-1')).toBeInTheDocument();
+        expect(screen.getByText('playing-11')).toBeInTheDocument();
+    });
+
+    test('language switch keeps the level being played', async () => {
+        moduleDetail = levelDetail();
+        renderModule();
+        fireEvent.click((await screen.findByText('Qizil 11')).closest('button'));
+        expect(await screen.findByText('level-2')).toBeInTheDocument();
+        fireEvent.click(screen.getByText('toggle-lang'));
+        await waitFor(() => expect(request).toHaveBeenCalledWith(expect.stringContaining('/modules/1?lang=ru'), 'GET', null, {}));
+        expect(await screen.findByText('level-2')).toBeInTheDocument();
+        expect(screen.getByText('playing-11')).toBeInTheDocument();
+    });
+
+    test('409 level_locked reloads the module silently', async () => {
+        moduleDetail = levelDetail();
+        renderModule();
+        fireEvent.click((await screen.findByText('Qizil 11')).closest('button'));
+        await screen.findByText('level-2');
+        const calls = request.mock.calls.filter(([url]) => /modules\/1\?/.test(url)).length;
+        fireEvent.click(screen.getByText('locked-win'));
+        await screen.findByText('Qizil 11');
+        await waitFor(() => expect(request.mock.calls.filter(([url]) => /modules\/1\?/.test(url)).length).toBe(calls + 1));
+        expect(localStorage.getItem('el_star_queue_v1')).toBeNull();
+        expect(screen.queryByText(/^playing-/)).not.toBeInTheDocument();
     });
 });
