@@ -6,7 +6,7 @@ import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
 import InstructionVoice from './InstructionVoice';
 import { cheer } from './earlyVoice';
-import { shuffle, starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
+import { shuffle, starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion, completionFallback } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
 /** One "what comes next?" round. activity.content shape (mode:
@@ -84,17 +84,17 @@ export default function SequenceActivity({ activity, onBack, onComplete, lang, t
         // Guest (/play, no login): record straight to localStorage — see
         // MatchingActivity.js's identical branch for why.
         if (guest) {
-            onComplete(recordGuestCompletion(activity.id, stars));
+            onComplete(recordGuestCompletion(activity.id, stars, activity.level || 1));
             return;
         }
         setSubmitting(true);
-        request(`${API_URL}v1/early-learning/activities/${activity.id}/complete`, 'POST', { stars }, headers())
+        request(`${API_URL}v1/early-learning/activities/${activity.id}/complete`, 'POST', { stars, level: activity.level || 1 }, headers())
             .then((result) => onComplete(result))
             .catch((err) => {
                 console.error(err);
                 // Still let the child close the round locally — losing the
                 // star-save on a flaky request shouldn't trap the kid here.
-                onComplete({ stars_earned: stars, attempts: 1 });
+                onComplete(completionFallback(err, stars));
             })
             .finally(() => setSubmitting(false));
     };

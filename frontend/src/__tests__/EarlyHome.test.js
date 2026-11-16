@@ -5,13 +5,13 @@ import ContinueCard from '../views/student/early-learning/ContinueCard';
 import ActivityPath from '../views/student/early-learning/ActivityPath';
 import translations from '../i18n/translations';
 import {
-    SECTIONS, isFinished, pickContinue, pickNew, groupBySection, nextActivity,
+    SECTIONS, isFinished, isDone, pickContinue, pickNew, groupBySection, nextStep,
 } from '../views/student/early-learning/earlyHome';
 import { applyGuestModuleStars } from '../views/student/early-learning/earlyLearningUtils';
 
 const m = (id, over) => ({
     id, title: `M${id}`, display_order: id, activities_count: 10, completed_count: 0,
-    last_played_at: null, section: 'world', earned_stars: 0, max_stars: 30, ...over,
+    last_played_at: null, section: 'world', earned_stars: 0, max_stars: 30, level_plays: 0, max_level_plays: 30, ...over,
 });
 
 const t = (key) => translations.uz[key] || key;
@@ -27,7 +27,7 @@ describe('home selection logic', () => {
         const pick = pickContinue([
             m(1, { completed_count: 3, last_played_at: '2026-11-01T10:00:00Z' }),
             m(2, { completed_count: 1, last_played_at: '2026-11-10T10:00:00Z' }),
-            m(3, { completed_count: 10, last_played_at: '2026-11-11T10:00:00Z' }),
+            m(3, { completed_count: 10, level_plays: 30, last_played_at: '2026-11-11T10:00:00Z' }),
         ]);
         expect(pick.module.id).toBe(2);
         expect(pick.started).toBe(true);
@@ -46,7 +46,7 @@ describe('home selection logic', () => {
     });
 
     test('pickContinue returns null when everything is finished or the list is empty', () => {
-        expect(pickContinue([m(1, { completed_count: 10 }), m(2, { completed_count: 12 })])).toBeNull();
+        expect(pickContinue([m(1, { completed_count: 10, level_plays: 30 }), m(2, { completed_count: 12, level_plays: 31 })])).toBeNull();
         expect(pickContinue([])).toBeNull();
         expect(pickContinue(undefined)).toBeNull();
     });
@@ -56,10 +56,14 @@ describe('home selection logic', () => {
         expect(pickContinue([m(1, { activities_count: 0 })])).toBeNull();
     });
 
-    test('isFinished is false for an empty module', () => {
-        expect(isFinished(m(1, { activities_count: 0 }))).toBe(false);
-        expect(isFinished(m(1, { completed_count: 10 }))).toBe(true);
-        expect(isFinished(m(1, { completed_count: 9 }))).toBe(false);
+    test('isDone and isFinished are false for an empty module', () => {
+        expect(isDone(m(1, { activities_count: 0 }))).toBe(false);
+        expect(isDone(m(1, { completed_count: 10 }))).toBe(true);
+        expect(isDone(m(1, { completed_count: 9 }))).toBe(false);
+        expect(isDone({ id: 1 })).toBe(false);
+        expect(isFinished(m(1, { activities_count: 0, max_level_plays: 0 }))).toBe(false);
+        expect(isFinished(m(1, { completed_count: 10 }))).toBe(false);
+        expect(isFinished(m(1, { completed_count: 10, level_plays: 30 }))).toBe(true);
         expect(isFinished({ id: 1 })).toBe(false);
     });
 
@@ -84,7 +88,7 @@ describe('home selection logic', () => {
 
     test('groupBySection orders sections and sinks finished modules', () => {
         const groups = groupBySection([
-            m(5, { section: 'logic' }), m(2, { completed_count: 10 }), m(3), m(1),
+            m(5, { section: 'logic' }), m(2, { completed_count: 10, level_plays: 30 }), m(3), m(1),
         ]);
         expect(groups.map((g) => g.key)).toEqual(['world', 'logic']);
         expect(groups[0].modules.map((x) => x.id)).toEqual([1, 3, 2]);
@@ -98,12 +102,12 @@ describe('home selection logic', () => {
         expect(groups[0].modules.map((x) => x.id)).toEqual([7, 8]);
     });
 
-    test('nextActivity returns the first unplayed by order, or null', () => {
-        const acts = [{ id: 1, order: 2, attempts: 0 }, { id: 2, order: 1, attempts: 0 }, { id: 3, order: 0, attempts: 2 }];
-        expect(nextActivity(acts).id).toBe(2);
-        expect(nextActivity(acts.map((a) => ({ ...a, attempts: 1 })))).toBeNull();
-        expect(nextActivity([])).toBeNull();
-        expect(nextActivity(undefined)).toBeNull();
+    test('nextStep on old cached activities returns the first unplayed by order, or null', () => {
+        const acts = [{ id: 1, order: 2, attempts: 0 }, { id: 2, order: 1, attempts: 0 }, { id: 3, order: 0, attempts: 2, best_stars: 3 }];
+        expect(nextStep(acts)).toEqual({ activity: acts[1], level: 1 });
+        expect(nextStep(acts.map((a) => ({ ...a, attempts: 1, best_stars: 3 })))).toBeNull();
+        expect(nextStep([])).toBeNull();
+        expect(nextStep(undefined)).toBeNull();
     });
 
     test('guest progress fills completed_count', () => {

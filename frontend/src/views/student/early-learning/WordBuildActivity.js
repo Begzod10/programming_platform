@@ -7,7 +7,7 @@ import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
 import InstructionVoice from './InstructionVoice';
 import { cheer } from './earlyVoice';
-import { starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
+import { starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion, completionFallback } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
 const CORRECT_PULSE_MS = 700;
@@ -98,15 +98,15 @@ export default function WordBuildActivity({ activity, onBack, onComplete, lang, 
     const handleCelebrationDone = () => {
         const stars = celebration;
         if (guest) {
-            onComplete(recordGuestCompletion(activity.id, stars));
+            onComplete(recordGuestCompletion(activity.id, stars, activity.level || 1));
             return;
         }
         setSubmitting(true);
-        request(`${API_URL}v1/early-learning/activities/${activity.id}/complete`, 'POST', { stars }, headers())
+        request(`${API_URL}v1/early-learning/activities/${activity.id}/complete`, 'POST', { stars, level: activity.level || 1 }, headers())
             .then((result) => onComplete(result))
             .catch((err) => {
                 console.error(err);
-                onComplete({ stars_earned: stars, attempts: 1 });
+                onComplete(completionFallback(err, stars));
             })
             .finally(() => setSubmitting(false));
     };

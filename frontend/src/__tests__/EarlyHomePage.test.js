@@ -37,12 +37,12 @@ const { useHttp } = require('../api/search/base');
 const mod = (id, over) => ({
     id, title: `Modul ${id}`, description: `Tavsif ${id}`, icon_emoji: '🎲', display_order: id,
     activities_count: 10, completed_count: 0, last_played_at: null, section: 'world',
-    earned_stars: 0, max_stars: 30, earned_stars_today: 0, ...over,
+    earned_stars: 0, max_stars: 30, earned_stars_today: 0, level_plays: 0, max_level_plays: 30, ...over,
 });
-const A = mod(1, { title: 'Kasblar', completed_count: 3, last_played_at: '2026-11-10T10:00:00Z', earned_stars: 9 });
+const A = mod(1, { title: 'Kasblar', completed_count: 3, level_plays: 3, last_played_at: '2026-11-10T10:00:00Z', earned_stars: 9 });
 const B = mod(2, { title: 'Sanash', section: 'logic' });
 const C = mod(3, { title: 'Fasllar' });
-const D = mod(4, { title: 'Klaviatura', section: 'letters', completed_count: 10, earned_stars: 30 });
+const D = mod(4, { title: 'Klaviatura', section: 'letters', completed_count: 10, level_plays: 30, earned_stars: 30 });
 
 const activity = (id, order, attempts) => ({
     id, order, attempts, best_stars: attempts ? 3 : 0, title: `Game ${id}`,

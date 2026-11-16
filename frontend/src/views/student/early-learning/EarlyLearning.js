@@ -35,7 +35,7 @@ import StickerReveal from './StickerReveal';
 import ModuleCard from './ModuleCard';
 import ContinueCard from './ContinueCard';
 import ActivityPath from './ActivityPath';
-import { pickContinue, pickNew, groupBySection, nextActivity } from './earlyHome';
+import { pickContinue, pickNew, groupBySection, nextStep } from './earlyHome';
 import { getDaily, queueCompletion, flushCompletionQueue, applyGuestModuleStars, applyGuestActivityStars, elCacheKey, elCacheSet, elCacheGet, registerOfflineSw } from './earlyLearningUtils';
 import { ArrowLeft, Star, Trophy, Sparkles } from 'lucide-react';
 
@@ -297,8 +297,8 @@ export default function EarlyLearning({ guest = false }) {
         if (String(moduleDetail.id) !== String(moduleId) || detailSettledFor !== String(moduleId)) return;
         if (autoplayedKey.current === location.key) return;
         autoplayedKey.current = location.key;
-        const next = nextActivity(moduleDetail.activities);
-        if (next) setPlayingActivityId(next.id);
+        const next = nextStep(moduleDetail.activities);
+        if (next) setPlayingActivityId(next.activity.id);
         navigate(location.pathname, { replace: true, state: null });
     }, [location.state, location.key, location.pathname, moduleId, moduleDetail, detailSettledFor, navigate]);
 
@@ -306,8 +306,8 @@ export default function EarlyLearning({ guest = false }) {
     // sent as soon as the connection is back — on load and on the `online` event.
     useEffect(() => {
         if (guest) return undefined;
-        const send = (id, stars) =>
-            request(`${API_URL}v1/early-learning/activities/${id}/complete`, 'POST', { stars }, headers());
+        const send = (id, stars, level = 1) =>
+            request(`${API_URL}v1/early-learning/activities/${id}/complete`, 'POST', { stars, level }, headers());
         const flush = () => { flushCompletionQueue(send); };
         flush();
         window.addEventListener('online', flush);

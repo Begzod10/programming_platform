@@ -72,13 +72,18 @@ export function getGuestProgress() {
     }
 }
 
+/** Guest progress key: level 1 keeps the plain activity id (as before game
+ * levels existed), levels 2-3 are "{id}:2" / "{id}:3". */
+const guestKey = (activityId, level = 1) => (level > 1 ? `${activityId}:${level}` : String(activityId));
+
 /** Same upsert rule as the backend's complete_early_activity: attempts
  * always increments, stars_earned only ever moves up (replaying to improve
  * a score shouldn't be able to lower it). Returns the shape onComplete
  * expects ({stars_earned, attempts}), same as the server's response. */
-export function recordGuestCompletion(activityId, stars) {
+export function recordGuestCompletion(activityId, stars, level = 1) {
     const progress = getGuestProgress();
-    const prev = progress[activityId];
+    const key = guestKey(activityId, level);
+    const prev = progress[key];
     const next = {
         stars_earned: Math.max(prev?.stars_earned || 0, stars),
         attempts: (prev?.attempts || 0) + 1,
@@ -86,7 +91,7 @@ export function recordGuestCompletion(activityId, stars) {
     try {
         localStorage.setItem(
             GUEST_PROGRESS_KEY,
-            JSON.stringify({ ...progress, [activityId]: next })
+            JSON.stringify({ ...progress, [key]: next })
         );
     } catch {
         // Falls back to celebrating locally without persisting — see
@@ -99,17 +104,41 @@ export function recordGuestCompletion(activityId, stars) {
  * completions to sum for a guest) with each module's real earned_stars,
  * computed from localStorage via the activity_ids the public endpoint
  * exposes just for this. */
+const LEVELS = [1, 2, 3];
+
+/** A guest's three levels of one game, same shape as the server's
+ * EarlyLevelOut: a level opens once the one below has 2+ stars. With
+ * localStorage unavailable this is level 1 open, nothing played. */
+export function guestLevels(activityId, progress = getGuestProgress()) {
+    let prevBest = 0;
+    return LEVELS.map((level) => {
+        const p = progress[guestKey(activityId, level)];
+        const row = {
+            level,
+            best_stars: p?.stars_earned || 0,
+            attempts: p?.attempts || 0,
+            unlocked: level === 1 || prevBest >= 2,
+        };
+        prevBest = row.best_stars;
+        return row;
+    });
+}
+
 export function applyGuestModuleStars(modules) {
     const progress = getGuestProgress();
-    return modules.map((m) => ({
-        ...m,
-        earned_stars: (m.activity_ids || []).reduce(
-            (sum, id) => sum + (progress[id]?.stars_earned || 0), 0
-        ),
-        // Lets the home's "continue" card and finished marks work for a
-        // guest too (see earlyHome.js) — the public endpoint always says 0.
-        completed_count: (m.activity_ids || []).filter((id) => progress[id]).length,
-    }));
+    return modules.map((m) => {
+        const ids = m.activity_ids || [];
+        const keys = ids.flatMap((id) => LEVELS.map((level) => guestKey(id, level)));
+        return {
+            ...m,
+            earned_stars: keys.reduce((sum, k) => sum + (progress[k]?.stars_earned || 0), 0),
+            // Lets the home's "continue" card and finished marks work for a
+            // guest too (see earlyHome.js) — the public endpoint always says 0.
+            completed_count: ids.filter((id) => progress[guestKey(id)]).length,
+            level_plays: keys.filter((k) => progress[k]).length,
+            max_level_plays: m.max_level_plays || ids.length * LEVELS.length,
+        };
+    });
 }
 
 /** Same idea as applyGuestModuleStars, one level down — patches a
@@ -119,13 +148,15 @@ export function applyGuestModuleStars(modules) {
 export function applyGuestActivityStars(moduleDetail) {
     const progress = getGuestProgress();
     const activities = moduleDetail.activities.map((a) => {
-        const p = progress[a.id];
-        return p ? { ...a, best_stars: p.stars_earned, attempts: p.attempts } : a;
+        const levels = guestLevels(a.id, progress);
+        return { ...a, best_stars: levels[0].best_stars, attempts: levels[0].attempts, levels };
     });
+    const all = activities.flatMap((a) => a.levels);
     return {
         ...moduleDetail,
         activities,
-        earned_stars: activities.reduce((sum, a) => sum + a.best_stars, 0),
+        earned_stars: all.reduce((sum, l) => sum + l.best_stars, 0),
+        level_plays: all.filter((l) => l.attempts).length,
     };
 }
 
@@ -209,11 +240,13 @@ export function dailySeed() {
 /* ── Offline star queue: completions that could not reach the server ────── */
 const QUEUE_KEY = 'el_star_queue_v1';
 
-export function queueCompletion(activityId, stars) {
+/** One entry per (activity, level); entries queued before game levels
+ * existed have no `level` and mean level 1. */
+export function queueCompletion(activityId, stars, level = 1) {
     try {
         const q = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
-        const i = q.findIndex((x) => x.activityId === activityId);
-        if (i >= 0) q[i].stars = Math.max(q[i].stars, stars); else q.push({ activityId, stars });
+        const i = q.findIndex((x) => x.activityId === activityId && (x.level || 1) === level);
+        if (i >= 0) q[i].stars = Math.max(q[i].stars, stars); else q.push({ activityId, stars, level });
         localStorage.setItem(QUEUE_KEY, JSON.stringify(q.slice(-100)));
     } catch { /* ignore */ }
 }
@@ -225,8 +258,17 @@ export async function flushCompletionQueue(send) {
     if (!q.length) return 0;
     const left = [];
     for (const item of q) {
-        try { await send(item.activityId, item.stars); } catch { left.push(item); }
+        try { await send(item.activityId, item.stars, item.level || 1); } catch { left.push(item); }
     }
     try { localStorage.setItem(QUEUE_KEY, JSON.stringify(left)); } catch { /* ignore */ }
     return q.length - left.length;
+}
+
+/** What a play screen hands onComplete when the completion POST failed. No
+ * activity_id means "not saved" (EarlyLearning.js queues it); `locked`
+ * marks the server's 409 level_locked — the level was not open (an old
+ * cache, say), so it is not queued: the module is quietly reloaded. */
+export function completionFallback(err, stars) {
+    const locked = err?.status === 409;
+    return locked ? { stars_earned: stars, attempts: 1, locked: true } : { stars_earned: stars, attempts: 1 };
 }

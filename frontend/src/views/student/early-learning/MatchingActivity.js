@@ -8,7 +8,7 @@ import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
 import { cheer } from './earlyVoice';
 import InstructionVoice from './InstructionVoice';
-import { shuffle, starsForWrongCount, WRONG_FLASH_MS, STREAK_THRESHOLD, recordGuestCompletion } from './earlyLearningUtils';
+import { shuffle, starsForWrongCount, WRONG_FLASH_MS, STREAK_THRESHOLD, recordGuestCompletion, completionFallback } from './earlyLearningUtils';
 
 /** Emoji is the primary visual — many kids this age (5-8) can't reliably
  * read yet, in either language, so a small monochrome lucide line-glyph
@@ -125,18 +125,18 @@ export default function MatchingActivity({ activity, onBack, onComplete, lang, t
         // to attach a completion to. Record straight to localStorage and
         // skip the request/submitting dance entirely.
         if (guest) {
-            onComplete(recordGuestCompletion(activity.id, stars));
+            onComplete(recordGuestCompletion(activity.id, stars, activity.level || 1));
             return;
         }
         setSubmitting(true);
-        request(`${API_URL}v1/early-learning/activities/${activity.id}/complete`, 'POST', { stars }, headers())
+        request(`${API_URL}v1/early-learning/activities/${activity.id}/complete`, 'POST', { stars, level: activity.level || 1 }, headers())
             .then((result) => onComplete(result))
             .catch((err) => {
                 console.error(err);
                 // Still let the child close the round locally — losing the
                 // star-save on a flaky request shouldn't trap the kid on
                 // this screen; best_stars just won't have updated server-side.
-                onComplete({ stars_earned: stars, attempts: 1 });
+                onComplete(completionFallback(err, stars));
             })
             .finally(() => setSubmitting(false));
     };

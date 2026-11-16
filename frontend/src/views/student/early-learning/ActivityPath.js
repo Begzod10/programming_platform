@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import './EarlyHome.css';
 import StarRow from './StarRow';
-import { nextActivity } from './earlyHome';
+import { nextStep } from './earlyHome';
 
 // Sideways offset of each step, in units of --ep-step: a gentle snake.
 const SHIFT = [0, 1, 2, 1, 0, -1, -2, -1];
@@ -13,8 +13,9 @@ const SHIFT = [0, 1, 2, 1, 0, -1, -2, -1];
  * once every game has been played. */
 export default function ActivityPath({ activities, moduleEmoji, onPlay, t }) {
     const steps = [...(activities || [])].sort((a, b) => (a.order || 0) - (b.order || 0) || a.id - b.id);
-    const next = nextActivity(steps);
-    const finished = steps.length > 0 && !next;
+    const next = nextStep(steps)?.activity || null;
+    // The badge is the module sticker, which is earned at level 1.
+    const finished = steps.length > 0 && steps.every((a) => a.attempts);
     return (
         <div className="ep-wrap">
             <ol className="ep-path">

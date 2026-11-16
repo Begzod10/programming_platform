@@ -1,6 +1,6 @@
 import React from 'react';
 import './EarlyHome.css';
-import { isFinished } from './earlyHome';
+import { isDone } from './earlyHome';
 
 /** One module on the games home: big emoji, title and a star progress bar.
  * No description on purpose — a five-year-old picks by picture, and the
@@ -12,11 +12,11 @@ export default function ModuleCard({ module, onOpen, index = 0, t }) {
     return (
         <button
             type="button"
-            className={`el-module-card eh-card ${isFinished(module) ? 'eh-card-done' : ''}`}
+            className={`el-module-card eh-card ${isDone(module) ? 'eh-card-done' : ''}`}
             style={{ '--el-accent': module.color_accent || '#7c5cff', animationDelay: `${Math.min(index, 8) * 0.06}s` }}
             onClick={onOpen}
         >
-            {isFinished(module) && <span className="eh-done" role="img" aria-label={t('el.homeDone')}>✓</span>}
+            {isDone(module) && <span className="eh-done" role="img" aria-label={t('el.homeDone')}>✓</span>}
             <span className="el-module-card-emoji" aria-hidden="true">{module.icon_emoji || '🎲'}</span>
             <span className="el-module-card-title">{module.title}</span>
             <span className="eh-progress">

@@ -3,7 +3,7 @@ import './ArithmeticActivity.css';
 import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
-import { recordGuestCompletion } from './earlyLearningUtils';
+import { recordGuestCompletion, completionFallback } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 import InstructionVoice from './InstructionVoice';
 
@@ -18,15 +18,15 @@ export function useActivityCompletion(activity, guest, onComplete) {
     const done = () => {
         const stars = celebration;
         if (guest) {
-            onComplete(recordGuestCompletion(activity.id, stars));
+            onComplete(recordGuestCompletion(activity.id, stars, activity.level || 1));
             return;
         }
         setSubmitting(true);
-        request(`${API_URL}v1/early-learning/activities/${activity.id}/complete`, 'POST', { stars }, headers())
+        request(`${API_URL}v1/early-learning/activities/${activity.id}/complete`, 'POST', { stars, level: activity.level || 1 }, headers())
             .then((result) => onComplete(result))
             .catch((err) => {
                 console.error(err);
-                onComplete({ stars_earned: stars, attempts: 1 });
+                onComplete(completionFallback(err, stars));
             })
             .finally(() => setSubmitting(false));
     };
