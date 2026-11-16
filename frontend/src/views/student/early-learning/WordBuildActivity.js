@@ -5,6 +5,8 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import InstructionVoice from './InstructionVoice';
+import { cheer } from './earlyVoice';
 import { starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
@@ -64,6 +66,7 @@ export default function WordBuildActivity({ activity, onBack, onComplete, lang, 
         if (celebration !== null || submitting || locked || used.includes(idx)) return;
         if (tiles[idx] === word[placed]) {
             playSynth('chime');
+            cheer('correct');
             const nextUsed = [...used, idx];
             setUsed(nextUsed);
             const nextPlaced = placed + 1;
@@ -84,6 +87,7 @@ export default function WordBuildActivity({ activity, onBack, onComplete, lang, 
             }
         } else {
             playSynth('laser');
+            cheer('wrong');
             setWrongCount((c) => c + 1);
             const token = Date.now();
             setFlashTile({ token, idx });
@@ -123,7 +127,7 @@ export default function WordBuildActivity({ activity, onBack, onComplete, lang, 
                 <h2>{character.label || activity.title}</h2>
             </div>
 
-            {activity.instruction_text && <p className="aa-instruction">{activity.instruction_text}</p>}
+            <InstructionVoice activity={activity} className="aa-instruction" />
 
             <div className="wc-picture">{entry.emoji}</div>
 

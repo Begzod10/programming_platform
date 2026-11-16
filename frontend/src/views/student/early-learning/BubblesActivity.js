@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import './WordChartActivity.css';
 import ActivityShell, { useActivityCompletion } from './ActivityShell';
 import { playSynth } from '../../../utils/soundSynth';
+import { cheer } from './earlyVoice';
 import { shuffle, starsForWrongCount } from './earlyLearningUtils';
 
 const rnd = (lo, hi) => Math.floor(Math.random() * (hi - lo + 1)) + lo;
@@ -76,12 +77,14 @@ export default function BubblesActivity(props) {
         if (completion.celebration !== null || popped.includes(b.key)) return;
         if (!b.ok) {
             playSynth('laser');
+            cheer('wrong');
             setWrongCount((c) => c + 1);
             setShake(b.key);
             setTimeout(() => setShake(null), 400);
             return;
         }
         playSynth('coin');
+        cheer('correct');
         const next = [...popped, b.key];
         setPopped(next);
         const left = round.bubbles.filter((x) => x.ok && !next.includes(x.key)).length;

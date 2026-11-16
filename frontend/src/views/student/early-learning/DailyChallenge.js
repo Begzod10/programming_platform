@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import ActivityShell, { useActivityCompletion } from './ActivityShell';
 import { useTranslation } from '../../../i18n/useTranslation';
 import { playSynth } from '../../../utils/soundSynth';
+import { cheer } from './earlyVoice';
 import { dailySeed, getDaily, recordDaily, starsForWrongCount, WRONG_FLASH_MS } from './earlyLearningUtils';
 
 // mulberry32: tiny seeded PRNG so every kid gets the same 5 questions today.
@@ -72,10 +73,12 @@ export default function DailyChallenge() {
         const q = questions[idx];
         if (o === q.a) {
             playSynth('chime');
+            cheer('correct');
             if (idx + 1 < questions.length) setIdx(idx + 1);
             else { playSynth('fanfare'); completion.finish(starsForWrongCount(wrong)); }
         } else {
             playSynth('laser');
+            cheer('wrong');
             setWrong((w) => w + 1);
             const token = Date.now();
             setFlash({ token, o });

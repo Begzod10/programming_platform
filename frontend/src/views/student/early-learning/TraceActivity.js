@@ -4,6 +4,7 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import InstructionVoice from './InstructionVoice';
 import { starsForCoverage, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
@@ -396,7 +397,7 @@ export default function TraceActivity({ activity, onBack, onComplete, lang, togg
                 <span className="ta-progress-badge">{targetIndex + 1} / {targets.length}</span>
             </div>
 
-            {activity.instruction_text && <p className="ta-instruction">{activity.instruction_text}</p>}
+            <InstructionVoice activity={activity} className="ta-instruction" />
             <div className="ta-target-label">{target.label}</div>
 
             <div className="ta-canvas-wrap">

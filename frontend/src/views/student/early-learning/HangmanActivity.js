@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import './WordChartActivity.css';
 import ActivityShell, { useActivityCompletion } from './ActivityShell';
 import { playSynth } from '../../../utils/soundSynth';
+import { cheer } from './earlyVoice';
 import { shuffle, starsForWrongCount } from './earlyLearningUtils';
 
 const MAX_LIVES = 6;
@@ -49,9 +50,11 @@ export default function HangmanActivity(props) {
         setGuessed(nextGuessed);
         if (word.includes(ch)) {
             playSynth('chime');
+            cheer('correct');
             if (word.split('').every((c) => nextGuessed.includes(c))) setTimeout(next, 900);
         } else {
             playSynth('laser');
+            cheer('wrong');
             setTotalWrong((n) => n + 1);
             const w = wrongLetters + 1;
             setWrongLetters(w);

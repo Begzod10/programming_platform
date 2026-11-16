@@ -5,6 +5,8 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import InstructionVoice from './InstructionVoice';
+import { cheer } from './earlyVoice';
 import { starsForWrongCount, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
@@ -113,11 +115,12 @@ export default function SimonActivity({ activity, onBack, onComplete, lang, togg
                     setCelebration(starsForWrongCount(wrongCount));
                 }, 500);
             } else {
-                later(() => { playSynth('chime'); }, 250);
+                later(() => { playSynth('chime'); cheer('correct'); }, 250);
                 later(() => setLevel((l) => l + 1), 900);
             }
         } else {
             playSynth('laser');
+            cheer('wrong');
             setWrongPad(pad);
             later(() => setWrongPad(null), 500);
             setWrongCount((c) => c + 1);
@@ -162,7 +165,7 @@ export default function SimonActivity({ activity, onBack, onComplete, lang, togg
                 <h2>{character.label || activity.title}</h2>
             </div>
 
-            {activity.instruction_text && <p className="aa-instruction">{activity.instruction_text}</p>}
+            <InstructionVoice activity={activity} className="aa-instruction" />
 
             <div className="sm-status">{status}&nbsp;</div>
 

@@ -4,6 +4,8 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import InstructionVoice from './InstructionVoice';
+import { cheer } from './earlyVoice';
 import { shuffle, starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
@@ -62,9 +64,11 @@ export default function SequenceActivity({ activity, onBack, onComplete, lang, t
 
         if (step.id === expectedId) {
             playSynth('chime');
+            cheer('correct');
             setPlacedIds((prev) => [...prev, step.id]);
         } else {
             playSynth('laser');
+            cheer('wrong');
             setWrongCount((c) => c + 1);
             const token = Date.now();
             setWrongId({ token, id: step.id });
@@ -106,7 +110,7 @@ export default function SequenceActivity({ activity, onBack, onComplete, lang, t
                 <h2>{character.label || activity.title}</h2>
             </div>
 
-            {activity.instruction_text && <p className="sq-instruction">{activity.instruction_text}</p>}
+            <InstructionVoice activity={activity} className="sq-instruction" />
 
             <div className="sq-slots">
                 {steps.map((step, i) => {

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import './WordChartActivity.css';
 import ActivityShell, { useActivityCompletion } from './ActivityShell';
 import { playSynth } from '../../../utils/soundSynth';
+import { cheer } from './earlyVoice';
 
 const SIZE = 4;
 const rnd = (n) => Math.floor(Math.random() * n);
@@ -72,6 +73,7 @@ export default function MergeActivity(props) {
         setBoard(nb);
         setMoves((m) => m + 1);
         playSynth('chime');
+        cheer('correct');
         if (nb.some((row) => row.some((v) => v >= goal))) {
             playSynth('fanfare');
             const total = moves + 1;
@@ -79,6 +81,7 @@ export default function MergeActivity(props) {
         } else if (!canMove(nb)) {
             setStuck(true);
             playSynth('laser');
+            cheer('wrong');
         }
     }, [board, completion, goal, moves, stuck]);
 

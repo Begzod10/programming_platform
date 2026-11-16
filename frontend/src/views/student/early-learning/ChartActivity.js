@@ -5,6 +5,7 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import { cheer } from './earlyVoice';
 import { starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
@@ -106,6 +107,7 @@ export default function ChartActivity({ activity, onBack, onComplete, lang, togg
         if (celebration !== null || submitting || locked || !round) return;
         if (opt === round.answer) {
             playSynth('chime');
+            cheer('correct');
             setLocked(true);
             setCorrect(opt);
             setTimeout(() => {
@@ -120,6 +122,7 @@ export default function ChartActivity({ activity, onBack, onComplete, lang, togg
             }, CORRECT_PULSE_MS);
         } else {
             playSynth('laser');
+            cheer('wrong');
             setWrongCount((c) => c + 1);
             const token = Date.now();
             setFlash({ token, opt });

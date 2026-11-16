@@ -4,6 +4,8 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import InstructionVoice from './InstructionVoice';
+import { cheer } from './earlyVoice';
 import { shuffle, starsForWrongCount, WRONG_FLASH_MS, STREAK_THRESHOLD, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
@@ -75,11 +77,13 @@ export default function SortActivity({ activity, onBack, onComplete, lang, toggl
                 const next = s + 1;
                 if (next % STREAK_THRESHOLD === 0) {
                     playSynth('coin');
+                    cheer('correct');
                     const token = Date.now();
                     setStreakFlash({ token, count: next });
                     setTimeout(() => setStreakFlash((f) => (f?.token === token ? null : f)), 900);
                 } else {
                     playSynth('chime');
+                    cheer('correct');
                 }
                 return next;
             });
@@ -88,6 +92,7 @@ export default function SortActivity({ activity, onBack, onComplete, lang, toggl
             setSelectedId(null);
         } else {
             playSynth('laser');
+            cheer('wrong');
             setStreak(0);
             setWrongCount((c) => c + 1);
             setSelectedId(null);
@@ -131,7 +136,7 @@ export default function SortActivity({ activity, onBack, onComplete, lang, toggl
                 <h2>{character.label || activity.title}</h2>
             </div>
 
-            {activity.instruction_text && <p className="so-instruction">{activity.instruction_text}</p>}
+            <InstructionVoice activity={activity} className="so-instruction" />
 
             {streakFlash && (
                 <div className="so-streak-badge" key={streakFlash.token}>

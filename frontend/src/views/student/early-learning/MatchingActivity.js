@@ -6,6 +6,8 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import { cheer } from './earlyVoice';
+import InstructionVoice from './InstructionVoice';
 import { shuffle, starsForWrongCount, WRONG_FLASH_MS, STREAK_THRESHOLD, recordGuestCompletion } from './earlyLearningUtils';
 
 /** Emoji is the primary visual — many kids this age (5-8) can't reliably
@@ -68,11 +70,13 @@ export default function MatchingActivity({ activity, onBack, onComplete, lang, t
                 const next = s + 1;
                 if (next % STREAK_THRESHOLD === 0) {
                     playSynth('coin');
+                    cheer('correct');
                     const token = Date.now();
                     setStreakFlash({ token, count: next });
                     setTimeout(() => setStreakFlash((f) => (f?.token === token ? null : f)), 900);
                 } else {
                     playSynth('chime');
+                    cheer('correct');
                 }
                 return next;
             });
@@ -87,6 +91,7 @@ export default function MatchingActivity({ activity, onBack, onComplete, lang, t
             });
         } else {
             playSynth('laser');
+            cheer('wrong');
             setStreak(0);
             setWrongCount((c) => c + 1);
             // Uzbek's postposition ("X" Y uchun mos emas) and Russian's
@@ -150,6 +155,8 @@ export default function MatchingActivity({ activity, onBack, onComplete, lang, t
                 <h2>{character.label || activity.title}</h2>
                 <span className="ma-progress-badge">{found.size} / {totalCorrect}</span>
             </div>
+
+            <InstructionVoice activity={activity} className="aa-instruction" />
 
             {flash && <div className="ma-error-banner">{flash.message}</div>}
             {streakFlash && (

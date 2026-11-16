@@ -4,6 +4,8 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import InstructionVoice from './InstructionVoice';
+import { cheer } from './earlyVoice';
 import { shuffle, starsForWrongCount, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
@@ -56,10 +58,12 @@ export default function TypingActivity({ activity, onBack, onComplete, lang, tog
             setMistakeThisRound(true);
             setWrongCount((c) => c + 1);
             playSynth('laser');
+            cheer('wrong');
         }
 
         if (v === target) {
             playSynth('chime');
+            cheer('correct');
             setLocked(true);
             setTimeout(() => {
                 setLocked(false);
@@ -105,7 +109,7 @@ export default function TypingActivity({ activity, onBack, onComplete, lang, tog
                 <h2>{character.label || activity.title}</h2>
             </div>
 
-            {activity.instruction_text && <p className="ty-instruction">{activity.instruction_text}</p>}
+            <InstructionVoice activity={activity} className="ty-instruction" />
 
             <div className={`ty-word ${mistakeThisRound ? 'ty-word-has-mistake' : ''}`}>
                 {target.split('').map((ch, i) => {

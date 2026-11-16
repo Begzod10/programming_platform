@@ -5,6 +5,8 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import { cheer } from './earlyVoice';
+import InstructionVoice from './InstructionVoice';
 import { shuffle, starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
@@ -120,10 +122,12 @@ export default function BuildActivity({ activity, onBack, onComplete, lang, togg
 
         if (isMatch) {
             playSynth('chime');
+            cheer('correct');
             setFilledSlotIds((prev) => new Set(prev).add(targetId));
             setUsedPieceIds((prev) => new Set(prev).add(piece.id));
         } else {
             playSynth('laser');
+            cheer('wrong');
             setWrongCount((c) => c + 1);
             setFlash({ id: piece.id, message: wrongMessage(piece.label) });
             setTimeout(() => setFlash((f) => (f?.id === piece.id ? null : f)), WRONG_FLASH_MS);
@@ -207,6 +211,8 @@ export default function BuildActivity({ activity, onBack, onComplete, lang, togg
                 <h2>{character.label || activity.title}</h2>
                 <span className="ba-progress-badge">{filledSlotIds.size} / {slots.length}</span>
             </div>
+
+            <InstructionVoice activity={activity} className="aa-instruction" />
 
             {flash && <div className="ba-error-banner">{flash.message}</div>}
 

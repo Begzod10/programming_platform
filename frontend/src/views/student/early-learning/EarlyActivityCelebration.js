@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import '../courses/LessonPage/CelebrationOverlay.css';
 import './EarlyActivityCelebration.css';
 import { Star } from 'lucide-react';
+import { cheerStars } from './earlyVoice';
 
 // Same confetti-piece system as CelebrationOverlay — duplicated rather than
 // imported since CelebrationOverlay doesn't export PIECES, and the two
@@ -27,6 +28,10 @@ const PIECES = Array.from({ length: 40 }, (_, i) => ({
  */
 const EarlyActivityCelebration = ({ stars, onDone, t }) => {
     const [visible, setVisible] = useState(true);
+
+    // Say the matching star phrase once, when the overlay opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => { cheerStars(stars); }, []);
 
     useEffect(() => {
         const timer = setTimeout(() => {

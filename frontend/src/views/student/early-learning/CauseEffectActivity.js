@@ -4,6 +4,8 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import InstructionVoice from './InstructionVoice';
+import { cheer } from './earlyVoice';
 import { shuffle, starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
@@ -56,6 +58,7 @@ export default function CauseEffectActivity({ activity, onBack, onComplete, lang
 
         if (option.id === round.answer) {
             playSynth('chime');
+            cheer('correct');
             setLocked(true);
             setCorrectId(option.id);
             setTimeout(() => {
@@ -70,6 +73,7 @@ export default function CauseEffectActivity({ activity, onBack, onComplete, lang
             }, CORRECT_PULSE_MS);
         } else {
             playSynth('laser');
+            cheer('wrong');
             setWrongCount((c) => c + 1);
             const token = Date.now();
             setFlash({ token, id: option.id });
@@ -114,7 +118,7 @@ export default function CauseEffectActivity({ activity, onBack, onComplete, lang
                 <h2>{character.label || activity.title}</h2>
             </div>
 
-            {activity.instruction_text && <p className="ce-instruction">{activity.instruction_text}</p>}
+            <InstructionVoice activity={activity} className="ce-instruction" />
 
             <div className="ce-cause">
                 <span className="ce-cause-emoji">{cause.emoji}</span>

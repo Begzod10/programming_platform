@@ -5,6 +5,7 @@ import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
+import InstructionVoice from './InstructionVoice';
 
 /** Completion flow shared by the newer play screens: call finish(stars) when
  * the round is won -> celebration -> POST (or guest localStorage) -> onComplete.
@@ -53,7 +54,7 @@ export default function ActivityShell({
                 <h2>{character.label || activity.title}</h2>
             </div>
 
-            {!hideInstruction && activity.instruction_text && <p className="aa-instruction">{activity.instruction_text}</p>}
+            {!hideInstruction && <InstructionVoice activity={activity} className="aa-instruction" />}
 
             {children}
 

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import './WordChartActivity.css';
 import ActivityShell, { useActivityCompletion } from './ActivityShell';
 import { playSynth } from '../../../utils/soundSynth';
+import { cheer } from './earlyVoice';
 import { shuffle, starsForWrongCount, WRONG_FLASH_MS } from './earlyLearningUtils';
 
 // A valid 4x4 solution (2x2 boxes); shuffling digits, rows-in-band and
@@ -34,6 +35,7 @@ export default function SudokuActivity(props) {
         if (sel === null || completion.celebration !== null) return;
         if (puzzle.solution[sel] === d) {
             playSynth('chime');
+            cheer('correct');
             const next = cells.map((v, i) => (i === sel ? d : v));
             setCells(next);
             setSel(null);
@@ -43,6 +45,7 @@ export default function SudokuActivity(props) {
             }
         } else {
             playSynth('laser');
+            cheer('wrong');
             setWrongCount((c) => c + 1);
             const token = Date.now();
             setFlash({ token, i: sel });

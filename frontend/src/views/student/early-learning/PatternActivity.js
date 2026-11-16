@@ -4,6 +4,8 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import InstructionVoice from './InstructionVoice';
+import { cheer } from './earlyVoice';
 import { shuffle, starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
@@ -57,6 +59,7 @@ export default function PatternActivity({ activity, onBack, onComplete, lang, to
 
         if (emoji === round.answer) {
             playSynth('chime');
+            cheer('correct');
             setLocked(true);
             setCorrectEmoji(emoji);
             setTimeout(() => {
@@ -71,6 +74,7 @@ export default function PatternActivity({ activity, onBack, onComplete, lang, to
             }, CORRECT_PULSE_MS);
         } else {
             playSynth('laser');
+            cheer('wrong');
             setWrongCount((c) => c + 1);
             const token = Date.now();
             setFlash({ token, emoji });
@@ -114,7 +118,7 @@ export default function PatternActivity({ activity, onBack, onComplete, lang, to
                 <h2>{character.label || activity.title}</h2>
             </div>
 
-            {activity.instruction_text && <p className="pt-instruction">{activity.instruction_text}</p>}
+            <InstructionVoice activity={activity} className="pt-instruction" />
 
             <div className="pt-scene">
                 {round.sequence.map((emoji, i) => (

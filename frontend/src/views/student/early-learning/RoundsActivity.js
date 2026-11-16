@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import './WordChartActivity.css';
 import ActivityShell, { useActivityCompletion } from './ActivityShell';
 import { playSynth } from '../../../utils/soundSynth';
+import { cheer } from './earlyVoice';
 import { shuffle, starsForWrongCount, WRONG_FLASH_MS } from './earlyLearningUtils';
 
 const PULSE_MS = 600;
@@ -213,6 +214,7 @@ export default function RoundsActivity(props) {
         if (completion.celebration !== null || completion.submitting || locked) return;
         if (key === round.answer) {
             playSynth('chime');
+            cheer('correct');
             setLocked(true);
             setCorrect(key);
             setTimeout(() => {
@@ -223,6 +225,7 @@ export default function RoundsActivity(props) {
             }, PULSE_MS);
         } else {
             playSynth('laser');
+            cheer('wrong');
             setWrongCount((c) => c + 1);
             const token = Date.now();
             setFlash({ token, key });

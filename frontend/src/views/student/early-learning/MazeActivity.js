@@ -4,6 +4,7 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import InstructionVoice from './InstructionVoice';
 import { starsForWrongCount, WRONG_FLASH_MS, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft, ArrowUp, ArrowDown, ArrowLeft as ArrowLeftIcon, ArrowRight, Flag } from 'lucide-react';
 
@@ -108,7 +109,7 @@ export default function MazeActivity({ activity, onBack, onComplete, lang, toggl
                 <h2>{character.label || activity.title}</h2>
             </div>
 
-            {activity.instruction_text && <p className="mz-instruction">{activity.instruction_text}</p>}
+            <InstructionVoice activity={activity} className="mz-instruction" />
             {flash && <div className="mz-error-banner">{flash.message}</div>}
 
             <div className={`mz-scene ${flash ? 'mz-scene-bump' : ''}`}>

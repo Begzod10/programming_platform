@@ -4,6 +4,8 @@ import EarlyActivityCelebration from './EarlyActivityCelebration';
 import LangToggle from './LangToggle';
 import { API_URL, useHttp, headers } from '../../../api/search/base';
 import { playSynth } from '../../../utils/soundSynth';
+import InstructionVoice from './InstructionVoice';
+import { cheer } from './earlyVoice';
 import { shuffle, starsForWrongCount, recordGuestCompletion } from './earlyLearningUtils';
 import { ArrowLeft } from 'lucide-react';
 
@@ -82,6 +84,7 @@ export default function PairsActivity({ activity, onBack, onComplete, lang, togg
 
         if (first.id === second.id) {
             playSynth('chime');
+            cheer('correct');
             setTimeout(() => {
                 setMatchedCardIds((prev) => new Set(prev).add(first.id));
                 setFlippedIds([]);
@@ -89,6 +92,7 @@ export default function PairsActivity({ activity, onBack, onComplete, lang, togg
             }, RESOLVE_MS);
         } else {
             playSynth('laser');
+            cheer('wrong');
             setWrongCount((c) => c + 1);
             setWrongTileIds(new Set([firstTileId, secondTileId]));
             setTimeout(() => {
@@ -140,7 +144,7 @@ export default function PairsActivity({ activity, onBack, onComplete, lang, togg
                 <span className="pa-progress-badge">{matchedCardIds.size} / {cards.length}</span>
             </div>
 
-            {activity.instruction_text && <p className="pa-instruction">{activity.instruction_text}</p>}
+            <InstructionVoice activity={activity} className="pa-instruction" />
 
             <div className="pa-grid">
                 {tiles.map((tile) => {
