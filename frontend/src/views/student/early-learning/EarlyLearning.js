@@ -343,7 +343,7 @@ export default function EarlyLearning({ guest = false }) {
                 const row = levels[level - 1];
                 row.best_stars = Math.max(row.best_stars || 0, result.stars_earned || 0);
                 row.attempts = Math.max(result.attempts || 0, (row.attempts || 0) + 1);
-                if (level < 3 && row.best_stars >= UNLOCK_STARS) levels[level].unlocked = true;
+                if (level < levels.length && row.best_stars >= UNLOCK_STARS) levels[level].unlocked = true;
                 return {
                     ...a,
                     levels,
@@ -398,7 +398,8 @@ export default function EarlyLearning({ guest = false }) {
         const raw = moduleDetail.activities.find((a) => a.id === playing.id);
         // An activity from an old cache knows nothing about levels: no offer.
         if (!raw || !Array.isArray(raw.levels)) return { nextLevel: null, onPlayNext: null };
-        if (levelsOf(raw)[playing.level].unlocked) return { nextLevel: null, onPlayNext: null };
+        const rawLevels = levelsOf(raw);
+        if (rawLevels.length <= playing.level || rawLevels[playing.level].unlocked) return { nextLevel: null, onPlayNext: null };
         const nextLevel = playing.level + 1;
         return { nextLevel, onPlayNext: () => { playNextRef.current = nextLevel; } };
     }, [playing, moduleDetail]);

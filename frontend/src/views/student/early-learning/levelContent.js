@@ -259,6 +259,20 @@ function harderWords(c, m, siblings, rand, defaultRounds) {
 
 const plusRounds = (c, m, def, step = 2) => ({ ...c, rounds_count: (c.rounds_count || def) + step * m });
 
+/** Game types whose levels 2-3 really are harder (content below, or trace's
+ * stricter scoring). Every other type keeps level 1 only — replaying the
+ * same game must not earn extra stars. Keep in step with LEVELED_MODES in
+ * backend/app/services/early_levels.py. */
+export const LEVELED_MODES = new Set([
+    'select', 'maze', 'count', 'compare', 'bubbles', 'arithmetic', 'rounds', 'keyboard',
+    'hangman', 'simon', 'merge', 'sudoku', 'chart', 'trace', 'pattern', 'cause_effect',
+]);
+
+/** 3 for a game that gets harder, else 1. No mode = select. */
+export function levelCountFor(mode) {
+    return LEVELED_MODES.has(mode || 'select') ? 3 : 1;
+}
+
 export function levelContent(content, level, siblings = [], seed = 0) {
     if (!content || typeof content !== 'object' || !(level === 2 || level === 3)) return content;
     const m = level - 1;

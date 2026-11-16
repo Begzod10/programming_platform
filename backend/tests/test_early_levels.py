@@ -204,3 +204,44 @@ async def test_plays_on_counts_activity_once(async_client, db_session, teacher):
     await _post(async_client, headers, acts[2].id, 1)
     assert await plays_on(db_session, student_id, _today()) == 3
     assert await current_streak(db_session, student_id, _today()) == 1
+
+
+# ---- games that cannot get harder keep one level ---------------------------
+
+def test_levels_for_modes():
+    from app.services.early_levels import levels_for
+    assert levels_for("maze") == 3 and levels_for("select") == 3 and levels_for(None) == 3
+    assert levels_for("trace") == 3 and levels_for("pattern") == 3
+    for mode in ("sort", "sequence", "build", "pairs", "typing", "wordbuild", "puzzle"):
+        assert levels_for(mode) == 1
+    assert levels_for("unknown-mode") == 1
+
+
+async def test_one_level_game_has_one_level_everywhere(async_client, db_session, teacher):
+    student_id, headers = await make_student(async_client, db_session)
+    module, (sort_a, maze_a) = await make_module(db_session, teacher, n_activities=2, modes=["sort", "maze"])
+    await add_completion(db_session, student_id, sort_a.id, stars=3)
+
+    detail = (await async_client.get(f"{BASE}/modules/{module.id}", headers=headers)).json()
+    by_id = {a["id"]: a for a in detail["activities"]}
+    assert [l["level"] for l in by_id[sort_a.id]["levels"]] == [1]
+    assert len(by_id[maze_a.id]["levels"]) == 3
+
+    listed = next(m for m in (await async_client.get(f"{BASE}/modules", headers=headers)).json() if m["id"] == module.id)
+    assert listed["max_stars"] == 3 * 1 + 3 * 3
+    assert listed["max_level_plays"] == 1 + 3
+    assert listed["level_plays"] == 1
+
+    public = (await async_client.get(f"{BASE}/public/modules/{module.id}")).json()
+    assert len({a["id"]: a for a in public["activities"]}[sort_a.id]["levels"]) == 1
+
+
+async def test_one_level_game_rejects_level_two_even_for_teacher(async_client, db_session, teacher):
+    student_id, headers = await make_student(async_client, db_session)
+    _, (sort_a,) = await make_module(db_session, teacher, n_activities=1, modes=["sort"])
+    await add_completion(db_session, student_id, sort_a.id, stars=3)
+    res = await _post(async_client, headers, sort_a.id, 3, level=2)
+    assert res.status_code == 409 and res.json()["error"]["message"] == "level_locked"
+    _, t_headers = await make_student(async_client, db_session, role=UserRole.teacher)
+    res = await _post(async_client, t_headers, sort_a.id, 3, level=3)
+    assert res.status_code == 409

@@ -172,3 +172,28 @@ test('every completion request sends the level', async () => {
         jest.useRealTimers();
     }
 });
+
+/* ── games that cannot get harder keep one level ── */
+
+test('levelCountFor matches the backend list', () => {
+    const { levelCountFor } = require('../views/student/early-learning/levelContent');
+    expect(levelCountFor('maze')).toBe(3);
+    expect(levelCountFor(undefined)).toBe(3);
+    ['sort', 'sequence', 'build', 'pairs', 'typing', 'wordbuild', 'puzzle', 'nope'].forEach((m) => expect(levelCountFor(m)).toBe(1));
+});
+
+test('a one-level game: levelsOf keeps one level and nextStep gives no unlock hint', () => {
+    const one = { id: 1, order: 0, content: { mode: 'sort' }, levels: [{ level: 1, best_stars: 1, attempts: 1, unlocked: true }] };
+    expect(levelsOf(one)).toHaveLength(1);
+    expect(nextStep([one])).toBeNull();
+    expect(startLevel(one)).toBe(1);
+    const oldCache = { id: 2, order: 1, content: { mode: 'pairs' }, best_stars: 3, attempts: 1 };
+    expect(levelsOf(oldCache)).toHaveLength(1);
+});
+
+test('guest one-level game gets a single level and never unlocks level 2', () => {
+    recordGuestCompletion(77, 3, 1);
+    const detail = applyGuestActivityStars({ id: 9, activities: [{ id: 77, order: 0, content: { mode: 'sort' }, best_stars: 0, attempts: 0 }] });
+    expect(detail.activities[0].levels).toHaveLength(1);
+    expect(guestLevels(77, undefined, 1)).toHaveLength(1);
+});

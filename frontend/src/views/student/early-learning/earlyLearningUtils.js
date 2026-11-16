@@ -1,3 +1,5 @@
+import { levelCountFor } from './levelContent';
+
 /** Small helpers shared by every early-learning play screen
  * (MatchingActivity.js, BuildActivity.js) — pulled out here once a second
  * screen needed the exact same shuffle/scoring rules, rather than
@@ -109,9 +111,9 @@ const LEVELS = [1, 2, 3];
 /** A guest's three levels of one game, same shape as the server's
  * EarlyLevelOut: a level opens once the one below has 2+ stars. With
  * localStorage unavailable this is level 1 open, nothing played. */
-export function guestLevels(activityId, progress = getGuestProgress()) {
+export function guestLevels(activityId, progress = getGuestProgress(), count = LEVELS.length) {
     let prevBest = 0;
-    return LEVELS.map((level) => {
+    return LEVELS.slice(0, count).map((level) => {
         const p = progress[guestKey(activityId, level)];
         const row = {
             level,
@@ -148,7 +150,7 @@ export function applyGuestModuleStars(modules) {
 export function applyGuestActivityStars(moduleDetail) {
     const progress = getGuestProgress();
     const activities = moduleDetail.activities.map((a) => {
-        const levels = guestLevels(a.id, progress);
+        const levels = guestLevels(a.id, progress, levelCountFor(a.content?.mode));
         return { ...a, best_stars: levels[0].best_stars, attempts: levels[0].attempts, levels };
     });
     const all = activities.flatMap((a) => a.levels);

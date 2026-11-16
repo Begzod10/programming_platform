@@ -17,6 +17,21 @@ from app.models.early_learning import (
 LEVELS = (1, 2, 3)
 UNLOCK_STARS = 2
 
+# Game types whose levels 2-3 really are harder (frontend levelContent.js
+# changes their content or, for trace, their scoring). Every other type
+# keeps level 1 only: replaying the same game must not earn extra stars.
+# Keep in step with LEVELED_MODES in frontend levelContent.js.
+LEVELED_MODES = frozenset({
+    "select", "maze", "count", "compare", "bubbles", "arithmetic", "rounds", "keyboard",
+    "hangman", "simon", "merge", "sudoku", "chart", "trace", "pattern", "cause_effect",
+})
+
+
+def levels_for(mode) -> int:
+    """How many levels a game of this mode has (3, or 1). No mode = select."""
+    mode = mode or "select"
+    return len(LEVELS) if isinstance(mode, str) and mode in LEVELED_MODES else 1
+
 
 async def best_stars_at(db: AsyncSession, student_id: int, activity_id: int, level: int) -> int:
     """Best stars the student has at `level` of the activity (0 if never played)."""
@@ -75,13 +90,14 @@ async def level_daily(
     return out
 
 
-def levels_payload(level_one, higher: Dict[int, object] | None, unlock_all: bool) -> List[dict]:
-    """The three EarlyLevelOut dicts for one activity. `level_one` is the
+def levels_payload(level_one, higher: Dict[int, object] | None, unlock_all: bool, count: int = 3) -> List[dict]:
+    """The EarlyLevelOut dicts (`count` of them: 3, or 1 for a game that
+    cannot get harder) for one activity. `level_one` is the
     EarlyActivityCompletion row (or None), `higher` the {level: row} map."""
     higher = higher or {}
     out = []
     prev_best = None
-    for level in LEVELS:
+    for level in LEVELS[:count]:
         row = level_one if level == 1 else higher.get(level)
         best = row.stars_earned if row else 0
         out.append({

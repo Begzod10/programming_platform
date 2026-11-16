@@ -1,3 +1,5 @@
+import { levelCountFor } from './levelContent';
+
 /* Pure selection logic for the kids' games home and the module path — what
  * to continue, what is new for this kid, how modules group into sections,
  * which game is next. No React, no I/O.
@@ -89,13 +91,16 @@ export function groupBySection(modules) {
 export const UNLOCK_STARS = 2;
 const byStep = (a, b) => (a.order || 0) - (b.order || 0) || a.id - b.id;
 
-/** The three levels of a game ({level, best_stars, attempts, unlocked}).
+/** The levels of a game ({level, best_stars, attempts, unlocked}): three, or
+ * one for a game that cannot get harder (levelCountFor).
  * An activity from an old cache has no `levels`: level 1 comes from its
  * own best_stars/attempts and levels 2-3 stay locked. */
 export function levelsOf(activity) {
-    if (Array.isArray(activity?.levels) && activity.levels.length === 3) return activity.levels;
+    if (Array.isArray(activity?.levels) && activity.levels.length >= 1) return activity.levels;
+    const first = { level: 1, best_stars: activity?.best_stars || 0, attempts: activity?.attempts || 0, unlocked: true };
+    if (levelCountFor(activity?.content?.mode) === 1) return [first];
     return [
-        { level: 1, best_stars: activity?.best_stars || 0, attempts: activity?.attempts || 0, unlocked: true },
+        first,
         { level: 2, best_stars: 0, attempts: 0, unlocked: false },
         { level: 3, best_stars: 0, attempts: 0, unlocked: false },
     ];
@@ -120,7 +125,7 @@ export function nextStep(activities) {
     }
     for (const activity of sorted) {
         const levels = levelsOf(activity);
-        const i = levels.findIndex((l, k) => k < 2 && l.attempts && l.best_stars < UNLOCK_STARS && !levels[k + 1].unlocked);
+        const i = levels.findIndex((l, k) => k < levels.length - 1 && l.attempts && l.best_stars < UNLOCK_STARS && !levels[k + 1].unlocked);
         if (i >= 0) return { activity, level: levels[i].level, unlockHint: levels[i].level + 1 };
     }
     return null;

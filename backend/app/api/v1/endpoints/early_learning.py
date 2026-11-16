@@ -37,7 +37,7 @@ from app.schemas.early_learning import (
     EarlyVoiceOut,
 )
 from app.services.early_levels import (
-    LEVELS, UNLOCK_STARS, best_stars_at, level_daily, level_rows, levels_payload,
+    UNLOCK_STARS, best_stars_at, level_daily, level_rows, levels_for, levels_payload,
 )
 from app.services.early_sections import section_for_modes
 from app.services.early_voice import audio_url, norm_lang, phrase_urls
@@ -257,8 +257,10 @@ def _list_item(
     daily = daily or {}
     levels = levels or {}
     levels_daily = levels_daily or {}
-    higher = [row for a in activities for row in levels.get(a.id, {}).values()]
-    higher_today = [row for a in activities for row in levels_daily.get(a.id, {}).values()]
+    counts = {a.id: levels_for(_activity_mode(a)) for a in activities}
+    # A game that keeps one level never counts level 2-3 rows (none can be written).
+    higher = [row for a in activities for lv, row in levels.get(a.id, {}).items() if lv <= counts[a.id]]
+    higher_today = [row for a in activities for lv, row in levels_daily.get(a.id, {}).items() if lv <= counts[a.id]]
     earned = sum(completions[a.id].stars_earned for a in activities if a.id in completions)
     earned += sum(row.stars_earned for row in higher)
     earned_today = sum(daily[a.id].stars_earned for a in activities if a.id in daily)
@@ -275,13 +277,13 @@ def _list_item(
         display_order=module.display_order,
         activities_count=len(activities),
         earned_stars=earned,
-        max_stars=sum(a.max_stars for a in activities) * len(LEVELS),
+        max_stars=sum(a.max_stars * counts[a.id] for a in activities),
         earned_stars_today=earned_today,
         section=section_for_modes([_activity_mode(a) for a in activities]),
         completed_count=len(played),
         last_played_at=max(last_played) if last_played else None,
         level_plays=len(played) + len(higher),
-        max_level_plays=len(activities) * len(LEVELS),
+        max_level_plays=sum(counts.values()),
     )
 
 
@@ -312,7 +314,7 @@ def _activity_out(
         attempts=completion.attempts if completion else 0,
         today_stars=(daily.stars_earned if daily else 0)
         + sum(row.stars_earned for row in (higher_today or {}).values()),
-        levels=levels_payload(completion, higher, unlock_all),
+        levels=levels_payload(completion, higher, unlock_all, levels_for(content.get("mode") if isinstance(content, dict) else None)),
     )
 
 
@@ -584,6 +586,8 @@ async def complete_early_activity(
     if payload.level == 1:
         existing = await _record_level_one(db, current_student.id, activity_id, payload.stars)
     else:
+        if payload.level > levels_for(_activity_mode(activity)):
+            raise HTTPException(status_code=409, detail="level_locked")
         if current_student.role == UserRole.student and (
             await best_stars_at(db, current_student.id, activity_id, payload.level - 1)
         ) < UNLOCK_STARS:
