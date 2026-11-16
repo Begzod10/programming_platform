@@ -123,7 +123,15 @@ _LOCALIZED_ITEM_KEYS = {
     # `rounds` for this mode right after, the same way it already
     # special-cases `character` for every mode.
     "cause_effect": (),
+    # The active games (collect, connect, catch, dragsort) play the select
+    # content in a new way, so they carry the same item lists. dragsort's
+    # partner/partner2 baskets are translated in _localize_content.
+    "collect": ("correct_items", "distractor_items"),
+    "connect": ("correct_items", "distractor_items"),
+    "catch": ("correct_items", "distractor_items"),
+    "dragsort": ("correct_items", "distractor_items"),
 }
+_PARTNER_KEYS = ("partner", "partner2")
 
 
 def _localize_content(content: dict, lang: str) -> dict:
@@ -148,7 +156,20 @@ def _localize_content(content: dict, lang: str) -> dict:
         content = {**content, key: _localize_items(content.get(key), lang)}
     if mode == "cause_effect":
         content = {**content, "rounds": _localize_cause_effect_rounds(content.get("rounds"), lang)}
+    for key in _PARTNER_KEYS:
+        partner = content.get(key)
+        if isinstance(partner, dict):
+            content = {**content, key: _localize_partner(partner, lang)}
     return content
+
+
+def _localize_partner(partner: dict, lang: str) -> dict:
+    """A dragsort partner basket: {character, correct_items} copied from
+    another module's game, label_ru fields included."""
+    character = partner.get("character")
+    if isinstance(character, dict) and character.get("label_ru"):
+        partner = {**partner, "character": {**character, "label": character["label_ru"]}}
+    return {**partner, "correct_items": _localize_items(partner.get("correct_items"), lang)}
 
 
 async def _completions_by_activity(

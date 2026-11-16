@@ -24,6 +24,7 @@ UNLOCK_STARS = 2
 LEVELED_MODES = frozenset({
     "select", "maze", "count", "compare", "bubbles", "arithmetic", "rounds", "keyboard",
     "hangman", "simon", "merge", "sudoku", "chart", "trace", "pattern", "cause_effect",
+    "collect", "connect", "catch", "dragsort",
 })
 
 

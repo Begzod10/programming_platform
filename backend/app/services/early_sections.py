@@ -9,7 +9,8 @@ from collections import Counter
 from typing import List, Optional
 
 SECTION_MODES = {
-    "world": ("select", "sort", "cause_effect", "sequence", "pairs"),
+    "world": ("select", "sort", "cause_effect", "sequence", "pairs",
+              "collect", "connect", "catch", "dragsort"),
     "logic": ("count", "arithmetic", "compare", "pattern", "maze", "simon",
               "sudoku", "merge", "chart", "rounds", "bubbles"),
     "make": ("trace", "build", "puzzle"),
