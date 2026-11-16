@@ -36,9 +36,9 @@ PLAN = ("select", "collect", "connect", "catch", "dragsort",
 TEMPLATES = {
     "collect": ("Labirintda yurib, {x} uchun kerakli narsalarni yig'.",
                 "Пройди лабиринт и собери то, что нужно для: {x}."),
-    "connect": ("{x} ga mos narsalarni chiziq bilan ula.",
+    "connect": ("{xga} mos narsalarni chiziq bilan ula.",
                 "Соедини линией подходящие предметы с: {x}."),
-    "catch": ("{x} ga mos narsalarni savatga tut.",
+    "catch": ("{xga} mos narsalarni savatga tut.",
               "Лови в корзину то, что подходит для: {x}."),
     "dragsort": ("Narsalarni to'g'ri savatga sudrab joyla.",
                  "Перетащи предметы в нужные корзины."),
@@ -50,16 +50,22 @@ def mode_for(index: int, total: int) -> str:
     return "select" if index == total - 1 else PLAN[index % len(PLAN)]
 
 
+def dative(name: str) -> str:
+    """Uzbek dative written onto the word: -ka after k, -qa after q, else -ga (Oshpazga, Mushukka, Oqqa)."""
+    last = name.strip()[-1:].lower()
+    return name + ("ka" if last == "k" else "qa" if last == "q" else "ga")
+
+
 def instruction_for(mode: str, character: Optional[dict], lang: str) -> Optional[str]:
     """New instruction text, or None (select, or no character name to fill in) = keep the original."""
     if mode not in TEMPLATES:
         return None
     template = TEMPLATES[mode][1 if lang == "ru" else 0]
-    if "{x}" not in template:
+    if "{x}" not in template and "{xga}" not in template:
         return template
     character = character or {}
     name = (character.get("label_ru") if lang == "ru" else None) or character.get("label")
-    return template.format(x=name) if name else None
+    return template.format(x=name, xga=dative(name)) if name else None
 
 
 def _content(activity: EarlyActivity) -> dict:

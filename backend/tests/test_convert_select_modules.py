@@ -120,10 +120,10 @@ async def test_instructions_follow_template(async_client, db_session, monkeypatc
     assert after[1][1] == f"Labirintda yurib, {x} uchun kerakli narsalarni yig'."
     assert after[1][2] == f"Пройди лабиринт и собери то, что нужно для: {x_ru}."
     y, y_ru = content[2]["character"]["label"], content[2]["character"]["label_ru"]
-    assert after[2][1] == f"{y} ga mos narsalarni chiziq bilan ula."
+    assert after[2][1] == f"{conv.dative(y)} mos narsalarni chiziq bilan ula."
     assert after[2][2] == f"Соедини линией подходящие предметы с: {y_ru}."
     z, z_ru = content[3]["character"]["label"], content[3]["character"]["label_ru"]
-    assert after[3][1] == f"{z} ga mos narsalarni savatga tut."
+    assert after[3][1] == f"{conv.dative(z)} mos narsalarni savatga tut."
     assert after[3][2] == f"Лови в корзину то, что подходит для: {z_ru}."
     assert after[4][1] == "Narsalarni to'g'ri savatga sudrab joyla."
     assert after[4][2] == "Перетащи предметы в нужные корзины."
@@ -258,3 +258,12 @@ async def test_modeless_draft_modules_are_neither_converted_nor_partners(async_c
     first = [json.loads(c) for c, _, _ in await _state(ids[0])]
     assert last[4]["partner"]["character"] == first[4]["character"]
     assert "partner2" in last[4]
+
+
+def test_dative_attaches_the_uzbek_suffix():
+    assert conv.dative("Oshpaz") == "Oshpazga"
+    assert conv.dative("Mushuk") == "Mushukka"
+    assert conv.dative("Oq") == "Oqqa"
+    assert conv.dative("Yer transporti") == "Yer transportiga"
+    assert conv.instruction_for("connect", {"label": "Mexanik"}, "uz") == "Mexanikka mos narsalarni chiziq bilan ula."
+    assert conv.instruction_for("catch", {"label": "Shifokor"}, "uz") == "Shifokorga mos narsalarni savatga tut."
