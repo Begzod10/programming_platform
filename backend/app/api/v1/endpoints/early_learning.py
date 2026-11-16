@@ -33,8 +33,10 @@ from app.schemas.early_learning import (
     EarlyModuleListItem,
     EarlyPublicModuleDetail,
     EarlyPublicModuleListItem,
+    EarlyVoiceOut,
 )
 from app.services.early_sections import section_for_modes
+from app.services.early_voice import audio_url, norm_lang, phrase_urls
 from app.services.early_sticker_service import album as sticker_album, sticker_payload, sync_awards
 from app.services.teacher_students import classmate_ids_subquery
 
@@ -277,12 +279,14 @@ def _activity_out(
         content = json.loads(activity.content_json)
     except (TypeError, ValueError):
         content = {}
+    instruction = _localized(activity.instruction_text, activity.instruction_text_ru, lang)
     return EarlyActivityOut(
         id=activity.id,
         title=_localized(activity.title, activity.title_ru, lang),
         order=activity.order,
         activity_type=activity.activity_type,
-        instruction_text=_localized(activity.instruction_text, activity.instruction_text_ru, lang),
+        instruction_text=instruction,
+        instruction_audio_url=audio_url(instruction, norm_lang(lang)),
         content=_localize_content(content, lang),
         max_stars=activity.max_stars,
         best_stars=completion.stars_earned if completion else 0,
@@ -349,6 +353,12 @@ async def get_early_module(
         **base.model_dump(),
         activities=[_activity_out(a, completions.get(a.id), lang, daily.get(a.id)) for a in activities],
     )
+
+
+@router.get("/public/voice", response_model=EarlyVoiceOut)
+async def get_public_voice(lang: str = Query("uz")):
+    """Praise phrase audio for the games (no login: guests hear it too). Unknown lang -> uz."""
+    return EarlyVoiceOut(phrases=phrase_urls(norm_lang(lang)))
 
 
 @router.get("/public/modules", response_model=List[EarlyPublicModuleListItem])

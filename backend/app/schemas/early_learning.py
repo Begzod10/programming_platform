@@ -42,6 +42,7 @@ class EarlyActivityOut(BaseModel):
     order: int
     activity_type: EarlyActivityType
     instruction_text: Optional[str] = None
+    instruction_audio_url: Optional[str] = None
     content: Dict[str, Any]
     max_stars: int
     best_stars: int
@@ -140,3 +141,8 @@ class EarlyLeaderboardEntry(BaseModel):
 class EarlyLeaderboardOut(BaseModel):
     has_class: bool
     entries: List[EarlyLeaderboardEntry]
+
+
+class EarlyVoiceOut(BaseModel):
+    """Praise phrases that already have an audio file: phrase key -> /uploads url."""
+    phrases: Dict[str, str]
