@@ -30,6 +30,9 @@ import SudokuActivity from './SudokuActivity';
 import PicturePuzzleActivity from './PicturePuzzleActivity';
 import CollectActivity from './CollectActivity';
 import ConnectActivity from './ConnectActivity';
+import CatchActivity from './CatchActivity';
+import DragSortActivity from './DragSortActivity';
+import { makeBaskets } from './dragsortSetup';
 import LangToggle from './LangToggle';
 import Sky from './Sky';
 import StickerStrip from './StickerStrip';
@@ -391,7 +394,14 @@ export default function EarlyLearning({ guest = false }) {
         const raw = moduleDetail.activities.find((a) => a.id === playing.id);
         if (!raw) return null;
         const siblings = moduleDetail.activities.filter((a) => a.id !== raw.id).map((a) => a.content);
-        return levelActivity(raw, playing.level, siblings);
+        const leveled = levelActivity(raw, playing.level, siblings);
+        // A drag-to-basket game without two usable baskets (no partner, or
+        // too few pieces once shared pictures are dropped) plays as connect,
+        // with connect's own harder levels.
+        if (leveled.content?.mode === 'dragsort' && !makeBaskets(leveled.content, leveled.level)) {
+            return levelActivity({ ...raw, content: { ...raw.content, mode: 'connect' } }, playing.level, siblings);
+        }
+        return leveled;
     }, [playing, moduleDetail]);
 
     // The level this play would open (2+ stars), for the celebration's offer.
@@ -475,6 +485,8 @@ export default function EarlyLearning({ guest = false }) {
                 // The active games play select content another way.
                 mode === 'collect' ? CollectActivity :
                 mode === 'connect' ? ConnectActivity :
+                mode === 'catch' ? CatchActivity :
+                mode === 'dragsort' ? DragSortActivity :
                 MatchingActivity;
             return (
                 <div className="el-shell">

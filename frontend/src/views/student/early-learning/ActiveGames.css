@@ -141,3 +141,74 @@
     .ag-shake { animation: none; }
     .ag-hero { transition: none; }
 }
+
+/* ---- catch ---- */
+.ag-catch {
+    position: relative;
+    width: min(100%, 420px);
+    height: min(62vh, 460px);
+    min-height: 300px;
+    border-radius: 24px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #e9f4ff 0%, #fff8ec 100%);
+    user-select: none;
+    -webkit-user-select: none;
+}
+.ag-lane {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: calc(100% / 3);
+    border: none;
+    background: transparent;
+    border-right: 2px dashed rgba(124, 92, 255, 0.15);
+    cursor: pointer;
+    padding: 0;
+}
+.ag-lane:last-of-type { border-right: none; }
+.ag-fall {
+    position: absolute;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    z-index: 2;
+}
+.ag-fall-label { font-size: 0.72rem; font-weight: 700; color: var(--el-ink); background: rgba(255, 255, 255, 0.85); border-radius: 8px; padding: 0 6px; max-width: 110px; text-align: center; }
+.ag-basket {
+    position: absolute;
+    bottom: 6px;
+    transform: translateX(-50%);
+    font-size: 52px;
+    line-height: 1;
+    pointer-events: none;
+    transition: left 0.12s ease;
+    z-index: 3;
+}
+
+/* ---- dragsort ---- */
+.ag-sort { display: flex; flex-direction: column; gap: 14px; width: min(100%, 640px); user-select: none; -webkit-user-select: none; }
+.ag-baskets { display: grid; gap: 8px; }
+.ag-basket-drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-height: 130px;
+    min-width: 0;
+    padding: 8px 4px;
+    border-radius: 20px;
+    border: 3px dashed rgba(124, 92, 255, 0.4);
+    background: rgba(255, 255, 255, 0.92);
+    cursor: pointer;
+}
+.ag-basket-hero { font-size: clamp(34px, 10vw, 52px); line-height: 1; }
+.ag-basket-name { font-weight: 700; font-size: 0.85rem; color: var(--el-ink); text-align: center; overflow-wrap: anywhere; }
+.ag-basket-in { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; }
+.ag-tray { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.ag-piece-dragging { position: relative; z-index: 5; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18); pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+    .ag-basket { transition: none; }
+}
