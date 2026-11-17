@@ -32,7 +32,7 @@ const CreateModal = ({ onClose, onCreated }) => {
     // derived from the selection itself at submit time (whichever group
     // most of the picked students belong to), never from this dropdown.
     const [groupId, setGroupId] = useState('');
-    const [teamSize, setTeamSize] = useState(4);
+    const [teamSize, setTeamSize] = useState(2);
     const [deadlineDays, setDeadlineDays] = useState(14);
     const [selected, setSelected] = useState({});
     const [search, setSearch] = useState('');

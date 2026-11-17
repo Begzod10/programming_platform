@@ -97,7 +97,7 @@ class TeamProject(Base):
     status: Mapped[TeamProjectStatus] = mapped_column(
         Enum(TeamProjectStatus), default=TeamProjectStatus.planning, nullable=False,
     )
-    team_size: Mapped[int] = mapped_column(Integer, default=4, nullable=False)
+    team_size: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
     deadline_days: Mapped[int] = mapped_column(Integer, default=14, nullable=False)
 
     # Whole-project lifecycle gates — genuinely project-wide: the scheduler
