@@ -1,5 +1,5 @@
-// Only this teacher may change lessons (add, edit, publish/unpublish, reorder); every other teacher
+// Only these teachers may change lessons (add, edit, publish/unpublish, reorder); every other teacher
 // sees the courses and lessons read-only. The frontend hides the controls; the backend still decides.
-export const LESSON_EDITOR_USERNAME = 'rimefara_teach';
+export const LESSON_EDITOR_USERNAMES = new Set(['rimefara_teach', 'Shahzodweb']);
 
-export const canEditLessons = (user) => user?.username === LESSON_EDITOR_USERNAME;
+export const canEditLessons = (user) => LESSON_EDITOR_USERNAMES.has(user?.username);

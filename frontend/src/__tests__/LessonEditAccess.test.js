@@ -17,8 +17,10 @@ const renderModal = (canEdit) => render(
 );
 
 describe('who may change lessons', () => {
-  test('only the rimefara_teach teacher', () => {
+  test('only the rimefara_teach and Shahzodweb teachers', () => {
     expect(canEditLessons({ username: 'rimefara_teach' })).toBe(true);
+    expect(canEditLessons({ username: 'Shahzodweb' })).toBe(true);
+    expect(canEditLessons({ username: 'shahzodweb' })).toBe(false);
     expect(canEditLessons({ username: 'someone_else' })).toBe(false);
     expect(canEditLessons({ username: 'Rimefara_teach' })).toBe(false);
     expect(canEditLessons(null)).toBe(false);
