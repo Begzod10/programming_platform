@@ -131,3 +131,15 @@ async def require_games_unlocked(
 # Aliases for compatibility
 get_current_user = get_current_student
 get_current_teacher = get_current_instructor
+
+
+async def get_lesson_editor(
+        current_user: Student = Depends(get_current_instructor)
+) -> Student:
+    """A teacher allowed to change lessons and their content (settings.LESSON_EDITOR_USERNAMES)."""
+    if current_user.username not in settings.lesson_editor_usernames:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Darslarni o'zgartirishga ruxsat yo'q"
+        )
+    return current_user

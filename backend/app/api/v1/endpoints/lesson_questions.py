@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, text as sa_text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_teacher
+from app.dependencies import get_db, get_current_teacher, get_lesson_editor
 from app.models.lesson_question import LessonQuestion
 from app.models.lesson import Lesson
 from app.models.user import Student
@@ -64,7 +64,7 @@ async def create_lesson_question(
     lesson_id: int,
     body: LessonQuestionCreate,
     db: AsyncSession = Depends(get_db),
-    teacher: Student = Depends(get_current_teacher),
+    teacher: Student = Depends(get_lesson_editor),
 ):
     await _require_lesson_owner(db, lesson_id, teacher.id)
 
@@ -97,7 +97,7 @@ async def update_lesson_question(
     question_id: int,
     body: LessonQuestionCreate,
     db: AsyncSession = Depends(get_db),
-    teacher: Student = Depends(get_current_teacher),
+    teacher: Student = Depends(get_lesson_editor),
 ):
     await _require_lesson_owner(db, lesson_id, teacher.id)
     q = (await db.execute(
@@ -123,7 +123,7 @@ async def delete_lesson_question(
     lesson_id: int,
     question_id: int,
     db: AsyncSession = Depends(get_db),
-    teacher: Student = Depends(get_current_teacher),
+    teacher: Student = Depends(get_lesson_editor),
 ):
     await _require_lesson_owner(db, lesson_id, teacher.id)
     q = (await db.execute(

@@ -95,6 +95,20 @@ async def mock_gennis_login():
         yield
 
 
+@pytest.fixture(autouse=True)
+def any_teacher_edits_lessons(request):
+    """Most tests create lessons with throwaway teachers; only tests marked
+    real_lesson_editor exercise the LESSON_EDITOR_USERNAMES restriction."""
+    if request.node.get_closest_marker("real_lesson_editor"):
+        yield
+        return
+    from app.main import app
+    from app.dependencies import get_current_instructor, get_lesson_editor
+    app.dependency_overrides[get_lesson_editor] = get_current_instructor
+    yield
+    app.dependency_overrides.pop(get_lesson_editor, None)
+
+
 # ── 4c. Team projects: give every student the skills a team project needs ─────
 
 @pytest.fixture(autouse=True)

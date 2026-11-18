@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db, get_current_student, get_current_instructor
+from app.dependencies import get_db, get_current_student, get_current_instructor, get_lesson_editor
 from app.models.dictionary import UserDictionary
 from app.models.course import Course
 from app.models.lesson import Lesson, LessonVocabulary
@@ -59,7 +59,7 @@ async def add_vocab_word(
         course_id: int,
         data: VocabIn,
         db: AsyncSession = Depends(get_db),
-        current_user: Student = Depends(get_current_instructor),
+        current_user: Student = Depends(get_lesson_editor),
 ):
     word = data.word.strip()
     definition = data.definition.strip()
@@ -78,7 +78,7 @@ async def generate_vocabulary(
         lesson_id: int,
         course_id: int,
         db: AsyncSession = Depends(get_db),
-        current_user: Student = Depends(get_current_instructor),
+        current_user: Student = Depends(get_lesson_editor),
 ):
     """AI adds the lesson's key terms (UZ + RU). Only the course owner; words already there are left alone."""
     course = await db.get(Course, course_id)
@@ -103,7 +103,7 @@ async def update_vocab_word(
         vocab_id: int,
         data: VocabIn,
         db: AsyncSession = Depends(get_db),
-        current_user: Student = Depends(get_current_instructor),
+        current_user: Student = Depends(get_lesson_editor),
 ):
     vocab = (await db.execute(
         select(LessonVocabulary).where(
@@ -129,7 +129,7 @@ async def delete_vocab_word(
         course_id: int,
         vocab_id: int,
         db: AsyncSession = Depends(get_db),
-        current_user: Student = Depends(get_current_instructor),
+        current_user: Student = Depends(get_lesson_editor),
 ):
     vocab = (await db.execute(
         select(LessonVocabulary).where(

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import selectinload
 from starlette import status
 from app.dependencies import get_db, get_current_student, get_current_teacher, get_current_student_optional, \
-    get_current_instructor
+    get_current_instructor, get_lesson_editor
 from app.services import lesson_service, achievement_service
 from app.services.project_service import is_orphaned_submission
 from app.services.submission_cooldown import enforce_submission_cooldown
@@ -181,7 +181,7 @@ async def get_lesson(
 async def create_lesson(
         course_id: int,
         data: LessonCreate,
-        current_teacher: Student = Depends(get_current_teacher),
+        current_teacher: Student = Depends(get_lesson_editor),
         db: AsyncSession = Depends(get_db)
 ):
     return await lesson_service.create_lesson(db, course_id, data)
@@ -192,7 +192,7 @@ async def update_lesson(
         course_id: int,
         lesson_id: int,
         data: LessonUpdate,
-        current_teacher: Student = Depends(get_current_teacher),
+        current_teacher: Student = Depends(get_lesson_editor),
         db: AsyncSession = Depends(get_db)
 ):
     lesson = await lesson_service.get_lesson_by_id(db, lesson_id)
@@ -205,7 +205,7 @@ async def update_lesson(
 async def delete_lesson(
         course_id: int,
         lesson_id: int,
-        current_teacher: Student = Depends(get_current_teacher),
+        current_teacher: Student = Depends(get_lesson_editor),
         db: AsyncSession = Depends(get_db)
 ):
     lesson = await lesson_service.get_lesson_by_id(db, lesson_id)

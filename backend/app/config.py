@@ -138,6 +138,15 @@ class Settings(BaseSettings):
     # Leave empty in environments where direct egress works.
     HTTP_PROXY: str = ""
 
+    # Teachers (by username, comma-separated) who may change lessons and their
+    # content: lessons, exercises, files, questions, vocabulary. Every other
+    # teacher reads only. Mirrors frontend lessonEditAccess.js.
+    LESSON_EDITOR_USERNAMES: str = "rimefara_teach,Shahzodweb"
+
+    @property
+    def lesson_editor_usernames(self) -> list[str]:
+        return [u.strip() for u in self.LESSON_EDITOR_USERNAMES.split(",") if u.strip()]
+
     # GitHub Personal Access Token (read-only public scope is enough).
     # Optional but strongly recommended: unauthenticated GitHub API calls are
     # capped at 60/hr/IP and will fail under any real load.

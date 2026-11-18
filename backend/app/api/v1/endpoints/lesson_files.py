@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from app.dependencies import get_db, get_current_student, get_current_student_optional, get_current_instructor
+from app.dependencies import get_db, get_current_student, get_current_student_optional, get_current_instructor, get_lesson_editor
 from app.models.lesson import Lesson
 from app.models.lesson_file import LessonFile
 from app.models.user import Student
@@ -68,7 +68,7 @@ async def upload_lesson_file(
         lesson_id: int,
         file: UploadFile = File(...),
         label: str = Form(default=""),
-        current_teacher: Student = Depends(get_current_instructor),
+        current_teacher: Student = Depends(get_lesson_editor),
         db: AsyncSession = Depends(get_db)
 ):
     """O'qituvchi darsga kod fayl yuklaydi — kodi o'qilib qaytariladi"""
@@ -218,7 +218,7 @@ async def upload_lesson_file_preview(
         lesson_id: int,
         file_id: int,
         image: UploadFile = File(...),
-        current_teacher: Student = Depends(get_current_instructor),
+        current_teacher: Student = Depends(get_lesson_editor),
         db: AsyncSession = Depends(get_db)
 ):
     """Teacher uploads a preview screenshot for a lesson file."""
@@ -260,7 +260,7 @@ async def upload_lesson_file_preview(
 async def delete_lesson_file_preview(
         lesson_id: int,
         file_id: int,
-        current_teacher: Student = Depends(get_current_instructor),
+        current_teacher: Student = Depends(get_lesson_editor),
         db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
@@ -286,7 +286,7 @@ async def update_lesson_file(
         file_id: int,
         label: str = Body(default=None, embed=True),
         code_content: str = Body(default=None, embed=True),
-        current_teacher: Student = Depends(get_current_instructor),
+        current_teacher: Student = Depends(get_lesson_editor),
         db: AsyncSession = Depends(get_db)
 ):
     """Fayl label yoki kodni yangilash"""
@@ -326,7 +326,7 @@ async def update_lesson_file(
 async def delete_lesson_file(
         lesson_id: int,
         file_id: int,
-        current_teacher: Student = Depends(get_current_instructor),
+        current_teacher: Student = Depends(get_lesson_editor),
         db: AsyncSession = Depends(get_db)
 ):
     """Faylni o'chirish"""
