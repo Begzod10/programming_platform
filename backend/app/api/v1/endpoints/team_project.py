@@ -45,6 +45,8 @@ from app.models.project import Project
 from app.utils.datetime_utils import utcnow
 from app.ws.manager import team_ws_manager, team_project_ws_manager
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(redirect_slashes=False)
 
 # Per-team lock for /teams/{id}/regenerate — see the comment at its call
@@ -472,9 +474,19 @@ async def my_team_projects(
         team, membership = _find_team_and_membership(tp, student.id)
         if team is None:
             continue
+        my_team = _team_read(team)
+        if team.status == TeamStatus.submitted and team.final_project_id:
+            final = (await db.execute(
+                select(Project.status, Project.reviewed_at, Project.instructor_feedback)
+                .where(Project.id == team.final_project_id)
+            )).one_or_none()
+            if final is not None and final.status == "Rejected" and final.reviewed_at is None:
+                # Same condition finalize_team accepts a second finalize on.
+                my_team.can_refinalize = True
+                my_team.final_feedback = final.instructor_feedback
         out.append(MyTeamProjectRead(
             team_project=_team_project_read_for_student(tp, team.id),
-            my_team=_team_read(team),
+            my_team=my_team,
             my_role=membership.role.value,
         ))
     return out
@@ -1187,6 +1199,83 @@ async def reassign_task(
     return _task_read(task)
 
 
+# ── Points settlement (finalize, peer ratings, scheduler sweep) ─────────────
+async def _refresh_team_project_status(db: AsyncSession, team_project_id: int) -> None:
+    """A team can reach "reviewed" from finalize or later from the sweep, so
+    the project-level status is recomputed from its teams in both places."""
+    tp = await _fetch_team_project(db, team_project_id)
+    if tp.teams and all(t.status in (TeamStatus.submitted, TeamStatus.reviewed) for t in tp.teams):
+        new_status = (
+            TeamProjectStatus.reviewed
+            if all(t.status == TeamStatus.reviewed for t in tp.teams)
+            else TeamProjectStatus.submitted
+        )
+        if tp.status != new_status:
+            tp.status = new_status
+            await db.commit()
+
+
+async def settle_team_points(db: AsyncSession, team: TeamProjectTeam) -> bool:
+    """Pays a finalized team once its final Project has been reviewed. Safe
+    to call any number of times: every award is idempotent.
+
+    - First call after the review: piece points + lead bonus, team -> reviewed,
+      achievements, parent-bot notice.
+    - Team bonus (it carries the peer-rating modifier): only once every member
+      has rated every teammate, or TEAM_BONUS_RATING_GRACE after finalize.
+      Ratings open only after finalize, so paying it straight away always saw
+      zero ratings and the low-rating penalty never applied.
+
+    Returns True when anything changed (new points or the status flip)."""
+    from app.services.achievement_service import check_and_award_achievements
+    from app.services.team_project_points_service import (
+        TEAM_BONUS_RATING_GRACE, award_points, peer_ratings_complete,
+    )
+
+    if team.status not in (TeamStatus.submitted, TeamStatus.reviewed) or not team.final_project_id:
+        return False
+    project = (await db.execute(
+        select(Project).where(Project.id == team.final_project_id)
+    )).scalar_one_or_none()
+    if project is None or project.reviewed_at is None:
+        return False
+
+    # Queried directly: team.members isn't eager-loaded by every caller and a
+    # lazy load raises MissingGreenlet under async SQLAlchemy.
+    member_ids = list((await db.execute(
+        select(TeamProjectMember.student_id).where(TeamProjectMember.team_id == team.id)
+    )).scalars().all())
+    submitted_at = team.submitted_at
+    if submitted_at is not None and submitted_at.tzinfo is None:
+        submitted_at = submitted_at.replace(tzinfo=timezone.utc)
+    grace_over = submitted_at is None or utcnow() - submitted_at >= TEAM_BONUS_RATING_GRACE
+    include_bonus = grace_over or await peer_ratings_complete(db, team.id, member_ids)
+
+    first_time = team.status != TeamStatus.reviewed
+    result = await award_points(db, team, include_team_bonus=include_bonus)
+    bonus_paid = any(k.startswith("team_bonus:") for k in result["awarded"])
+
+    if first_time:
+        team.status = TeamStatus.reviewed
+        db.add(TeamProjectEvent(
+            team_project_id=team.team_project_id, team_id=team.id,
+            event_type="points_awarded",
+            payload_json=json.dumps({"grade": project.grade}),
+        ))
+        await db.commit()
+
+    # Achievements (team_project_count / team_lead_count / team_bonus_count)
+    # are otherwise only evaluated from student-facing GET endpoints, so a
+    # student who never reloads that page would never get them.
+    if first_time or bonus_paid:
+        for member_id in member_ids:
+            await check_and_award_achievements(db, member_id)
+    if first_time:
+        for member_id in member_ids:
+            spawn_background_task(_notify_parent_bot_team_project(member_id, team.id))
+    return first_time or bool(result["awarded"])
+
+
 # ── Student (lead): finalize ─────────────────────────────────────────────────
 @router.post("/teams/{team_id}/finalize", response_model=TeamRead)
 async def finalize_team(
@@ -1207,32 +1296,59 @@ async def finalize_team(
     # Without this, calling finalize twice (double-click, retry after a slow
     # response) creates a second Project row and silently overwrites
     # final_project_id — found while reviewing this endpoint, not reported.
-    if team.status in (TeamStatus.submitted, TeamStatus.reviewed):
+    # One exception: the final Project came back Rejected WITHOUT a review
+    # (private/empty repo, unreadable link — project_service.submit_project's
+    # 400 path). Nothing would ever grade it, so the lead may finalize again
+    # with a fixed link; the same Project row is reused, never a second one.
+    existing_final = None
+    if team.final_project_id:
+        existing_final = (await db.execute(
+            select(Project).where(Project.id == team.final_project_id)
+        )).scalar_one_or_none()
+    can_retry = (
+        team.status == TeamStatus.submitted and existing_final is not None
+        and existing_final.reviewed_at is None and existing_final.status == "Rejected"
+    )
+    if team.status in (TeamStatus.submitted, TeamStatus.reviewed) and not can_retry:
         raise HTTPException(status_code=409, detail="Jamoa allaqachon yakunlangan")
     if not team.tasks or any(t.status != TaskStatus.approved for t in team.tasks):
         raise HTTPException(status_code=400, detail="Barcha vazifalar tasdiqlanmagan")
     # The final Project goes through the AI review, which rejects a project with
-    # no repository outright — and a team that is already `submitted` cannot
-    # finalize again, so a missing link here would lock the team out of its
-    # points for good. Refuse BEFORE anything is created.
+    # no repository outright. Refuse BEFORE anything is created.
     github_url = (body.github_url or "").strip()
     if not github_url.lower().startswith(("http://", "https://")):
         raise HTTPException(
             status_code=400,
             detail="Yakuniy loyiha uchun GitHub havolasini kiriting (https://github.com/...)",
         )
+    # Same check task submit does: a private or missing repo can never pass
+    # the review, so say so now instead of parking the team without points.
+    if await github_repo_is_missing(github_url):
+        raise HTTPException(
+            status_code=400,
+            detail="GitHub repozitoriy topilmadi yoki yopiq (private). Uni public qiling va qayta urinib ko'ring.",
+        )
 
     stack = TECH_STACKS_BY_KEY.get(team.tech_stack)
     technologies = [stack["frontend"], stack["backend"]] if stack else []
 
     project_service = ProjectService(db)
-    project = await project_service.create_project(student.id, ProjectCreate(
-        title=team.project_title or "Jamoaviy loyiha",
-        description=body.description or team.project_description or "Jamoaviy loyiha yakuniy topshirig'i",
-        github_url=github_url,
-        live_demo_url=body.live_demo_url,
-        technologies_used=technologies,
-    ))
+    if can_retry:
+        project = existing_final
+        project.github_url = github_url
+        project.live_demo_url = body.live_demo_url
+        if body.description:
+            project.description = body.description
+        project.instructor_feedback = None
+        await db.commit()
+    else:
+        project = await project_service.create_project(student.id, ProjectCreate(
+            title=team.project_title or "Jamoaviy loyiha",
+            description=body.description or team.project_description or "Jamoaviy loyiha yakuniy topshirig'i",
+            github_url=github_url,
+            live_demo_url=body.live_demo_url,
+            technologies_used=technologies,
+        ))
     await project_service.submit_project(project.id, student.id)
 
     team.final_project_id = project.id
@@ -1245,59 +1361,17 @@ async def finalize_team(
     ))
     await db.commit()
 
-    # submit_project() runs the AI review SYNCHRONOUSLY — project.reviewed_at
-    # is already set here if it succeeded (same session, same identity-mapped
-    # object). Award points + mark the team reviewed now rather than via a
-    # separate callback; if the AI was unavailable, the team just stays
-    # "submitted" until someone re-triggers review through the normal
-    # project flow — award_points only ever runs once reviewed_at is real.
-    # This assumption is flagged from the other side too, in
-    # project_service.py::submit_project — check there before touching how
-    # that call is invoked.
-    await db.refresh(project)
-    if project.reviewed_at is not None:
-        from app.services.team_project_points_service import award_points
-        await award_points(db, team)
-        team.status = TeamStatus.reviewed
-        db.add(TeamProjectEvent(
-            team_project_id=team.team_project_id, team_id=team.id,
-            event_type="points_awarded",
-            payload_json=json.dumps({"grade": project.grade}),
-        ))
-        await db.commit()
-
-        # Phase 7 wiring: team-project achievements (see
-        # achievement_service.py's team_project_count/team_lead_count/
-        # team_bonus_count criteria) are only ever evaluated from student-
-        # facing GET endpoints (/achievements/my, /my-progress) — nothing
-        # else in this codebase calls check_and_award_achievements. Without
-        # this, a student who never happens to load the achievements page
-        # again would simply never receive a team-project achievement, no
-        # matter how long they wait. `team.members` isn't eager-loaded on
-        # this endpoint's query (only .tasks/.team_project are), so this
-        # queries student ids directly rather than touching the lazy
-        # relationship (would raise MissingGreenlet under async SQLAlchemy
-        # — the exact bug class fixed elsewhere in this feature already).
-        from app.services.achievement_service import check_and_award_achievements
-        member_ids = (await db.execute(
-            select(TeamProjectMember.student_id).where(TeamProjectMember.team_id == team.id)
-        )).scalars().all()
-        for member_id in member_ids:
-            await check_and_award_achievements(db, member_id)
-            spawn_background_task(_notify_parent_bot_team_project(member_id, team.id))
+    # submit_project() runs the AI review SYNCHRONOUSLY, so project.reviewed_at
+    # is usually set by now (grep "runs the AI review SYNCHRONOUSLY" in
+    # project_service.py before changing that). If the AI was unavailable the
+    # team stays "submitted"; job_settle_team_projects in scheduler.py pays it
+    # once the review lands (stuck-review sweep, a student retry or a teacher
+    # grading by hand). The team bonus waits for peer ratings — see
+    # settle_team_points.
+    await settle_team_points(db, team)
+    await _refresh_team_project_status(db, team.team_project_id)
 
     tp = await _fetch_team_project(db, team.team_project_id)
-    # A team can now reach "reviewed" directly (synchronous AI review,
-    # above), not just "submitted" — the original check only matched the
-    # latter, so a team project where every team finished instantly would
-    # never have advanced tp.status past "active" at all.
-    if all(t.status in (TeamStatus.submitted, TeamStatus.reviewed) for t in tp.teams):
-        tp.status = (
-            TeamProjectStatus.reviewed
-            if all(t.status == TeamStatus.reviewed for t in tp.teams)
-            else TeamProjectStatus.submitted
-        )
-        await db.commit()
 
     team_out = next(t for t in tp.teams if t.id == team_id)
     await broadcast_team(db, team_id)
@@ -1365,6 +1439,15 @@ async def submit_peer_ratings(
         payload_json=json.dumps({"count": len(body)}),
     ))
     await db.commit()
+
+    # The team bonus waits for these ratings (see settle_team_points). Pay it
+    # now if this was the last one missing; a failure here must never undo
+    # the saved ratings — job_settle_team_projects retries every 15 minutes.
+    try:
+        await settle_team_points(db, team)
+    except Exception:
+        logger.exception("[team-points] settle after peer ratings failed team=%d", team_id)
+        await db.rollback()
 
 
 # ── Student: view MY OWN previously-submitted peer ratings for a team ──────

@@ -28,6 +28,7 @@ concurrent Postgres connections — same caveat as the earlier Points TOCTOU
 fix in ranking_service.py.
 """
 import logging
+from datetime import timedelta
 from typing import Optional
 
 from sqlalchemy import select
@@ -50,6 +51,9 @@ _GRADE_ORDER = {"A": 0, "B": 1, "C": 2, "D": 3, "F": 4}
 _MIN_PIECE_POINTS = 10
 _PEER_RATING_THRESHOLD = 2.5
 _MIN_PEER_RATINGS_FOR_MODIFIER = 2
+# How long the team bonus waits for peer ratings after finalize before it is
+# paid on whatever ratings exist (see award_points' include_team_bonus).
+TEAM_BONUS_RATING_GRACE = timedelta(hours=48)
 
 
 async def _award_once(
@@ -121,11 +125,32 @@ async def _peer_modifier(db: AsyncSession, team_id: int, student_id: int, team_s
     return 0.5 if avg < _PEER_RATING_THRESHOLD else 1.0
 
 
-async def award_points(db: AsyncSession, team: TeamProjectTeam) -> dict:
-    """Awards per-piece points, the team bonus (if earned), and the lead
-    bonus — all idempotent, safe to call more than once for the same team
-    (only the first call for each (student, award-kind) pair actually
-    pays out). Returns a summary dict for the caller to log/inspect."""
+async def peer_ratings_complete(db: AsyncSession, team_id: int, member_ids: list[int]) -> bool:
+    """True once every member has rated every teammate (n * (n - 1)
+    distinct rater/rated pairs). A one-person team has nothing to wait for."""
+    if len(member_ids) < 2:
+        return True
+    pairs = (await db.execute(
+        select(TeamProjectPeerRating.rater_student_id, TeamProjectPeerRating.rated_student_id)
+        .where(TeamProjectPeerRating.team_id == team_id)
+    )).all()
+    members = set(member_ids)
+    valid = {(a, b) for a, b in pairs if a in members and b in members and a != b}
+    return len(valid) >= len(members) * (len(members) - 1)
+
+
+async def award_points(db: AsyncSession, team: TeamProjectTeam, *, include_team_bonus: bool = True) -> dict:
+    """Awards per-piece points, the lead bonus and (when include_team_bonus)
+    the team bonus — all idempotent, safe to call more than once for the
+    same team (only the first call for each (student, award-kind) pair
+    actually pays out). Returns a summary dict for the caller to log/inspect.
+
+    include_team_bonus=False is what finalize uses: the team bonus carries
+    the peer-rating modifier, and ratings only open once the team has
+    finalized, so paying it in the same request always saw zero ratings and
+    the penalty never applied. The bonus is paid later by
+    team_project.py::settle_team_points, once every member has rated or
+    TEAM_BONUS_RATING_GRACE has passed."""
     tasks = (await db.execute(
         select(TeamProjectTask).where(TeamProjectTask.team_id == team.id)
     )).scalars().all()
@@ -156,7 +181,23 @@ async def award_points(db: AsyncSession, team: TeamProjectTeam) -> dict:
         and _GRADE_ORDER.get(final_project.grade, 99) <= _GRADE_ORDER["B"]
     )
 
-    if team_bonus_earned:
+    if team_bonus_earned and team.lead_student_id:
+        applied = await _award_once(
+            db, student_id=team.lead_student_id, amount=settings.TEAM_PROJECT_LEAD_BONUS,
+            ref_type="team_project_team", ref_id=team.id,
+            # Scoped by team_id, not just team_project_id — a project
+            # with multiple teams has multiple leads, each needing
+            # their own key. The spec's literal
+            # "...:lead_bonus" (no team_id) would collide across
+            # teams in the same project; fixed here, flagging the
+            # deviation.
+            idempotency_key=f"teamproj:{team.team_project_id}:team:{team.id}:lead_bonus",
+            note="Team project lead/integrator bonus",
+        )
+        if applied:
+            awarded["lead_bonus"] = settings.TEAM_PROJECT_LEAD_BONUS
+
+    if team_bonus_earned and include_team_bonus:
         from app.models.team_project import TeamProjectMember
         members = (await db.execute(
             select(TeamProjectMember).where(TeamProjectMember.team_id == team.id)
@@ -172,22 +213,6 @@ async def award_points(db: AsyncSession, team: TeamProjectTeam) -> dict:
             )
             if applied:
                 awarded[f"team_bonus:{member.student_id}"] = bonus
-
-        if team.lead_student_id:
-            applied = await _award_once(
-                db, student_id=team.lead_student_id, amount=settings.TEAM_PROJECT_LEAD_BONUS,
-                ref_type="team_project_team", ref_id=team.id,
-                # Scoped by team_id, not just team_project_id — a project
-                # with multiple teams has multiple leads, each needing
-                # their own key. The spec's literal
-                # "...:lead_bonus" (no team_id) would collide across
-                # teams in the same project; fixed here, flagging the
-                # deviation.
-                idempotency_key=f"teamproj:{team.team_project_id}:team:{team.id}:lead_bonus",
-                note="Team project lead/integrator bonus",
-            )
-            if applied:
-                awarded["lead_bonus"] = settings.TEAM_PROJECT_LEAD_BONUS
 
     await db.commit()
     return {"team_bonus_earned": team_bonus_earned, "awarded": awarded}
