@@ -548,7 +548,15 @@ const StudentTeamProject = () => {
                 ))}
             </div>
 
-            {role === 'lead' && team.status !== 'submitted' && team.status !== 'reviewed' && (
+            {team.can_refinalize && (
+                <p className="stp-muted">
+                    {ru ? 'Финальный проект не прошёл проверку: ' : "Yakuniy loyiha tekshiruvdan o'tmadi: "}
+                    {team.final_feedback || (ru ? 'репозиторий недоступен.' : 'repozitoriy ochilmadi.')}
+                    {role === 'lead' && (ru ? ' Исправьте и отправьте ещё раз.' : " Tuzatib, qayta topshiring.")}
+                </p>
+            )}
+
+            {role === 'lead' && ((team.status !== 'submitted' && team.status !== 'reviewed') || team.can_refinalize) && (
                 <div className="stp-finalize">
                     <div className="stp-submit-row" style={{ width: '100%' }}>
                         <label className="stp-field-label" htmlFor="stp-final-url"><Link2 size={13} /> {ru ? 'Ссылка на GitHub итогового проекта' : "Yakuniy loyiha GitHub havolasi"}</label>
@@ -570,7 +578,7 @@ const StudentTeamProject = () => {
                 </div>
             )}
 
-            {role === 'lead' && (team.status === 'submitted' || team.status === 'reviewed') && (
+            {role === 'lead' && !team.can_refinalize && (team.status === 'submitted' || team.status === 'reviewed') && (
                 <p className="stp-muted">{ru ? 'Проект уже отправлен как финальный.' : 'Loyiha allaqachon yakuniy topshirildi.'}</p>
             )}
 

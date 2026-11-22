@@ -130,6 +130,11 @@ class TeamRead(BaseModel):
     unmet_lessons: List[str] = []
     members: List[MemberRead] = []
     tasks: List[TaskRead] = []
+    # Set only on the student's own team in GET /my: the final Project was
+    # rejected without a review (private/empty repo), so the lead may
+    # finalize again; final_feedback says why.
+    can_refinalize: bool = False
+    final_feedback: Optional[str] = None
 
 
 class TeamProjectRead(BaseModel):

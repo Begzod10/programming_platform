@@ -237,6 +237,51 @@ async def job_retry_stuck_team_task_reviews():
                 logger.warning("[sweep-stuck-task-review] task=%d retry failed: %s", task.id, e)
 
 
+async def job_settle_team_projects():
+    """Pays finalized team projects whose points could not be settled in the
+    finalize request itself (team_project.py::settle_team_points):
+      - the final Project's AI review failed at finalize and landed later
+        (stuck-review sweep above, a student retry, a teacher grading by
+        hand), so the team still sits at "submitted" with nothing paid;
+      - the team bonus waits for peer ratings and is paid here once
+        TEAM_BONUS_RATING_GRACE has passed without all of them.
+    Every award is idempotent, so re-running over a settled team is a no-op;
+    "reviewed" teams are only looked at for a week after finalize."""
+    from app.api.v1.endpoints.team_project import (
+        _refresh_team_project_status, broadcast_team, settle_team_points,
+    )
+    from app.models.project import Project
+    from app.models.team_project import TeamProjectTeam, TeamStatus
+
+    recent = datetime.now(timezone.utc) - timedelta(days=7)
+    async with AsyncSessionLocal() as db:
+        teams = (await db.execute(
+            select(TeamProjectTeam)
+            .join(Project, Project.id == TeamProjectTeam.final_project_id)
+            .where(
+                Project.reviewed_at.is_not(None),
+                or_(
+                    TeamProjectTeam.status == TeamStatus.submitted,
+                    and_(TeamProjectTeam.status == TeamStatus.reviewed,
+                         TeamProjectTeam.submitted_at > recent),
+                ),
+            )
+        )).scalars().all()
+        for team in teams:
+            was_submitted = team.status == TeamStatus.submitted
+            try:
+                changed = await settle_team_points(db, team)
+                if was_submitted:
+                    await _refresh_team_project_status(db, team.team_project_id)
+                if changed:
+                    logger.info("[team-settle] team=%d points settled", team.id)
+                    await broadcast_team(db, team.id)
+            except Exception as e:
+                # One team's failure must not stop the rest of the sweep.
+                await db.rollback()
+                logger.warning("[team-settle] team=%d failed: %s", team.id, e)
+
+
 # ============================================================
 # SCHEDULER ISHGA TUSHIRISH
 # ============================================================
@@ -452,6 +497,17 @@ def start_scheduler():
         trigger=IntervalTrigger(minutes=15),
         id="retry_stuck_team_task_reviews",
         replace_existing=True,
+    )
+
+    # Team projects: points that finalize could not settle (late AI review,
+    # team bonus waiting for peer ratings) — see job_settle_team_projects.
+    scheduler.add_job(
+        job_settle_team_projects,
+        trigger=IntervalTrigger(minutes=15),
+        id="settle_team_projects",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
 
     scheduler.start()

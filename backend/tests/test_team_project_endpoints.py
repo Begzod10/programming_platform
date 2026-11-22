@@ -429,19 +429,24 @@ async def test_finalize_twice_returns_409_not_a_duplicate_project(
         select(Project).where(Project.student_id == lead_id)
     )
 
-    first = await async_client.post(
-        f"{BASE}/teams/{team_a.id}/finalize",
-        json={"github_url": "https://github.com/acme/repo1"},
-        headers=lead_headers,
-    )
-    assert first.status_code == 200, first.text
-    assert len((await count_for_lead()).scalars().all()) == 1
+    # AI temporarily down: the final Project stays "Submitted" (a review-less
+    # *rejection* may be finalized again — see test_team_project_settle.py).
+    from unittest.mock import AsyncMock, patch
+    ai_down = AsyncMock(return_value={"success": False, "http_status": 503, "reason": "AI o'chiq"})
+    with patch("app.services.ai_review_service.run_ai_review_for_project", new=ai_down):
+        first = await async_client.post(
+            f"{BASE}/teams/{team_a.id}/finalize",
+            json={"github_url": "https://github.com/acme/repo1"},
+            headers=lead_headers,
+        )
+        assert first.status_code == 200, first.text
+        assert len((await count_for_lead()).scalars().all()) == 1
 
-    second = await async_client.post(
-        f"{BASE}/teams/{team_a.id}/finalize",
-        json={"github_url": "https://github.com/acme/repo2"},
-        headers=lead_headers,
-    )
+        second = await async_client.post(
+            f"{BASE}/teams/{team_a.id}/finalize",
+            json={"github_url": "https://github.com/acme/repo2"},
+            headers=lead_headers,
+        )
     assert second.status_code == 409
 
     assert len((await count_for_lead()).scalars().all()) == 1, (

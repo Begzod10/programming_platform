@@ -232,6 +232,37 @@ describe('StudentTeamProject — finalize needs the repo link', () => {
   });
 });
 
+describe('StudentTeamProject — final project rejected without a review', () => {
+  const rejected = (role) => ({
+    ...baseEntry({
+      status: 'submitted',
+      tasks: [baseTask({ status: 'approved' })],
+      can_refinalize: true,
+      final_feedback: "Repozitoriy bo'sh",
+    }),
+    my_role: role,
+  });
+
+  test('the lead sees why and gets the final-submit form back', async () => {
+    mockRequest.mockResolvedValue([]);
+    mockRequest.mockResolvedValueOnce([rejected('lead')]);
+    render(<StudentTeamProject />);
+
+    expect(await screen.findByText(/Repozitoriy bo'sh/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Yakuniy loyihani topshirish/ })).toBeInTheDocument();
+    expect(screen.queryByText(/allaqachon yakuniy topshirildi/)).not.toBeInTheDocument();
+  });
+
+  test('a regular member sees the reason but no form', async () => {
+    mockRequest.mockResolvedValue([]);
+    mockRequest.mockResolvedValueOnce([rejected('member')]);
+    render(<StudentTeamProject />);
+
+    expect(await screen.findByText(/Repozitoriy bo'sh/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Yakuniy loyihani topshirish/ })).not.toBeInTheDocument();
+  });
+});
+
 describe('StudentTeamProject — the handed-in code of the team', () => {
   const twoMembers = [
     baseMember({ student_id: 1, full_name: 'Aziz Aliyev' }),
